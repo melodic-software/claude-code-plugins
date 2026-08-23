@@ -1,9 +1,9 @@
-# bug-report — consumer configuration
+# bugs — consumer configuration
 
-The single home for the `bug-report` plugin's config-key contract. The surface is
-`.claude/bug-report.md`, layered per the marketplace's config-cascade convention. It is read by
-`/bug-report:scan` — lane selection and rotation, plus filing posture — and verified/written by
-`/bug-report:setup`. All layers are optional: **zero config is a fully working state**, because
+The single home for the `bugs` plugin's config-key contract. The surface is
+`.claude/bugs.md`, layered per the marketplace's config-cascade convention. It is read by
+`/bugs:scan` — lane selection and rotation, plus filing posture — and verified/written by
+`/bugs:setup`. All layers are optional: **zero config is a fully working state**, because
 rotation falls through to the bundled generic default lanes.
 
 ## Layers and resolution order
@@ -12,9 +12,9 @@ Three layers, resolved in this order — a later layer refines an earlier one:
 
 | Order | Layer | Path | Version control |
 |---|---|---|---|
-| 1 | user-global | `~/.claude/bug-report.md` | outside the worktree — no git verdict applies |
-| 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/bug-report.md` | must be tracked — it is the only layer teammates receive |
-| 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/bug-report.local.md` | must be gitignored, never staged |
+| 1 | user-global | `~/.claude/bugs.md` | outside the worktree — no git verdict applies |
+| 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/bugs.md` | must be tracked — it is the only layer teammates receive |
+| 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md` | must be gitignored, never staged |
 
 Resolution anchors at the repo root — `${CLAUDE_PROJECT_DIR}` when set, otherwise
 `git rev-parse --show-toplevel` — never at the CWD. Every layer that exists is read and merged;
@@ -52,7 +52,7 @@ Markdown with a fenced YAML block (human-readable, shell-greppable). Prose outsi
 consumer's own commentary and is not parsed.
 
 ````markdown
-# bug-report config
+# bugs config
 
 ```yaml
 lanes:
@@ -71,7 +71,7 @@ filing_posture: manual-only
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `lanes` | list of lane entries (sub-keys below) | bundled generic default lanes | The rotation set `/bug-report:scan` walks on a bare invocation, in declaration order. Concatenating merge with an empty-list opt-out (above). |
+| `lanes` | list of lane entries (sub-keys below) | bundled generic default lanes | The rotation set `/bugs:scan` walks on a bare invocation, in declaration order. Concatenating merge with an empty-list opt-out (above). |
 | `filing_posture` | `manual-only` \| `allowed` | `manual-only` | Team policy for the explicit filing argument. `manual-only` means `--track` files nothing and prints why — a standing autonomous lane must not file into this tracker. `allowed` permits `--track` to file. Neither value ever makes a bare invocation file: filing always needs the explicit argument as well. Nearest-wins scalar merge. |
 
 ### `lanes[]` sub-keys
@@ -92,4 +92,4 @@ One recursive line covers the overlay here and every other cascade surface:
 .claude/**/*.local.*
 ```
 
-`/bug-report:setup` recommends this line; no plugin writes the consumer's `.gitignore`.
+`/bugs:setup` recommends this line; no plugin writes the consumer's `.gitignore`.

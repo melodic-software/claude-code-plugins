@@ -145,9 +145,9 @@ now-obsolete workaround. Skip silently when no such doc exists.
 When stress-testing a plan that builds on a Claude Code mechanism, run `search` for that
 mechanism first — known bugs reshape plans cheaply before implementation.
 
-### With `/bug-report:write` (if installed)
+### With `/bugs:write` (if installed)
 
-For bugs in YOUR code (not Claude Code itself), use the `bug-report` plugin's skill instead;
+For bugs in YOUR code (not Claude Code itself), use the `bugs` plugin's skill instead;
 without it, write up the defect manually. This skill covers Claude product issues only.
 
 ## What This Skill Does NOT Do

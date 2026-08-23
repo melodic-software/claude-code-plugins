@@ -1,6 +1,6 @@
-# The verification gate — the precision stage of `/bug-report:scan`
+# The verification gate — the precision stage of `/bugs:scan`
 
-Loaded on demand by `/bug-report:scan` Step 3. This is the prompt contract for the gate: **one
+Loaded on demand by `/bugs:scan` Step 3. This is the prompt contract for the gate: **one
 separate fresh-context subagent per candidate**, dispatched by the scan skill, never the hunter that
 produced the candidate.
 

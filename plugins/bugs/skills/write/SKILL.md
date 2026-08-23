@@ -20,7 +20,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-`/bug-report` produces a five-field structured report so the next session (or a human) can act without re-asking on vague repro, missing severity, no fix location, or hand-wavy expected/actual. **Read-only** — it captures, it does not fix, and it does not file (unless you explicitly ask).
+`/bugs` produces a five-field structured report so the next session (or a human) can act without re-asking on vague repro, missing severity, no fix location, or hand-wavy expected/actual. **Read-only** — it captures, it does not fix, and it does not file (unless you explicitly ask).
 
 This is the **bug-intake** stage. It sits upstream of filing the report into a work-item tracker, and it is independent of any downstream fix workflow — when the report itself is the deliverable (a Slack message, a PR comment, a verbal handoff), that is all this skill needs to do.
 
@@ -46,7 +46,7 @@ Invoke when ANY hold:
 
 If it is ambiguous, surface the question once and let the user pick.
 
-## The bug-report process
+## The bugs process
 
 ### Step 1 — Skip-condition check (MANDATORY)
 

@@ -1,5 +1,5 @@
 ---
-description: "Proactively hunt unobserved bugs in resting code: a read-only two-stage scan — recall-biased per-lens hunter subagents, then a separate fresh-context default-refute gate — over a target path/feature/diff or a rotated lane, emitting only verified 5-field findings. Use when: 'find a bug', 'bug hunt', 'scan for bugs', 'hunt for bugs in <X>'. Skip when: reviewing a diff (`review:code-review`); security auditing (`review:security-review`); root-causing an observed failure (`debugging:debug`); doc/config/code/arch claim drift, all dimensions (`codebase-health:audit`); structural tidying (`code-tidying:tidy`); comment markers (`work-items:scan-todos`); coverage gaps (`testing:audit`, `mutation-testing:audit`). Disambiguation: 'scan repo for issues' is the upstream known-issue registry (`claude-ops:known-issues`); 'file a bug' you already observed is `bug-report:write`. Bare invocation neither edits nor files; `--track` files verified findings as raw intake (subject to the team's `filing_posture`)."
+description: "Proactively hunt unobserved bugs in resting code: a read-only two-stage scan — recall-biased per-lens hunter subagents, then a separate fresh-context default-refute gate — over a target path/feature/diff or a rotated lane, emitting only verified 5-field findings. Use when: 'find a bug', 'bug hunt', 'scan for bugs', 'hunt for bugs in <X>'. Skip when: reviewing a diff (`review:code-review`); security auditing (`review:security-review`); root-causing an observed failure (`debugging:debug`); doc/config/code/arch claim drift, all dimensions (`codebase-health:audit`); structural tidying (`code-tidying:tidy`); comment markers (`work-items:scan-todos`); coverage gaps (`testing:audit`, `mutation-testing:audit`). Disambiguation: 'scan repo for issues' is the upstream known-issue registry (`claude-ops:known-issues`); 'file a bug' you already observed is `bugs:write`. Bare invocation neither edits nor files; `--track` files verified findings as raw intake (subject to the team's `filing_posture`)."
 argument-hint: "[<path|feature|diff>] [--lane <name>] [--track] [--dry-run]"
 user-invocable: true
 disable-model-invocation: false
@@ -15,7 +15,7 @@ metadata:
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Recent commits: !`git log --oneline -10 2>/dev/null || echo "no history (shallow or fresh clone)"`
 Shallow clone: !`git rev-parse --is-shallow-repository 2>/dev/null || echo "unknown"`
-Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/.claude/bug-report.md" 2>/dev/null || echo "absent — bundled default lanes apply"`
+Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/.claude/bugs.md" 2>/dev/null || echo "absent — bundled default lanes apply"`
 
 ## Variables
 
@@ -23,7 +23,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-`/bug-report:scan` is the front of the bug lifecycle: it hunts defects **nobody has observed yet**, in
+`/bugs:scan` is the front of the bug lifecycle: it hunts defects **nobody has observed yet**, in
 code that is resting. Every other finding-producer in reach needs an oracle first — a diff, a failing
 test, a stack trace, a factual claim, a comment marker. This one needs none of them.
 
@@ -62,7 +62,7 @@ cursor from rungs 1–3 without it, and never treats a cache note as authority.
 | `--track` | **Filing** | After reporting, file verified findings as raw intake (see below), subject to the team's `filing_posture`. Composable with any mode. |
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
 
-Lane definitions (`lanes`, `filing_posture`) resolve from `.claude/bug-report.md` per the cascade
+Lane definitions (`lanes`, `filing_posture`) resolve from `.claude/bugs.md` per the cascade
 contract — keys, layers, and merge semantics live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md), which is their single home.
 When no layer declares lanes, use the bundled generic default lanes in
@@ -73,17 +73,17 @@ When no layer declares lanes, use the bundled generic default lanes in
 Which lane comes next is derived **statelessly**, first rung that answers wins:
 
 1. **Tracker history.** When the `work-items` plugin is installed and a tracker binding resolves,
-   search items (`--state all`) for the provenance line `Filed by /bug-report:scan (lane: <name>)`.
+   search items (`--state all`) for the provenance line `Filed by /bugs:scan (lane: <name>)`.
    The most recently filed lane is the previous lane; take the next one in declaration order. Confirm
    the search actually ran against a bound tracker before trusting an empty result — an unbound
    tracker returns nothing, which is not the same answer as "no prior scan filings".
 2. **Persisted-report cursor.** Otherwise resolve the report directory by the **same precedence
-   persistence uses** — Step 4 below defers to `/bug-report:write`'s Step 4, and so does this rung;
+   persistence uses** — Step 4 below defers to `/bugs:write`'s Step 4, and so does this rung;
    reading a directory reports no longer land in is how a configured `output_dir` silently strands the
    cursor. Then search **backward from the newest report** for the newest one carrying a *valid*
    rotation cursor block — one that names the rotation lane (see
    [`context/findings-report.md`](context/findings-report.md)) — and use it the same way. Reports
-   without such a block are skipped, not read as a cursor: `/bug-report:write`'s reports share that
+   without such a block are skipped, not read as a cursor: `/bugs:write`'s reports share that
    directory and carry none, and a targeted scan's report must never advance rotation. If no report
    carries one, fall through to rung 3.
 3. **Date-derived floor.** Otherwise pick deterministically: index the declared lane list by
@@ -155,14 +155,14 @@ silently dropped.
 ### Step 4 — Assemble and dedupe the report
 
 Format per [`context/findings-report.md`](context/findings-report.md): the five fields per finding
-(from `/bug-report:write`'s shape), plus the evidence label and lens id, then the refuted tail and —
+(from `/bugs:write`'s shape), plus the evidence label and lens id, then the refuted tail and —
 on a rotation run — the cursor metadata block; a targeted run emits the no-cursor line in its place.
-Before persisting, run the same duplicate scan `/bug-report:write` performs
+Before persisting, run the same duplicate scan `/bugs:write` performs
 over the output directory — see Step 2 ("Survey before you write") in
 [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md) — and drop or merge findings that
 restate a prior report.
 
-Persist to the path `/bug-report:write --file` resolves (its Step 4 owns that precedence:
+Persist to the path `/bugs:write --file` resolves (its Step 4 owns that precedence:
 `output_dir`, then `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/`, then a project-local
 fallback). Do not reinvent either mechanism here. Under `--dry-run`, skip persistence entirely.
 
@@ -185,7 +185,7 @@ Then presence-gated on `work-items`. Follow the dogfood-filing beats by invoking
    linked from a fresh item.
 2. **Categorize as raw intake.** A scan filing records what was observed, not a verified diagnosis.
 3. **File** through `track add`, which owns the body template and the argv-safe write. The body
-   carries the five fields, and a provenance line — `Filed by /bug-report:scan (lane: <name>)` — which
+   carries the five fields, and a provenance line — `Filed by /bugs:scan (lane: <name>)` — which
    is what rung 1 of the cursor ladder later recognizes.
 4. **Mark `needs-triage` on the right axis, resolved from the live label set.** Priority axis: pass
    `--priority needs-triage` on the `track add` call, replacing the filing floor (never two
@@ -229,7 +229,7 @@ Recommend, do not auto-invoke:
   wrong kill, and it stops the same dead candidate resurfacing next run.
 - **`--dry-run` must not advance the cursor.** A dry run that persists a cursor silently skips a lane
   on the next real run.
-- **`--track` is not `--file`.** `--file` is `/bug-report:write`'s flag for persisting a report to
+- **`--track` is not `--file`.** `--file` is `/bugs:write`'s flag for persisting a report to
   disk; the same token here would mean tracker mutation. This skill uses `--track` for filing.
 - **Shallow clones degrade, they do not fail.** The git-hotspot lens skips with a printed notice when
   history is absent; the other four lenses are unaffected.
@@ -244,7 +244,7 @@ Recommend, do not auto-invoke:
   the retained-refuted output contract
 - [`context/findings-report.md`](context/findings-report.md) — report format, evidence labels, refuted
   tail, cursor metadata block
-- [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md) — `.claude/bug-report.md`
+- [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md) — `.claude/bugs.md`
   keys, layers, and merge semantics
 - [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md) — the five-field report shape, the
   duplicate scan, and the persistence path precedence this skill reuses

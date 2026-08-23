@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.19]
+
+### Changed
+
+- **`track`: cross-reference follows the `bug-report` → `bugs` plugin rename.** The description's
+  bug-intake pointer now names `/bugs:write`. Wording only — no behavior change.
+
 ## [0.39.18]
 
 ### Fixed

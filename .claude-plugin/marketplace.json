@@ -128,8 +128,8 @@
       "tags": ["guard", "security", "secrets", "hardcoded-paths", "git", "cli-flags", "hook"]
     },
     {
-      "name": "bug-report",
-      "source": "./plugins/bug-report",
+      "name": "bugs",
+      "source": "./plugins/bugs",
       "category": "maintenance",
       "tags": ["bug", "bug-report", "defect", "triage", "issue", "skill"]
     },
