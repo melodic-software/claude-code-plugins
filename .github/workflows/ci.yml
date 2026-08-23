@@ -1081,6 +1081,15 @@ jobs:
       - name: Run shared changed-file resolver tests
         if: steps.scope.outputs.docs_only != 'true'
         run: bash scripts/lib/changed-files.test.sh
+      # Same reason again — run-plugin-tests.sh never reaches scripts/. This
+      # suite covers scripts/lib/read-list.sh, the list-file reader the gates
+      # share. Its two comment modes are semantically different on purpose
+      # (#3161) and each is asserted against the other's answer, so a change
+      # that quietly collapses them turns this red rather than silently
+      # truncating a token pattern.
+      - name: Run shared list-file reader tests
+        if: steps.scope.outputs.docs_only != 'true'
+        run: bash scripts/lib/read-list.test.sh
       - name: Validate plugin and catalog manifests
         if: steps.scope.outputs.docs_only != 'true'
         run: scripts/validate-plugins.sh

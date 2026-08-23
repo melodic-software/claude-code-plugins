@@ -172,6 +172,8 @@ cd "$SCRIPT_DIR/.." || exit 2
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 # shellcheck source=lib/token-scan.sh
 . "$SCRIPT_DIR/lib/token-scan.sh" || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 # require_token_file carries the same awk operand disambiguation the scanned
 # file gets below, and for a worse reason: a token path shaped like
@@ -181,10 +183,31 @@ cd "$SCRIPT_DIR/.." || exit 2
 # silent fail-open in the gate itself, invisible to the scanner-fault check.
 # See #1513; shared with check-skill-portability.sh, which was missing it
 # entirely until #2914.
+TOKENS_SRC="${SHELL_PORTABILITY_TOKENS:-scripts/shell-portability-tokens.txt}"
 TOKENS="" # assigned through the nameref below; declared so shellcheck sees it
-if ! token_scan::require_token_file TOKENS "${SHELL_PORTABILITY_TOKENS:-scripts/shell-portability-tokens.txt}"; then
+if ! token_scan::require_token_file TOKENS "$TOKENS_SRC"; then
   exit 2
 fi
+
+# Active patterns are resolved HERE instead of inside the awk program, so the
+# comment/blank rule is the shared one (#3161) rather than a private copy — and
+# so this gate stops carrying TWO different rules, since its skill-md baseline
+# above already goes through the same library in `inline` mode. `leading` here:
+# an entry is an ERE (or a `!class` token) and may legitimately contain a `#`.
+#
+# `!class` lines count as active, so the empty-set guard below fires only when
+# the list yields nothing at all — matching the awk-side `np == 0 && ncls == 0`
+# check, which stays as defence in depth.
+token_patterns=()
+read_list::into token_patterns "$TOKENS_SRC" --comments leading || exit 2
+if ((${#token_patterns[@]} == 0)); then
+  printf 'Error: token list loaded no active patterns: %s\n' "$TOKENS_SRC" >&2
+  exit 2
+fi
+TOKENS_ACTIVE="$(mktemp)" || exit 2
+trap 'rm -f "$TOKENS_ACTIVE"' EXIT
+printf '%s\n' "${token_patterns[@]}" >"$TOKENS_ACTIVE"
+TOKENS="$(token_scan::awk_operand "$TOKENS_ACTIVE")"
 
 # Pre-existing skill-markdown debt (#2704): widening selection onto every
 # SKILL.md / context/*.md / reference/*.md that already carries a token hit
@@ -238,7 +261,12 @@ is_scannable() {
 # Active baseline entries: exact repo-relative paths, full-string equality.
 baseline_entries=()
 if [[ -f "$BASELINE" ]]; then
-  mapfile -t baseline_entries < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$BASELINE" | grep -v '^$' || true)
+  # `inline`: baseline entries are repo-relative paths, never regexes, so a `#`
+  # anywhere on the line is a comment. This gate's OTHER list — the token file —
+  # takes `leading` instead, because its entries are EREs that may contain a
+  # `#`. Those two modes are exactly the divergence #3161 collapsed into one
+  # library; this file is the one that carried both shapes.
+  read_list::into baseline_entries "$BASELINE" --comments inline || exit 2
 fi
 
 baselined() {
@@ -1533,11 +1561,12 @@ scan_file() {
     # shipped list, or in a caller override, silently disable a whole class
     # while the run still reported clean — the one outcome the contract of this
     # gate forbids everywhere else.
+    # Pass 1: load the token list. It arrives PRE-FILTERED — trimmed, no blanks,
+    # no comment lines — because scripts/lib/read-list.sh resolved it in the
+    # shell (#3161). Only the `!class` dispatch, which is scanner-specific rather
+    # than list-format, stays here.
     FNR == NR {
       line = $0
-      sub(/^[[:space:]]+/, "", line)
-      sub(/[[:space:]]+$/, "", line)
-      if (line == "" || line ~ /^#/) next
       if (substr(line, 1, 1) == "!") {
         if (line == AMPTOK) { CLS_AMP = 1; ncls++; next }
         printf "Error: unknown script-implemented class in token list: %s\n", line > "/dev/stderr"

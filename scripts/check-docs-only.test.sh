@@ -17,7 +17,7 @@ SCRIPT="$SELF_DIR/check-docs-only.sh"
 # failure. See #2914.
 stage_libs() {
   mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$1/lib/"
+  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
 }
 ALLOWLIST="$SELF_DIR/docs-only-paths.txt"
 # shellcheck source=test-git-helpers.sh
