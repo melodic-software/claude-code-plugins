@@ -76,6 +76,35 @@
 # and did not is the incident this gate exists to stop. Fixture detection is
 # therefore generous.
 #
+# HEREDOC BODIES ARE DATA, AND THE ASYMMETRY IS THE POINT. A heredoc body is text
+# the shell hands to a command; those lines never execute in the enclosing suite.
+# So a token inside one cannot be evidence that this suite did anything. This
+# corpus writes fixture suites through heredocs — this gate's own self-test writes
+# suites containing `unset GIT_DIR …` and even a `fixture-isolation-scope:`
+# declaration line as TEST DATA — so reading a heredoc body as executed code lets
+# the gate hand out isolation credit that is not in effect.
+#
+# The two directions are therefore treated differently, and deliberately so:
+#
+#   CREDIT  (CLEARS, SCOPE, SOURCE) — SKIPPED inside a heredoc body. Every one of
+#           the three EXCUSES a suite, and crediting a suite for data it merely
+#           printed is exactly the under-selection this gate calls unsafe. SOURCE
+#           counts here because sourcing an isolating harness grants credit just
+#           as directly as clearing; and because CLEARS registers a file's
+#           BASENAME as an isolating harness, a heredoc-only clear used to make
+#           the enclosing file excuse every OTHER file that sources it.
+#   FIXTURE — still READ inside a heredoc body. Conscripting a suite into scope
+#           over text it only wrote costs that suite one `unset` line, which is
+#           the safe direction. A file that prints fixture-building commands is
+#           usually a file that also runs them.
+#
+# Extent is tracked, not merely `<<` presence: every delimiter a code line opens
+# is queued (bash allows several per line), `<<-` tab-stripping and quoted or
+# backslash-escaped delimiters are honoured, `<<<` here-strings are not heredocs,
+# and a terminator must match the delimiter EXACTLY. Matching loosely would end a
+# body early and restore credit inside it — under-selection again — so where the
+# two directions conflict the extent runs long.
+#
 # DECLARED SCOPE. A suite whose SUBJECT is this very mechanism cannot clear the
 # environment — it has to export GIT_DIR to prove the harness survives it. Such
 # a file opts out with a dedicated comment line whose content, after the `#` and
@@ -156,9 +185,86 @@ scan() {
       # `for … in (…)` header together with an unrelated pop and re-create the
       # tie-less misclassification the tie below exists to prevent.
       MAXJOIN = 40
+      # A heredoc redirection: `<<WORD`, `<<-WORD`, and the quoted or
+      # backslash-escaped delimiter spellings. A here-STRING (`<<<`) is not a
+      # heredoc and is neutralized before this ever runs. The delimiter must
+      # look like a word, which is also what keeps an arithmetic left shift
+      # (`$((n << 8))`) from opening a body that would swallow the rest of the
+      # file.
+      HDRE = "<<-?[ \t]*(\\\\?[A-Za-z_][A-Za-z0-9_]*|" SQ "[^" SQ "]*" SQ "|\"[^\"]*\")"
+      # A complete quoted span. `<<` inside one is TEXT, not a redirection, so
+      # the scan below steps over spans instead of matching into them.
+      QSPAN = "\"[^\"]*\"|" SQ "[^" SQ "]*" SQ
+      HD_HEAD = 1
     }
 
     function ncount(s, re,   t) { t = s; return gsub(re, "", t) }
+
+    # Queue every heredoc a code line opens. Bash reads bodies in the order the
+    # redirections appear (`cmd <<A <<B` consumes the A body, then the B body),
+    # so this is a FIFO and not a single pending delimiter. A literal apostrophe
+    # cannot appear anywhere in this awk program, comments included — it would
+    # close the shell quoting the whole program sits inside.
+    function hd_scan(s,   t, d, strip, hpos, hlen, qpos, qlen) {
+      # Almost no line opens a heredoc, and the walk below costs two match()
+      # calls per iteration. One cheap test keeps that off the common path —
+      # this gate is run per-commit over the whole tracked corpus.
+      if (s !~ /<</) return
+      t = s
+      # `<<<foo` is a here-string. Left in place, HDRE would match its trailing
+      # `<<foo` and open a body that never terminates.
+      gsub(/<<</, "\003\003\003", t)
+      # Left to right, taking whichever comes first: a heredoc operator, or a
+      # quoted span to step over. Scanning for HDRE alone would read the `<<` in
+      # `grep -q x <<<"a <<b"` or in any message mentioning one as a
+      # redirection, open a body on a delimiter that never appears again, and
+      # swallow the rest of the file. The heredoc branch is tried at the SAME
+      # offset first, so a quoted DELIMITER (`<<"EOF"`) still parses as one.
+      while (1) {
+        hpos = match(t, HDRE) ? RSTART : 0
+        hlen = hpos ? RLENGTH : 0
+        qpos = match(t, QSPAN) ? RSTART : 0
+        qlen = qpos ? RLENGTH : 0
+        if (!hpos && !qpos) return
+        if (!hpos || (qpos && qpos < hpos)) { t = substr(t, qpos + qlen); continue }
+        d = substr(t, hpos, hlen)
+        t = substr(t, hpos + hlen)
+        strip = (d ~ /^<<-/)
+        sub(/^<<-?[ \t]*/, "", d)
+        sub(/^\\/, "", d)
+        sub("^" Q, "", d)
+        sub(Q "$", "", d)
+        if (d != "") { HD_DELIM[++HD_N] = d; HD_STRIP[HD_N] = strip }
+      }
+    }
+
+    # The terminator must be the delimiter ALONE on its line — only `<<-` strips
+    # leading TABS (not spaces), and trailing whitespace never terminates. Being
+    # lenient here would end a body early and re-credit the lines after it.
+    function hd_is_term(raw, delim, strip,   t) {
+      t = raw
+      if (strip) sub(/^\t+/, "", t)
+      return t == delim
+    }
+
+    # Advance the heredoc state one PHYSICAL line and set hd_line, which is the
+    # single signal the credit-granting rules below consult.
+    function hd_step(raw, codeline,   before) {
+      if (HD_ACTIVE) {
+        # Body and terminator alike: neither is code this suite executes.
+        hd_line = 1
+        if (hd_is_term(raw, HD_DELIM[HD_HEAD], HD_STRIP[HD_HEAD])) {
+          HD_HEAD++
+          if (HD_HEAD > HD_N) HD_ACTIVE = 0
+        }
+        return
+      }
+      hd_line = 0
+      before = HD_N
+      hd_scan(codeline)
+      # The operator line itself IS code; its body starts on the next line.
+      if (HD_N > before) HD_ACTIVE = 1
+    }
 
     # An identity WRITE: `config [opts] user.email|user.name`. Option words are
     # tolerated so `git config --local user.email X` matches, but the READ
@@ -337,6 +443,13 @@ scan() {
       for (i = 1; i <= n; i++) {
         fixture = is_fixture(segs[i])
         if (fixture) print "FIXTURE\t" FILENAME
+        # Heredoc body: FIXTURE above still counts (conscription is the safe
+        # direction), but nothing below may run — every remaining signal
+        # EXCUSES the suite, and this text never executed. SH_ENV_GAP is
+        # skipped along with the credit it gates: a printed fixture command is
+        # not an unwrapped statement, so it must not revoke a wrap the real
+        # statements earned.
+        if (SH_DATA_ONLY) continue
         # `unset` is process-wide, so one statement isolates every later
         # command in the file. `env -u` is per-COMMAND, so a wrap on one
         # fixture statement must not credit a later unwrapped identity
@@ -346,6 +459,7 @@ scan() {
         if (env_clears(segs[i])) SH_ENV = 1
         else if (fixture) SH_ENV_GAP = 1
       }
+      if (SH_DATA_ONLY) return
       if (s ~ /^[ \t]*(source|\.)[ \t]+/) {
         rest = s
         sub(/^[ \t]*(source|\.)[ \t]+/, "", rest)
@@ -377,13 +491,25 @@ scan() {
       pending = ""; depth = 0; joined = 0
       sh_pending = ""; sh_joined = 0
       SH_UNSET = 0; SH_ENV = 0; SH_ENV_GAP = 0
+      split("", HD_DELIM); split("", HD_STRIP)
+      HD_N = 0; HD_HEAD = 1; HD_ACTIVE = 0; hd_line = 0; SH_DATA_ONLY = 0
       ispy = (FILENAME ~ /\.py$/)
     }
-    { line = $0; gsub(/\r/, "", line); code = line; sub(/#.*/, "", code) }
+    {
+      line = $0; gsub(/\r/, "", line); code = line; sub(/#.*/, "", code)
+      # Python has no heredocs, so the state machine runs for shell only and
+      # hd_line stays 0 there. (A triple-quoted Python string is the analogous
+      # data region; the Python arm credits only os.environ pops, so that is
+      # tracked separately if it ever proves reachable.)
+      hd_line = 0
+      if (!ispy) hd_step(line, code)
+    }
     # Whole-file scope declaration. Anchored at the start of the comment CONTENT
     # so that prose mentioning the token, or a detector holding it as a string
-    # literal, cannot exempt a file that never declared anything.
-    line ~ /^[ \t]*#[ \t]*fixture-isolation-scope:[ \t]*[^ \t]/ { print "SCOPE\t" FILENAME }
+    # literal, cannot exempt a file that never declared anything — and skipped
+    # inside a heredoc body, where a declaration line is being WRITTEN as data
+    # rather than declared (the self-test for this gate does exactly that).
+    !hd_line && line ~ /^[ \t]*#[ \t]*fixture-isolation-scope:[ \t]*[^ \t]/ { print "SCOPE\t" FILENAME }
 
     # PYTHON ARM. Matched over LOGICAL lines, not physical ones: a formatter
     # wraps a call whose argument list exceeds the line length, so
@@ -398,6 +524,16 @@ scan() {
       depth += ncount(code, OPEN) - ncount(code, CLOSE)
       joined++
       if (depth <= 0 || joined >= MAXJOIN) py_drain()
+      next
+    }
+
+    # HEREDOC BODY. Read for FIXTURE, never for credit. Any real statement still
+    # being joined is drained first so printed text cannot be spliced onto it.
+    hd_line {
+      sh_drain()
+      SH_DATA_ONLY = 1
+      sh_logical(code)
+      SH_DATA_ONLY = 0
       next
     }
 

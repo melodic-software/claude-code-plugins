@@ -947,6 +947,180 @@ else
   fail "scope mention: rc=$rc out='$out'"
 fi
 
+# --- HEREDOC: a body is DATA, so it cannot grant credit (#3109) --------------
+# Every case below asserts an EXACT rc, not merely a non-zero one: a
+# violation is rc 1 and a usage error is rc 2, so `rc != 0` would pass just as
+# happily if the gate crashed on its own arguments and never judged the file.
+#
+# Direction 1 (cases 1-4): the three credit-granting signals — a clear, a scope
+# declaration, and a source of an isolating harness — must NOT count when they
+# appear only inside a heredoc body. This suite writes exactly such bodies
+# itself, which is what made the gate creditable from its own test data.
+
+# 1. an `unset` written into a heredoc body does not credit the writer.
+new_repo
+r="$REPO"
+cat >"$r/hd_unset.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+cat >"$d/generated.test.sh" <<'INNER'
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+INNER
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"hd_unset.test.sh"* ]]; then
+  ok "heredoc: an unset inside a body does not credit the suite that wrote it"
+else
+  fail "heredoc unset: rc=$rc out='$out'"
+fi
+
+# 2. a scope declaration written into a heredoc body does not exempt.
+new_repo
+r="$REPO"
+cat >"$r/hd_scope.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+cat >"$d/generated.test.sh" <<'INNER'
+# fixture-isolation-scope: written as test data, never declared here.
+INNER
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"hd_scope.test.sh"* ]]; then
+  ok "heredoc: a scope declaration inside a body does not exempt the writer"
+else
+  fail "heredoc scope: rc=$rc out='$out'"
+fi
+
+# 3. sourcing an isolating harness from inside a body does not credit. SOURCE is
+#    the third credit path and leaks the same way the other two do.
+new_repo
+r="$REPO"
+cat >"$r/iso-harness.sh" <<'SH'
+#!/usr/bin/env bash
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+SH
+cat >"$r/hd_source.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+cat >"$d/generated.test.sh" <<'INNER'
+source iso-harness.sh
+INNER
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"hd_source.test.sh"* ]]; then
+  ok "heredoc: sourcing a harness from inside a body does not credit the writer"
+else
+  fail "heredoc source: rc=$rc out='$out'"
+fi
+
+# 4. `<<-` strips leading TABS from its terminator, so a tab-indented terminator
+#    really does close the body — and the body before it is still data. Written
+#    with printf so the tabs cannot be reflowed by a formatter.
+new_repo
+r="$REPO"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'git init -q fixture\n'
+  printf 'write_it() {\n'
+  printf '\tcat > generated.test.sh <<-INNER\n'
+  printf '\t\tunset GIT_DIR GIT_WORK_TREE GIT_CONFIG\n'
+  printf '\tINNER\n'
+  printf '}\n'
+} >"$r/hd_dash.test.sh"
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"hd_dash.test.sh"* ]]; then
+  ok "heredoc: a <<- body is data and its tab-indented terminator closes it"
+else
+  fail "heredoc dash-tab: rc=$rc out='$out'"
+fi
+
+# Direction 2 (cases 5-7): the ASYMMETRY. Suppressing credit must not suppress
+# anything else — a genuine executed token still counts, and FIXTURE detection
+# keeps reading heredoc text because conscripting a suite is the safe direction.
+
+# 5. the extent ENDS at the terminator: a real clear after it still credits.
+new_repo
+r="$REPO"
+cat >"$r/hd_after.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+cat >"$d/generated.test.sh" <<'INNER'
+echo data
+INNER
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "heredoc: a real clear after the terminator still credits the suite"
+else
+  fail "heredoc clear-after: rc=$rc out='$out'"
+fi
+
+# 6. a here-string is not a heredoc, and a `<<` inside a quoted string is text.
+#    Either one read as a redirection opens a body on a delimiter that never
+#    reappears, swallowing every real clear below it to end of file.
+new_repo
+r="$REPO"
+cat >"$r/hd_herestring.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+grep -q x <<<"a <<NOPE b" || true
+echo "redirect with << to open a heredoc"
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  ok "heredoc: a here-string and a quoted << do not open a body"
+else
+  fail "heredoc herestring: rc=$rc out='$out'"
+fi
+
+# 7. FIXTURE detection still READS bodies. This suite runs no git command of its
+#    own — its only fixture text is inside a heredoc — and is still conscripted,
+#    which is the whole asymmetry: bodies may put a suite IN scope, never excuse
+#    one. Losing this direction would let a suite escape the gate by moving its
+#    fixture setup into a generated file.
+new_repo
+r="$REPO"
+cat >"$r/hd_fixture_only.test.sh" <<'SH'
+#!/usr/bin/env bash
+d="$(mktemp -d)"
+cat >"$d/generated.test.sh" <<'INNER'
+git -C "$d" init -q
+git -C "$d" config user.email test@example.com
+INNER
+SH
+commit_all "$r"
+out="$(run_gate "$r")"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"hd_fixture_only.test.sh"* ]]; then
+  ok "heredoc: fixture text inside a body still conscripts the suite"
+else
+  fail "heredoc fixture-only: rc=$rc out='$out'"
+fi
+
 # --- the LIVE corpus is clean against its own baseline ------------------------
 out="$(cd "$ROOT" && bash scripts/check-fixture-git-isolation.sh 2>&1)"
 rc=$?
