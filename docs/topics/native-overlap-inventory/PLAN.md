@@ -163,4 +163,176 @@ single registry that announces its own staleness instead of decaying silently.
 
 ## Plan
 
-*(empty — /planning:plan fills this)*
+Deferred-decision resolutions (arbiter /planning:plan, evidence in `.work/native-overlap-inventory/`):
+
+- **Q12 [EXEC-SHAPE]** — the self-check wires into `scripts/validate-plugins.sh` (the existing
+  plugin-gate job already in `ci-status.needs`), following the autonomy plugin's precedent of a
+  plugin-shipped `--check` script invoked there. No new CI job, so no lane-coverage membership
+  change. A loop lane is not added (no lane machinery runs this repo's loops on a schedule today).
+- **Q13 [EXEC-SHAPE]** — store at `docs/native-surfaces/records.json` (JSON, not YAML: the
+  self-check is Python-stdlib-only per inventory.py's no-third-party discipline, and stdlib has no
+  YAML parser). Registry view stays `docs/NATIVE-SURFACES.md`, per-source-lane sections. Seeded
+  pairs at `plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json`.
+- **Q15 [EXEC-SHAPE]** — the wired gate fails on exit 1 (broken) and passes-with-printed-summary
+  on exit 3 (degraded), matching the stale-but-honest doctrine; a chronically red gate on a
+  condition the registry does not own is worse than an annotated pass. `VALIDATED_AGAINST` bump:
+  **out of scope** [FALLBACK — confirm or override] — it belongs to inventory-skill maintenance
+  and requires revalidation against the new build; filed as a follow-up in the PR body instead.
+
+Contracts (store schema, pairs schema, exit codes, substrates): `design/design-resolution.md`.
+
+### Phase 1: Native-references convention doc [TODO]
+
+Create `docs/conventions/native-references/README.md` — the owner doc for native-surface
+reference phrasing: the presence-gated description-phrase grammar ("when the bundled X skill
+resolves in your session, …"), the Boundary-section shape for bodies (modeled on the review
+plugin's provenance-classed sections), the self-containment rule (no registry citations from
+shipped plugins), the guard vocabulary (availability is never asserted statically — natives gate
+on settings/env, plan, platform, surface), the budget caveat (descriptions degrade to name-only
+under the listing budget), and the keep-set open consideration (single-source, unconfirmed — no
+guidance builds on it). Register the doc in `docs/PLUGIN-PHILOSOPHY.md`'s convention-registry
+table (one-owner rule).
+
+**Sanity Check:** `test -f docs/conventions/native-references/README.md` exits 0; `grep -c
+"native-references" docs/PLUGIN-PHILOSOPHY.md` ≥ 1; `markdownlint-cli2` clean on the new doc.
+
+### Phase 2: Skill skeleton + seeded pairs + evals [TODO]
+
+Create `plugins/claude-ops/skills/audit-native-overlap/`:
+
+- `SKILL.md` — frontmatter description ≤1,536 chars (audit verb contract: bare = read-only
+  report; apply behind explicit argument), argument-hint, user-invocable; body <500 lines covering
+  purpose, scope boundary vs siblings (inventory/audit-install-state/plugins/changelog), the
+  two detection substrates, the report structure (overlap candidates + budget-exposure section
+  composing `check-listing-budget.sh` + integrity floors carried), verdict enum + human gate,
+  apply step contract, foreign-repo degraded posture, and the store/view/self-check anatomy.
+  Read `plugins/skill-quality/skills/check/reference/fresh-eyes-declarations.md` before authoring
+  judgment steps (adopted OQ5 default).
+- `reference/canonical-pairs.json` — seeded candidates at skill-level granularity with class
+  fields: bundled `code-review`→`review:code-review`; bundled `simplify`→`code-tidying:tidy`,
+  `code-tidying:batch-simplify`; builtin-command `security-review`→`review:security-review`;
+  bundled `run`→`testing:run-e2e`; bundled `morning`→`claude-ops:morning-brief`.
+- `evals/evals.json` — per the skill-quality evals schema (`--require-evals` fires on new
+  SKILL.md).
+
+**Sanity Check:** `bash plugins/skill-quality/scripts/check-skill.sh
+plugins/claude-ops/skills/audit-native-overlap/SKILL.md --require-evals` exits 0;
+`python3 -c "import json;json.load(open('plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json'))"`
+exits 0.
+
+### Phase 3: Scripts — detection, generation, self-check [TODO]
+
+Create `plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py` (Python 3.11+,
+stdlib-only), subcommands:
+
+- `detect` — consume an inventory JSON (path arg; the skill body documents producing it via the
+  sibling `${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py`), assert `schema == 1` +
+  presence-check consumed keys (missing → broken); repo-tree scan for targets
+  (`plugins/*/skills/*/SKILL.md`, `plugins/*/agents/*.md`); merge with `canonical-pairs.json`;
+  emit candidate rows (evidence + integrity floors carried; never auto-verdicts).
+- `generate` — render `docs/NATIVE-SURFACES.md` from `records.json` (marker-fenced, per-lane
+  sections); `generate --check` regenerates and diffs (CATALOG.md pattern).
+- `self-check` — exit 0/1/3 over the deterministic scope (store parse/schema, trigger presence,
+  record well-formedness incl. observation class tags, store↔view drift, baked-line parity
+  direction-sensitively via grep of components named in `baked` rows, locally-decidable
+  comparisons). 2 reserved for argparse.
+- Sibling tests: `test_overlap.py` (pytest-style, like `test_inventory.py`) + `overlap.test.sh`
+  wrapper so `run-plugin-tests.sh` discovers it. Store/pairs paths configurable via flags with
+  repo-relative defaults (portability; foreign-repo degraded mode = report-only when paths
+  absent).
+
+**Sanity Check:** `python3 plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py
+self-check --store docs/native-surfaces/records.json --view docs/NATIVE-SURFACES.md` exits 0;
+`bash plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.test.sh` exits 0;
+`bash scripts/check-skill-portability.sh` exits 0.
+
+### Phase 4: Store seed + generated registry [TODO]
+
+Create `docs/native-surfaces/records.json` with the seeded rows: every row carries a
+recommended verdict + reason (initial verdict session — recommendations surfaced for the human
+gate in the PR; `morning`→`morning-brief` and the four canonical pairs at minimum, plus
+`detect`-surfaced peers), class-tagged observation records (extraction-evidence from the vendored
+binary run), per-row recheck triggers keyed on the drift-fast list (RESEARCH-recency-drift), and
+`baked` flags all false except the Phase 5 demo row. Generate `docs/NATIVE-SURFACES.md`.
+
+**Sanity Check:** `overlap.py self-check …` exits 0 (no trigger-less rows, view in sync);
+`overlap.py generate --check` exits 0.
+
+### Phase 5: Apply demo on claude-ops-internal component [TODO]
+
+Run the apply step for one approved-recommended row: bundled `morning` skill vs
+`claude-ops:morning-brief` (verdict: complementary — the bundled skill is a generic morning
+digest; morning-brief is the repo-operator queue/PR/lane view). Bake the presence-gated
+description phrase into `morning-brief`'s frontmatter description (within cap) and a Boundary
+section into its body, per the Phase 1 convention. claude-ops is already bumping in this change
+set, so no foreign plugin is touched (Q14 untouched). Set the row's `baked` flags true.
+
+**Sanity Check:** `overlap.py self-check` exits 0 (parity: baked ⊆ store);
+`grep -c "morning" plugins/claude-ops/skills/morning-brief/SKILL.md` shows the boundary section;
+description length ≤1,536 (`check-skill.sh` exits 0 on morning-brief).
+
+### Phase 6: CI wiring + plugin bump + coupled edits [TODO]
+
+- Wire `overlap.py self-check` + `generate --check` into `scripts/validate-plugins.sh`
+  (fail on exit 1; on exit 3 print summary and pass — Q15 policy, with a comment stating it).
+- Bump claude-ops `plugin.json` 0.32.6 → 0.33.0; add `## [0.33.0]` CHANGELOG entry; rewrite the
+  "Ten skills: …" description to eleven; regenerate `docs/CATALOG.md`.
+- Add `docs/native-surfaces/records.json` + generated view to the repo (Phase 4 files land here
+  if not already committed).
+
+**Sanity Check:** `bash scripts/validate-plugins.sh` exits 0; `bash
+scripts/check-changelog-parity.sh --check-bump plugins/claude-ops` (or the repo's exact
+invocation) exits 0; `node scripts/generate-catalog.mjs --check` exits 0; `grep -c "Eleven
+skills" plugins/claude-ops/.claude-plugin/plugin.json` = 1.
+
+## Blast radius
+
+MEDIUM-LOW. Additive: one new skill, one convention doc, two data/doc files, CI check inside an
+existing job. The only behavior-adjacent edits are morning-brief's description (routing-affecting
+for one skill, reversible) and the validate-plugins.sh wiring (could redden CI — mitigated by the
+exit-3 pass policy and by running the full gate set locally before push). No foreign plugin
+touched; sweep reserved (Q14).
+
+## Stress-test summary
+
+Formal /planning:devils-advocate skipped: blast radius below the trigger bar AND the design has
+already survived three adversarial validation rounds (round-1 recommendations → 3 validators;
+round-2 revisions; post-discovery 2-validator pass with challenged items amended into the Brief).
+Step-3 fresh-context plan review: dispatched; findings verified and folded in before approval.
+
+## Execution shape
+
+Sequential, single implementer (phases share claude-ops files and each phase's sanity check
+feeds the next; no material parallel-safe volume). Per-phase surface: implementation:implementer
+worker for all six phases in one dispatch (phase order enforced by the plan), main session
+orchestrates + verifies. Fallback: main-session inline execution if the worker cannot run gates.
+
+## Open questions
+
+None blocking. Q14 (fleet sweep go/no-go) remains USER-RESERVED post-merge. Follow-up filed in
+PR body: VALIDATED_AGAINST bump + revalidation for inventory.py (Q15 resolution).
+
+## Handoff to implementation
+
+### User-approval gates
+
+User pre-authorized the full chain through PR and merge ("Lets go with all recommendations …
+get everything PR'd and merged"). Standing gates honored in the PR body instead of live prompts:
+the seeded verdicts are labeled recommendations for review; the [FALLBACK] Q15 scope cut
+(no VALIDATED_AGAINST bump) is called out for override.
+
+### Execution shape ([EXEC-SHAPE] tagged)
+
+Sequential phases 1→6 in one implementer dispatch on branch `claude/cli-skill-inventory-v7hi82`;
+commits per phase (Conventional Commits); PLAN.md phase tags advanced by the main session on
+verified completion.
+
+### Mechanical work
+
+Before PR: run the full local gate set (`validate-plugins.sh`, `check-skill.sh --require-evals`
+on new/changed skills, `check-skill-portability.sh`, `check-changelog-parity.sh`, markdownlint,
+shellcheck on any .sh, `run-plugin-tests.sh` scope). PR per repo process (squash, Conventional
+Commit title, template if present), subscribe to PR activity, drive CI green, merge
+(user-authorized), then delete branch. Close-out (`/planning:plan close-out`) after merge:
+PLAN.md into PR description happened at PR time; contract-slice prune is deferred until the user
+requests it (the topic docs stay useful for the reserved Q14 sweep).
