@@ -3,6 +3,43 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.14]
+
+### Fixed
+
+- **Lease marker parses with trailing content appended to the comment.** `wit_lease_json`
+  matched only a body ENDING in `-->`, so any comment carrying the lease plus trailing text
+  (a bot wrapper's attribution footer, a signature, a CI note) parsed as "not a lease". The
+  failure was silent and unsafe rather than merely lossy: `claim`'s arbitration found no
+  incumbent lease and granted over a live holder, and `renew-lease` refused to renew a lease
+  it had just written. The match is now anchored on the FIRST `-->` after the marker, which
+  is also strictly more correct, since an HTML comment cannot contain `-->`.
+- **GitHub adapter claim/reclaim no longer depend on GraphQL.** `claim` and `reclaim` resolved
+  assignees through `gh issue edit --add-assignee` / `gh issue view --json assignees`, both of
+  which route through GitHub's GraphQL API. Sandboxed sessions (Claude Code on the web and
+  remote execution) serve only a pinned set of GraphQL operations and refuse the rest with
+  HTTP 403, which made the entire lease protocol unrunnable there. Both verbs now use the REST
+  `…/issues/<n>/assignees` endpoints via shared `wit_read_assignees` / `wit_add_assignee` /
+  `wit_remove_assignee` / `wit_try_remove_assignee` helpers. The identity routing is unchanged:
+  the helpers take the same `read` (bare `gh`, session identity) / `write` (bot wrapper) writer
+  argument the adapter already used, so the claim carve-out that assigns the session user rather
+  than the bot still holds; `@me` is resolved to the login explicitly because REST takes a
+  literal login.
+- **`claim` verifies its own assignment landed.** REST `POST …/assignees` returns 201 and
+  silently drops a login that cannot be assigned, where `gh issue edit --add-assignee` failed
+  loudly. Without an explicit check the port would have introduced a new race: `claim` reporting
+  a held lease while `list-frontier` still saw the item unassigned, putting two workers on one
+  item. A dropped assignment now exits `4` (auth) before any lease comment is posted.
+
+### Changed
+
+- **Claim-protocol test coverage.** `claim.test.sh` exercised only `--help` and usage errors, so
+  the protocol itself (assign, sole-assignee check, lease post, arbitration) passed vacuously.
+  `lease-coordination.test.sh` now drives it against the stubbed `gh`: the happy path, the
+  foreign-assignee conflict with its rollback, and the silently-dropped-assignment guard. Its
+  `gh` stub matches the REST assignee shapes, and the new cases capture exit codes with
+  `|| rc=$?` because errexit is in effect from the existing renew-lease case onward.
+
 ## [0.39.13]
 
 ### Changed
