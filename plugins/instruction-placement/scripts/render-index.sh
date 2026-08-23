@@ -353,8 +353,15 @@ write)
         "$TARGET" >&2
       exit 1
     fi
-    awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" -v repl="$BLOCK" '
-      $0 == b { print repl; skipping = 1; next }
+    # The block travels through ENVIRON, not `awk -v`. POSIX has -v process
+    # escape sequences, so a rule path carrying a backslash would be rewritten
+    # on the way in -- gawk turns `\t` into a tab and drops an unknown escape's
+    # backslash, mawk passes both through. The markers are fixed text with no
+    # backslash in them and stay on -v; the block is generated from repository
+    # paths and does not. Writing a corrupted index is the one failure this
+    # script must never have, since nothing downstream re-reads it for sanity.
+    IP_INDEX_BLOCK="$BLOCK" awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
+      $0 == b { print ENVIRON["IP_INDEX_BLOCK"]; skipping = 1; next }
       $0 == e { skipping = 0; next }
       !skipping { print }
     ' "$TARGET" >"$tmp"

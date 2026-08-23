@@ -215,7 +215,14 @@ RULE_COUNT=0
 
 emit_file_facts() {
   local file="$1" tier="$2"
-  awk -v path="$file" -v tier="$tier" '
+  # The path comes in through ENVIRON rather than `awk -v`: POSIX has -v process
+  # escape sequences, so a path containing a backslash is rewritten before the
+  # program sees it (gawk reads `\t` as a tab and drops an unknown escape's
+  # backslash; mawk passes both through). Every fact this emits is keyed by the
+  # path, so a mangled one silently misattributes findings. `tier` is a fixed
+  # word from this script and stays on -v.
+  IP_FILE_PATH="$file" awk -v tier="$tier" '
+    BEGIN { path = ENVIRON["IP_FILE_PATH"] }
     function flush_section(endline,   markerlist) {
       if (sec_start == 0) return
       printf "SECTION\t%s\t%d\t%d\t%d\t%s\n", path, sec_start, endline, sec_level, sec_head
@@ -327,8 +334,10 @@ emit_file_facts() {
 # produces no `lang` hint rather than a guess.
 lang_hints() {
   local file="$1"
-  awk -v path="$file" '
+  # ENVIRON rather than `awk -v`, for the reason given in emit_file_facts above.
+  IP_FILE_PATH="$file" awk '
     BEGIN {
+      path = ENVIRON["IP_FILE_PATH"]
       # CASE-SENSITIVE, and split into two sets — measured on a 1,137-file
       # corpus where lowercase "go" produced 338 false hints from the ordinary
       # English verb, and "shell"/"bash" produced 675 more from prose about

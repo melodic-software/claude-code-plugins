@@ -3,6 +3,30 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.2]
+
+### Fixed
+
+- **`awk -v` mangled every value carrying a backslash, and it broke the suite on CI.** POSIX requires
+  a `-v` assignment to process escape sequences, so the two awks disagree on any value containing
+  one: gawk drops an unknown escape's backslash (`\[` becomes `[`, with a warning on stderr) and
+  reads `\t` as a tab, while mawk passes both through untouched. Three sites were exposed.
+
+  `glob-tools.test.sh`'s `row_field` helper passed the pattern under test through `-v`, so the
+  escaped-literal case this suite exists to pin -- `photos \[2024/**` -- had its backslash stripped
+  before the field comparison, matched nothing, and returned empty. **This was the real cause of the
+  red `plugin-gate` on every CI run of this branch**, and it was invisible locally because this
+  container has mawk and the runner has gawk.
+
+  `render-index.sh` passed the generated index block through `-v repl=`, and `detect.sh` passed each
+  file path through `-v path=`. Both carry repository-derived text: a rule path containing a
+  backslash would have been silently rewritten on the way in, corrupting the written index in the
+  first case and misattributing every emitted fact in the second.
+
+  All three now travel through `ENVIRON`, which both implementations pass through literally. The
+  whole suite is now run under **both mawk and gawk** -- 242 cases, 0 failures in each -- rather than
+  under whichever one the box happens to have.
+
 ## [0.11.1]
 
 ### Fixed

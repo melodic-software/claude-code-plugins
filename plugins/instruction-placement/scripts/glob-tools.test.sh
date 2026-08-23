@@ -52,8 +52,16 @@ fixture_repo() {
 run() { bash "$SCRIPT" "$@" 2>&1; }
 
 # Pull one PATTERN row's field N (1-indexed within the tab-split row).
+# The pattern travels through the ENVIRON array, NOT `awk -v`. POSIX requires a
+# -v assignment to process escape sequences, so a glob carrying a backslash --
+# `photos \[2024/**`, the escaped-literal case this suite exists to pin -- is
+# rewritten before the comparison ever runs. gawk drops the backslash (and says
+# so: "escape sequence `\[' treated as plain `['"), mawk keeps it, so the field
+# match succeeds under one awk and silently returns nothing under the other.
+# ENVIRON values are passed through literally by both.
 row_field() {
-  printf '%s\n' "$1" | awk -F'\t' -v pat="$2" -v f="$3" '$1=="PATTERN" && $3==pat {print $f}'
+  IP_ROW_PAT="$2" awk -F'\t' -v f="$3" \
+    '$1=="PATTERN" && $3==ENVIRON["IP_ROW_PAT"] {print $f}' <<<"$1"
 }
 
 # --------------------------------------------------------------------------
