@@ -3,6 +3,33 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **`scripts/detect.sh` — deterministic fact emitter for the audit (38 tests).** The judgment layer
+  decides *where* content belongs; it should not also be enumerating the corpus, finding section
+  boundaries, or counting normative markers by reading. Emits `FILE` / `SECTION` / `SIGNAL` / `HINT`
+  / `RULE` / `SKIP` / `SUMMARY` records as sorted TSV and adjudicates nothing.
+
+  Two consequences make this more than tidiness. **`realign` excises by the line range the finding
+  carries**, so a range that came from a model reading a file is a guess about which text gets
+  deleted from someone's instruction file; now it is a fact. And two audit runs over an unchanged
+  repository now produce the same candidate set, which no amount of careful reading guarantees.
+
+  `HINT` records are raw material for glob derivation, deliberately not decisions: literal `ext` and
+  `dir` tokens found in the prose, plus `lang` hints from a small documented language→extension
+  table. The skill derives a glob from them and still has to validate it.
+
+### Fixed
+
+- **`detect.sh` regex portability, caught before release.** The first implementation used an
+  interval expression (`{0,7}`) in a hint pattern; mawk 1.3.4 does not merely mismatch it, it
+  panics — and with stderr suppressed the script emitted an empty fact set, which reads exactly like
+  "this file has no sections". Rewritten without intervals, stderr is no longer suppressed, and the
+  suite asserts both that no panic reaches the output and that a headed file yields a non-zero
+  section count.
+
 ## [0.2.0]
 
 ### Fixed

@@ -6,6 +6,7 @@ disable-model-invocation: false
 allowed-tools:
   [
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/precompute.sh:*)",
+    "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh:*)",
@@ -63,13 +64,40 @@ presence to lose, so the gaps do not apply and any working destination is a stri
 live risk here is duplication, not context: resolve single-source-of-truth per candidate using the
 rubric's table rather than reflexively copying.
 
+## Facts before judgment
+
+Run the detector first and build every finding on what it emits:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh" [--tier core]
+```
+
+It emits deterministic TSV and adjudicates nothing:
+
+| Record | Carries | Used for |
+|---|---|---|
+| `FILE` | path, corpus tier, line count | Corpus accounting, and the coverage report |
+| `SECTION` | path, **start**, **end**, level, heading | Candidate boundaries and their line ranges |
+| `SIGNAL` | path, section start, normative hit count, markers | The promote lane's normative bar |
+| `HINT` | path, section start, `ext`/`dir`/`lang`, value | Raw material for glob derivation |
+| `RULE` | path, `scoped`/`unscoped`, globs | Existing rule inventory, and re-scope candidates |
+| `SKIP` | path, reason | The honest coverage report |
+
+**Cite the detector's line ranges verbatim.** `realign` excises by the range the finding carries, so
+a range you inferred by reading is a guess that removes the wrong text. If a candidate does not
+correspond to a `SECTION` record, say so rather than inventing a boundary.
+
+**A `HINT` is raw material, not a decision.** The detector reports what the text literally says; it
+does not know whether `.ts` is the candidate's real scope. Derive the glob from the hints, then
+validate it — an unvalidated hint is not a proposal.
+
 ## Workflow
 
-1. **Resolve the corpus.** Core tier always; expanded tier unless the operator passed `core`. Honor
-   every exclusion in `corpus.md` before reading anything.
-2. **Segment into candidates.** A candidate is one contiguous run of content — normally a heading
-   and its body. Never a lone line pulled from a section; never a whole file when one section is
-   the problem.
+1. **Run the detector** and read its `FILE`/`SKIP` records as the corpus of record. Core tier
+   always; expanded tier unless the operator passed `core`.
+2. **Take candidates from `SECTION` records.** A candidate is one section with its emitted line
+   range. Never a lone line pulled from a section; never a whole file when one section is the
+   problem; never a boundary the detector did not report.
 3. **Run the hard-deny gate first.** Anything matching a Gate 0 class leaves the candidate set and
    goes to the held-back section with its class and location. No destination, ever.
 4. **Walk the ladder** for what survives. First match wins. Stop there.
@@ -105,8 +133,9 @@ re-run semantics rather than overwriting — an operator's `declined` decision m
 
 ## Reporting honestly
 
-- **Say what was not swept.** Files scanned, files skipped, and why. A run that covered 200 of 2,000
-  files while reading like a full audit is the failure this rule exists to prevent.
+- **Say what was not swept.** The detector's `SKIP` records and `SUMMARY` are the source — report
+  them rather than recounting by hand. A run that covered 200 of 2,000 files while reading like a
+  full audit is the failure this rule exists to prevent.
 - **Show the held-back list.** An operator who cannot see what the hard-deny gate excluded cannot
   tell a careful sweep from a shallow one.
 - **Never report a saving without its cost.** Both belong in the same sentence.
@@ -155,3 +184,8 @@ Observed failure modes. Each one produces a proposal that reads as correct and i
   explanation into a rule adds always-loaded cost and teaches nothing.
 - **A promote candidate that duplicates a live human document is a drift seed.** The pointer
   variant exists for exactly this; reflexively copying the section is the easy wrong answer.
+- **A line range you read rather than took from a `SECTION` record is a guess.** It will look right
+  and excise the wrong text, and the diff lands in a file that steers the agent's behavior.
+- **An empty detector result means "no sections found", which is itself suspicious.** A markdown
+  file with headings that reports none is a detector problem, not a clean file — say so instead of
+  reporting the file as having nothing to move.
