@@ -1,0 +1,113 @@
+{
+  "skill_name": "audit-dead-code",
+  "evals": [
+    {
+      "id": 1,
+      "name": "parse-knip-report-into-verdicts",
+      "prompt": "Read the canned knip capture at evals/fixtures/knip-report.json (relative to the skill directory) together with the TypeScript sources it was captured over — evals/fixtures/ts-entry.ts, evals/fixtures/dead-and-dynamic.ts, evals/fixtures/ts-used.ts, evals/fixtures/ts-orphan.ts — and report a verdict for every candidate.",
+      "expected_output": "Parses the capture's per-file objects and their fifteen fixed category arrays, then reports: ts-orphan.ts as an orphan file (a TS/JS-only capability of the roster), formatLegacyRow as dead, and renderPanel as alive or uncertain rather than dead — knip reported the two identically, and the evidence that separates them is the template-literal dynamic import in ts-entry.ts, which no static resolver follows. formatBytes and mountPanel are absent from the capture and are not reported. No confidence figure is attached to any knip candidate, because the capture carries no confidence field. Nothing is edited.",
+      "files": [
+        "evals/fixtures/knip-report.json",
+        "evals/fixtures/ts-entry.ts",
+        "evals/fixtures/dead-and-dynamic.ts",
+        "evals/fixtures/ts-used.ts",
+        "evals/fixtures/ts-orphan.ts"
+      ],
+      "expectations": [
+        "Every candidate carries exactly one of the three verdicts: dead, uncertain, or alive",
+        "formatLegacyRow is verdicted dead",
+        "renderPanel is NOT verdicted dead, and the saving evidence cited is the template-literal dynamic import in ts-entry.ts",
+        "ts-orphan.ts is reported as an unused file, and orphaned-file coverage is stated as TS/JS only",
+        "formatBytes and mountPanel are not reported as candidates",
+        "No per-candidate confidence percentage is attributed to knip, which emits no confidence field",
+        "Findings come from parsing the canned capture rather than from reading the TypeScript sources and judging them directly",
+        "No file is edited"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "read-only-even-when-asked-to-fix",
+      "prompt": "Audit this repository for dead code and then just delete what you find — strip the unused exports and unused functions for me so I do not have to.",
+      "expected_output": "Declines to edit. The skill is report-only: it presents each candidate with its verdict and the evidence behind it, emits the ready-to-paste suppression entries in each detector's native format, and states that the author applies every deletion. It does not call Edit or Write on any source file, and it does not write a findings file either. It may point at the edit-capable sibling pass rather than performing the removal itself.",
+      "files": [],
+      "expectations": [
+        "No source file is edited or deleted despite the explicit request",
+        "No findings file is written",
+        "The report-only contract is stated rather than silently observed",
+        "The candidates are still surfaced with verdicts and evidence so the author can act on them"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "degraded-run-is-not-a-clean-run",
+      "prompt": "A knip lane produced the stderr in evals/fixtures/knip-degraded.stderr.txt and the stdout in evals/fixtures/knip-report.json, and it exited 1. Report the lane's run state.",
+      "expected_output": "Marks the lane DEGRADED, not ran. The signal is the `ERROR: Error loading vitest.config.ts (Cannot find module 'vitest/config')` line on stderr; the JSON reporter structurally cannot carry it, so a run judged from stdout alone reads as healthy. Exit 1 is not evidence of anything, because knip returns 1 both for findings and for a hard error. The report says which candidates may be manufactured by the failed config load — a config that fails to load makes knip invent unused files — and it distinguishes a clean lane from a lane that scanned zero files, which both otherwise present as no output.",
+      "files": [
+        "evals/fixtures/knip-degraded.stderr.txt",
+        "evals/fixtures/knip-report.json"
+      ],
+      "expectations": [
+        "The lane is reported as degraded, and the ERROR line on stderr is named as the reason",
+        "Output states that the JSON reporter cannot carry the degradation signal, so stdout alone cannot establish run health",
+        "Exit code 1 is explicitly rejected as a health signal because knip returns 1 for findings and for hard errors alike",
+        "Output warns that a failed config load manufactures unused-file findings rather than presenting them as trustworthy",
+        "A clean lane and a lane that scanned zero files are distinguished rather than collapsed"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "vulture-lane-confidence-and-dynamic-traps",
+      "prompt": "Read the canned vulture capture at evals/fixtures/vulture-report.txt along with the sources it was captured over, evals/fixtures/dead-and-dynamic.py and evals/fixtures/py-entry.py, and adjudicate every line.",
+      "expected_output": "Parses the four `path:line: unused function 'name' (60% confidence)` lines and verdicts them separately: format_legacy_row is dead; handle_alpha is alive on the getattr dispatch in dispatch(); handle_beta is alive on the string-keyed ROUTES table; main in py-entry.py is an entry point, not dead code. It states that the 60% figure is a fixed value vulture pins on every unused symbol, so it cannot order or filter candidates, and it labels the Python lane high-recall/low-precision rather than implying parity with knip.",
+      "files": [
+        "evals/fixtures/vulture-report.txt",
+        "evals/fixtures/dead-and-dynamic.py",
+        "evals/fixtures/py-entry.py"
+      ],
+      "expectations": [
+        "format_legacy_row is verdicted dead",
+        "handle_alpha is NOT verdicted dead, and the getattr dispatch is cited as the saving evidence",
+        "handle_beta is NOT verdicted dead, and the string-keyed ROUTES table is cited as the saving evidence",
+        "The 60% confidence value is described as fixed for every unused symbol and therefore useless for ranking or filtering",
+        "The Python lane is labelled with its measured low precision instead of being presented as equal in strength to the knip lane",
+        "Findings come from parsing the canned capture rather than from reading the Python sources and judging them directly"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "reject-a-parse-error-shaped-like-a-finding",
+      "prompt": "The Python lane was handed evals/fixtures/vulture-parse-error-input.toml and produced evals/fixtures/vulture-parse-error.txt. Decide what the parser should do with that line.",
+      "expected_output": "Rejects the line instead of emitting a candidate. It has finding shape — `path:line: message` — but its message begins with `cannot assign to expression here`, and the parser admits only lines whose message begins with unused, unreachable, or unsatisfiable. The line arrives on stderr in vulture 2.16, so it must also not be read as a run-health signal the way a knip `ERROR:` line is: it is an input defect in one file, not a degraded lane. The report states the two guards this proves necessary: the lane's globs are filtered to *.py so a non-Python file never reaches vulture, and the run's exit code is not read as health, since vulture returns 3 when it has findings and 1 when it has none, so a parse error is masked whenever any real finding exists.",
+      "files": [
+        "evals/fixtures/vulture-parse-error.txt",
+        "evals/fixtures/vulture-parse-error-input.toml"
+      ],
+      "expectations": [
+        "The parse-error line is rejected and does not appear as a dead-code candidate",
+        "The rejection rule cited is the message verb, not the line shape, which is identical to a real finding",
+        "The line is not treated as a lane-degradation signal even though it arrives on stderr, unlike a knip ERROR: line",
+        "Output states that lane globs are filtered to *.py so a non-Python file is never handed to vulture",
+        "Output states that the exit code cannot be used to detect the parse error"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "lane-limits-and-out-of-scope-ecosystems",
+      "prompt": "Report the Go and shell lanes over evals/fixtures/gopls-hints.txt, evals/fixtures/dead-and-dynamic.go and evals/fixtures/dead-and-dynamic.sh, and say what you would do for the Rust and C# projects in the same repository.",
+      "expected_output": "Reports deadHandler from the Go capture and states the lane's coverage limit plainly: gopls hints unexported symbols only, so ExportedEntry is never a candidate however unreferenced it is — a stated limit, not a defect — and gopls exits 0 even carrying a hint, so its exit code is not run health and its degradation produces false negatives rather than knip's false positives. For the shell fixture it reports format_legacy_row as dead and does NOT condemn handle_alpha, which is invoked through the constructed name in main and is therefore invisible to a literal reference search — the grep lane's acknowledged recall limit. It declines Rust and C# outright, because every available detector for them builds or executes project code.",
+      "files": [
+        "evals/fixtures/gopls-hints.txt",
+        "evals/fixtures/dead-and-dynamic.go",
+        "evals/fixtures/dead-and-dynamic.sh"
+      ],
+      "expectations": [
+        "deadHandler is reported from the Go capture",
+        "ExportedEntry is not reported, and unexported-only is stated as the Go lane's coverage limit",
+        "Output states that gopls exits 0 with findings, so the exit code is not run health, and that its failure mode is false negatives",
+        "format_legacy_row is reported as dead in the shell fixture",
+        "handle_alpha is NOT verdicted dead, and the indirect invocation through the constructed handler name is cited",
+        "Rust and C# are declined, with the build-or-execute exclusion given as the reason"
+      ]
+    }
+  ]
+}

@@ -23,6 +23,7 @@ Beck's framing: small, named refactorings nobody could hate on. Structural-only.
 - **When to apply:** code that no longer has any callers or any path of execution that reaches it. Static analyzers (Roslyn, ruff F841, biome unused-import) often surface candidates.
 - **When NOT to apply:** the "dead" code is reflectively invoked, used by source generators, or referenced by string name in DI/serialization. Verify before deletion.
 - **Example:** `private static string FormatLegacy(...)` no longer called after a public API consolidated → delete.
+- **Finding candidates:** this entry is for dead code the lane pass walks into. To hunt it deliberately across the whole repository — including the long-untouched code a rotated lane never reaches — run `/code-tidying:audit-dead-code`, which adjudicates each candidate to `dead`, `uncertain`, or `alive` and reports without editing. Bring its `dead` verdicts back here to apply the deletion; leave `uncertain` alone.
 
 ### #3 — Normalize Symmetries
 
