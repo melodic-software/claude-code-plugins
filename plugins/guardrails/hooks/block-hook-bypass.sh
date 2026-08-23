@@ -37,7 +37,42 @@ set -uo pipefail
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
-hook::check_enabled "BLOCK_HOOK_BYPASS"
+# Crash posture (#3130 F5): fail-open. This guard sits on every Bash/PowerShell
+# call. An internal error must not take the session down, and it must not look
+# like a clean allow. EXIT converts unexpected statuses to 0 after a dual-channel
+# "guard did not run" notice. Block (2) and allow (0) pass through.
+block_hook_bypass_on_exit() {
+  local rc=$?
+  if ((rc == 0 || rc == 2)); then
+    return 0
+  fi
+  trap - EXIT
+  local msg="guardrails block-hook-bypass: guard did not run (internal error, rc=${rc}); fail-open — this Bash/PowerShell call was not evaluated. The hook stays fail-open on crash so a defect here cannot freeze the session's hottest path."
+  echo "$msg" >&2
+  hook::emit_channels PreToolUse "$msg" "$msg" 2>/dev/null || true
+  exit 0
+}
+trap block_hook_bypass_on_exit EXIT
+
+# Test injection: trip the crash path without depending on a real script error.
+if [[ "${BLOCK_HOOK_BYPASS_TEST_CRASH:-}" == "1" ]]; then
+  exit 99
+fi
+
+# Strict-and-loud enable (#3130 F7). hook::check_enabled treats any value other
+# than exact "true" as off, so a typo would silently disable a blocking safety
+# control. Only true/false (unset → true) are accepted; anything else keeps the
+# guard on and says so.
+_bbh_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED:-true}"
+case "$_bbh_enabled" in
+true) ;;
+false) exit 0 ;;
+*)
+  _bbh_bad="guardrails block-hook-bypass: block_hook_bypass_enabled=${_bbh_enabled} is not exactly true or false; treating as enabled (a safety switch does not silently disable)"
+  echo "$_bbh_bad" >&2
+  hook::emit_channels PreToolUse "$_bbh_bad" "$_bbh_bad"
+  ;;
+esac
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
@@ -1160,13 +1195,16 @@ block_bypass() {
   local form="$1" reason="$2"
   echo "BLOCKED: $reason" >&2
   echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
-  echo "In an isolated session, Write or Edit may be refused for paths in the main checkout — that remedy is then unavailable." >&2
-  echo "An operator can set the guardrails block_hook_bypass_enabled option to false (/plugin configure) to bypass; that option is user-scoped and persists in every repository where guardrails is enabled — re-enable it when the bypass is no longer needed. The switch is not actionable by the blocked agent." >&2
+  echo "If Write or Edit is refused for a path in the main checkout (isolated session / worktree), write under a directory listed in block_hook_bypass_scratch_roots, or ask the operator for a session-scoped disable via claude --settings. The user-global block_hook_bypass_enabled switch is last resort — it persists across every repository." >&2
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     echo "$_BYPASS_SCOPE_NOTE_PWSH" >&2
   else
     echo "$_BYPASS_SCOPE_NOTE_BASH" >&2
   fi
+  # Operator-facing levers go on systemMessage (human channel). The blocked
+  # agent cannot toggle this guard (#3130 F2/F3).
+  hook::emit_channels PreToolUse "" \
+    "guardrails block-hook-bypass blocked a shell file-write. The blocked agent cannot toggle this guard (the switch is not actionable by the blocked agent). Narrower levers, in order: (1) block_hook_bypass_scratch_roots for a target-scoped scratch exemption; (2) session-scoped claude --settings; (3) user-global block_hook_bypass_enabled via /plugin configure — that option is user-scoped and persists in every repository where guardrails is enabled. Re-enable it when the bypass is no longer needed."
   emit_tel "blocked" "$form"
   exit 2
 }

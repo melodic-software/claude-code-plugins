@@ -3,6 +3,21 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.10]
+
+### Changed
+
+- **block-hook-bypass: isolated-session remedy, crash fail-open, strict option
+  parse (#3130).** The block message no longer dead-ends when Write/Edit is
+  refused in an isolated session — it names `block_hook_bypass_scratch_roots`
+  and session-scoped `--settings` ahead of the user-global switch. The
+  operator-only sentence moves to `systemMessage`. An internal crash still
+  fails open (availability on the session's hottest path) but now emits a
+  dual-channel "guard did not run" notice. `block_hook_bypass_enabled` accepts
+  only exact `true`/`false` (unset → true); any other value keeps the guard on
+  and says so. README records the 60s `hooks.json` timeout fail-open and
+  MCP-provided write tools as known residuals.
+
 ## [0.29.9]
 
 ### Changed

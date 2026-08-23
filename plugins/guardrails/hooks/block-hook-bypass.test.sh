@@ -511,6 +511,18 @@ run "here-string alone (allowed)" "grep foo <<< \"haystack\"" 0
 # --- Kill switch — disabled path is a clean no-op even on a bypass ----------
 run "kill switch off → no-op despite cat > file" "cat > foo.txt" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED=false
+# #3130 F7: a typo must not silently disable. Only exact true/false.
+run "kill switch typo YES stays enabled (blocked)" "cat > foo.txt" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED=YES
+typo_out=$(env CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED=YES \
+  bash "$HOOK" <<<"$(command_json "cat > foo.txt")" 2>&1)
+assert_contains "typo enable value is named" "$typo_out" "not exactly true or false"
+# #3130 F5: crash fail-open with a visible notice.
+crash_out=$(env BLOCK_HOOK_BYPASS_TEST_CRASH=1 \
+  bash "$HOOK" <<<"$(command_json "cat > foo.txt")" 2>&1)
+crash_rc=$?
+assert_exit "crash path fails open" 0 "$crash_rc"
+assert_contains "crash path names guard did not run" "$crash_out" "guard did not run"
 
 # --- Telemetry: block emits a `blocked` envelope ----------------------------
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
@@ -1189,10 +1201,12 @@ assert_contains "PS write block names Write/Edit" "$psout" "Write or Edit tool"
 assert_absent "PS write block message is shell-agnostic" "$psout" "Bash file-write"
 assert_contains "PS write block names kill switch" "$psout" "block_hook_bypass_enabled"
 assert_contains "PS write block names isolated Write/Edit refusal" "$psout" "main checkout"
+assert_contains "PS write block names scratch_roots remedy" "$psout" "block_hook_bypass_scratch_roots"
+assert_contains "PS write block names session --settings" "$psout" "--settings"
 assert_contains "PS write block marks kill switch operator-only" "$psout" "not actionable by the blocked agent"
 assert_contains "PS write block warns kill switch is user-scoped" "$psout" "user-scoped"
 assert_contains "PS write block warns kill switch persists across repositories" "$psout" "every repository"
-assert_contains "PS write block tells operator to re-enable kill switch" "$psout" "re-enable it"
+assert_contains "PS write block tells operator to re-enable kill switch" "$psout" "Re-enable it"
 
 # --- Enforcement-scope disclosure -------------------------------------------
 # The message asserted "use Write or Edit instead" with no scope, so it read as
@@ -1202,12 +1216,14 @@ assert_contains "PS write block tells operator to re-enable kill switch" "$psout
 scopeout=$(bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" 2>&1)
 assert_contains "bash block names kill switch" "$scopeout" "block_hook_bypass_enabled"
 assert_contains "bash block names isolated Write/Edit refusal" "$scopeout" "main checkout"
+assert_contains "bash block names scratch_roots remedy" "$scopeout" "block_hook_bypass_scratch_roots"
+assert_contains "bash block names session --settings" "$scopeout" "--settings"
 assert_contains "bash block marks kill switch operator-only" "$scopeout" \
   "not actionable by the blocked agent"
 assert_contains "bash block warns kill switch is user-scoped" "$scopeout" "user-scoped"
 assert_contains "bash block warns kill switch persists across repositories" "$scopeout" \
   "every repository"
-assert_contains "bash block tells operator to re-enable kill switch" "$scopeout" "re-enable it"
+assert_contains "bash block tells operator to re-enable kill switch" "$scopeout" "Re-enable it"
 assert_contains "bash block states its scope" "$scopeout" \
   "only this command string is inspected"
 assert_contains "bash block names the invoked-script gap" "$scopeout" \

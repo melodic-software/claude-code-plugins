@@ -132,6 +132,28 @@ out of scope until such a signal exists.
   (`/guardrails:setup apply install-pre-commit-content`) or an equivalent CI check.
   The block message carries a lane-specific scope note so a reader does
   not credit the guard with coverage it never claimed.
+- **`block-hook-bypass` isolated-session remedy.** Write or Edit may be refused
+  for paths in the main checkout when the agent is in an isolated session or
+  worktree. That is not a dead end: write under a configured
+  `block_hook_bypass_scratch_roots` directory, or ask the operator for a
+  session-scoped disable via `claude --settings`. The user-global
+  `block_hook_bypass_enabled` switch is last resort — it persists across every
+  repository where guardrails is enabled.
+- **`block-hook-bypass` fails open on its own crash.** An internal script error
+  exits 0 so a defect on this hottest-path hook cannot freeze the session, and
+  emits a dual-channel "guard did not run" notice so the allow is not silent.
+  Stdin timeout and a NUL payload still fail closed. The 60s `hooks.json`
+  `timeout` on this handler is a harness-level fail-open the plugin does not
+  override: if the process is killed at that bound, the tool call proceeds.
+- **`block-hook-bypass` option parse is strict.** Only the exact strings `true`
+  and `false` are accepted (`unset` defaults to enabled). Any other value keeps
+  the guard enabled and names the bad value — a typo must not silently disable
+  a blocking safety control.
+- **`block-hook-bypass` does not see MCP-provided shell or file-write tools.**
+  The matcher is `Bash|PowerShell`. A write issued through an MCP tool is an
+  accepted residual, same class as the unmonitored Bash forms above. There is
+  also no default scratch exemption: ordinary temp writes block until an
+  operator sets `block_hook_bypass_scratch_roots`.
 - **`block-hook-bypass` has one target-scoped exemption beyond `/dev/null`, and
   it is off unless an operator turns it on.** `block_hook_bypass_scratch_roots`
   takes a comma-separated list of absolute directories whose contents are
