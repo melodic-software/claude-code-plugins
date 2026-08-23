@@ -121,7 +121,11 @@ def main(sample_path, out_path, instructions_path):
     # register analysis: how much of the flagged population is hard-boundary prose
     allrows = [json.loads(ln) for ln in open(instructions_path, encoding="utf-8")]
     flagged = [r for r in allrows if r["flagged"]]
-    hard = re.compile(r"\b(never|must not|must|do not|don't|cannot|no )\b", re.I)
+    # Hard-boundary register. Bare "no " is deliberately NOT here: it fires on
+    # ordinary prose ("no proper noun", "no path", "there is no reason to"),
+    # which is not a boundary marker. Including it inflated this figure by 2.2
+    # points over 134 sentences it alone matched.
+    hard = re.compile(r"\b(never|must|do not|don't|cannot)\b", re.I)
     h = sum(1 for r in flagged if hard.search(r["sentence"]))
     print()
     print(f"flagged population         : {len(flagged)}")

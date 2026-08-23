@@ -49,7 +49,7 @@ Expected, and verified reproducing exactly at the pinned revision:
 | sampled | 185 |
 | false-positive rate, contested scored for the proxy | 94.1% |
 | false-positive rate, contested scored against it | 100% |
-| flagged population in hard-boundary register | 57.0% |
+| flagged population in hard-boundary register | 54.8% |
 
 ## The three stages
 

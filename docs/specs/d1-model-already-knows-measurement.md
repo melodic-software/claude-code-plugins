@@ -167,8 +167,9 @@ Quantified over the full 6,107-sentence flagged population:
 
 The brief in #3124 predicted it: *"'carries no proper noun' and 'is a genuine directive' are not
 mutually exclusive — a bare imperative can still be load-bearing."* The measurement shows the two do not
-merely coexist — **in this fleet they positively correlate.** 57.0% of the flagged population is in
-hard-boundary register (`never`, `must`, `do not`, `cannot`), because the house style writes its
+merely coexist — **in this fleet they positively correlate.** 54.8% of the flagged population is in
+hard-boundary register — `never`, `must` (which subsumes `must not`), `do not`, `don't`, `cannot`;
+the exact set is `hard` in `adjudication.py` — because the house style writes its
 most load-bearing rules as bare imperatives, precisely because those rules are universal:
 
 - A human merges — this skill never auto-merges.
