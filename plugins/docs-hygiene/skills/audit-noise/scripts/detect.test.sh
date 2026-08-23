@@ -1191,6 +1191,21 @@ assert_contains "the first sentence is attributed to its own line" \
 assert_contains "the second sentence is attributed to its own line" \
   "$two_wrap_out" $'Finding shape: negation\nFinding line: 4'
 
+# Two textually identical sentences must not both pin to the first match.
+# `${var%%"$s"*}` always anchors at the earliest occurrence, so a cursor has
+# to walk past each already-attributed sentence.
+NEG_DUP="$TEST_TMPDIR/negation-duplicate-sentences.md"
+cat >"$NEG_DUP" <<'EOF'
+# Duplicate-sentence paragraph
+
+Do not use markdown.
+Do not use markdown.
+EOF
+dup_out="$(bash "$DETECT" "$NEG_DUP")"
+dup_lines="$(printf '%s\n' "$dup_out" | awk '/^Finding shape: negation$/{getline; if($1=="Finding" && $2=="line:") print $3}')"
+assert_contains "identical later sentence keeps its own line" \
+  "$(printf '%s' "$dup_lines")" $'3\n4'
+
 # Sibling list items are separate blocks. Joining them would let the second
 # item's `Prefer` pair the first item's prohibition.
 NEG_LIST_SIBLING="$TEST_TMPDIR/negation-list-siblings.md"

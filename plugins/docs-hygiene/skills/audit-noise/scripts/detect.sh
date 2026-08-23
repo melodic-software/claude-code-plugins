@@ -278,23 +278,28 @@ audit_file() {
   }
 
   flush_negation() {
-    local sentences=() s idx offset attr_line attr_excerpt sentence_off prefix
+    local sentences=() s idx offset attr_line attr_excerpt sentence_off
+    local cursor=0 rest prefix_in_rest
     [[ -n "${neg_unwrapped//[[:space:]]/}" ]] || {
       reset_negation
       return 0
     }
     # Every qualifying sentence in the paragraph is a finding. Returning after
     # the first would drop a later imperative on its own physical line.
+    # Walk a cursor so two identical sentences attribute to their own lines:
+    # `${var%%"$s"*}` always anchors at the earliest match.
     audit_noise_split_sentences_into sentences "$neg_unwrapped"
     for s in "${sentences[@]}"; do
+      rest="${neg_unwrapped:cursor}"
+      prefix_in_rest="${rest%%"${s}"*}"
+      sentence_off=$cursor
+      if [[ "$prefix_in_rest" != "$rest" ]]; then
+        sentence_off=$((cursor + ${#prefix_in_rest}))
+        cursor=$((sentence_off + ${#s}))
+      fi
       audit_noise_line_has_negation_without_positive "$s" "paragraph" || continue
       attr_line="${neg_line_nums[0]}"
       attr_excerpt=""
-      sentence_off=0
-      prefix="${neg_unwrapped%%"${s}"*}"
-      if [[ "$prefix" != "$neg_unwrapped" ]]; then
-        sentence_off=${#prefix}
-      fi
       idx=0
       for offset in "${neg_offsets[@]}"; do
         if [[ $offset -le $sentence_off ]]; then
