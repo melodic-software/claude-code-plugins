@@ -21,9 +21,14 @@ content*, not only runtime behavior: the publishing organization's name, its mar
 repository names, and publisher-prefixed configuration keys do not appear in a plugin's skill, agent,
 or schema content. One use is sanctioned — a citation that *names a source rather than a target the
 plugin acts on*: a documentation URL, or a cross-plugin reference to this marketplace's own published
-files, cited for a reader to consult. The line is what the content does with it, not where it points:
-prose citing such a URL is conforming, while a skill instructed to fetch, poll, or write to it has
-made the publisher a runtime dependency and is not. (`plugin.json` publisher metadata sits outside
+files, cited for a reader to consult. The line is drawn by who owns the target, not by whether the
+content merely cites it: a skill instructed to fetch, poll, or write to a **publisher-owned** file
+has made the publisher a runtime dependency and is not conforming. Reading a third-party
+documentation URL creates no such dependency and stays conforming even when a skill fetches it at
+runtime — `plugins/claude-config/skills/audit/SKILL.md` reads `code.claude.com` that way. Drawing the
+line at ownership rather than at cite-versus-fetch is deliberate: for content an agent reads, "cited
+for a reader to consult" and "instructed to fetch" are not cleanly separable, so a rule keyed on that
+distinction leaves cases undecidable. (`plugin.json` publisher metadata sits outside
 this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
 the manifest is for.)
 
@@ -31,13 +36,15 @@ Like the setup contract below, **this is a normative target, not a description o
 enforcement reaches a strict subset of it. `scripts/validate-plugin-contracts.mjs` gates the
 marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys across every plugin's skill
 content, and holds the `autonomy` plugin to a stricter token set;
-`plugins/github/github.test.sh` runs a wider sweep over its own plugin's prose as its "agnostic
-conformance" check — a sibling of that file's D4 zero-vendored-knowledge checks, not one of them. The
+`plugins/github/github.test.sh` sweeps a wider token set over a narrower scope — its own plugin's
+prose only — as its "agnostic conformance" check, a sibling of that file's D4 zero-vendored-knowledge
+checks, not one of them. The
 bare organization name in skill prose is gated nowhere *fleet-wide* — only inside `autonomy` and
-`github`, each by its own narrower sweep — and agent content is gated nowhere at all, so shipped
-skills predating this statement are nonconforming until brought into conformance rather than absolved
-by a green build. A fleet-wide edit answers to two independent mechanisms, both steps of the same
-`plugin-gate` CI job and neither aware of the other; consolidating them behind this statement, and
+`github`, each by a sweep scoped to that one plugin — and agent content is gated nowhere at all, so
+shipped skills predating this statement are nonconforming until brought into conformance rather than
+absolved by a green build. A fleet-wide edit answers to two independent mechanisms, each running in
+its own step of the same `plugin-gate` CI job and neither aware of the other; consolidating them
+behind this statement, and
 settling that conformance gap deliberately, is tracked in issue #3136.
 
 Keep plugins horizontally decoupled:
@@ -392,7 +399,7 @@ is closed. Setup must be:
 - transparent about what it inferred, changed, skipped, or could not verify;
 - limited to configuration the plugin owns;
 - safe for existing files, preserving unrelated user content;
-- evidence-bearing: after making or routing a change, it reports the effective value it *observed*,
+- evidence-bearing: after making or routing a change, it reports the stored value it *observed*,
   and says plainly where it could not observe one — never an unobserved change; and
 - non-interactive when complete arguments are supplied, so automation and headless use remain possible.
 

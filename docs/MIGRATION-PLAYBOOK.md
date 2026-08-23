@@ -308,9 +308,12 @@ that could silently regress — how it triggers, how it routes an ambiguous requ
 or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
 from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`, …). A **hook** plugin
 is a skip only in the case its rationale actually describes — deterministic, silent-always-on,
-guarded by `.test.sh`, **no model-facing skill at all**. A hook plugin that ships a `setup` skill has
-a skill with a judgment-bearing contract, and the plugin's shape does not exempt it: a `setup`
-skill *is* warrantable — it makes interview and write-config decisions (the
+guarded by `.test.sh`, **no model-invoked skill**. That rationale turns on the absence of a
+judgment-bearing contract, not on invocation mode, so it does not reach a hook plugin that ships a
+`setup` skill. Such a skill sets `disable-model-invocation: true` and so genuinely is *not*
+model-invoked — the skip's literal terms cover it — yet it makes interview and write-config
+decisions that can silently regress, which is the thing the skip exists to excuse the absence of.
+The plugin's shape does not exempt it: a `setup` skill *is* warrantable (the
 `codebase-health/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
@@ -1359,7 +1362,9 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
    install rather than an uninstall/reinstall — verified for a **non-sensitive option at `user`
    scope** on Claude Code 2.1.240 and **not** at the `--scope project` this step uses, so read the
-   stored value back there rather than assuming the write landed. Interactively, `/plugin configure` owns personal
+   stored value back — from the **user** `settings.json` `pluginConfigs`, where non-sensitive options
+   land irrespective of enable scope, not from the project settings this command names — rather than
+   assuming the write landed. Interactively, `/plugin configure` owns personal
    `userConfig`; an explicit setup skill owns any separate tracked project configuration declared by
    the plugin.
 4. **Headless prompting caveat.** Install never prompts non-interactively — a required `userConfig`
@@ -1413,8 +1418,9 @@ surface to a published plugin for a single consumer's low-value nicety.
    verified for a **non-sensitive option at `user` scope** on Claude Code 2.1.240 and is **untested at
    the `project` scope this step uses**, so read the stored value back before reporting a
    project-scope reconfiguration as applied — from the **user** `settings.json` `pluginConfigs`, where
-   step 3 above records non-sensitive options landing irrespective of enable scope (itself observed
-   only at `--scope local`, smoke-test A), not from the project settings this command names.
+   Fresh-consumer onboarding's step 3 records non-sensitive options landing irrespective of enable
+   scope (itself observed only at `--scope local`, smoke-test A), not from the project settings this
+   command names.
    **Exception:** a `directory`/`file` relative-path entry in checked-in project settings resolves
    against the repo checkout (cloud sessions included) — see
    [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md). Otherwise the marketplace is known but the plugin is absent, and step 3's

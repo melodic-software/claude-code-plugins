@@ -2,7 +2,9 @@ name: pr-issue-linkage
 
 # Validates the PR body carries a native closing keyword (Closes/Fixes/Resolves
 # #N, including owner/repo#N, or the literal "No linked issue" when the PR closes
-# nothing) and a non-empty `## Related` section, via the shared
+# nothing) and four non-empty contract sections — `## Summary`, `## Fix`,
+# `## Verification`, `## Related` (heading match case-insensitive; a nested
+# subsection counts as its parent's content) — via the shared
 # pr-issue-linkage reusable from ci-workflows. `pull_request_target` runs the
 # base-branch definition, so a head-branch edit cannot bypass the gate — safe
 # here because the reusable reads PR body metadata from the event payload only
