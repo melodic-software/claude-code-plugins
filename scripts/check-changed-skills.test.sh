@@ -22,16 +22,8 @@ stage_libs() {
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # A stub checker shared by every scenario: records each invocation (skill name +
 # forwarded env) to $CHECK_LOG, and FAILs iff the skill is named "bad".
@@ -339,6 +331,4 @@ fi
 rm -rf "$r"
 
 rm -f "$STUB"
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+test_harness::report

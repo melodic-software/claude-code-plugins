@@ -63,16 +63,8 @@ if [[ ! -f "$HELPER" ]]; then
   exit 1
 fi
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 SENTINEL="sentinel@example.invalid"
 
@@ -231,6 +223,4 @@ scenario_c
 scenario_d
 scenario_declares_full_env_clear
 
-echo
-echo "passed: $PASS  failed: $FAIL"
-((FAIL == 0)) || exit 1
+test_harness::report

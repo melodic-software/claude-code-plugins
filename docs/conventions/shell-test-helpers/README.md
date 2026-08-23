@@ -35,9 +35,12 @@ remove, for a mechanism (`check-cross-plugin-source-drift.sh`) that already clas
 outside its scope: they live at different paths per plugin and are not byte-identical, so `discover`
 never flags them as an unregistered cluster.
 
-`scripts/check-skill-portability.test.sh` follows the same reasoning at the repo-tooling layer: it is
-not a plugin, so no plugin assertion library is available to source, and it carries its own minimal
-`PASS`/`FAIL` counters rather than reaching into a plugin's copy.
+Repo-tooling suites under `scripts/` are a different layer: they share
+[`scripts/lib/test-harness.sh`](../../../scripts/lib/test-harness.sh)
+(`ok` / `fail` / `test_harness::report`). That library is not a plugin import
+and does not change the per-plugin rule above.
+`scripts/check-skill-portability.test.sh` sources it rather than reaching into
+a plugin's copy.
 
 ## Exit-code taxonomies also diverge, deliberately
 

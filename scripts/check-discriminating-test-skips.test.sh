@@ -12,16 +12,8 @@ REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-discriminating-test-skips.sh"
 HELPERS="$REPO_ROOT/plugins/source-control/scripts/test-helpers.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 new_fixture() {
   local dir
@@ -169,5 +161,4 @@ else
 fi
 rm -f "$tmp_test"
 
-printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
-[[ $FAIL -eq 0 ]] || exit 1
+test_harness::report

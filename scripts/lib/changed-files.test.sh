@@ -19,16 +19,8 @@ SCRIPTS_DIR="$(cd "$SELF_DIR/.." && pwd)"
 # shellcheck source=../test-git-helpers.sh
 . "$SCRIPTS_DIR/test-git-helpers.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=test-harness.sh
+. "$SELF_DIR/test-harness.sh"
 
 # mk_repo -> prints the path of a fresh repo with one committed base tree.
 mk_repo() {
@@ -271,8 +263,4 @@ else
 fi
 rm -rf "$repo"
 
-# --- summary --------------------------------------------------------------
-
-echo
-echo "passed: $PASS  failed: $FAIL"
-((FAIL == 0)) || exit 1
+test_harness::report

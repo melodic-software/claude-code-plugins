@@ -13,16 +13,8 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=read-list.sh
 . "$SELF_DIR/read-list.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=test-harness.sh
+. "$SELF_DIR/test-harness.sh"
 
 # mk <content> -> path of a temp list file
 mk() {
@@ -163,6 +155,4 @@ else
   fail "the shipped docs-only allowlist yielded nothing"
 fi
 
-echo
-echo "passed: $PASS  failed: $FAIL"
-((FAIL == 0)) || exit 1
+test_harness::report

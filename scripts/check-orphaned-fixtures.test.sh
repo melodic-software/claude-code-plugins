@@ -17,16 +17,8 @@ stage_libs() {
   cp "$SELF_DIR/lib/read-list.sh" "$1/lib/"
 }
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # mk_repo <baseline-content>: throwaway repo with the detector installed and a
 # baseline file at scripts/orphaned-fixtures-baseline.txt.
@@ -185,5 +177,4 @@ repo="$(mk_repo)"
 if [[ $? -eq 2 ]]; then ok "bad mode -> exit 2"; else fail "bad mode did not exit 2"; fi
 rm -rf "$repo"
 
-printf '\nPASS=%d FAIL=%d\n' "$PASS" "$FAIL"
-((FAIL == 0))
+test_harness::report
