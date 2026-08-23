@@ -22,7 +22,7 @@ Run `status` logic internally and identify candidates:
 
 | Reason | Detection method |
 |--------|-----------------|
-| **Orphaned directory** | Directory exists under a worktree root but NOT in `git worktree list` output. Scan every root your project uses — common layouts: (1) `<repo-root>/.worktrees/`; (2) Claude Code's default `<repo-root>/.claude/worktrees/`; (3) bare-clone hub `<hub-root>/<name>/` — siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists — from terminal kill without clean exit, OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
+| **Orphaned directory** | Directory exists under a worktree root but NOT in `git worktree list` output — **and** it passes all four qualifying tests in Step 4b (not a symlink, not a work tree, no `.git` entry, empty). Those tests are not optional: the external root is shared across repositories, so another repository's live worktree is absent from this one's list, and a live worktree whose main clone is unreachable fails the `rev-parse` test while still holding all its work. Scan every root your project uses — common layouts: (1) the **configured external root** (`melodic.worktreeroot`, then the `worktree_root` plugin option, then the plugin data dir) where `create` actually places every worktree, and which is shared across repositories; (2) `<repo-root>/.worktrees/`; (3) Claude Code's default `<repo-root>/.claude/worktrees/`; (4) bare-clone hub `<hub-root>/<name>/` — siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists — from terminal kill without clean exit, OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
 | **Prunable** | `git worktree list --porcelain` shows `prunable` flag |
 | **PR merged** | `gh pr list --state merged --head <branch>` returns non-empty result |
 | **Stale** | Last commit > threshold days, no open PR, no locked flag |
@@ -65,7 +65,10 @@ Skipping 4a is the usual reason a previous `/source-control:worktree cleanup` le
 ### Step 4b: Remove the worktree
 
 ```bash
-# Orphaned directory (on disk, not in `git worktree list`): remove the husk
+# Orphaned directory: remove the husk — ONLY after it has passed all four
+# qualifying tests below (not a symlink, not a work tree, no `.git` entry,
+# empty). Absence from `git worktree list` is NOT on its own a licence to run
+# this line.
 rm -rf <path>
 
 # Git-tracked worktree — plain removal first. It FAILS on a dirty worktree
@@ -73,7 +76,7 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
-**Two guards run before ANY removal, plain or forced, in this order.** The stranded-work guard first, because it can abort the removal outright — running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing.
+**Two guards and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → reap → removal.** The stranded-work guard first, because it can abort the removal outright — running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last of the three for the same reason inverted: it is the only one of the three that is *not* undoable, so it must not fire for a worktree the guards are about to save.
 
 **1. Stranded-work guard:** removal itself is recoverable — `git worktree remove` unregisters the directory and leaves the branch ref intact — but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` emitted in Step 4c finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
 
@@ -99,6 +102,112 @@ the worktree toplevel (skip unmatched globs) AND from `MAIN_ROOT` — before rem
 new carried file → offer the copy-to-main sync; main-side file ABSENT in the worktree → offer
 removing main's copy only on explicit confirmation of a deliberate deletion (default keep — the
 file may simply never have been carried). Removal without this pass loses the edits with exit 0.
+
+**3. Reap the worktree's project-scope plugin install records.** Claude Code records a project-scope
+plugin install in `~/.claude/plugins/installed_plugins.json` keyed by a literal `projectPath`, and
+nothing reaps that record when the path goes away. A worktree therefore leaves one record per
+installed plugin behind, permanently — measured on this convention's own author machine: 108
+project-scope records, across 8 marketplaces, every one of them naming a single worktree directory
+that no longer exists. Removing the directory is the last moment at which those records are both
+identifiable and provably dead, so removal is where they are removed too:
+
+```bash
+# Run FROM INSIDE the candidate, after both guards above have cleared.
+cd <path> && bash "${CLAUDE_PLUGIN_ROOT}/scripts/reap-project-plugin-records.sh" --worktree-path <path>
+```
+
+The `cd` is not incidental. `claude plugin uninstall <id> -s project` has **no path flag**: it
+resolves strictly against the current directory (measured — [fixtures/README.md](../fixtures/README.md)
+§ `project-scope-reap-probe.sh`, Claude Code 2.1.240, re-run unchanged on 2.1.241). The helper
+enforces the same thing from the other side: it refuses unless `--worktree-path` names the directory
+it is already standing in, so it structurally cannot act on any path but its own.
+
+Four rules govern this step, and each closes a way it could do real harm:
+
+- **The trigger is this teardown, never path liveness.** Reap a worktree *this cleanup is removing*.
+  Never reap "a path that does not currently resolve": a project-scope record for a live repository
+  on an unmounted network share or a detached external volume is indistinguishable from a dead
+  worktree to a bare existence check, and destroying those records is unrecoverable data loss for
+  the user. Pre-existing orphans from worktrees removed before this step existed are **reported by
+  `audit`, not reaped here** — see [audit.md](audit.md).
+- **A non-zero exit is a no-op to report, never an escalation.** The CLI's own failure text for an id
+  with no project-scope record here reads `Plugin "<id>" is installed in user scope, not project.
+  Use --scope user to uninstall.` Following that suggestion would uninstall the plugin **fleet-wide**.
+  Never run `-s user`, and never `--prune` (which reaches past project scope into shared
+  auto-installed dependencies).
+- **Never hand-edit `installed_plugins.json`.** It is Claude Code's internal state, not a published
+  contract. Every removal goes through the CLI; the helper only ever reads the file, and only to
+  report survivors.
+- **A degrade is reported, not swallowed.** Exit 3 (no `claude` on PATH, no `jq`, or enumeration
+  failed) means the records survive the removal — say so and continue with the removal. Exit 1 means
+  some record survived the pass; surface it. The zero case (`no records recorded here`) is reported
+  too, so "nothing to reap" is never indistinguishable from "never checked".
+
+`--dry-run` never reaches this step — Step 4 reports the candidates and exits before phase 4a. The
+helper carries its own `--dry-run` for a manual check from inside a worktree; it names what would be
+removed and calls nothing.
+
+**The orphaned-directory candidate takes this step too — behind the qualification below, which is
+stricter than anything else in this file.** It is a directory this action is destroying, which is
+the trigger; but it is also the only candidate class with **no stranded-work row to read**. The
+engine enumerates strictly from `git worktree list --porcelain` (see [status.md](status.md) data
+collection), so an unregistered directory produces no row at all, and guard 1's closed-list rule
+covers an unrecognized *value*, never an *absent row*. For this class the qualification below is the
+only gate standing between a live directory and an unrecoverable reap plus `rm -rf`.
+
+**Precondition on the scan itself.** If a configured worktree root does not resolve to a directory
+right now, do not scan it and do not classify anything under it. The volume is detached, and every
+path under it would qualify on identical evidence.
+
+**Normalize `<path>` FIRST — strip every trailing separator — and run all four tests against the
+normalized form.** This is not tidiness. POSIX pathname resolution forces a trailing-slash path to
+resolve *through* a symlink to a directory, so `test -L "link/"` reports **false** for something that
+is a symlink, and the disqualifier below silently passes. Measured on this plugin's own host
+(Git Bash, native symlinks): `test -L link` → true, `test -L "link/"` → **false**, and
+`find link -mindepth 1` → **empty**, because `find` does not descend a symlinked start point either.
+A candidate string carrying one trailing character therefore looks like an empty non-symlink and
+sails into `rm -rf`. Pinned by `scripts/reap-project-plugin-records.test.sh`.
+
+```bash
+path="${path%/}"        # and again for a Windows-style trailing backslash
+```
+
+**Four tests, ALL of which must hold**, against that normalized `<path>`. The first three are
+negatives and prove nothing on their own; the last is the only positive evidence available, and it is
+what the presentation row's "(empty, no git ref)" has always claimed:
+
+```bash
+test -L "<path>"                                             # must be FALSE — not a symlink
+git -C <path> rev-parse --is-inside-work-tree 2>/dev/null    # must NOT print `true`
+test -e "<path>/.git"                                        # must NOT exist (file OR directory)
+find "<path>" -mindepth 1 | head -1                          # must return NOTHING (read the output, not the status)
+```
+
+0. **Not a symlink** — tested on the normalized path, per the note above; `test -L "<path>/"` answers
+   about the *target*, not the link. `find <path> -mindepth 1` does not descend a symlinked start
+   point, so a link to a busy directory reports **empty** and passes test 3 — while the reap, which
+   resolves `pwd` through the link, would act on the *target's* records. A symlink is never a husk
+   this action created; disqualify it and report it.
+1. **Not a work tree.** `true` means the directory belongs to some repository — not necessarily this
+   one. The external worktree root is **shared**: `create` places worktrees at
+   `<root>/<owner>-<repo>-<slug>`, one root serving every repository on the machine
+   (`reference/worktree-root-convention.md` for the root; `scripts/worktree-create.sh` for the
+   `<owner>-<repo>-<slug>` naming), so a scan of that root turns up other repositories' live
+   worktrees, every one of them absent from *this* repository's list.
+2. **No `.git` entry. This is the test that actually matters, and test 1 does not imply it.** A live
+   worktree whose main clone has been moved, deleted, or unmounted still carries its `.git` **file**
+   while `rev-parse` fails — so test 1 alone calls another lane's live worktree a husk and destroys
+   it. A `.git` entry present, resolvable or not, disqualifies the candidate outright.
+3. **Empty.** A husk is empty; a worktree is not. Nothing else in this action tests this, and without
+   it "orphaned directory" is an inference from two failures rather than an observation. Read the
+   **output**, never the exit status: `find … | head -1` exits 0 whether or not it printed anything,
+   so a status check would call every directory empty.
+
+A candidate failing any of the four is **not** an orphaned directory. Report it as another lane's
+worktree, or as a directory whose contents nobody has accounted for, and leave it entirely alone:
+do not reap, do not remove. Deriving deadness from the negatives alone is exactly the inference
+[audit.md](audit.md) refuses to make on the same evidence, and the acting path may not be the more
+permissive of the two.
 
 **Escalation guard (before any `--force`):** when the plain removal fails, inspect why — `git -C <path> status --porcelain` (uncommitted edits) and `git -C <path> log HEAD --not --remotes --oneline | head` (unpushed commits). `HEAD`, not `--branches`: on a detached HEAD — the one case where removal makes commits unreachable *immediately*, with no branch ref left holding them — `--branches` reports every other branch in the repository and nothing about this worktree's own commits, so the guard reads clean at exactly the moment it matters most. If either is non-empty, present the summary to the user and get explicit per-worktree confirmation BEFORE forcing — forced removal permanently discards those changes. Only after confirmation (or when the failure is a lock/metadata issue with a verifiably clean tree):
 
@@ -150,4 +259,8 @@ Report honestly — never count a husk as removed:
 - **Fully removed** — directory gone AND metadata pruned.
 - **Unregistered, husk remains** — `git worktree list` is clean but the directory is still on disk (a lock survived Step 4a). Surface the path; the user removes it after closing the holding process.
 
-Report: "Removed N worktrees (M fully deleted, K husks remaining — paths above). Run `/source-control:worktree status` to verify."
+- **Records reaped** — the count the reap step returned per candidate, plus any it could not remove.
+  A record that survived, or a reap that degraded (exit 3), is named with its path so the user can
+  re-run the helper from a directory recreated there; it is never quietly dropped.
+
+Report: "Removed N worktrees (M fully deleted, K husks remaining — paths above); reaped R project-scope plugin install records. Run `/source-control:worktree status` to verify."

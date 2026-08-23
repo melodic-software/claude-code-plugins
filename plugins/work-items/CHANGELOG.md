@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.14]
+## [0.39.15]
 
 ### Fixed
 
@@ -32,6 +32,19 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   section distinguishes an absent `gh` (no verb that shells out can run) from a too-old one
   (native-surface verbs refused, lease trio intact, so selection must come from elsewhere
   but the claim itself is not degraded).
+
+## [0.39.14]
+
+### Fixed
+
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
 
 ## [0.39.13]
 

@@ -3,6 +3,70 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **`check`: Check 2b — description field cap (1024; WARN; #3119).** The gate
+  carried one description limit, `DESC_CHAR_CAP=1536`, and treated it as the only
+  one. That value is Claude Code's in-context listing truncation for the assembled
+  entry (`description` + `" - "` + `when_to_use`). The Agent Skills spec states a
+  separate, smaller maximum for the `description` **field alone**: "Must be
+  non-empty / Maximum 1024 characters / Cannot contain XML tags"
+  (platform.claude.com Agent Skills overview, fetched 2026-08-23). Two limits at
+  two layers, and only the looser one was checked — so a description could sit
+  under 1536 combined, breach 1024 on its own, and pass clean. Nineteen skills in
+  this marketplace did (lower bound; measured with an independent extractor that
+  reads slightly short of the gate's own).
+
+  Check 2b reports the field breach separately from check 2, with its own message.
+
+  Counted in **codepoints**, not bytes — the spec says "Maximum 1024 characters",
+  and `${#var}` degrades to byte counting under a byte-oriented locale, so 600
+  `é` characters report as 1200 under `LC_ALL=C` and a valid multilingual
+  description would false-warn. Uses the same UTF-8 → UTF-32BE `iconv` form as
+  check 22, with the same UTF-8-locale fallback where `iconv` is absent.
+  `DESC_LEN` stays a byte count for check 2, whose 1536 listing cap is a separate
+  measure. Caught in review by the Codex reviewer on this PR.
+
+  **WARN, not FAIL, on measured evidence.** No local validator enforces the field
+  maximum: `claude plugin validate --strict` (Claude Code 2.1.241) passes a
+  1248-char description clean — verified against a throwaway fixture plugin on
+  2026-08-23, the only warning raised being an unrelated missing `author`. The
+  breach is latent for filesystem and plugin skills, and hard only for a skill
+  uploaded through the Skills API. Failing the build on it would block a fleet
+  over a limit nothing in the local toolchain applies.
+
+  Numbered `2b` rather than `26`: it is the same concern as check 2 at a second
+  layer, and renumbering would break the identity of checks 3–25, which are cited
+  by number across this repo and in tracker items. The plugin's "twenty-five
+  deterministic checks" claim is left standing on that reading.
+
+## [0.18.1]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
 ## [0.18.0]
 
 ### Added
