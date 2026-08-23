@@ -140,7 +140,33 @@ DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # Repo root, for relativizing Location. The fix action fences each remediation to
 # its finding's Location, and an absolute path is not portable to the checkout
 # that applies the fix.
+#
+# One directory has several SPELLINGS on Git Bash, and matching the wrong one
+# silently declines a real in-repo finding — this producer FAILS CLOSED, so a
+# path it cannot prove is under the root never reaches the relay. Measured:
+# `git rev-parse --show-toplevel` answers `C:/Users/u/AppData/Local/Temp/t/repo`
+# while the caller reached the same directory as `/tmp/t/repo`.
+#
+# The PRIMARY anchor is derived from the caller's own `pwd` by removing the
+# sub-path git reports for it. The git-reported forms stay as fallbacks.
+# (The ai-slop sibling fails OPEN on the same mismatch — Location stays
+# absolute and nothing reports it.)
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+REPO_ROOT_ALT=""
+REPO_ROOT_PWD=""
+if [[ -n "$REPO_ROOT" ]]; then
+  REPO_ROOT_ALT="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || REPO_ROOT_ALT=""
+  [[ "$REPO_ROOT_ALT" == "$REPO_ROOT" ]] && REPO_ROOT_ALT=""
+  git_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
+  git_prefix="${git_prefix%/}"
+  cwd_now="$(pwd)"
+  if [[ -z "$git_prefix" ]]; then
+    REPO_ROOT_PWD="$cwd_now"
+  elif [[ "$cwd_now" == */"$git_prefix" ]]; then
+    REPO_ROOT_PWD="${cwd_now%/"$git_prefix"}"
+  fi
+  [[ "$REPO_ROOT_PWD" == "$REPO_ROOT" || "$REPO_ROOT_PWD" == "$REPO_ROOT_ALT" ]] && REPO_ROOT_PWD=""
+fi
 
 if [[ -n "$CARVEOUT" && ! "$CARVEOUT" =~ ^[0-9]+$ ]]; then
   echo "emit-findings.sh: --declined-carveout takes a non-negative integer" >&2
@@ -148,7 +174,8 @@ if [[ -n "$CARVEOUT" && ! "$CARVEOUT" =~ ^[0-9]+$ ]]; then
 fi
 
 LC_ALL=C awk \
-  -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" -v carveout="$CARVEOUT" '
+  -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" \
+  -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" -v carveout="$CARVEOUT" '
   function rule_id(id) {
     if (id == "I28-a") return "claude-config/audit-instructions/rule-coercive-emphasis"
     if (id == "I28-b") return "claude-config/audit-instructions/rule-blanket-tool-default"
@@ -163,7 +190,32 @@ LC_ALL=C awk \
     return "Replace the blanket default with the targeted condition it stood in for (\"Use [tool] when it would ...\"). The condition is the payload; do not delete the instruction."
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
-  function esc(s) { gsub(/\|/, "\\|", s); return s }
+  #
+  # IDEMPOTENT. A naive gsub double-escapes a pipe the SOURCE already escaped:
+  # `a \| b` becomes `a \\| b`, which GFM reads as a literal backslash followed
+  # by a LIVE delimiter — the cell splits and the fix action misreads the row.
+  # This repo writes literal `\|` in its own tables, so the case is real rather
+  # than theoretical. Already-escaped pipes are parked on a sentinel first, then
+  # restored single-escaped. (Defect identified in #3180; fan-out from #3202.)
+  function esc(s) {
+    gsub(/\\\|/, "\001", s)
+    gsub(/\|/, "\\|", s)
+    gsub(/\001/, "\\|", s)
+    return s
+  }
+
+  # Prefer the caller pwd spelling, then git toplevel, then cd-then-pwd.
+  # Empty return means the path is not under any known spelling of the root
+  # (fail closed — this producer pre-fix mode on a spelling mismatch).
+  function relativize_in_repo(p) {
+    if (repo_root_pwd != "" && index(p, repo_root_pwd "/") == 1)
+      return substr(p, length(repo_root_pwd) + 2)
+    if (repo_root != "" && index(p, repo_root "/") == 1)
+      return substr(p, length(repo_root) + 2)
+    if (repo_root_alt != "" && index(p, repo_root_alt "/") == 1)
+      return substr(p, length(repo_root_alt) + 2)
+    return ""
+  }
 
   # Emit a YAML scalar, quoting ONLY when the plain form would misparse. Git
   # accepts branch names beginning with a YAML indicator: "#foo" reads as a
@@ -296,8 +348,8 @@ LC_ALL=C awk \
     # carrying an absolute path, where the fix pass either edits a file outside
     # the working tree or consumes the finding without applying it. Neither is
     # acceptable, so such rows are declined here and stay in the human report.
-    if (repo_root == "" || index(file, repo_root "/") != 1) { declined_outofrepo[id]++; next }
-    loc = substr(file, length(repo_root) + 2)
+    loc = relativize_in_repo(file)
+    if (loc == "") { declined_outofrepo[id]++; next }
 
     excerpt = trim(text)
     if (length(excerpt) > 160) excerpt = substr(excerpt, 1, 157) "..."

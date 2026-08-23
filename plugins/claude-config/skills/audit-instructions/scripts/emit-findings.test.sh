@@ -403,6 +403,41 @@ assert_contains "literal pipes in the excerpt are escaped" "$ROW" '\|'
 COLS=$(printf '%s\n' "$ROW" | sed 's/\\|//g' | awk -F'|' '{print NF}')
 assert_eq "an excerpt containing pipes still parses as one 7-column row" "9" "$COLS"
 
+# --- Case 13b: cell escaping is idempotent -----------------------------------
+# A naive gsub double-escapes a pipe the SOURCE already escaped (`a \| b` ->
+# `a \\| b`), which GFM reads as a literal backslash plus a LIVE delimiter.
+PIPEF2="$CRLFREPO/already-pipe.md"
+# shellcheck disable=SC2016  # backticks and \| are fixture content, not a subshell
+printf 'CRITICAL: run `a \| b` before pushing.\n' >"$PIPEF2"
+# Feed a synthetic scan row whose excerpt (the source line) already contains \|.
+printf '%s\n' "$PIPEF2:1:I28-a" >"$TEST_TMPDIR/already-pipe.txt"
+(cd "$CRLFREPO" && bash "$EMIT" --from "$TEST_TMPDIR/already-pipe.txt" \
+  --out "$TEST_TMPDIR/already-pipe-out.md" --branch testbranch >/dev/null 2>&1)
+ALREADY_ROW=$(LC_ALL=C grep -m1 '^| [0-9]' "$TEST_TMPDIR/already-pipe-out.md")
+assert_not_contains "an already-escaped pipe is not double-escaped" "$ALREADY_ROW" '\\\|'
+assert_contains "and survives as a single-escaped literal" "$ALREADY_ROW" '\|'
+ALREADY_COLS=$(printf '%s\n' "$ALREADY_ROW" | sed 's/\\|//g' | awk -F'|' '{print NF}')
+assert_eq "so the row still parses as one 7-column row" "9" "$ALREADY_COLS"
+
+# --- Case 13c: repo-root spelling mismatch does not fail-close an in-repo file
+# This producer fails CLOSED: a path it cannot prove is under the root is
+# declined. On Git Bash, git's toplevel and the caller's pwd can name the
+# same directory differently, which used to decline every in-repo hit.
+# A symlink makes the two spellings disagree on Linux too.
+SPELL_REAL="$TEST_TMPDIR/spell-real"
+SPELL_LINK="$TEST_TMPDIR/spell-link"
+mkdir -p "$SPELL_REAL"
+git -C "$SPELL_REAL" init -q 2>/dev/null
+printf -- '# Body\n\nCRITICAL: You MUST always do this.\n' >"$SPELL_REAL/doc.md"
+ln -sfn "$SPELL_REAL" "$SPELL_LINK"
+bash "$SCAN" --body-only "$SPELL_LINK/doc.md" >"$TEST_TMPDIR/spell.txt"
+(cd "$SPELL_LINK" && bash "$EMIT" --from "$TEST_TMPDIR/spell.txt" \
+  --out "$TEST_TMPDIR/spell-find.md" --branch testbranch >/dev/null 2>&1)
+SPELL_OUT=$(cat "$TEST_TMPDIR/spell-find.md")
+assert_contains "a pwd-spelled in-repo path is emitted, not declined" "$SPELL_OUT" "doc.md:3"
+assert_not_contains "and is not counted as out-of-repo" "$SPELL_OUT" "reason=outside-repo-root"
+assert_not_contains "Location carries no absolute prefix" "$SPELL_OUT" "$SPELL_LINK/doc.md"
+
 # --- Summary -----------------------------------------------------------------
 printf '\n'
 if [[ "$FAILED" -gt 0 ]]; then
