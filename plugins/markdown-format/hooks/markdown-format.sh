@@ -655,10 +655,20 @@ format_probed_path() {
     printf '%s' '<empty>'
     return 0
   fi
-  local keep="" omitted=0 p oldifs="$IFS"
-  IFS=':'
-  # shellcheck disable=SC2086 # intentional IFS-split of PATH
-  for p in $PATH; do
+  # Split on ':' while preserving empty fields. `IFS=:; for p in $PATH`
+  # drops them, and an empty component is cwd (`PATH=/usr/bin:`).
+  local keep="" omitted=0 p rest="$PATH" last=0
+  while ((last == 0)); do
+    if [[ "$rest" == *:* ]]; then
+      p="${rest%%:*}"
+      rest="${rest#*:}"
+    else
+      p="$rest"
+      last=1
+    fi
+    if [[ -z "$p" ]]; then
+      p="."
+    fi
     case "$p" in
     */.claude/plugins/* | */plugins/cache/*)
       omitted=$((omitted + 1))
@@ -672,7 +682,6 @@ format_probed_path() {
       ;;
     esac
   done
-  IFS="$oldifs"
   if ((omitted > 0)); then
     if [[ -n "$keep" ]]; then
       printf '%s (+%d plugin-bin directories omitted)' "$keep" "$omitted"

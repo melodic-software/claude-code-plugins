@@ -10,7 +10,8 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 - **PATH-probe dump trims plugin-bin directories (#3134).** The missing-tool
   notice still prints `PATH probed:` so a miss is checkable, but Claude Code
   plugin-bin entries (dozens per session, previously ~4,570 bytes/channel)
-  collapse to a count. Plausible user/repo directories stay listed. Unblocks a
+  collapse to a count. Plausible user/repo directories stay listed. Empty PATH
+  components (cwd) are preserved as `.` rather than dropped. Unblocks a
   short re-notice for the shared skip-latch work.
 
 ## [0.11.28]

@@ -976,6 +976,23 @@ if printf '%s' "$OUT_TRIM" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
 else
   fail "PATH probed trim wrong: $OUT_TRIM"
 fi
+# Empty PATH components are cwd. Word-split with IFS=: would drop them.
+PD_EMPTY="$(mktemp -d "$WORK/pd.XXXXXX")"
+OUT_EMPTY="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_EMPTY" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
+    PATH="/usr/bin::${PLUGIN_BIN_HOME}/.local/bin${plugin_bins}:/bin:" \
+    bash "$HOOK")"
+if printf '%s' "$OUT_EMPTY" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
+  (.hookSpecificOutput.additionalContext | contains("PATH probed: /usr/bin:.:")) and
+  (.hookSpecificOutput.additionalContext | contains($local)) and
+  (.hookSpecificOutput.additionalContext | contains(":/bin:.")) and
+  (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted"))
+' >/dev/null 2>&1; then
+  ok "PATH probed preserves empty components as cwd"
+else
+  fail "PATH probed empty-component trim wrong: $OUT_EMPTY"
+fi
 # In-repo missing-tool: repo-local `npm i -D` is still the reliable route (#2868).
 if printf '%s' "$OUT_NO_MDLINT" | jq -e '
   (.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) and
