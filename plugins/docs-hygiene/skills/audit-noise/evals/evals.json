@@ -128,6 +128,35 @@
         "Output distinguishes bare provenance from outstanding tracked work as the carve-out's boundary",
         "The treatment names relocation to a `## Sources` / `## History` footer as the alternative to deletion"
       ]
+    },
+    {
+      "id": 11,
+      "name": "negation-without-positive-classified-and-guardrails-spared",
+      "prompt": "Declutter this file: read evals/fixtures/negation-shapes.md relative to the skill directory and audit it for noise.",
+      "expected_output": "Flags the three bare prohibitions under the `negation` shape at Tier 2 — 'Do not use markdown in your response.', 'Never call the tool directly.', and 'Avoid restating the rule in the body.' — each with a treatment that rewrites to the positive target rather than deleting the directive. Flags none of the paired-positive sentences, none of the hard guardrails, and not the worked example.",
+      "files": ["evals/fixtures/negation-shapes.md"],
+      "expectations": [
+        "The three bare prohibitions are flagged under the `negation` shape at Tier 2",
+        "Each treatment rewrites to the positive target and explicitly does NOT delete the directive",
+        "Sentences already pairing a positive ('instead', 'prefer', 'in place of') are NOT flagged",
+        "The hard guardrails (secret, force-push, rm -rf against production) are NOT flagged — a prohibition that cannot be phrased positively is the correct form",
+        "The `->` worked-example line is NOT flagged",
+        "No file is edited"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "negation-remediation-never-touches-a-trigger-phrase",
+      "prompt": "Declutter this file: read evals/fixtures/negation-trigger-fence.md relative to the skill directory and audit it for noise, then persist the findings for the review fix relay.",
+      "expected_output": "Reports both negations to the human, but routes only the plain one ('Do not emit a bare summary.') to the findings file. The sentence quoting 'sweep the negation fence' — a trigger phrase appearing in the file's own description — is reported to the human and declined from the relay, counted in `## Surfaces` as `reason=quoted-trigger-phrase`, because a remediation editing a quoted trigger phrase is the auto-invocation regression check-skill.sh hard-FAILs.",
+      "files": ["evals/fixtures/negation-trigger-fence.md"],
+      "expectations": [
+        "The body line quoting the trigger phrase is NOT routed to the findings file",
+        "Its exclusion is counted in `## Surfaces` rather than silently dropped",
+        "The plain negation IS emitted to the findings file",
+        "The reason given ties to the dropped-trigger-phrase auto-invocation regression",
+        "No `description` or `when_to_use` is edited"
+      ]
     }
   ]
 }

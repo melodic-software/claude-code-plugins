@@ -1,5 +1,56 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.0]
+
+### Added
+
+- **`audit-noise`: a ninth shape, `negation`, wired to the apply relay (#3123).** A prohibition with
+  no positive alternative stated in the same sentence. This is the audit-side completion of a
+  doctrine the fleet already adopted on the write side — `docs-hygiene:write-for-agents` "Prompt the
+  positive" — and official guidance names the technique directly (*"Do not use markdown"* →
+  *"Your response should be composed of smoothly flowing prose paragraphs"*). Tier 2: the treatment
+  includes an edit, so it cannot be Tier 3.
+- **`audit-noise` is now a conforming `detector-findings` producer** — the first in this plugin.
+  `--persist-findings` writes the run's `negation` findings as a `type: review-findings` file that
+  `review:fanout`'s `fix` action consumes, via the new `scripts/emit-findings.sh`, reusing the
+  producer pattern #3120 established in `claude-config:audit-instructions`. Off by default; a bare
+  invocation reports and stops.
+- **Eval fixtures for the shape and its fences** — `negation-shapes.md` (flags, paired positives,
+  hard guardrails, worked example) and `negation-trigger-fence.md` (a real negation that also quotes
+  a trigger phrase from its own `description`).
+
+### Changed
+
+- **`audit-noise`'s read-only hard rule now distinguishes target mutation from artifact emission.**
+  The rule read "No `Edit`, no `Write`, no mutating `Bash` ops", which as written forbade the
+  producer contract this release adds — shipping a detector that quietly violated its own skill's
+  stated hard rule was not acceptable. The rule now states the distinction in its own text rather
+  than leaving it implied: **read-only binds every audited target unconditionally**, while the
+  findings artifact is a NEW file in the gitignored memory tier, written only under
+  `--persist-findings`, and is a proposal for a human-gated relay rather than an applied edit. The
+  rule widens exactly that far — no audited file becomes writable, and a bare invocation still
+  writes nothing.
+- **`negation` carries one crosswalk rule id**, `rule-negation-without-positive`, at `IMPORTANT`,
+  argued from `severity.md`'s **stated-rule** limb rather than the degradation limb the sibling
+  `audit-instructions` rules use: "Prompt the positive" is a rule this fleet already adopted in
+  writing, so a bare prohibition violates a stated rule rather than being one working phrasing among
+  several. `Auto-applicable: No`, matching both sibling rules — the repair is contained to
+  `Location`, but recovering the positive target is a rewrite judgment.
+- **All three negation carve-outs are evidence-gated, so an unresolved candidate is EMITTED.** A
+  paired positive, a hard guardrail whose constraint a positive form cannot carry, and a worked
+  example each require their evidence present on the sentence; absence selects the finding. The
+  contract's admission test 2 is checked on **every** withholding boundary rather than only the one
+  easiest to argue. The carve-out lives in the shared scanner, so the human report and the relay
+  file give one candidate one disposition — the contract's "fall-through takes effect before the
+  producer's FIRST output" for a producer with two output surfaces.
+- **The negation shape reads the backtick-UNWRAPPED line, not the inline-code strip** the five older
+  shapes read. A hard-guardrail marker is routinely the code span itself (`--force`, `rm -rf`), and
+  stripping it would erase the very evidence the carve-out needs — turning a guardrail into a false
+  finding rather than a withheld one. Found by testing the backticked case, not by inspection.
+- **The negation predicates match a lowercased sentence** rather than using leading either-case
+  character classes. The class form leaves a truncated word behind it that the repo's `typos` linter
+  reads as a misspelling and FAILs the file on; found by running the linter.
+
 ## [0.20.0]
 
 ### Added

@@ -290,6 +290,13 @@ audit_noise_detect_shapes_into() {
   if audit_noise_line_has_ticket_pr_residue "$stripped"; then
     _audit_noise_shapes_out+=('ticket-pr-residue')
   fi
+  # Negation scans the UNWRAPPED form, not the strip: a hard-guardrail marker is
+  # routinely the inline-code span itself (`--force`, `rm -rf`), and stripping it
+  # would erase the very evidence the carve-out needs — turning a guardrail into
+  # a false finding rather than a withheld one.
+  if audit_noise_line_has_negation_without_positive "$unwrapped"; then
+    _audit_noise_shapes_out+=('negation')
+  fi
   ((${#_audit_noise_shapes_out[@]} > 0))
 }
 
@@ -310,7 +317,7 @@ audit_noise_detect_shapes() {
 audit_noise_shape_tier() {
   local shape="$1"
   case "$shape" in
-  ghost-ref | preamble | ticket-pr-residue) printf '2' ;;
+  ghost-ref | preamble | ticket-pr-residue | negation) printf '2' ;;
   citation | enum-list | scope-meta | plan-reference | conversational-antecedent) printf '1' ;;
   *) printf '3' ;;
   esac
@@ -321,7 +328,7 @@ audit_noise_shape_tier_into() {
   local shape="$1"
   local -n _audit_noise_tier_out="$2"
   case "$shape" in
-  ghost-ref | preamble | ticket-pr-residue) _audit_noise_tier_out=2 ;;
+  ghost-ref | preamble | ticket-pr-residue | negation) _audit_noise_tier_out=2 ;;
   citation | enum-list | scope-meta | plan-reference | conversational-antecedent) _audit_noise_tier_out=1 ;;
   *) _audit_noise_tier_out=3 ;;
   esac
@@ -386,4 +393,82 @@ audit_noise_is_ignore_line_marker() {
 
 audit_noise_is_ignore_para_marker() {
   [[ "$1" =~ ^[[:space:]]*\<!--[[:space:]]*markdown-discipline-ignore[[:space:]]*--\>[[:space:]]*$ ]] # portability-ok: bash [[ =~ ]] ERE escapes for literal < >, not GNU grep word-boundary
+}
+
+# --- negation-without-positive (shape: negation) ----------------------------
+# A prohibition with no positive alternative stated in the same sentence. The
+# write-side doctrine this audits is docs-hygiene:write-for-agents "Prompt the
+# positive"; this is its audit-side completion.
+#
+# BOTH WITHHOLDING BOUNDARIES REQUIRE POSITIVE EVIDENCE ON THE SENTENCE, so an
+# unresolved candidate falls through to the emitting rule. That direction is the
+# detector-findings crosswalk's admission test 2 (fail-safe toward EMITTING),
+# and it is checked on each boundary rather than only the one easier to argue:
+#   1. a paired positive alternative -> paired, nothing to remediate
+#   2. a hard guardrail whose constraint a positive form cannot carry
+# Neither present -> emit. Widening either list withholds more, which is the
+# direction that silently loses findings.
+#
+# The carve-out lives HERE, in the shared scanner, so the human report and the
+# relay file receive one disposition for one candidate — the contract's
+# "fall-through takes effect before the producer's FIRST output".
+
+# Split into sentences on [.!?] followed by whitespace or end-of-string.
+# Abbreviations ("e.g. ") over-split; that only narrows the window a pairing
+# marker may suppress from, which is the fail-safe direction.
+audit_noise_split_sentences_into() {
+  local -n _audit_noise_sentences_out="$1"
+  local rest="$2"
+  _audit_noise_sentences_out=()
+  while [[ "$rest" =~ ^([^.!?]*[.!?]+)[[:space:]]+(.*)$ ]]; do
+    _audit_noise_sentences_out+=("${BASH_REMATCH[1]}")
+    rest="${BASH_REMATCH[2]}"
+  done
+  [[ -n "${rest//[[:space:]]/}" ]] && _audit_noise_sentences_out+=("$rest")
+  return 0
+}
+
+# All three predicates match against a LOWERCASED sentence so each pattern can
+# spell whole words. Writing them with a leading either-case character class
+# instead would leave a truncated word after the class, and the repo's typos
+# linter reads that remainder as a misspelling and FAILs the file.
+# `don.t` matches the ASCII and the typographic apostrophe alike, and keeps a
+# literal quote out of the pattern.
+audit_noise_sentence_has_prohibition() {
+  local s="${1,,}"
+  [[ "$s" =~ (^|[^[:alnum:]])(never|do[[:space:]]+not|don.t|avoid|must[[:space:]]+not|should[[:space:]]+not|shouldn.t)([^[:alnum:]]|$) ]]
+}
+
+# Evidence that the positive alternative is already paired in this sentence.
+audit_noise_sentence_has_positive_pairing() {
+  local s="${1,,}"
+  [[ "$s" =~ (instead|rather[[:space:]]+than|prefer|in[[:space:]]+place[[:space:]]+of|in[[:space:]]+favou?r[[:space:]]+of) ]]
+}
+
+# Hard guardrails a positive form cannot carry: the prohibition IS the correct
+# shape. Kept deliberately TIGHT to safety-critical markers — a generic verb
+# ("delete", "merge", "force") would withhold ordinary prose and turn a
+# fail-safe-toward-emitting rule into a silent one.
+audit_noise_sentence_has_hard_guardrail() {
+  local s="${1,,}"
+  [[ "$s" =~ (secret|credential|token|password|api[[:space:]]+key|force-push|force[[:space:]]+push|--force|rm[[:space:]]+-rf|destructive|irreversible|data[[:space:]]+loss|production|security|vulnerab|rewrite[[:space:]]+history) ]]
+}
+
+# A before -> after demonstration is a worked example (protected content), not
+# an instruction carrying the defect.
+audit_noise_sentence_is_worked_example() {
+  [[ "$1" == *'→'* || "$1" == *'->'* ]]
+}
+
+audit_noise_line_has_negation_without_positive() {
+  local sentences=() s
+  audit_noise_split_sentences_into sentences "$1"
+  for s in "${sentences[@]}"; do
+    audit_noise_sentence_has_prohibition "$s" || continue
+    audit_noise_sentence_has_positive_pairing "$s" && continue
+    audit_noise_sentence_has_hard_guardrail "$s" && continue
+    audit_noise_sentence_is_worked_example "$s" && continue
+    return 0
+  done
+  return 1
 }

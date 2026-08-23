@@ -676,6 +676,97 @@ else
   printf 'SKIP: filesystem rejects a backslash in a filename\n'
 fi
 
+# --- negation shape ------------------------------------------------------------------
+
+NEG="$TEST_TMPDIR/negation.md"
+cat >"$NEG" <<'EOF'
+# Negation fixture
+
+Do not use markdown in your response.
+
+Never call the tool directly.
+
+Avoid restating the rule in the body.
+
+The agent must not emit a bare summary.
+EOF
+neg_out="$(bash "$DETECT" "$NEG")"
+assert_contains "bare prohibition is a negation finding" "$neg_out" "Finding shape: negation"
+assert_contains "negation is Tier 2 (its treatment includes an edit)" "$neg_out" "Finding tier: 2"
+neg_count="$(printf '%s\n' "$neg_out" | grep -c '^Finding shape: negation')"
+assert_contains "all four bare prohibitions flag" "count=$neg_count" "count=4"
+
+# A paired positive in the same sentence is evidence the rule is satisfied.
+PAIRED="$TEST_TMPDIR/negation-paired.md"
+cat >"$PAIRED" <<'EOF'
+# Paired fixture
+
+Do not use markdown; instead compose smoothly flowing prose paragraphs.
+
+Never hardcode the roster — prefer a category citation.
+
+Use a durable pointer in place of a slice path.
+
+Report the cause rather than the symptom.
+EOF
+paired_out="$(bash "$DETECT" "$PAIRED")"
+assert_not_contains "a paired positive suppresses the finding" "$paired_out" "Finding shape: negation"
+
+# NO-FLAG TEST: a hard guardrail that cannot be phrased positively is not a
+# finding. The prohibition IS the correct form for these.
+GUARD="$TEST_TMPDIR/negation-guardrail.md"
+cat >"$GUARD" <<'EOF'
+# Guardrail fixture
+
+Never commit a secret to the repository.
+
+Do not force-push to a shared branch.
+
+Never run rm -rf against a production checkout.
+
+Do not rewrite history on someone else's branch.
+
+Never log a credential or an api key.
+EOF
+guard_out="$(bash "$DETECT" "$GUARD")"
+assert_not_contains "hard guardrails are never flagged" "$guard_out" "Finding shape: negation"
+
+# The guardrail marker is frequently the inline-code span itself, so the shape
+# must read the UNWRAPPED line — stripping the span would erase the evidence
+# and turn a guardrail into a false finding.
+GUARD_TICKS="$TEST_TMPDIR/negation-guardrail-ticks.md"
+cat >"$GUARD_TICKS" <<'EOF'
+# Guardrail-in-backticks fixture
+
+Never pass `--force` to that command.
+EOF
+gt_out="$(bash "$DETECT" "$GUARD_TICKS")"
+assert_not_contains "a backticked guardrail marker still carves out" "$gt_out" "Finding shape: negation"
+
+# A before/after demonstration is a worked example, not an instruction.
+EXAMPLE="$TEST_TMPDIR/negation-example.md"
+cat >"$EXAMPLE" <<'EOF'
+# Worked-example fixture
+
+Do not use markdown -> compose flowing prose paragraphs.
+EOF
+ex_out="$(bash "$DETECT" "$EXAMPLE")"
+assert_not_contains "a worked example is not a finding" "$ex_out" "Finding shape: negation"
+
+# Frontmatter is body-scoped out: no candidate may point at a description.
+NEG_FM="$TEST_TMPDIR/negation-frontmatter.md"
+cat >"$NEG_FM" <<'EOF'
+---
+description: "Do not use markdown. Never call the tool directly."
+---
+
+# Frontmatter fixture
+
+Body prose with no prohibition at all.
+EOF
+fm_out="$(bash "$DETECT" "$NEG_FM")"
+assert_not_contains "frontmatter prohibitions never flag" "$fm_out" "Finding shape: negation"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
