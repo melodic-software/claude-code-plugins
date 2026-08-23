@@ -117,7 +117,8 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
 - **Negation carve-outs are evidence-gated, so an unresolved candidate is EMITTED.** Three
   conditions suppress a `negation` candidate, and each requires its evidence present on the
   sentence: a **paired positive** (`instead`, `rather than`, `prefer`, `in place of`, `in favour
-  of`), a **hard guardrail** whose constraint a positive form cannot carry (`secret`, `credential`,
+  of`, or a bare imperative after a separator — em-dash, semicolon, colon — looking through a
+  leading adverb such as `just` / `simply`), a **hard guardrail** whose constraint a positive form cannot carry (`secret`, `credential`,
   `token`, `password`, `api key`, `force-push`, `--force`, `rm -rf`, `destructive`, `irreversible`,
   `data loss`, `production`, `security`, `vulnerab`, `rewrite history`), or a **worked example**
   (a `->` / `→` demonstration). Absence of that evidence selects the finding — a judgment call can
