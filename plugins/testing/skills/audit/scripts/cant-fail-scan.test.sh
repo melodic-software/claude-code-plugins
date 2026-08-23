@@ -202,6 +202,96 @@ out="$(CANT_FAIL_SCAN_ROOT="$EMPTY" bash "$SCAN" --findings 2>&1 >/dev/null)" ||
 assert_exit "--findings over nothing examined refuses (exit 2)" 2 "$rc"
 assert_contains "nothing-examined refusal says why" "$out" "0 test files were examined"
 
+# --- branch names that are YAML indicators ------------------------------------
+#
+# git accepts branch names beginning with a YAML indicator: `git check-ref-format
+# --branch` calls "@foo", "!foo", "#foo" and "&foo" all valid. Emitted as a bare
+# plain scalar, "#foo" and "&foo" parse to null and "@foo"/"!foo" are outright
+# parse errors. The consumer (review/fanout fix-pass-mode.md "Step 1") admits a
+# findings file only when its `branch:` value equals the current branch EXACTLY,
+# so a misparse silently drops every finding for that branch — no error, and
+# nothing distinguishing it from "no findings".
+#
+# This producer reads the CHECKED-OUT branch, so each case needs a real repo on
+# a real branch rather than a flag. `*foo` is not a legal git branch name and so
+# cannot be reached here; the predicate is asserted on it in ai-slop's suite,
+# whose emitter takes --branch as an arbitrary string.
+#
+# Both directions are asserted. Quoting is CONDITIONAL, so an ordinary branch
+# name must stay a byte-identical plain scalar: a helper that quoted
+# unconditionally would pass a quoted-only assertion while moving the wire
+# format for every ordinary branch.
+yb_branch_line() {
+  # yb_branch_line <branch> <slot> -> the emitted `branch:` frontmatter line
+  local b="$1" slot="$2" repo="$TMP_ROOT/yb$2"
+  mkdir -p "$repo"
+  git -C "$TMP_ROOT" init -q -b "$b" "yb$slot" 2>/dev/null
+  cp "$FIX/sanity/one-assertion-free.test.js" "$repo/"
+  CANT_FAIL_SCAN_ROOT="$repo" bash "$SCAN" --findings </dev/null 2>/dev/null |
+    LC_ALL=C grep -m1 '^branch:'
+}
+
+# EVERY git-reachable indicator character is asserted, not a sample. A
+# four-name sample stayed green after `|`, `>`, `%`, backtick, `"` and `'`
+# were dropped from this producer — the drift acceptance criterion 3 forbids.
+# `-`, `?`, `:`, `[` and `*` are rejected by `git check-ref-format --branch`,
+# so no checkout can reach them here; they are asserted against ai-slop's
+# emitter, which takes --branch as an arbitrary string.
+yb_slot=0
+for b in ',foo' ']foo' '{foo' '}foo' '#foo' '&foo' '!foo' '|foo' '>foo' '%foo' '@foo' '`foo' "'foo"; do
+  yb_slot=$((yb_slot + 1))
+  got="$(yb_branch_line "$b" "$yb_slot")"
+  want="branch: \"$b\""
+  if [[ "$got" == "$want" ]]; then
+    pass "indicator branch '$b' is emitted as a quoted scalar"
+  else
+    fail "indicator branch '$b' is emitted as a quoted scalar" "expected [$want], got [$got]"
+  fi
+done
+
+# The double-quote indicator, whose expected form carries an escape.
+yb_slot=$((yb_slot + 1))
+got="$(yb_branch_line '"foo' "$yb_slot")"
+if [[ "$got" == 'branch: "\"foo"' ]]; then
+  pass 'indicator branch (leading double quote) is quoted and escaped'
+else
+  fail 'indicator branch (leading double quote) is quoted and escaped' "got [$got]"
+fi
+
+for b in 'main' 'feat/3179-slug' 'release-1.2_x'; do
+  yb_slot=$((yb_slot + 1))
+  got="$(yb_branch_line "$b" "$yb_slot")"
+  want="branch: $b"
+  if [[ "$got" == "$want" ]]; then
+    pass "ordinary branch '$b' stays an unquoted plain scalar"
+  else
+    fail "ordinary branch '$b' stays an unquoted plain scalar" "expected [$want], got [$got]"
+  fi
+done
+
+for b in true null 123 yes FALSE; do
+  yb_slot=$((yb_slot + 1))
+  got="$(yb_branch_line "$b" "$yb_slot")"
+  want="branch: \"$b\""
+  if [[ "$got" == "$want" ]]; then
+    pass "implicit-type branch '$b' is quoted"
+  else
+    fail "implicit-type branch '$b' is quoted" "expected [$want], got [$got]"
+  fi
+done
+
+# The quoting must survive a branch name carrying the quote character itself —
+# otherwise the emitted scalar is quoted but unparsable, trading a silent drop
+# for a hard consumer failure. (A backslash is not legal in a git branch name,
+# so only the quote case is reachable through a real checkout here.)
+yb_slot=$((yb_slot + 1))
+got="$(yb_branch_line '@with"quote' "$yb_slot")"
+if [[ "$got" == 'branch: "@with\"quote"' ]]; then
+  pass "a quote character inside an indicator branch is escaped"
+else
+  fail "a quote character inside an indicator branch is escaped" "got [$got]"
+fi
+
 # report mode never claims a clean bill over nothing
 rc=0
 out="$(CANT_FAIL_SCAN_ROOT="$EMPTY" bash "$SCAN" 2>&1)" || rc=$?
