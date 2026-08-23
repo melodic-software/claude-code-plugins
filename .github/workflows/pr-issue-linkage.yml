@@ -6,8 +6,9 @@ name: pr-issue-linkage
 # issue", not a literal string) and four non-empty contract sections —
 # `## Summary`, `## Fix`, `## Verification`, `## Related` — via the shared
 # pr-issue-linkage reusable from ci-workflows. Both body scans run with fenced
-# and indented code blocks blanked, inline code spans masked, and HTML-commented
-# text discarded, so a marker inside a code block or comment does not count.
+# code blocks and any 4-space- or tab-indented line blanked, inline code spans
+# masked, and HTML-commented text discarded, so a marker inside a fence, an
+# indented line, or a comment does not count.
 # `pull_request_target` runs the base-branch definition, so a head-branch edit
 # cannot bypass the gate — safe here because no head-branch code ever executes:
 # the pinned reusable checks out nothing, holds read-only pull-request/actions
@@ -20,8 +21,9 @@ name: pr-issue-linkage
 # design. `edited` re-validates on a body edit. `merge_group` reports the check
 # green in the queue (the body was validated at PR time; inert without a queue).
 # The emitted required-check context is `pr-issue-linkage / pr-issue-linkage`.
-# Public repo: the `with:` block pins `runner: ubuntu-24.04` explicitly, which
-# coincides with the reusable's default.
+# Public repo: GitHub-hosted runners are free here, and the `with:` block pins
+# `runner: ubuntu-24.04` explicitly, which coincides with the reusable's
+# default.
 on:
   # zizmor: ignore[dangerous-triggers] metadata-only gate; rationale in the header comment
   pull_request_target:
