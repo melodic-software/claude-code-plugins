@@ -1467,6 +1467,7 @@ renamed_out="$(bash "$DETECT" "$RENAMED")"
 assert_contains "Renamed from flags as citation" "$renamed_out" "Finding shape: citation"
 
 TABLE="$TEST_TMPDIR/table.md"
+# shellcheck disable=SC2016  # literal backticks belong in the fixture text
 printf '%s\n' '| Consumer | Role |' '|---|---|' '| `/net-audit` | scans |' >"$TABLE"
 table_out="$(bash "$DETECT" "$TABLE")"
 assert_contains "table consumer row flags as enum-list" "$table_out" "Finding shape: enum-list"
