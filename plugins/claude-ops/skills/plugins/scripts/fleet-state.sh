@@ -46,7 +46,9 @@
 #   the first field is always the fully-qualified `<name>@<marketplace>` id, so
 #   `while IFS=$'\t' read -r id …` reads every selector. Selectors, each naming
 #   the `sync` step that consumes it:
-#     installed-user        installed[] at user scope           (Step 3 update)
+#     installed-user        installed[] at user scope           (full user-scope
+#                             set; Step 3 consumes stale-user, its
+#                             not-confirmed-current subset)
 #                             fields: id
 #     current-project       installed[] with currentProject     (Step 2 update)
 #                             fields: id, scope — scope is carried because one
