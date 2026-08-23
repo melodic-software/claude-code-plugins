@@ -27,8 +27,9 @@ All notable changes to the `bug-report` plugin are documented here. Format follo
   reads. It degrades to report-only with a printed notice when no tracker resolves. `--dry-run`
   persists nothing and advances nothing.
 - **Rotation state is derived statelessly, never from `.work/`.** Bare runs pick their lane down a
-  three-rung ladder — tracker filing history, then the cursor block in the newest persisted report
-  under `${CLAUDE_PLUGIN_DATA}`, then a deterministic date-derived floor — so a fresh clone rotates
+  three-rung ladder — tracker filing history, then the newest report carrying a valid rotation cursor
+  block, resolved through the same directory precedence persistence uses, then a deterministic
+  date-derived floor — so a fresh clone rotates
   correctly with zero stored state. The run reports which rung it used. Per-run budget: stop at 3
   verified findings or a complete lane sample, at most 10 candidates per wave, at most 2 refill
   waves. A lane sample being complete is never reported as the lane being bug-free.

@@ -1,5 +1,5 @@
 ---
-description: "Proactively hunt unobserved bugs in resting code: a read-only two-stage scan — recall-biased per-lens hunter subagents, then a separate fresh-context default-refute gate — over a target path/feature/diff or a rotated lane, emitting only verified 5-field findings. Use when: 'find a bug', 'bug hunt', 'scan for bugs', 'hunt for bugs in <X>'. Skip when: reviewing a diff (`review:code-review`); security auditing (`review:security-review`); root-causing an observed failure (`debugging:debug`); doc/config/code/arch claim drift, all dimensions (`codebase-health:audit`); structural tidying (`code-tidying:tidy`); comment markers (`work-items:scan-todos`); coverage gaps (`testing:audit`, `mutation-testing:audit`). Disambiguation: 'scan repo for issues' is the upstream known-issue registry (`claude-ops:known-issues`); 'file a bug' you already observed is `bug-report:write`. Bare invocation neither edits nor files; `--track` files verified findings as raw intake."
+description: "Proactively hunt unobserved bugs in resting code: a read-only two-stage scan — recall-biased per-lens hunter subagents, then a separate fresh-context default-refute gate — over a target path/feature/diff or a rotated lane, emitting only verified 5-field findings. Use when: 'find a bug', 'bug hunt', 'scan for bugs', 'hunt for bugs in <X>'. Skip when: reviewing a diff (`review:code-review`); security auditing (`review:security-review`); root-causing an observed failure (`debugging:debug`); doc/config/code/arch claim drift, all dimensions (`codebase-health:audit`); structural tidying (`code-tidying:tidy`); comment markers (`work-items:scan-todos`); coverage gaps (`testing:audit`, `mutation-testing:audit`). Disambiguation: 'scan repo for issues' is the upstream known-issue registry (`claude-ops:known-issues`); 'file a bug' you already observed is `bug-report:write`. Bare invocation neither edits nor files; `--track` files verified findings as raw intake (subject to the team's `filing_posture`)."
 argument-hint: "[<path|feature|diff>] [--lane <name>] [--track] [--dry-run]"
 user-invocable: true
 disable-model-invocation: false
@@ -115,7 +115,8 @@ Zero verified findings is a clean, successful outcome. Do **not** invent a findi
 ## The scan pipeline
 
 Process one unit at a time — one target, or one lane. A unit is closed when its verified findings are
-reported and deduped (and filed, under `--track`); only then does the cursor advance.
+reported and deduped (and filed, under `--track` when the team's `filing_posture` allows it); only
+then does the cursor advance.
 
 ### Step 1 — Resolve scope
 
@@ -154,8 +155,9 @@ silently dropped.
 ### Step 4 — Assemble and dedupe the report
 
 Format per [`context/findings-report.md`](context/findings-report.md): the five fields per finding
-(from `/bug-report:write`'s shape), plus the evidence label and lens id, then the refuted tail and the
-cursor metadata block. Before persisting, run the same duplicate scan `/bug-report:write` performs
+(from `/bug-report:write`'s shape), plus the evidence label and lens id, then the refuted tail and —
+on a rotation run — the cursor metadata block; a targeted run emits the no-cursor line in its place.
+Before persisting, run the same duplicate scan `/bug-report:write` performs
 over the output directory — see Step 2 ("Survey before you write") in
 [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md) — and drop or merge findings that
 restate a prior report.

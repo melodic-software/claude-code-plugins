@@ -86,8 +86,9 @@ Always present, even when empty — its absence would read as "nothing was rejec
 ```
 
 When the gate refuted nothing, write `None — every candidate this run survived the gate.` When the
-gate refuted everything, the report still ships: the refuted tail, the cursor block, and one line
-saying the lane produced no verified findings.
+gate refuted everything, the report still ships: the refuted tail, the cursor block (rotation runs; a
+targeted run uses its no-cursor line instead), and one line saying the lane produced no verified
+findings.
 
 ## Cursor metadata block
 
@@ -135,7 +136,7 @@ The same document minus the frontmatter, exactly as `/bug-report:write` emits to
 ## Zero-findings form
 
 A run that verified nothing still reports — the rotation only stays credible if empty passes are
-visible:
+visible. The rotation-run form:
 
 ```markdown
 *No verified findings.*
@@ -143,6 +144,9 @@ visible:
 **Lane**: <lane> (<n> files read, <n> candidates, all refuted)
 **Cursor**: advanced to <next lane>
 ```
+
+A targeted run drops that `**Cursor**` line — it advanced nothing — and keeps the `**Lane**` line as
+the scope it hunted.
 
 Followed by the refuted tail and the cursor block — or, for a targeted run, the no-cursor line above.
 Do not pad an empty run with speculative findings.
