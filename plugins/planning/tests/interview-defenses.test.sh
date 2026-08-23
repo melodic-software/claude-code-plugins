@@ -461,7 +461,7 @@ fi
 
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "50038bccdd8ad86fdb0fa50b73eedbbf25a53b506192310bedb1993eb1944e0c"
+  "50717163ac0d5dc4c2ceef3093d8e6a68d46fe3d496ee11b67e1f8e0997b4161"
 
 # The Stance section houses the partial-round rule ("NEVER silently resolve an unanswered
 # question to its recommendation — the auto-guard applies inside rounds too"), and the
@@ -473,11 +473,11 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "31c51b271b230234aae7951f601c2ca61f0b318376450d7c92bdc1e645c7e93f"
+  "8e74bcacaf33d19e69847eed0bb3096bedb4130cfbc729ab3c1362a6eea0420c"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
-  "### Step 1 — Survey before you ask" \
+  "### Step 1. Survey before you ask" \
   "c84a3506c3410b64938b898238a53f502e5e411522ea61e7444f3ad382a21860"
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
@@ -501,19 +501,19 @@ pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arb
 
 pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as governing the two rules below)" \
   "$SKILL" \
-  "### Step 1 — Survey before you ask" \
-  "### Step 1.5 — Auto-detect (default action only)" \
-  "1ccf5bdb01ec18254829b9bb4b5acad82dee1391b488fb4d6754bec495b762b5"
+  "### Step 1. Survey before you ask" \
+  "### Step 1.5. Auto-detect (default action only)" \
+  "2a0a3a73f9f2deeb28d899fb737db3dab6de106c0895db3fb1110d1fe5d8f881"
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
-  "### Step 4 — Persist the contract" \
-  "### Step 5 — Hand off" \
-  "1531fc732e4884b079f491fba339e1c2206c0ce440688b06a591fa0c447df438"
+  "### Step 4. Persist the contract" \
+  "### Step 5. Hand off" \
+  "33ad717275095466a2a997ace8873086cc37e32d6089f4b2abda94582ac9b85a"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
-  "### Step 1.5 — Auto-detect (default action only)" \
-  "### Step 2 — Drive the frontier-rounds loop" \
-  "f53c628234a41c475f406b8e5ff76607828b01279f1f03a631f1d10afaf7d9e0"
+  "### Step 1.5. Auto-detect (default action only)" \
+  "### Step 2. Drive the frontier-rounds loop" \
+  "42974e175c1af086928b2a7cf1fdf25e8ba729f47d3a54bed1778fde52bda800"
 pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\` STOP line live here)" \
   "$LOOP" \
   "## Step 1.5 — Auto-detect: gap analysis without asking" \
@@ -532,17 +532,17 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "ce60bb0a5417db42a4388c2cd8f3ca5c335d7dbcc22ae9a8e0b420dbddc81540"
+  "eb12bd525027fa585546e9bb95f020ed169d2a867d7e7dc5f934ad8597d6ea7f"
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
-  "### Step 3 — Recognize the stop condition" \
-  "### Step 4 — Persist the contract" \
-  "7da64e3f34570be890ca21fcde988321ca4ad10b70ed87c46fe87411909cf7fe"
+  "### Step 3. Recognize the stop condition" \
+  "### Step 4. Persist the contract" \
+  "eaf15c42c058a049ffae978ec885ad8c7db0351a5898370e9dd9aa0475d809b7"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Composition with other skills" \
-  "fdf329424220f1719941196992c05ad0ee859c174b88444bb90b5995e754fa19"
+  "9848cf1843d88ec777ee30fa0f7f3eee2b8506206d49284dffaa1f85bbe2e994"
 
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \
@@ -625,11 +625,11 @@ within "router \`lock\` row sits in the Action Router table" "$SKILL" \
 
 # A3. Step 1.5's routing line for `lock` repeats the halt at the point of routing.
 pin_once "Step 1.5 routes \`lock\` with the halt attached" "$SKILL" \
-  "If a gap surfaces mid-synthesis, STOP and surface — do not fudge."
+  "If a gap surfaces mid-synthesis, STOP and surface; do not fudge."
 within "the Step 1.5 \`lock\` routing line sits inside Step 1.5" "$SKILL" \
-  "If a gap surfaces mid-synthesis, STOP and surface — do not fudge." \
-  "### Step 1.5 — Auto-detect (default action only)" \
-  "### Step 2 — Drive the frontier-rounds loop"
+  "If a gap surfaces mid-synthesis, STOP and surface; do not fudge." \
+  "### Step 1.5. Auto-detect (default action only)" \
+  "### Step 2. Drive the frontier-rounds loop"
 
 # A4. The negative-space declaration: fudging is named as something the skill does NOT do.
 pin_once "\"does NOT do\" list names the fudge prohibition" "$SKILL" \
@@ -656,13 +656,13 @@ pin "loop.md binds \`lock\`'s surfaced gap into the register" "$LOOP" \
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of
 #     them ("in practice a gap counts as real only when …") changes the line and fails here.
 pin_exact "router \`lock\` row is byte-identical to the pinned defense" "$SKILL" \
-  '| `lock` | **Force synthesis, no Q&A** | "Stop asking, just write it", "I'"'"'m clear, lock the brief" — skip auto-detect, synthesize directly. If a real gap surfaces during synthesis, STOP and surface it (do not fudge) |'
+  '| `lock` | **Force synthesis, no Q&A** | "Stop asking, just write it", "I'"'"'m clear, lock the brief". Skip auto-detect, synthesize directly. If a real gap surfaces during synthesis, STOP and surface it (do not fudge) |'
 pin_exact "Step 1.5 \`lock\` routing line is byte-identical to the pinned defense" "$SKILL" \
-  'For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface — do not fudge.'
+  'For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface; do not fudge.'
 pin_exact "the confirmation-gate paragraph is byte-identical to the pinned defense" "$SKILL" \
-  '**Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient — before persisting the contract or handing off, restate the shared understanding and get the user'"'"'s explicit confirmation that it is reached. Do not act on the interview'"'"'s output until they confirm. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies).'
+  '**Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding and get the user'"'"'s explicit confirmation that it is reached. Do not act on the interview'"'"'s output until they confirm. `lock` is exempt: invoking it IS the confirmation (its STOP-on-gap rule still applies).'
 pin_exact "the fudge-prohibition bullet is byte-identical to the pinned defense" "$SKILL" \
-  '- **Does not fudge gaps in `lock` mode** — if a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing'
+  '- **Does not fudge gaps in `lock` mode**. If a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing'
 pin_exact "loop.md's \`lock\` STOP-on-gap line is byte-identical to the pinned defense" "$LOOP" \
   'When `lock` is invoked explicitly, skip auto-detect and synthesize. If a true gap is detected during synthesis, STOP and surface: *"Found gap: <X>. Want me to ask, or capture as assumption with revisit trigger?"* — never fudge.'
 
@@ -701,11 +701,11 @@ fi
 
 # B2. The guard itself: named, singular, and inside the step that owns it.
 pin_once "auto-guard is declared once, by name" "$SKILL" \
-  "**Auto-guard — never decide an interactive choice for the user.**"
+  "**Auto-guard. Never decide an interactive choice for the user.**"
 within "the auto-guard sits inside Step 1.5" "$SKILL" \
-  "**Auto-guard — never decide an interactive choice for the user.**" \
-  "### Step 1.5 — Auto-detect (default action only)" \
-  "### Step 2 — Drive the frontier-rounds loop"
+  "**Auto-guard. Never decide an interactive choice for the user.**" \
+  "### Step 1.5. Auto-detect (default action only)" \
+  "### Step 2. Drive the frontier-rounds loop"
 
 # B3. What the guard licenses, and what it forbids.
 pin "the guard licenses only facts and unambiguous conventional defaults" "$SKILL" \
@@ -732,7 +732,7 @@ pin "silence is never confirmation" "$SKILL" \
 # B5. The guard also holds INSIDE a round — an unanswered question is not consent to the
 #     recommendation. Same defense, different surface.
 pin "the guard holds inside rounds (no silent resolve-to-recommendation)" "$SKILL" \
-  "NEVER silently resolve an unanswered question to its recommendation — the auto-guard applies inside rounds too"
+  "NEVER silently resolve an unanswered question to its recommendation; the auto-guard applies inside rounds too"
 
 # B6. loop.md's copies of both halves.
 pin "loop.md restates the auto-guard's licensed territory" "$LOOP" \
@@ -753,9 +753,9 @@ pin "loop.md binds the unattended blocker into the register" "$LOOP" \
 #     satisfied by recording the residue under `### Captured assumptions`"), which leaves
 #     every pinned phrase in place while inverting the rule. Whole-line equality does.
 pin_exact "the auto-guard paragraph is byte-identical to the pinned defense" "$SKILL" \
-  '**Auto-guard — never decide an interactive choice for the user.** Synthesize-directly (and the Mixed path'"'"'s "synthesize the rest") applies ONLY to decisions with a verifiable answer (codebase-resolvable) or an unambiguous conventional default. When a remaining decision is genuinely the user'"'"'s — a design choice with real tradeoffs and no codebase answer — do NOT fold it into the Brief. STOP and either ask it inline (a residue round) or offer to switch: *"This is a real design decision, not mine to pick — answer it, or want me to run `/planning:interview me` and drive every open branch to a decision?"* Silently capturing such a choice as an assumption is the failure mode this guard prevents.'
+  '**Auto-guard. Never decide an interactive choice for the user.** Synthesize-directly (and the Mixed path'"'"'s "synthesize the rest") applies ONLY to decisions with a verifiable answer (codebase-resolvable) or an unambiguous conventional default. When a remaining decision is genuinely the user'"'"'s, a design choice with real tradeoffs and no codebase answer, do NOT fold it into the Brief. STOP and either ask it inline (a residue round) or offer to switch: *"This is a real design decision, not mine to pick. Answer it, or want me to run `/planning:interview me` and drive every open branch to a decision?"* Silently capturing such a choice as an assumption is the failure mode this guard prevents.'
 pin_exact "the unattended-path paragraph is byte-identical to the pinned defense" "$SKILL" \
-  '**Unattended path — the guard holds, the run does not idle.** `/planning:interview` can be reached with no human to answer (a loop, a spawned worker, another skill'"'"'s chain). The condition is **declared by the caller, never sniffed** — there is no supported way for a session to observe that it is non-interactive. Unattended, codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded `auto-resolved (unattended)`; a decision genuinely the user'"'"'s is recorded `blocked` in the register, written to the Brief'"'"'s `### Deferred questions` with **arbiter: USER-RESERVED**, and named as a blocker in the output. That extends the auto-guard rather than excepting it — the guard forbids the choice *disappearing*, and a named blocker is the choice made maximally visible. Stop on blockers; never wait indefinitely, and never read absence of objection as confirmation. Full ladder: [`context/loop.md`](context/loop.md) "Unattended path".'
+  '**Unattended path: the guard holds, the run does not idle.** `/planning:interview` can be reached with no human to answer (a loop, a spawned worker, another skill'"'"'s chain). The condition is **declared by the caller, never sniffed**. There is no supported way for a session to observe that it is non-interactive. Unattended, codebase-resolvable and unambiguous-conventional decisions resolve as usual and are recorded `auto-resolved (unattended)`; a decision genuinely the user'"'"'s is recorded `blocked` in the register, written to the Brief'"'"'s `### Deferred questions` with **arbiter: USER-RESERVED**, and named as a blocker in the output. That extends the auto-guard rather than excepting it. The guard forbids the choice *disappearing*, and a named blocker is the choice made maximally visible. Stop on blockers; never wait indefinitely, and never read absence of objection as confirmation. Full ladder: [`context/loop.md`](context/loop.md) "Unattended path".'
 pin_exact "loop.md's auto-guard line is byte-identical to the pinned defense" "$LOOP" \
   '**Auto-guard:** synthesize-directly applies ONLY to codebase-resolvable answers or unambiguous conventional defaults. A decision genuinely the user'"'"'s (real tradeoffs, no codebase answer) is never synthesized silently — ask it inline or offer `me` mode. See SKILL.md Step 1.5 "Auto-guard".'
 pin_exact "loop.md's unattended ladder rung 3 is byte-identical to the pinned defense" "$LOOP" \
