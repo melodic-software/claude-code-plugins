@@ -16,10 +16,6 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   binding-reader comments now name linear and gitea `auth_env` alongside jira
   auth identity as overlayable keys, matching the allowlist shipped in 0.39.19
   (#3132).
-
-
-### Fixed
-
 - **setup:** the personal-overlay gitignore step now runs two independent probes
   (`git check-ignore --no-index -q` plus `git ls-files`) instead of a bare `git check-ignore`.
   Bare `check-ignore` consults the index and exits 1 with no output for an already-tracked
