@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.3]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 1).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The generated options block is ignore-fenced because
+  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+  The `use_emoji_question_markers` option description no longer carries one, so a later
+  generator rewrite will not put it back. `tests/interview-defenses.test.sh` pins were
+  retargeted onto the rewritten defense lines and step headings; the defenses themselves
+  are unchanged.
+
 ## [0.34.2]
 
 ### Changed
