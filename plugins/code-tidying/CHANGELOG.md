@@ -14,8 +14,11 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   The audit then reported `files=0` plus `no code targets` — a false negative
   that reads as a clean tree, ending the investigation rather than prompting a
   retry. `detect.sh` now slices the path out of the porcelain record, takes the
-  right-hand side of a rename (gated on the `R`/`C` status letter, so an
-  ordinary path containing `" -> "` is left intact), and unwraps git's quoting.
+  right-hand side of a rename (gated on the `R`/`C` status letter in **either**
+  the index or the worktree column, so an ordinary path containing `" -> "` is
+  left intact while an intent-to-add rename — `mv old new && git add -N new`,
+  which records `R` in the worktree column — still resolves), and unwraps git's
+  quoting.
   The skill's own `Uncommitted code files` pre-computed context carried the
   identical `$NF` parse and is fixed the same way. Git's octal escapes for
   control and non-ASCII bytes are still not decoded, so such a path continues

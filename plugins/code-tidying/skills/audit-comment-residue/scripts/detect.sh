@@ -106,9 +106,12 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       [[ -z "$line" ]] && continue
       # XY + space + path.
       status_path="${line:3}"
-      # Rename/copy entries read "old -> new" — audit the new path. Gated on the index
-      # status letter so an ordinary path that happens to contain " -> " is left intact.
-      if [[ "${line:0:1}" == [RC] ]]; then
+      # Rename/copy entries read "old -> new" — audit the new path. Gated on the status
+      # letters so an ordinary path that happens to contain " -> " is left intact. BOTH
+      # columns matter: X is the index status and Y the worktree status, and a rename
+      # staged only as intent-to-add lands in Y (`mv old new && git add -N new` emits
+      # " R old -> new"). Checking X alone left that record unsplit and unresolvable.
+      if [[ "${line:0:1}" == [RC] || "${line:1:1}" == [RC] ]]; then
         status_path="${status_path##* -> }"
       fi
       # Paths with spaces or other special characters arrive C-quoted: "my helper.sh".

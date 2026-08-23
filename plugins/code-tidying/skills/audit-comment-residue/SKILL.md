@@ -13,7 +13,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted code files: !`git status --porcelain 2>/dev/null | awk '{ p = substr($0, 4); if (substr($0, 1, 1) ~ /[RC]/) sub(/^.* -> /, "", p); gsub(/^"|"$/, "", p); print p }' | grep -Ei '\.(cs|ts|tsx|js|jsx|py|sh|ps1|go|rs|java|rb|lua|sql|c|h|cpp|hpp|yaml|yml|toml)$' | head -10 || echo "none"`
+Uncommitted code files: !`git status --porcelain 2>/dev/null | awk '{ p = substr($0, 4); if (substr($0, 1, 2) ~ /[RC]/) sub(/^.* -> /, "", p); gsub(/^"|"$/, "", p); print p }' | grep -Ei '\.(cs|ts|tsx|js|jsx|py|sh|ps1|go|rs|java|rb|lua|sql|c|h|cpp|hpp|yaml|yml|toml)$' | head -10 || echo "none"`
 Residue findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(Summary total:|Finding shape:)' | head -20 || echo "none"`
 
 ## Purpose

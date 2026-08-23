@@ -226,6 +226,24 @@ spaced_rename_out="$(cd "$REPO11" && bash "$DETECT")"
 assert_not_contains "spaced rename is not reported as files=0" "$spaced_rename_out" "files=0"
 assert_contains "spaced rename resolves to the new path" "$spaced_rename_out" "Summary file: new name.py"
 
+# 9d. Porcelain is XY: X is the index status, Y the worktree status, and a rename can be
+# recorded in EITHER. An intent-to-add rename (`mv old new && git add -N new`) emits
+# " R old -> new" — the R is in Y, with X blank. Gating the arrow-split on X alone left
+# the record unsplit, so the whole "old -> new" string became the path and resolved to
+# nothing. Regression guard for that half of the rename case.
+REPO12="$TEST_TMPDIR/repo12"
+mkdir -p "$REPO12"
+git -C "$REPO12" init -q
+cp "$ALL_SHAPES" "$REPO12/old.py"
+git -C "$REPO12" add old.py
+git -C "$REPO12" -c user.email=t@example.com -c user.name=t commit -qm init
+mv "$REPO12/old.py" "$REPO12/new.py"
+git -C "$REPO12" add -N new.py
+
+worktree_rename_out="$(cd "$REPO12" && bash "$DETECT")"
+assert_not_contains "worktree-column rename is not reported as files=0" "$worktree_rename_out" "files=0"
+assert_contains "worktree-column rename resolves to the new path" "$worktree_rename_out" "Summary file: new.py"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
