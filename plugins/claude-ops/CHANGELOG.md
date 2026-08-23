@@ -3,6 +3,21 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.4]
+
+### Fixed
+
+- **`plugins` converge templates now pass `--keep-data` on every uninstall
+  (#3238).** The consolidation recipe
+  `claude plugin uninstall <id> -s project` (and the `cd` form that targets
+  `scopes[].projectPath`) removes a scope pin, never a plugin's
+  `${CLAUDE_PLUGIN_DATA}` directory. Omitting `--keep-data` deletes that
+  directory whenever the removed scope is the plugin's last remaining one. The
+  per-plugin confirm can still route to a divergence with no user-scope entry,
+  and state is re-read per mutation, so that last-scope window is real. The
+  templates now carry `--keep-data` on `uninstall` only; `update` has no such
+  flag.
+
 ## [0.37.1]
 
 ### Changed

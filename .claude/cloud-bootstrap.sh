@@ -207,8 +207,10 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
       # shellcheck disable=SC2310  # the return status IS the verdict
       needs_refresh "$id" || continue
       # `uninstall` drops enabled state, so re-enable explicitly or the plugin
-      # goes silently absent instead of silently stale.
-      if "$claude_bin" plugin uninstall "$id" >/dev/null 2>&1 &&
+      # goes silently absent instead of silently stale. `--keep-data` preserves
+      # the plugin's persistent data directory. It does not preserve
+      # pluginConfigs — uninstall still drops stored userConfig.
+      if "$claude_bin" plugin uninstall "$id" --keep-data >/dev/null 2>&1 &&
         "$claude_bin" plugin install "$id" --scope user -y >/dev/null 2>&1 &&
         "$claude_bin" plugin enable "$id" --scope user >/dev/null 2>&1; then
         refreshed=$((refreshed + 1))
