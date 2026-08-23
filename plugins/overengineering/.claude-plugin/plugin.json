@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "overengineering",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Evidence-earned-keep audit of an existing enforcement surface — agent hooks and standing instructions, repository and version-control hooks, CI lanes and gate scripts, branch protections, forge apps, declared external integrations — treating every incumbent mechanism as a retirement candidate until empirical evidence earns its keep, arguing every verdict in cost of carry, capping retirement-direction verdicts on security-class artifacts at FLAG-FOR-HUMAN, and realigning to the simplest adequate solution behind an explicit per-item human gate. The audit is read-only and emits a diffable findings artifact; realignment is a separate, explicitly invoked skill; and a third read-only lane re-runs the audit on whatever cadence the consumer wires and reports only what moved since the last run, above a configurable noise budget.",
   "author": {
     "name": "Melodic Software",

@@ -128,7 +128,7 @@
     {
       "id": 10,
       "name": "detached-checkout-persists-no-artifact",
-      "prompt": "/overengineering:audit ci-lanes unattended",
+      "prompt": "/overengineering:audit ci-lanes unattended — this is the nightly scheduled run, and the runner checks the repo out at a commit rather than a branch, so the working tree is on a detached HEAD. Nothing in the environment supplies the ref it was launched for.",
       "expected_output": "The pre-computed branch line carries the sentinel `no branch ref (detached HEAD or no checkout)` because the scheduled runner checked out a commit rather than a branch. The run treats that as an unresolved branch identity: it does not accept `HEAD` as a branch name, does not substitute the commit sha or a fixed literal, and does not compose a `<branch-slug>` home from any of them. Because no home is keyed, the read-only opening line names no path and instead states that no branch identity resolved and no findings artifact will be written. The ci-lanes walk still runs and the inline summary is still emitted in full, so the operator gets the findings; only the persisted write is declined, and the report says so plainly rather than leaving the missing artifact to be discovered later. No file is written with `branch: HEAD`, with the key omitted, or at a home shared by every detached ref.",
       "files": [],
       "narration": true,

@@ -60,8 +60,11 @@ An acceptance given earlier is not an approval of the edit that later falls out 
 ## Before anything: load the artifact
 
 1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the sentinel `no branch ref (detached HEAD or no checkout)`. **`HEAD` is never accepted as a
-   branch identity**, and neither is the sentinel. Where the sentinel appears, prefer a logical ref
+   or the sentinel `no branch ref (detached HEAD or no checkout)`. **The precompute is a convenience,
+   not the source of truth** — a worktree-isolated or dispatched executor may decline to inject it at
+   all, so where the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read
+   its exit status rather than assuming an identity. **`HEAD` is never accepted as a branch
+   identity**, and neither is the sentinel. Where the sentinel appears, prefer a logical ref
    if the environment supplies one that names a branch (naming where it came from); **otherwise
    stop** — see "An unresolved branch identity is its own refusal" below. With an identity in hand,
    resolve the home by running the whole rung order in

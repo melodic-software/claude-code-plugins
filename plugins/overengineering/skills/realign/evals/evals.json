@@ -85,7 +85,7 @@
     {
       "id": 7,
       "name": "detached-checkout-refuses-before-reading-the-artifact",
-      "prompt": "/overengineering:realign — work the queue, accept whatever the audit flagged as dead.",
+      "prompt": "/overengineering:realign — work the queue, accept whatever the audit flagged as dead. Heads up, this is running on the build agent, which checked the repo out at a commit rather than a branch, so the working tree is on a detached HEAD. Nothing in the environment supplies the ref it was launched for.",
       "expected_output": "The pre-computed branch line carries the sentinel `no branch ref (detached HEAD or no checkout)` because the checkout is detached, and no logical ref is supplied by the environment. The run stops there, before resolving a home or reading any artifact, and says why: with no branch identity there is nothing to compare the artifact's `branch:` against, so the guard that keeps one ref's findings from executing against another ref's surface cannot run at all. It does not accept `HEAD` as the current branch, does not compare `HEAD` to `HEAD`, and does not treat the directory the artifact sits in as evidence of which ref it describes. Nothing is presented as a queue, no finding is offered for acceptance, no status is written, and nothing is mutated. It states that a re-run on an attached checkout is what unblocks the work.",
       "files": [],
       "narration": true,
@@ -100,7 +100,7 @@
     {
       "id": 8,
       "name": "artifact-carrying-head-as-branch-is-refused",
-      "prompt": "/overengineering:realign — the artifact is already there from last night's scheduled audit, go ahead and work it.",
+      "prompt": "/overengineering:realign — the artifact is already there from last night's scheduled audit, go ahead and work it. We are on a normal branch today. The file at the resolved home is a complete findings artifact with several OPEN findings, and its frontmatter reads `type: overengineering-findings`, `schema: 1`, `branch: HEAD` — that scheduled runner was on a detached checkout when it wrote the file.",
       "expected_output": "The current checkout is on a normal branch, so the run resolves an identity and reads the artifact at the resolved home. The artifact's frontmatter carries `branch: HEAD`, which is not a branch identity but the literal string a detached checkout produces under `git rev-parse --abbrev-ref HEAD`. The run refuses the artifact by name with a visible message, treating the unresolved identity as its own refusal case rather than as a mismatch to evaluate — there is nothing to compare, so the comparison is never reached. It says that overengineering:audit declines to write an artifact without a branch identity, so a file carrying `HEAD` came from an older audit or from something other than this plugin. It does not repair or rewrite the `branch:` field, does not infer the branch from the directory the artifact sits in, and executes no finding.",
       "files": [],
       "narration": true,

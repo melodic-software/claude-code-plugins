@@ -98,10 +98,14 @@ Parse `$ARGUMENTS`:
 ## Before the walk
 
 1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the sentinel `no branch ref (detached HEAD or no checkout)`. **`HEAD` is never accepted as a
-   branch identity**, and neither is the sentinel — "A detached checkout has no branch identity"
-   below governs what an unresolved identity declines, and it is decided here, before a home is
-   composed. With an identity in hand, resolve the home by running the whole rung order in
+   or the sentinel `no branch ref (detached HEAD or no checkout)`. **The precompute is a convenience,
+   not the source of truth** — a worktree-isolated or dispatched executor may decline to inject it at
+   all, which is exactly the `unattended` context where a detached checkout is most likely, so where
+   the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read its exit status
+   rather than assuming an identity. **`HEAD` is never accepted as a branch identity**, and neither is
+   the sentinel — "A detached checkout has no branch identity" below governs what an unresolved
+   identity declines, and it is decided here, before a home is composed. With an identity in hand,
+   resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md` — resolve it, never assume the documented
    default's shape. A hardcoded path writes where `realign` never looks. **Then emit the read-only
    opening line**, naming the path just resolved.

@@ -3,7 +3,7 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.3]
+## [0.3.0]
 
 ### Fixed
 
@@ -35,18 +35,43 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   does not run the rung order, and rejects each substitute on its own terms: `HEAD` is one directory
   for every ref, a commit sha is a fresh home every commit that never resumes, and a fixed literal
   such as `detached` is `HEAD` under another name.
+- **Identity resolution is a body step, not only a precompute.** A worktree-isolated or dispatched
+  executor may decline to inject the precomputed context block entirely — and that is the same
+  `unattended` context where a detached checkout is most likely — so `audit` and `realign` now state
+  the resolution command in the step that uses it and treat the precompute as a convenience that may
+  be absent. Without this the fix would verify green on an attached local checkout and do nothing in
+  the environment the bug actually lives in.
+- **`delta`'s account of the same condition no longer contradicts the audit's.** That lane's detached
+  section closed with "the audit still runs, exactly as it otherwise would", written when `audit`
+  still persisted on an unresolved identity; it now records that no artifact is written on such a
+  cycle, and its step 4 says the post-run artifact it would otherwise read is absent. The lane's
+  behavior is unchanged — only the statement that had been made false by the audit's fix.
+- **The report shape covers the run that writes nothing.**
+  `skills/audit/context/report-template.md` owns the read-only disclosure line, and previously
+  hardcoded the form naming a resolved path and declared the artifact written "always". It now carries
+  the no-artifact variant, so a run following the document that owns output shape does not announce a
+  file it did not write.
 
 ### Notes
 
-- **No other plugin in this marketplace shares the defect.** The repo-wide precompute boilerplate uses
-  `git branch --show-current`, which returns an empty string on a detached checkout rather than
-  `HEAD`, and the findings-writing skills that persist a `branch:` field (`ai-slop:audit`,
-  `claude-config:audit-instructions`, `docs-hygiene:audit-noise`, `mutation-testing:audit`) all read
-  it that way. The literal `git rev-parse --abbrev-ref HEAD` form survives in four places outside this
-  plugin — `source-control`'s `babysit-prs` parking-branch capture and `worktree` current-branch
-  display, and `claude-ops`' two skill-usage telemetry hooks — and none of them keys shared state,
-  compares the value against a stored one, or gates a mutation on it, so none exhibits the
-  identity-collapse this release fixes. Left as-is deliberately.
+- **No other plugin in this marketplace exhibits the `HEAD` identity-collapse.** The repo-wide
+  precompute boilerplate uses `git branch --show-current`, which returns an empty string on a detached
+  checkout rather than `HEAD`. The literal `git rev-parse --abbrev-ref HEAD` form survives at seven
+  occurrences across six files outside this plugin: `claude-ops`' two skill-usage telemetry hooks,
+  `source-control`'s `babysit-prs` parking-branch capture and `worktree` current-branch display, and
+  three test-scaffolding sites in `guardrails`' `stale-path-verify.test.sh` and `source-control`'s
+  `worktree-create.test.sh`. None of them compares the value against a stored identity to decide
+  whether a mutation may proceed, which is the specific failure fixed here. `babysit-prs` is the
+  closest call and is still a different defect class: its captured value parameterizes a same-session
+  `git checkout` rather than an identity comparison, so a detached capture fails to restore the
+  starting commit instead of authorizing another ref's work. All are left as-is deliberately.
+- **One neighbor has the same shape under a different string, and is out of scope.**
+  `mutation-testing:audit` documents `branch:` as `git branch --show-current` verbatim
+  (`skills/audit/context/persist-findings.md:202`) and ships no script guarding the empty result, so a
+  detached run there writes an empty identity that compares equal to itself. Three sibling
+  findings-writers (`ai-slop`, `docs-hygiene:audit-noise`, `claude-config:audit-instructions`) already
+  guard that case in their `emit-findings.sh` and exit rather than persist. Recorded here rather than
+  fixed: the issue this release closes is scoped to this plugin.
 
 ## [0.2.2]
 
