@@ -236,7 +236,15 @@ emit_file_facts() {
       delete hints
       norm_hits = 0
     }
-    BEGIN { sec_start = 0; sec_level = 0; sec_head = ""; norm_hits = 0; fm = 0; fence = 0 }
+    BEGIN {
+      sec_start = 0; sec_level = 0; sec_head = ""; norm_hits = 0; fm = 0; fence = 0
+      # Config directories and dotfiles that look like extensions but name a
+      # location. Measured: `.claude` alone accounted for 840 false hints.
+      split(".claude .github .git .work .vscode .idea .venv .cursor .devin " \
+            ".windsurf .local .env .gitignore .gitattributes .editorconfig " \
+            ".npmrc .nvmrc .dockerignore .clinerules .cursorrules", dd, " ")
+      for (i in dd) dotdirs[dd[i]] = 1
+    }
 
     # YAML frontmatter: only when it opens on line 1.
     NR == 1 && $0 == "---" { fm = 1; next }
@@ -279,11 +287,21 @@ emit_file_facts() {
       # while `corpus.md` and `e.g.` do not — a dot mid-word is punctuation, not
       # an extension. Both the full dotted run and its final segment are emitted,
       # so `*.test.ts` yields `.test.ts` AND `.ts`.
+      # Three precision rules, each earned from a real over-firing measured on a
+      # 1,137-file corpus where `.claude` was the single most common "extension":
+      #
+      #   1. A token followed by `/` is a DIRECTORY component (`.claude/rules/`),
+      #      never an extension.
+      #   2. A known config dotdir or dotfile is never an extension, even bare.
+      #   3. Real extensions are lowercase. This drops `.NET` and `.DS_Store`
+      #      without needing either in a denylist.
       src = " " $0
       while (match(src, /[^A-Za-z0-9]\.[A-Za-z][A-Za-z0-9.]*/)) {
         tok = substr(src, RSTART + 1, RLENGTH - 1)
+        after = substr(src, RSTART + RLENGTH, 1)
         sub(/\.+$/, "", tok)
-        if (tok ~ /^\.[A-Za-z][A-Za-z0-9.]*$/ && length(tok) < 24) {
+        if (after != "/" && tok ~ /^\.[a-z][a-z0-9.]*$/ && length(tok) < 24 &&
+            !(tok in dotdirs)) {
           hints["ext\t" tok] = 1
           if (index(substr(tok, 2), ".") > 0) {
             n = split(tok, segs, ".")
@@ -311,12 +329,26 @@ lang_hints() {
   local file="$1"
   awk -v path="$file" '
     BEGIN {
-      map["c#"]=".cs"; map["csharp"]=".cs"; map["typescript"]=".ts"
-      map["javascript"]=".js"; map["python"]=".py"; map["go"]=".go"
-      map["rust"]=".rs"; map["ruby"]=".rb"; map["java"]=".java"
-      map["kotlin"]=".kt"; map["swift"]=".swift"; map["php"]=".php"
-      map["powershell"]=".ps1"; map["bash"]=".sh"; map["shell"]=".sh"
-      map["sql"]=".sql"; map["terraform"]=".tf"; map["yaml"]=".yml"
+      # CASE-SENSITIVE, and split into two sets — measured on a 1,137-file
+      # corpus where lowercase "go" produced 338 false hints from the ordinary
+      # English verb, and "shell"/"bash" produced 675 more from prose about
+      # shells rather than about shell scripts.
+      #
+      # unambiguous[]: spellings that are never ordinary English, so they match
+      # in any case. ambiguous[]: language names that collide with common words,
+      # matched ONLY in their conventional capitalized form.
+      unambiguous["TypeScript"]=".ts"; unambiguous["typescript"]=".ts"
+      unambiguous["JavaScript"]=".js"; unambiguous["javascript"]=".js"
+      unambiguous["PowerShell"]=".ps1"; unambiguous["powershell"]=".ps1"
+      unambiguous["Terraform"]=".tf"; unambiguous["terraform"]=".tf"
+      unambiguous["Kotlin"]=".kt"; unambiguous["kotlin"]=".kt"
+      unambiguous["Python"]=".py"; unambiguous["python"]=".py"
+      unambiguous["csharp"]=".cs"; unambiguous["C#"]=".cs"
+      unambiguous["YAML"]=".yml"; unambiguous["yaml"]=".yml"
+
+      ambiguous["Go"]=".go"; ambiguous["Rust"]=".rs"; ambiguous["Swift"]=".swift"
+      ambiguous["Java"]=".java"; ambiguous["Ruby"]=".rb"; ambiguous["PHP"]=".php"
+      ambiguous["SQL"]=".sql"; ambiguous["Bash"]=".sh"; ambiguous["Shell"]=".sh"
       fm = 0; fence = 0; sec = 0
     }
     NR == 1 && $0 == "---" { fm = 1; next }
@@ -324,14 +356,15 @@ lang_hints() {
     fm { next }
     /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
     fence { next }
-    /^#{1,6}[[:space:]]/ { sec = NR; next }
+    /^#+[[:space:]]/ { sec = NR; next }
     {
-      line = tolower($0)
-      for (k in map)
-        if (line ~ ("(^|[^a-z#+])" k "([^a-z#+]|$)")) seen[sec "\t" map[k]] = 1
+      for (k in unambiguous)
+        if ($0 ~ ("(^|[^A-Za-z#+])" k "([^A-Za-z#+]|$)")) seen[sec "\t" unambiguous[k]] = 1
+      for (k in ambiguous)
+        if ($0 ~ ("(^|[^A-Za-z#+])" k "([^A-Za-z#+]|$)")) seen[sec "\t" ambiguous[k]] = 1
     }
     END { for (s in seen) { split(s, p, "\t"); printf "HINT\t%s\t%s\tlang\t%s\n", path, p[1], p[2] } }
-  ' "$file" 2>/dev/null
+  ' "$file"
 }
 
 for f in "${FILES[@]}"; do

@@ -3,6 +3,28 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Fixed
+
+Hint precision, measured by running `detect.sh` over a real 1,137-file corpus rather than over
+fixtures. Both over-firings were invisible at fixture scale and obvious at repository scale.
+
+- **Directory names were being reported as file extensions.** `.claude` was the single most common
+  "extension" in the corpus at 840 hits, with `.work`, `.github`, `.git`, and `.local` close behind.
+  Three rules now apply: a token followed by `/` is a directory component, a known config dotdir or
+  dotfile is never an extension, and an extension must be lowercase — which also drops `.NET` and
+  `.DS_Store` without listing either.
+- **Language hints matched ordinary English.** Lowercase `go` produced 338 false hits from the verb,
+  and `shell`/`bash` produced 675 more from prose about shells. The table is now case-sensitive and
+  split in two: spellings that are never ordinary English (`TypeScript`, `PowerShell`, `C#`) match in
+  any case, while names that collide with common words (`Go`, `Rust`, `Swift`, `Java`) match only in
+  their conventional capitalized form.
+
+Net effect on the same corpus: 9,528 hints → 7,217, with the removed entries being false positives
+and the genuine signal intact (`Go` mentions fell 338 → 33). Also confirms the detector handles
+repository scale: 1,137 files and 11,084 sections in 11 seconds, with clean stderr.
+
 ## [0.4.0]
 
 ### Added
