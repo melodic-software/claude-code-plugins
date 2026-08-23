@@ -85,8 +85,10 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    these options load from (see above). Never uninstall to reconfigure: that drops the
    whole stored `pluginConfigs` entry and resets every option to its manifest default).
    Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
-8. Tell the user to rerun `check` after reconfiguration and report the OBSERVED
-   effective values. Never claim a configuration change a rerun has not observed.
+8. Tell the user to rerun `check` after reconfiguration — **in a fresh session**. The rendered
+   `${user_config.*}` values are injected when this skill loads, so a same-session rerun still
+   reports the OLD values; reading that as a failed write would be wrong. Report the OBSERVED
+   effective values from that fresh run, and never claim a change no rerun has observed.
 
 ## Gotchas
 

@@ -64,8 +64,13 @@ anything.
      every option in the README's Options reference table to its manifest default. `-s` defaults
      to `user`, so pass the scope `claude plugin list` reports for this plugin, and run from that
      project's directory for a `project`/`local` scope, or the write lands at a scope that does
-     not load. Afterwards rerun `check` and report the OBSERVED effective profile — never claim
-     an unobserved change.
+     not load.
+     Afterwards, keep the two claims apart. The write is issued and the stored value is what you
+     passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
+     skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
+     session start, so a same-session `check` still reports the OLD value — reporting that as a
+     failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
+     session**, and never claim an unobserved change.
    - **Neither, for a one-off:** a per-run `--profile <name>` selects a different profile without
      touching stored config.
 2. **`sources.md`** — FAIL if the resolved profile has no `sources.md`: `/ai-briefing:generate`

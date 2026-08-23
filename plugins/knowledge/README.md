@@ -149,6 +149,11 @@ Three supported routes, in the order most people want them:
    resetting every option in the table above to its default. `-s` defaults to `user`,
    so pass the scope `claude plugin list` reports for this plugin.
 
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior — a check run in the old session
+   still reports the old value, and that is not a failed write.
+
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
 

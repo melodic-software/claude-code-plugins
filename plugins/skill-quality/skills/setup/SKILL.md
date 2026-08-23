@@ -55,9 +55,12 @@ verify-and-route:
   honors the `CHECK_SKILL_SKILLS_ROOT` environment variable; do not persist that variable on the user's
   behalf.
 
-After any reconfiguration, rerun `check` and verify by invoking `/skill-quality:check` via the Skill tool — without turning setup
-into the full quality audit. Re-running `apply` when the root resolves and enumerates changes nothing
-and reports "already configured".
+After any reconfiguration, rerun `check` **in a fresh session** and verify by invoking
+`/skill-quality:check` via the Skill tool — without turning setup into the full quality audit. The
+fresh session is not optional: the rendered `${user_config.skills_root}` is injected when this skill
+loads, so a same-session rerun still resolves the OLD root and would report a correct write as a
+failure. Re-running `apply` when the root resolves and enumerates changes nothing and reports
+"already configured".
 
 ## What this skill does NOT do
 

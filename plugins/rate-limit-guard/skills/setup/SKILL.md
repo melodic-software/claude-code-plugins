@@ -24,8 +24,13 @@ conformingly write:
   `pluginConfigs` entry, resetting every option in the README's Options reference table to its
   manifest default. `-s` defaults to `user`, so pass the scope the plugin is *actually* installed
   at — `claude plugin list` reports it per plugin — and run from that project's directory when the
-  scope is `project` or `local`, or the write lands at a scope that does not load. Afterwards rerun
-  `check` and report the observed effective value — never claim an unobserved change.
+  scope is `project` or `local`, or the write lands at a scope that does not load.
+  Afterwards, keep the two claims apart. The write is issued and the stored value is what you
+  passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
+  skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
+  session start, so a same-session `check` still reports the OLD value — reporting that as a
+  failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
+  session**, and never claim an unobserved change.
 - **The statusline wiring**, which lives in the **user's own** `settings.json` — neither
   `userConfig` nor tracked project config, and a Claude Code settings surface setup must never
   mutate.

@@ -113,15 +113,15 @@ Three supported routes, in the order most people want them:
    claude plugin install miro@<marketplace> -s <scope> --config miro_api_token=<value>
    ```
 
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   Route 1 is the rotation path for this plugin, not this one. Every option here is
+   `sensitive`, and `/plugin configure` masks input — a secret passed on the command
+   line lands in shell history and the process table. Whether `--config` writes a
+   `sensitive` value on an already-installed plugin has not been verified (the
+   Claude Code 2.1.240 observation behind that claim covered a non-sensitive option at
+   `user` scope), so do not rely on this command to rotate a credential. Do **not**
+   `claude plugin uninstall` in order to reconfigure either: uninstalling drops this
+   plugin's whole stored `pluginConfigs` entry, resetting every option in the table
+   above to its default.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):

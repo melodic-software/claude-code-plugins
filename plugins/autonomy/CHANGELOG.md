@@ -7,10 +7,10 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Fixed
 
-- **Docs:** the generated options block's headless route no longer implies `--config`
-  applies only at install time, and now carries the CLI version its claim was verified
-  against (#3111). Two upstream links that pointed at empty backward-compatibility
-  anchors on the settings page were repointed at the headings that hold the content.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against (#3111).
+  Two upstream links that pointed at empty backward-compatibility anchors on the settings page
+  were repointed at the headings that hold the content.
 
 ## [0.22.4]
 

@@ -79,8 +79,12 @@ installed plugin:
   a customized `observer_analysis_model`, `observer_idle_seconds`, `observer_analysis_bare`, or
   `observer_max_seconds` is simply gone, with nothing left to read the old values from.
 
-After any reconfiguration, rerun `check` and report the observed effective value — never claim an
-unobserved change.
+Afterwards, keep the two claims apart. The write is issued and the stored value is what you
+passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
+skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
+session start, so a same-session `check` still reports the OLD value — reporting that as a failed
+write would be wrong. Verify the effective value by rerunning `check` in a **fresh session**, and
+never claim an unobserved change.
 
 ## Gotchas
 

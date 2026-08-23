@@ -7,21 +7,25 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
 
 ### Fixed
 
-- **`setup` skill:** the destructive `claude plugin uninstall` + reinstall recipe for a
-  headless key rotation is removed. It rested on an unversioned claim that
-  `claude plugin install --config` is ignored once a plugin is installed, and following it
-  dropped this plugin's whole stored `pluginConfigs` entry. That claim now appears only as
-  the thing it is — unstamped and contradicted for a non-sensitive option at `user` scope
-  on Claude Code 2.1.240, where a plain `claude plugin install … --config` against an
-  already-installed plugin printed `already installed` and still wrote the value
+- **`setup` skill:** the destructive `claude plugin uninstall` + reinstall recipe for a headless
+  key rotation is removed. It rested on an unversioned claim that `claude plugin install
+  --config` is ignored once a plugin is installed, and following it dropped this plugin's whole
+  stored `pluginConfigs` entry. That claim now appears only as the thing it is — unstamped and
+  contradicted for a non-sensitive option at `user` scope on Claude Code 2.1.240, where a plain
+  `claude plugin install … --config` against an already-installed plugin printed `already
+  installed` and still wrote the value
   ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
   `dometrain_api_key` is `sensitive: true`, which that observation does **not** cover, so
   `/plugin configure dometrain@<marketplace>` remains the prescribed rotation path — it also
   masks input, where a key on the command line lands in shell history and the process table.
-- **Docs:** the generated options block's headless route no longer implies `--config`
-  applies only at install time, and now carries the CLI version its claim was verified
-  against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream links that pointed at empty backward-compatibility
-  anchors on the settings page were repointed at the headings that hold the content.
+- **Docs:** the generated options block no longer presents a post-install `--config` as a
+  supported way to rotate this plugin's credential. The 2.1.240 observation behind that claim
+  covered a NON-sensitive option, and every option here is `sensitive`, so the block now routes
+  rotation to `/plugin configure` — which also masks input — and says plainly that the
+  post-install behavior is unverified for a sensitive value
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream
+  links that pointed at empty backward-compatibility anchors on the settings page were
+  repointed at the headings that hold the content.
 
 ## [0.2.1]
 

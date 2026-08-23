@@ -81,7 +81,55 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
             desc = "**Sensitive** — stored in the OS keychain or protected credentials file. " + desc
         lines.append(f"| `{key}` | {typ} | {default} | `{env_var(key)}` | {desc} |")
 
-    first = next(iter(options))
+    # The 2.1.240 reconfiguration observation covers a NON-SENSITIVE option only. Emitting it
+    # for a plugin whose every option is `sensitive` would prescribe an unverified credential
+    # rotation — and contradict that plugin's own hand-written rotation section, which routes
+    # to `/plugin configure` precisely because it masks input. So `first` is drawn from the
+    # non-sensitive options when there are any, and the claim is withheld when there are none.
+    non_sensitive = [k for k, s in options.items() if not s.get("sensitive")]
+    sensitive = [k for k, s in options.items() if s.get("sensitive")]
+    first = non_sensitive[0] if non_sensitive else next(iter(options))
+
+    if non_sensitive:
+        reconfigure = [
+            "   The same command reconfigures a plugin that is **already installed**: it prints",
+            "   `already installed` and still writes the value — verified on Claude Code 2.1.240,",
+            "   for a non-sensitive option at `user` scope, by writing a non-default value to an",
+            "   installed plugin and restoring it. The short-circuit message is about the install,",
+            "   not the config write. That has not been verified for a `sensitive` option or for",
+            "   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to",
+            "   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,",
+            "   resetting every option in the table above to its default. `-s` defaults to `user`,",
+            "   so pass the scope `claude plugin list` reports for this plugin.",
+            "",
+            "   The value is stored immediately; the session you are in does not change. Hooks are",
+            "   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh",
+            "   Claude Code session before expecting new behavior — a check run in the old session",
+            "   still reports the old value, and that is not a failed write.",
+        ]
+        if sensitive:
+            reconfigure += [
+                "",
+                "   That observation does **not** extend to this plugin's `sensitive` option(s)"
+                f" ({', '.join(f'`{k}`' for k in sensitive)}).",
+                "   Rotate those through route 1 instead: `/plugin configure` masks input, where a",
+                "   secret passed on the command line lands in shell history and the process table.",
+            ]
+    else:
+        # Sensitive-only plugin: `--config` still seeds a value, but nothing here may present a
+        # post-install `--config` as a verified rotation path for a credential.
+        reconfigure = [
+            "   Route 1 is the rotation path for this plugin, not this one. Every option here is",
+            "   `sensitive`, and `/plugin configure` masks input — a secret passed on the command",
+            "   line lands in shell history and the process table. Whether `--config` writes a",
+            "   `sensitive` value on an already-installed plugin has not been verified (the",
+            "   Claude Code 2.1.240 observation behind that claim covered a non-sensitive option at",
+            "   `user` scope), so do not rely on this command to rotate a credential. Do **not**",
+            "   `claude plugin uninstall` in order to reconfigure either: uninstalling drops this",
+            "   plugin's whole stored `pluginConfigs` entry, resetting every option in the table",
+            "   above to its default.",
+        ]
+
     lines += [
         "",
         "### How to set these",
@@ -97,15 +145,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         f"   claude plugin install {plugin}@{marketplace} -s <scope> --config {first}=<value>",
         "   ```",
         "",
-        "   The same command reconfigures a plugin that is **already installed**: it prints",
-        "   `already installed` and still writes the value — verified on Claude Code 2.1.240,",
-        "   for a non-sensitive option at `user` scope, by writing a non-default value to an",
-        "   installed plugin and restoring it. The short-circuit message is about the install,",
-        "   not the config write. That has not been verified for a `sensitive` option or for",
-        "   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to",
-        "   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,",
-        "   resetting every option in the table above to its default. `-s` defaults to `user`,",
-        "   so pass the scope `claude plugin list` reports for this plugin.",
+        *reconfigure,
         "",
         "3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**",
         "   settings (`~/.claude/settings.json`):",

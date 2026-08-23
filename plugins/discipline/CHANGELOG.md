@@ -9,20 +9,24 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
 ### Fixed
 
-- **`setup` skill:** the headless reconfiguration route no longer prescribes
-  `claude plugin uninstall` + reinstall. That instruction rested on an unversioned claim
-  that `claude plugin install --config` is ignored once a plugin is installed, and
-  following it dropped the plugin's whole stored `pluginConfigs` entry, resetting every
-  declared option to its manifest default. On Claude Code 2.1.240 a plain
-  `claude plugin install … --config` against an already-installed plugin prints
-  `already installed` and still writes the value, so that is now the documented route —
-  stamped with the CLI version it was verified against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). This skill is check-only —
-  it has no `apply` action — so `check` gained a closing step telling the reader to rerun it
-  and report the observed value, rather than asserting an unobserved change.
-- **Docs:** the generated options block's headless route no longer implies `--config`
-  applies only at install time, and now carries the CLI version its claim was verified
-  against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream links that pointed at empty backward-compatibility
-  anchors on the settings page were repointed at the headings that hold the content.
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). This skill is
+  check-only — it has no `apply` action — so `check` gained a closing step telling the reader to
+  rerun it and report the observed value, rather than asserting an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
 
 ## [0.12.11]
 

@@ -75,8 +75,13 @@ tool, so `apply` installs nothing and writes nothing — it only points:
   resetting every option in the README's Options reference table to its manifest default. `-s`
   defaults to `user`, so pass the scope `claude plugin list` reports for this plugin, and run from
   that project's directory for a `project`/`local` scope, or the write lands at a scope that does
-  not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun `check` and
-  report the observed effective value — never claim an unobserved change.
+  not load. This skill never writes user settings or `pluginConfigs`.
+  Afterwards, keep the two claims apart. The write is issued and the stored value is what you
+  passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
+  skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
+  session start, so a same-session `check` still reports the OLD value — reporting that as a
+  failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
+  session**, and never claim an unobserved change.
 - no `eol=` policy: this is the opt-out, not a defect. Point at the repository's own
   `.gitattributes` as the place to declare policy; this skill never writes `.gitattributes`,
   because that would impose a repo-wide line-ending policy the plugin has no mandate to
