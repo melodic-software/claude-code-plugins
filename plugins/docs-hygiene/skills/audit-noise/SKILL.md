@@ -136,12 +136,17 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
   pairing rule is per sentence, so a continuation line cannot be shown to lack a positive sitting on
   the next line; the same test excludes a table row. The cost is stated rather than hidden: a
   subject-led instruction ("The agent must not emit a bare summary") is not selected.
-- **`negation` is scoped to one physical line (known limitation).** `detect.sh` classifies line by
-  line, so a sentence markdown soft-wraps is judged in pieces: `Do not use markdown;` on one line
-  with `compose prose instead.` on the next is reported even though the positive is paired in the
-  same sentence. The error direction is a false positive, never a silent withhold, so it costs
-  reviewer attention rather than coverage. Accumulating sentence state across soft line breaks is
-  deferred, not assumed away.
+- **`negation` is scoped to one physical line, and WITHHOLDS on a soft-wrapped sentence (known
+  limitation).** `detect.sh` classifies line by line, and the scope gate requires a line to close
+  its own sentence, so a prohibition that markdown soft-wraps reaches no verdict at all: `Do not
+  use markdown` on one line with `in the summary body.` on the next is not reported, even though
+  no positive is paired anywhere in that sentence. Unlike every other gap here the error direction
+  is a **silent withhold, not a false positive** — it costs coverage rather than reviewer
+  attention, and in a hard-wrapped repo it takes every prohibition long enough to wrap. This is the
+  one place the shape does not satisfy the fail-safe-toward-emitting property that the
+  detector-findings admission test asks for, and it is stated rather than assumed away.
+  Accumulating sentence state across soft line breaks is deferred to
+  [#3195](https://github.com/melodic-software/claude-code-plugins/issues/3195).
 - **Opt-out markers respected.** A well-formed HTML comment line `<!-- markdown-discipline-ignore -->` (covers the next paragraph, through the next blank line or heading) and `<!-- markdown-discipline-ignore-line -->` (exactly the next physical line — a blank line consumes it, so place the marker directly above the content line) skip the wrapped content. A prose mention of the marker name is not a live marker.
 - **Convention-path exemptions apply per matched path, never per line.** An angle-bracket slot variable (`.work/<slug>/…`, `docs/topics/<slug>/…`) is a schema placeholder, not a literal path; the reserved concern-scoped roots (`.work/handoffs/`, `.work/reviews/`, `.work/running-retros/`, `.work/overengineering/` — roster SSOT: topic-docs Memory, concern-scoped tier) are citable only bare or with a placeholder child — a concrete child under them flags. A convention token on a line never exempts a concrete ghost ref sharing that line; the tracked concern file (`.claude/topic-docs.yaml`) matches no ghost-ref pattern and needs no exemption. Exception: the retired `.claude/notes/` location flags even in placeholder form.
 - **Output deterministic.** Filenames sort lexically; per-file tier rows sort by line number; no timestamps in output.
