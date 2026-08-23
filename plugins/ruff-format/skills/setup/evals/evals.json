@@ -1,0 +1,86 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-mirrors-the-venv-walk-and-the-closest-config",
+      "prompt": "/ruff-format:setup check",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the Ruff binary resolved by the hook's repo-managed .venv walk then PATH, the governing consumer Ruff config, the ruff_format_enabled toggle, and hook registration — one remediation line per FAIL, nothing modified.",
+      "files": [],
+      "expectations": [
+        "Resolves Ruff the way the hook does — the exact .venv interpreter paths it tests for the current platform, walking up from the edited file toward the repo root, then PATH — and does not PASS a binary the hook would not accept",
+        "Reports the config walk as stopping at the FIRST (closest) governing config found walking toward the repo root, honoring Ruff's own same-directory precedence",
+        "Counts a pyproject.toml only when it carries a [tool.ruff] section or a [tool.ruff.*] subtable such as [tool.ruff.lint], reading the hook for the exact section test",
+        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once-per-session notice instead of formatting"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-ruff-config-is-the-opt-out-not-a-defect",
+      "prompt": "/ruff-format:setup check\n\nNo Ruff config anywhere in the repo and Python files are never formatted. Is the plugin broken?",
+      "expected_output": "Answers no: the opt-in walk found no governing config, so absence is the opt-out by design and the plugin is inert — reported as INFO, not FAIL — matching the README's \"ships no rules of its own\" stance.",
+      "files": [],
+      "expectations": [
+        "Classifies the missing config as INFO (inert by design), never FAIL, and states the plugin is not broken",
+        "Does not offer to repair the state, and creates a minimal Ruff config only when explicitly asked",
+        "Does not report a missing Ruff binary as a FAIL in this state — the FAIL is conditioned on a Ruff config governing the repo",
+        "Notes that a pyproject.toml without a [tool.ruff] section or subtable does not count as the opt-in"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "install-target-confirmed-in-project-and-recorded-through-the-manager",
+      "prompt": "/ruff-format:setup apply install-ruff\n\nWe use Poetry here.",
+      "expected_output": "Does not install blind: Poetry defaults its environment to a cache directory while the hook resolves only repo-ancestor .venv interpreters or PATH, so an in-project environment is confirmed from the tool's own config first; when confirmed, Ruff is recorded through Poetry's own dev-dependency add so the manifest and lockfile carry it, never a bare pip install. Otherwise it guides rather than installing somewhere the hook never looks.",
+      "files": [],
+      "expectations": [
+        "Confirms in-project mode from the tool's own config or environment answer before installing, rather than assuming the environment location",
+        "States the constraint that drives it: the hook resolves repo-ancestor .venv interpreters or PATH, nothing else",
+        "Records through the manager's dev-dependency add command, and explains that a bare pip install into a managed environment is state the tool's next sync or clean silently removes",
+        "Never creates or mutates an environment: with no environment yet it uses the tool's record-only mode where one exists and hands the sync step to the consumer",
+        "Stops with guidance anchored on the astral install URL when no environment plus no recognized manager, or conflicting signals, make the target ambiguous",
+        "After the remediation, re-runs the relevant check probe and reports its actual result rather than claiming resolved on the install command's exit code"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "repeat-apply-changes-nothing",
+      "prompt": "/ruff-format:setup apply\n\nEverything passed on the last run. Go again.",
+      "expected_output": "Re-runs check, finds no FAIL, reports \"already configured\", and makes no change on the second pass.",
+      "files": [],
+      "expectations": [
+        "Runs check first even on the repeat invocation",
+        "Reports \"already configured\" and performs no write",
+        "Does not re-add ruff through the repo's dependency manager and does not re-touch its manifest or lockfile when the binary already resolves",
+        "Does not prompt interactively — the action was given in the invocation"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "bare-apply-neither-installs-nor-picks-rules",
+      "prompt": "/ruff-format:setup apply\n\nRuff isn't installed and we have no config. Install it globally and write us a config.",
+      "expected_output": "Declines both: bare apply installs nothing (install-ruff is the explicit argument that authorizes it), a global install is never in scope, and a minimal Ruff config is offered only when explicitly asked because the plugin imposes no rules of its own.",
+      "files": [],
+      "expectations": [
+        "Does not install Ruff from bare apply — states that install-ruff is the explicit argument that authorizes it",
+        "Refuses a global install and refuses to create a virtual environment, installing only into a managed environment the repo already uses",
+        "Does not write a Ruff config unless explicitly asked, because the plugin imposes no rules of its own",
+        "Never installs system packages and never writes Claude Code user settings, pluginConfigs, or the plugin cache"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-off-reruns-install-never-uninstalls",
+      "prompt": "/ruff-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
+      "expected_output": "Routes the headless change to a plain `claude plugin install ruff-format@<marketplace> -s <scope> --config ruff_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install … --config ruff_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope, noting a sensitive option and project/local scope were not covered",
+        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
+        "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
+      ]
+    }
+  ]
+}

@@ -43,11 +43,16 @@ OAuth flow). To change or clear the token at any time, run:
 ```
 
 That reopens the same configuration screen shown at first enable, letting you overwrite or blank
-the stored token. The headless `--config` flag on `claude plugin install` is not a rotation
-path: it seeds a value only on a fresh install and is ignored once the plugin is already
-installed, so rotating headlessly means uninstalling and reinstalling. Prefer the interactive
-prompt — it masks input, where a token passed on the command line lands in shell history and the
-process table.
+the stored token. Prefer it regardless — it masks input, where a token passed on the command line
+lands in shell history and the process table.
+
+The older claim here — that `--config` is ignored once the plugin is installed — was never
+version-stamped, and on Claude Code 2.1.240 a plain `claude plugin install … --config` was
+observed to write the value of an already-installed plugin for a **non-sensitive** option at
+`user` scope. Whether that holds for a `sensitive` option such as `miro_api_token` has not been
+verified, so do not rely on it for a credential — and do not uninstall to rotate: that drops this
+plugin's entire stored `pluginConfigs` entry, resetting every option in the Options reference
+table below to its manifest default.
 
 ## Tools
 
@@ -101,12 +106,22 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure miro@<marketplace>`.
-2. **Headless, at install time** — repeat `--config` for each option. Replace
+2. **Headless** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install miro@<marketplace> --config miro_api_token=<value>
+   claude plugin install miro@<marketplace> -s <scope> --config miro_api_token=<value>
    ```
+
+   Route 1 is the rotation path for this plugin, not this one. Every option here is
+   `sensitive`, and `/plugin configure` masks input — a secret passed on the command
+   line lands in shell history and the process table. Whether `--config` writes a
+   `sensitive` value on an already-installed plugin has not been verified (the
+   Claude Code 2.1.240 observation behind that claim covered a non-sensitive option at
+   `user` scope), so do not rely on this command to rotate a credential. Do **not**
+   `claude plugin uninstall` in order to reconfigure either: uninstalling drops this
+   plugin's whole stored `pluginConfigs` entry, resetting every option in the table
+   above to its default.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -134,8 +149,9 @@ hands a configured value to a hook process; the value comes from the routes abov
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
