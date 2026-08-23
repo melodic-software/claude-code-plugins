@@ -3,6 +3,18 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.26]
+
+### Fixed
+
+- **tests:** the bundled `-c` merge pin now runs in CI. The real-binary case
+  that proves repo `extend-ignore-re` survives `-c` still needs `typos` on
+  PATH, which the plugin-gate job does not install, so that case kept
+  skipping on every PR. The stub suite now records argv and asserts the hook
+  injects `-c <plugin>/config/default-typos.toml` whenever `CLAUDE_PLUGIN_ROOT`
+  is set — and does not inject it when the variable is unset
+  ([#3133](https://github.com/melodic-software/claude-code-plugins/issues/3133)).
+
 ## [0.6.25]
 
 ### Fixed

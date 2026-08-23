@@ -136,9 +136,13 @@ run_hook_env() {
 # Exit codes mirror typos-cli 1.44.0 as verified against the real binary:
 # 0 = nothing left to report, 2 = findings remain. jsonlines on stdout.
 STUB_BIN="$(mktemp -d "$WORK/stubbin.XXXXXX")"
+PLUGIN_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
 cat >"$STUB_BIN/typos" <<'STUB'
 #!/usr/bin/env bash
 set -uo pipefail
+if [[ -n "${STUB_LOG_ARGV:-}" ]]; then
+  printf '%s\n' "$*" >>"$STUB_LOG_ARGV"
+fi
 write=0
 target=""
 skip_next=0
@@ -359,6 +363,29 @@ if [[ -z "$(printf '%s' "$OUT_DEF" | jq -r '.systemMessage // empty' 2>/dev/null
   ok "stub/default: no user-channel message (nothing was mutated)"
 else
   fail "stub/default: emitted a systemMessage without mutating anything"
+fi
+
+# --- Bundled -c is passed whenever CLAUDE_PLUGIN_ROOT is set -----------------
+# The real-binary merge pin below needs `typos` on PATH, which CI's plugin-gate
+# job does not install. This stub records argv, so the same `-c <bundled toml>`
+# injection is asserted on every run — including stock ubuntu-24.04 CI.
+printf 'plain line\n' >"$STUB_REPO/cmerge-argv.txt"
+: >"$WORK/stub-argv.log"
+run_stub_default "$STUB_REPO/cmerge-argv.txt" \
+  CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+  STUB_LOG_ARGV="$WORK/stub-argv.log" >/dev/null
+if grep -q -- '-c ' "$WORK/stub-argv.log" && grep -q 'default-typos.toml' "$WORK/stub-argv.log"; then
+  ok "stub/bundled-c: -c default-typos.toml is passed when CLAUDE_PLUGIN_ROOT is set"
+else
+  fail "stub/bundled-c: expected -c bundled config on argv: $(cat "$WORK/stub-argv.log")"
+fi
+: >"$WORK/stub-argv.log"
+run_stub_default "$STUB_REPO/cmerge-argv.txt" \
+  STUB_LOG_ARGV="$WORK/stub-argv.log" >/dev/null
+if grep -q -- '-c ' "$WORK/stub-argv.log"; then
+  fail "stub/bundled-c: -c leaked onto argv without CLAUDE_PLUGIN_ROOT: $(cat "$WORK/stub-argv.log")"
+else
+  ok "stub/bundled-c: no -c when CLAUDE_PLUGIN_ROOT is unset"
 fi
 
 # --- Report-only can also be pinned explicitly (option set to false) ---------
@@ -1361,7 +1388,6 @@ fi
 # CLAUDE_PLUGIN_ROOT is set. That file's header claims a merge; if `-c`
 # replaced the discovered config, a repo `spellchecker:disable-line` pragma
 # would be lost and write mode would "fix" the protected line (#3133 F1).
-PLUGIN_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
 REPO_CMERGE="$WORK/c-merge"
 new_typos_repo "$REPO_CMERGE" NO_CONFIG
 printf '[default]\nextend-ignore-re = [".*spellchecker:disable-line.*"]\n' >"$REPO_CMERGE/_typos.toml"
