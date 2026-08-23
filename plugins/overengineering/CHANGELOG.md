@@ -8,9 +8,10 @@ All notable changes to the `overengineering` plugin are documented here. Format 
 ### Added
 
 - **`delta` — the recurring lane the findings artifact was designed for (#2898).** A third,
-  read-only skill: it captures the prior findings spine, composes `overengineering:audit` over the
-  same layer scope, compares the two spines, and reports **only what moved** — new clutter, verdict
-  moves, closures, status changes — instead of re-serving the whole surface every cycle. The
+  read-only skill: it composes `overengineering:audit` over the same layer scope, compares the
+  resulting findings spine against the baseline the previous cycle left behind, captures a fresh one
+  for the next, and reports **only what moved** — new clutter, verdict moves, closures, status
+  changes — instead of re-serving the whole surface every cycle. The
   artifact's stable spine was given its diffable line format for exactly this consumer, and the lane
   reads the spine alone: prose is recomputed fresh every run, so comparing it would report model
   noise as change.

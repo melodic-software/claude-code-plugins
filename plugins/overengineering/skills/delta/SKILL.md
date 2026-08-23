@@ -219,9 +219,13 @@ unchanged**:
 5. **Compare** this run's post-audit spine against the baseline from step 2, per "Delta classes"
    below.
 6. **Apply the noise budget**, and report.
-7. **Stamp `compared:`** on the stored baseline, then **capture this run's post-audit spine over it**
-   — the baseline the *next* cycle compares against. Both acts are earned by step 5 having completed;
-   where it did not, leave the stored baseline untouched and write nothing.
+7. **Stamp `compared:`** on the stored baseline where one was consumed, then **capture this run's
+   post-audit spine over it** — the baseline the *next* cycle compares against. The capture is earned
+   by the cycle having reached this step with a resolved branch identity, and a no-baseline cycle
+   earns it too: it compared nothing, but it did run the audit, so it establishes the baseline the
+   next cycle needs. Two cases write nothing and leave any stored baseline exactly as it is: a cycle
+   that stopped short of step 5 (the audit never ran or failed, the schema was unrecognized, the homes
+   disagreed), and a cycle whose branch identity never resolved.
 
 **If the audit reports a different resolved home than step 1 resolved, report no delta for this
 cycle, name both paths, and leave the stored baseline untouched.** Two homes are two histories, and
