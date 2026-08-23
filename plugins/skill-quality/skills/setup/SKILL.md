@@ -41,20 +41,26 @@ verify-and-route:
 - **Skills not found / wrong root (FAIL):** if the skills live somewhere other than the resolved root,
   the personal `skills_root` should point there. Reconfigure through the path below, then rerun `check`.
 - **Reconfiguring the personal option:** `/plugin configure skill-quality@<marketplace>` (interactive, any time).
-  Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via
-  `claude plugin uninstall skill-quality -s <scope>` then
-  `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`. Both
-  commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin, and
-  run from that project's directory for a `project`/`local` scope. Defaulting instead uninstalls a
-  separate user-scope record while the effective install stays in place, so the reinstall lands at
-  a scope that does not load. This skill never writes user settings or `pluginConfigs`.
+  Headless: rerun the install with the new value —
+  `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`. Against
+  an already-installed plugin it prints `already installed` and still writes the value, verified on
+  Claude Code 2.1.240 for a non-sensitive option at `user` scope; a `sensitive` option, and
+  `project`/`local` scope, were not covered, so re-verify before relying on it there. Do **not**
+  uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry, resetting
+  every option in the README's Options reference table to its manifest default. `-s` defaults to
+  `user`, so pass the scope `claude plugin list` reports for this plugin, and run from that
+  project's directory for a `project`/`local` scope, or the write lands at a scope that does not
+  load. This skill never writes user settings or `pluginConfigs`.
 - **One-run override (no persistence):** for a single run against a different root, the checker also
   honors the `CHECK_SKILL_SKILLS_ROOT` environment variable; do not persist that variable on the user's
   behalf.
 
-After any reconfiguration, rerun `check` and verify by invoking `/skill-quality:check` via the Skill tool — without turning setup
-into the full quality audit. Re-running `apply` when the root resolves and enumerates changes nothing
-and reports "already configured".
+After any reconfiguration, rerun `check` **in a fresh session** and verify by invoking
+`/skill-quality:check` via the Skill tool — without turning setup into the full quality audit. The
+fresh session is not optional: the rendered `${user_config.skills_root}` is injected when this skill
+loads, so a same-session rerun still resolves the OLD root and would report a correct write as a
+failure. Re-running `apply` when the root resolves and enumerates changes nothing and reports
+"already configured".
 
 ## What this skill does NOT do
 
