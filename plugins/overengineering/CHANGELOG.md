@@ -14,13 +14,25 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   artifact's stable spine was given its diffable line format for exactly this consumer, and the lane
   reads the spine alone: prose is recomputed fresh every run, so comparing it would report model
   noise as change.
-- **Capture-then-audit, stated as the lane's load-bearing ordering.** The artifact is rewritten in
-  place, per layer, as the audit walks, so **after an audit has run there is nothing left to diff
-  against**. The lane captures the prior spine to a memory-tier `spine-baseline.md` sibling *before*
-  invoking the audit. A maintainer who reverses those two steps does not get an error — every cycle
-  silently reports "no baseline, this run establishes one" forever — which is why the ordering is a
-  contract clause in both the skill and `context/findings-artifact.md` rather than an implementation
-  detail.
+- **The baseline is the previous cycle's post-audit spine, stated as the lane's load-bearing
+  mechanic.** Two things have to be right and each fails silently alone. A spine must be *persisted*,
+  because the artifact is rewritten in place, per layer, as the audit walks — **after an audit has
+  run there is nothing left to diff against**, so "audit, then diff the file" is not available and a
+  memory-tier `spine-baseline.md` sibling is mandatory. And it must be captured at the **end** of a
+  cycle, from the post-audit artifact: `Status` is written by realign, a human runs realign *between*
+  cycles, and the audit carries every non-new status forward untouched, so a start-of-cycle capture
+  would already hold the new status and the status-change class could never fire. A pre-audit capture
+  survives only as an explicitly named **bootstrap** — a home with an artifact and no baseline yet —
+  which cannot observe a status change and says so, while the next cycle can. A maintainer who breaks
+  either half gets no error, just a silently useless lane, which is why the mechanic is a contract
+  clause in both the skill and `context/findings-artifact.md` rather than an implementation detail.
+- **A detached checkout is never given a branch identity.** `git rev-parse --abbrev-ref HEAD` answers
+  the literal `HEAD` when detached — the ordinary shape for the scheduled runners this lane targets —
+  which keys every ref to one home and compares equal to itself, so the branch-match guard would
+  accept another ref's spine as this ref's baseline and report cross-ref differences as deltas. The
+  lane's precompute uses `git symbolic-ref`, which fails rather than inventing a name; the run then
+  prefers a logical ref where the environment supplies one (no CI vendor's variables are named or
+  assumed) and otherwise declines to compare **and** declines to capture, saying why.
 - **A noise budget with per-class rules, not a judgment gesture.** Each delta class is disposed as
   list, count, or omit: new findings list on retirement-direction and capped verdicts and count
   otherwise; new `UNPROVEN` findings list only the head of the audit's own carry-cost ranking, since
@@ -37,7 +49,10 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   cap, so none carries the hazard that puts `protected_categories` and `suppressions` in the
   policy-floor class. Two delta classes are deliberately not keys at all — a verdict that moved under
   a **carried-forward judgment** (merge rule 5) and a **status change** are always surfaced, and no
-  layer can weaken either.
+  layer can weaken either. `queue_route` defaults to `inline`: the durable tracker route is **opt-in**
+  because `work-items:track` refuses to file on inferred intent, and an operator setting the key in
+  tracked config is the explicit, recorded authorization that gate requires — one an unattended
+  scheduled cycle has nobody present to give.
 - **Recurring wiring documented, adopted nowhere.** `skills/delta/context/recurring-wiring.md`
   carries four consumer-agnostic shapes — a fixed-interval loop, a headless scheduled task, a CI
   schedule, and a recurring tracker item — each with its trade, including the observation that a
@@ -48,7 +63,8 @@ All notable changes to the `overengineering` plugin are documented here. Format 
 ### Changed
 
 - **`context/findings-artifact.md` gains the spine-capture obligation (#2898), additively.** A new
-  section names the capture-before-audit ordering and specifies the `spine-baseline.md` sibling —
+  section names the end-of-cycle capture timing, the `Status` reason behind it, the one sanctioned
+  pre-audit bootstrap, and specifies the `spine-baseline.md` sibling —
   `type: overengineering-spine-baseline`, deliberately neither `overengineering-findings` nor
   `review-findings`, so `realign` never reads it and no fix relay can locate it. `schema` stays `1`
   and no merge rule changed; the doc's forward reference to "a future delta lane" now names the
@@ -61,10 +77,12 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   `overengineering:realign` — not on a verdict that moved, not on a finding an earlier run accepted,
   and not when the operator asks for it mid-run. Realign's per-item gate needs a human present at the
   moment the item is shown, and a lane that can run on a schedule has nobody to give one. Verdict
-  changes **queue**: always in the report's `## Queued for the human` section, and — presence-gated
-  on a reachable work-item tracker, with the report section as the named inline fallback — as one
-  reused item per branch that a quiet cycle never touches, that drops a row the human has already
-  dispositioned, and that the lane never closes.
+  changes **queue**: always in the report's `## Queued for the human` section, and — **opt-in** on a
+  tracked `queue_route: auto` and then presence-gated on a reachable work-item tracker, with the
+  report section as the named inline fallback — as one reused item per branch that a quiet cycle
+  never touches, that drops a row the human has already dispositioned, and that the lane never
+  closes. The opt-in is the authorization, not a verbosity preference: `work-items:track` will not
+  file on inferred intent, so an unset key means report-only.
 - **No baseline is a first-class state, not an error.** A fresh container, a removed worktree, a
   branch switch, or an artifact whose `branch:` frontmatter names another branch all mean there is no
   prior spine. The lane says "no baseline; this run establishes one", reports nothing as a delta, and

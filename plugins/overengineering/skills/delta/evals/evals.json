@@ -3,13 +3,15 @@
   "evals": [
     {
       "id": 1,
-      "name": "captures-the-prior-spine-before-invoking-the-audit",
+      "name": "compares-against-the-stored-baseline-and-recaptures-at-end-of-cycle",
       "prompt": "/overengineering:delta",
-      "expected_output": "Resolves the artifact home through the plugin's topic-docs binding, reads the existing findings artifact, and captures its spine to the spine-baseline sibling BEFORE invoking overengineering:audit. It states why that ordering is load-bearing: the artifact is rewritten in place per layer as the audit walks, so once the audit has run there is nothing left to compare against. Only after the capture does it invoke the audit via the Skill tool, and only then does it read the post-run spine and compare. It captures nothing but spine lines, member lines, and the per-tier evidence-availability tokens — no prose field enters the baseline.",
+      "expected_output": "Resolves the artifact home through the plugin's topic-docs binding and reads the stored spine-baseline sibling — the PREVIOUS cycle's post-audit spine — as the comparison baseline, rather than capturing a fresh one from the artifact as it currently stands. It invokes overengineering:audit via the Skill tool, compares this run's post-audit spine against that stored baseline, and only at the END of the cycle captures this run's post-audit spine over it for the next cycle. It states why a separately persisted spine is mandatory (the artifact is rewritten in place per layer as the audit walks, so nothing survives the audit to diff against) and why the capture is end-of-cycle (realign writes Status between cycles and the audit carries statuses forward, so a start-of-cycle capture would already hold the new status and the status-change class could never fire). It captures nothing but spine lines, member lines, and the per-tier evidence-availability tokens — no prose field enters the baseline.",
       "files": [],
       "expectations": [
-        "Captures the prior spine to the baseline file BEFORE overengineering:audit is invoked, not after",
-        "States that the artifact is rewritten in place as the audit walks, so no prior artifact survives the audit to be diffed against",
+        "Compares against the stored spine-baseline left by the previous cycle, not against a spine captured from the artifact at the start of this run",
+        "Captures this run's post-audit spine over the baseline at the END of the cycle, after the comparison completed",
+        "States that the artifact is rewritten in place as the audit walks, so no prior artifact survives the audit to be diffed against and a persisted spine is mandatory",
+        "Names the status-change reason for end-of-cycle timing: realign writes Status between cycles and the audit carries it forward, so a start-of-cycle baseline would already contain it",
         "Invokes overengineering:audit via the Skill tool rather than re-walking the enforcement surface itself",
         "Captures spine lines, member lines, and evidence-availability tokens only — no evidence, liveness, intent, or other prose field"
       ]

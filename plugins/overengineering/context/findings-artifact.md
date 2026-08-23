@@ -204,13 +204,28 @@ never a sentence. Anything that wants to be a sentence is prose and belongs belo
 
 ## The spine-capture obligation
 
-**This artifact is rewritten in place, so a cross-run comparison must capture the prior spine before
-the next audit begins.** "Re-run merge semantics" below makes a re-audit merge into the existing
-file, and the audit writes per layer as it walks, so the prior content starts disappearing at the
-first layer rather than at the end of the run. **After an audit has run, there is nothing left to
-compare against.** Any consumer reporting change across runs therefore captures first and audits
-second; a consumer that reverses those two steps does not fail loudly, it reports "no baseline" every
-cycle forever.
+**This artifact is rewritten in place, so a cross-run comparison must persist a spine of its own.**
+"Re-run merge semantics" below makes a re-audit merge into the existing file, and the audit writes
+per layer as it walks, so the prior content starts disappearing at the first layer rather than at the
+end of the run. **After an audit has run, there is nothing left to compare against.** A consumer that
+tries to "audit, then diff the file" does not fail loudly; it reports "no baseline" every cycle
+forever. A separately persisted spine is mandatory.
+
+**That spine is captured at the end of a cycle, from the post-audit artifact**, and it is the
+baseline the *next* cycle compares its own post-audit spine against. The timing is load-bearing, and
+`Status` is why: `overengineering:realign` is the sole writer of a status and a human runs it
+**between** cycles, while an audit only ever writes `OPEN` on a newly-seen id and carries every other
+status forward untouched. A capture taken at the *start* of a cycle therefore already holds whatever
+status realign wrote, the audit carries that same status through, and both sides of the comparison
+agree on it for every pre-existing finding — the one class that reports "a human acted" becomes
+unobservable in exactly the case it exists for. Capturing after the audit leaves a later realign on
+the far side of the baseline, where the next cycle sees it.
+
+**One pre-audit capture is sanctioned: the bootstrap.** A home holding this artifact and no
+`spine-baseline.md` — audits were run manually here before any comparing consumer existed — captures
+the artifact's spine pre-audit, so that first cycle has a baseline at all. A bootstrap cycle **cannot
+detect a status change**, for the reason above, and a consumer says so rather than implying coverage
+it does not have. Every later cycle can.
 
 **The capture is a sibling file in the same resolved home, not a second artifact.** `spine-baseline.md`
 beside `findings.md`, memory tier, branch-keyed, and ephemeral on exactly the same terms:
@@ -219,13 +234,17 @@ beside `findings.md`, memory tier, branch-keyed, and ephemeral on exactly the sa
 ---
 type: overengineering-spine-baseline
 schema: 1
-captured: <ISO-basic UTC, colon-free>
-source-date: <the artifact's own `date` frontmatter at capture>
-source-scope: <the artifact's own `scope` at capture>
-branch: <branch at capture>
-compared: <ISO-basic UTC, written when the comparison completes; absent until then>
+captured: <ISO-basic UTC, colon-free — end of the cycle that wrote it>
+source-date: <the `date` frontmatter of the artifact captured from: this cycle's post-audit artifact, or on a bootstrap the pre-audit one>
+source-scope: <that same artifact's `scope`>
+branch: <branch at capture; never `HEAD`, and never written at all when the branch identity is unresolved>
+compared: <ISO-basic UTC, written by the LATER cycle that consumes this baseline, when its comparison completes; absent until then>
 ---
 ```
+
+`captured:` and `compared:` therefore belong to two different cycles: the one that wrote the baseline
+and the one that consumed it. A freshly written baseline carrying no `compared:` is the ordinary
+steady state, not a fault.
 
 Its body carries only material already fixed by this contract — each finding's `### <finding-id>`
 heading and its four spine lines verbatim, each container's `**Members (<n>):**` lines verbatim, and
@@ -239,9 +258,14 @@ Three properties keep it from becoming a second record of findings:
 - **It carries no judgment of its own.** Every line in it was copied from an artifact this contract
   already governs; it asserts nothing the artifact did not already assert, and it is never merged
   into.
-- **It is a snapshot, not a history.** One file per home, overwritten by the next capture — with one
-  exception: a baseline whose comparison never completed is kept rather than overwritten, so an
-  interrupted cycle widens the next comparison's span instead of destroying its only baseline.
+- **It is a snapshot, not a history.** One file per home, overwritten by the next end-of-cycle
+  capture — but **only by a cycle that consumed it.** A capture is earned by having completed the
+  comparison and by nothing else: where the cycle stopped short (the audit never ran or failed, the
+  schema was unrecognized, two homes disagreed, the branch identity did not resolve) the stored
+  baseline is kept exactly as it is and that cycle writes none. Overwriting it would move the
+  comparison's origin silently forward past a cycle nobody compared, and whatever moved in between
+  would be reported by no cycle at all. The kept baseline instead widens the next comparison's span,
+  which that cycle names from its `source-date`.
 
 ## Aggregating containers — the container is the finding
 
@@ -446,9 +470,10 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 | Refuses on a mismatched `branch:` or an unrecognized `schema:` | n/a — it writes them | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
 | Behavior when the artifact is missing | n/a | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
 
-The `delta` column follows from what that lane is: it captures the spine per the obligation above,
-composes `audit` to produce the next artifact, and compares the two — so every write it makes belongs
-to that mechanic, and the artifact's own writes stay in `audit`'s column.
+The `delta` column follows from what that lane is: it composes `audit` to produce this cycle's
+artifact, compares that artifact's spine against the baseline the previous cycle left behind, and
+captures a fresh baseline at the end of the cycle per the obligation above — so every write it makes
+belongs to that mechanic, and the artifact's own writes stay in `audit`'s column.
 
 ## External authority
 

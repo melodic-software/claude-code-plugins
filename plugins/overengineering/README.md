@@ -150,12 +150,16 @@ The property that makes a recurring run worth having is that it **stops re-servi
 first cycle establishes a baseline and reports no deltas; every later cycle reports only what moved,
 filtered through a noise budget with per-class rules, and a cycle where nothing moved is one line.
 Recurrence changes nothing about the read-only boundary: no cadence reaches `realign`, and verdict
-changes queue for a human rather than being acted on.
+changes queue for a human rather than being acted on. That queue is always in the report; **routing
+it durably to a work-item tracker is opt-in**, because a tracker that refuses to file on inferred
+intent needs an authorization an unattended cycle has nobody to give, and the operator setting
+`queue_route: auto` in tracked config is that authorization.
 
 ## Where the artifacts land
 
 Both files the plugin writes — the findings artifact, and the spine baseline the delta lane captures
-before it re-audits — are memory tier, concern-scoped, branch-keyed, and never committed;
+at the end of each cycle for the next one to compare against — are memory tier, concern-scoped,
+branch-keyed, and never committed;
 [`reference/topic-docs.md`](reference/topic-docs.md) owns the resolution and the placement of each.
 Both are ephemeral by design: the findings artifact is rewritten in place on every re-audit, with
 operator judgments carried forward by stable finding id so a decision is never wiped and re-reported,

@@ -196,7 +196,17 @@ deliberately not re-derived here; this table owns the keys, their types, and the
 | `closed_findings` | `unexpected` \| `all` \| `off` | `unexpected` | Which closures are listed. `off` counts them. |
 | `member_verdicts` | `count` \| `surface` \| `off` | `count` | Member-level verdict moves inside a container whose own verdict did not move. `off` omits them entirely. |
 | `max_items` | integer ≥ 1 | `20` | Cap on rows listed across every class in one cycle. The residue is reported as counts with a pointer to the artifact. |
-| `queue_route` | `auto` \| `inline` | `auto` | `auto` routes queued verdict changes to a work-item tracker when one is reachable, and falls back inline when it is not. `inline` declines the route unconditionally. Either way the queue always appears in the report. |
+| `queue_route` | `auto` \| `inline` | `inline` | `auto` routes queued verdict changes to a work-item tracker when one is reachable, and falls back inline when it is not. `inline` — the default, and what an unset key renders — declines the route unconditionally. Either way the queue always appears in the report. |
+
+**Why the durable route is opt-in.** `work-items:track`'s `add` action refuses to file on inferred
+intent: *"An explicit user `/work-items:track add ...` invocation IS the authorization;
+model-initiated filing is not."* An unattended scheduled delta cycle has nobody present to give one,
+so a default-on route would make the lane's ordinary mode a filing request a conforming tracker is
+obliged to decline. Setting this key **is** the explicit, recorded authorization that gate asks for,
+given once by a human in a tracked file — which is why `auto` is opted into rather than defaulted to,
+and why flipping the default back would break the default path in the exact mode the lane exists for.
+Nothing is hidden by leaving it unset: the queue appears in every report either way, and only its
+durability changes.
 
 **Two delta classes are deliberately absent from this table, and no layer can weaken them.** A
 verdict that moved under a **carried-forward judgment** (the artifact's merge rule 5) and a **status

@@ -25,7 +25,7 @@ reports do:
 | Artifact | Type | Location (default) |
 |---|---|---|
 | Audit findings — written by `overengineering:audit`, status fields updated by `overengineering:realign` | `overengineering-findings` | `.work/overengineering/<branch-slug>/findings.md` — never committed |
-| Spine baseline — captured by `overengineering:delta` before it re-audits | `overengineering-spine-baseline` | `.work/overengineering/<branch-slug>/spine-baseline.md` — never committed |
+| Spine baseline — captured by `overengineering:delta` at the end of a cycle, for the next one to compare against | `overengineering-spine-baseline` | `.work/overengineering/<branch-slug>/spine-baseline.md` — never committed |
 
 What the baseline contains — its frontmatter, its body rules, its type — is owned by
 `context/findings-artifact.md` under "The spine-capture obligation"; this binding owns only where it
