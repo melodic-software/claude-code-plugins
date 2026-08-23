@@ -227,6 +227,8 @@ skill_frontmatter::summary_error() {
     return 1
   fi
   if [[ "$s" == "=" ]]; then
+    # The backticks are literal in the diagnostic, not a command substitution.
+    # shellcheck disable=SC2016
     printf 'summary is the YAML value-key special `=`'
     return 1
   fi

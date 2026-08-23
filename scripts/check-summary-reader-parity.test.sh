@@ -99,6 +99,8 @@ source "$LIB"
 # once per case.
 
 js_verdicts() {
+  # The single-quoted payload is a Node program; nothing in it should expand.
+  # shellcheck disable=SC2016
   node --input-type=module -e '
     import { readFileSync } from "node:fs";
     import { pathToFileURL } from "node:url";
@@ -220,24 +222,24 @@ root = pathlib.Path(sys.argv[1])
 for path in sorted(root.glob("plugins/*/skills/*/SKILL.md")):
     text = path.read_text(encoding="utf-8")
     lines = text.split("\n")
-    if not lines or not re.match(r"^---\s*$", lines[0]):
+    if not lines or not re.match(r"^---[ \t]*$", lines[0]):
         continue
     in_meta = False
     raw = None
     fm_end = None
     for i, line in enumerate(lines[1:], start=1):
-        if re.match(r"^---\s*$", line):
+        if re.match(r"^---[ \t]*$", line):
             fm_end = i
             break
-        if re.match(r"^metadata:\s*$", line):
+        if re.match(r"^metadata:[ \t]*$", line):
             in_meta = True
             continue
-        if re.match(r"^\S", line):
+        if re.match(r"^[^ \t]", line):
             in_meta = False
             continue
         if not in_meta:
             continue
-        m = re.match(r"^\s+([A-Za-z0-9-]+):\s*(.*)$", line)
+        m = re.match(r"^[ \t]+([A-Za-z0-9-]+):[ \t]*(.*)$", line)
         if m and m.group(1) == "summary" and raw is None:
             raw = m.group(2).strip()
     if raw is None:

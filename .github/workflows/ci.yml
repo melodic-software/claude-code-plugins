@@ -1570,6 +1570,7 @@ jobs:
       - skill-count-claim-gate
       - userconfig-argv-gate
       - hook-exec-form-gate
+      - summary-reader-parity-gate
       - plugin-options-docs-gate
       - silent-skip-gate
       - stale-base-overlap-gate
