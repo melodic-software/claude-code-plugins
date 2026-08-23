@@ -13,7 +13,9 @@ claim/renew/reclaim lease protocol, native sub-items, and dependency edges. Need
 config beyond the lease TTL.
 
 **Verifying it at bind time.** Confirm `gh` is installed — the seam hard-errors at call time when
-`gh` ≥ 2.94 is absent — then confirm the checkout itself resolves:
+the binary is absent, and again on any verb reading the native sub-item/dependency surface when it
+is older than 2.94 (CONTRACT.md "Prerequisites"; the claim/renew/reclaim lease trio is exempt) —
+then confirm the checkout itself resolves:
 
 ```sh
 gh repo view --json owner,name

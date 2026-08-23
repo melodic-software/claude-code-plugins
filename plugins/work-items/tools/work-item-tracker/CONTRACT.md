@@ -9,9 +9,18 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 ## Prerequisites
 
 - `jq` on PATH (all providers). Missing → exit `3` with an actionable message.
-- `gh` ≥ 2.94 on PATH when the bound provider is `github` (native sub-issue/dependency
-  flags: `--parent`, `--blocked-by`, `--add-blocked-by`). Missing or too old → exit `3`
-  naming the minimum. The dispatcher gates on both binaries before dispatch.
+- `gh` on PATH when the bound provider is `github` and the verb shells out. Missing →
+  exit `3`. `capabilities` is the one exception: it reads the adapter manifest and never
+  invokes `gh`, so it answers without the binary.
+- `gh` ≥ **2.94** additionally for the verbs that read the native sub-issue/dependency
+  surface — the `--parent`, `--blocked-by`, `--add-blocked-by` flags and the `blockedBy`,
+  `parent`, `subIssues` `--json` fields. Too old → exit `3` naming the minimum. That is
+  `create-item`, `get-item`, `list-items`, `list-sub-items`, `link-blocks`, `add-sub-item`,
+  and `list-frontier` (which gates through whichever list verb it resolves to). The lease
+  trio — `claim`, `renew-lease`, `reclaim` — reads assignees and comments only, so it runs
+  on an older `gh`: a version floor applied to every verb would cost a session race-safe
+  claiming for a surface those verbs never touch. The dispatcher gates per verb, before
+  dispatch.
 - `curl` on PATH when the bound provider is `jira` (Cloud REST v3 over HTTPS). The jira
   adapter gates on it at call time (exit `3`), not the dispatcher — minimal shared-code
   blast radius.
@@ -20,13 +29,22 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 
 Some execution environments have GitHub access but no `gh` binary — notably cloud sessions
 whose GitHub surface is MCP tools (model-plane, not shell-plane). In such a session the
-seam **cannot run the `github` adapter at all**, reads and writes alike: the dispatcher's
-prerequisite gate exits `3` (the same first-run signal as a missing binding), and there is
-deliberately no silent fallback to another provider (the binding names the coordination
-surface; "Offline role activates only by manual binding switch" applies to degradation
-too). Honest limitation, recorded 2026-08-17 (#2942): this repository's own spec board
-(#2933) had to be published through MCP tools with blocking edges as body text, because
-the publishing session had no `gh`.
+seam **cannot run any `github` verb that shells out**, reads and writes alike: the
+dispatcher's presence gate exits `3` (the same first-run signal as a missing binding), and
+there is deliberately no silent fallback to another provider (the binding names the
+coordination surface; "Offline role activates only by manual binding switch" applies to
+degradation too). `capabilities` is the sole verb that still answers, since it reads the
+adapter manifest rather than the provider. Honest limitation, recorded 2026-08-17 (#2942):
+this repository's own spec board (#2933) had to be published through MCP tools with
+blocking edges as body text, because the publishing session had no `gh`.
+
+**A too-old `gh` degrades differently from an absent one.** Where the binary is present but
+below 2.94, only the native-surface verbs above are refused; the lease trio still runs, so
+such a session can hold and renew a race-safe claim even though it cannot derive a frontier
+or read `blocked_by_count`. Selection has to come from elsewhere (an operator-named item,
+or a list taken through another GitHub surface), but the claim itself is not degraded, and
+an item worked this way is NOT the unclaimed-coordination case the backfill ritual below
+describes.
 
 Evaluated fallbacks, decided as follows:
 

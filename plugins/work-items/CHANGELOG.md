@@ -3,6 +3,36 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.14]
+
+### Fixed
+
+- **Seam: the `gh >= 2.94` floor is gated per verb instead of dispatcher-wide.** That floor
+  buys exactly one thing, the native sub-issue/dependency surface (`--parent`,
+  `--blocked-by`, `--add-blocked-by`, and the `blockedBy` / `parent` / `subIssues` `--json`
+  fields), but it was applied to every `github` verb. An older `gh` therefore lost the lease
+  trio (`claim`, `renew-lease`, `reclaim`) and `capabilities`, none of which reads that
+  surface, so a session that could have held a race-safe claim was refused one for a
+  prerequisite it never used. `capabilities` was the sharpest case: it reads the adapter
+  manifest and never invokes `gh`, yet could not report what the provider supports without
+  meeting a requirement its own answer might have shown to be unnecessary. The floor now
+  applies to `create-item`, `get-item`, `list-items`, `list-sub-items`, `link-blocks`,
+  `add-sub-item`, and `list-frontier` (which gates through whichever list verb it resolves
+  to, so the `--parent` form is covered by its `list-sub-items` dispatch).
+- **Presence and version are now separate prerequisites.** Narrowing the floor alone would
+  have let the lease verbs dispatch on a `gh`-less machine and die on `gh: command not
+  found` inside the adapter, replacing the clean exit `3` that CONTRACT.md "Degradation
+  without `gh`" documents for MCP-only cloud sessions. Presence is still required for every
+  `github` verb that shells out; only `capabilities` answers without the binary.
+
+### Changed
+
+- **CONTRACT.md records both degradation shapes.** Prerequisites now separate the presence
+  requirement from the 2.94 floor and name which verbs carry the floor, and the degradation
+  section distinguishes an absent `gh` (no verb that shells out can run) from a too-old one
+  (native-surface verbs refused, lease trio intact, so selection must come from elsewhere
+  but the claim itself is not degraded).
+
 ## [0.39.13]
 
 ### Changed
