@@ -50,7 +50,7 @@ When writing to a file, prepend:
 
 ```markdown
 ---
-type: bugs
+type: bug-report
 date: <ISO-8601 UTC, e.g. 2026-05-02T14:30:00Z>
 slug: <slug>
 severity: <low | medium | high | critical>

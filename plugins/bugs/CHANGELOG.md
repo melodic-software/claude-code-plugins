@@ -15,6 +15,8 @@ All notable changes to the `bugs` plugin are documented here. Format follows
   previously persisted reports and cursor metadata are not read by the renamed plugin (re-created on
   the next run). No aliasing or migration shim is shipped — consumers update the enabled-plugin name
   and, where present, rename the tracked config file. Historical entries below retain the old name.
+  The persisted report frontmatter keeps `type: bug-report` unchanged — storage-format identifiers
+  stay stable across renames (ADR 0013).
 
 ## [0.8.0]
 
