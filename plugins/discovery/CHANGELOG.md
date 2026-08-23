@@ -2,6 +2,12 @@
 
 ## [0.16.5]
 
+### Fixed
+
+- **De-slop review repairs.** Restored sentence structure where em-dash removal
+  left a lowercase continuation, a mid-parenthetical period, and comma-stacked
+  appositives.
+
 ### Changed
 
 - **Instruction-surface de-slop (#2891, shard 7).** Rewrote this plugin's `README.md` and every

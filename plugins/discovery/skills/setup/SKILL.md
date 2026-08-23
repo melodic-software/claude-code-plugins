@@ -53,7 +53,7 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
    a later reviewed decision enables it.
 5. **Dispatch capability.** `/discovery:explore` and `/discovery:research` dispatch a subagent by
    default, and that posture degrades rather than breaks on a session that cannot support all of it.
-   Report these as PASS/INFO rows. **never FAIL, and never a blocker**:
+   Report these as PASS/INFO rows. **Never FAIL, and never a blocker**:
    - **Harness version against the 2.1.219 floor** (`claude --version`). Below it, several behaviors
      the dispatch design relies on are false rather than merely absent: background became the default
      subagent execution mode in **2.1.198**, and below **2.1.218** a `context: fork` skill always
@@ -92,7 +92,7 @@ reports "already configured".
 1. **Resolve the values.** With complete `<key>=<value>` arguments, use them directly (non-interactive).
    Otherwise interview one question at a time, recommendation first: present the inferred or documented
    defaults (`memory_dir: .work`, `contract_dir: docs/topics`, `contract_tier: branch`,
-   `vault_backend: docs`. RECOMMENDED) and let the user accept or edit. `contract_tier: local` is the
+   `vault_backend: docs`, RECOMMENDED) and let the user accept or edit. `contract_tier: local` is the
    solo/offline mode (contract kinds join the memory tier); a non-`docs` `vault_backend` names a
    consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
    existing file carries, a re-run never drops one; do not invent options beyond the schema. `gitbook`

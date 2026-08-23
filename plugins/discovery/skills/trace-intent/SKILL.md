@@ -29,8 +29,8 @@ admission of ignorance, because it is acted upon.
 ## Routing. Dispatch by default
 
 **From the main conversation, this skill dispatches the `discovery:intent-tracer` subagent.** Intent
-archaeology reads a lot of other people's writing. Review threads, ticket histories, design
-documents, and keeping that out of the orchestrator's context window is the point. The agent
+archaeology reads a lot of other people's writing: review threads, ticket histories, design
+documents. Keeping that out of the orchestrator's context window is the point. The agent
 investigates each resolvable category, writes the artifact set, and returns a file pointer plus a
 verification request, not the transcript. The parent resolves the **pre-dispatch envelope** first: six fields (target on the `Topic:` line, reason, memory-slice path, memory root, budget, capability
 flags), written into the dispatch prompt as the labelled template in the

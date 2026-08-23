@@ -98,7 +98,7 @@ Read the actual code before forming opinions about it.
 
 - **Targeted files**. Read files directly relevant to the task. Use Glob by pattern, Grep by content
 - **Adjacent code**. Read code that calls, is called by, or is structurally similar to the target. Understand the neighborhood, not just the target
-- **Existing patterns**, Before proposing a new pattern, search for how the same concern is handled elsewhere in the repo. Reuse > reinvent (unless the existing pattern is an anti-pattern or well outside modern best practices and not documented as a pragmatic decision)
+- **Existing patterns**. Before proposing a new pattern, search for how the same concern is handled elsewhere in the repo. Reuse > reinvent (unless the existing pattern is an anti-pattern or well outside modern best practices and not documented as a pragmatic decision)
 - **Convention files**. Check the consuming project's own `CLAUDE.md` and project rules for conventions that constrain the solution space
 - **Reference source as spec**, when the task points at an existing implementation to match (a vendored library, another module, even another language), READ that source as the authoritative spec
 
