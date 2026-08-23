@@ -18,8 +18,8 @@ relative path resolved against?
 
 **Commands.**
 
-`--config` is applied only on a fresh install (Test C), so uninstall before each run and read the
-stored `pluginConfigs` after each:
+Each run uninstalls first so every observation starts from a clean install, then reads the stored
+`pluginConfigs`:
 
 ```shell
 # 1) existing relative paths
@@ -107,10 +107,14 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
   configure smoketest@<marketplace> in Claude Code, or pass --config KEY=VALUE.`
 - **The non-interactive configuration path is `--config KEY=VALUE`** on `claude plugin install`
   (repeatable, schema-validated, "stored via the same path as the interactive `/plugin configure`
-  flow"). It applies **only on a fresh install** — `--config` is ignored once the plugin is already
-  installed (the command short-circuits "already installed"). `claude plugin` has no `configure`
-  subcommand (verified against `claude plugin --help` on 2.1.207; `/plugin configure` is an interactive
-  slash command only), so reconfiguring headless requires uninstall then reinstall.
+  flow"). Against an already-installed plugin the command short-circuits and prints
+  `already installed` — the observation recorded here on 2.1.207 — but it **still writes the value**:
+  the short-circuit is about the install, not the config write. **Re-verified on Claude Code 2.1.240**
+  (a non-sensitive option at `user` scope: a non-default value written to an installed plugin, then
+  restored); a `sensitive` option and `project`/`local` scope were not covered. `claude plugin` has no
+  `configure` subcommand (verified against `claude plugin --help` on 2.1.207; `/plugin configure` is an
+  interactive slash command only), so headless reconfiguration is another `--config` install — not
+  uninstall then reinstall.
 - **CI implication.** Seed every required option with `--config` at install time. A bare headless
   install leaves required options unset without failing, so the plugin would run unconfigured.
 

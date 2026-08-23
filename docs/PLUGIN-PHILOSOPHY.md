@@ -259,8 +259,11 @@ hand-edit — migrates to `userConfig` with the schema used honestly:
   lands in `~/.claude/.credentials.json`, so verify storage on the target platform before migrating
   a secret; and
 - `claude plugin install --config` documented in the plugin's setup skill for headless use — note
-  in that same documentation that this flag only seeds a value on a fresh install; re-running it
-  against an already-installed plugin does not update the stored value (empirically verified); and
+  in that same documentation that re-running it against an already-installed plugin prints
+  `already installed` **and still writes the value**: the short-circuit is about the install, not the
+  config write. **Empirically verified on Claude Code 2.1.240** (a non-sensitive option at `user`
+  scope: a non-default value written to an installed plugin, then restored) — a `sensitive` option
+  and `project`/`local` scope were not covered, so re-verify before relying on it there; and
 - for any `sensitive: true` option, the plugin's README documents `/plugin configure
   <plugin>@<marketplace>` as the rotation/clear path (see
   [`docs/extensibility-contract-smoke-tests.md`](extensibility-contract-smoke-tests.md) Test E —
