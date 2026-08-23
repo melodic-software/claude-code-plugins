@@ -20,13 +20,25 @@ jobs:
       contents: write
       pull-requests: read
     steps:
-      - name: Check out PR head
+      # Default checkout is the pull_request merge commit, which always
+      # contains .github/actions/checkout-with-base. Checking out
+      # github.head_ref first would lose the action on a Dependabot branch
+      # that has not rebased onto a base that already has it — the runner
+      # then fails resolving this uses: step and never regenerates the
+      # bundle. Switch to the PR head after the composite has run so the
+      # later commit/push still lands on the Dependabot branch.
+      - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.head_ref }}
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base
+      - name: Switch to PR head
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git fetch --no-tags origin "$HEAD_REF":"refs/remotes/origin/$HEAD_REF"
+          git checkout -B "$HEAD_REF" "origin/$HEAD_REF"
       - name: Detect miro manifest changes
         id: scope
         env:
