@@ -124,6 +124,36 @@
         "Applies the uncertain-status tie-break — treat as protected — so the retirement-direction verdict is capped at FLAG-FOR-HUMAN rather than emitted as RETIRE",
         "Records that the classification was uncertain and names the rule that matched, so the classification can be overturned separately from the verdict"
       ]
+    },
+    {
+      "id": 10,
+      "name": "detached-checkout-persists-no-artifact",
+      "prompt": "/overengineering:audit ci-lanes unattended — this is the nightly scheduled run, and the runner checks the repo out at a commit rather than a branch, so the working tree is on a detached HEAD. Nothing in the environment supplies the ref it was launched for.",
+      "expected_output": "The pre-computed branch line carries the sentinel `no branch ref (detached HEAD or no checkout)` because the scheduled runner checked out a commit rather than a branch. The run treats that as an unresolved branch identity: it does not accept `HEAD` as a branch name, does not substitute the commit sha or a fixed literal, and does not compose a `<branch-slug>` home from any of them. Because no home is keyed, the read-only opening line names no path and instead states that no branch identity resolved and no findings artifact will be written. The ci-lanes walk still runs and the inline summary is still emitted in full, so the operator gets the findings; only the persisted write is declined, and the report says so plainly rather than leaving the missing artifact to be discovered later. No file is written with `branch: HEAD`, with the key omitted, or at a home shared by every detached ref.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the precompute sentinel as an unresolved branch identity and never treats the literal string HEAD as a branch name",
+        "Declines to compose a home from HEAD, the commit sha, or any fixed literal such as `detached`, and states that no home was keyed",
+        "Writes NO findings artifact at all — not with `branch: HEAD`, not with the `branch:` key omitted, and not at a substitute home",
+        "Still walks the ci-lanes layer and still emits the inline summary, declining only the persisted write",
+        "States in the report that no branch identity resolved and that therefore no artifact was written, in place of naming a resolved path"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "detached-run-uses-supplied-logical-ref-and-names-it",
+      "prompt": "/overengineering:audit gate-scripts unattended — the runner exports the ref it was launched for as an environment variable, even though the checkout itself is detached.",
+      "expected_output": "The precompute yields the sentinel because the checkout is detached, but the environment supplies a logical ref that names a branch. The run prefers that value as the branch identity, uses it for both the `<branch-slug>` home key and the artifact's `branch:` frontmatter, and names in the report where the identity came from so a reader can tell it was not read from the checkout. The artifact is written normally at the resolved home. The run reads whatever the environment actually supplies rather than reaching for a named CI vendor's variable, because this plugin makes no claim about the consumer's toolchain.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Prefers an environment-supplied logical ref over refusing, when that value names a branch",
+        "Uses the logical ref for BOTH the home key and the `branch:` frontmatter, keeping the two consistent",
+        "Names in the report that the identity came from the environment rather than from the checkout",
+        "Does not hardcode or assume any particular CI vendor's environment variable name",
+        "Writes the artifact normally once an identity is established, rather than declining as it would with none"
+      ]
     }
   ]
 }

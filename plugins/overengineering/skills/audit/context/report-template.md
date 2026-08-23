@@ -6,7 +6,7 @@ prerequisite is absent.
 
 | Layer | When | Authority |
 |---|---|---|
-| **Findings artifact** | always | **The single source of truth.** Everything that drives the reasoning lives here |
+| **Findings artifact** | always, except when no branch identity resolves | **The single source of truth.** Everything that drives the reasoning lives here |
 | **Inline terminal summary** | always | A *view* of the artifact — never a second record, never a place a fact appears first |
 | **Rendered HTML view** | presence-gated | A rendering of the same artifact; skipped when unavailable |
 
@@ -41,19 +41,27 @@ table. They are named there once.
 
 ## Layer 2 — the inline terminal summary
 
-Always printed, in the response, after the artifact is written. It is a navigation aid: it tells the
-operator what the run found, what it could not find out, and where to read the rest. Keep it short
-enough to read without scrolling past it.
+Always printed, in the response, once the walk is done — after the artifact is written, or in place of
+it on the run that writes none. It is a navigation aid: it tells the operator what the run found, what
+it could not find out, and where to read the rest. Keep it short enough to read without scrolling past
+it.
 
 1. **The read-only line, first.** *"Read-only pass; the only file written is the findings artifact at
    `<resolved path>`."* Plus the layers walked this run, and — when the pass was layer-scoped — the
    layers that were not, so nobody reads a partial pass as a complete one.
+   **When no branch identity resolved**, the artifact was not written and there is no path to name,
+   so the line states that instead: *"Read-only pass; no branch identity resolved, so no findings
+   artifact is written."* The layers-walked half is unchanged — the walk still happened, and this
+   summary is the only record of it. The condition and its reasoning belong to the skill's
+   "A detached checkout has no branch identity"; this document owns only how the line reads.
 2. **Evidence availability, one line per tier**: present / partial / unavailable, with the probe. A
    shallow clone and a missing telemetry sink each get named here explicitly.
 3. **Counts**, per verdict class and per layer. A small table, not prose.
 4. **The top findings**, ranked — protected items flagged for a human first, then the strongest
    evidenced retirement-direction verdicts, then the carry-cost-ranked head of the UNPROVEN residue.
-   Cap the inline list; the artifact carries the rest.
+   Cap the inline list **only when the artifact was written**; the artifact carries the rest.
+   When no branch identity resolved and this summary is the only record, emit **every** finding
+   inline. A cap here would discard the tail of a scheduled detached run.
 5. **The proposed ablation batch**, when one was produced: its items, an owner and a re-check date
    each, and the observation window's end date.
 6. **Open checkpoints** — the intent questions awaiting an answer (attended), or the count of
@@ -62,7 +70,9 @@ enough to read without scrolling past it.
 7. **Configuration provenance**, one line: which config layers contributed, or that none were present
    and the bundled defaults applied. Name a personal layer explicitly whenever one shaped output.
 8. **The next step**, named but not taken: `overengineering:realign` consumes this artifact and
-   executes accepted findings behind an explicit per-item human gate. Do not start it unasked.
+   executes accepted findings behind an explicit per-item human gate. Do not start it unasked. On a
+   run that wrote no artifact there is nothing for it to consume, so the step named instead is a
+   re-run on a checkout with a resolved branch identity.
 
 A run that found nothing to retire says so plainly. A clean surface is a valid outcome, and
 manufacturing a finding to justify the pass is the failure this whole method is pointed at.
