@@ -22,7 +22,16 @@
 # or empty allowlist, or an empty diff all emit docs_only=false with a stderr
 # note — never a skip we cannot justify. Exit status is 0 for the normal has-code
 # case (a code PR is not an error) and for every fail-closed path; non-zero only
-# on usage error (no base-ref argument) or an unwritable output file.
+# on usage error (no base-ref argument) or a failure to reach this script's own
+# directory and shared libraries.
+#
+# An unwritable $GITHUB_OUTPUT is NOT one of those non-zero cases: emit() does
+# not check its redirect, so the flag simply never reaches the consumer. That is
+# deliberate rather than overlooked, and it is why the workflow's guarantee is
+# built on the flag being UNSET rather than on this script's exit status — the
+# `scope` job derives its published output as `docs_only != 'true'`, so an
+# absent flag resolves toward running the full suite. Asserted by
+# scripts/check-docs-only-gate.test.sh, not by this paragraph.
 #
 # DOCS_ONLY_ALLOWLIST overrides the allowlist path (test injection).
 set -uo pipefail

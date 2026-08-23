@@ -22,6 +22,66 @@ concurrency:
 # local ci-status gateway aggregates every lane into the
 # single required check the org ci-gate ruleset keys on.
 jobs:
+  # Single resolution of the docs-only diff scope. Every gated lane reads
+  # `needs.scope.outputs.run_full` instead of re-running the detector, so the
+  # detector runs once per workflow rather than once per lane and there is one
+  # place to reason about what the answer means.
+  #
+  # THE OUTPUT IS POSITIVE ON PURPOSE. A consumer writes
+  # `run_full == 'true'` to do work and `run_full == 'false'` to report the
+  # work not applicable. Both are plain equality against a value that
+  # `${{ <expr> != 'true' }}` can only ever render as the string `true` or the
+  # string `false`, so the two forms are exact complements and a new lane has
+  # no negation to spell wrong. The earlier shape asked each consumer to write
+  # `docs_only != 'true'` and relied on a prose comment to keep that polarity
+  # straight across every site.
+  #
+  # FAIL-CLOSED TOWARD RUNNING THE SUITE. `scripts/check-docs-only.sh` already
+  # emits `docs_only=false` on every condition it cannot resolve. This job
+  # covers the cases below the script: a detector that cannot complete — a
+  # non-zero exit, or an output file it could not write — leaves
+  # `steps.detect.outputs.docs_only` unset, which the `run_full` expression
+  # below resolves to `true`, and the full suite runs. The same unset-output
+  # path covers a push event, where the detect step does not run at all.
+  #
+  # Note precisely what each half contributes, because the two are easy to
+  # conflate. `continue-on-error` does NOT clear a step's outputs: a step that
+  # writes to $GITHUB_OUTPUT and then fails keeps what it wrote. What it does is
+  # keep a failed detector from failing THIS job and skipping every consumer.
+  # The output being unset on a failed run is a property of
+  # `scripts/check-docs-only.sh`, which follows every emit with an immediate
+  # `exit 0` and never emits `true` on a path that can subsequently fail. That
+  # invariant is what the consumers ultimately rest on; it is stated in that
+  # script's header and exercised by its suite.
+  #
+  # `scripts/check-docs-only-gate.sh` asserts the workflow-side properties
+  # against this file, so they are checked rather than asserted in prose.
+  #
+  # The detector self-test runs first and is NOT `continue-on-error`, so a
+  # broken detector turns this job red rather than resolving a scope nobody
+  # verified.
+  scope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: detect
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
+
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here. The
   # short hygiene checks still share one checkout to avoid per-check setup
@@ -41,14 +101,15 @@ jobs:
   # .claude/hooks/*.sh against settings.json — a shell/shebang/hook file added
   # under an otherwise docs-only prefix like docs/topics/ is real input they
   # must still catch — gating them would open a fail-closed hole. The job NEVER skips — only
-  # the path-scoped steps are gated, via the same never-skip, self-test-first,
-  # fail-closed detector plugin-gate/miro-plugin use. The detector self-test runs
-  # unconditionally so a broken detector cannot mask a regression, and detection
-  # is fail-closed toward running the full suite. The gated steps' intentional
-  # docs-only skip is mapped to `success` in the CHECK_RESULTS feed below (where
-  # the step provably did not run), never by weakening the aggregator — it still
-  # fails closed on any real non-`success` outcome.
+  # the path-scoped steps are gated, on `needs.scope.outputs.run_full` from the
+  # `scope` lane, which resolves the diff once for the whole workflow and
+  # carries the self-test and fail-closed guarantees (see that job). The gated
+  # steps' intentional docs-only skip is mapped to `success` in the
+  # CHECK_RESULTS feed below (where the step provably did not run), never by
+  # weakening the aggregator — it still fails closed on any real non-`success`
+  # outcome.
   hygiene:
+    needs: [scope]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -58,14 +119,6 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base
-      - name: Test the docs-only detector
-        run: bash scripts/check-docs-only.test.sh
-      - name: Detect a docs-only diff
-        id: scope
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Lint markdown
         id: markdown
         continue-on-error: true
@@ -105,13 +158,13 @@ jobs:
 
       - name: Lint workflows
         id: actionlint
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/actionlint@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
 
       - name: Validate marketplace manifest
         id: marketplace_schema
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
@@ -119,7 +172,7 @@ jobs:
           files: .claude-plugin/marketplace.json
       - name: Validate plugin manifests
         id: plugin_schema
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
@@ -138,13 +191,13 @@ jobs:
         run: bash scripts/check-manifest-duplicate-keys.test.sh
       - name: Detect duplicate keys in plugin/marketplace manifests
         id: duplicate_keys
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         continue-on-error: true
         run: python3 scripts/check-manifest-duplicate-keys.py
 
       - name: Validate dependabot.yml
         id: dependabot_schema
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
@@ -152,7 +205,7 @@ jobs:
           files: .github/dependabot.yml
       - name: Validate workflows
         id: workflow_schema
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
@@ -233,7 +286,7 @@ jobs:
         run: scripts/check-hook-wiring-liveness.sh
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
-        if: steps.scope.outputs.docs_only == 'true'
+        if: needs.scope.outputs.run_full == 'false'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck, exec-bit, and hook-wiring-liveness scan the whole repo and stay unconditional."
 
       - name: Test hygiene result aggregation
@@ -243,28 +296,34 @@ jobs:
         if: always()
         env:
           # Display names (left) are annotations; step ids (right) use underscores.
-          # The path-scoped linters (actionlint, the four check-jsonschema steps)
-          # carry `if: docs_only != 'true'`, so on a docs-only diff they are
-          # skipped (never run) — their intentional skip is mapped to `success`
-          # here BECAUSE the step provably did not run, so no real outcome is
-          # masked. The aggregator stays fail-closed on any real non-`success`
+          # The path-scoped linters (actionlint, the four check-jsonschema steps,
+          # and the manifest duplicate-key detector) carry
+          # `if: run_full == 'true'`, so on a docs-only diff they are skipped
+          # (never run) — their intentional skip is mapped to `success` here
+          # BECAUSE the step provably did not run, so no real outcome is masked.
+          # The aggregator stays fail-closed on any real non-`success`
           # (including `skipped`); it is never told to pass on `skipped`. The
-          # condition (docs_only == 'true') is the exact inverse of each gate, so
-          # the two can never disagree. ShellCheck, exec-bit, and
-          # hook-wiring-liveness are unconditional (whole-repo scanners), so
-          # they feed their raw outcome.
+          # condition here (`run_full == 'false'`) tests the same single output
+          # against its only other value, so the two can never disagree.
+          # `scripts/check-docs-only-gate.sh` pins both halves: that this
+          # condition is the sanctioned complement of the gates, and that every
+          # step named on the right of an override is one that carries the gate
+          # — an override on an UNGATED step would mask a real failure as
+          # success, and that is the direction that fails open. ShellCheck,
+          # exec-bit, and hook-wiring-liveness are unconditional (whole-repo
+          # scanners), so they feed their raw outcome.
           CHECK_RESULTS: |
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
             shellcheck=${{ steps.shellcheck.outcome }}
-            actionlint=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.actionlint.outcome }}
-            marketplace-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.marketplace_schema.outcome }}
-            plugin-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.plugin_schema.outcome }}
-            manifest-duplicate-keys=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.duplicate_keys.outcome }}
-            dependabot-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.dependabot_schema.outcome }}
-            workflow-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.workflow_schema.outcome }}
+            actionlint=${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.actionlint.outcome }}
+            marketplace-schema=${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.marketplace_schema.outcome }}
+            plugin-schema=${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.plugin_schema.outcome }}
+            manifest-duplicate-keys=${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.duplicate_keys.outcome }}
+            dependabot-schema=${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.dependabot_schema.outcome }}
+            workflow-schema=${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.workflow_schema.outcome }}
             exec-bit=${{ steps.exec_bit.outcome }}
             machine-specific-paths=${{ steps.machine_paths.outcome }}
             eol-renormalize=${{ steps.eol.outcome }}
@@ -981,6 +1040,27 @@ jobs:
       - name: Check every restatement carries the canonical clause's qualifiers
         run: python3 scripts/check-contract-clause-coverage.py
 
+  # The docs-only short-circuit is a fail-open shape by construction: getting it
+  # wrong makes a heavy lane report success without running. Its safety
+  # properties — one resolution, an output whose unset value means "run the full
+  # suite", a detector failure absorbed rather than propagated, an unweakened
+  # self-test, and exactly one spelling for a consumer to copy — used to live in
+  # a prose comment repeated next to every gated step. This lane checks them
+  # against the workflow instead. Self-test first, so a broken gate cannot mask
+  # a regression.
+  docs-only-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the docs-only scope-contract gate
+        run: bash scripts/check-docs-only-gate.test.sh
+      - name: Check the docs-only scope contract holds in ci.yml
+        run: scripts/check-docs-only-gate.sh --check
+
   # `ci-status` below is the single check the org ci-gate ruleset keys on, and
   # its own comment calls its `needs` list "the single source of truth for the
   # lane list" — but nothing enforced the other direction. A job defined in THIS
@@ -1017,10 +1097,11 @@ jobs:
   # `success` (the ci-status aggregate rejects it) and a workflow skipped by a
   # path filter leaves its required check Pending
   # (troubleshooting-required-status-checks). Only the inner install/test steps
-  # are gated; the detector self-test runs unconditionally so a broken detector
-  # cannot mask a regression behind a docs-only short-circuit, and detection is
-  # fail-closed toward running the full suite.
+  # are gated, on `needs.scope.outputs.run_full` from the `scope` lane, which
+  # carries the self-test and fail-closed guarantees for every lane that reads
+  # it.
   plugin-gate:
+    needs: [scope]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -1030,30 +1111,22 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base
-      - name: Test the docs-only detector
-        run: bash scripts/check-docs-only.test.sh
-      - name: Detect a docs-only diff
-        id: scope
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Set up Node
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Set up Python
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
           cache: pip
           cache-dependency-path: .github/requirements-ci.txt
       - name: Install and verify ShellCheck toolchain
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         # This canonical action also makes the exact ShellCheck version
         # available to the later bash-format contract tests in this same job.
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
@@ -1067,7 +1140,7 @@ jobs:
       # and Ruff are declared here so hosted and local runs exercise the same
       # contract suites instead of inheriting different image tool inventories.
       - name: Install locked plugin test toolchains
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: |
           npm ci
           python -m pip install --user --only-binary=:all: --require-hashes \
@@ -1075,12 +1148,12 @@ jobs:
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run plugin contract tests
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: scripts/run-plugin-tests.sh
       # Explicit step: run-plugin-tests.sh discovers only plugins/**/*.test.sh,
       # so the cheat-sheet generator suite under scripts/ never runs without it.
       - name: Run cheat-sheet generator tests
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash scripts/generate-cheatsheet.test.sh
       # Same reason as the step above — run-plugin-tests.sh never reaches
       # scripts/. This suite is wired into CI rather than left to local runs
@@ -1091,7 +1164,7 @@ jobs:
       # a new carrying plugin appears, and a check that only ever runs when
       # someone remembers to run it is exactly the rot it guards against.
       - name: Run affected-suite selector tests
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash scripts/affected-tests.test.sh
       # Same reason again — run-plugin-tests.sh never reaches scripts/. This
       # suite covers scripts/lib/changed-files.sh, the base-ref and changed-file
@@ -1100,7 +1173,7 @@ jobs:
       # exercises a C-quotable pathname, so this is the only place a regression
       # there turns anything red.
       - name: Run shared changed-file resolver tests
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash scripts/lib/changed-files.test.sh
       # Same reason again — run-plugin-tests.sh never reaches scripts/. This
       # suite covers scripts/lib/read-list.sh, the list-file reader the gates
@@ -1109,13 +1182,13 @@ jobs:
       # that quietly collapses them turns this red rather than silently
       # truncating a token pattern.
       - name: Run shared list-file reader tests
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash scripts/lib/read-list.test.sh
       - name: Validate plugin and catalog manifests
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: scripts/validate-plugins.sh
       - name: Report not applicable to a docs-only diff
-        if: steps.scope.outputs.docs_only == 'true'
+        if: needs.scope.outputs.run_full == 'false'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin contract suite cannot be affected — reporting success."
 
   # The miro plugin ships a bundled Node MCP server — the marketplace's first.
@@ -1124,10 +1197,11 @@ jobs:
   # and fails on any drift, then runs the bundle over stdio so a build that
   # compiles but cannot serve MCP is caught here, not on a consumer's machine.
   # Every step reads only plugins/miro/**, so a docs-only diff cannot affect it;
-  # it uses the same never-skip, self-test-first, fail-closed docs-only gate as
-  # plugin-gate. (Scoping this lane to plugins/miro/** specifically — skipping it
+  # it reads the same `scope` lane output as plugin-gate and never skips as a
+  # job. (Scoping this lane to plugins/miro/** specifically — skipping it
   # on any non-miro diff — is a broader, separately-tracked optimization.)
   miro-plugin:
+    needs: [scope]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -1137,43 +1211,35 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base
-      - name: Test the docs-only detector
-        run: bash scripts/check-docs-only.test.sh
-      - name: Detect a docs-only diff
-        id: scope
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Set up Node
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: plugins/miro/package-lock.json
       - name: Install dependencies
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: npm ci
         working-directory: plugins/miro
       - name: Typecheck
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: npm run typecheck
         working-directory: plugins/miro
       - name: Lint
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: npm run lint
         working-directory: plugins/miro
       - name: Test
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: npm test
         working-directory: plugins/miro
       - name: Verify the committed bundle matches source
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: npm run verify-bundle
         working-directory: plugins/miro
       - name: Smoke-test the bundled MCP server over stdio
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         working-directory: plugins/miro
         run: |
           printf '%s\n%s\n' \
@@ -1183,7 +1249,7 @@ jobs:
           grep -q '"miro_create_board"' smoke-out.json
           rm -f smoke-out.json
       - name: Report not applicable to a docs-only diff
-        if: steps.scope.outputs.docs_only == 'true'
+        if: needs.scope.outputs.run_full == 'false'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the miro plugin build cannot be affected — reporting success."
 
   # The knowledge plugin's video-digest extraction pipeline is a Node package
@@ -1191,11 +1257,12 @@ jobs:
   # committed lockfile pins the shared vendor/ packages as packed installs
   # (install-links via the package's .npmrc), so manifest/lockfile drift breaks
   # `npm ci` only on a clean install — without this lane that breakage stays
-  # latent until a consumer's machine hits it. Same never-skip, self-test-first,
-  # fail-closed docs-only gate as plugin-gate and miro-plugin. (Scoping this
+  # latent until a consumer's machine hits it. Reads the same `scope` lane
+  # output as plugin-gate and miro-plugin. (Scoping this
   # lane to its own paths — skipping it on unrelated diffs — is the same
   # separately-tracked optimization noted on miro-plugin.)
   video-extraction:
+    needs: [scope]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -1205,16 +1272,8 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base
-      - name: Test the docs-only detector
-        run: bash scripts/check-docs-only.test.sh
-      - name: Detect a docs-only diff
-        id: scope
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Set up Node
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
@@ -1223,16 +1282,16 @@ jobs:
           # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/knowledge/skills/video-digest/extraction/package-lock.json
       - name: Install dependencies
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
       - name: Typecheck
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh build
       - name: Test
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
-        if: steps.scope.outputs.docs_only == 'true'
+        if: needs.scope.outputs.run_full == 'false'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the video extraction suite cannot be affected — reporting success."
 
   # ai-briefing's build/render pipeline is a Node package (native `node --test`
@@ -1242,12 +1301,13 @@ jobs:
   # CGN/benchmarking/documentation/multicast rejection, DNS-gate-time A/AAAA
   # resolution, and the IPv6 2000::/3 allowlist inversion. Without this lane
   # that suite runs locally only, so a future refactor could silently break the
-  # predicate with nothing red in CI (#1488). Same never-skip, self-test-first,
-  # fail-closed docs-only gate as plugin-gate, miro-plugin and
+  # predicate with nothing red in CI (#1488). Reads the same `scope` lane
+  # output as plugin-gate, miro-plugin and
   # video-extraction. (Scoping this lane to its own paths — skipping it on
   # unrelated diffs — is the same separately-tracked optimization noted on
   # miro-plugin.)
   ai-briefing-build:
+    needs: [scope]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -1257,16 +1317,8 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base
-      - name: Test the docs-only detector
-        run: bash scripts/check-docs-only.test.sh
-      - name: Detect a docs-only diff
-        id: scope
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Set up Node
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
@@ -1275,13 +1327,13 @@ jobs:
           # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/ai-briefing/skills/generate/output/build/package-lock.json
       - name: Install dependencies
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh install
       - name: Test
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
-        if: steps.scope.outputs.docs_only == 'true'
+        if: needs.scope.outputs.run_full == 'false'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the ai-briefing build suite cannot be affected — reporting success."
 
   # The knowledge plugin's course-digest extraction pipeline is a Node package
@@ -1291,12 +1343,13 @@ jobs:
   # this lane the suite (utils, the adapter contract, the dometrain/teachable
   # adapters, clerk/teachable-sso auth, config, and the hotmart/mux players)
   # runs locally only, so a future refactor could silently break it with
-  # nothing red in CI (#1507). Same never-skip, self-test-first, fail-closed
-  # docs-only gate as plugin-gate, miro-plugin, video-extraction and
+  # nothing red in CI (#1507). Reads the same `scope` lane output as
+  # plugin-gate, miro-plugin, video-extraction and
   # ai-briefing-build. (Scoping this lane to its own paths — skipping it on
   # unrelated diffs — is the same separately-tracked optimization noted on
   # miro-plugin.)
   course-digest-extraction:
+    needs: [scope]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -1306,16 +1359,8 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base
-      - name: Test the docs-only detector
-        run: bash scripts/check-docs-only.test.sh
-      - name: Detect a docs-only diff
-        id: scope
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Set up Node
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
@@ -1324,16 +1369,16 @@ jobs:
           # encapsulation contract); logic goes through the skill's scripts/ facade below.
           cache-dependency-path: plugins/knowledge/skills/course-digest/extraction/package-lock.json
       - name: Install dependencies
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh install
       - name: Typecheck
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh build
       - name: Test
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.scope.outputs.run_full == 'true'
         run: bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
       - name: Report not applicable to a docs-only diff
-        if: steps.scope.outputs.docs_only == 'true'
+        if: needs.scope.outputs.run_full == 'false'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the course-digest extraction suite cannot be affected — reporting success."
 
   # Skill-regression net: the only lane that invokes the skill-quality checker.
@@ -1474,6 +1519,7 @@ jobs:
 
   ci-status:
     needs:
+      - scope
       - hygiene
       - hook-utils-sync
       - hook-utils-windows
@@ -1504,6 +1550,7 @@ jobs:
       - changelog-parity-gate
       - contract-slice-prune-gate
       - contract-clause-coverage-gate
+      - docs-only-gate
       - lane-coverage-gate
       - plugin-gate
       - miro-plugin
