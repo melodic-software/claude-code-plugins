@@ -20,10 +20,11 @@ refuses an inline checklist. Its model of "what this touches" is the one it alre
 writing, so an inline pass re-derives the author's own blast-radius assumption and confirms it.
 Orchestrate a fresh-context read-only subagent; the main thread gathers inputs, dispatches, verifies
 findings against the tree, and presents the verdict. Where the verdict is high-stakes and correlated
-blind spots are the risk, prefer a cross-vendor reviewer **when one is installed and set up** — e.g.
+blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up** — e.g.
 the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own
-docs — with the fresh-context same-vendor subagent as the fallback, never a route to a command that
-may not resolve.
+docs — with the fresh-context same-vendor subagent as the stated fallback, never a route to a
+command that may not resolve
+(per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
 ## Orchestrator sequence (main thread)
 

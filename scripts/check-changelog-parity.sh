@@ -98,7 +98,10 @@
 # injection).
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 BASELINE="${CHANGELOG_PARITY_BASELINE:-scripts/changelog-parity-baseline.txt}"
 
@@ -114,13 +117,13 @@ esac
 # Grandfathered plugin names (static-check exemptions).
 declare -A grandfathered
 if [[ -f "$BASELINE" ]]; then
-  while IFS= read -r line; do
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -z "$line" ]] && continue
-    grandfathered["$line"]=1
-  done <"$BASELINE"
+  # `inline`: entries are plugin names, never regexes (scripts/lib/read-list.sh
+  # owns the two comment families and why they must stay distinct).
+  baseline_names=()
+  read_list::into baseline_names "$BASELINE" --comments inline || exit 2
+  for name in ${baseline_names[@]+"${baseline_names[@]}"}; do
+    grandfathered["$name"]=1
+  done
 fi
 
 manifests=(plugins/*/.claude-plugin/plugin.json)

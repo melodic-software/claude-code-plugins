@@ -26,8 +26,11 @@ distilled from Wikipedia's
 ["Signs of AI writing"](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing)
 (revision-pinned, tracked under the upstream-drift convention), plus a set of additions inspired by
 [Cursor's `unslop` skill](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md)
-and deduplicated against it in the catalog's overlap map. Fix-time rewrite guidance (plain speech,
-substitution guardrails, adding voice) lives in
+and deduplicated against it in the catalog's overlap map. What that port took, deduplicated, and
+rejected is recorded in the marketplace's upstream ledger,
+[`docs/upstream/cursor-pstack.md`](../../docs/upstream/cursor-pstack.md) (the `unslop` row), which
+is also where the next drift recheck against upstream is decided. Fix-time rewrite guidance (plain
+speech, substitution guardrails, adding voice) lives in
 [`skills/audit/reference/rewrite-guide.md`](skills/audit/reference/rewrite-guide.md), which the
 `fix` action applies.
 

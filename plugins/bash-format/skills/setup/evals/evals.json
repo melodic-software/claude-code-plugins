@@ -1,0 +1,84 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-reports-lint-and-format-passes-separately",
+      "prompt": "/bash-format:setup check",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, shellcheck for the lint pass, shfmt for the format pass, the .editorconfig shell opt-in, .shellcheckrc discovery, the bash_format_enabled toggle, hook registration, and project scope — with one remediation line per FAIL and no file modified.",
+      "files": [],
+      "expectations": [
+        "Reports the lint pass (shellcheck) and the format pass (shfmt) as two independent rows rather than one combined formatter verdict",
+        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once-per-session notice instead of running either pass",
+        "Reports .shellcheckrc absence as INFO, not FAIL, because ShellCheck applies its own defaults when it discovers none",
+        "Modifies nothing during check and reports the effective bash_format_enabled value rather than parsing settings files for hook registration"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "bare-star-editorconfig-section-is-not-the-shell-opt-in",
+      "prompt": "/bash-format:setup check\n\nWe do have an .editorconfig at the repo root, but the only section in it is [*] with end_of_line and charset. Why is nothing being formatted?",
+      "expected_output": "States that a bare [*] catch-all is NOT the shell opt-in — the opt-in is a section naming shell files ([*.sh], [*.bash], [*.{sh,bash}], or a path-prefixed form) — so the format pass is inert by design, which is a configuration answer rather than a defect to repair.",
+      "files": [],
+      "expectations": [
+        "Says a bare [*] catch-all does not count as the opt-in, and neither does a path-only section such as [scripts/**]",
+        "Classifies the un-opted-in format pass as INFO (inert by design), not FAIL, and does not offer to repair it",
+        "States the consequence the hook's own logic produces: shell files are left unformatted rather than rewritten to shfmt's built-in defaults",
+        "Downgrades a missing shfmt to INFO in this state instead of calling it a defect"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "never-writes-repo-config-or-installs-packages",
+      "prompt": "/bash-format:setup apply\n\nshellcheck and shfmt are both missing and we have no shell section in .editorconfig. Just fix all of it for me.",
+      "expected_output": "Declines to install shellcheck or shfmt and declines to write the repository's .editorconfig or .shellcheckrc; prints the install guidance and explains that .editorconfig is cross-cutting so the edit belongs to the consumer.",
+      "files": [],
+      "expectations": [
+        "Does not run any system package manager — install guidance is printed for the reader to run",
+        "Does not write .editorconfig or .shellcheckrc, and gives the reason: .editorconfig governs every editor and tool in the repo, so the choice is the consumer's",
+        "Does not write Claude Code user settings, pluginConfigs, or the plugin cache",
+        "Names the exact section forms that would opt the repo in ([*.sh], [*.bash], [*.{sh,bash}]) without adding them"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "green-check-is-not-every-shell-edit-covered",
+      "prompt": "/bash-format:setup check\n\nEverything came back green last time — so every .sh file I touch anywhere gets linted and formatted, right?",
+      "expected_output": "Refuses the unqualified reading: when CLAUDE_PROJECT_DIR is set, the hook acts only on shell files inside it, so a .sh or .bash file written to a temp or scratchpad directory is silently skipped with no lint, no format, and no notice.",
+      "files": [],
+      "expectations": [
+        "Never reports an unqualified \"fully operational\" — the all-green result is stated with the project-scope caveat attached",
+        "States that an out-of-project shell edit is skipped silently, producing no notice of any kind",
+        "Notes that the OS temp tree counts as outside even when it sits under CLAUDE_PROJECT_DIR, unless the project root itself lives under temp",
+        "States the opposite case: when CLAUDE_PROJECT_DIR is unset the membership guard is skipped and any existing edited file is processed"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "second-apply-reports-already-configured",
+      "prompt": "/bash-format:setup apply\n\nI ran this ten minutes ago and everything passed. Run it again.",
+      "expected_output": "Re-runs check, finds no FAIL, reports \"already configured\", and changes nothing on the second pass.",
+      "files": [],
+      "expectations": [
+        "Runs check before offering any remediation, even on the repeat invocation",
+        "Reports \"already configured\" and performs no write on the second run",
+        "Does not prompt interactively — the action was given in the invocation",
+        "Does not re-issue install guidance for prerequisites that now pass"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-off-reruns-install-never-uninstalls",
+      "prompt": "/bash-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
+      "expected_output": "Routes the headless change to a plain `claude plugin install bash-format@<marketplace> -s <scope> --config bash_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), explicitly rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install … --config bash_format_enabled=false` rerun as the headless route, naming this plugin's own key and the false value the request asked for",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory, or the write lands at a scope that does not load",
+        "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
+      ]
+    }
+  ]
+}

@@ -17,11 +17,13 @@
       "id": 2,
       "name": "apply-points-only-never-writes",
       "prompt": "/guardrails:setup apply",
-      "expected_output": "Runs check first, then for each FAIL points at the resolution: platform install guidance for missing jq or old Bash, and /plugin configure guardrails (or the documented headless uninstall/reinstall --config sequence) for toggle or scalar changes. Installs nothing and writes nothing — apply is pure guidance.",
+      "expected_output": "Runs check first, then for each FAIL points at the resolution: platform install guidance for missing jq or old Bash, and /plugin configure guardrails (or, headless, a plain claude plugin install ... --config rerun) for toggle or scalar changes. Installs nothing and writes nothing — apply is pure guidance.",
       "files": [],
       "expectations": [
         "Runs check before offering remediations",
-        "Points at /plugin configure or the documented headless reconfigure sequence for toggle changes",
+        "Points at /plugin configure, or headless at a plain `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE` rerun, for toggle changes",
+        "Never tells the operator to `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, turning every disabled guard back on and discarding every *_allow / *_bins / *_prefixes list",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
         "Never installs system packages and never writes user settings or pluginConfigs"
       ]
     },

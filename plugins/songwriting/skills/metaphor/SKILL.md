@@ -19,8 +19,9 @@ Figurative language as its own discipline. Metaphor is where a lyric stops descr
 seeing one thing as another, and it is the craft dimension most often missing entirely from a draft
 rather than merely done badly.
 
-Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`. A future author's metaphor method
-plugs in at `context/<author>/` without changing this skill.
+Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
+author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Two rules that bind before anything else
 

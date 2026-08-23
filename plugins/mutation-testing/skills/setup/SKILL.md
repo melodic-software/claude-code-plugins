@@ -12,9 +12,11 @@ Establish the four things `/mutation-testing:audit` cannot infer safely at run t
 
 Configuration is required rather than optional here, which differs from a plugin whose config merely
 speeds up inference. A mutation run drives the project's own test runner against deliberately broken
-source; guessing the tool or the diff target either does nothing or does something expensive. `check`
-inspects read-only; `apply` interviews and writes, then re-runs `check`. No argument or `check` runs
-the check; `apply` runs the check first, then the write flow.
+source; guessing the tool or the diff target either does nothing or does something expensive.
+Check-centric per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects read-only;
+`apply` interviews and writes, then re-runs `check`. No argument or `check` runs the check; `apply`
+runs the check first, then the write flow.
 
 ## The config merge model
 
@@ -146,6 +148,7 @@ re-run this setup to reconfigure.
 - Run a mutation analysis — that is `/mutation-testing:audit`. `check` runs the *unmutated* suite
   once to establish the baseline, and nothing more.
 - Install anything without asking.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Write machine-local state — configuration lives in the consumer's tracked files, never in the
   plugin directory or the plugin data directory.
 - Set a score threshold. The config template deliberately has no such field; see the `principles`

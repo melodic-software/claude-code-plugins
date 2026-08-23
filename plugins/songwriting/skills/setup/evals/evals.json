@@ -1,0 +1,83 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-is-read-only-inventory",
+      "prompt": "/songwriting:setup",
+      "expected_output": "Routes to check (the default action) and reports two things without writing anything: the override inventory — bundled defaults available to override, which ones the consuming repo already overrides, and for each existing override whether it is byte-identical to the current bundled default — and the effective artifact layout read from the consuming project's CLAUDE.md and .claude/rules, falling back to the default songwriting/ layout.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Defaults to check when no action argument is given, rather than prompting for an action or scaffolding anything",
+        "Lists the bundled defaults under ${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/templates/ and the overrides present under ${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/",
+        "Applies the convention-resolution ladder: an override present wins; with no override the bundled default stays in force as the safe default",
+        "Flags each byte-identical override as INFO — it customizes nothing and only opts the repo out of future improvements — and names `apply remove <name>` as the way to clear it",
+        "Reads the consuming project's CLAUDE.md and .claude/rules for a declared songwriting layout and reports the effective layout, defaulting to songwriting/ when none is declared",
+        "Creates, copies, and deletes nothing — check is read-only"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "diverged-override-collision-confirms-before-clobbering",
+      "prompt": "/songwriting:setup apply scaffold co-write-session-opener metaphor-recipe-prompt — I already edited songwriting/templates/pat-pattison/co-write-session-opener.md heavily. Just overwrite both from the bundled defaults.",
+      "expected_output": "Runs check first, then splits the two names by collision state: metaphor-recipe-prompt is not yet overridden so it is scaffolded non-interactively, while the already-diverged co-write-session-opener triggers the destructive-collision guard — it shows the difference and refuses to overwrite without explicit confirmation in this conversation, despite the standing 'just overwrite' instruction.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the check inventory before acting on either name",
+        "Scaffolds the not-yet-overridden metaphor-recipe-prompt non-interactively — that is a safe path, not a collision",
+        "Does NOT overwrite the existing diverged co-write-session-opener override: it shows the difference and asks for explicit confirmation in this conversation first",
+        "Names the reason for the carve-out: overwriting a diverged override would lose the consumer's own edits",
+        "Copies each scaffolded bundled default verbatim as the starting point for the consumer to edit, creating songwriting/templates/pat-pattison/ if absent, and confirms the scaffolded files are tracked and not gitignored",
+        "Re-runs the check inventory afterward and reports the resulting override set"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-bulk-scaffold-of-every-bundled-default",
+      "prompt": "/songwriting:setup apply — scaffold all sixteen bundled templates so I have the full set locally, then delete songwriting/templates/pat-pattison/worksheet-prompt.md which I rewrote last week.",
+      "expected_output": "Declines the blanket scaffold as the documented anti-pattern — an override freezes that template, so sixteen verbatim copies opt the repo out of future plugin improvements while customizing nothing — and asks which templates the consumer actually intends to change; the named removal of a customized override hits the same destructive-collision guard, so it shows what would be lost and confirms first rather than deleting.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Declines to scaffold all sixteen bundled defaults and names it as an anti-pattern: sixteen files that opt out of updates while customizing nothing",
+        "Gives the mechanism — an override freezes that template, so the craft skills load it instead of the bundled default forever and later plugin improvements stop reaching this repo",
+        "Asks which specific templates the consumer intends to customize instead of scaffolding a set the consumer did not name",
+        "Does not delete the customized worksheet-prompt override outright: shows what would be lost and confirms first, because it is diverged rather than byte-identical",
+        "States that removing a byte-identical override is the safe, non-interactive path, in contrast to this one"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-with-no-target-changes-nothing",
+      "prompt": "/songwriting:setup apply",
+      "expected_output": "Reports the current inventory and changes nothing: apply acts only on the names given in scaffold/remove arguments, so an apply with no target is an inventory report, and re-running it is idempotent.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes and deletes nothing — no template is scaffolded and none is removed",
+        "Reports the current override inventory, the same content check would report",
+        "States that apply acts only on named scaffold/remove arguments and never scaffolds or removes a template the consumer did not name",
+        "Does not invent a default set of templates to scaffold in the absence of arguments",
+        "Re-running the command yields the same report rather than accumulating changes"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "custom-layout-is-guidance-not-an-edit",
+      "prompt": "/songwriting:setup apply — we keep craft artifacts in docs/lyrics/ instead. Put that convention wherever the plugin needs it so the craft skills pick it up.",
+      "expected_output": "Shows the one-line convention for the consumer to add to their OWN CLAUDE.md or rules and stops there: the artifact layout is a read/confirm-only surface for this skill, and the plugin carries no userConfig, so there is nowhere else for the value to go — it edits neither the consumer's instruction surface nor any machine-local or plugin-side state.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not edit the consumer's CLAUDE.md or .claude/rules — that surface is consumer-owned; setup reads and reports it, it does not author it",
+        "Shows the one-line convention text for the consumer to add themselves",
+        "States that the plugin carries no userConfig, so the layout is not a plugin option to be set",
+        "Writes no machine-local state — nothing in the plugin directory or the plugin data directory",
+        "Confirms that template overrides are the only thing this skill writes, and that they are tracked team-shared config in the consumer's repo",
+        "Reports the effective layout that is in force now, rather than claiming the new layout is already active"
+      ]
+    }
+  ]
+}

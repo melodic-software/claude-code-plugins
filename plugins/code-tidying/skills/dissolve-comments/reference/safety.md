@@ -42,8 +42,10 @@ open the apply path, because they cannot attest behavior preservation.
 
 The canonical baseline is the plugin's standard tier — tidy's
 [exclusions reference](${CLAUDE_PLUGIN_ROOT}/skills/tidy/reference/exclusions.md), GLOBAL HARD
-list: `.claude/` agent config and hooks, other agents' config bundles, `.github/workflows/**` and
-CI surface, git-hook manager config, cross-ecosystem lint/style config. Consumer-declared
+list: the whole `.claude/**` tree plus any script wired as a hook command in
+`.claude/settings.json` or `.claude/settings.local.json` (wherever it lives), other agents'
+config bundles, `.github/workflows/**` and CI surface, git-hook manager config, cross-ecosystem
+lint/style config. Consumer-declared
 protections in the target repo's `CLAUDE.md`/rules extend the list. Excluded paths are dropped at
 scoping time; they never reach triage.
 

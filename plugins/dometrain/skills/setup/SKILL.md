@@ -87,30 +87,19 @@ which also notes `claude plugin enable` auto-detects the scope when `-s` is omit
 explicitly keeps the sequence deterministic in CI). A bootstrap that stops after `install` looks
 successful and delivers no tools.
 
-**Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
-an already-installed `dometrain` does not update the stored key. To rotate or clear the key
-later, use `/plugin configure dometrain@<marketplace>` (interactive, any time), or headlessly:
+**Rotating or clearing the key:** `/plugin configure dometrain@<marketplace>` (interactive, any
+time) is the recommended rotation path regardless — it masks input, where a key passed on the
+command line lands in shell history and the process table.
 
-```shell
-claude plugin list                                          # read the CURRENT scope for dometrain
-claude plugin uninstall dometrain -s <scope>
-claude plugin install dometrain@<marketplace> -s <scope> --config dometrain_api_key=<new-key>
-claude plugin enable dometrain -s <scope>
-```
-
-Never re-run `install --config` against an existing install expecting it to take effect. Read the
-scope from `claude plugin list` and carry that SAME `-s <scope>` through all three commands —
-`uninstall` and `install` default to `user` and `enable` auto-detects, so omitting it against a
-`project`- or `local`-scope install removes a different record than the one that is loading and
-reinstalls at a scope that does not load, leaving the old key in use. For a `project`- or
-`local`-scope install, run every command from that project directory, since those scopes resolve
-against the current project.
-
-`-y` only skips `uninstall`'s `--prune` confirmation; this recipe never passes `--prune`, so `-y`
-has no effect here and should not be added. The reinstall needs its own `enable` for the same
-reason the initial bootstrap does: uninstalling can drop the `enabledPlugins` entry, and a fresh
-install of a `defaultEnabled: false` plugin lands disabled, so a rotation that ends at `install`
-completes with the new key stored and no tools available.
+The older claim here — that `--config` is ignored once the plugin is installed — was never
+version-stamped, and on Claude Code 2.1.240 a plain `claude plugin install … --config` was
+observed to write the value of an already-installed plugin for a **non-sensitive** option at
+`user` scope. Whether that holds for a `sensitive` option such as `dometrain_api_key` has not
+been verified, so do not rely on it for a credential. Do **not** uninstall to rotate either:
+uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting every option in
+the README's Options reference table to its manifest default, and it can drop the
+`enabledPlugins` entry as well — a `defaultEnabled: false` plugin reinstalls DISABLED, so a
+rotation that ends at `install` completes with no tools available.
 
 Full detail, including the command-line-exposure caveat, is in the README's
 [Rotating or clearing the key](../../README.md#rotating-or-clearing-the-key) section.
@@ -134,7 +123,9 @@ to detect the collision by comparing MCP tool-name prefixes — a true collision
 ## Boundaries
 
 - Do not read, echo, log, copy, or persist the API key.
-- Do not edit Claude Code settings or `pluginConfigs`.
+- Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
+  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  marketplace repository).
 - Do not call a Dometrain tool during setup — resolution via tool inventory / `ToolSearch` is
   sufficient and spends no quota.
 - Do not claim to have read `/mcp` connection status — no tool exposes it to a model turn.

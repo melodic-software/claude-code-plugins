@@ -32,11 +32,14 @@
 # CHECK_SKILL_BIN overrides the checker path (test injection).
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 
 BASE="${1:?usage: check-changed-skills.sh <base-ref>}"
 
-if ! git rev-parse --verify --quiet "${BASE}^{commit}" >/dev/null; then
+if ! changed_files::verify_base "$BASE"; then
   printf 'Error: base ref %s is not a valid commit\n' "$BASE" >&2
   exit 2
 fi
@@ -49,11 +52,44 @@ fi
 
 # Changed skill dirs, mapped from any touched path (including vendor/ subtrees)
 # to the owning plugins/<plugin>/skills/<skill> dir and de-duplicated.
-mapfile -t changed < <(
-  git diff --name-only "$BASE" -- 'plugins/' |
-    sed -nE 's#^(plugins/[^/]+/skills/[^/]+)/.*#\1#p' |
-    sort -u
-)
+#
+# --include-deleted is deliberate and is NOT the portability scanners' setting.
+# Those open each path and need a file on disk; this gate maps a path to its
+# owning skill DIRECTORY and then re-runs the skill checker over that directory.
+# A commit that only deletes files from a skill (dropping a reference/ page, say)
+# still changed that skill and must still be re-checked — filtering deletions out
+# would silently stop selecting it, an under-selection in the unsafe direction.
+# The skill that was deleted OUTRIGHT is handled below by the SKILL.md guard.
+#
+# The mapping runs in bash rather than through `sed` because the shared resolver
+# hands back NUL-safe paths; piping them into a line-oriented sed would give
+# back exactly the C-quoting bug this gate had before #2914.
+changed_paths=()
+changed_files::into changed_paths "$BASE" --include-deleted -- 'plugins/' || exit 2
+changed=()
+declare -A seen_dirs=()
+for path in ${changed_paths[@]+"${changed_paths[@]}"}; do
+  # Segment-exact equivalent of the `^(plugins/[^/]+/skills/[^/]+)/.*` this
+  # replaced. A `case` glob will NOT do: `*` matches `/` too, so
+  # `plugins/*/skills/*/*` would also accept a nested `plugins/a/b/skills/...`
+  # the anchored regex rejected.
+  rest="${path#plugins/}"
+  [[ "$rest" != "$path" ]] || continue
+  plugin="${rest%%/*}"
+  [[ -n "$plugin" && "$plugin" != "$rest" ]] || continue
+  rest="${rest#"$plugin"/}"
+  [[ "${rest%%/*}" == "skills" ]] || continue
+  rest="${rest#skills/}"
+  skill="${rest%%/*}"
+  # `skill == rest` means nothing follows the skill directory, so the path IS
+  # the directory rather than a file inside it — the trailing `/.*` the regex
+  # required.
+  [[ -n "$skill" && "$skill" != "$rest" ]] || continue
+  dir="plugins/$plugin/skills/$skill"
+  [[ -z "${seen_dirs[$dir]:-}" ]] || continue
+  seen_dirs["$dir"]=1
+  changed+=("$dir")
+done
 
 checked=0
 failed=0

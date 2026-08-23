@@ -1,7 +1,8 @@
-# Topic-docs placement — where the findings artifact lands
+# Topic-docs placement — where this plugin's artifacts land
 
-How `overengineering:audit` and `overengineering:realign` resolve where this plugin's findings
-artifact lives in a consuming repo. Both skills read this one document; neither bakes its own paths.
+How `overengineering:audit`, `overengineering:realign`, and `overengineering:delta` resolve where
+this plugin's artifacts live in a consuming repo. All three skills read this one document; none
+bakes its own paths.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
@@ -10,9 +11,9 @@ no-project-root fallback, non-interactive/forked mode. This document records onl
 deltas.
 
 The sibling `artifact-protocol.md` defines the shared lifecycle artifact names and producer/consumer
-behavior; this binding and topic-docs remain authoritative for placement. What the artifact *contains*
-belongs to `context/findings-artifact.md`, which is authoritative for its shape and never for its
-location.
+behavior; this binding and topic-docs remain authoritative for placement. What the artifacts
+*contain* belongs to `context/findings-artifact.md`, which is authoritative for their shape and
+never for their location.
 
 ## What this plugin writes
 
@@ -24,20 +25,33 @@ reports do:
 | Artifact | Type | Location (default) |
 |---|---|---|
 | Audit findings — written by `overengineering:audit`, status fields updated by `overengineering:realign` | `overengineering-findings` | `.work/overengineering/<branch-slug>/findings.md` — never committed |
+| Spine baseline — captured by `overengineering:delta` at the end of a cycle, for the next one to compare against | `overengineering-spine-baseline` | `.work/overengineering/<branch-slug>/spine-baseline.md` — never committed |
 
-Nothing else is written. The plugin produces no contract-tier artifact: an audit report is process
-output that nothing downstream enforces against, and the one thing that must outlive the branch — an
-operator's judgment — is persisted instead as a tracked suppression entry in
+What the baseline contains — its frontmatter, its body rules, its type — is owned by
+`context/findings-artifact.md` under "The spine-capture obligation"; this binding owns only where it
+lands.
+
+Both are memory tier, and they are the only artifacts this plugin **places** anywhere. It produces no
+contract-tier artifact: an audit report is process output that nothing downstream enforces against,
+and the one thing that must outlive the branch — an operator's judgment — is persisted instead as a
+tracked suppression entry in
 `.claude/overengineering.md`, whose keys and layering are owned by `reference/consumer-config.md`.
+The plugin's other sanctioned writes place no artifact: that entry and the ask-gated resolution below
+are keys written into a consumer-owned concern file, and the delta lane's queue item is a
+notification in the consumer's tracker, not a file in the repository at all.
 
 **One stable filename per home, rewritten in place.** `findings.md`, never a timestamped sibling: a
 re-audit merges into the existing file by stable finding id, and a per-run filename would turn that
 merge into a search problem. The run's timestamp lives in the artifact's `date` frontmatter, where a
-reader and a diff can both find it.
+reader and a diff can both find it. `spine-baseline.md` is one stable filename for the same reason,
+overwritten by the next capture — with one exception owned by the obligation section: an unconsumed
+baseline is kept rather than overwritten. **A `spine-baseline.md` in a resolved home is not stray**;
+deleting one destroys the delta lane's only baseline.
 
-The artifact is therefore lane-local and **ephemeral by design** — a branch switch, a removed
-worktree, or a reclaimed container loses it. That is acceptable for evidence and verdicts, which are
-recomputed on every run, and is exactly why operator judgments are not kept here.
+Both artifacts are therefore lane-local and **ephemeral by design** — a branch switch, a removed
+worktree, or a reclaimed container loses them. That is acceptable for evidence, verdicts, and a
+comparison baseline, all of which a run recomputes or recaptures, and is exactly why operator
+judgments are not kept here.
 
 ## Resolution (the contract's five-rung order, earlier wins)
 
@@ -68,8 +82,9 @@ follows the contract's "Non-interactive / forked mode" section, which is contrac
 here rather than redefined: skip the ask and persist rungs, take the resolved or documented default,
 and surface the assumption in the returned summary.
 
-**No project root.** The contract's fallback applies unchanged. Both skills read the repository's own
-enforcement surface, so a run outside a checkout has nothing to audit and stops before any write.
+**No project root.** The contract's fallback applies unchanged. All three skills read the
+repository's own enforcement surface, so a run outside a checkout has nothing to audit and stops
+before any write.
 
 ## Branch slug
 

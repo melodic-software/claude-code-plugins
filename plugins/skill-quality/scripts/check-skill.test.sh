@@ -3301,6 +3301,106 @@ else
   pass "awk regexes are free of ERE interval expressions (mawk-portable)"
 fi
 
+# Check 2b: description FIELD cap (1024, Agent Skills spec) is a separate limit
+# from check 2's listing-entry cap (1536). The discriminating case is the middle
+# band — a description over 1024 but whose assembled entry is under 1536 — which
+# check 2 passes and only check 2b catches. Without that case a single cap could
+# satisfy both assertions, so it is the one that proves the layers are distinct.
+
+# 2b-i. A description one char over the field cap WARNs, and does NOT fail: no
+#       local validator enforces this limit (measured — `claude plugin validate
+#       --strict` 2.1.241 passes an oversized description clean), so failing the
+#       build on it would block a fleet over a breach only the Skills API sees.
+desc_1025="$(printf 'd%.0s' $(seq 1 1025))"
+make_skill field-cap-over "---
+name: field-cap-over
+description: \"$desc_1025\"
+---
+
+## Purpose
+
+Field-cap fixture: description alone is 1025 chars, one over the 1024 spec
+field maximum, while the assembled listing entry stays well under 1536.
+"
+out="$(run field-cap-over 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description alone is 1025 codepoints' <<<"$out"; then
+  pass "check 2b warns at 1025 chars without failing the run"
+else
+  fail "check 2b should WARN (not FAIL) at 1025/1024 (rc=$rc): $out"
+fi
+
+# 2b-ii. Boundary guard: exactly 1024 is legal — the cap is >1024, not >=1024.
+desc_1024="$(printf 'd%.0s' $(seq 1 1024))"
+make_skill field-cap-exact "---
+name: field-cap-exact
+description: \"$desc_1024\"
+---
+
+## Purpose
+
+Field-cap fixture: description alone is exactly 1024 chars, the spec maximum,
+which is legal.
+"
+out="$(run field-cap-exact 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description alone is' <<<"$out"; then
+  pass "check 2b stays silent at exactly 1024 chars (cap is >1024, not >=)"
+else
+  fail "check 2b should not warn at exactly 1024 (rc=$rc): $out"
+fi
+
+# 2b-iii. The discriminating case: desc(1100) + joiner(3) + wtu(40) = 1143 —
+#         comfortably under check 2's 1536 listing cap, so check 2 passes and
+#         reports no overflow, while the description alone breaches 1024. Proves
+#         the two caps are independent layers rather than one limit checked twice.
+desc_1100="$(printf 'd%.0s' $(seq 1 1100))"
+wtu_40="$(printf 'w%.0s' $(seq 1 40))"
+make_skill field-cap-independent "---
+name: field-cap-independent
+description: \"$desc_1100\"
+when_to_use: \"$wtu_40\"
+---
+
+## Purpose
+
+Independence fixture: the assembled entry is 1143 chars (passes check 2) while
+the description field alone is 1100 (breaches check 2b).
+"
+out="$(run field-cap-independent 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'description alone is 1100 codepoints' <<<"$out" &&
+  ! grep -q 'description+when_to_use is .* chars (cap 1536' <<<"$out"; then
+  pass "check 2b fires on a field breach that check 2's listing cap does not see"
+else
+  fail "check 2b should catch desc 1100 while check 2 passes the 1143 entry (rc=$rc): $out"
+fi
+
+# 2b-iv. Codepoints, not bytes. 600 'é' is 600 characters and 1200 UTF-8 bytes;
+#        the spec's limit is "Maximum 1024 characters", so this must stay silent.
+#        Run under LC_ALL=C, where `${#var}` degrades to byte counting and would
+#        report 1200 — so the assertion fails on the byte-counting form rather
+#        than passing incidentally on a UTF-8 host.
+desc_600_multibyte="$(printf 'é%.0s' $(seq 1 600))"
+make_skill field-cap-multibyte "---
+name: field-cap-multibyte
+description: \"$desc_600_multibyte\"
+---
+
+## Purpose
+
+Multibyte fixture: 600 codepoints, 1200 UTF-8 bytes. Legal against a 1024
+character cap; a byte count would report 1200 and warn.
+"
+out="$(LC_ALL=C run field-cap-multibyte 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description alone is' <<<"$out"; then
+  pass "check 2b counts codepoints, not bytes (600 multibyte chars stay silent under LC_ALL=C)"
+else
+  fail "check 2b must count codepoints: 600 'é' is 600 chars, not 1200 bytes (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

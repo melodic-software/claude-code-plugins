@@ -157,9 +157,28 @@ is `gh issue create` only):
 gh issue edit <N> --add-label "<name>" --remove-label "<name>"
 ```
 
-**Carve-out — claim assignment stays on bare `gh`:** `--add-assignee "@me"` MUST resolve to the
-session identity (not a bot), so it runs on bare `gh`. Coordination claims go through the seam
-`claim` verb, which owns this.
+**Carve-out — claim assignment stays on the session identity:** the assignee MUST be the session
+user (not a bot), so it runs on bare `gh`. Coordination claims go through the seam `claim` verb,
+which owns this.
+
+**The lease protocol's own assignee ops are REST, not `gh issue`.** `claim` and `reclaim` do not
+use `gh issue edit --add-assignee` / `gh issue view --json assignees`: those route through
+GitHub's GraphQL API, and sandboxed sessions (Claude Code on the web and remote execution) serve
+only a pinned set of GraphQL operations, refusing the rest with HTTP 403 — which made the lease
+protocol unrunnable there. They use `gh api` against `…/issues/<n>/assignees` instead, through the
+`wit_read_assignees` / `wit_add_assignee` / `wit_remove_assignee` / `wit_try_remove_assignee`
+helpers in `common.sh`. Those helpers take the same `read`/`write` writer argument as
+`wit_run_gh`, so the carve-out above is preserved: `claim` passes `read` (bare `gh`) and resolves
+`@me` to the login explicitly, because REST takes a literal login rather than the `@me` alias.
+
+Note the two APIs differ on an unassignable user: `gh issue edit --add-assignee` failed loudly,
+while REST `POST …/assignees` returns 201 and silently drops the login. `claim` therefore
+re-reads the assignees and fails `4` (auth) when its own assignment did not land, rather than
+reporting a held lease on an item the frontier still sees as unassigned.
+
+Verbs beyond the lease protocol (`get-item`, `list-items`, `list-sub-items`, `list-frontier`,
+`add-sub-item`, `link-blocks`) still resolve GraphQL-only fields (`issueType`, `blockedBy`,
+`parent`, `subIssues`) or use `gh issue list`, so they remain unavailable under that restriction.
 
 ## Comment on item / edit a comment
 
