@@ -31,7 +31,7 @@ when you describe a defect). The five fields are:
 - **Routes non-defects away.** Feature requests, investigations, and generic chores
   are recognized and pointed elsewhere rather than forced into the bug shape.
 
-## Usage
+## Usage — `/bug-report:write`
 
 ```text
 /bug-report:write [--file] [--quick|--full] [--no-survey] <bug description>
