@@ -127,6 +127,20 @@ assert_block "empty ## Related blocks" "$GATED" \
 assert_block "#3205 body (no ## Fix) is blocked" "$GATED" "$(gh_body "$ISSUE_3205")"
 assert_allow "nested ### inside each required section is content" "$GATED" "$(gh_body "$NESTED")"
 
+# CI masks fenced / indented / inline code before the heading scan. A body
+# whose only `## Fix` lives in a template sample must fail locally too.
+# These fixtures go through --body-file: a `--body '...'` literal cannot
+# carry backticks (fences, inline spans) without breaking the static reader,
+# which fail-opens and would hide a mask regression.
+printf '%s\n' $'Closes #5\n\n## Summary\n\nx\n\n```\n## Fix\nonly in the template\n```\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/fenced-fix.md"
+printf '%s\n' $'Closes #5\n\n## Summary\n\nx\n\n    ## Fix\n    indented sample\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/indented-fix.md"
+printf '%s\n' $'Closes #5\n\n## Summary\n\nx\n\nSee `## Fix` in the template.\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/inline-fix.md"
+printf '%s\n' $'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nreal fix\n\n```\n## Fix\nsample\n```\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/real-plus-fenced-fix.md"
+assert_block "a ## Fix that exists only inside a fenced sample is not the section" "$GATED" "gh pr create -t T --body-file fenced-fix.md"
+assert_block "a ## Fix that exists only as indented code is not the section" "$GATED" "gh pr create -t T --body-file indented-fix.md"
+assert_block "a ## Fix that exists only in an inline span is not the section" "$GATED" "gh pr create -t T --body-file inline-fix.md"
+assert_allow "a real ## Fix is not hidden by a later fenced sample" "$GATED" "gh pr create -t T --body-file real-plus-fenced-fix.md"
+
 run "$GATED" "$(gh_body "$ISSUE_3205")"
 if [[ "$ERR" == *'Missing a "## Fix" section.'* && "$ERR" == *"## Summary"* && "$ERR" == *"## Fix"* && "$ERR" == *"## Verification"* && "$ERR" == *"## Related"* && "$ERR" == *"Closes #<issue>"* ]]; then
   ok "block message names the missing Fix section and lists all four in the remedy"

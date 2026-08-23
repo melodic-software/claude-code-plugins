@@ -142,7 +142,87 @@ section_content() {
   trim "$out"
 }
 
-# Aggregate verdict: strip comments, then the closing-keyword half plus every
+# Mask fenced blocks, indented code, and inline spans the way the pinned
+# ci-workflows reusable does before it searches for headings or keywords:
+# a `## Fix` that exists only inside a fenced template, a four-space sample,
+# or an inline span is not a real section. Fence close follows CommonMark
+# (same delimiter character, at least as long, info string empty on close;
+# a backtick fence's opener rejects an info string that itself contains a
+# backtick). Masked lines become empty so line structure — and therefore
+# heading-level section bounds — stays intact.
+mask_markdown_code() {
+  local body="$1" line rest rendered fence_char="" fence_len=0 in_fence=0
+  local marker_run marker_rest i ticks len j run found out=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    rest="${line%$'\r'}"
+    if ((in_fence)); then
+      if [[ "$rest" =~ ^\ {0,3}(\`{3,}|~{3,})(.*)$ ]]; then
+        marker_run="${BASH_REMATCH[1]}"
+        marker_rest="${BASH_REMATCH[2]}"
+        if [[ "${marker_run:0:1}" == "$fence_char" && ${#marker_run} -ge $fence_len && "$marker_rest" =~ ^[[:space:]]*$ ]]; then
+          in_fence=0
+          fence_char=""
+          fence_len=0
+        fi
+      fi
+      out+=$'\n'
+      continue
+    fi
+    if [[ "$rest" =~ ^\ {0,3}(\`{3,}|~{3,})(.*)$ ]]; then
+      marker_run="${BASH_REMATCH[1]}"
+      marker_rest="${BASH_REMATCH[2]}"
+      if [[ "${marker_run:0:1}" != '`' || "$marker_rest" != *'`'* ]]; then
+        in_fence=1
+        fence_char="${marker_run:0:1}"
+        fence_len=${#marker_run}
+        out+=$'\n'
+        continue
+      fi
+    fi
+    if [[ "$rest" =~ ^(\ {4}|\t) ]]; then
+      out+=$'\n'
+      continue
+    fi
+    rendered=""
+    i=0
+    len=${#rest}
+    while ((i < len)); do
+      if [[ "${rest:i:1}" == '`' ]]; then
+        ticks=1
+        while ((i + ticks < len)) && [[ "${rest:i+ticks:1}" == '`' ]]; do ((ticks++)); done
+        j=$((i + ticks))
+        found=-1
+        while ((j < len)); do
+          if [[ "${rest:j:1}" == '`' ]]; then
+            run=1
+            while ((j + run < len)) && [[ "${rest:j+run:1}" == '`' ]]; do ((run++)); done
+            if ((run == ticks)); then
+              found=$((j + run))
+              break
+            fi
+            j=$((j + run))
+          else
+            ((j++))
+          fi
+        done
+        if ((found >= 0)); then
+          i=$found
+          continue
+        fi
+        rendered+="${rest:i:ticks}"
+        i=$((i + ticks))
+        continue
+      fi
+      rendered+="${rest:i:1}"
+      ((i++))
+    done
+    out+="$rendered"$'\n'
+  done < <(printf '%s\n' "$body")
+  printf '%s' "$out"
+}
+
+# Aggregate verdict: strip comments, mask Markdown code (CI does both before
+# any heading or keyword scan), then the closing-keyword half plus every
 # required section. Fills the global LINKAGE_PROBLEMS array with one line per
 # problem so the author sees the full set in one pass; returns 0 when the body
 # passes (array empty), 1 otherwise. The consuming hook owns what a failure
@@ -151,6 +231,7 @@ LINKAGE_PROBLEMS=()
 linkage::problems() {
   local body heading content
   body=$(strip_html_comments "$1")
+  body=$(mask_markdown_code "$body")
   LINKAGE_PROBLEMS=()
   for heading in "${REQUIRED_SECTIONS[@]}"; do
     # shellcheck disable=SC2310  # the two exits ARE the verdict: absent vs present
