@@ -59,13 +59,18 @@ ladder: [reference/safety.md](reference/safety.md).
 
 ### Scope fallback (empty argument)
 
-The empty argument resolves down a ladder; the narrowest rung that yields code files wins:
+The empty argument resolves down a ladder; the narrowest rung that exists wins:
 
-1. **Uncommitted diff** — the working tree's changed code files (the default case above).
-2. **Branch diff** — clean tree: the current branch's diff against the repository's base/default
-   branch (the PR diff, when the branch has one).
-3. **Whole repository** — clean tree on the default branch, so no branch diff either: every code
+1. **Uncommitted diff** — the working tree has changes: their code files (the default case above).
+2. **Branch diff** — clean tree on a non-default branch: the current branch's diff against the
+   repository's base/default branch (the PR diff, when the branch has one).
+3. **Whole repository** — clean tree on the default branch, so no branch diff exists: every code
    file in the repo, minus exclusions and exempt surfaces.
+
+The ladder advances on absence, never on emptiness: a rung is skipped only when it does not
+exist (a clean tree, no branch diff). A rung that exists but yields no code files after
+filtering ends the run with the exclusion tally (Workflow step 4) — a docs-only branch reports
+its files as out of scope rather than silently escalating to repo-wide scope.
 
 Widening to repo-wide scope is confirmed, never silent: in an interactive session, state what the
 scope resolved to and why ("clean tree on the default branch → whole repository, N code files")
