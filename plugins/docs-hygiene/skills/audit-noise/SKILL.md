@@ -129,8 +129,8 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
 - **`negation` selects only an IMPERATIVE that closes its own sentence.** Two scope gates, both
   measured rather than argued: without them the shape fired **1053 times on an 85-file sample** of
   this repo (12.4 per file, 99% of all findings); with them, **69**. (1) The cue must open the
-  **sentence**, after list, blockquote, task-list-checkbox and emphasis markers,
-  after list, blockquote and emphasis markers — "Prompt the positive" is a rule about *instructions*,
+  **sentence**, after list, blockquote, task-list-checkbox and emphasis markers — "Prompt the
+  positive" is a rule about *instructions*,
   so descriptive prose is not in its scope, and a mid-sentence cue is already the paired form
   ("Prefer X; never Y"). (2) The line must end its sentence — this repo hard-wraps prose and the
   pairing rule is per sentence, so a continuation line cannot be shown to lack a positive sitting on
