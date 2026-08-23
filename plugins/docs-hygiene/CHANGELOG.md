@@ -59,11 +59,13 @@ Three defects in the bucket design above, surfaced by automated review of the sh
   positively — it fires only against `rule-file` / `new-skill` / `new-action` below N≥3 —
   instead of enumerating the remedies it spares, which is what let the set drift incomplete.
 - **Sibling routing thresholds match the new entry point.** `/docs-hygiene:compress`,
-  `/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`, and
-  `/docs-hygiene:write-for-agents` each routed cross-file duplication to
-  `/docs-hygiene:extract-ssot` only at 3+ files, so the sub-three buckets were unreachable from
-  the flows that feed them. They now route repeated content at any multiplicity; creating a NEW
-  artifact still waits for the third instance.
+  `/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`,
+  `/docs-hygiene:write-for-agents`, and `/docs-hygiene:write-for-humans` each routed cross-file
+  duplication to `/docs-hygiene:extract-ssot` only at 3+ files, so the sub-three buckets were
+  unreachable from the flows that feed them. They now route repeated content at any multiplicity;
+  creating a NEW artifact still waits for the third instance. `/docs-hygiene:compress`'s
+  `context/integration.md` boundary note, which restated the old 3+ threshold in prose, was
+  reconciled with the same rule.
 - **`verify` Gate 1 counts semantic clusters by reading, not phrase grep.** A paraphrase cluster
   (`identify` forms c2/i) shares no verbatim ≥8-word phrase, so a phrase grep found only the
   file the phrase was lifted from — assigning a real N=2/N≥3 cluster to N=1 and, with no prior
