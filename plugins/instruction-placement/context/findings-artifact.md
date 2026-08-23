@@ -116,3 +116,39 @@ A second `audit` on the same key merges rather than replacing:
 - A `declined` finding is never resurrected as `pending` by a re-run alone.
 
 Identifiers are stable across runs and never reused after a finding is dropped.
+
+## Stability, and what promotion to a shared seam would require
+
+This artifact is currently consumed by **three skills inside this plugin and nothing else**: `audit`
+writes it, `realign` writes operator decisions into it, `delta` diffs it across runs. `check`
+deliberately reads it never, so a stale artifact can never make a broken repository look healthy.
+
+It is therefore **not** a cross-plugin convention, and there is no owner doc under
+`docs/conventions/` for it. That is deliberate. The convention registry's rule — a shared convention
+lands in an owner doc *before a second plugin adopts it* — is a deadline, not an instruction to
+publish a seam nobody shares yet. Writing one now would fix a shape against a consumer whose
+requirements are unknown, which is the failure mode of designing an interface with one
+implementation.
+
+**What is guaranteed today**, so a future second consumer has something to hold:
+
+- `schema: 1` is a real version. A change that breaks a reader increments it, and a reader may
+  refuse an unrecognized value rather than guessing at the shape.
+- Field names and the `Status` vocabulary do not change within a schema version. Fields may be
+  *added*; a reader that ignores unknown fields keeps working.
+- Identifiers are stable across runs within a key and are never reused.
+- The location formula — plugin data directory, project state key, branch segment, one stable
+  filename — is fixed within a schema version.
+
+**What promotion would require**, recorded so the work is not rediscovered:
+
+1. A real second consumer with stated needs. Until one exists, the shape is a guess.
+2. A decision on the auto-apply boundary. The artifact is deliberately not
+   `type: review-findings`, because that type is auto-applicable by construction and every proposal
+   here is consent-gated per item. Any shared seam has to preserve that or explicitly justify
+   dropping it — and dropping it would launder the gate that makes this plugin safe to run.
+3. An owner doc under `docs/conventions/`, registered in the convention registry, carrying the
+   rules, versioning, and adoption story — landing *before* the second consumer ships, per the
+   registry's own rule.
+
+Until then this document is the contract, and it binds only this plugin.

@@ -130,5 +130,5 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 | Claude Code makes deferred surfaces visible to subagents | Re-run the measurements; the index's justification weakens and the hard-deny classes may narrow |
 | Path scoping gains a write trigger | Drop the structural deny on creation-governing content |
 | Rules gain an official `description:` frontmatter field | Make the index's description source explicit rather than a preferred-if-present convention |
-| A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam before the second consumer ships |
+| A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |
 | The glob engine needs semantics bash cannot express cleanly | Reconsider the hand-rolled expander; it exists to avoid `eval` on repository content |

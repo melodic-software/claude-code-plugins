@@ -3,6 +3,24 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1]
+
+### Changed
+
+- **The findings artifact declares its stability guarantees, and its owner doc is deliberately not
+  written.** Promoting the contract to a `docs/conventions/` cross-plugin seam was considered and
+  declined *for now*: the artifact has three consumers, all inside this plugin, so a shared seam
+  would fix a shape against requirements that do not exist yet — an interface with one
+  implementation is a guess. The convention registry's rule is a deadline ("before a second plugin
+  adopts it"), not an instruction to publish early.
+
+  What landed instead is the part that is defensible today: explicit guarantees a future consumer
+  can hold (`schema: 1` is a real version; field names and the status vocabulary are fixed within a
+  version; fields may be added; identifiers are stable and never reused; the location formula is
+  fixed), and the three prerequisites promotion would need — a real second consumer with stated
+  needs, a decision on the auto-apply boundary that does not launder the per-item gate, and the
+  owner doc landing before that consumer ships.
+
 ## [0.10.0]
 
 ### Added
