@@ -122,6 +122,11 @@ help_out="$(bash "$REAP" --help 2>&1)"
 help_rc=$?
 assert_exit "--help exits 0" 0 "$help_rc"
 assert_contains "--help documents the usage line" "$help_out" "--worktree-path"
+# usage() extracts a hardcoded line range from this script's own header, so a
+# header edit that does not move the range silently truncates the help. The
+# usage line sits early enough to survive that; the last header line does not.
+assert_contains "--help reaches the end of the header, not a truncated range" \
+  "$help_out" "must never read as a clean one"
 
 run "$WT"
 assert_exit "missing --worktree-path is a usage error" 2 "$RC"

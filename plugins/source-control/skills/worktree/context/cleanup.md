@@ -122,7 +122,7 @@ resolves strictly against the current directory (measured — [fixtures/README.m
 enforces the same thing from the other side: it refuses unless `--worktree-path` names the directory
 it is already standing in, so it structurally cannot act on any path but its own.
 
-Four rules govern this step, and each closes a way it could do real harm:
+Five rules govern this step, and each closes a way it could do real harm:
 
 - **The trigger is this teardown, never path liveness.** Reap a worktree *this cleanup is removing*.
   Never reap "a path that does not currently resolve": a project-scope record for a live repository
@@ -135,6 +135,11 @@ Four rules govern this step, and each closes a way it could do real harm:
   Use --scope user to uninstall.` Following that suggestion would uninstall the plugin **fleet-wide**.
   Never run `-s user`, and never `--prune` (which reaches past project scope into shared
   auto-installed dependencies).
+- **Every uninstall carries `--keep-data`, and the helper passes it unconditionally.** The CLI
+  deletes a plugin's `${CLAUDE_PLUGIN_DATA}` directory when the scope being uninstalled was that
+  plugin's last remaining one, so without the flag this step destroys stored state belonging to
+  plugins it only ever meant to un-record, and the report cannot tell you it happened. This step
+  reaps records; a record is not data.
 - **Never hand-edit `installed_plugins.json`.** It is Claude Code's internal state, not a published
   contract. Every removal goes through the CLI; the helper only ever reads the file, and only to
   report survivors.

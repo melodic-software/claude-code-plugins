@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.10]
+
+### Fixed
+
+- **`reap-project-plugin-records.sh --help` no longer truncates its own header.**
+  `usage()` extracts a hardcoded line range from the header, and the range had drifted
+  behind it: the help stopped mid-sentence and dropped the last two lines of the exit-code
+  table, the ones explaining that an unverified pass must never read as a clean one. The
+  range now bounds the header exactly, and a test asserts the help reaches the final
+  header line so the next header edit cannot silently truncate it again.
+- **`cleanup.md` now lists the `--keep-data` reap rule.** The operator-facing rule list
+  carries the same unconditional `--keep-data` contract the helper already enforces, which
+  takes it from four rules to five.
+
 ## [0.55.8]
 
 ### Fixed
