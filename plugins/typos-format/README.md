@@ -8,11 +8,14 @@ guidance for allowlisting a false positive. It is **report-only by default**;
 with the `typos_format_write_changes` opt-in it applies typos' safe
 corrections in place and reports every correction it applied.
 
-It ships no rules of its own and runs unconditionally, using typos' built-in
-spelling dictionary. If your repository has its own typos configuration
-(`typos.toml`, `_typos.toml`, `.typos.toml`, `Cargo.toml` with
+It ships one fleet-wide protection of its own — a bundled
+`config/default-typos.toml` injected via `typos -c` so write mode cannot
+silently corrupt git SHAs — and otherwise runs unconditionally on typos'
+built-in spelling dictionary. If your repository has its own typos
+configuration (`typos.toml`, `_typos.toml`, `.typos.toml`, `Cargo.toml` with
 `[workspace.metadata.typos]`/`[package.metadata.typos]`, or `pyproject.toml`
-with `[tool.typos]`), typos discovers and honors it automatically — no
+with `[tool.typos]`), typos discovers it from the target path and merges
+`extend-*` keys with the bundled file rather than replacing them — no
 opt-in required.
 
 ## Behavior

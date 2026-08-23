@@ -1356,6 +1356,32 @@ else
   fail "config precedence wrong: $(cat "$REPO_PREC/p.txt")"
 fi
 
+# --- bundled -c merges with repo _typos.toml (extend-ignore-re) -------------
+# The hook injects `-c <plugin>/config/default-typos.toml` whenever
+# CLAUDE_PLUGIN_ROOT is set. That file's header claims a merge; if `-c`
+# replaced the discovered config, a repo `spellchecker:disable-line` pragma
+# would be lost and write mode would "fix" the protected line (#3133 F1).
+PLUGIN_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
+REPO_CMERGE="$WORK/c-merge"
+new_typos_repo "$REPO_CMERGE" NO_CONFIG
+printf '[default]\nextend-ignore-re = [".*spellchecker:disable-line.*"]\n' >"$REPO_CMERGE/_typos.toml"
+# spellchecker:off
+printf 'recieve  # spellchecker:disable-line\n' >"$REPO_CMERGE/protected.txt"
+# spellchecker:on
+BEFORE=$(cat "$REPO_CMERGE/protected.txt")
+run_hook_env "$REPO_CMERGE/protected.txt" \
+  -u CLAUDE_PROJECT_DIR \
+  CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+  CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+  CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES=true \
+  PATH="$(dirname "$REAL_TYPOS"):$PATH" >/dev/null
+AFTER=$(cat "$REPO_CMERGE/protected.txt")
+if [[ "$AFTER" == "$BEFORE" ]]; then
+  ok "bundled -c merges repo extend-ignore-re (pragma-protected line not rewritten)"
+else
+  fail "bundled -c overrode repo _typos.toml: $AFTER"
+fi
+
 # --- Case 3: config present + clean file -> exit 0, empty stdout ------------
 REPO="$WORK/consumer"
 new_typos_repo "$REPO"
