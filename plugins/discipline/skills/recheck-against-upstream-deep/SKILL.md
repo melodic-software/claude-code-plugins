@@ -3,27 +3,27 @@ description: "Escalate upstream-conformance discipline to a heavy fan-out: dispa
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  discipline-batch: never  # heavier fan-out execution tier — invoked directly, not batched
+  discipline-batch: never  # heavier fan-out execution tier. Invoked directly, not batched
   workflow-stage: anytime
   summary: Fan out doc-by-doc upstream conformance checks across a whole subsystem
 ---
 
-# Recheck against upstream — deep
+# Recheck against upstream. Deep
 
 The fan-out tier of the sibling `/discipline:recheck-against-upstream`. Same
 upstream-conformance discipline; heavier execution. Where the base skill
 rechecks the one surface in play inline, this one fans fresh-context
-subagents out over a whole subsystem, framework, or repo — doc-by-doc — the
+subagents out over a whole subsystem, framework, or repo, doc-by-doc, the
 execution tier the base skill's context cannot cover from within itself.
 
-The shared method — re-anchor, audit, correct forward, report, and the tone
-that firing this is not an accusation — lives in
+The shared method. Re-anchor, audit, correct forward, report, and the tone
+that firing this is not an accusation, lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 The discipline this re-anchors, its portable baseline, and the three
 divergence categories (gap / deliberate / undocumented) live in the sibling
 [`recheck-against-upstream`](../recheck-against-upstream/SKILL.md). Read
 both; this file adds only the fan-out delta. There is no separate copy of
-the discipline or the taxonomy here — update the sibling and this tier
+the discipline or the taxonomy here. Update the sibling and this tier
 follows.
 
 ## When this tier, not the inline recheck
@@ -39,19 +39,19 @@ sibling is the right tool; this tier is overkill.
 Run this in place of the sibling's inline audit and correct-forward steps:
 
 1. **Enumerate the surfaces.** List every upstream-dependent surface in the
-   subsystem/repo under review — each config block, API call site, infra
+   subsystem/repo under review. Each config block, API call site, infra
    definition, and documented contract the work rests on. Do not spot-check
    one.
 2. **Fan out, throttled, doc-by-doc.** Dispatch fresh-context subagents
    (blind to the assumptions that produced each surface) to fetch the
    CURRENT official upstream docs for that surface and classify its
    divergence per the sibling's three categories. Throttle the dispatch in
-   bounded waves rather than launching one agent per surface at once — a
+   bounded waves rather than launching one agent per surface at once. A
    sustained wide fan-out trips server-side burst overload (529s) and loses
    agents mid-run. Cap concurrency to a modest wave (roughly a dozen or
    fewer); process the surfaces wave by wave.
 3. **Retry the failed subset only.** If an agent errors or times out, retry
-   that surface once; on a second failure mark it unverifiable — an honest
+   that surface once; on a second failure mark it unverifiable, an honest
    skip, never a false pass. Never blind-re-run the whole fan-out to recover
    a few stragglers.
 4. **Checkpoint the partial ledger mid-run, if a durable slice exists.** So
@@ -59,7 +59,7 @@ Run this in place of the sibling's inline audit and correct-forward steps:
    ledger to the session's durable topic-memory slice when one is available;
    where the session has no such durable store, proceed without it rather
    than asserting a persistence surface. This is the only persistence this
-   tier performs — nothing is mandatory beyond it.
+   tier performs. Nothing is mandatory beyond it.
 5. **Merge and report an inline divergence ledger.** One list keyed by
    surface: its category (gap / deliberate / undocumented) and the current
    upstream source that resolved it. Correct gaps toward upstream this turn;
@@ -72,7 +72,7 @@ Run this in place of the sibling's inline audit and correct-forward steps:
   routing.** When a work-item / issue-tracker capability is installed, offer
   to route the actionable gaps and the undocumented divergences awaiting a
   human decision into tracked work items. Degrade to a prose offer (a listed
-  set of would-be items) when no such capability is present — never assume a
+  set of would-be items) when no such capability is present, never assume a
   tracker.
 - **Category 2 (deliberate) is report-only.** A recorded rationale that
   still holds is not an action item; raise it only when the current docs have

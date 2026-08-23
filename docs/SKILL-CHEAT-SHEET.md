@@ -170,13 +170,13 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/discipline:reason-dont-recite`](../plugins/discipline/skills/reason-dont-recite/SKILL.md) | `discipline` | Challenge decisions coasting on precedent, re-derive from first principles |
 | [`/discipline:recheck-against-upstream`](../plugins/discipline/skills/recheck-against-upstream/SKILL.md) | `discipline` | Audit the surface in flight against current official upstream docs |
 | [`/discipline:recheck-against-upstream-deep`](../plugins/discipline/skills/recheck-against-upstream-deep/SKILL.md) | `discipline` | Fan out doc-by-doc upstream conformance checks across a whole subsystem |
-| [`/discipline:reuse-or-replace`](../plugins/discipline/skills/reuse-or-replace/SKILL.md) | `discipline` | Reuse the established way or openly replace it — never a silent second way |
+| [`/discipline:reuse-or-replace`](../plugins/discipline/skills/reuse-or-replace/SKILL.md) | `discipline` | Reuse the established way or openly replace it, never a silent second way |
 | [`/discipline:script-the-deterministic-work`](../plugins/discipline/skills/script-the-deterministic-work/SKILL.md) | `discipline` | Script counting, diffing, and transforms instead of eyeballing them |
 | [`/discipline:scrutinize-dont-coast`](../plugins/discipline/skills/scrutinize-dont-coast/SKILL.md) | `discipline` | Re-examine your own recent output through a fresh-context pass |
 | [`/discipline:sweep-all`](../plugins/discipline/skills/sweep-all/SKILL.md) | `discipline` | Batch every discipline corrector into one audited re-anchor pass |
-| [`/discipline:tighten-your-output`](../plugins/discipline/skills/tighten-your-output/SKILL.md) | `discipline` | Tighten prose and code — fewer words, no semantic loss |
+| [`/discipline:tighten-your-output`](../plugins/discipline/skills/tighten-your-output/SKILL.md) | `discipline` | Tighten prose and code. Fewer words, no semantic loss |
 | [`/discipline:use-your-skills`](../plugins/discipline/skills/use-your-skills/SKILL.md) | `discipline` | Map the task to available skills and invoke them instead of reinventing |
-| [`/discipline:wait-what`](../plugins/discipline/skills/wait-what/SKILL.md) | `discipline` | Re-pitch the message that did not land — missing context added, plain register, project vocabulary |
+| [`/discipline:wait-what`](../plugins/discipline/skills/wait-what/SKILL.md) | `discipline` | Re-pitch the message that did not land. Missing context added, plain register, project vocabulary |
 | [`/disk-hygiene:clean`](../plugins/disk-hygiene/skills/clean/SKILL.md) | `disk-hygiene` | Audit a directory tree for stale leftovers and remove validated paths |
 | [`/docs-hygiene:audit-derivability`](../plugins/docs-hygiene/skills/audit-derivability/SKILL.md) | `docs-hygiene` | Judge whether a doc earns its existence or should become a pointer |
 | [`/docs-hygiene:audit-encapsulation`](../plugins/docs-hygiene/skills/audit-encapsulation/SKILL.md) | `docs-hygiene` | Find external citations reaching into a skill's private surfaces |

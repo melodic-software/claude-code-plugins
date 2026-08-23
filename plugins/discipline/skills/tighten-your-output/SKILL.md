@@ -1,19 +1,19 @@
 ---
-description: "Re-anchor terseness discipline — say markdown in fewer words without semantic loss, write code in fewer lines when readability holds — then audit the work in flight for avoidable verbosity and tighten it. Use when: 'tighten your output', 'tighten this', 'too verbose', 'say it in fewer words', 'this is bloated', 'trim the code', 'simpler form', 'cut the wordiness', 'be more concise', or at conversation start on prose- or code-heavy work."
+description: "Re-anchor terseness discipline, say markdown in fewer words without semantic loss, write code in fewer lines when readability holds, then audit the work in flight for avoidable verbosity and tighten it. Use when: 'tighten your output', 'tighten this', 'too verbose', 'say it in fewer words', 'this is bloated', 'trim the code', 'simpler form', 'cut the wordiness', 'be more concise', or at conversation start on prose- or code-heavy work."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   discipline-batch: core  # every session produces output that can tighten; runs last so it never tightens text a later corrector rewrites
   discipline-batch-rank: 110
   workflow-stage: anytime
-  summary: Tighten prose and code — fewer words, no semantic loss
+  summary: Tighten prose and code. Fewer words, no semantic loss
 ---
 
 # Tighten your output
 
-A drift corrector for terseness discipline. The method — re-anchor, audit
+A drift corrector for terseness discipline. The method, re-anchor, audit
 the work in flight, correct forward, report, and the tone that firing this
-is not an accusation — lives in
+is not an accusation, lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to terseness discipline.
 
@@ -22,7 +22,7 @@ Read it; this file adds only what is specific to terseness discipline.
 Say it in fewer words or lines when nothing of value is lost. Two surfaces,
 resolved separately per the method doc's ladder.
 
-### Code — a standards convention owns this
+### Code, a standards convention owns this
 
 The source of truth is the consuming organization's simpler-code
 convention: prefer the smaller form when it costs no correctness,
@@ -30,9 +30,9 @@ readability, test coverage, observability, or convention conformance. Read
 it where it lives; re-anchor its two load-bearing parts rather than
 restating them:
 
-- its **named failure modes** — the canonical smells a reduction must not
+- its **named failure modes**, the canonical smells a reduction must not
   introduce (speculative generality, the wrong abstraction, YAGNI);
-- its **constraints never traded for line count** — clarity, test coverage,
+- its **constraints never traded for line count**. Clarity, test coverage,
   error handling at boundaries, established conventions, and observability
   survive every cut.
 
@@ -40,20 +40,20 @@ When the consuming project declares no such convention, re-anchor that same
 shape as the portable baseline: fewer lines is the default only when none
 of those constraints is spent to get there.
 
-### Markdown — no standards doc yet (flagged gap)
+### Markdown. No standards doc yet (flagged gap)
 
-Say the same thing in fewer words with **no semantic loss** — drop filler,
+Say the same thing in fewer words with **no semantic loss**. Drop filler,
 hedging, and restatement, never a directive, qualifier, threshold, or
 example. Unlike the code side, prose terseness usually has **no dedicated
 standards convention** to discipline: when the consuming project's standards
 source declares one, route through it; when it does not, treat that as a
 flagged gap (a candidate upstream standards addition), not license to invent
 a rubric in this skill. The operative safety net for prose reduction is a
-compress capability's semantic-diff discipline — route batch prose work there
+compress capability's semantic-diff discipline. Route batch prose work there
 when that capability is installed, and otherwise run that same discipline
 in-thread rather than hand-rolling criteria here.
 
-## Audit — what to look for
+## Audit. What to look for
 
 Name concrete, located findings (per the method doc's step 2, self-audit):
 
@@ -69,7 +69,7 @@ the code without spending clarity, tests, error handling, conventions, or
 observability. When a cut would cost any of those, leave the longer form and
 say why.
 
-## Routing — where batch and proactive work live
+## Routing, where batch and proactive work live
 
 - **Batch prose remediation → the docs-hygiene compress capability** when
   that plugin is installed (its semantic-diff safety net is the guardrail for

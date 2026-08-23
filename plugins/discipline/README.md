@@ -3,47 +3,45 @@
 A Claude Code plugin bundling discipline correctors for one cohesive
 capability: pulling a working session back onto a standing discipline that
 has lost salience. Each skill re-anchors ONE discipline, applies it to the
-current conversation, and corrects what drifted — auditing both the work in
+current conversation, and corrects what drifted, auditing both the work in
 flight and the pre-existing state and choices it trusts. (Some correctors
 audit the conversation's own output; others audit state and decisions that
-predate the session — a config already on disk, a tool already chosen —
-because existing state is not evidence of its own correctness. Scope
+predate the session, a config already on disk, a tool already chosen, because existing state is not evidence of its own correctness. Scope
 recorded as a deliberate widening from the original "work in flight" framing,
 a `/discipline:reason-dont-recite` finding on that boundary.)
 
 Firing a corrector is a re-anchor, not an accusation. Reaching for one as a
-gentle reminder — before the work, or just to set posture — is a
+gentle reminder, before the work, or just to set posture, is a
 first-class use, and the audit may honestly return clean.
 
 | Skill | Discipline it re-anchors |
 |---|---|
 | `/discipline:do-your-research` | Research and no-assumptions before assertion |
-| `/discipline:do-your-research-deep` | The verification-fan-out tier of do-your-research — a typed full inventory of the session's claims, verified at a configurable depth |
+| `/discipline:do-your-research-deep` | The verification-fan-out tier of do-your-research, a typed full inventory of the session's claims, verified at a configurable depth |
 | `/discipline:follow-our-standards` | Alignment to the consuming org's engineering conventions |
-| `/discipline:point-dont-copy` | Pointer over copy — cite the living source, don't duplicate it |
-| `/discipline:reason-dont-recite` | Interrogate inherited content — precedent describes, it doesn't justify |
-| `/discipline:tighten-your-output` | Terseness — fewer words or lines with no loss of meaning or correctness |
-| `/discipline:recheck-against-upstream` | Existing state is not self-justifying — audit config, code, and infra against current official upstream docs |
-| `/discipline:recheck-against-upstream-deep` | The fan-out tier of recheck-against-upstream — subagents compare a whole subsystem against upstream, doc-by-doc |
-| `/discipline:pick-for-the-problem` | Selection fitted to the problem — not reached for out of habit, availability, incumbency, or preconception |
-| `/discipline:mind-your-maxims` | Cooperative communication — Grice's maxims plus the AI-augmented transparency maxim |
-| `/discipline:script-the-deterministic-work` | Script deterministic sub-work — run it, then reason over the output |
-| `/discipline:use-your-skills` | Actually use the skills in context — scan the listing, invoke the fitting skill, name skills when delegating |
-| `/discipline:reuse-or-replace` | Anti-fragmentation — reuse the established way or openly replace it, never silently stand up a second parallel way |
-| `/discipline:scrutinize-dont-coast` | Adversarial self-scrutiny — stop coasting on your own recent output; re-examine it through a fresh-context pass and remediate with the user |
+| `/discipline:point-dont-copy` | Pointer over copy. Cite the living source, don't duplicate it |
+| `/discipline:reason-dont-recite` | Interrogate inherited content. Precedent describes, it doesn't justify |
+| `/discipline:tighten-your-output` | Terseness. Fewer words or lines with no loss of meaning or correctness |
+| `/discipline:recheck-against-upstream` | Existing state is not self-justifying. Audit config, code, and infra against current official upstream docs |
+| `/discipline:recheck-against-upstream-deep` | The fan-out tier of recheck-against-upstream. Subagents compare a whole subsystem against upstream, doc-by-doc |
+| `/discipline:pick-for-the-problem` | Selection fitted to the problem, not reached for out of habit, availability, incumbency, or preconception |
+| `/discipline:mind-your-maxims` | Cooperative communication. Grice's maxims plus the AI-augmented transparency maxim |
+| `/discipline:script-the-deterministic-work` | Script deterministic sub-work. Run it, then reason over the output |
+| `/discipline:use-your-skills` | Actually use the skills in context. Scan the listing, invoke the fitting skill, name skills when delegating |
+| `/discipline:reuse-or-replace` | Anti-fragmentation. Reuse the established way or openly replace it, never silently stand up a second parallel way |
+| `/discipline:scrutinize-dont-coast` | Adversarial self-scrutiny. Stop coasting on your own recent output; re-examine it through a fresh-context pass and remediate with the user |
 
-The shared method — re-anchor, audit the work in flight, correct forward,
-report — lives once at plugin scope in
+The shared method, re-anchor, audit the work in flight, correct forward,
+report, lives once at plugin scope in
 [`context/re-anchor-audit-correct.md`](context/re-anchor-audit-correct.md);
 each skill carries only its own delta.
 
-Beyond the correctors, the plugin ships two **declared further species** —
-skills that are *not* correctors and re-anchor no discipline of their own:
+Beyond the correctors, the plugin ships two **declared further species**: skills that are *not* correctors and re-anchor no discipline of their own:
 
 | Skill | Species | What it does |
 |---|---|---|
-| `/discipline:sweep-all` | Composed runbook | Runs the whole bundle as one pass — fans out an audit-only subagent per in-scope corrector, then applies the corrections on the main thread in a fixed order; at session start it reports a cheap posture digest instead |
-| `/discipline:wait-what` | One-shot communication repair | User-invoked only — type it when the last message did not land; the model re-pitches it with the missing context, in ASD-STE100 Simplified Technical English, using the project's ubiquitous language. Never model-invoked, never in the batch |
+| `/discipline:sweep-all` | Composed runbook | Runs the whole bundle as one pass. Fans out an audit-only subagent per in-scope corrector, then applies the corrections on the main thread in a fixed order; at session start it reports a cheap posture digest instead |
+| `/discipline:wait-what` | One-shot communication repair | User-invoked only. Type it when the last message did not land; the model re-pitches it with the missing context, in ASD-STE100 Simplified Technical English, using the project's ubiquitous language. Never model-invoked, never in the batch |
 
 ## What each skill does
 
@@ -61,10 +59,10 @@ turns for unbacked claims and skipped verification, then corrects forward.
 
 ### do-your-research-deep
 
-The verification-fan-out tier of `do-your-research` — same research
+The verification-fan-out tier of `do-your-research`. Same research
 discipline, heavier execution. Enumerates a **typed full inventory** of the
-session's claims — assumptions, asserted facts, concrete specifics, and
-load-bearing premises, as a checklist so coverage is provable — and verifies
+session's claims. Assumptions, asserted facts, concrete specifics, and
+load-bearing premises, as a checklist so coverage is provable, and verifies
 each against a primary source, throttled in bounded waves so a claim-heavy
 session does not trip a burst overload. Reports one ledger row per inventory
 item (no silent drops), each carrying verdict, source, source tier, consensus
@@ -88,9 +86,9 @@ the subagent fan-out is a heavier execution tier (mirrors the
 Re-anchors alignment to the consuming organization's engineering standards.
 Resolves the standards source the consuming project declares (a shared
 standards repo, a conventions tree) with progressive, relevance-routed
-loading, re-asserts the core principles — DRY / single source of truth, low
+loading, re-asserts the core principles. DRY / single source of truth, low
 coupling and high cohesion, change-together-lives-together, SOLID, clean
-code — audits the work against them with doc citations, and respects a
+code. Audits the work against them with doc citations, and respects a
 declared managed / locally-owned seam.
 
 ```shell
@@ -112,8 +110,8 @@ internal-name coupling, and closed enumerations, then corrects by pointing.
 
 ### reason-dont-recite
 
-Re-anchors incumbency discipline: inherited content — a repo's docs,
-conventions, structure, processes — is evidence of what is, never a
+Re-anchors incumbency discipline: inherited content, a repo's docs,
+conventions, structure, processes, is evidence of what is, never a
 self-justifying argument for what should be. A choice whose only support is
 precedent ("that's how it's done here") or "I don't know why" earns a
 first-principles re-derivation, not compliance. The distinct axis from
@@ -130,8 +128,8 @@ surfaces routes upstream via follow-our-standards.
 Re-anchors terseness discipline: say markdown in fewer words with no
 semantic loss, write code in fewer lines when readability holds. The code
 side re-anchors the consuming org's simpler-code convention (named failure
-modes; constraints — clarity, tests, error handling, conventions,
-observability — never traded for line count); prose terseness usually has no
+modes; constraints. Clarity, tests, error handling, conventions,
+observability, never traded for line count); prose terseness usually has no
 dedicated standards doc, so the skill flags that gap rather than inventing a
 rubric. Audits the work for avoidable verbosity and tightens only where the
 reduction is free; routes batch work to a compress capability (prose) and a
@@ -143,15 +141,14 @@ simplify capability (code).
 
 ### recheck-against-upstream
 
-Re-anchors the discipline that existing state — config, code, docs, infra —
-is evidence of what is, never proof it still matches the upstream it depends
+Re-anchors the discipline that existing state, config, code, docs, infra, is evidence of what is, never proof it still matches the upstream it depends
 on. Fetches the CURRENT official upstream docs for the surface in play,
 diffs the repo's state against them, and classifies each divergence: a
-**gap** (docs say X, we do Y, no recorded rationale — including deprecation
+**gap** (docs say X, we do Y, no recorded rationale, including deprecation
 and version drift), a **deliberate divergence** (rationale recorded in
-repo docs / an ADR — re-checked only for whether it still holds, since
+repo docs / an ADR. Re-checked only for whether it still holds, since
 upstream may have obsoleted it), or an **undocumented divergence** (looks
-intentional, no rationale, needs the human's call — routed to the repo's
+intentional, no rationale, needs the human's call. Routed to the repo's
 ADR/docs convention). Reports what was compared versus skipped; unverified
 conformance is not "clean". A distinct axis from `reason-dont-recite`
 (internal precedent) and `follow-our-standards` (the org's own standards):
@@ -163,7 +160,7 @@ this measures against the external vendor's docs.
 
 ### recheck-against-upstream-deep
 
-The fan-out tier of `recheck-against-upstream` — same discipline, heavier
+The fan-out tier of `recheck-against-upstream`. Same discipline, heavier
 execution. Enumerates every upstream-dependent surface in a subsystem,
 framework, or repo and dispatches fresh-context subagents doc-by-doc,
 throttled in bounded waves, to compare each against its current upstream
@@ -171,7 +168,7 @@ docs, then reports an inline divergence ledger. Offers to route gap and
 undocumented findings to a work-items capability when one is installed
 (degrading to a prose offer); deliberate, still-valid divergences stay
 report-only. Checkpoints the partial ledger to a durable topic-memory slice
-mid-run when one exists, for crash safety — the only persistence it performs.
+mid-run when one exists, for crash safety, the only persistence it performs.
 It is a sibling skill rather than a `deep` argument because the subagent
 fan-out is a heavier execution tier, fixed in frontmatter (mirrors the
 `/discovery:research-deep` precedent).
@@ -184,9 +181,9 @@ fan-out is a heavier execution tier, fixed in frontmatter (mirrors the
 
 Re-anchors selection discipline for a tool, library, framework, language, or
 approach: the choice fits the problem, not the reflex. Names the four
-selection sins — **habit** ("I always use X"), **availability** ("X is at
+selection sins. **habit** ("I always use X"), **availability** ("X is at
 hand"), **incumbency** ("the repo already uses X"), and **preconception**
-("I came in believing X") — and replaces them with the discipline: define
+("I came in believing X"), and replaces them with the discipline: define
 the actual problem first, survey the field, and walk the preference ladder
 native (covering the requirements and plausible future ones) > official /
 authoritative > vetted third-party. Every dependency is a coupling point
@@ -204,13 +201,12 @@ and over choices already embedded in the work.
 ### mind-your-maxims
 
 Re-anchors cooperative-communication discipline. Points at the primary
-sources for the maxims rather than restating them — Grice's Cooperative
+sources for the maxims rather than restating them. Grice's Cooperative
 Principle and the AI-augmented transparency maxim
-([arXiv:2403.15115](https://arxiv.org/abs/2403.15115)) — and audits recent
+([arXiv:2403.15115](https://arxiv.org/abs/2403.15115)), and audits recent
 responses AND agent-authored artifacts (docs, PR bodies, prompts) on four
 axes it owns: **Quantity** both directions (omitted asked-for detail is a
-finding, as is padding), **Relation** (answer the question actually asked —
-no adjacent answers, tangents, or buried ledes), **Manner** (unambiguous
+finding, as is padding), **Relation** (answer the question actually asked, no adjacent answers, tangents, or buried ledes), **Manner** (unambiguous
 references, ordered structure, clarity), and **Transparency** (disclose
 uncertainty and knowledge/capability boundaries). Truthfulness delegates to
 `do-your-research`; pure verbosity to `tighten-your-output`. Benevolence is a
@@ -228,7 +224,7 @@ when a sub-task's answer follows mechanically from its input (counting,
 diffing, sorting, transforming, matching, sweeping, arithmetic), write and
 run a script, read its real output, and reason only afterward over that
 output. The tier boundary re-anchors the consuming org's enforceability-tiers
-convention — deterministic work gets scripted, detect-then-judge gets only
+convention. Deterministic work gets scripted, detect-then-judge gets only
 its detect half scripted while the verdict stays judgement, and
 reasoning-only is never scripted. The in-task "script it now" application has
 no standards doc yet, so the skill flags that gap. The discipline runs in
@@ -248,8 +244,8 @@ session-time script.
 Re-anchors skill-use discipline: the skill listing (every skill's name and
 description) is in context so the fitting skill gets invoked, not reinvented.
 Scans the listing against the conversation and the task, invokes the skill that
-already owns a procedure rather than improvising it, and — because a fresh
-non-fork subagent does not inherit the parent's listing — names the relevant
+already owns a procedure rather than improvising it, and, because a fresh
+non-fork subagent does not inherit the parent's listing. Names the relevant
 skills in a delegation prompt, recommending a custom subagent's `skills:`
 preload for a discipline it should always carry. Audits recent work for a skill
 that should have fired and did not, and corrects by invoking it now. Description
@@ -265,16 +261,16 @@ quality routes to `/skill-quality:check` and listing-budget overflow to
 
 Re-anchors anti-fragmentation discipline: when an established way of doing
 something already exists, new work reuses it or openly replaces it (migrate the
-uses, record the decision) — it never silently stands up a second, parallel way
+uses, record the decision). It never silently stands up a second, parallel way
 alongside. The sin is the silent second way, not divergence: replacing the
 established way is first-class when evidence backs an improvement or its
 rationale is missing, incumbency-only, or stale, and blind trust in the status
 quo is explicitly bad. Divergence is allowed but owes a recorded rationale
-proportional to blast radius — an ADR/docs entry for durable changes, a
+proportional to blast radius, an ADR/docs entry for durable changes, a
 PR/commit note for small ones; no recorded reason is the finding. Scope is the
 unlintable approach level (idioms, structure, naming shapes, error handling,
 doc formats, process); mechanical style belongs to linters. Distinct from
-`reason-dont-recite` (evaluation-side — is the inherited convention justified?)
+`reason-dont-recite` (evaluation-side. Is the inherited convention justified?)
 and carved out from `pick-for-the-problem` (which owns tool and dependency
 selection, where matching the incumbent is a selection sin, not a consistency
 win).
@@ -286,10 +282,10 @@ win).
 ### scrutinize-dont-coast
 
 Re-anchors a *meta* discipline rather than a single content axis: don't coast
-on your own recent output — confidence that work is sound is not evidence that
+on your own recent output. Confidence that work is sound is not evidence that
 it is. The load-bearing adversarial re-examination runs in a fresh-context
 (non-fork) subagent blind to the reasoning that produced the output. It makes
-two deliberate, documented deltas to the shared loop — it **stops the
+two deliberate, documented deltas to the shared loop. It **stops the
 trajectory first** and **remediates with the user** rather than autonomously.
 Negative routing: pre-implementation plan stress-tests go to
 `/planning:devils-advocate`, review checkpoints to `/review:quality-gate`, and
@@ -301,19 +297,18 @@ single-axis flaws to the sibling that owns them.
 
 ### sweep-all (composed runbook)
 
-A **declared further species** — a router that composes the correctors,
+A **declared further species**, a router that composes the correctors,
 carrying no discipline of its own. Two modes: at conversation start it derives
 a cheap posture digest from the skill listing and each corrector's tier
-metadata (no bodies load, no audit); mid-session it runs the full pass —
-fanning out a conversation-inheriting fork subagent per in-scope corrector for
+metadata (no bodies load, no audit); mid-session it runs the full pass, fanning out a conversation-inheriting fork subagent per in-scope corrector for
 an audit-only walk, then applying the corrections once on the main thread in a
 fixed order (`use-your-skills` first, `tighten-your-output` last). The full
 pass preflights that its subagents really do inherit the conversation and
-degrades to the posture digest when they do not — auditing blind would write
+degrades to the posture digest when they do not. Auditing blind would write
 fabricated corrections to the working tree. Membership
 is resolved by reading each corrector's colocated `metadata.discipline-batch`
-tier (`core` / `situational` / `never`) and `discipline-batch-rank` — the
-runbook names no members — layered with an optional `batch_exclude` /
+tier (`core` / `situational` / `never`) and `discipline-batch-rank`. The
+runbook names no members. Layered with an optional `batch_exclude` /
 `batch_promote` / `batch_demote` user overlay. It files no outward artifact and
 preserves every member's human gate.
 
@@ -323,21 +318,21 @@ preserves every member's human gate.
 
 ### wait-what (one-shot communication repair)
 
-A **declared further species** — not a corrector, and the plugin's only
+A **declared further species**, not a corrector, and the plugin's only
 user-invoked-only skill (`disable-model-invocation: true`): the human is the
 only party who can detect that a message did not land, so the model never
-fires it. Type it the moment you notice you are skimming — the model has
+fires it. Type it the moment you notice you are skimming, the model has
 drifted into jargon it invented, stacked acronyms, or explained a decision
 whose premise you never saw. The re-pitch backs up as far as needed, adds the
 context you were missing, talks in ASD-STE100 Simplified Technical English
 (short sentences, one meaning per word, technical terms exact), and uses the
-project's ubiquitous language — read from the nearest domain glossary or
+project's ubiquitous language. Read from the nearest domain glossary or
 context map per the project's own convention, degrading silently when none
 exists. Re-pitch means re-ground, not compress: it stays out of the batch
 sweep, and a shorter-but-blunter reply is the failure it exists to avoid.
 
 ```shell
-/discipline:wait-what   # that didn't land — re-pitch it
+/discipline:wait-what   # that didn't land; re-pitch it
 ```
 
 ## Consumer conventions
@@ -349,8 +344,7 @@ of truth:
   consuming project states in its own `CLAUDE.md` / `.claude/rules/` when
   it declares one, and audits against that text.
 - **Graceful degradation.** When the consumer declares no such rules, each
-  skill re-anchors a concise portable baseline it states in its own body —
-  fully useful in a project with rich standing rules and still useful in
+  skill re-anchors a concise portable baseline it states in its own body, fully useful in a project with rich standing rules and still useful in
   one with none.
 - **Citations trace to what resolved.** A finding cites the source
   actually read this session, never an assumed path.
@@ -364,14 +358,14 @@ of truth:
 
 ## Configuration
 
-No persistent state — each skill reads the conversation and the consuming
+No persistent state. Each skill reads the conversation and the consuming
 project's own instruction layer. `follow-our-standards` may fetch a remote
 standards source when the consumer declares one and no local checkout exists.
 
 The correctors themselves are zero-config. Two skills expose optional
 `userConfig` scalars. The `sweep-all` runbook adds three that
-overlay batch membership without editing any corrector — each a comma-separated
-list of corrector names, empty by default (tiers run exactly as declared) — and
+overlay batch membership without editing any corrector. Each a comma-separated
+list of corrector names, empty by default (tiers run exactly as declared). And
 `do-your-research-deep` adds one that sets its verification depth:
 
 | Option | Effect |
@@ -379,16 +373,17 @@ list of corrector names, empty by default (tiers run exactly as declared) — an
 | `batch_exclude` | Drop these correctors from the batch |
 | `batch_promote` | Run these situational correctors every session instead of gating them on relevance (situational-only; never/core/unknown warn and are not promoted) |
 | `batch_demote` | Run these core correctors only when relevant instead of every session |
-| `research_deep_verification` | `do-your-research-deep` verification depth: `tiered` (default — subagents only over load-bearing items) or `full` (subagent-verify every item); an invocation argument overrides it |
+| `research_deep_verification` | `do-your-research-deep` verification depth: `tiered` (default. Subagents only over load-bearing items) or `full` (subagent-verify every item); an invocation argument overrides it |
 
 Set them through Claude Code's native plugin-config flow
 (`/plugin configure discipline@<marketplace>`); they are personal scalars, not repository
 configuration. `/discipline:setup check` reports the effective configuration
-read-only (it never writes config — reconfiguration stays the native flow).
+read-only (it never writes config. Reconfiguration stays the native flow).
 Batch membership and order otherwise live in each corrector's own colocated
 tier metadata (`metadata.discipline-batch` + `discipline-batch-rank`), so changing
 a shipped tier is a PR to that corrector.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -464,3 +459,4 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
