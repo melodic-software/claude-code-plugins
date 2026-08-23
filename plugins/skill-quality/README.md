@@ -20,8 +20,10 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant — the field defaults to the directory).
-- `description` + `when_to_use` within the 1536-char **per-skill** listing-entry cap (overflow
-  truncates that entry) — a different, narrower limit from the shared budget below.
+- `description` alone within the 1024-char Agent Skills spec **field** maximum (WARN). Local
+  loading does not enforce it; packaging and API upload do, so a breach is rejectable there.
+- `description` + `when_to_use` within the 1536-char **per-skill** listing-entry cap (FAIL, since
+  overflow truncates that entry), a different, narrower limit from the shared budget below.
 - Trigger-keyword preservation vs `HEAD` (skipped for a new, uncommitted skill).
 - `SKILL.md` under 500 lines (hard) / 200 lines (soft, advisory).
 - Backtick- and link-cited skill-internal supporting files resolve — when a path that misses instead
