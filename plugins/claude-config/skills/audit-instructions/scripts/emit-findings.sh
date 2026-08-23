@@ -186,18 +186,25 @@ LC_ALL=C awk \
   # Frontmatter close line for <file>, or 0 when there is none. Recomputed here
   # rather than trusted from the caller (header comment: BODY-SCOPE FENCE).
   # An unclosed leading `---` fences the whole file, the fail-safe direction.
-  # Every getline strips a terminal CR before comparing: on a CRLF file the
-  # delimiter reads as "---\r", matching neither test, so the frontmatter would
-  # be treated as body and description/when_to_use rows would become emittable.
-  # Measured before the fix: a CRLF fixture emitted a row pointing at line 2.
+  # Delimiter test, deliberately IDENTICAL to this repo authoritative extractor
+  # skill_frontmatter::extract (plugins/skill-quality/scripts/skill-frontmatter.sh),
+  # which is what check-skill.sh -- the hard-FAIL gate this whole fence exists to
+  # satisfy -- parses frontmatter with. Exact equality against "---" is STRICTER
+  # than that parser, and the direction of the mismatch is the dangerous one: a
+  # delimiter carrying trailing whitespace or a CR is real frontmatter to the
+  # gate but invisible here, so the block would be treated as body and the
+  # description and when_to_use lines would become emittable. Three
+  # implementations of "is this the fence" must agree or the fence is only as
+  # strong as the loosest reader. [[:space:]] covers the CR case too.
+  function is_fence(s) { return s ~ /^---[[:space:]]*$/ }
+
   function fm_end(file,   line, n, fmclose, result) {
     if (file in fmcache) return fmcache[file]
     n = 0; fmclose = -1
     while ((getline line < file) > 0) {
       n++
-      sub(/\r$/, "", line)
-      if (n == 1) { if (line != "---") { fmclose = 0; break } ; continue }
-      if (line == "---") { fmclose = n; break }
+      if (n == 1) { if (!is_fence(line)) { fmclose = 0; break } ; continue }
+      if (is_fence(line)) { fmclose = n; break }
     }
     while ((getline line < file) > 0) n++
     result = (fmclose == -1) ? n : fmclose
@@ -213,8 +220,8 @@ LC_ALL=C awk \
     while ((getline line < file) > 0) {
       n++
       sub(/\r$/, "", line)
-      if (n == 1 && line != "---") break
-      if (n > 1 && line == "---") break
+      if (n == 1 && !is_fence(line)) break
+      if (n > 1 && is_fence(line)) break
       if (line ~ /^description:/) d = d " " line
       if (line ~ /^when_to_use:/) d = d " " line
     }

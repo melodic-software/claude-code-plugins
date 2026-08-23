@@ -259,6 +259,19 @@ assert_not_contains "writer fence holds on CRLF: no when_to_use row" "$CRLF_OUT"
 assert_contains "writer still emits the CRLF body row" "$CRLF_OUT" "crlf.md:6"
 assert_not_contains "no stray CR survives into a table cell" "$CRLF_OUT" "$(printf '\r')"
 
+# Trailing whitespace on the delimiter: real frontmatter to
+# skill_frontmatter::extract (^---[[:space:]]*$), so the writer fence must agree.
+# Exact "---" equality is stricter than the gate this fence exists to satisfy,
+# and the mismatch runs the dangerous way — the block reads as body.
+printf -- '---   \ndescription: "CRITICAL: you MUST not edit this."\nwhen_to_use: "if in doubt, use this"\n---\t\n\nCRITICAL: run the linter.\n' >"$CRLFREPO/ws.md"
+bash "$SCAN" "$CRLFREPO/ws.md" >"$TEST_TMPDIR/ws-unfenced.txt"
+(cd "$CRLFREPO" && bash "$EMIT" --from "$TEST_TMPDIR/ws-unfenced.txt" \
+  --out "$TEST_TMPDIR/ws-find.md" --branch testbranch >/dev/null 2>&1)
+WS_OUT=$(cat "$TEST_TMPDIR/ws-find.md")
+assert_not_contains "writer fence holds on a trailing-space delimiter" "$WS_OUT" "ws.md:2"
+assert_not_contains "writer fence holds on a trailing-tab delimiter" "$WS_OUT" "ws.md:3"
+assert_contains "writer still emits the body row past a trailing-ws delimiter" "$WS_OUT" "ws.md:6"
+
 # --- Case 9d: surfaces outside the repo never reach the relay ----------------
 # Phase A inventories user-level surfaces under CLAUDE_CONFIG_DIR too, but
 # Location is contractually repo-relative and the fix action fences each

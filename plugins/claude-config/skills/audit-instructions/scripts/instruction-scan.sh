@@ -191,20 +191,25 @@ rows=()
 # none of it — the fail-safe direction, since the alternative would route a
 # malformed-frontmatter description straight to an apply relay.
 #
-# BOTH comparisons strip a terminal CR first. On a CRLF-formatted file the
-# delimiter reads as `---\r`, which matches neither test, so the block would be
-# seen as body content and the description and when_to_use lines would become
-# emittable candidates — the fence silently inverted on exactly the Windows-authored
-# files it most needs to hold for. Measured, not theorized: before this strip, a
-# CRLF fixture produced rows at lines 2 and 3.
+# BOTH comparisons use `^---[[:space:]]*$`, deliberately identical to this repo's
+# authoritative extractor `skill_frontmatter::extract`
+# (plugins/skill-quality/scripts/skill-frontmatter.sh) — what `check-skill.sh`, the
+# hard-FAIL gate this fence exists to satisfy, actually parses frontmatter with.
+# Exact equality against `---` is STRICTER than that parser, and the mismatch runs
+# the dangerous way: a delimiter carrying trailing whitespace or a CR is real
+# frontmatter to the gate but invisible here, so the block would be read as body
+# and the description and when_to_use lines would become emittable candidates —
+# the fence silently inverted on exactly the Windows-authored and
+# hand-edited files it most needs to hold for. Measured, not theorized: before
+# this, a CRLF fixture produced rows at lines 2 and 3. `[[:space:]]` covers CR.
 frontmatter_end() {
   local file="$1"
-  [[ "$(head -n 1 "$file" 2>/dev/null | tr -d '\r')" == "---" ]] || {
+  head -n 1 "$file" 2>/dev/null | grep -qE '^---[[:space:]]*$' || {
     printf '0\n'
     return 0
   }
   local close
-  close="$(awk '{ sub(/\r$/, "") } NR>1 && $0=="---" {print NR; exit}' "$file")"
+  close="$(awk 'NR>1 && $0 ~ /^---[[:space:]]*$/ {print NR; exit}' "$file")"
   if [[ -n "$close" ]]; then
     printf '%s\n' "$close"
   else

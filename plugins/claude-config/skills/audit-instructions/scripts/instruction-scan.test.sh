@@ -344,6 +344,17 @@ printf -- '---\r\ndescription: "IMPORTANT: x"\r\nCRITICAL: never terminated\r\n'
 OUT=$(bash "$SCRIPT" --body-only "$CRLFU")
 assert_not_contains "CRLF: unclosed frontmatter fences the whole file" "$OUT" "$CRLFU:"
 
+# Trailing whitespace on a delimiter is real frontmatter to
+# skill_frontmatter::extract (^---[[:space:]]*$) and so must be here too — the
+# three implementations of "is this the fence" have to agree, or the fence is
+# only as strong as the loosest reader.
+WSF="$TEST_TMPDIR/trailing-ws.md"
+printf -- '---   \ndescription: "CRITICAL: you MUST not edit this."\nwhen_to_use: "if in doubt, use this"\n---\t\n\nCRITICAL: run the linter.\n' >"$WSF"
+OUT=$(bash "$SCRIPT" --body-only "$WSF")
+assert_not_contains "trailing-space delimiter: description is fenced" "$OUT" "$WSF:2:"
+assert_not_contains "trailing-tab delimiter: when_to_use is fenced" "$OUT" "$WSF:3:"
+assert_contains "trailing-ws delimiter: the body line is still a candidate" "$OUT" "$WSF:6:I28-a"
+
 # --- Case 18: missing grep exits 2 -------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"

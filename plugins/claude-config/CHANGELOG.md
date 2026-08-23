@@ -64,13 +64,18 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Fixed
 
-- **CRLF files no longer defeat the body-scope fence (measured).** `head`/`awk` leave a terminal
-  CR, so a CRLF frontmatter delimiter read as `---\r` and matched neither comparison in either
-  layer. The block was then treated as body content, and `description` / `when_to_use` rows became
-  emittable — the fence inverted on exactly the Windows-authored files it most needs to hold for. A
-  CRLF fixture emitted a finding pointing at its own `description` line before the fix. Both the
-  scanner and the writer now strip a terminal CR before comparing, and both layers carry regression
-  cases including the unclosed-frontmatter variant.
+- **The body-scope fence now agrees with the repo's authoritative frontmatter parser (measured).**
+  All three delimiter checks — `instruction-scan.sh`'s `frontmatter_end`, and `emit-findings.sh`'s
+  `fm_end` and `descr` — matched `---` by exact equality, which is **stricter** than
+  `skill_frontmatter::extract`'s `^---[[:space:]]*$`, the pattern `check-skill.sh` (the hard-FAIL
+  gate this fence exists to satisfy) actually parses frontmatter with. The mismatch ran the
+  dangerous way: a delimiter carrying a CR or trailing whitespace is real frontmatter to the gate
+  but was invisible to the fence, so the block read as body content and `description` /
+  `when_to_use` rows became emittable. A CRLF fixture emitted a finding pointing at its own
+  `description` line before the fix, and because `descr` shares the detection, the quoted-trigger
+  fence was disabled in the same case. All three now use the authoritative pattern, so the three
+  readers agree rather than the fence being only as strong as the loosest one. Both layers carry
+  regression cases for CRLF, trailing space, trailing tab, and the unclosed-frontmatter variant.
 
 ### Security
 
