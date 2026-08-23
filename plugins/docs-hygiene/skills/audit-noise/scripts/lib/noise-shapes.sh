@@ -302,8 +302,12 @@ audit_noise_detect_shapes_into() {
   # routinely the inline-code span itself (`--force`, `rm -rf`), and stripping it
   # would erase the very evidence the carve-out needs — turning a guardrail into
   # a false finding rather than a withheld one.
-  if audit_noise_line_has_negation_without_positive "$unwrapped"; then
-    _audit_noise_shapes_out+=('negation')
+  # detect.sh can pass skip-negation so it can classify this shape after
+  # accumulating a soft-wrapped sentence; other callers still get per-line.
+  if [[ "${3:-}" != "skip-negation" ]]; then
+    if audit_noise_line_has_negation_without_positive "$unwrapped"; then
+      _audit_noise_shapes_out+=('negation')
+    fi
   fi
   ((${#_audit_noise_shapes_out[@]} > 0))
 }
@@ -658,10 +662,15 @@ AUDIT_NOISE_FIRED_MARKER=""
 
 audit_noise_line_has_negation_without_positive() {
   local sentences=() s lower m
+  local mode="${2:-line}"
   AUDIT_NOISE_FIRED_MARKER=""
-  # Line-level gate first — cheapest, and genuinely a property of the LINE: a
-  # continuation cannot be shown to lack a positive sitting on the next one.
-  audit_noise_line_ends_sentence "$1" || return 1
+  # Line-level gate first — cheapest, and genuinely a property of the LINE when
+  # the caller has not already accumulated a wrapped sentence. Paragraph mode
+  # skips it: a hard-wrapped prohibition with no positive must emit, and the
+  # closed-sentence test is what used to withhold that case.
+  if [[ "$mode" == "line" ]]; then
+    audit_noise_line_ends_sentence "$1" || return 1
+  fi
   audit_noise_split_sentences_into sentences "$1"
   for s in "${sentences[@]}"; do
     # The imperative gate is per SENTENCE, so a line that opens imperatively

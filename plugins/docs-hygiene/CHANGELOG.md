@@ -1,5 +1,36 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.7]
+
+### Fixed
+
+- **`audit-noise`'s `negation` shape now accumulates a soft-wrapped sentence
+  before classifying it (#3195).** 0.21.1's "the line must close its own
+  sentence" gate withheld every hard-wrapped prohibition: `Do not use markdown`
+  on one line with `in the summary body.` on the next never reached a verdict,
+  even though no positive is paired anywhere in that sentence. That is a silent
+  withhold — the one failure mode the detector-findings admission test asks this
+  rule set to avoid — and in a hard-wrapped repo it takes every prohibition long
+  enough to wrap.
+
+  `detect.sh` now joins paragraph lines before the `negation` classifier runs.
+  A wrapped sentence whose positive alternative sits on the continuation is not
+  flagged; a wrapped sentence with no positive is flagged and attributed to the
+  first physical line of that sentence (where the cue opens), so the fix action
+  lands on the instruction's start rather than its wrap continuation. Every
+  qualifying sentence in the paragraph is a finding (a later imperative is not
+  dropped after the first). Sibling list items are separate blocks, so a later
+  item cannot pair an earlier prohibition. Attribution offsets are taken on the
+  unwrapped join so an earlier inline-code span cannot pull the line number
+  forward. A search cursor walks the join so two identical sentences do not
+  both pin to the first occurrence's line. Findings print in line-number order
+  after the paragraph flush. The
+  other eight shapes stay line-scoped. Frontmatter, fenced code, exempt
+  sections and opt-out markers still bound the accumulation.
+
+  The "known limitation" bullet in `SKILL.md` is removed: the limitation is
+  gone, and the scope-gate bullet now describes the accumulation.
+
 ## [0.21.6]
 
 ### Fixed
