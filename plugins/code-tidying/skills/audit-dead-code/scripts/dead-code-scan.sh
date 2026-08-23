@@ -458,13 +458,31 @@ lane_gopls() {
     files_under "$root_rel" GO_FILES mod_files
     (cd "$root_abs" && "$bin" check -severity=hint -- "${mod_files[@]}") \
       >"$WORK/gopls.out" 2>"$WORK/gopls.err" || true
+    # Health is decided BEFORE a single record is made, the same order the knip
+    # and vulture lanes use. Deciding it during the parse loop was a real defect:
+    # add_candidate had already appended this module's rows by the time the gate
+    # fired, so a lane line reading "emits no records" shipped alongside the
+    # records it claimed to withhold.
+    if [[ -s "$WORK/gopls.err" ]]; then
+      degraded=1
+    else
+      while IFS= read -r g_line || [[ -n "$g_line" ]]; do
+        g_line="${g_line//$'\r'/}"
+        [[ -n "$g_line" ]] || continue
+        if dc_gopls_stdout_is_degraded "$g_line"; then
+          degraded=1
+          break
+        fi
+      done <"$WORK/gopls.out"
+    fi
+    if [[ "$degraded" == '1' ]]; then
+      lane_line gopls "$root_rel" degraded "$nfiles" \
+        'module graph or workspace did not load (import error on stdout or a non-empty stderr, always with exit 0); hints are SUPPRESSED, so this module produces false NEGATIVES and emits no records'
+      continue
+    fi
     while IFS= read -r g_line || [[ -n "$g_line" ]]; do
       g_line="${g_line//$'\r'/}"
       [[ -n "$g_line" ]] || continue
-      if dc_gopls_stdout_is_degraded "$g_line"; then
-        degraded=1
-        continue
-      fi
       dc_parse_gopls_line "$g_line" row
       case "$?" in
       0)
@@ -476,11 +494,6 @@ lane_gopls() {
       *) ;;
       esac
     done <"$WORK/gopls.out"
-    if [[ "$degraded" == '1' || -s "$WORK/gopls.err" ]]; then
-      lane_line gopls "$root_rel" degraded "$nfiles" \
-        'module graph or workspace did not load (import error on stdout or a non-empty stderr, always with exit 0); hints are SUPPRESSED, so this module produces false NEGATIVES and emits no records'
-      continue
-    fi
     if [[ "$drift" -gt 0 ]]; then
       add_candidate "$root_rel" 0 detector-drift \
         "$drift gopls stdout line(s) were not diagnostics in the file:line:col form"
@@ -592,8 +605,14 @@ LC_ALL=C sort -t"$TAB" -k1,1n -k2,2 -k3,3n "$WORK/keyed.tsv" >"$WORK/sorted.tsv"
 TOTAL_CAND="$(wc -l <"$WORK/sorted.tsv" | tr -d ' ')"
 # The cap is applied with awk, never `head`: a truncating reader that closes its
 # input early is exactly the shape this script refuses to build.
+#
+# T3 drift is EXEMPT from the cap. A drift record's file is `-` or a root name,
+# so it has no commit recency, sorts newest, and was therefore the first thing a
+# cap dropped — silently turning the one alarm this script raises about its own
+# blindness into nothing at all. SKILL.md "T3 is the drift bucket": an
+# unrecognized detector line is "recorded, never silently dropped".
 if ((MAX > 0)); then
-  awk -v m="$MAX" 'NR<=m' "$WORK/sorted.tsv" >"$WORK/capped.tsv"
+  awk -F"$TAB" -v m="$MAX" '$4 == "detector-drift" || ++n <= m' "$WORK/sorted.tsv" >"$WORK/capped.tsv"
 else
   cp "$WORK/sorted.tsv" "$WORK/capped.tsv"
 fi
