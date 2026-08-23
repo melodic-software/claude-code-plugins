@@ -44,6 +44,21 @@ the path-scoped destination structurally, not by judgment.
 `AGENTS.md`, at every level of the tree. The shim is a correctness requirement; writing the
 `AGENTS.md` alone produces a file that reviews as correct and reaches nothing.
 
+## What this plugin does NOT buy you
+
+An earlier version of this README claimed that path-scoping improves *adherence* — that a convention
+arriving when a matching file is read is followed more reliably than the same text buried in a large
+always-loaded file. **That claim was measured and not supported**, so it has been removed rather than
+softened.
+
+Across 32 trials at two bloat levels — a realistic 251-line always-loaded file and an extreme
+1,927-line one, nearly ten times the official 200-line guidance — a clear convention was followed
+**100% of the time in both arms**. Full method, caveats, and the ceiling effect the run hit:
+[`evals/adherence-results.md`](evals/adherence-results.md).
+
+Weigh a migration on context cost and on the promote lane. Do not expect your instructions to be
+obeyed better afterwards.
+
 ## The hard-deny classes
 
 Some content is never proposed for demotion, however path-local it looks: irreversible actions,

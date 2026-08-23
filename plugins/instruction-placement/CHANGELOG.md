@@ -3,6 +3,34 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **The adherence claim was measured and removed.** This plugin shipped asserting that a convention
+  delivered when a matching file is read is followed more reliably than the same text buried in a
+  large always-loaded file. `evals/adherence-experiment.sh` tested exactly that, and it did not
+  reproduce: **32 trials, two bloat levels, 100% compliance in every cell.** Even a 1,927-line
+  always-loaded file — nearly ten times the official 200-line guidance — produced no measurable
+  difference against a path-scoped rule.
+
+  The claim is removed from the README and from the audit skill's framing rather than hedged; an
+  unmeasured claim that measurement contradicts does not get to survive as a caveat. The plugin's
+  justification now rests only on what is demonstrable: context economy, the promote lane (content
+  Claude loads *never* has no presence to lose), and index reachability.
+
+  The run's limits are stated as plainly as its result in
+  [`evals/adherence-results.md`](evals/adherence-results.md) — the control arm scored 100%, so the
+  experiment had a ceiling and could not have detected a smaller effect. Untested: conventions that
+  conflict with a strong default or with each other, many rivalrous conventions at once, weaker
+  models, and instruction shapes subtler than a crisp checkable rule.
+
+### Added
+
+- **`evals/adherence-experiment.sh`** — the harness, kept so the result can be re-derived rather
+  than trusted. Interleaves arms so service drift hits both alike, defines compliance before any
+  trial runs, and takes `--filler` to vary bloat. It is built to be able to fail, and did.
+
 ## [0.4.1]
 
 ### Fixed

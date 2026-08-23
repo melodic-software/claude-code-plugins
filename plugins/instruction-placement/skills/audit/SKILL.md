@@ -29,9 +29,15 @@ metadata:
 
 Instruction content has a load cost set by the surface it sits on, and most repositories put
 everything on the most expensive one. A convention that only matters when someone edits a `.cs` file
-is paid for in every session, in every conversation, whether or not any C# is touched — and the
-official guidance is blunt about the consequence: bloated instruction files cause Claude to ignore
-the instructions inside them.
+is paid for in every session, in every conversation, whether or not any C# is touched.
+
+**The saving is context, not obedience.** Official guidance warns that bloated instruction files
+cause Claude to ignore the instructions inside them, but this plugin measured that specific claim
+and did not reproduce it: 32 trials at two bloat levels, up to 1,927 lines, found 100% compliance
+whether the convention was always-loaded or path-scoped
+([`../../evals/adherence-results.md`](../../evals/adherence-results.md)). So propose moves on
+context cost and on reaching content Claude never loads — never by promising the operator their
+instructions will be followed better afterwards.
 
 This skill finds content whose scope is narrower than the surface carrying it, and content whose
 surface Claude never reads at all, and proposes where each should go.
