@@ -234,15 +234,15 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | Skill | Plugin | Cadence | What it does |
 | --- | --- | --- | --- |
 | [`/bugs:scan`](../plugins/bugs/skills/scan/SKILL.md) | `bugs` | daily | Proactively hunt resting code for unobserved bugs, verify adversarially, report read-only |
-| [`/claude-ops:audit-install-state`](../plugins/claude-ops/skills/audit-install-state/SKILL.md) | `claude-ops` | weekly | Audit a Claude Code install directory — what is there, what the product manages, what is stale |
+| [`/claude-ops:audit-install-state`](../plugins/claude-ops/skills/audit-install-state/SKILL.md) | `claude-ops` | weekly | Audit a Claude Code install directory. What is there, what the product manages, what is stale |
 | [`/claude-ops:audit-native-overlap`](../plugins/claude-ops/skills/audit-native-overlap/SKILL.md) | `claude-ops` | weekly | Map native Claude Code surfaces against this repo's components and record human-gated verdicts |
-| [`/claude-ops:audit-performance`](../plugins/claude-ops/skills/audit-performance/SKILL.md) | `claude-ops` | continuous | Capture slowness evidence while slow — version, sweep health, tree walk, sessions, fleet |
+| [`/claude-ops:audit-performance`](../plugins/claude-ops/skills/audit-performance/SKILL.md) | `claude-ops` | continuous | Capture slowness evidence while slow. Version, sweep health, tree walk, sessions, fleet |
 | [`/claude-ops:audit-skill-visibility`](../plugins/claude-ops/skills/audit-skill-visibility/SKILL.md) | `claude-ops` | weekly | Which skills the model can actually see, which are starved, and which are unobservable |
 | [`/claude-ops:inventory`](../plugins/claude-ops/skills/inventory/SKILL.md) | `claude-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |
 | [`/claude-ops:lanes`](../plugins/claude-ops/skills/lanes/SKILL.md) | `claude-ops` | daily | Start, restart, stop, and check loop lanes as named background sessions |
-| [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view — queues, merge-ready PRs, parked decisions |
-| [`/claude-ops:observability`](../plugins/claude-ops/skills/observability/SKILL.md) | `claude-ops` | weekly | Report on locally captured telemetry — token burn, cost, hook latency, trends |
-| [`/claude-ops:plugins`](../plugins/claude-ops/skills/plugins/SKILL.md) | `claude-ops` | weekly | Bring the machine's plugin fleet current — refresh, update, install per policy |
+| [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |
+| [`/claude-ops:observability`](../plugins/claude-ops/skills/observability/SKILL.md) | `claude-ops` | weekly | Report on locally captured telemetry. Token burn, cost, hook latency, trends |
+| [`/claude-ops:plugins`](../plugins/claude-ops/skills/plugins/SKILL.md) | `claude-ops` | weekly | Bring the machine's plugin fleet current. Refresh, update, install per policy |
 | [`/repo-fleet-hygiene:apply`](../plugins/repo-fleet-hygiene/skills/apply/SKILL.md) | `repo-fleet-hygiene` | weekly | Execute a fleet action plan behind one confirmation gate |
 | [`/repo-fleet-hygiene:audit`](../plugins/repo-fleet-hygiene/skills/audit/SKILL.md) | `repo-fleet-hygiene` | weekly | Discover a repository fleet and coordinate read-only evidence handoffs |
 | [`/source-control:babysit-loop`](../plugins/source-control/skills/babysit-loop/SKILL.md) | `source-control` | continuous | Run one repo's PR queue as a standing merge lane |
