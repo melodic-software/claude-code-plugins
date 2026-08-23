@@ -118,24 +118,26 @@
     },
     {
       "id": "include-git-instructions",
-      "title": "includeGitInstructions: false",
-      "mechanism": "Removes the git commit/PR instruction prose that rides inside the Bash tool's description.",
+      "title": "includeGitInstructions: false / CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS",
+      "mechanism": "Removes the git commit/PR instruction prose that rides inside the Bash tool's description. The env var overrides the settings key (binary predicate at the verified version: a set env wins; otherwise includeGitInstructions defaults true).",
       "category": "removes-weight",
-      "categoryBasis": "Settings row documented; measured at the verified version — with the saving landing in the System tools bucket, not System prompt, because the text lives in a tool description.",
+      "categoryBasis": "Settings row documented; the env override is implemented in the binary but is not on the public env-vars page. Measured at the verified version — the saving lands in the System tools bucket, not System prompt, because the text lives in a tool description.",
       "conditions": null,
       "posture": "recommendable-on-fit",
-      "scope": "Settings key.",
-      "detection": "includeGitInstructions across settings scopes.",
-      "measurement": "snapshot before/after the setting; watch System tools, not System prompt (the docs describe it as a system-prompt lever; the measured landing bucket differs — report what measures).",
+      "scope": "Settings key (recommended emitted config); env var CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS as the headless measurement route (no settings write).",
+      "detection": "includeGitInstructions across settings scopes; CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS in the environment.",
+      "measurement": "snapshot with and without CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS in the spawned environment (no settings write); watch System tools, not System prompt (the docs describe it as a system-prompt lever; the measured landing bucket differs — report what measures).",
       "emittedConfig": "{\"includeGitInstructions\": false}",
       "caveats": [
-        "Trades away built-in commit/PR guidance; a repo relying on it should keep it or replace it with its own conventions."
+        "Trades away built-in commit/PR guidance; a repo relying on it should keep it or replace it with its own conventions.",
+        "The env form is the measurement route (headless, no settings write) and is unverified-undocumented as a public env-vars row; keep the settings key as the recommended emitted config.",
+        "Headless sdk-mode /context may omit a System prompt category at this version; prompt-text deltas then surface only in the buckets that move (System tools here)."
       ],
       "citations": [
         "https://code.claude.com/docs/en/settings-reference#includegitinstructions"
       ],
       "verified": "2026-08-23",
-      "recheckTrigger": "The settings row's wording changes, or the measured delta stops landing in System tools."
+      "recheckTrigger": "The settings row's wording changes, the env override disappears from the binary, or the measured delta stops landing in System tools."
     },
     {
       "id": "simple-system-prompt",
@@ -143,20 +145,21 @@
       "mechanism": "Switches to the lean system prompt on models where the full prompt is default.",
       "category": "removes-weight",
       "categoryBasis": "Env row documented; measured large on some models and a measured no-op on models where the lean prompt is already default.",
-      "conditions": "Model-dependent: on models whose default is already lean it measures zero. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including a zero.",
+      "conditions": "Model-dependent, and the dependence is resolvable from the binary's lean-prompt selector rather than only from a measured zero: the full-prompt path is the legacy list (model id contains `claude-3-`, `haiku`, or `sonnet`, or equals `claude-opus-4-0` / `claude-opus-4-1` / `claude-opus-4-5` / `claude-opus-4-6` / `claude-opus-4-7`); everything else — including the opus-5 family — already defaults lean, so the env var can only measure zero there. A zero on those models is explained (already-default), not merely reported. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including an explained zero.",
       "posture": "recommendable-on-fit",
       "scope": "Environment variable only; no settings key.",
       "detection": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT in the environment; the session model from the baseline snapshot.",
-      "measurement": "snapshot with and without the variable in the spawned environment; compare System prompt.",
+      "measurement": "snapshot with and without the variable in the spawned environment; compare System prompt (and System tools, if the prompt category is omitted).",
       "emittedConfig": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1 (environment; no settings.json form)",
       "caveats": [
-        "Distinct from CLAUDE_CODE_SIMPLE (--bare): two separately registered variables. The sibling disables fetches, keychain reads, and CLAUDE.md auto-discovery — a behavior change, not a prompt trim. Never conflate them."
+        "Distinct from CLAUDE_CODE_SIMPLE (--bare): two separately registered variables. The sibling disables fetches, keychain reads, and CLAUDE.md auto-discovery — a behavior change, not a prompt trim. Never conflate them.",
+        "Headless sdk-mode /context may omit a System prompt category at this version; a lean-vs-full delta then surfaces only in the buckets that move."
       ],
       "citations": [
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-08-17",
-      "recheckTrigger": "Either variable's env-vars row changes, or the lean prompt becomes default everywhere (the lever then measures zero universally)."
+      "verified": "2026-08-23",
+      "recheckTrigger": "Either variable's env-vars row changes, the binary's legacy full-prompt list changes, or the lean prompt becomes default everywhere (the lever then measures zero universally)."
     },
     {
       "id": "bare-simple-mode",

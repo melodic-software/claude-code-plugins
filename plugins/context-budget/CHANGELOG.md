@@ -5,6 +5,18 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.9]
+
+### Changed
+
+- **Catalogue:** `include-git-instructions` now names `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS` as
+  the headless measurement route (env overrides the settings key in the binary; the env name
+  is not on the public env-vars page, so it stays a measurement route and the settings key
+  remains the recommended emitted config). `simple-system-prompt`'s `conditions` now resolve the
+  model-dependence from the binary's lean-prompt selector: opus-5-family models already default
+  lean, so a measured zero there is explained (already-default), not merely reported
+  ([#3200](https://github.com/melodic-software/claude-code-plugins/issues/3200)).
+
 ## [0.6.8]
 
 ### Added

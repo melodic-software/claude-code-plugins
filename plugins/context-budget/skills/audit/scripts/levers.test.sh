@@ -120,6 +120,45 @@ else
   while IFS= read -r line; do fail "$line"; done <<<"$citeout"
 fi
 
+# #3200 — env measurement route + resolvable simple-system-prompt condition.
+routeout="$(node -e '
+const cat = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+const problems = [];
+const git = (cat.levers ?? []).find((l) => l.id === "include-git-instructions");
+if (!git) problems.push("missing include-git-instructions");
+else {
+  const blob = [git.title, git.mechanism, git.scope, git.detection, git.measurement, ...(git.caveats ?? [])].join("\n");
+  if (!blob.includes("CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS")) {
+    problems.push("include-git-instructions does not name CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS");
+  }
+  if (!/unverified-undocumented/i.test(blob)) {
+    problems.push("include-git-instructions does not mark the env form unverified-undocumented");
+  }
+  if (!String(git.emittedConfig || "").includes("includeGitInstructions")) {
+    problems.push("include-git-instructions dropped the settings key as emitted config");
+  }
+}
+const lean = (cat.levers ?? []).find((l) => l.id === "simple-system-prompt");
+if (!lean) problems.push("missing simple-system-prompt");
+else {
+  const cond = String(lean.conditions || "");
+  if (!/opus-5/i.test(cond)) problems.push("simple-system-prompt conditions do not name opus-5");
+  if (!/already-default|already defaults lean/i.test(cond)) {
+    problems.push("simple-system-prompt conditions do not explain a zero as already-default");
+  }
+  if (!/legacy list|claude-opus-4-0/i.test(cond)) {
+    problems.push("simple-system-prompt conditions do not cite the binary legacy-list check");
+  }
+}
+console.log(problems.length ? problems.join("\n") : "CLEAN");
+' "$CATALOGUE")"
+
+if [[ "$routeout" == "CLEAN" ]]; then
+  ok "include-git-instructions names the env route; simple-system-prompt resolves opus-5 lean default"
+else
+  while IFS= read -r line; do fail "$line"; done <<<"$routeout"
+fi
+
 echo
 echo "passed: $PASS, failed: $FAIL"
 [[ $FAIL -eq 0 ]] || exit 1
