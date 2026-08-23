@@ -1,5 +1,26 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.2]
+
+### Fixed
+
+- **`audit-noise`'s stated `negation` limitation described behavior the skill no longer has, in the
+  wrong direction (#3195).** 0.21.1's "the line must close its own sentence" gate silently changed
+  what happens to a soft-wrapped prohibition, and the "known limitation" bullet in `SKILL.md` was
+  left describing 0.21.0. It claimed `Do not use markdown;` / `compose prose instead.` across two
+  lines **is reported**; measured on the shipped detector it is not — `;` never terminates a
+  sentence, so the line reaches no verdict. It also claimed the error direction "is a false
+  positive, never a silent withhold". That is now inverted: a hard-wrapped prohibition with no
+  positive alternative anywhere in its sentence is missed entirely.
+
+  The correction matters beyond wording. A silent withhold is the one failure mode the
+  detector-findings admission test asks this rule set to avoid, and in a hard-wrapped repo it takes
+  every prohibition long enough to wrap — so the bullet now names it as the shape's one departure
+  from fail-safe-toward-emitting rather than reassuring a reader that coverage is safe. The
+  deferral pointer is unchanged; #3195 carries the revised acceptance criteria.
+
+  Documentation only — no detector, emitter or test behavior changes.
+
 ## [0.21.1]
 
 ### Fixed
