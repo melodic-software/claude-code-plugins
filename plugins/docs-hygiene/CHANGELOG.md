@@ -1,5 +1,29 @@
 # Changelog — docs-hygiene plugin
 
+## [0.20.1]
+
+### Fixed
+
+- **`audit-noise`'s `SKILL.md` preview line dropped the same paths `detect.sh` used to
+  drop (#3143).** 0.19.1 fixed the porcelain parse in `detect.sh` and left the
+  `Uncommitted .md files:` pre-computed-context line in `SKILL.md` untouched. That line
+  previews the same discovery with `grep '\.md$'` rather than with the parse, so it shared
+  the defect *class* without sharing the code — and it survived the fix that removed the
+  class everywhere else.
+
+  Git C-quotes any path it treats specially, and a quoted porcelain record ends with the
+  closing quote, not `.md`. So `grep '\.md$'` matched nothing for a file named
+  `my notes.md`, `notes -> draft.md`, or `back\-slash.md`, and the preview reported those
+  files as absent with no signal — the same silent false negative, reaching the model one
+  surface earlier. Now `grep -E '\.md"?$'`.
+
+  The regression test **extracts the grep out of `SKILL.md` and executes it** rather than
+  restating it. A restatement would keep passing while the real line rotted, which is how
+  the two surfaces came apart in the first place: `detect.sh` was fixed and its preview
+  was not. Verified as a discriminator — reverting only the `SKILL.md` line fails exactly
+  the quoted-path assertion while the ordinary-path assertion still passes, so the case
+  cannot pass vacuously.
+
 ## [0.20.0]
 
 ### Added
