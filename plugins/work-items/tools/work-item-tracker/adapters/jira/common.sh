@@ -152,7 +152,7 @@ wit_need_jira_config() {
   # while site/project_keys and the JQL-shaping keys stay team-only.
   ejson="$(wit_effective_binding_json "$binding")" ||
     {
-      printf '%s: invalid binding at %s — see CONTRACT.md Setup\n' "$name" "$binding" >&2
+      printf '%s: invalid binding at %s — run /work-items:setup check for the itemized breakdown; see CONTRACT.md Setup\n' "$name" "$binding" >&2
       exit "$EX_CONFIG"
     }
   WIT_JIRA_SITE="$(jq -r '.config.jira.site // empty' <<<"$ejson")"
