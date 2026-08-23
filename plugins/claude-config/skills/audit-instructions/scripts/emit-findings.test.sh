@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# Regression tests for emit-findings.sh (self-contained — ships with the plugin).
+#
+# The body-scope cases are the load-bearing ones: check-skill.sh check 3 hard-FAILs
+# a dropped `'trigger phrase'` versus the base ref, so a finding whose remediation
+# edits a description, when_to_use, or a quoted trigger phrase is an
+# auto-invocation regression. Those cases assert the WRITER's own fence, fed
+# deliberately-unfenced input, because a fence that lives only in the caller is
+# one caller away from being bypassed.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EMIT="$SCRIPT_DIR/emit-findings.sh"
+SCAN="$SCRIPT_DIR/instruction-scan.sh"
+FIXTURES="$(cd "$SCRIPT_DIR/../evals/fixtures" && pwd)"
+
+TEST_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
+
+FAILED=0
+CASE_NUM=0
+
+pass() {
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'PASS: %s\n' "$1"
+}
+fail() {
+  CASE_NUM=$((CASE_NUM + 1))
+  FAILED=$((FAILED + 1))
+  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
+}
+assert_eq() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
+}
+assert_exit() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
+}
+assert_contains() {
+  case "$2" in
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
+  esac
+}
+assert_not_contains() {
+  case "$2" in
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
+  esac
+}
+
+if ! command -v grep >/dev/null 2>&1 || ! command -v awk >/dev/null 2>&1; then
+  echo "SKIP: grep and awk required" >&2
+  exit 0
+fi
+
+emit() { # emit <scan-file> <out> -> stdout of the written file
+  bash "$EMIT" --from "$1" --out "$2" --branch testbranch >/dev/null 2>&1
+  cat "$2" 2>/dev/null
+}
+
+# --- Case 1: --help ----------------------------------------------------------
+rc=0
+OUT=$(bash "$EMIT" --help) || rc=$?
+assert_exit "--help exits 0" 0 "$rc"
+assert_contains "--help prints usage" "$OUT" "Usage:"
+
+# --- Case 2: usage errors ----------------------------------------------------
+rc=0
+bash "$EMIT" >/dev/null 2>&1 || rc=$?
+assert_exit "no args exits 2" 2 "$rc"
+rc=0
+bash "$EMIT" --from /nonexistent/x --out "$TEST_TMPDIR/o.md" >/dev/null 2>&1 || rc=$?
+assert_exit "missing --from file exits 2" 2 "$rc"
+rc=0
+bash "$EMIT" --from "$FIXTURES/protected-content.md" --out "$TEST_TMPDIR/o.md" --bogus >/dev/null 2>&1 || rc=$?
+assert_exit "unknown argument exits 2" 2 "$rc"
+
+# --- Case 3: non-scanner input refused (exit 3) ------------------------------
+NOTSCAN="$TEST_TMPDIR/notscan.txt"
+printf 'this is not scanner output\nneither is this\n' >"$NOTSCAN"
+rc=0
+bash "$EMIT" --from "$NOTSCAN" --out "$TEST_TMPDIR/o3.md" >/dev/null 2>&1 || rc=$?
+assert_exit "input with no scan rows exits 3" 3 "$rc"
+if [[ -e "$TEST_TMPDIR/o3.md" ]]; then
+  fail "refused input writes no file" "o3.md was created"
+else
+  pass "refused input writes no file"
+fi
+
+# --- Case 4: conforming frontmatter ------------------------------------------
+bash "$SCAN" --body-only "$FIXTURES/frontmatter-emphasis.md" >"$TEST_TMPDIR/fm.txt"
+OUT=$(emit "$TEST_TMPDIR/fm.txt" "$TEST_TMPDIR/fm.md")
+assert_contains "declares type: review-findings" "$OUT" "type: review-findings"
+assert_contains "carries the branch it was told" "$OUT" "branch: testbranch"
+assert_contains "carries a ## Findings section" "$OUT" "## Findings"
+assert_contains "carries a ## Surfaces section" "$OUT" "## Surfaces"
+DATE_LINE=$(printf '%s\n' "$OUT" | grep '^date:')
+if printf '%s\n' "$DATE_LINE" | grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'; then
+  pass "date: is a full ISO-8601 UTC instant the consumer can parse"
+else
+  fail "date: is a full ISO-8601 UTC instant the consumer can parse" "got: $DATE_LINE"
+fi
+
+# --- Case 5: BODY-SCOPE FENCE (negative test, the container hard constraint) --
+# Feed the writer DELIBERATELY UNFENCED scan output. Its own fence must decline
+# every frontmatter row, so no emitted remediation can touch a description or a
+# when_to_use.
+bash "$SCAN" "$FIXTURES/frontmatter-emphasis.md" >"$TEST_TMPDIR/unfenced.txt"
+assert_contains "unfenced input really does carry frontmatter rows" \
+  "$(cat "$TEST_TMPDIR/unfenced.txt")" "frontmatter-emphasis.md:2:I28-a"
+OUT=$(emit "$TEST_TMPDIR/unfenced.txt" "$TEST_TMPDIR/unfenced.md")
+ROWS=$(printf '%s\n' "$OUT" | grep -c '^| [0-9]')
+assert_eq "unfenced input still emits only the 2 body rows" "2" "$ROWS"
+assert_not_contains "no emitted row points at the description line" "$OUT" "frontmatter-emphasis.md:2"
+assert_not_contains "no emitted row points at the when_to_use line" "$OUT" "frontmatter-emphasis.md:3"
+assert_contains "frontmatter declines are reported, never silent" "$OUT" "reason=frontmatter (body-scope fence)"
+
+# --- Case 6: quoted-trigger-phrase fence -------------------------------------
+bash "$SCAN" --body-only "$FIXTURES/quoted-trigger.md" >"$TEST_TMPDIR/qt.txt"
+OUT=$(emit "$TEST_TMPDIR/qt.txt" "$TEST_TMPDIR/qt.md")
+assert_not_contains "a body line quoting a description trigger phrase is not emitted" \
+  "$OUT" "quoted-trigger.md:7"
+assert_contains "a body line with no quoted trigger phrase still emits" "$OUT" "quoted-trigger.md:8"
+assert_contains "trigger-phrase declines are reported, never silent" \
+  "$OUT" "reason=quoted-trigger-phrase (body-scope fence)"
+
+# --- Case 7: protected content produces no I28 row ---------------------------
+# One line per protected category named by the container spec. The scanner may
+# mark other families on this file; none may reach the findings file, because
+# none of them has a severity-crosswalk row.
+bash "$SCAN" --body-only "$FIXTURES/protected-content.md" >"$TEST_TMPDIR/pc.txt"
+assert_not_contains "no I28 candidate on any protected-content line" \
+  "$(cat "$TEST_TMPDIR/pc.txt")" "I28"
+OUT=$(emit "$TEST_TMPDIR/pc.txt" "$TEST_TMPDIR/pc.md")
+ROWS=$(printf '%s\n' "$OUT" | grep -c '^| [0-9]')
+assert_eq "protected content emits zero findings" "0" "$ROWS"
+assert_contains "a zero-finding run still writes coverage" "$OUT" "## Surfaces"
+assert_contains "both rules reported as returning no result" "$OUT" "Returned no result:"
+
+# --- Case 8: only crosswalk-backed rules are emitted -------------------------
+# I6/I8/I10/I23/I25/I27 have no severity-crosswalk row, so the contract admits no
+# row for them; they must be counted as declined rather than dropped.
+MIXED="$TEST_TMPDIR/mixed.txt"
+{
+  printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-a"
+  printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I6"
+  printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I23"
+} >"$MIXED"
+OUT=$(emit "$MIXED" "$TEST_TMPDIR/mixed.md")
+ROWS=$(printf '%s\n' "$OUT" | grep -c '^| [0-9]')
+assert_eq "only the I28 row is emitted from a mixed input" "1" "$ROWS"
+assert_contains "non-crosswalk families are declined with a reason" \
+  "$OUT" "reason=no-severity-crosswalk-row"
+
+# --- Case 9: DOWNGRADE contract in the Action cell ---------------------------
+# The remediation is a downgrade, never a deletion: the directive survives and
+# only its volume changes. The byte-for-byte survival of a specific directive is
+# proved end-to-end against the apply relay; what is mechanically checkable here
+# is that no emitted Action instructs a deletion, and that both instruct survival.
+bash "$SCAN" --body-only "$FIXTURES/frontmatter-emphasis.md" >"$TEST_TMPDIR/dg.txt"
+OUT=$(emit "$TEST_TMPDIR/dg.txt" "$TEST_TMPDIR/dg.md")
+assert_contains "coercive-emphasis Action names the downgrade, not a deletion" \
+  "$OUT" "Downgrade the emphasis, never the directive"
+assert_contains "coercive-emphasis Action requires the directive to survive" \
+  "$OUT" "must survive the edit"
+assert_contains "blanket-default Action keeps the instruction" \
+  "$OUT" "do not delete the instruction"
+ACTIONS=$(printf '%s\n' "$OUT" | grep '^| [0-9]' | sed 's/.*| \(Downgrade\|Replace\)/\1/')
+assert_not_contains "no Action instructs removing the instruction" "$ACTIONS" "Remove the instruction"
+assert_not_contains "no Action instructs deleting the line" "$ACTIONS" "Delete the line"
+
+# --- Case 10: tier and confidence are rule-keyed, not per-finding ------------
+TIERS=$(printf '%s\n' "$OUT" | grep '^| [0-9]' | awk -F'|' '{print $3}' | tr -d ' ' | sort -u)
+assert_eq "every emitted row carries the crosswalk tier" "IMPORTANT" "$TIERS"
+CONFS=$(printf '%s\n' "$OUT" | grep '^| [0-9]' | awk -F'|' '{print $4}' | tr -d ' ' | sort -u)
+assert_eq "confidence is high, never low" "high" "$CONFS"
+
+# --- Case 11: every Finding cell leads with the qualified rule id ------------
+BAD=0
+while IFS= read -r row; do
+  [[ -n "$row" ]] || continue
+  cell=$(printf '%s\n' "$row" | awk -F'|' '{print $7}' | sed 's/^ *//')
+  case "$cell" in
+  "claude-config/audit-instructions/rule-"*) ;;
+  *) BAD=$((BAD + 1)) ;;
+  esac
+done < <(printf '%s\n' "$OUT" | grep '^| [0-9]')
+assert_eq "every Finding cell leads with the qualified rule id" "0" "$BAD"
+assert_contains "the fired condition carries the run's own value" "$OUT" 'marker="CRITICAL:"'
+
+# --- Case 12: non-overwrite naming -------------------------------------------
+bash "$EMIT" --from "$TEST_TMPDIR/dg.txt" --out "$TEST_TMPDIR/dup.md" --branch testbranch >/dev/null 2>&1
+bash "$EMIT" --from "$TEST_TMPDIR/dg.txt" --out "$TEST_TMPDIR/dup.md" --branch testbranch >/dev/null 2>&1
+if [[ -f "$TEST_TMPDIR/dup.md" && -f "$TEST_TMPDIR/dup-2.md" ]]; then
+  pass "a second write takes the -2 suffix instead of clobbering"
+else
+  fail "a second write takes the -2 suffix instead of clobbering" "dup-2.md missing"
+fi
+
+# --- Case 13: cell escaping ---------------------------------------------------
+PIPEF="$TEST_TMPDIR/pipe.md"
+printf 'CRITICAL: run `a | b | c` before pushing.\n' >"$PIPEF"
+bash "$SCAN" --body-only "$PIPEF" >"$TEST_TMPDIR/pipe.txt"
+OUT=$(emit "$TEST_TMPDIR/pipe.txt" "$TEST_TMPDIR/pipe-out.md")
+ROW=$(printf '%s\n' "$OUT" | grep '^| [0-9]')
+assert_contains "literal pipes in the excerpt are escaped" "$ROW" '\|'
+# Count columns the way the consumer's markdown parse does: an escaped `\|` is a
+# literal, not a delimiter, so strip the escapes before counting. Splitting on
+# every `|` (as bare awk -F'|' does) would count them as separators and is
+# precisely the misread the escaping exists to prevent.
+COLS=$(printf '%s\n' "$ROW" | sed 's/\\|//g' | awk -F'|' '{print NF}')
+assert_eq "an excerpt containing pipes still parses as one 7-column row" "9" "$COLS"
+
+# --- Summary -----------------------------------------------------------------
+printf '\n'
+if [[ "$FAILED" -gt 0 ]]; then
+  printf '%d of %d checks FAILED.\n' "$FAILED" "$CASE_NUM" >&2
+  exit 1
+fi
+printf 'All %d checks passed.\n' "$CASE_NUM"
