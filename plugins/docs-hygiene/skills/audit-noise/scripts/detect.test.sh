@@ -517,6 +517,42 @@ assert_not_contains "live 'in this PR' referent is not a plan reference" \
   "$res_neg_out" "Finding shape: plan-reference"
 assert_contains "prose negatives file is clean" "$res_neg_out" "| T1=0 T2=0 T3=0"
 
+# --- 11e. conversational-antecedent: passive form and the `in` follower ---------------
+
+ANTE_POS="$TEST_TMPDIR/antecedent-positive.md"
+cat >"$ANTE_POS" <<'EOF'
+# Antecedent positives fixture
+
+As requested, retry the shard sweep three times.
+As we discussed in yesterday's meeting, cap the retry budget.
+As we decided in favor of streaming, the buffer is gone.
+The change was requested by the operator, so the default flipped.
+Fields come back as requested by the client.
+EOF
+ante_pos_out="$(bash "$DETECT" "$ANTE_POS")"
+assert_contains "actor-less 'As requested,' flags" "$ante_pos_out" "retry the shard sweep three times"
+assert_contains "'in' ahead of a conversation flags" "$ante_pos_out" "cap the retry budget"
+assert_contains "'in favor of' is not a document locator" "$ante_pos_out" "the buffer is gone"
+assert_not_contains "'was requested' is not the passive antecedent" "$ante_pos_out" "the default flipped"
+assert_not_contains "'as requested by' attribution is not the passive antecedent" \
+  "$ante_pos_out" "come back as requested"
+assert_contains "antecedent positives count" "$ante_pos_out" "| T1=3 T2=0 T3=0"
+
+ANTE_NEG="$TEST_TMPDIR/antecedent-negative.md"
+cat >"$ANTE_NEG" <<'EOF'
+# Antecedent exemptions fixture
+
+As we discussed above, the resolver reads the team-tracked file only.
+As we agreed Above, follower case does not decide the match.
+As we decided in §3, the resolver reads the team-tracked file only.
+As we decided in the ADR, the resolver reads the team-tracked file only.
+As we decided in the previous section, the resolver reads it.
+EOF
+ante_neg_out="$(bash "$DETECT" "$ANTE_NEG")"
+assert_not_contains "document locators keep the antecedent unflagged" \
+  "$ante_neg_out" "Finding shape: conversational-antecedent"
+assert_contains "antecedent exemptions file is clean" "$ante_neg_out" "| T1=0 T2=0 T3=0"
+
 # --- Chunk affordance: --offset / --limit over the sorted target list ----------------
 
 CHUNK_A="$TEST_TMPDIR/chunk-a.md"

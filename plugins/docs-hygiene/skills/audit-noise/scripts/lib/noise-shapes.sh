@@ -105,19 +105,68 @@ audit_noise_line_has_ghost_ref() {
 # All three scan the inline-code strip, so a shape-definition example written
 # in backticks does not self-match.
 
+# True when the text following an antecedent's `in` names a written locus a
+# future reader can still open — a position inside this page, or a named
+# durable document — rather than the conversation or circumstance the sentence
+# came out of. The input is the raw follower text: it is lowercased here (the
+# follower used to be compared case-sensitively, so a capitalised one fell
+# through) and cut at the first clause break, so a locator noun in a LATER
+# clause cannot exempt the antecedent. Two deliberate absences: tracker nouns
+# (`issue`, `ticket`, `PR`) — a decision parked in a tracker is provenance,
+# which ticket-pr-residue owns and this shape must not launder — and nouns for
+# the conversation itself (`meeting`, `call`, `thread`, `review`), which are
+# the residue. `part` and `phase` are absent too: "in part" is an idiom, and a
+# phase is a stage of work, not a place in a document.
+audit_noise_follower_is_document_locator() {
+  local head="${1,,}"
+  # Empty: an inline-code reference (`docs/x.md`) the strip removed, or a line
+  # that ends on the preposition. Both are references, not conversation.
+  [[ -z "${head//[[:space:]]/}" ]] && return 0
+  head="${head#"${head%%[![:space:]]*}"}"
+  head="${head%%,*}"
+  head="${head%%;*}"
+  head="${head%%. *}"
+  # A markdown link, a section sign, or a path is a locus outright. `#` counts
+  # only ahead of a letter: `#anchor` is an anchor, `#482` is a tracker ref.
+  [[ "$head" == '['* || "$head" == *'§'* || "$head" == '#'[a-z]* ]] && return 0
+  [[ "${head%% *}" == */* ]] && return 0
+  [[ "$head" =~ (^|[^a-z])(section|sections|chapter|chapters|appendix|step|steps|table|tables|figure|paragraph|adr|adrs|rfc|rfcs|spec|specs|specification|readme|changelog|convention|conventions|guide|schema|doc|docs|document|documentation)([^a-z]|$) ]] && return 0
+  return 1
+}
+
 # The sentence addresses the requester or the conversation that produced the
-# text. An anaphoric follower ("as we discussed above / below / in section 3")
-# makes it an intra-document cross-reference instead — legitimate, not residue.
+# text. Exactly two followers stand the shape down: an anaphoric adverb ("as we
+# discussed above / earlier"), and `in` in front of a document locator ("as we
+# decided in §3 / in the ADR"). A bare `in` used to exempt the whole sentence,
+# which correctly spared "as we decided in the ADR" but also spared "as we
+# decided in favor of X" and "as we discussed in yesterday's meeting" — both
+# residue, because the referent is the conversation, not a document.
+# The actor-less passive ("As requested, retry three times") is the same shape
+# without the pronoun, but it is matched only as a clause-final adverbial:
+# bounded that way, the live attribution "as requested by the client" and the
+# ordinary verb phrase "was requested" stay out without a second pattern.
+# Closing quotes are not clause breaks here on purpose — behind one the words
+# are a quoted voice, not the page's own address to its reader.
 audit_noise_line_has_conversational_antecedent() {
-  local line="$1"
+  local line="$1" rest follower
   [[ "$line" =~ [Pp]er[[:space:]]+your[[:space:]]+request ]] && return 0
   [[ "$line" =~ [Pp]er[[:space:]]+our[[:space:]]+(conversation|discussion|chat) ]] && return 0
   [[ "$line" =~ [Ll]ike[[:space:]]+you[[:space:]]+said ]] && return 0
-  if [[ "$line" =~ [Aa]s[[:space:]]+(you|we)[[:space:]]+(asked|requested|discussed|agreed|decided)([[:space:]]+([A-Za-z]+))? ]]; then
-    case "${BASH_REMATCH[4]:-}" in
-    above | below | earlier | later | previously | elsewhere | in | under | at | on) return 1 ;;
-    *) return 0 ;;
-    esac
+  [[ "$line" =~ (^|[^A-Za-z])[Aa]s[[:space:]]+requested[[:space:]]*([,;:.!?]|\)|$) ]] && return 0
+  if [[ "$line" =~ [Aa]s[[:space:]]+(you|we)[[:space:]]+(asked|requested|discussed|agreed|decided)(.*)$ ]]; then
+    rest="${BASH_REMATCH[3]}"
+    # A follower counts only as a whole word behind whitespace, so punctuation
+    # ("as you asked, …") leaves the antecedent flagged.
+    if [[ "$rest" =~ ^[[:space:]]+([A-Za-z]+)(.*)$ ]]; then
+      follower="${BASH_REMATCH[1],,}"
+      rest="${BASH_REMATCH[2]}"
+      case "$follower" in
+      above | below | earlier | later | previously | elsewhere | under | at | on) return 1 ;;
+      in) audit_noise_follower_is_document_locator "$rest" && return 1 ;;
+      *) ;;
+      esac
+    fi
+    return 0
   fi
   return 1
 }

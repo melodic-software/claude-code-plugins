@@ -36,6 +36,23 @@
   follower (`above`, `below`, `in §3`), which makes it an intra-document cross-reference. Those
   tightenings cut the corpus delta from 32 findings to 12.
 
+  **`conversational-antecedent`'s follower test asks what the reference points AT**, rather than
+  which preposition introduces it. A bare `in` exemption would have spared "as we decided in the
+  ADR" (right) and "as we decided in favor of X" or "as we discussed in yesterday's meeting"
+  (wrong — the referent there is the conversation, not a document), so `in` stands the shape down
+  only ahead of a document locator: a `§` or `#anchor`, a section/chapter/step/table, a link or
+  path, an inline-code reference the strip removed, or a named durable document. Tracker nouns are
+  deliberately absent from that set — a decision parked in an issue is provenance, which
+  `ticket-pr-residue` owns and this shape must not launder — as are nouns for the conversation
+  itself. Followers are compared case-insensitively, so a capitalised `Above` no longer falls
+  through.
+
+  **The actor-less passive `As requested, …` is the same shape without the pronoun**, and it is
+  matched only as a clause-final adverbial. That bound is what keeps the live attribution "as
+  requested by the client" and the ordinary verb phrase "was requested" out, without a second
+  pattern to maintain; a closing quote does not count as the clause break, because behind one the
+  words are a quoted voice rather than the page's own address to its reader.
+
   **`ticket-pr-residue`'s carve-out is restated in markdown terms** rather than inherited: a task-list
   checklist item (`- [ ] … #123`) and a `TODO(#123)`-family marker are never flagged, because both
   denote OUTSTANDING tracked work — the reference is the actionable part of the line — which is what
