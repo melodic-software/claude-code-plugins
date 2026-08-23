@@ -96,7 +96,7 @@ Create `plugins/bug-report/skills/scan/` and the shared config reference:
 
 **Sanity Check:** `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/bug-report/skills" bash plugins/skill-quality/scripts/check-skill.sh --require-evals scan` exits 0. `grep -o 'review:security-review\|debugging:debug\|codebase-health:audit\|code-tidying:tidy\|scan-todos\|testing:audit\|mutation-testing:audit\|review:fanout\|review:code-review\|quality-gate' plugins/bug-report/skills/scan/SKILL.md | sort -u | wc -l` ≥ 8. `grep -q '^type: review-findings' plugins/bug-report/skills/scan/context/findings-report.md` exits non-zero (absence). `check-jsonschema --schemafile plugins/skill-quality/reference/evals.schema.json plugins/bug-report/skills/scan/evals/evals.json` exits 0 (CI runs this via pinned action; locally installed here). `awk '/^description:/' plugins/bug-report/skills/scan/SKILL.md | wc -c` ≤ 1536.
 
-### Phase 2: setup extension + tracked config contract [TODO]
+### Phase 2: setup extension + tracked config contract [DONE]
 
 - `plugins/bug-report/skills/setup/SKILL.md` — extend the CURRENT main text (0.7.4 rewrite) to the `check|apply` narrow-write shape (PLUGIN-PHILOSOPHY :406-412): `apply` bounded to `.claude/bug-report.md` only; the now-false userConfig-only carve-out replaced in BOTH the frontmatter description and the body; cascade layers + merge semantics cited from `reference/config.md` (Phase 1's shared home), not restated; key partition rule (`output_dir` stays userConfig, never in the cascade file).
 - `docs/conventions/config-cascade/README.md` — add `bug-report` Implementers row (all three layers | conforms).
