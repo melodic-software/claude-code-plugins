@@ -1357,8 +1357,8 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
 3. **Install and seed config.** Pass every option on the install command: `claude plugin
    install <plugin>@<marketplace> --scope project --config KEY=VALUE …` (repeatable, schema-validated).
    Non-sensitive options land in the **user** `settings.json` `pluginConfigs` regardless of the enable
-   scope — documented behavior, not an observation: project and local entries are ignored since Claude
-   Code 2.1.207 (seam 1 above). A sensitive value still routes to secure credential storage
+   scope — documented behavior, not an observation: seam 1 above records that non-sensitive values
+   **store** in user settings. A sensitive value still routes to secure credential storage
    (smoke-tests A and C).
    Re-running that command later against an already-installed plugin prints `already installed`
    **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
@@ -1366,8 +1366,8 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    scope** on Claude Code 2.1.240 and **not** at the `--scope project` this step uses, so read the
    stored value back — for a non-sensitive option, from the **user** `settings.json` `pluginConfigs`
    per the storage rule above, not from the project settings this command names; a `sensitive` value
-   is not there at all and reads back from secure credential storage — rather than assuming the write
-   landed. Interactively, `/plugin configure` owns personal
+   is absent from settings entirely (smoke-test A), so this readback does not apply to one — rather
+   than assuming the write landed. Interactively, `/plugin configure` owns personal
    `userConfig`; an explicit setup skill owns any separate tracked project configuration declared by
    the plugin.
 4. **Headless prompting caveat.** Install never prompts non-interactively — a required `userConfig`
@@ -1421,8 +1421,8 @@ surface to a published plugin for a single consumer's low-value nicety.
    verified for a **non-sensitive option at `user` scope** on Claude Code 2.1.240 and is **untested at
    the `project` scope this step uses**, so read the stored value back before reporting a
    project-scope reconfiguration as applied — from the **user** `settings.json` `pluginConfigs`, where
-   non-sensitive options land regardless of enable scope (seam 1 above; project and local entries are
-   ignored since Claude Code 2.1.207), not from the project settings this command names.
+   non-sensitive options land regardless of enable scope (seam 1 above records that they **store**
+   there), not from the project settings this command names.
    **Exception:** a `directory`/`file` relative-path entry in checked-in project settings resolves
    against the repo checkout (cloud sessions included) — see
    [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md). Otherwise the marketplace is known but the plugin is absent, and step 3's

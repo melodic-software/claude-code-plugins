@@ -28,7 +28,9 @@ fetch, poll, or write the target, **and** that target is publisher-owned. Both m
 that fetches a third-party documentation URL keeps the exception, because no publisher runtime
 dependency is created — `plugins/claude-config/skills/audit/SKILL.md` reads `code.claude.com` that
 way, and that read is conforming. (Its own `curl` route also cites a publisher-owned convention doc,
-which is a separate question this statement does not settle.)
+which is a separate question this statement does not settle.) `plugin.json` publisher metadata sits
+outside this rule entirely, being neither skill, agent, nor schema content — identifying the source
+is what the manifest is for.
 
 What the ownership condition buys is narrowing, not decidability: it removes third-party targets from
 the question entirely, so cite-versus-fetch no longer has to be answered for them. For
@@ -39,9 +41,6 @@ second, since it is not itself `skill`, `agent`, or `schema` content — though 
 `plugins/architecture/skills/improve/**` sites load it during skill execution, so that second axis is
 weaker than it looks. No ticket currently owns this question; #3136 is about consolidating
 enforcement sites and is not it.
-(`plugin.json` publisher metadata sits outside
-this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
-the manifest is for.)
 
 Like the setup contract below, **this is a normative target, not a description of the fleet**, and
 the fetch limb has live instances rather than none. Four are unambiguous, because each pairs an
@@ -56,7 +55,10 @@ citation is the same judgement the paragraph above calls not cleanly separable, 
 would be asserting a boundary this statement declines to draw. `work-items/skills/triage/SKILL.md`,
 `docs-hygiene/skills/write-for-agents/SKILL.md`, and `playbooks/skills/skill-authoring/SKILL.md`
 each direct the agent at a publisher-owned document without a fail-closed guard, and sit near that
-boundary rather than across it. Enforcement reaches a strict subset of the whole. `scripts/validate-plugin-contracts.mjs` gates the
+boundary rather than across it.
+
+Enforcement reaches a strict subset of the normative target stated above.
+`scripts/validate-plugin-contracts.mjs` gates the
 marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys across every plugin's skill
 content, and holds the `autonomy` plugin to a stricter token set;
 `plugins/github/github.test.sh` sweeps a wider token set over a narrower scope — its own plugin's

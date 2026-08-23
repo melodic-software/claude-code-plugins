@@ -2,19 +2,22 @@ name: pr-issue-linkage
 
 # Validates the PR body carries a native closing keyword (Closes/Fixes/Resolves
 # #N, including owner/repo#N, or a no-issue marker — /\bno (?:linked|related)
-# issue\b/i, matched anywhere in the body — when the PR closes
+# issue\b/i — when the PR closes
 # nothing) and four non-empty contract sections — `## Summary`, `## Fix`,
 # `## Verification`, `## Related` (heading match case-insensitive; a nested
-# subsection counts as its parent's content) — via the shared
+# subsection counts as its parent's content). Both scans run against the body
+# with fenced and indented code blocks blanked, inline code spans masked, and
+# HTML-commented text discarded, so a marker inside a fence does not count.
+# Via the shared
 # pr-issue-linkage reusable from ci-workflows. `pull_request_target` runs the
 # base-branch definition, so a head-branch edit cannot bypass the gate — safe
-# here because the reusable only reads PR metadata and never checks out or
-# executes head code; that, not any claim about where the body is read from, is
+# here because the reusable declares only `pull-requests: read` and
+# `actions: read`, has no checkout step, and never executes head code; that is
 # what the zizmor suppression below rests on. `edited` re-validates on a body edit. `merge_group`
 # reports the check green in the queue (the body was validated at PR time; inert
 # without a queue). The emitted required-check context is
-# `pr-issue-linkage / pr-issue-linkage`. Public repo: runs on the reusable's
-# hosted default runner.
+# `pr-issue-linkage / pr-issue-linkage`. Public repo: the runner is pinned
+# below rather than inherited from the reusable's default.
 on:
   # zizmor: ignore[dangerous-triggers] metadata-only gate; rationale in the header comment
   pull_request_target:
