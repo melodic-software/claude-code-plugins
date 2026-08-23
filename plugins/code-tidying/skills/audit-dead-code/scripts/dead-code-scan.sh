@@ -169,8 +169,20 @@ note() {
   printf 'Note: %s\n' "$1" >>"$NOTES"
 }
 
+# The lanes disagree about what a path is: knip reports project-relative,
+# vulture relativizes to cwd (which is the repo root here), and gopls reports
+# ABSOLUTE paths with no flag to change that. Every Location this script emits
+# is repo-relative, so the report reads as one document.
+repo_relative() {
+  local p="$1"
+  case "$p" in
+  "$REPO_ROOT"/*) printf '%s' "${p#"$REPO_ROOT"/}" ;;
+  *) printf '%s' "$p" ;;
+  esac
+}
+
 add_candidate() {
-  printf '%s\t%s\t%s\t%s\n' "$1" "${2:-0}" "$3" "$(dc_trim_excerpt "$4")" >>"$CAND"
+  printf '%s\t%s\t%s\t%s\n' "$(repo_relative "$1")" "${2:-0}" "$3" "$(dc_trim_excerpt "$4")" >>"$CAND"
 }
 
 # ---------------------------------------------------------------------------
@@ -351,7 +363,7 @@ lane_knip() {
 # ---------------------------------------------------------------------------
 
 lane_vulture() {
-  local bin rc=0 v_line row parsed=0 drift=0
+  local bin rc=0 v_line row parsed=0 drift=0 unparsed=0
   # FP classes measured to matter, pre-applied. A consumer extends these through
   # the native whitelist, not by editing this script.
   local ignore_decorators='@app.route,@*.route,@pytest.fixture,@property,@*.setter,@*.command,@*.task'
@@ -373,18 +385,26 @@ lane_vulture() {
   # Every file is passed in ONE invocation: vulture counts usages across the
   # whole set it is given, so chunking would fragment cross-file usage and
   # inflate false positives. The glob is filtered to *.py first because vulture
-  # handed a non-Python file emits a parse error in exact FINDING FORMAT on
-  # stdout with exit 0.
+  # handed a non-Python file logs a parse error and skips that file.
   "$bin" --min-confidence 60 --ignore-names 'test_*,pytest_*' \
     --ignore-decorators "$ignore_decorators" -- "${PY_FILES[@]}" \
     >"$WORK/vulture.out" 2>"$WORK/vulture.err" || rc=$?
-  # 0 = clean, 3 = findings. Anything else, or any stderr, is a degraded run —
-  # this reads the codes' DOCUMENTED meanings, not "nonzero means broken".
-  if [[ -s "$WORK/vulture.err" ]] || [[ "$rc" != '0' && "$rc" != '3' ]]; then
+  # Health comes from the SHAPE of stderr, never from the exit code: measured,
+  # vulture exits 1 for a lone unparsable input and 3 when findings coexist, so
+  # the code cannot separate "one bad input file" from "the run is unsound".
+  if dc_vulture_stderr_is_degraded "$WORK/vulture.err"; then
     lane_line vulture '.' degraded "${#PY_FILES[@]}" \
-      "vulture wrote to stderr or returned an undocumented code ($rc) — its output is withheld"
+      "vulture wrote a non-input error to stderr (exit $rc) — its output is withheld"
     return 0
   fi
+  # An input-parse-error line is an INPUT note, not a degraded run: every other
+  # file was still analyzed, and treating it as degradation would let one stray
+  # non-Python file suppress the whole lane.
+  while IFS= read -r v_line; do
+    [[ -n "$v_line" ]] || continue
+    unparsed=$((unparsed + 1))
+    note "vulture could not parse one input and skipped it (an input note, not a degraded run): $v_line"
+  done < <(dc_vulture_unparsed_inputs "$WORK/vulture.err")
   while IFS= read -r v_line || [[ -n "$v_line" ]]; do
     v_line="${v_line//$'\r'/}"
     [[ -n "$v_line" ]] || continue
@@ -397,7 +417,8 @@ lane_vulture() {
       add_candidate '-' 0 detector-drift "vulture line not in the finding grammar: $v_line"
     fi
   done <"$WORK/vulture.out"
-  lane_line vulture '.' ran "${#PY_FILES[@]}" "$parsed candidate(s), $drift unrecognized line(s)"
+  lane_line vulture '.' ran "${#PY_FILES[@]}" \
+    "$parsed candidate(s), $drift unrecognized stdout line(s), $unparsed input file(s) skipped as unparsable"
 }
 
 # ---------------------------------------------------------------------------

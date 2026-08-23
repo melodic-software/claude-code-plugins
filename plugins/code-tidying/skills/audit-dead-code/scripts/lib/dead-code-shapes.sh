@@ -171,10 +171,12 @@ dc_binary_invocable() {
 # Detector output parsers — each rejects what it does not recognize
 # ---------------------------------------------------------------------------
 
-# vulture emits `<path>:<line>: <kind> <detail> (NN% confidence)`. Measured:
-# handed a non-.py file it emits a PARSE ERROR in exactly that shape on stdout
-# with exit 0, so the kind gate below is the only thing separating a finding
-# from a parse error. Anything outside unused|unreachable|unsatisfiable is drift.
+# vulture emits `<path>:<line>: <kind> <detail> (NN% confidence)` on stdout.
+# The kind gate is the only thing separating a finding from a look-alike:
+# anything outside unused|unreachable|unsatisfiable is drift. (A vulture parse
+# error wears the same `<path>:<line>: <message>` shape but is written to
+# STDERR — see dc_vulture_stderr_is_degraded — so this gate is the second line
+# of defense, after the *.py glob filter.)
 # Returns 0 with `<file><TAB><line><TAB><shape><TAB><excerpt>` in the named
 # variable, 1 when the line is drift.
 dc_parse_vulture_line() {
@@ -191,16 +193,22 @@ dc_parse_vulture_line() {
     "$(dc_trim_excerpt "${BASH_REMATCH[3]} ${BASH_REMATCH[4]}")"
 }
 
-# gopls check emits `<path>:<line>:<col>: <message>` on stdout. Returns
-# 0 = a candidate, 1 = drift (not a diagnostic at all), 2 = a diagnostic this
-# lane does not own (an exported symbol, or any non-unused hint). The
+# gopls check emits `<path>:<line>:<col>: <message>` on stdout, where the column
+# field is a RANGE (`6-17`) whenever the diagnostic spans one, so the plain
+# `:<col>:` form alone does not match. Measured capture:
+#   /abs/dead-and-dynamic.go:17:6-17: function "deadHandler" is unused
+# The path is ABSOLUTE and cwd-independent — `gopls check -h` exposes only
+# `-severity`, so there is no flag that would relativize it. The caller
+# relativizes to the repo root itself.
+# Returns 0 = a candidate, 1 = drift (not a diagnostic at all), 2 = a diagnostic
+# this lane does not own (an exported symbol, or any non-unused hint). The
 # unexported-only filter is the lane's DECLARED coverage, not a defect.
 dc_parse_gopls_line() {
   local line="${1//$'\r'/}" out_var="$2"
-  local re='^(.+):([0-9]+):([0-9]+):[[:space:]](.*)$'
+  local re='^(.+):([0-9]+):([0-9]+)(-[0-9]+)?:[[:space:]](.*)$'
   local rest name
   [[ $line =~ $re ]] || return 1
-  rest="${BASH_REMATCH[4]}"
+  rest="${BASH_REMATCH[5]}"
   case "$rest" in
   *"is unused"* | *"unused "*) ;;
   *) return 2 ;;
@@ -216,6 +224,46 @@ dc_parse_gopls_line() {
   printf -v "$out_var" '%s\t%s\t%s\t%s' \
     "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" 'go-unused-unexported' \
     "$(dc_trim_excerpt "$rest")"
+}
+
+# vulture writes TWO distinct things to stderr and they mean opposite things.
+# Measured on vulture 2.16 (vulture/core.py routes a SyntaxError through
+# `_log(..., file=sys.stderr, force=True)`):
+#   - `<path>:<line>: <message>` — ONE input file could not be parsed. Every
+#     other file was still analyzed, so this is an INPUT note, never a degraded
+#     run. Exit is 1 standalone and 3 when real findings coexist.
+#   - anything else (a usage error, a traceback) — the run itself is unsound.
+# Conflating the two would let one stray non-Python file in scope mark the whole
+# Python lane degraded and suppress real findings. Knip's `ERROR:` stderr rule
+# does NOT generalize here.
+# Returns 0 when any stderr line is NOT an input parse error (degraded),
+# 1 otherwise (empty stderr, or only input parse errors).
+dc_vulture_stderr_is_degraded() {
+  local err_file="$1" line
+  local re='^(.+):([0-9]+):[[:space:]](.*)$'
+  [[ -s "$err_file" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line//$'\r'/}"
+    [[ -n "$line" ]] || continue
+    [[ $line =~ $re ]] && continue
+    return 0
+  done <"$err_file"
+  return 1
+}
+
+# The input-parse-error lines from the same stderr, one per line, for reporting
+# as notes rather than as run health.
+dc_vulture_unparsed_inputs() {
+  local err_file="$1" line
+  local re='^(.+):([0-9]+):[[:space:]](.*)$'
+  [[ -s "$err_file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line//$'\r'/}"
+    [[ -n "$line" ]] || continue
+    if [[ $line =~ $re ]]; then
+      printf '%s\n' "$line"
+    fi
+  done <"$err_file"
 }
 
 # A gopls run whose module graph did not resolve prints an import error on
@@ -235,15 +283,22 @@ dc_gopls_stdout_is_degraded() {
 # recognized nothing, which the driver reads as "parsed nothing", never as
 # "clean".
 #
-# Tolerance rules, deliberate because the JSON shape is version-coupled:
-#   - a bare string element of `files` is a file path;
-#   - a bare string element of `exports` / `enumMembers` is a symbol name;
-#   - a bare string element of `types` is IGNORED — knip uses that array to list
-#     which issue types a record carries, so its strings are category labels,
-#     not unused type symbols;
-#   - an OBJECT element of any of the four is read through its `name` / `symbol`
-#     key (and its `line` key when present), which is how a type symbol is
-#     recognized.
+# Measured shape (knip 6.32.2, this repository and the committed fixture
+# `evals/fixtures/knip-report.json`): `{"issues":[{"file":"…","files":[{"name":
+# "…"}],"exports":[{"name":"…","line":13,"col":17,"pos":533}],"types":[],
+# "enumMembers":[],…}]}` — every issue array holds OBJECTS carrying `name`, and
+# symbol arrays additionally carry `line`.
+#
+# Tolerance rules, because the JSON shape is version-coupled:
+#   - an OBJECT element of any of the four issue arrays is read through its
+#     `name` / `symbol` key and its `line` key when present (the measured form);
+#   - a bare STRING element of `files` is taken as a file path and of
+#     `exports` / `enumMembers` as a symbol name — defensive, for a version that
+#     flattens them;
+#   - a bare STRING element of `types` is IGNORED: a flattened `types` array is
+#     the one place a version could legitimately be listing issue-type labels
+#     rather than symbols, and inventing type findings from category names is
+#     the worse error.
 # Class members are not read: knip 6.32.2 rejects `--include classMembers`
 # outright, so there is nothing to parse.
 dc_parse_knip_json() {
