@@ -3,6 +3,29 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2]
+
+### Added
+
+- **Product-code lane specification (#2897).** `context/product-code-lane.md` supplies the four
+  things `scrutiny-method.md` asks a lane for, for code-level overengineering in product code:
+  the item inventory (the abstraction, never the file), an eight-layer vocabulary with discovery
+  probes (`single-implementation`, `extension-points`, `configuration`, `generality`, `layering`,
+  `speculative-api`, `dead-branches`, `premature-async`), the evidence sources mapped onto the §2
+  tiers, and protected-class defaults extending §7 (published API surface, serialization and wire
+  formats, concurrency primitives, error-containment boundaries, testability seams). It names the
+  lane's signature tier-2 probe, whether the second implementation ever arrived, which is what makes
+  speculative generality checkable as a falsified prediction rather than a matter of taste, and
+  documents the boundary against `/simplify`, `code-tidying`, and `architecture:improve` as three
+  operational handoffs. The document is a specification ahead of its skill; no skill or behavior
+  changes in this release.
+
+### Changed
+
+- **`scrutiny-method.md` points at the second lane.** Its "Lane binding" section previously
+  forward-referenced "a future product-code lane" with nowhere to go; it now links the specification
+  and the ADR recording the lane's shipping shape.
+
 ## [0.2.1]
 
 ### Fixed
