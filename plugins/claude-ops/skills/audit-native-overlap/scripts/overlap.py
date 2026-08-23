@@ -150,6 +150,62 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     return text[3:end], text[end + 4 :]
 
 
+def frontmatter_description(frontmatter: str) -> str:
+    """Extract the `description:` scalar from a frontmatter block.
+
+    Line-based on purpose: PyYAML is not provisioned here (stdlib-only, matching
+    the sibling extractor), and the parity check needs one field's value, not a
+    document model. Handles the scalar styles this repo's SKILL.md files use -
+    quoted, plain, and block (`|`, `>`, with chomping/indent indicators) - and
+    reads only a TOP-LEVEL `description` key, so a nested one under `metadata:`
+    is never mistaken for the routing-effective field.
+
+    The returned value is whitespace-normalised to a single line, so a phrase
+    that wraps across a folded or literal block still reads as one string.
+    Returns "" when the block carries no top-level description.
+    """
+    lines = frontmatter.split("\n")
+    for index, line in enumerate(lines):
+        if not re.match(r"^description[ \t]*:", line):
+            continue
+        remainder = line.split(":", 1)[1].strip()
+        rest = lines[index + 1 :]
+
+        def _indented_block() -> list[str]:
+            collected: list[str] = []
+            for candidate in rest:
+                if candidate.strip() and not candidate[:1].isspace():
+                    break
+                collected.append(candidate.strip())
+            return collected
+
+        if remainder[:1] in ("|", ">"):
+            # Block scalar: the header line carries only style/chomping/indent
+            # indicators; the value is the more-indented lines beneath it.
+            parts = _indented_block()
+        elif remainder[:1] in ('"', "'"):
+            quote = remainder[0]
+            body = remainder[1:]
+            if body.rstrip().endswith(quote) and body.rstrip() != "":
+                parts = [body.rstrip()[:-1]]
+            else:
+                # A quoted scalar may span lines; consume until the closing quote.
+                parts = [body]
+                for candidate in rest:
+                    stripped = candidate.strip()
+                    if stripped.endswith(quote):
+                        parts.append(stripped[:-1])
+                        break
+                    parts.append(stripped)
+        elif remainder:
+            # Plain scalar, possibly continued on more-indented lines.
+            parts = [remainder, *_indented_block()]
+        else:
+            parts = _indented_block()
+        return " ".join(" ".join(parts).split())
+    return ""
+
+
 def component_path(repo: Path, plugin: str, name: str, kind: str) -> Path:
     if kind == "agent":
         return repo / "plugins" / plugin / "agents" / f"{name}.md"
@@ -346,7 +402,11 @@ def validate_store(store: Any) -> list[str]:
     rows = store.get("rows")
     if not isinstance(rows, list):
         return problems + ["store `rows` must be a list"]
-    seen: set[tuple[str, str, str]] = set()
+    # Identity includes `component.kind`: a skill and an agent may share a name
+    # inside one plugin, and they are distinct components resolving to distinct
+    # paths (`skills/<name>/SKILL.md` vs `agents/<name>.md`). Keying without kind
+    # would report two legitimate rows as a duplicate.
+    seen: set[tuple[str, str, str, str]] = set()
     for index, row in enumerate(rows):
         problems.extend(validate_row(row, index))
         if isinstance(row, dict):
@@ -355,12 +415,69 @@ def validate_store(store: Any) -> list[str]:
                     row["native"]["name"],
                     row["component"]["plugin"],
                     row["component"]["skill"],
+                    # `.get` so a row whose kind is missing (already reported by
+                    # validate_row) still participates in duplicate detection.
+                    str(row["component"].get("kind", "")),
                 )
             except (KeyError, TypeError):
                 continue
             if key in seen:
-                problems.append(f"duplicate row for {key[0]} -> {key[1]}:{key[2]}")
+                problems.append(
+                    f"duplicate row for {key[0]} -> {key[1]}:{key[2]} ({key[3]})"
+                )
             seen.add(key)
+    return problems
+
+
+def validate_pairs(pairs_data: dict[str, Any]) -> list[str]:
+    """Well-formedness of a schema-checked canonical-pairs payload.
+
+    Runs before the detect loop reads it. A `"pairs": null`, a non-list, or an
+    entry that is not an object would otherwise pass the schema gate and then
+    surface as an uncaught TypeError/AttributeError mid-loop - a traceback is
+    never this script's contract, so every violation is reported here as broken
+    and names the offending entry's index.
+    """
+    problems: list[str] = []
+    pairs = pairs_data.get("pairs")
+    if not isinstance(pairs, list):
+        return [
+            f"canonical-pairs `pairs` must be a list, got "
+            f"{type(pairs).__name__ if pairs is not None else 'null'}"
+        ]
+    for index, pair in enumerate(pairs):
+        label = f"pair {index}"
+        if not isinstance(pair, dict):
+            problems.append(f"{label}: not an object")
+            continue
+
+        native = pair.get("native")
+        if not isinstance(native, dict):
+            problems.append(f"{label}: missing or malformed `native`")
+        else:
+            if not isinstance(native.get("name"), str) or not native.get("name"):
+                problems.append(f"{label}: `native.name` must be a non-empty string")
+            if native.get("class") not in NATIVE_CLASSES:
+                problems.append(
+                    f"{label}: `native.class` must be one of {', '.join(NATIVE_CLASSES)}"
+                )
+
+        component = pair.get("component")
+        if not isinstance(component, dict):
+            problems.append(f"{label}: missing or malformed `component`")
+        else:
+            for key in ("plugin", "skill"):
+                if not isinstance(component.get(key), str) or not component.get(key):
+                    problems.append(
+                        f"{label}: `component.{key}` must be a non-empty string"
+                    )
+            # `kind` is optional here - the detect loop defaults it to "skill" -
+            # but a present one must name a kind this repo actually has.
+            if "kind" in component and component.get("kind") not in COMPONENT_KINDS:
+                problems.append(
+                    f"{label}: `component.kind` must be one of "
+                    f"{', '.join(COMPONENT_KINDS)} when present"
+                )
     return problems
 
 
@@ -403,6 +520,9 @@ def render_block(rows: list[dict[str, Any]]) -> str:
                 r["native"]["name"],
                 r["component"]["plugin"],
                 r["component"]["skill"],
+                # Same identity tuple validation keys on, so a same-named
+                # skill/agent pair renders in a stable, total order.
+                r["component"]["kind"],
             ),
         )
         lines.append(f"## {heading}")
@@ -487,6 +607,11 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
     for reasons the registry has no row for - so a reverse scan on headings
     would flag legitimate prose. The description is the routing-effective
     surface and is the thing this parity exists to protect.
+
+    Both directions parse the `description` field out of the frontmatter rather
+    than searching the frontmatter text: the gate token is only load-bearing
+    where the router reads it, so the same token sitting in `argument-hint` or
+    `metadata` neither satisfies a baked claim nor counts as an orphan.
     """
     problems: list[str] = []
     baked_desc: set[tuple[str, str]] = set()
@@ -519,7 +644,10 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
             continue
         frontmatter, body = split_frontmatter(text)
         if wants_desc:
-            if GATE_TOKEN not in frontmatter:
+            # Scoped to the description field, never the whole frontmatter: the
+            # description is the routing-effective surface, so the same token in
+            # `argument-hint` or `metadata` must not satisfy a baked claim.
+            if GATE_TOKEN not in frontmatter_description(frontmatter):
                 problems.append(
                     f"{label}: `baked.description_phrase` is true but the description in "
                     f'{path} carries no presence gate ("{GATE_TOKEN}")'
@@ -539,7 +667,7 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
                 frontmatter, _ = split_frontmatter(skill_md.read_text(encoding="utf-8"))
             except OSError:
                 continue
-            if GATE_TOKEN not in frontmatter:
+            if GATE_TOKEN not in frontmatter_description(frontmatter):
                 continue
             plugin = skill_md.parents[2].name
             skill = skill_md.parent.name
@@ -588,6 +716,11 @@ def cmd_detect(args: argparse.Namespace) -> int:
     if not isinstance(pairs_data, dict) or pairs_data.get("schema") != PAIRS_SCHEMA:
         _fail(f"canonical-pairs `schema` must be {PAIRS_SCHEMA}")
         return 1
+    pair_problems = validate_pairs(pairs_data)
+    if pair_problems:
+        for problem in pair_problems:
+            _fail(problem)
+        return 1
 
     integrity = inventory["integrity"]
     status = (
@@ -609,7 +742,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         }
 
     candidates: list[dict[str, Any]] = []
-    for pair in pairs_data.get("pairs", []):
+    for pair in pairs_data["pairs"]:  # shape guaranteed by validate_pairs above
         native = pair.get("native", {})
         component = pair.get("component", {})
         target = f"{component.get('plugin')}:{component.get('skill')}"

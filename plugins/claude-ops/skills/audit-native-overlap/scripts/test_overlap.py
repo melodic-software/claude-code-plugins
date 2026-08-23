@@ -10,6 +10,8 @@ wrapper, which is what `run-plugin-tests.sh` discovers.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -52,12 +54,21 @@ def make_store(rows):
 
 SKILL_TEMPLATE = """---
 description: "{description}"
----
+{frontmatter_extra}---
 
 ## Purpose
 
 Demo body.
 {extra}
+"""
+
+SKILL_RAW_TEMPLATE = """---
+{frontmatter}
+---
+
+## Purpose
+
+Demo body.
 """
 
 
@@ -75,12 +86,36 @@ class TempRepo:
     def write_store(self, store):
         self.store_path.write_text(json.dumps(store, indent=2), encoding="utf-8")
 
-    def write_skill(self, plugin, skill, description="Plain description.", extra=""):
+    def write_skill(
+        self,
+        plugin,
+        skill,
+        description="Plain description.",
+        extra="",
+        frontmatter_extra="",
+    ):
         path = self.root / "plugins" / plugin / "skills" / skill / "SKILL.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            SKILL_TEMPLATE.format(description=description, extra=extra),
+            SKILL_TEMPLATE.format(
+                description=description,
+                extra=extra,
+                frontmatter_extra=frontmatter_extra,
+            ),
             encoding="utf-8",
+        )
+        return path
+
+    def write_skill_raw(self, plugin, skill, frontmatter):
+        """Write a skill whose frontmatter block is given verbatim.
+
+        Needed for the scalar styles the quoted-description template cannot
+        express (block scalars, sibling keys carrying the gate token).
+        """
+        path = self.root / "plugins" / plugin / "skills" / skill / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            SKILL_RAW_TEMPLATE.format(frontmatter=frontmatter), encoding="utf-8"
         )
         return path
 
@@ -188,6 +223,65 @@ class StoreValidationTests(unittest.TestCase):
         self.assertTrue(
             any("native.class" in p for p in overlap.validate_store(make_store([row])))
         )
+
+    def test_same_name_skill_and_agent_rows_are_not_duplicates(self):
+        # Distinct components resolving to distinct paths: skills/<name>/SKILL.md
+        # vs agents/<name>.md. Identity keys on kind, so both rows stand.
+        skill_row = deep_copy(BASE_ROW)
+        agent_row = deep_copy(BASE_ROW)
+        agent_row["component"]["kind"] = "agent"
+        self.assertEqual(overlap.validate_store(make_store([skill_row, agent_row])), [])
+
+    def test_duplicate_rows_of_the_same_kind_name_that_kind(self):
+        problems = overlap.validate_store(make_store([BASE_ROW, BASE_ROW]))
+        duplicates = [p for p in problems if "duplicate" in p]
+        self.assertTrue(duplicates, problems)
+        self.assertIn("(skill)", duplicates[0])
+
+    def test_duplicate_agent_rows_are_still_a_problem(self):
+        row = deep_copy(BASE_ROW)
+        row["component"]["kind"] = "agent"
+        problems = overlap.validate_store(make_store([row, row]))
+        self.assertTrue(any("duplicate" in p for p in problems), problems)
+
+
+class DescriptionExtractionTests(unittest.TestCase):
+    """The parity check reads one field, so the extractor is tested as one."""
+
+    def extract(self, frontmatter):
+        return overlap.frontmatter_description(frontmatter)
+
+    def test_quoted_single_line(self):
+        self.assertEqual(self.extract('\ndescription: "Do a thing."\n'), "Do a thing.")
+
+    def test_plain_single_line(self):
+        self.assertEqual(self.extract("\ndescription: Do a thing.\n"), "Do a thing.")
+
+    def test_folded_block_scalar_reads_as_one_line(self):
+        frontmatter = "\ndescription: >-\n  Do a thing that\n  wraps a line.\n"
+        self.assertEqual(self.extract(frontmatter), "Do a thing that wraps a line.")
+
+    def test_literal_block_scalar_reads_as_one_line(self):
+        frontmatter = "\ndescription: |\n  Do a thing that\n  wraps a line.\n"
+        self.assertEqual(self.extract(frontmatter), "Do a thing that wraps a line.")
+
+    def test_a_phrase_wrapped_across_a_block_scalar_is_still_found(self):
+        frontmatter = (
+            "\ndescription: >\n  When the bundled skill resolves in\n"
+            "  your session, prefer it.\n"
+        )
+        self.assertIn(overlap.GATE_TOKEN, self.extract(frontmatter))
+
+    def test_nested_description_is_not_read(self):
+        frontmatter = "\nname: demo\nmetadata:\n  description: Nested value.\n"
+        self.assertEqual(self.extract(frontmatter), "")
+
+    def test_a_later_key_does_not_leak_into_the_value(self):
+        frontmatter = '\ndescription: "Do a thing."\nargument-hint: "[target]"\n'
+        self.assertEqual(self.extract(frontmatter), "Do a thing.")
+
+    def test_absent_description_is_empty(self):
+        self.assertEqual(self.extract("\nname: demo\n"), "")
 
 
 class GenerateTests(unittest.TestCase):
@@ -307,6 +401,54 @@ class SelfCheckTests(unittest.TestCase):
             extra="\n## Boundary — the bundled doctor skill\n\nDetail.\n",
         )
         self.assertEqual(self.repo.self_check(), 0)
+
+    def test_forward_parity_breaks_when_the_token_sits_outside_the_description(self):
+        # The token in `argument-hint` is not routing-effective; a baked claim
+        # is only satisfied by the description field itself.
+        row = deep_copy(BASE_ROW)
+        row["baked"]["description_phrase"] = True
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "demo-audit",
+            description="No gate here.",
+            frontmatter_extra=f'argument-hint: "when doctor {overlap.GATE_TOKEN}"\n',
+        )
+        self.assertEqual(self.repo.self_check(), 1)
+
+    def test_forward_parity_holds_for_a_folded_description(self):
+        row = deep_copy(BASE_ROW)
+        row["baked"]["description_phrase"] = True
+        self.repo.write_store(make_store([row]))
+        self.repo.generate()
+        self.repo.write_skill_raw(
+            "demo",
+            "demo-audit",
+            "description: >-\n"
+            "  When the bundled doctor skill resolves in\n"
+            "  your session, prefer it for the quick pass.",
+        )
+        self.assertEqual(self.repo.self_check(), 0)
+
+    def test_reverse_parity_ignores_a_token_outside_the_description(self):
+        self.repo.generate()
+        self.repo.write_skill(
+            "demo",
+            "unrelated",
+            description="Plain description.",
+            frontmatter_extra=f'argument-hint: "when the thing {overlap.GATE_TOKEN}"\n',
+        )
+        self.assertEqual(self.repo.self_check(), 0)
+
+    def test_reverse_parity_breaks_on_a_folded_description_with_no_row(self):
+        self.repo.generate()
+        self.repo.write_skill_raw(
+            "demo",
+            "orphan",
+            "description: |\n  When the bundled thing resolves in\n  your session, prefer it.",
+        )
+        self.assertEqual(self.repo.self_check(), 1)
 
     def test_reverse_parity_break_when_no_row_claims_the_baked_line(self):
         self.repo.generate()
@@ -471,6 +613,156 @@ class DetectTests(unittest.TestCase):
         self.assertEqual(self.detect(out), 0)
         candidate = json.loads(out.read_text(encoding="utf-8"))["candidates"][0]
         self.assertEqual(candidate["native"]["class"], "plugin-backed-builtin")
+
+    def write_pairs(self, payload):
+        self.pairs_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    def detect_stderr(self):
+        """Run detect, returning (exit code, stderr) - never a traceback."""
+        buffer = io.StringIO()
+        with contextlib.redirect_stderr(buffer):
+            code = self.detect()
+        return code, buffer.getvalue()
+
+    def test_null_pairs_is_broken_not_a_traceback(self):
+        self.write_inventory()
+        self.write_pairs({"schema": 1, "pairs": None})
+        code, stderr = self.detect_stderr()
+        self.assertEqual(code, 1)
+        self.assertIn("`pairs` must be a list", stderr)
+
+    def test_non_list_pairs_is_broken(self):
+        self.write_inventory()
+        self.write_pairs({"schema": 1, "pairs": {"doctor": "demo:demo-audit"}})
+        code, stderr = self.detect_stderr()
+        self.assertEqual(code, 1)
+        self.assertIn("`pairs` must be a list", stderr)
+
+    def test_missing_pairs_key_is_broken(self):
+        self.write_inventory()
+        self.write_pairs({"schema": 1})
+        self.assertEqual(self.detect_stderr()[0], 1)
+
+    def test_non_object_pair_entry_names_its_index(self):
+        self.write_inventory()
+        self.write_pairs(
+            {
+                "schema": 1,
+                "pairs": [
+                    {
+                        "native": {"name": "doctor", "class": "bundled-skill"},
+                        "component": {
+                            "plugin": "demo",
+                            "skill": "demo-audit",
+                            "kind": "skill",
+                        },
+                    },
+                    "doctor -> demo:demo-audit",
+                ],
+            }
+        )
+        code, stderr = self.detect_stderr()
+        self.assertEqual(code, 1)
+        self.assertIn("pair 1: not an object", stderr)
+
+    def test_pair_with_malformed_native_is_broken(self):
+        self.write_inventory()
+        self.write_pairs(
+            {
+                "schema": 1,
+                "pairs": [
+                    {
+                        "native": None,
+                        "component": {"plugin": "demo", "skill": "demo-audit"},
+                    }
+                ],
+            }
+        )
+        code, stderr = self.detect_stderr()
+        self.assertEqual(code, 1)
+        self.assertIn("pair 0: missing or malformed `native`", stderr)
+
+    def test_pair_with_unknown_native_class_is_broken(self):
+        self.write_inventory()
+        self.write_pairs(
+            {
+                "schema": 1,
+                "pairs": [
+                    {
+                        "native": {"name": "doctor", "class": "bundled"},
+                        "component": {"plugin": "demo", "skill": "demo-audit"},
+                    }
+                ],
+            }
+        )
+        code, stderr = self.detect_stderr()
+        self.assertEqual(code, 1)
+        self.assertIn("pair 0: `native.class`", stderr)
+
+    def test_pair_with_malformed_component_is_broken(self):
+        self.write_inventory()
+        self.write_pairs(
+            {
+                "schema": 1,
+                "pairs": [
+                    {
+                        "native": {"name": "doctor", "class": "bundled-skill"},
+                        "component": {"plugin": "demo", "skill": 7},
+                    }
+                ],
+            }
+        )
+        code, stderr = self.detect_stderr()
+        self.assertEqual(code, 1)
+        self.assertIn("pair 0: `component.skill`", stderr)
+
+    def test_pair_with_unknown_component_kind_is_broken(self):
+        self.write_inventory()
+        self.write_pairs(
+            {
+                "schema": 1,
+                "pairs": [
+                    {
+                        "native": {"name": "doctor", "class": "bundled-skill"},
+                        "component": {
+                            "plugin": "demo",
+                            "skill": "demo-audit",
+                            "kind": "command",
+                        },
+                    }
+                ],
+            }
+        )
+        code, stderr = self.detect_stderr()
+        self.assertEqual(code, 1)
+        self.assertIn("pair 0: `component.kind`", stderr)
+
+    def test_pair_without_a_kind_is_accepted_and_defaults_to_skill(self):
+        self.write_inventory()
+        self.write_pairs(
+            {
+                "schema": 1,
+                "pairs": [
+                    {
+                        "native": {"name": "doctor", "class": "bundled-skill"},
+                        "component": {"plugin": "demo", "skill": "demo-audit"},
+                    }
+                ],
+            }
+        )
+        out = self.repo.root / "candidates.json"
+        self.assertEqual(self.detect(out), 0)
+        candidate = json.loads(out.read_text(encoding="utf-8"))["candidates"][0]
+        self.assertTrue(candidate["component_present"])
+
+    def test_shipped_canonical_pairs_file_validates(self):
+        shipped = (
+            Path(overlap.__file__).resolve().parent.parent
+            / "reference"
+            / "canonical-pairs.json"
+        )
+        payload = json.loads(shipped.read_text(encoding="utf-8"))
+        self.assertEqual(overlap.validate_pairs(payload), [])
 
     def test_absent_native_is_reported_as_an_extraction_statement(self):
         self.write_inventory(bundled_skills={})
