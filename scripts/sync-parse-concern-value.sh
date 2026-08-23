@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Sync or verify the plugin copies of the shared topic-docs concern-value parser.
 #
-#   scripts/sync-parse-concern-value.sh                     copy the lib into each consuming plugin
-#   scripts/sync-parse-concern-value.sh --check             fail if any plugin copy differs from the source
-#   scripts/sync-parse-concern-value.sh --check-bump <ref>  fail if the lib changed vs <ref> but a consuming
-#                                                           plugin's manifest version did not — the plugin
-#                                                           version is the update cache key, so an unbumped
-#                                                           plugin never delivers the change to consumers
+#   scripts/sync-parse-concern-value.sh                      copy the lib into each consuming plugin
+#   scripts/sync-parse-concern-value.sh --check              fail if any plugin copy differs from the source
+#   scripts/sync-parse-concern-value.sh --check-bump <ref>   fail if the lib changed vs <ref> but a consuming
+#                                                            plugin's manifest version did not — the plugin
+#                                                            version is the update cache key, so an unbumped
+#                                                            plugin never delivers the change to consumers
+#   scripts/sync-parse-concern-value.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
 # Unlike hooks/hook-utils.sh (same path in every carrying plugin, globbable),
 # this helper is consumed by a fixed set of skill scripts at DIFFERENT paths, so
@@ -22,8 +23,6 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-parse-concern-value.sh"
-# `src=` and `copies=(` are parsed out of this file by scripts/affected-tests.sh;
-# keep both spellings exactly as they are.
 src="lib/parse-concern-value.sh"
 copies=(
   plugins/claude-memory/skills/audit/scripts/parse-concern-value.sh

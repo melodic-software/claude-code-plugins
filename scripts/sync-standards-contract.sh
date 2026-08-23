@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Sync or verify the plugin binding copies of the standards concern contract.
 #
-#   scripts/sync-standards-contract.sh                     copy the canonical contract into each carrying plugin
-#   scripts/sync-standards-contract.sh --check             fail if any plugin copy differs from the canonical
-#   scripts/sync-standards-contract.sh --check-bump <ref>  fail if the contract changed vs <ref> but
+#   scripts/sync-standards-contract.sh                      copy the canonical contract into each carrying plugin
+#   scripts/sync-standards-contract.sh --check              fail if any plugin copy differs from the canonical
+#   scripts/sync-standards-contract.sh --print-manifest     emit src and copies as data (for affected-tests)
+#   scripts/sync-standards-contract.sh --check-bump <ref>   fail if the contract changed vs <ref> but
 #                                                          (a) a carrying plugin's manifest version did not —
 #                                                              the plugin version is the update cache key, or
 #                                                          (b) the standards-contract frontmatter semver did
@@ -105,8 +106,17 @@ sync)
   fi
   echo "Contract changed vs $base with frontmatter, changelog, and every carrying plugin bumped."
   ;;
+--print-manifest)
+  # Same published surface as scripts/lib/sync-cluster.sh. This script does
+  # not share the cluster engine (it also gates frontmatter + changelog), so
+  # the emit is repeated here rather than forcing it onto that engine.
+  printf 'src\t%s\n' "$src"
+  for copy in "${copies[@]}"; do
+    printf 'copy\t%s\n' "$copy"
+  done
+  ;;
 *)
-  echo "usage: sync-standards-contract.sh [--check | --check-bump <base-ref>]" >&2
+  echo "usage: sync-standards-contract.sh [--check | --check-bump <base-ref> | --print-manifest]" >&2
   exit 2
   ;;
 esac

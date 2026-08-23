@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Sync or verify the cross-plugin lib/managed-scope.sh cluster.
 #
-#   scripts/sync-managed-scope.sh                     copy the canonical file into each carrier
-#   scripts/sync-managed-scope.sh --check             fail if any carrier differs from canonical
-#   scripts/sync-managed-scope.sh --check-bump <ref>  fail if the canonical changed vs <ref> but a
-#                                                     carrying plugin's manifest version did not
+#   scripts/sync-managed-scope.sh                      copy the canonical file into each carrier
+#   scripts/sync-managed-scope.sh --check              fail if any carrier differs from canonical
+#   scripts/sync-managed-scope.sh --check-bump <ref>   fail if the canonical changed vs <ref> but a
+#                                                      carrying plugin's manifest version did not
+#   scripts/sync-managed-scope.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
 # Canonical copy: plugins/claude-config/lib/managed-scope.sh (see
 # scripts/cross-plugin-source-registry.txt).
@@ -19,8 +20,6 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-managed-scope.sh"
-# `src=` and `copies=(` are parsed out of this file by scripts/affected-tests.sh;
-# keep both spellings exactly as they are.
 src="plugins/claude-config/lib/managed-scope.sh"
 copies=(plugins/claude-memory/lib/managed-scope.sh)
 sync_cluster_manifest_strip='/lib/*'
