@@ -24,7 +24,7 @@ set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-SKILLS=(tidy audit-comment-residue)
+SKILLS=(tidy audit-comment-residue audit-dead-code)
 
 # Optional per-skill allowlist, space-separated and sorted. When a skill names
 # one, the granted set must equal it EXACTLY — this is the guard for a
@@ -34,13 +34,16 @@ SKILLS=(tidy audit-comment-residue)
 # other assertion here would still pass green.
 expected_granted() {
   case "$1" in
-    *) echo "" ;;
+  *) echo "" ;;
   esac
 }
 
 fails=0
 pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1" >&2; fails=1; }
+fail() {
+  echo "FAIL: $1" >&2
+  fails=1
+}
 
 # Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
 # to the next top-level key so a YAML list is captured whole.
@@ -51,7 +54,10 @@ allowed_tools() {
 
 for skill in "${SKILLS[@]}"; do
   md="skills/$skill/SKILL.md"
-  [[ -f "$md" ]] || { fail "$skill: SKILL.md missing"; continue; }
+  [[ -f "$md" ]] || {
+    fail "$skill: SKILL.md missing"
+    continue
+  }
   at="$(allowed_tools "$md")"
 
   if grep -qF 'Bash(bash ' <<<"$at"; then

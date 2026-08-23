@@ -5,7 +5,7 @@ Beck's *Tidy First?* discipline agentically: small named tidyings, separated
 from behavioral changes by commit and by PR, under a research-backed scope
 budget (≤200 LOC / ≤8 files target; ≤400 / ≤15 hard cap).
 
-Five skills, one capability:
+Six skills, one capability:
 
 - **`/code-tidying:dissolve-comments`** — enforces self-describing, expressive
   code over a diff or target (a clean tree widens to the branch diff, then to
@@ -31,6 +31,13 @@ Five skills, one capability:
   inventory, runs a mandatory per-group refutation verifier, and delivers one
   independently mergeable PR per wave. Use it when you forgot to run
   `/simplify` after each task, or to sweep a repository that never had one.
+- **`/code-tidying:audit-dead-code`** — a read-only, whole-repo hunt for code
+  nothing reaches any more, across four labelled lanes of deliberately unequal
+  confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
+  symbols, and a portable grep lane for shell and other symbol languages). Every
+  candidate is adjudicated against the dynamic-usage evidence static analyzers
+  are blind to and lands as `dead`, `uncertain`, or `alive`. Reports in-session;
+  writes nothing and deletes nothing.
 - **`/code-tidying:setup`** — `check` inspects the tracked
   `.claude/tidy-lanes/<lane>.md` project lanes read-only (presence, required
   sections, leftover placeholders, tracked-not-ignored); `apply` interviews the
