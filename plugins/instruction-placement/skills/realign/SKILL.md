@@ -8,6 +8,7 @@ allowed-tools:
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/precompute.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
+    "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh:*)",
     "Read",
     "Edit",
@@ -100,9 +101,23 @@ Per accepted finding, in ranked order, following the recipe for its destination:
    "${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" write --file <index-file>
    ```
 
-4. Verify: the destination file's frontmatter parses, its glob resolves, the index is in sync, and
-   the source no longer carries the moved content.
-5. Record `applied` in the artifact, with the destination path.
+4. Verify statically: the destination file's frontmatter parses, its glob resolves, the index is in
+   sync and its target is reachable, and the source no longer carries the moved content.
+5. Verify empirically when the operator wants proof, or when the destination is one you are unsure
+   of:
+
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
+     --trigger <a file the new surface covers> --expect <the new surface>
+   ```
+
+   This drives the real CLI with an `InstructionsLoaded` hook and reports what actually loaded —
+   the only check in this plugin that observes Claude Code rather than reasoning about it, and the
+   one that catches a surface passing every static gate while never entering context. It costs a
+   model call, so it earns its place on the first move of a migration and on anything unusual, not
+   on every finding. `VERDICT UNKNOWN` means the probe could not run: that is never a pass, and
+   never grounds for marking the finding applied.
+6. Record `applied` in the artifact, with the destination path.
 
 **One finding is one reviewable unit of work.** Do not batch several findings into one edit sweep
 even when they share a destination file — a reviewer needs to see which change came from which

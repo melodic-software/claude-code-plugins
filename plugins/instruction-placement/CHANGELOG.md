@@ -3,6 +3,33 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`scripts/verify-load.sh` — empirical load verification (16 tests, including a live one).** Every
+  other check in this plugin is static: the glob parses, it matches tracked files, the index is in
+  sync. None of them observes Claude Code actually loading anything — and that gap is precisely
+  where this plugin's own four bugs lived. A rule can pass every static gate and still never enter
+  context.
+
+  It runs the real CLI with an `InstructionsLoaded` hook attached, reads a file the surface claims
+  to cover, and reports which instruction files actually loaded and why. The repository under test
+  is never modified: the hook lives in a temporary `--settings` file, the probe is read-only and
+  confined to `--allowedTools Read`, and the log is written outside the tree.
+
+  It is honest about not knowing. Absent CLI, missing `jq`, a timeout, or a hook that produced no
+  records all report `VERDICT UNKNOWN` and exit 3 — never a pass. A verification tool that reports
+  success because it could not measure is worse than no tool.
+
+  Its own suite drives the real CLI, and asserts **both directions**: reading a `.cs` file loads the
+  C# rule and the imported root surface, and does *not* load the TypeScript rule. The negative case
+  is what actually demonstrates that path scoping defers rather than assuming it.
+
+  Wired as an escalation in `check` (for "why is my rule not firing despite a green gate") and as an
+  optional post-apply step in `realign` (worth it on the first move of a migration, not on every
+  finding, since it costs a model call).
+
 ## [0.3.0]
 
 ### Added

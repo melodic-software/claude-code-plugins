@@ -7,6 +7,7 @@ allowed-tools:
   [
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
+    "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh:*)",
     "Read",
     "Grep",
     "Glob",
@@ -80,6 +81,21 @@ checks still decide the verdict.
 case, and 3 means "nothing to compare", not "broken". Report it as a recommendation — the index is
 what makes deferred rules reachable from subagents — and leave the gate's verdict to the glob
 checks. Only a repository that *has* an index and has let it drift fails on that check.
+
+### Escalating to empirical verification
+
+Every check above is static — it reads files and reasons about what Claude Code *would* do. When the
+operator asks why a rule is not firing despite a green gate, or wants proof rather than inference,
+escalate:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" --trigger <covered file> --expect <the rule>
+```
+
+That drives the real CLI with an `InstructionsLoaded` hook and reports what actually loaded, with
+the reason for each load. It costs a model call, so it is an escalation rather than part of the
+default gate. `VERDICT UNKNOWN` means the probe could not run — report it as unmeasured, never as a
+pass.
 
 Pass `--breadth-max` through when the operator supplies it. The default of 75% is a starting point,
 not a law; a documentation repository where `**/*.md` legitimately covers most files should raise
