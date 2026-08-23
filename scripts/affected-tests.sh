@@ -122,7 +122,12 @@
 # mean the file is covered — check that the selected suites actually name it.
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 
@@ -562,18 +567,15 @@ select_for() {
 
 declare -a NO_SUITE_PATTERNS=()
 load_no_suite_patterns() {
-  local line
   if [[ ! -f "$NO_SUITE_LIST" ]]; then
     echo "error: missing $NO_SUITE_LIST — the no-suite classification cannot be applied," >&2
     echo "       and without it every doc and manifest change would report as unmapped." >&2
     exit 2
   fi
-  while IFS= read -r line; do
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -n "$line" ]] && NO_SUITE_PATTERNS+=("$line")
-  done <"$NO_SUITE_LIST"
+  # `inline`: these are glob patterns over repo paths, never regexes, so a `#`
+  # anywhere on the line is a comment (scripts/lib/read-list.sh owns the two
+  # comment families and why they must stay distinct).
+  read_list::into NO_SUITE_PATTERNS "$NO_SUITE_LIST" --comments inline || exit 2
   if [[ ${#NO_SUITE_PATTERNS[@]} -eq 0 ]]; then
     echo "error: $NO_SUITE_LIST has no active patterns." >&2
     exit 2
@@ -593,30 +595,22 @@ is_no_suite() {
 # Changed-file resolution
 # ---------------------------------------------------------------------------
 
-resolve_base() {
-  local c
-  if [[ -n "$base_ref" ]]; then
-    printf '%s' "$base_ref"
-    return 0
-  fi
-  for c in origin/main origin/master main master; do
-    if git rev-parse --verify --quiet "$c^{commit}" >/dev/null 2>&1; then
-      printf '%s' "$c"
-      return 0
-    fi
-  done
-  return 1
-}
-
 changed_from_diff() {
-  local base mb
-  if ! base="$(resolve_base)"; then
+  local base="" mb
+  # An explicit --base is resolved HERE, not through the shared ladder: a ref
+  # the user typed and got wrong must be an error naming that ref, never a
+  # silent fall-through to origin/main that would report suites for a diff they
+  # did not ask for. The fallback ladder (origin/main, origin/master, main,
+  # master) is the part shared with the checker gates.
+  if [[ -n "$base_ref" ]]; then
+    if ! changed_files::verify_base "$base_ref"; then
+      echo "error: base ref '$base_ref' does not resolve to a commit." >&2
+      exit 2
+    fi
+    base="$base_ref"
+  elif ! changed_files::resolve_base base; then
     echo "error: no diff base resolved (tried --base, origin/main, origin/master, main, master)." >&2
     echo "       Pass --base <ref>, or give explicit paths." >&2
-    exit 2
-  fi
-  if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1; then
-    echo "error: base ref '$base' does not resolve to a commit." >&2
     exit 2
   fi
   # Compare the WORKING TREE against the merge base: a local developer wants the

@@ -5,24 +5,26 @@
       "id": 1,
       "name": "identify-on-duplication-smell",
       "prompt": "The same 'always run the build before opening a PR' guardrail is reworded across five rule and skill files. I want a single source of truth for it.",
-      "expected_output": "Routes to the identify action (or a targeted single-cluster identify), grounding the cluster in Tier 0 grep evidence, and — because 5 instances clear the Rule of Three — proceeds toward planning an extraction into a single named home cited by exact heading.",
+      "expected_output": "Routes to the identify action (or a targeted single-cluster identify), grounding the cluster in Tier 0 grep evidence, and — because 5 instances land the cluster in the N>=3 bucket where the Rule of Three is met — proceeds toward planning an extraction into a single named home cited by exact heading.",
       "files": [],
       "expectations": [
         "Output routes to the extract-ssot workflow (identify / verify / plan) rather than editing files ad hoc",
         "Output confirms the instance count via direct (Tier 0) grep evidence, not recall",
-        "Output treats 5 instances as clearing the Rule of Three"
+        "Output places the cluster in the N>=3 bucket and treats 5 instances as clearing the Rule of Three",
+        "Output only puts an artifact-creating output (rule-file / new-skill / new-action) on the table because the bucket is N>=3, and still runs it through the 6-test gate"
       ]
     },
     {
       "id": 2,
-      "name": "refuse-below-rule-of-three",
+      "name": "two-instances-bucketed-no-new-artifact",
       "prompt": "This constraint appears in exactly two files. Extract it into a shared SSOT rule so it's DRY.",
-      "expected_output": "Refuses extraction: with only 2 instances the Rule of Three is not met, and premature abstraction is the dominant failure mode. It recommends leaving the content inline until a third instance appears.",
+      "expected_output": "Rosters the cluster in the N=2 bucket (source-of-truth bifurcation risk) rather than discarding it, and refuses to create any new artifact for it: with only 2 instances the Rule of Three is not met and premature abstraction is the dominant failure mode. It offers the non-abstracting remedies instead — name-an-owner (declare one of the two existing files canonical and have the other cite it), edit-existing-rule, normalize-wording — and notes the candidate can be revisited if a third instance lands.",
       "files": [],
       "expectations": [
-        "Output REFUSES the extraction at 2 instances (below the Rule of Three)",
-        "Output recommends keeping the content inline for now",
-        "Output frames premature extraction as the risk, not a benefit"
+        "Output rosters the candidate in the N=2 bucket with its instance count rather than dropping it as below the Rule of Three",
+        "Output REFUSES to create a new SSOT artifact (no new rule file, skill, or action) at 2 instances, citing the Rule of Three",
+        "Output offers only non-abstracting remedies — name-an-owner / edit-existing-rule / normalize-wording — that edit the two existing files",
+        "Output frames premature extraction as the risk, not a benefit, while still surfacing the duplication to the user"
       ]
     },
     {
@@ -83,6 +85,32 @@
         "Output asks the user to confirm scope before surveying (does not auto-start exhaustive identify)",
         "Output presents prescribed defaults with a recommended option first, including a path/glob-scoped exhaustive survey choice distinct from targeted cluster grep",
         "Output references whole-repo / orchestrated-mode defaults when offering the repo-wide option"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "single-inline-recap-of-existing-ssot",
+      "prompt": "Our .claude/rules/testing.md already owns the 'run the full suite before merge' constraint, but one skill body restates it in its own paragraph instead of citing it. Only that one file does this.",
+      "expected_output": "Rosters the single site in the N=1 bucket — it qualifies because a canonical home already exists that the site recaps instead of cites — and recommends trim-to-citation: replace the recap with a citation by exact heading plus a short inline summary, with normalize-wording if the drifted phrasing must survive. No new artifact is created; the SSOT already exists.",
+      "files": [],
+      "expectations": [
+        "Output reports the single-instance recap rather than dismissing it as below the Rule of Three",
+        "Output places it in the N=1 bucket and justifies admission by the existing canonical home it should be citing",
+        "Output recommends trim-to-citation (and/or normalize-wording) and creates no new rule file, skill, or action",
+        "Output does not propose a rule-file / new-skill / new-action output for a single instance"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "min-instances-3-regression-guard",
+      "prompt": "Run /docs-hygiene:extract-ssot identify --min-instances=3 over this repo. Some clusters have one or two instances.",
+      "expected_output": "Reproduces the pre-bucket behavior exactly: --min-instances=3 sets the lowest bucket to roster at three, so the N=1 and N=2 buckets are not rostered at all and only N>=3 clusters reach the roster. The suppressed buckets are named as suppressed by the flag rather than silently omitted, so an empty section does not read as 'nothing found'. Read-only — no flags beyond --min-instances means no edits are applied.",
+      "files": [],
+      "expectations": [
+        "Output rosters only clusters with 3 or more instances under --min-instances=3",
+        "Output does NOT roster the one- and two-instance candidates, matching the legacy pre-bucket behavior",
+        "Output distinguishes 'suppressed by --min-instances' from 'no candidates found' for the omitted buckets",
+        "Output applies no edits (bare identify with only --min-instances stays read-only)"
       ]
     }
   ]

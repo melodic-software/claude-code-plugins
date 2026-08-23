@@ -14,10 +14,11 @@ The config file itself is optional to *create*, but a no-argument `/repo-fleet-h
 requires scope from somewhere: CLI bare path / `--root` / `--repo`, or `fleet.root` / `fleet.repo`
 entries in a consumed config. Absence of every config on the ladder is therefore INFO for `check`
 (nothing to validate yet) and a hard failure for a subsequent no-argument audit — not a silent
-default to the current project. `check` inspects read-only; `apply` creates or updates the file,
-then re-runs `check`. No argument or `check` runs the check; `apply` runs the check first, then
-the write. All non-interactive: when the arguments fully specify the change, `apply` proceeds without
-prompting.
+default to the current project. Check-centric per the uniform setup contract
+(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository):
+`check` inspects read-only; `apply` creates or updates the file, then re-runs `check`. No argument
+or `check` runs the check; `apply` runs the check first, then the write. All non-interactive: when
+the arguments fully specify the change, `apply` proceeds without prompting.
 
 Default config path: `${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf`. An explicit `--config`
 may choose another path. Resolve relative roots/repos/canonical paths from the config file directory.
@@ -174,8 +175,8 @@ GitHub remote identity on both sides first.
 
 - Run a fleet audit — that is `/repo-fleet-hygiene:audit`. `check` validates config only; it never
   walks the fleet.
-- Write Claude Code settings, `pluginConfigs`, the plugin cache, or any machine-local state — the
-  config is the consumer's own tracked file.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor any machine-local
+  state — the config is the consumer's own tracked file.
 - Touch Git remotes, branches, or worktrees.
 
 ## Gotchas

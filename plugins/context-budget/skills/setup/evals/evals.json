@@ -1,0 +1,86 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-runs-read-only-check",
+      "prompt": "/context-budget:setup",
+      "expected_output": "Runs the read-only check action (the default), reports a PASS/FAIL/INFO table with one remediation line per FAIL, and writes nothing.",
+      "files": [],
+      "expectations": [
+        "Defaults to check when no action argument is given, and never prompts for one",
+        "Reads the audit skill's Prerequisites section and the measure.mjs header as the source of truth for what the plugin requires, rather than reciting the setup SKILL.md list",
+        "Emits exactly one remediation line per FAIL finding",
+        "Installs nothing and writes no user settings, no pluginConfigs entry, and no plugin-cache file"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "node-absent-fails-for-both-dependents",
+      "prompt": "/context-budget:setup check on a machine where `command -v node` finds nothing.",
+      "expected_output": "FAILs on node and names BOTH dependents in one finding: the measurement engine is a Node script, so the audit cannot produce a number and correctly stops rather than estimating; and the PreToolUse settings-write checkpoint cannot launch.",
+      "files": [],
+      "expectations": [
+        "Reports node as the plugin's one hard prerequisite and marks it FAIL, not INFO",
+        "Names both dependents: the Node measurement engine and the PreToolUse settings-write checkpoint",
+        "States that the engine stops rather than producing an estimated number",
+        "Points at the platform's own Node install channel and does not download or install a runtime itself"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "toggle-reads-true-while-exec-form-hook-never-launches",
+      "prompt": "/context-budget:setup check — settings_write_ask_enabled renders as `true`, but the bare name `node` does not resolve on PATH inside the hook's own environment. Why did the settings-write ask never prompt?",
+      "expected_output": "Explains the divergence rather than trusting the toggle: the checkpoint is registered in exec form, so Claude Code resolves the bare name node on PATH in the hook's own environment, and a hook that fails to launch is non-blocking — so the option can read true while the checkpoint produces no ask and says nothing about it.",
+      "files": [],
+      "expectations": [
+        "Attributes the silence to exec-form registration (\"command\": \"node\" with the script in args), not to the toggle being off",
+        "States that a failed hook launch is non-blocking, so no error surfaces and no ask is produced",
+        "Reports the effective toggle value and the hook-launch verdict as two separate findings, and never infers enforcement from the toggle reading true",
+        "Names this divergence as exactly what a native configuration prompt cannot tell the reader",
+        "On Windows, tells the operator to confirm the hook's environment resolves the same node this check resolved"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-installs-agent-sdk-unasked",
+      "prompt": "/context-budget:setup apply — the Agent SDK does not resolve so exact mode is unavailable. Just install it for me so my audits are exact.",
+      "expected_output": "Prints the one-time npm install command marked as the operator's own and does not run it, because it needs network access. Reports the absent SDK as INFO, not a defect.",
+      "files": [],
+      "expectations": [
+        "Does not execute the npm install; prints the command for the operator to run",
+        "Gives network access as the stated reason the skill offers the command rather than running it",
+        "Classifies the absent SDK as INFO, not FAIL, and states that the engine degrades to parsing headless /context output",
+        "Names both caveats the degraded record carries: the output is display-rounded and rests on an undocumented surface",
+        "States that the engine returns a structured error rather than a wrong number when neither mode works"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "reports-cli-stamp-and-refuses-to-measure",
+      "prompt": "/context-budget:setup check — two `claude` binaries resolve on this machine. While you are in there, go ahead and run an audit so I can see my current context number.",
+      "expected_output": "Reports the two installs as INFO — the audit is what asks which one to pin — and declines to run a measurement: setup verifies prerequisites and never performs a measurement, attribution, or ledger operation.",
+      "files": [],
+      "expectations": [
+        "Classifies two resolving claude installs as INFO, not FAIL, and states that the audit asks which one to pin",
+        "Reports each install's absolute path and --version, because that stamp is what makes a report a claim",
+        "Declines to run the measurement and routes it to /context-budget:audit",
+        "Still writes nothing and installs nothing while handling the extra request"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-change-reruns-install-never-uninstalls",
+      "prompt": "/context-budget:setup apply — I want settings_write_ask_enabled set to false, headless. I cannot use the interactive configure prompt from this session.",
+      "expected_output": "Routes the headless option change to a plain `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=false` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, stamps the claim with the CLI version it was verified against, and closes by rerunning check in a fresh session to report the observed value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=false` rerun, and states that against an already-installed plugin it prints `already installed` and still writes the value",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README Options reference table to its manifest default",
+        "Stamps the --config claim with the CLI version it was verified against — Claude Code 2.1.240, a non-sensitive option at user scope — and flags a sensitive option and project/local scope as not covered",
+        "Tells the operator to pass the scope `claude plugin list` reports for this plugin instead of relying on the -s default of user, and to run from that project's directory for a project or local scope",
+        "Ends by rerunning check in a FRESH session, because the rendered user_config token is injected at skill load, and reports the OBSERVED effective value rather than asserting an unobserved change"
+      ]
+    }
+  ]
+}

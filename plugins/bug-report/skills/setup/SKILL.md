@@ -35,8 +35,12 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    team path.
 4. If the recommended value differs from the effective one, direct the user to Claude Code's
    plugin configuration prompt for `bug-report` (interactive `/plugin configure bug-report@<marketplace>` any
-   time; headless, `--config` applies only on a fresh install — uninstall then reinstall to
-   reconfigure). Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
+   time; headless, rerun `claude plugin install bug-report@<marketplace> -s <scope> --config
+   output_dir=<path>` — against an already-installed plugin it prints `already installed` and
+   still writes the value, verified on Claude Code 2.1.240 for a non-sensitive option at `user`
+   scope. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry and
+   resets every option to its manifest default). Claude Code owns persistence. Do not hand-edit
+   any `pluginConfigs` key.
 5. Tell the user to rerun `check` after reconfiguration — in a fresh session, since the rendered
    value is injected at load — then verify and report the effective destination.
 
@@ -49,5 +53,7 @@ rerun observes the new rendered value.
 ## Boundaries
 
 - Do not produce or file a bug report; invoke `/bug-report:write` via the Skill tool.
-- Do not write Claude Code settings.
+- Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
+  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  marketplace repository).
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

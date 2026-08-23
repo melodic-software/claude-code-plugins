@@ -17,6 +17,12 @@ example the author drafted.
 
 The following three skills consume this rule: `/net-audit`, `/net-lint`, `/net-verify`.
 
+As you asked, the cap sits at 30s rather than the 45s default.
+
+Task 2 replaces the old fixed-delay retry, and in this PR we make backoff the default.
+
+See PR #45 for the ordering rationale.
+
 ## Cross-references
 
 - `src/net/backoff.md` — backoff curve derivation

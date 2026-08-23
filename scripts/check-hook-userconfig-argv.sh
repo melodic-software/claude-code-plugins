@@ -26,7 +26,10 @@
 # and fails the gate, so the list can only shrink back to reality.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-hook-userconfig-argv: jq is required but not installed" >&2
@@ -37,12 +40,26 @@ ALLOWLIST="scripts/hook-userconfig-argv-allowlist.txt"
 # shellcheck disable=SC2016  # single quotes are deliberate: the token is matched literally, never expanded
 TOKEN='${user_config.'
 
-# CRLF tolerance: on Windows (Git Bash) jq and text files can carry \r line
-# endings; strip them from every value read, or path tests silently miss.
+# The allowlist is read ONCE here and both consumers below share the result.
+# They used to disagree: `allowed()` grep-matched raw lines (no comment
+# stripping, no trimming — so an entry with trailing whitespace silently never
+# matched), while the stale guard skipped leading-`#` lines and stripped a CR.
+# One read means one answer to "what is an active entry" (#3161).
+#
+# `leading`: entries are hook-config paths and the prior behaviour treated `#`
+# as a comment only at line start, so this preserves it exactly. CRLF tolerance
+# (Windows / Git Bash) now lives in the shared reader.
+declare -a ALLOWED_ENTRIES=()
+if [[ -f "$ALLOWLIST" ]]; then
+  read_list::into ALLOWED_ENTRIES "$ALLOWLIST" --comments leading
+fi
+
 allowed() {
-  local path="$1"
-  [[ -f "$ALLOWLIST" ]] || return 1
-  tr -d '\r' <"$ALLOWLIST" | grep -Fxq "$path"
+  local path="$1" entry
+  for entry in ${ALLOWED_ENTRIES[@]+"${ALLOWED_ENTRIES[@]}"}; do
+    [[ "$entry" == "$path" ]] && return 0
+  done
+  return 1
 }
 
 errors=0
@@ -123,16 +140,12 @@ done
 
 # Stale-allowlist guard: every entry must name a scanned hook config that still
 # carries the token; anything else is drift the list must shed.
-if [[ -f "$ALLOWLIST" ]]; then
-  while IFS= read -r entry; do
-    entry="${entry%$'\r'}"
-    [[ -z "$entry" || "$entry" == \#* ]] && continue
-    if [[ -z "${flagged_or_allowed[$entry]:-}" ]]; then
-      echo "STALE ALLOWLIST: $ALLOWLIST: '$entry' names no scanned hook config carrying \${user_config.*} — remove it" >&2
-      errors=$((errors + 1))
-    fi
-  done <"$ALLOWLIST"
-fi
+for entry in ${ALLOWED_ENTRIES[@]+"${ALLOWED_ENTRIES[@]}"}; do
+  if [[ -z "${flagged_or_allowed[$entry]:-}" ]]; then
+    echo "STALE ALLOWLIST: $ALLOWLIST: '$entry' names no scanned hook config carrying \${user_config.*} — remove it" >&2
+    errors=$((errors + 1))
+  fi
+done
 
 if ((errors > 0)); then
   {

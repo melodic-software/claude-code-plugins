@@ -80,9 +80,9 @@ fi
 # unassigned while that lease stays live: two workers on one item. Guard on a
 # fresh assignee read so a holder already unassigned (idempotent re-run) is a no-op.
 holder="$(jq -r '.holder' <<<"$lease_json")"
-wit_run_gh read issue view "$number" -R "$owner/$repo" --json assignees --jq '[.assignees[].login]'
+wit_read_assignees "$owner" "$repo" "$number"
 if jq -e --arg h "$holder" 'any(.[]; . == $h)' <<<"$WIT_GH_OUT" >/dev/null; then
-  wit_run_gh write issue edit "$number" -R "$owner/$repo" --remove-assignee "$holder"
+  wit_remove_assignee write "$owner" "$repo" "$number" "$holder"
 fi
 
 superseded="$(jq -c --arg ts "$now" '. + {superseded_at: $ts}' <<<"$lease_json")"

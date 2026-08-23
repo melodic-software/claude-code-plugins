@@ -7,7 +7,8 @@ disable-model-invocation: true
 
 ## Purpose
 
-Setup per the uniform contract: `check` inspects and reports, `apply` resolves. This plugin declares no
+Setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in
+the marketplace repository): `check` inspects and reports, `apply` resolves. This plugin declares no
 `userConfig`, and has two setup concerns:
 
 - the external command-line tools its bundled scripts require — here `apply` is guidance-and-verify
@@ -20,10 +21,12 @@ Both are non-interactive — never prompt when the action is given.
 
 ## `check` (read-only)
 
-The bundled scripts are the single source of truth for what they require. **Read them first** — probe
-what they actually do, don't recite this file — then run each probe via Bash and report a PASS/FAIL/INFO
-table with one remediation line per FAIL — read-only; leave every file untouched. The runtime scripts
-and their tools:
+The bundled scripts are the single source of truth for what this plugin requires.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+
+The runtime scripts and their tools:
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh` — jq **and** curl, plus awk and sort
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` — jq; `fix-plugin-drift.sh` — jq plus sort
@@ -151,7 +154,8 @@ Every write names the file and the exact change before making it, and preserves 
 - Run an audit — that is `/claude-config:audit`, `/claude-config:audit-automation-gaps`,
   `/claude-config:audit-permission-grants`, `/claude-config:audit-instructions`, and
   `/claude-config:audit-pass`.
-- Install system packages, write Claude Code settings or `pluginConfigs`, or touch the plugin cache.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Install system packages.
 - Write the consumer's `.gitignore`, stage anything, or edit an operator's suppression entries.
 - Download anything — `check` makes no network call; the audit skills' own doc/marketplace fetches are
   theirs, not setup's.

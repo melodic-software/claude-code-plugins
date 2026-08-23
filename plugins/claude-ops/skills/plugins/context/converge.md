@@ -16,8 +16,10 @@ treat it as autonomous and abort. Report why, and that `converge` can be re-run 
 
 ## V1 scope: version divergence only
 
-`converge` resolves entries in `fleet-state.sh`'s `divergences[]` with `versionsMatch: false` —
-scopes disagree on version. It does **not** currently resolve, and cannot even detect, an
+`converge` resolves entries in `fleet-state.sh`'s `divergences[]` with `versionsMatch: false` — the
+filter rule is defined once in
+[scope-semantics.md](scope-semantics.md#divergence-is-not-automatically-actionable); this action is
+one of its consumers, not a second statement of it. It does **not** currently resolve, and cannot even detect, an
 enable-state mismatch (a plugin `true` in one scope's `enabledPlugins` and `false` in another) —
 that needs comparing each scope's *raw* `enabledPlugins` map, which `fleet-state.sh` doesn't expose
 today (only the merged effective value, in `enabled`). This is a genuine blind spot, not a deferred
@@ -69,6 +71,28 @@ the other: each needs its own `cd`. Per [scope-semantics.md](scope-semantics.md)
 `projectPath` on the literal cwd while `fleet-state.sh` matches on the checkout root — that gap is a
 blind spot in its own right, recorded in [gotchas.md](gotchas.md).
 
+### Precondition — never emit a `cd` command into a path that is not present
+
+Before emitting any `(cd "<projectPath>" && …)` command, check that row's `projectPathPresent` (see
+[scope-semantics.md](scope-semantics.md)). When it is `false`, the `cd` fails and every command this
+step could construct for that row is unrunnable — so emit the row as **blocked**, with the reason,
+instead of as a runnable command:
+
+```text
+- <id>@<marketplace> — BLOCKED: projectPath "<projectPath>" is not present on this machine.
+  converge cannot act on it: `-s project`/`-s local` have no path flag, so the command must cd into
+  that directory. Nothing here is safe to run.
+```
+
+Ephemeral checkouts make this a bulk condition rather than a curiosity — one removed worktree can
+block every row that pointed into it.
+
+**A blocked row is not a resolved row, and `false` is not "dead".** Do not offer to "clean up" the
+record: no `claude plugin` verb removes an install record by path (verified on Claude Code 2.1.240),
+and hand-editing `installed_plugins.json` is outside this skill's boundary. Do not silently drop the
+row either — the path may simply be an unmounted volume or an offline share, and a dropped row is
+drift the user never learns about. Report it and move on.
+
 Present every plugin's proposed strategy and exact CLI command(s) before running anything — do not
 batch-apply. Per Brief Decision 6 (V1): confirm **every** pin individually, even when many plugins
 share the same strategy — do not infer consent from one confirm to the next.
@@ -82,8 +106,14 @@ choose the other strategy, or skip this one.
 ## Step 4 — Execute
 
 Run only the confirmed commands, one plugin at a time. Re-read `fleet-state.sh` state immediately
-before each mutation (per `sync.md`'s concurrency note) — do not act on a snapshot taken during
-Step 1 if meaningful time has passed or another mutation already landed.
+before each mutation — do not act on a snapshot taken during Step 1 if meaningful time has passed or
+another mutation already landed.
+
+`converge` genuinely is per-**mutation** here, where [sync.md](sync.md) draws its re-read boundary at
+the **step**. That is a deliberate difference, not a contradiction: this action is confirm-gated and
+low-volume (a handful of plugins, each with a human decision between them), so a re-read per mutation
+costs nothing and the elapsed time between confirms is real. `sync`'s Step 3 loop issues dozens of
+calls back to back with no pause, where the same discipline would buy only redundant work.
 
 ## Step 5 — Surface the resulting diff
 

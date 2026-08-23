@@ -7,10 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply` resolves.
-Only the **detached observer** (see [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md))
-has runtime prerequisites and configuration; the other skills are zero-config. The observer's tunables
-are all native `userConfig`, and its remaining prerequisites are system tools (Python 3.10+, `jq`), so
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
+`apply` resolves. Only the **detached observer** (see
+[`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md)) has
+runtime prerequisites and configuration; the other skills are zero-config. The observer's tunables are
+all native `userConfig`, and its remaining prerequisites are system tools (Python 3.10+, `jq`), so
 `apply` is guidance-and-verify with **no write path**: it installs nothing and edits nothing (writing
 `pluginConfigs` is what the setup contract forbids).
 
@@ -21,14 +23,15 @@ resolution for each finding. Both are non-interactive — never prompt when the 
 
 The hook and launcher are the single source of truth for what they require and how they degrade:
 `${CLAUDE_PLUGIN_ROOT}/hooks/observer-arm.sh`, `${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/arm_observer.py`,
-and `observer.py` beside it. **Read them first** — probe what they actually do, don't recite this file.
-Then run each probe via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do
-not modify anything.
+and `observer.py` beside it.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the observer is disabled (`observer_enabled` off AND no `arm` invocation in use), every
 prerequisite absence downgrades from FAIL to INFO — the hook exits through its opt-in gate before
-touching anything, so a deliberately-off observer is not broken. Note that re-enabling restores FAIL
-semantics.
+touching anything, so a deliberately disabled plugin is not broken. Report the probes informationally
+and note that re-enabling restores the FAIL semantics.
 
 1. **Python 3.10+** — the launcher and tailer are stdlib-only Python 3.10+. Probe the same interpreter
    detection the hook uses (`python3` then `python`, requiring `sys.version_info >= (3, 10)`). FAIL if
@@ -55,31 +58,36 @@ semantics.
 ## `apply`
 
 No write path. Run `check`, then for each FAIL offer the remediation: install the missing tool, or route
-observer reconfiguration through Claude Code's native flow. Never write `pluginConfigs`, mutate user
-settings, or edit the installed plugin cache.
+observer reconfiguration through Claude Code's native flow.
+Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 
-Reconfiguring the observer's `userConfig` keys has exactly two routes, and only the first works on an
+Reconfiguring the observer's `userConfig` keys has exactly two routes, and both work on an already
 installed plugin:
 
 - **Interactive, any time:** `/plugin configure session-flow@<marketplace>`.
-- **Headless:** `claude plugin install ... --config observer_enabled=true` seeds a value on a *fresh
-  install only* — re-running it against an already-installed plugin does not update the stored value.
-  So a headless reconfigure is `claude plugin uninstall session-flow -s <scope>` then `claude
-  plugin install session-flow@<marketplace> -s <scope> --config <key>=<value> ...`, supplying
-  **every key whose value should be non-default — not only the keys being changed**.
+- **Headless:** rerun the install with the new value —
+  `claude plugin install session-flow@<marketplace> -s <scope> --config <key>=<value>` (repeatable
+  per key). Against an already-installed plugin it prints `already installed` **and still writes the
+  value** — verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default
+  value written to an installed plugin, then restored). The short-circuit is about the install, not
+  the config write. Re-verify before relying on it outside those conditions — a `sensitive` option,
+  or `project`/`local` scope, were not covered.
 
-  Both commands default to `-s user`. Pass the scope the plugin is *actually* installed at —
+  `-s` defaults to `user`. Pass the scope the plugin is *actually* installed at —
   `claude plugin list` reports it per plugin — and run from that project's directory when the scope
-  is `project` or `local`. Defaulting instead removes a separate user record while the effective
-  project or local install stays in place, so the reinstall lands at a scope that does not load.
-  `-y` only skips `uninstall`'s `--prune` confirmation; this recipe never passes `--prune`, so `-y`
-  has no effect here and should not be added.
+  is `project` or `local`, or the write lands at a scope that does not load.
 
-  Uninstalling drops the stored `pluginConfigs` entry, so any key omitted from the reinstall
-  silently falls back to the manifest default: reinstalling purely to enable the observer resets a
-  customized `observer_analysis_model`, `observer_idle_seconds`, `observer_analysis_bare`, and
-  `observer_max_seconds`. Run `check` first and record the current values, because after the
-  uninstall there is nothing left to read them from.
+  Do **not** uninstall to reconfigure. Uninstalling drops the stored `pluginConfigs` entry outright,
+  so every option in the README's Options reference table falls back to its manifest default —
+  a customized `observer_analysis_model`, `observer_idle_seconds`, `observer_analysis_bare`, or
+  `observer_max_seconds` is simply gone, with nothing left to read the old values from.
+
+Afterwards, keep the two claims apart. The write is issued and the stored value is what you
+passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
+skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
+session start, so a same-session `check` still reports the OLD value — reporting that as a failed
+write would be wrong. Verify the effective value by rerunning `check` in a **fresh session**, and
+never claim an unobserved change.
 
 ## Gotchas
 

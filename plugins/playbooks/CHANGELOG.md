@@ -4,6 +4,16 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.9]
+
+### Changed
+
+- **README:** deduplicated the hand-written option-scoping preamble against the
+  generated options block, which already states both facts (#2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
 ## [0.8.8]
 
 ### Added

@@ -8,7 +8,8 @@ budget (≤200 LOC / ≤8 files target; ≤400 / ≤15 hard cap).
 Five skills, one capability:
 
 - **`/code-tidying:dissolve-comments`** — enforces self-describing, expressive
-  code over a diff or target: deletes zero-information comments, dissolves
+  code over a diff or target (a clean tree widens to the branch diff, then to
+  the whole repository with confirmation): deletes zero-information comments, dissolves
   code-expressible comments into names and structure via behavior-preserving
   refactoring (then deletes them), and keeps only terse, load-bearing comments
   code cannot express. Refactors apply only behind a discovered test net;
