@@ -20,10 +20,13 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   not carry over: `gh api` has no `--repo` flag (`{owner}`/`{repo}` expand from the current
   directory or `GH_REPO`), and REST returns `comments` as an integer count rather than the list
   `--json comments` gives, so comments still come from the paginated "List item comments" recipe.
-- **`ship` points at that substitute.** Its spec-text read is a bare `gh issue view --json
-  body,title` block, the one item-read site that did not already route the reader through the
-  adapter's operations reference. It now says the command 403s in a sandboxed session and links
-  the adapter section that carries the replacement.
+- **The seam reference and `ship` point at that substitute.** Both show the bare
+  `gh issue view --json body,title` form: `reference/tracker-seam.md` is where "Operation
+  routing" sends every body read (and so is what `work` and `decompose` reach through), and
+  `ship` reads a container's Brief with it directly. Neither reached the adapter's "View item"
+  note by any path a reader would follow on hitting the 403, so each now says the command is
+  GraphQL-backed and 403s in a sandboxed session, and names the adapter section carrying the
+  replacement.
 
 ## [0.39.19]
 

@@ -100,6 +100,12 @@ fi
 
 **Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `$REMOTE/$DEFAULT_BRANCH` (branch is current).
 
+**Sandboxed sessions: resolve the default branch over REST.** `gh repo view --json` sends the same `RepositoryInfo` GraphQL query `gh pr create` does, so this is the *first* step on the normal `create` path to fail with `HTTP 403` where only a pinned set of GraphQL operations is served — see §2.4.0 for the full restriction and the placeholder-anchoring rule. Substitute:
+
+```bash
+DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" --jq '.default_branch')
+```
+
 ## 2.3 Stage and commit
 
 ### 2.3.1 Unrelated uncommitted changes check (MANDATORY)
@@ -593,6 +599,17 @@ BRANCH=$(git -C "$WT" branch --show-current)
   ```
 
   `$BASE` needs its own resolution here: §2.2 is skipped in this mode, so nothing has set a default branch. Resolve it the same anchored way — `BASE=$( cd "$WT" && gh api "repos/{owner}/{repo}" --jq '.default_branch' )`.
+
+  **On a triangular flow, anchoring to the worktree is not enough.** Where the worker pushed to a fork and the PR targets an upstream base, the placeholders resolve against the worktree's own remotes, so `repos/{owner}/{repo}/pulls` can post to the **fork** — opening a PR that targets the fork's own default branch instead of upstream, with no error to notice. Name the base repository explicitly and namespace `head`, per §2.4.3's `head` bullet:
+
+  ```bash
+  BASE_REPO="<base-owner>/<repo>"                # the PR's target, not the push destination
+  PR_JSON=$(GH_REPO="$BASE_REPO" gh api --method POST "repos/{owner}/{repo}/pulls" \
+    -f title="<type>: <description>" -f head="<fork-owner>:$BRANCH" \
+    -f base="$BASE" -f body="$BODY")
+  ```
+
+  `GH_REPO` overrides the cwd-derived placeholders outright, so this form needs no `cd` at all. Resolve `$BASE` against `$BASE_REPO` the same way when the flow is triangular.
 
 - **§2.5 / §2.6:** unchanged — record expected workflows, report the PR URL + number, and stop.
 

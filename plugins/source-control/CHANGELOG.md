@@ -11,12 +11,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   substitutes.** Sandboxed sessions (Claude Code on the web, remote execution) serve only a
   pinned set of GraphQL operations and refuse the rest with `HTTP 403`, which takes out both
   `gh issue view --json` and `gh pr create`. The §2.4.0 linkage check was the more dangerous of
-  the two because it fails *quietly*: its `2>/dev/null || true` swallows the 403, leaving
-  `ISSUE_STATE` empty, so a live open issue is reported as "missing or not open" and the
-  `Closes #N` line §2.4.2.1 gates on is dropped — the branch then fails the repository's
-  `pr-issue-linkage` check for a reason nothing on the create path names. §2.4.0 now gives the
-  REST form and flags that REST reports `state` in lower case, so a comparison against `OPEN`
-  silently never matches.
+  the two, because it fails with a *misleading diagnosis* rather than an error: its
+  `2>/dev/null || true` swallows the 403, leaving `ISSUE_STATE` empty, so a live open issue is
+  reported as "missing or not open" and the flow falls through to the orphan-PR prompt. Taking
+  that prompt's `No related issue:` option then clears the §2.4.2.1 gate silently, and the PR
+  ships with no linkage at all; declining it aborts the create instead. Either way the stated
+  cause is wrong. §2.4.0 now gives the REST form and flags that REST reports `state` in lower
+  case, so a comparison against `OPEN` never matches.
 - **§2.4.3 states the REST PR-open form.** `gh pr create` sends a `RepositoryInfo` GraphQL
   preamble before it touches the pull-request API, so it 403s having created nothing. The
   section now documents `POST /repos/{owner}/{repo}/pulls` with the four differences that make
