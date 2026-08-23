@@ -152,13 +152,15 @@ filtered through a noise budget with per-class rules, and a cycle where nothing 
 Recurrence changes nothing about the read-only boundary: no cadence reaches `realign`, and verdict
 changes queue for a human rather than being acted on.
 
-## Where the findings artifact lands
+## Where the artifacts land
 
-Memory tier, concern-scoped, branch-keyed, never committed —
-[`reference/topic-docs.md`](reference/topic-docs.md) owns the resolution. The artifact is ephemeral
-by design and rewritten in place on every re-audit, with operator judgments carried forward by stable
-finding id so a decision is never wiped and re-reported. Judgments that must outlive the branch are
-persisted as tracked suppression entries instead.
+Both files the plugin writes — the findings artifact, and the spine baseline the delta lane captures
+before it re-audits — are memory tier, concern-scoped, branch-keyed, and never committed;
+[`reference/topic-docs.md`](reference/topic-docs.md) owns the resolution and the placement of each.
+Both are ephemeral by design: the findings artifact is rewritten in place on every re-audit, with
+operator judgments carried forward by stable finding id so a decision is never wiped and re-reported,
+and the baseline is recaptured each cycle. Judgments that must outlive the branch are persisted as
+tracked suppression entries instead.
 
 ## Sources
 

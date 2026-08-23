@@ -437,19 +437,18 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 
 ## Obligations, by skill
 
-| Obligation | `audit` | `realign` |
-|---|---|---|
-| Writes the artifact | yes — it is the producer | yes — status and status-bound fields only |
-| Mutates anything outside the artifact | **never** | only behind explicit per-item acceptance |
-| Writes `Status` | `OPEN` on new findings; carries the rest forward | the sole owner of every transition |
-| Leads with the evidence-availability assessment | yes, before any finding | reads it; never recomputes it |
-| Refuses on a mismatched `branch:` or an unrecognized `schema:` | n/a — it writes them | yes, with a visible message |
-| Behavior when the artifact is missing | n/a | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own |
+| Obligation | `audit` | `realign` | `delta` |
+|---|---|---|---|
+| Writes the artifact | yes — it is the producer | yes — status and status-bound fields only | **never** — a third reader and no writer of any field here |
+| Mutates anything outside the artifact | **never** | only behind explicit per-item acceptance | the spine baseline, plus one queue route gated on config and presence; never the surface |
+| Writes `Status` | `OPEN` on new findings; carries the rest forward | the sole owner of every transition | **never** — it reports that one moved, which stays realign's alone |
+| Leads with the evidence-availability assessment | yes, before any finding | reads it; never recomputes it | reads the tokens and compares them run to run; never recomputes them |
+| Refuses on a mismatched `branch:` or an unrecognized `schema:` | n/a — it writes them | yes, with a visible message | mismatched `branch:` → no baseline, naming both branches; unrecognized `schema:` → stop before invoking anything |
+| Behavior when the artifact is missing | n/a | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own | not a stop but a **first run**: it says so, establishes the baseline, and reports nothing as a delta |
 
-`overengineering:delta` is a **third reader and no writer of this file**. It captures the spine per
-the obligation above, composes `audit` to produce the next one, and compares the two. It writes no
-field here — least of all `Status`, which stays realign's alone — and a missing artifact is not a
-stop for it but a first run: it says so, establishes the baseline, and reports nothing as a delta.
+The `delta` column follows from what that lane is: it captures the spine per the obligation above,
+composes `audit` to produce the next artifact, and compares the two — so every write it makes belongs
+to that mechanic, and the artifact's own writes stay in `audit`'s column.
 
 ## External authority
 

@@ -31,11 +31,14 @@ What the baseline contains — its frontmatter, its body rules, its type — is 
 `context/findings-artifact.md` under "The spine-capture obligation"; this binding owns only where it
 lands.
 
-Both are memory tier, and nothing outside that tier is written. The plugin produces no contract-tier
-artifact: an audit report is process output that nothing downstream enforces against, and the one
-thing that must outlive the branch — an operator's judgment — is persisted instead as a tracked
-suppression entry in
+Both are memory tier, and they are the only artifacts this plugin **places** anywhere. It produces no
+contract-tier artifact: an audit report is process output that nothing downstream enforces against,
+and the one thing that must outlive the branch — an operator's judgment — is persisted instead as a
+tracked suppression entry in
 `.claude/overengineering.md`, whose keys and layering are owned by `reference/consumer-config.md`.
+The plugin's other sanctioned writes place no artifact: that entry and the ask-gated resolution below
+are keys written into a consumer-owned concern file, and the delta lane's queue item is a
+notification in the consumer's tracker, not a file in the repository at all.
 
 **One stable filename per home, rewritten in place.** `findings.md`, never a timestamped sibling: a
 re-audit merges into the existing file by stable finding id, and a per-run filename would turn that

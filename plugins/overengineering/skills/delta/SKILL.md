@@ -72,7 +72,8 @@ Three writes are sanctioned, and only these:
    branch-keyed, ephemeral — the same tier and the same disclosure rule as the findings artifact.
 2. **The findings artifact itself, written by the composed `overengineering:audit` run**, under that
    skill's own contract. This lane does not write it and does not edit it afterwards.
-3. **One queue route**, presence-gated and never on a quiet cycle — see "Queued for the human".
+3. **One queue route**, gated on `queue_route` and on presence, and never on a quiet cycle — see
+   "Queued for the human".
 
 State the first and third in the run's opening line, immediately after the home resolves and before
 the audit is invoked: *"Read-only pass; realign is never entered. Files written: the spine baseline
@@ -226,33 +227,34 @@ who needs it reads the artifact.
 ## The noise budget
 
 Every class is disposed as **list**, **count**, or **omit**. Listed items appear as rows; counted
-items appear only as a number in the counts table; omitted classes appear nowhere. Defaults below;
-each key's type, default, and layering are owned by
+items appear only as a number in the counts table; omitted classes appear nowhere. The keys named
+below are read, never redefined here: each key's type, default, and layering are owned by
 `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md` under `delta_noise_budget`.
 
-**Two classes are not configurable at all and no layer can weaken them:**
+**Two classes are always listed, whatever the budget says:** a verdict that moved under a
+carried-forward judgment (merge rule 5), and a status change. They are not keys held at a locked
+default — they are not keys at all, and the reasoning is owned by that same section of
+`consumer-config.md`.
 
-- **A verdict that moved under a carried-forward judgment** (merge rule 5). This is the one class
-  where a decision a human already made has gone out of date. A key that could hide it would be a key
-  that hides the human's own concern from them.
-- **A status change.** It reports that a human acted, it is rare, and it costs one row.
+The classes a key governs:
 
-The configurable classes:
-
-| Class | Default disposition | The rule a reader can apply |
+| Class | Disposition | The rule a reader can apply |
 |---|---|---|
-| **New finding** | list if its verdict is `RETIRE`, `DOWNGRADE`, `CONSOLIDATE`, or `FLAG-FOR-HUMAN`; count otherwise | A new incumbent that already earns its keep (`KEEP`) is not news for a retirement lane. Configurable via `new_finding_verdicts`. |
-| **New `UNPROVEN` finding** | list the top `unproven_head` (default `3`) off the audit's own carry-cost ranking; count the rest | An evidence desert produces UNPROVEN in bulk, and listing it is exactly the undifferentiated wall §8 already refuses. The ranking is the audit's; this lane takes its head and does not re-rank. |
-| **Verdict change, unjudged finding** | list when it **crosses a boundary**; count otherwise | A boundary crossing is any of: `KEEP` ↔ any of `RETIRE`/`DOWNGRADE`/`CONSOLIDATE`; either side is `FLAG-FOR-HUMAN`; or the verdict entered or left `UNPROVEN`. A move *within* the retirement-direction set (`DOWNGRADE` → `CONSOLIDATE`) changed the shape of a recommendation nobody has acted on yet, not its disposition. Configurable via `verdict_change`. |
-| **Closed finding** | list when the close is **unexpected**; count otherwise | A close is expected when its prior status was `REALIGNED` — the mechanism is gone because a human removed it, and re-reporting it is noise realign's own contract already anticipates. Every other close is unexpected and is listed: an `artifact absent` close under `OPEN` or `REJECTED` means something vanished that nobody decided to remove, and `renamed to …` and `layer no longer configured` are surface changes worth a glance. Configurable via `closed_findings`. |
-| **Member verdict change** inside a container whose own verdict did not move | count | A container's own verdict is the finding; a member move under an unchanged container is a detail, and container counts and member counts are two grains that must never be summed. Configurable via `member_verdicts`. |
+| **New finding** | list when its verdict is one `new_finding_verdicts` selects; count otherwise | A new incumbent that already earns its keep (`KEEP`) is not news for a retirement lane. |
+| **New `UNPROVEN` finding** | list the top `unproven_head` off the audit's own carry-cost ranking; count the rest | An evidence desert produces UNPROVEN in bulk, and listing it is exactly the undifferentiated wall §8 already refuses. The ranking is the audit's; this lane takes its head and does not re-rank. |
+| **Verdict change, unjudged finding** | list the moves `verdict_change` selects — boundary crossings only, every move, or none | A boundary crossing is any of: `KEEP` ↔ any of `RETIRE`/`DOWNGRADE`/`CONSOLIDATE`; either side is `FLAG-FOR-HUMAN`; or the verdict entered or left `UNPROVEN`. A move *within* the retirement-direction set (`DOWNGRADE` → `CONSOLIDATE`) changed the shape of a recommendation nobody has acted on yet, not its disposition. |
+| **Closed finding** | list the closures `closed_findings` selects — unexpected only, all, or none | A close is expected when its prior status was `REALIGNED` — the mechanism is gone because a human removed it, and re-reporting it is noise realign's own contract already anticipates. Every other close is unexpected: an `artifact absent` close under `OPEN` or `REJECTED` means something vanished that nobody decided to remove, and `renamed to …` and `layer no longer configured` are surface changes worth a glance. |
+| **Member verdict change** inside a container whose own verdict did not move | as `member_verdicts` says — counted, surfaced as rows, or omitted | A container's own verdict is the finding; a member move under an unchanged container is a detail, and container counts and member counts are two grains that must never be summed. |
 | **Evidence availability** | one line, always | `unchanged`, or the tiers that moved. When a tier moved, it leads the report: it changes what UNPROVEN means for every row beneath it. |
 
-**The volume cap.** When the listed set exceeds `max_items` (default `20`), list the head and give
-the residue as counts with a pointer to the artifact. Rank the head in this order: rule-5 flags →
-status changes → boundary-crossing verdict changes → new retirement-direction findings by the audit's
-carry-cost ranking → unexpected closures. A delta report longer than an operator will actually read
-has re-served the whole surface by another route.
+**The volume cap.** When the listed set exceeds `max_items`, list the head and give the residue as
+counts with a pointer to the artifact. Rank the head by class in this order: rule-5 flags → status
+changes → boundary-crossing verdict changes → new retirement-direction findings by the audit's
+carry-cost ranking → unexpected closures. **Within a class that carries no ranking of its own, break
+the tie by the artifact's stable total order** (`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`,
+"Ordering") — class rank alone leaves the truncation point undetermined, and two runs over identical
+input that cut a different head report a difference that did not happen. A delta report longer than
+an operator will actually read has re-served the whole surface by another route.
 
 **The quiet cycle.** When nothing clears the budget, say exactly that in one line, print the counts
 table, and **stop**. Do not restate the surface, do not list the counted classes as rows, do not
@@ -271,15 +273,23 @@ change, carrying the finding id, the verdict pair (`<was>` → `<now>`), the cur
 and the single act it invites: `overengineering:realign <finding-id>`. Rule-5 flags lead the section;
 they are the rows where the evidence moved under a decision already made.
 
-**2. Routed to a tracker, presence-gated.** The route is a **notification, never a remediation**: it
-carries ids and verdict pairs and nothing that instructs a change. Record the route and the presence
-answer in the report, so a skipped route is visible rather than silent.
+**2. Routed to a tracker, under `queue_route` and presence-gated.** The route is a **notification,
+never a remediation**: it carries ids and verdict pairs and nothing that instructs a change. Read
+`queue_route` (`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`, under `delta_noise_budget`)
+*before* probing for a tracker — an operator who declined the route is not to be probed
+on their behalf and then overridden. Whichever row below the run takes, record **the route decision
+and the presence answer** in the report, so a skipped route is visible rather than silent.
 
-| Condition | Route | Inline fallback when absent |
+| `queue_route` | Condition | What the lane does |
 |---|---|---|
-| The consumer has a work-item tracker reachable through `work-items:track`, and that plugin is installed | Maintain **one** open queue item per branch, carrying the current queued rows | The report's own `## Queued for the human` section is the queue — stated plainly, together with the fact that no durable route exists, so the queue lives only as long as this run's output |
+| `auto` | A work-item tracker is reachable through `work-items:track`, and that plugin is installed | Maintain **one** open queue item per branch, carrying the current queued rows |
+| `auto` | No such tracker is reachable | Decline the route, naming the absence. The report's own `## Queued for the human` section is the queue — stated plainly, together with the fact that no durable route exists, so the queue lives only as long as this run's output |
+| `inline` | Not consulted — no probe is made | Decline the route **unconditionally**, naming the operator's setting as the reason. The report's own section is the queue, exactly as in the row above |
 
-Four rules keep the route from becoming the nag:
+Rule 1 is unconditional in every row: the queue appears in the report whether or not it is also
+routed. A declined route changes where the queue is *durable*, never whether it is *reported*.
+
+Four rules keep a taken route from becoming the nag:
 
 - **One item per branch, updated — never a second one.** A re-run replaces the item's rows; it does
   not open another and does not append a cycle log.
@@ -304,7 +314,8 @@ view and no third record.** In order:
 3. **Evidence availability**: `unchanged`, or the tiers that moved — first when it moved.
 4. **The counts table**: one row per delta class, listed / counted / omitted.
 5. **The listed rows**, in the cap's rank order.
-6. **`## Queued for the human`**, with the route and its presence answer.
+6. **`## Queued for the human`**, always — with the route decision and the presence answer behind
+   it (or that presence was not consulted, under `queue_route: inline`).
 7. **The next step, named and not taken**: `overengineering:realign` executes accepted findings
    behind an explicit per-item human gate. Never start it.
 
