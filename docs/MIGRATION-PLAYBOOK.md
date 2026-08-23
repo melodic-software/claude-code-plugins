@@ -310,9 +310,8 @@ from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`
 is a skip only in the case its rationale actually describes — deterministic, silent-always-on,
 guarded by `.test.sh`, **no skill carrying a judgment-bearing contract**. The condition is the
 absence of that contract, not the invocation mode. Stating it by invocation mode does not work: a
-`setup` skill sets `disable-model-invocation: true`, so both "no model-invoked skill" and "no
-model-facing skill" are satisfied by a plugin that ships one — admitting as skips the very plugins
-the rest of this rule excludes. A `setup` skill makes interview and write-config decisions that can
+`setup` skill sets `disable-model-invocation: true`, so "no model-invoked skill" is satisfied by a
+plugin that ships one — admitting as a skip the very plugin the rest of this rule excludes. A `setup` skill makes interview and write-config decisions that can
 silently regress, which is precisely the contract the skip exists to excuse the absence of. The
 plugin's shape does not exempt it: a `setup` skill *is* warrantable (the `codebase-health/setup`
 eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
