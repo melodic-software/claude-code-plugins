@@ -85,9 +85,8 @@ trailing `\r` on Windows and silently corrupts every id but the last (see
 [context/gotchas.md](context/gotchas.md)).
 
 Read [context/scope-semantics.md](context/scope-semantics.md) before interpreting its output — in
-particular, `divergences[].versionsMatch` separates a benign same-version multi-scope install
-(normal, no action) from a real version skew (the actionable "run converge" signal); a raw
-divergence-record count conflates the two and overstates the report.
+particular its "Divergence is not automatically actionable" section, the normative statement of the
+`versionsMatch` filter rule that every divergence count this skill reports must apply.
 
 ## Action: audit
 
@@ -107,14 +106,30 @@ action.
 
 ```text
 Marketplace: <name> — <current | needs update> (autoUpdate: <on|off — suggest enabling if off>)
+In-repo: <N> updated | none — project context <root>, no in-repo installs | none — no project
+  context (Step 2 did not apply)
 Updated: <N> plugin(s) — <id>@<marketplace>: <old> → <new> (only when N > 0)
 Installed: <N> new catalog plugin(s) — <id>@<marketplace> (only when N > 0; per install_new policy)
+Note: claude-ops updated mid-run (<old> → <new>); this run executed the <old> algorithm
+  (only when the sweep updated claude-ops@<marketplace> itself — see context/sync.md)
 Divergences: <N> project-scope install(s) behind user scope → run `/claude-ops:plugins converge`
-  (N = actionable only — versionsMatch:false; same-version multi-scope installs are not counted
-  or listed here)
+  (N = the actionable subset per scope-semantics.md's versionsMatch filter rule)
 Action needed: <bulleted list — missing_from_user_install, missing_from_enabled, project-scope
-  enable gaps, CLI failures, unknown/orphaned plugins> (omit section entirely when empty)
+  enable gaps, orphaned install records, CLI failures, unknown plugins> (omit section entirely
+  when empty)
 ```
+
+The `In-repo:` row is **always present**, in exactly one of its three states — the deliberate
+exception to "only rows needing action." Step 2 of [context/sync.md](context/sync.md) is the
+primary value path, and its silent no-op was invisible precisely because the row's absence looked
+identical to "ran and found nothing": `fleet-state.sh`'s `project_root` disambiguates the two
+zero-record states (null → the step did not apply; non-null → it ran against `<root>` and found no
+in-repo installs), and sync.md Step 2 fixes which state maps to which wording.
+
+The `Note:` row appears only when the sweep updated `claude-ops@<marketplace>` itself. The skill
+content rendered for this session — the algorithm that actually ran — is the pre-update version,
+so the report must never imply the new version's algorithm produced it (see
+[context/sync.md](context/sync.md) "Self-update").
 
 A project-scope enable gap is a row `sync` deliberately does not fix — Step 5 enables automatically
 only where the write is not team-shared state. Give each one its runnable command rather than a
@@ -125,8 +140,17 @@ count, so acting on it is a copy, not a reconstruction:
   — writes that repo's committed .claude/settings.json; review the diff before committing
 ```
 
-Only ids that Step 5 did not enable at `user`/`local` scope in this run appear here — for the rest
-the command would fail rather than run, and Step 5 explains why.
+Emit that command only when the record's `projectPathExists` is `true`. A `false` record's
+directory is gone, so the command can only fail — the row moves to the orphaned-install-record
+category below instead. Only ids that Step 5 did not enable at `user`/`local` scope in this run
+appear here — for the rest the command would fail rather than run, and Step 5 explains why.
+
+An **orphaned install record** — an install record whose recorded `projectPath` no longer exists on
+disk (`projectPathExists: false`) — is its own named "Action needed" category, and always
+report-only: any `(cd "<projectPath>" && …)` command constructed against it can only fail, and no
+CLI verb reaps such a record (observed on CC 2.1.240; `prune -s project` has the same no-path-flag
+limitation as every `-s project` verb), so the record stays until upstream provides a reap path.
+Name the id, scope, and dead path per row rather than a bare count.
 
 When running inside a project (`CLAUDE_PROJECT_DIR` set and `fleet-state.sh`'s `installed[]` entries
 carry `currentProject: true`), lead the Divergences line with *this* project's actionable count and
@@ -159,9 +183,12 @@ value in the report.
 
 **Configured value: `${user_config.install_new}`** — Claude Code text-substitutes a `userConfig`
 value into this skill's content before the model sees the rendered skill, but **only when the key is
-explicitly set** in some `pluginConfigs` scope; declaring the option in `plugin.json` alone does not
-make its value readable here. Crucially, the manifest's `"default": "ask"` is **not** substituted for
-an unset key (verified 2026-07-23 against CC 2.1.218: an unset key leaves the placeholder token
+explicitly set** in a `pluginConfigs` map Claude Code actually reads: since Claude Code v2.1.207
+that is user scope (`~/.claude.json`, or the `--settings` file) and managed settings only —
+project- and local-scope `pluginConfigs` are ignored, unlike `enabledPlugins`, which this same
+skill reads and which still honors project/local scope. Declaring the option in `plugin.json` alone
+does not make its value readable here. Crucially, the manifest's `"default": "ask"` is **not**
+substituted for an unset key (verified 2026-07-23 against CC 2.1.218: an unset key leaves the placeholder token
 unchanged — the same shape as `${user_config.…}` — while a sibling `${CLAUDE_PLUGIN_ROOT}` substitutes
 in the same render). So for the common default-config user — no `pluginConfigs` set anywhere — the
 **Configured value** line above still shows that literal placeholder token, not `ask`.

@@ -40,6 +40,54 @@ source 3 agreed with source 2 on every id. That establishes the write landed bef
 that run — not that it is synchronous per call, and not that it holds on another version. Keep
 source 2 primary and keep the divergence handling above.
 
+**Capture into a durable ledger, not conversational memory.** Capture-as-you-go needs a medium that
+survives the sweep: on the audited CC 2.1.240 run, a 67-mutating-call sweep's old→new data existed
+only in the session transcript by the time the report was composed — nothing Step 6 can reliably
+read back. So: at sweep start, `mktemp` a ledger file; for every mutating call, append one
+tab-separated record — `<id>\t<old>\t<new>` — **as the call runs**, filling `<old>`/`<new>` from
+the three sources above in their stated precedence (the ledger changes where captured values live,
+never where they come from). Step 6 composes the report's per-plugin lines from the ledger, never
+from conversational memory or the transcript. The ledger is session scratch — a temp file discarded
+with the session, never a committed artifact.
+
+## Self-update: the algorithm that ran is the pre-update one
+
+`claude-ops` is itself a catalog plugin, so Step 3 updates `claude-ops@<marketplace>` like any other
+id — but the skill content rendered for this session, this algorithm included, is the **pre-update**
+version. A mid-run update changes what the *next* session loads, not what this one is executing.
+Before the sweep, capture claude-ops's own version from the pre-sweep `fleet-state.sh` snapshot
+(its `installed[]` record); when the sweep then updates `claude-ops@<marketplace>` itself, the
+report must carry `Note: claude-ops updated mid-run (<old> → <new>); this run executed the <old>
+algorithm` (SKILL.md's Report section carries the conditional row), so the report never implies the
+new version's algorithm produced it.
+
+## `all` mode — every step iterates per marketplace
+
+`all` is not a different algorithm — it is the same Steps 1–6 run once per marketplace. Enumerate
+the names with `fleet-state.sh --marketplaces` (one name per line, CR-free by construction), never
+a hand-written `jq -r 'keys[]' | while read` over `known_marketplaces.json` — that reintroduces the
+Windows-CRLF corruption [gotchas.md](gotchas.md) documents:
+
+```bash
+while IFS= read -r mp; do
+  [[ -n "$mp" ]] || continue
+  # Steps 1–5 for this marketplace, each fleet-state.sh call passing --marketplace "$mp":
+  #   claude plugin marketplace update "$mp"
+  #   … fleet-state.sh --marketplace "$mp" --ids current-project
+  #   … fleet-state.sh --marketplace "$mp" --ids stale-user
+  #   …
+done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplaces)
+```
+
+Steps 2–5 must run **inside** that loop, each `fleet-state.sh` call carrying `--marketplace <name>`
+— `--ids` refuses `--all` (there is no single block to project), so a sweep that runs the id
+selectors only once has silently covered exactly one marketplace. That is the observed failure
+shape: on the audited CC 2.1.240 run, a single-marketplace `all` sweep issued updates for 66 ids
+while the machine held 72 installs across 9 marketplaces — the rest untouched, with no report row
+saying so. A per-marketplace failure (a Step 1 refresh failure, or a `fleet-state.sh` error block —
+which `--ids` mode routes to stderr, never stdout) is reported inline and never aborts the sweep
+for the remaining marketplaces, consistent with Step 1.
+
 ## Step 1 — Marketplace refresh
 
 For each target marketplace (the resolved default, the named one, or every marketplace when the
@@ -110,21 +158,38 @@ The scope rides on the record for a reason: one plugin can hold **both** a `proj
 lines — `sort -u`, or pairing against a separately-extracted scope list, would silently drop one of
 the two updates. Do not re-derive scope from the id afterwards.
 
+**When the loop processed zero records, the report must still say which zero it was.** The selector
+alone collapses a tri-state: "no project context resolved" and "project context resolved, zero
+in-repo installs" both project to an empty id list. The JSON block's top-level `project_root` (from
+the pre-sweep snapshot, or a JSON-form re-read) disambiguates them — branch on it:
+
+- `project_root: null` → no project context resolved at all; this step did not apply. Report
+  `In-repo: none — no project context (Step 2 did not apply)`.
+- `project_root` non-null → the step ran against that root and found no in-repo installs. Report
+  `In-repo: none — project context <root>, no in-repo installs`.
+
+SKILL.md's Report section carries the always-present `In-repo:` row for exactly this reason: this
+step is the self-described primary value path, and a run where it silently never executed must be
+visibly distinct from one that ran and found nothing.
+
 Do **not** pre-filter on `divergences[]`. `divergences[]` only contains ids with *more than one*
 scope record — a project/local install with no other scope pinning the same id (the common single-
 pin case) never appears there at all, and neither does a multi-scope install where every scope
 happens to already share the same stale version (`versionsMatch: true` — still behind the catalog,
-just not internally disagreeing). Both are real staleness `fleet-state.sh` cannot detect from its own
-output (it has no per-plugin catalog version to compare against), so the only correct signal is
-"is this entry present" — mirror Step 3's own pattern and just call `update`, letting the CLI report
-"already at the latest version" as a no-op when nothing changes. Verified safe: `plugin update
+just not internally disagreeing). Both are real staleness `divergences[]` cannot surface, so the
+only correct signal is "is this entry present" — just call `update`, letting the CLI report
+"already at the latest version" as a no-op when nothing changes. Step 3's `stale-user` pre-filter
+does not transfer here: that selector compares **user-scope** records against the local catalog
+manifests, and these records are project/local-scope, for which no selector does that comparison.
+Verified safe: `plugin update
 -s project` does not write the committed `.claude/settings.json` (see
 [scope-semantics.md](scope-semantics.md)) — no settings-diff review needed for this step, unlike
 `converge`.
 
 ## Step 3 — User-scope update sweep
 
-For every catalog plugin id currently installed at `user` scope, run:
+For every `user`-scope plugin id **not confirmed current** with the local marketplace checkout's
+catalog version, run:
 
 ```bash
 claude plugin update <id> -s user
@@ -134,14 +199,27 @@ One call per plugin — `claude plugin update` takes a single `<plugin>` argumen
 "update everything" flag. Loop it; a single plugin's update failure is reported inline (under
 "Action needed") and does not abort the sweep for the rest.
 
-Take the ids from `fleet-state.sh --ids`, never from a hand-written `jq` over its JSON:
+Take the ids from `fleet-state.sh --ids stale-user`, never from a hand-written `jq` over its JSON:
 
 ```bash
 while IFS= read -r id; do
   [[ -n "$id" ]] || continue
   claude plugin update "$id" -s user
-done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --ids installed-user)
+done < <("${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --ids stale-user)
 ```
+
+`stale-user` pre-filters the user-scope sweep against a comparison `fleet-state.sh` can make
+entirely locally: the marketplace's catalog *file* carries no versions, but each plugin's own
+manifest in the local marketplace checkout does
+(`<installLocation>/<source-path>/.claude-plugin/plugin.json`), so an installed-vs-catalog version
+compare needs zero network. The selector **fails open**: an id whose catalog version cannot be
+resolved — missing installLocation, missing/unreadable/invalid manifest, unresolvable source path —
+stays in the list and still gets its `update` call; only an id *confirmed* current is omitted. The
+asymmetry is deliberate (a wrongly-emitted id costs one no-op CLI call; a wrongly-omitted one skips
+a real update — see the script's `emit_stale_user_ids` contract). Validated on the audited
+CC 2.1.240 run: the comparison predicted exactly the 48 of 61 user-scope plugins that updated —
+0 false positives, 0 false negatives, all catalog manifests resolving locally — so the sweep issued
+48 calls instead of 61, and a routine already-current sync issues 0 instead of 61.
 
 `--ids` emits the fully-qualified `<name>@<marketplace>` form, one per line, CR-free — a bare name
 fails with "Plugin not found" even when unambiguous, and on Windows a hand-written
@@ -228,6 +306,13 @@ maintenance action with no such abort, so there may be no human to answer.
   [converge.md](converge.md) Step 2 gives — `-s project` has no path flag and always acts on the
   current directory — and the id stays fully qualified per [gotchas.md](gotchas.md).
 
+  **Gate the row on the record's `projectPathExists` first.** `false` means the recorded
+  `projectPath` no longer exists on disk, so the `cd` can only fail — never emit the command.
+  Route the record to "Action needed" as an **orphaned install record** instead (SKILL.md's Report
+  section names the category): no CLI verb reaps an install record whose `projectPath` is gone
+  (observed on CC 2.1.240; `prune -s project` has the same no-path-flag limitation as every
+  `-s project` verb), so the record is report-only until upstream provides a reap path.
+
   **Order matters — suppress this row for any id the `user`/`local` branch just enabled.** An id
   with no `enabledPlugins` entry anywhere but install records at *both* `user` and `project` scope
   produces two rows in one run. The `user` row enables first, and `enable -s project` gates on the
@@ -248,7 +333,9 @@ recorded either way.
 ## Step 6 — Report
 
 Emit the report per SKILL.md's "Report" section, filling each updated plugin's `<old> → <new>` from
-the sources the "Version capture for the report" section above fixes. End with reload guidance: bare `/reload-plugins` by
+the ledger "Version capture for the report" mandates (never from conversational recall of the
+sweep), the always-present `In-repo:` row from Step 2's tri-state, and the conditional self-update
+`Note:` row per the section above. End with reload guidance: bare `/reload-plugins` by
 default; suggest `--force` only when an updated/installed component ships an MCP server whose tools
 aren't deferred (see [scope-semantics.md](scope-semantics.md) — `--force` exists to opt into a real
 token cost, not a blanket recommendation). Call out a session restart separately only when an updated

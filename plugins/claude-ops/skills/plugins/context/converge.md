@@ -17,7 +17,9 @@ treat it as autonomous and abort. Report why, and that `converge` can be re-run 
 ## V1 scope: version divergence only
 
 `converge` resolves entries in `fleet-state.sh`'s `divergences[]` with `versionsMatch: false` —
-scopes disagree on version. It does **not** currently resolve, and cannot even detect, an
+the actionable subset, per the filter rule stated normatively in
+[scope-semantics.md](scope-semantics.md) ("Divergence is not automatically actionable").
+It does **not** currently resolve, and cannot even detect, an
 enable-state mismatch (a plugin `true` in one scope's `enabledPlugins` and `false` in another) —
 that needs comparing each scope's *raw* `enabledPlugins` map, which `fleet-state.sh` doesn't expose
 today (only the merged effective value, in `enabled`). This is a genuine blind spot, not a deferred
@@ -28,7 +30,12 @@ per-scope maps, not something this skill's prompt layer can paper over.
 ## Step 1 — Detect
 
 Call `fleet-state.sh` (default marketplace, named one, or the current invocation's target) and take
-`divergences[]` filtered to `versionsMatch: false`.
+`divergences[]` filtered to `versionsMatch: false` (the [scope-semantics.md](scope-semantics.md)
+rule above). Then check each row's `scopes[].projectPathExists` before treating it as convergeable:
+a divergence whose only *lagging* scope rows carry `projectPathExists: false` cannot be converged —
+every command Step 2 could propose for it would `cd` into a directory that no longer exists. Report
+such a row as an orphaned install record (SKILL.md's "Action needed" category) and propose no
+commands for it.
 
 ## Step 2 — Preview per-plugin intent
 
@@ -60,6 +67,15 @@ rows a bulk report collapses) — never construct the proposed command as a bare
 `(cd "<scopes[].projectPath>" && claude plugin uninstall|update <id> -s project)`. Presenting or
 running the bare form for a row whose `projectPath` isn't the current directory would silently
 mutate — or fail against — the wrong repo's settings.
+
+**Before constructing any such command, read that scope row's `projectPathExists`** — carried on
+every `divergences[].scopes[]` entry for exactly this decision. `false` → never emit the command:
+the recorded directory is gone, so the `cd` can only fail. Treat the record as an **orphaned
+install record** instead — no CLI verb reaps an install record whose `projectPath` no longer
+exists (observed on CC 2.1.240; `prune -s project` shares the no-path-flag limitation), so it is
+report-only under "Action needed" until upstream provides a reap path. When every lagging scope
+row of a divergence is orphaned this way, the divergence is not convergeable at all (Step 1):
+report it and propose nothing.
 
 Two `git worktree` checkouts of one repository pin independently — verified on Claude Code 2.1.228
 by uninstalling one id in a repo's main checkout and observing the worktree's record for the same id

@@ -3,6 +3,64 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.0]
+
+### Added
+
+- **`plugins`: four sync-enabling `fleet-state.sh` capabilities (#3112).** `project_root` as a
+  top-level field on every successful marketplace block (string when project context resolved,
+  null otherwise, including each `--all` block); `projectPathExists` on every `installed[]` record
+  and every `divergences[].scopes[]` entry (true/false from a directory test; null for user-scope
+  records with no `projectPath`); a standalone `--marketplaces` flag emitting
+  `known_marketplaces.json` names one per line, CR-free (a usage error combined with
+  `--marketplace`/`--all`/`--ids`); and an `--ids stale-user` selector emitting the user-scope ids
+  not confirmed current with the local marketplace checkout's per-plugin manifest version —
+  fail-open (an unresolvable catalog version keeps the id in the list), validated on the audited
+  CC 2.1.240 run at exactly 48/61 predicted updates with 0 false positives/negatives.
+- **`plugins`: the sync report's always-present `In-repo:` row (#3112).** Step 2 (the
+  self-described primary value path) branches on `project_root` for the zero-record case, so a run
+  where the step never applied ("no project context") is visibly distinct from one that ran and
+  found no in-repo installs — previously the two were indistinguishable silence.
+- **`plugins`: a conditional self-update `Note:` row (#3112).** When the sweep updates
+  `claude-ops@<marketplace>` itself, the report states the run executed the pre-update algorithm —
+  the rendered skill content is the pre-update version, and the report no longer implies otherwise.
+- **`plugins`: a durable version-capture ledger (#3112).** `sync` now mandates a `mktemp` ledger
+  with one `<id>\t<old>\t<new>` record appended per mutating call as it runs; Step 6 composes the
+  report from the ledger, never from conversational memory (on the audited 67-call run the old→new
+  data had survived only in transcript). Session scratch, never a committed artifact.
+
+### Changed
+
+- **`plugins`: `sync all` now iterates Steps 2–5 per marketplace (#3112).** Names come from
+  `fleet-state.sh --marketplaces` (never a hand-written `jq -r 'keys[]' | while read`, per the
+  CRLF gotcha), each step passing `--marketplace <name> --ids <selector>` since `--ids` refuses
+  `--all`. Previously only Step 1 looped, so an `all` sweep silently covered one marketplace's
+  installs (observed: 66 ids swept against 72 machine-wide across 9 marketplaces, CC 2.1.240).
+- **`plugins`: Step 3 sweeps `--ids stale-user` instead of `--ids installed-user` (#3112).** The
+  local-manifest comparison pre-filters already-current plugins, so the audited sweep issues 48
+  update calls instead of 61 and a routine already-current sync issues 0; the stale "fleet-state.sh
+  has no per-plugin catalog version" rationale is corrected where the docs repeated it. Step 2's
+  just-call-update posture is unchanged (its records are project/local-scope; `stale-user` is
+  user-scope only).
+- **`plugins`: the `versionsMatch` filter rule now has a single normative home (#3112).**
+  scope-semantics.md's "Divergence is not automatically actionable" section is the one normative
+  statement; SKILL.md, converge.md, and gotchas.md now point at it instead of hand-maintaining
+  restatements across four files.
+
+### Fixed
+
+- **`plugins`: no more converge/enable commands into directories that no longer exist (#3112).**
+  Every doc site constructing `(cd "<projectPath>" && claude plugin …)` now gates on the record's
+  `projectPathExists`; a `false` record routes to a named "Action needed" category — **orphaned
+  install record** — as report-only, since no CLI verb reaps such a record (observed on CC 2.1.240;
+  `prune -s project` has the same no-path-flag limitation). A divergence whose only lagging scope
+  rows are orphaned is reported as non-convergeable instead of previewing commands that can only
+  fail.
+- **`plugins`: SKILL.md's `pluginConfigs` scope claim corrected (#3112).** The value is substituted
+  only from a `pluginConfigs` map Claude Code actually reads — since CC v2.1.207 that is user scope
+  (`~/.claude.json` / the `--settings` file) and managed settings; project- and local-scope
+  `pluginConfigs` are ignored, unlike `enabledPlugins`, which still honors project/local scope.
+
 ## [0.35.3]
 
 ### Changed

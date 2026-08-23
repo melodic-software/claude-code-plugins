@@ -37,6 +37,15 @@ each with `versionsMatch`:
 A raw count of `divergences[].length` conflates the two and overstates drift — always filter on
 `versionsMatch == false` before presenting a count to the user.
 
+This section is the **single normative statement** of that filter rule. SKILL.md's Report section,
+[converge.md](converge.md), and [gotchas.md](gotchas.md) point here rather than restating it, so a
+change to the rule is a change to this section only.
+
+Each `divergences[].scopes[]` entry also carries `projectPathExists` (true/false from a directory
+test on the recorded `projectPath`; null for user-scope entries, which have none), so a consumer
+proposing a `(cd "<projectPath>" && …)` command can withhold it per-scope when the recorded
+directory no longer exists — see [converge.md](converge.md) Step 2.
+
 ## `plugin list` / `plugin details` version output is misleading
 
 **Verified misleading**: `claude plugin list` and `claude plugin details <name>` show the *highest

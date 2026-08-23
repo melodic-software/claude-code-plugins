@@ -84,10 +84,11 @@ evidence about either read.
 ## Dual-scope divergence is normal, not a defect
 
 A project pinning an older version at `project` scope while your personal `user` scope has moved on
-is expected, common, and not itself something to "fix" silently. `fleet-state.sh`'s `versionsMatch`
-field is what separates that benign case from a real, actionable version skew — see
-scope-semantics.md. Never report a raw `divergences[].length` count; always filter to
-`versionsMatch == false` first, or the report overstates drift with entries that need no action.
+is expected, common, and not itself something to "fix" silently. What separates that benign case
+from a real, actionable version skew is `fleet-state.sh`'s `versionsMatch` field, and the filter
+rule for it is stated normatively in [scope-semantics.md](scope-semantics.md) ("Divergence is not
+automatically actionable") — apply it as written there before counting or listing anything; a raw
+`divergences[].length` count is exactly the overstatement that rule exists to prevent.
 
 ## Internal-schema drift — fail loud, never guess
 
@@ -142,7 +143,7 @@ feeds `claude plugin` needs no `jq` of its own at all:
 while IFS= read -r id; do
   [[ -n "$id" ]] || continue
   claude plugin update "$id" -s user
-done < <(…/scripts/fleet-state.sh --ids installed-user)
+done < <(…/scripts/fleet-state.sh --ids stale-user)
 ```
 
 For anything `--ids` does not cover: route every `jq` call through the
