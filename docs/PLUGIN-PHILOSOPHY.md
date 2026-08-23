@@ -21,43 +21,20 @@ content*, not only runtime behavior: the publishing organization's name, its mar
 repository names, and publisher-prefixed configuration keys do not appear in a plugin's skill, agent,
 or schema content. One use is sanctioned — a citation that *names a source rather than a target the
 plugin acts on*: a documentation URL, or a cross-plugin reference to this marketplace's own published
-files, cited for a reader to consult. **What follows scopes that exception, not the token rule
-above** — a bare publisher token in skill prose is nonconforming whether or not anything is fetched.
-A citation forfeits the exception on a conjunction of two conditions: the skill is instructed to
-fetch, poll, or write the target, **and** that target is publisher-owned. Both must hold. A skill
-that fetches a third-party documentation URL keeps the exception, because no publisher runtime
-dependency is created — `plugins/claude-config/skills/audit/SKILL.md` reads `code.claude.com` that
-way, and that read is conforming. (Its own `curl` route also cites a publisher-owned convention doc,
-which is a separate question this statement does not settle.) `plugin.json` publisher metadata sits
-outside this rule entirely, being neither skill, agent, nor schema content — identifying the source
-is what the manifest is for.
-
-What the ownership condition buys is narrowing, not decidability: it removes third-party targets from
-the question entirely, so cite-versus-fetch no longer has to be answered for them. For
-publisher-owned targets that question still governs, and it is genuinely hard — for content an agent
-reads, "cited for a reader to consult" and "instructed to fetch" are not cleanly separable.
-`plugins/architecture/reference/topic-docs.md` is an undecided case on that axis, and arguably on a
-second, since it is not itself `skill`, `agent`, or `schema` content — though three
-`plugins/architecture/skills/improve/**` sites load it during skill execution, so that second axis is
-weaker than it looks. No ticket currently owns this question; #3136 is about consolidating
-enforcement sites and is not it.
+files, cited for a reader to consult. Whether that sanctioned citation is forfeited turns on the
+target's owner: a skill instructed to fetch, poll, or write a **publisher-owned** file has made the
+publisher a runtime dependency and is not conforming. A third-party documentation URL creates no such
+dependency, so fetching one does not forfeit the citation — this rule reaches publisher-owned targets
+only, and says nothing about third-party ones either way. For publisher-owned targets, distinguishing
+an instruction to fetch from a citation offered for a reader remains genuinely hard, and this
+statement does not settle it; `plugins/architecture/reference/topic-docs.md` is an open case. No
+ticket owns that question — #3136 is about consolidating enforcement sites and is not it.
+(`plugin.json` publisher metadata sits outside
+this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
+the manifest is for.)
 
 Like the setup contract below, **this is a normative target, not a description of the fleet**, and
-the fetch limb has live instances rather than none. Four are unambiguous, because each pairs an
-imperative to read a publisher-owned contract with a fail-closed guard — "if the contract cannot be
-fetched, do not write": the three `persist-findings` files under `ai-slop/skills/audit/context/`,
-`claude-config/skills/audit-instructions/context/`, and `mutation-testing/skills/audit/context/`,
-plus `testing/skills/audit/SKILL.md`. A guard that refuses to proceed without the fetch is a
-deliberate publisher runtime dependency, and the rule above says it is nonconforming.
-
-No exhaustive list is offered, and that is not an omission: separating an imperative to fetch from a
-citation is the same judgement the paragraph above calls not cleanly separable, so any enumeration
-would be asserting a boundary this statement declines to draw. `work-items/skills/triage/SKILL.md`,
-`docs-hygiene/skills/write-for-agents/SKILL.md`, and `playbooks/skills/skill-authoring/SKILL.md`
-each direct the agent at a publisher-owned document without a fail-closed guard, and sit near that
-boundary rather than across it.
-
-Enforcement reaches a strict subset of the normative target stated above.
+enforcement reaches a strict subset of it.
 `scripts/validate-plugin-contracts.mjs` gates the
 marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys across every plugin's skill
 content, and holds the `autonomy` plugin to a stricter token set;
