@@ -38,11 +38,17 @@ This is NOT the bundled Claude Code `/batch` skill. Bundled `/batch` is polyglot
 
 ```text
 /docs-hygiene:extract-ssot batch <candidate-1> [<candidate-2> ... <candidate-N>]
+  [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes]
 ```
 
 OR resume from working notes if a `batch` phase is mid-flight.
 
 Candidate names match `/docs-hygiene:extract-ssot identify` output's cluster names.
+
+`--min-instances`, `--buckets`, `--fix`, `--dry-run`, and `--yes` pass through to the batch surface
+with the semantics defined in `actions/identify.md` "Flags": `--min-instances` / `--buckets` filter
+which buckets enter the dispatch list, and `--fix` / `--dry-run` / `--yes` govern the
+non-abstracting remedy sweep. `--fix` never creates an artifact in any wave.
 
 ## Steps
 
@@ -71,17 +77,30 @@ For each candidate, invoke `verify` (private action — see `actions/verify.md`)
 
 If the batch fails the verify-gate (≥80% candidates REFUSE), abort the batch and surface the diagnostic to the user — it likely signals the identify pass needs hardening per the Discrimination rules in `actions/identify.md`. Don't dispatch `plan`/`execute` on the surviving 20%; the user picks scope manually.
 
+Each verdict carries the bucket `verify` Gate 1 assigned. A sub-three bucket is not a refusal — an
+N=1 or N=2 candidate PROCEEDs with its non-abstracting remedies and stays in the dispatch list.
+
 ```yaml
 candidate: <name>
 verify-status: PROCEED | REFUSE-{reason} | WARN
+bucket: N=1 | N=2 | N>=3
+permitted-remedies: [...]
 verify-evidence: [...]
 ```
 
-Output forms the batch summary's first column.
+Output forms the batch summary's first two columns.
 
 ## Step 3 — Filter
 
-Drop candidates with `REFUSE-*` status from the dispatch list. Keep `PROCEED` + `WARN`. Surface the dropped candidates with reasons in the batch audit log so the user sees the refuse-fast savings.
+Drop candidates with `REFUSE-*` status from the dispatch list. Keep `PROCEED` + `WARN` at every
+bucket — N=1 and N=2 candidates survive the filter and dispatch with the non-abstracting remedies
+their bucket permits, never an artifact-creating one. Apply `--min-instances` / `--buckets` here as
+a second, caller-chosen filter; record what they excluded so a suppressed bucket does not read as an
+empty one. Surface the dropped candidates with reasons in the batch audit log so the user sees the
+refuse-fast savings.
+
+The ≥80%-refusal abort check counts only `REFUSE-*` verdicts. Bucket distribution is a reporting
+fact, not a refusal — a roster that is mostly N=1 is a healthy finding, not a failed identify pass.
 
 ## Step 4 — File-overlap matrix
 
@@ -201,12 +220,13 @@ batch-size: <N>
 
 ## Batch summary
 
-| # | Candidate | Verify | Verdict | Wave | Files modified |
-|---|-----------|--------|---------|------|----------------|
-| 1 | C1 | PROCEED | EXTRACTED | 1 | path1, path2 |
-| 2 | C2 | PROCEED | REFUSED-low-roi | 1 | (none) |
-| 3 | C3 | REFUSE-already-cites-canonical | (skipped) | (n/a) | (none) |
-| ... | | | | | |
+| # | Candidate | Bucket | Verify | Verdict | Wave | Files modified |
+|---|-----------|--------|--------|---------|------|----------------|
+| 1 | C1 | N≥3 | PROCEED | EXTRACTED | 1 | path1, path2 |
+| 2 | C2 | N≥3 | PROCEED | REFUSED-low-roi | 1 | (none) |
+| 3 | C3 | N=1 | REFUSE-already-cites-canonical | (skipped) | (n/a) | (none) |
+| 4 | C4 | N=2 | PROCEED | OWNER-NAMED | 2 | path3, path4 |
+| ... | | | | | | |
 
 ## File-overlap matrix
 <full matrix from Step 4>

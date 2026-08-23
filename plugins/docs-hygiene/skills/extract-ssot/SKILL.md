@@ -1,6 +1,6 @@
 ---
-description: "Deduplicate repeated markdown content — rule files, skill bodies, ADRs, docs — into a single named source of truth and migrate every call site to cite it by exact heading. Use when the same prose, literal, or concept appears (or is reworded) across 3+ files: 'DRY this prose', 'extract a shared rule', 'single source of truth for X', a value-bump diff touching 3+ files — refuses extraction below the Rule of Three."
-argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster-name>]"
+description: "Deduplicate repeated markdown content — rule files, skill bodies, ADRs, docs — into a single named source of truth and migrate every call site to cite it by exact heading. Use when the same prose, literal, or concept appears (or is reworded) across files: 'DRY this prose', 'extract a shared rule', 'single source of truth for X', a value-bump diff touching several files. Reports duplication at every multiplicity in rule-of-one / rule-of-two / rule-of-three buckets, offering only non-abstracting remedies below three — creating a NEW SSOT artifact still refuses below the Rule of Three."
+argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster-name>] [--min-instances=<N>] [--buckets=<list>] [--fix] [--dry-run] [--yes]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -14,7 +14,9 @@ metadata:
 
 Codifies the markdown-SSOT-extraction pattern as a repeatable workflow. Each invocation targets ONE cluster of repeated markdown content and resolves it to a single named source of truth — consolidating into an existing SSOT home when one already owns the concept, otherwise creating a new artifact (e.g. a rule file or a new skill) — plus migration of all call sites to cite by exact heading.
 
-The principle is the coding Rule of Three / DRY, applied to markdown text. If the same unit of prose appears 3+ times, changes together, and has an identity that can be named, collapse to one definition and reference by name. Below 3 instances, inline is the disciplined call — premature abstraction is the dominant failure mode.
+The principle is the coding Rule of Three / DRY, applied to markdown text. If the same unit of prose appears 3+ times, changes together, and has an identity that can be named, collapse to one definition and reference by name. Below 3 instances, minting a new SSOT artifact is premature abstraction — the dominant failure mode — and the skill refuses it.
+
+Refusing to *create* is not refusing to *report*. A lone consumer that recaps an SSOT it should be citing, and a pair of files asserting the same contract with no declared owner, are real defects that drift. Both are rostered in their own multiplicity bucket and remedied in place, with no new artifact.
 
 Typical markdown extraction shapes the workflow handles:
 
@@ -51,7 +53,7 @@ Boundary with single-file refactoring: a rename, inline, or extract confined to 
 
 ## When to use vs not use
 
-**Use** when: 3+ instances of the same unit exist across files; the instances change together (correlated edits); the unit has a stable identity that can be named; the unit is self-contained (extracts cleanly without dragging unrelated context). **Normal-work entry point** — when a cleanup pass, audit, value-bump diff, or review surfaces ANY of the three duplication smells — (a) same literal repeated across 3+ tracked files, (b) value-bump diff touches 3+ unrelated files, (c) same concept reworded across 3+ files or contradicting nuance between files — route detection here. The skill accepts both literal and semantic clusters; the 6-test gate's "namable + categorical-shape + stable identity" tests admit semantic clusters provided the unit can be named and instances change together.
+**Use** when: the same unit appears more than once across files (3+ instances is the bar for *creating* a new SSOT artifact; 1 and 2 route to the non-abstracting buckets); the instances change together (correlated edits); the unit has a stable identity that can be named; the unit is self-contained (extracts cleanly without dragging unrelated context). **Normal-work entry point** — when a cleanup pass, audit, value-bump diff, or review surfaces ANY of the three duplication smells — (a) same literal repeated across tracked files, (b) value-bump diff touches multiple unrelated files, (c) same concept reworded across files or contradicting nuance between files — route detection here. The skill accepts both literal and semantic clusters; the 6-test gate's "namable + categorical-shape + stable identity" tests admit semantic clusters provided the unit can be named and instances change together.
 
 **Classify each file's role before flagging it as a duplicate:**
 
@@ -70,14 +72,28 @@ Full decision matrix: `context/decision-framework.md` (6+5 checklist with worked
 | Argument | Action | Purpose |
 |----------|--------|---------|
 | *(empty)* | Smart default | Auto-detect: working notes from a prior run hold an active candidate roster → resume the current phase; the invocation or conversation already names a scope → `identify`; otherwise → confirm scope with the user first (see "Bare invocation — confirm scope first") |
-| `identify [<cluster-name>]` | Find candidates (default = exhaustive subagent survey) | Dispatches a read-only exploration subagent over 30+ duplication heuristics (full body in `actions/identify.md`); ranks by ROI; emits batch-sequencing matrix + recommended `/docs-hygiene:extract-ssot batch` invocation. Refuses premature (<3 instances). Single-cluster mode (`identify <name>`) skips the subagent for a targeted Tier 0 grep |
-| `verify <cluster-name>` | Refuse-fast pre-extraction gate | 6-gate cheap check (Tier 0 grep, citation state, primary-source URL gate, bifurcation check, off-by-one heuristic, LOW-ROI threshold). Output: `PROCEED \| REFUSE-{reason} \| WARN`. OPTIONAL — does not gate `plan`/`execute`. See `actions/verify.md` |
+| `identify [<cluster-name>]` | Find candidates (default = exhaustive subagent survey) | Dispatches a read-only exploration subagent over 30+ duplication heuristics (full body in `actions/identify.md`); ranks by ROI; emits batch-sequencing matrix + recommended `/docs-hygiene:extract-ssot batch` invocation. Rosters every surviving candidate in a labelled multiplicity bucket (N=1 / N=2 / N≥3) with its instance count; artifact-creating outputs stay reserved for N≥3. Single-cluster mode (`identify <name>`) skips the subagent for a targeted Tier 0 grep |
+| `verify <cluster-name>` | Refuse-fast pre-extraction gate | 6-gate cheap check (bucket assignment + Tier 0 grep, citation state, primary-source URL gate, bifurcation check, off-by-one heuristic, LOW-ROI threshold). Output: `PROCEED \| REFUSE-{reason} \| WARN` plus the assigned `bucket:`. OPTIONAL — does not gate `plan`/`execute`. See `actions/verify.md` |
 | `plan <cluster-name>` | Architect | Pre-step (Tier 0 grep): does an existing rule/doc already own the concept? If yes → consolidate-into-existing branch (extend the home + de-recap consumers, no new artifact). Else choose creation output type (rule vs skill); draft or extend SSOT body; sketch migration plan |
 | `execute <cluster-name>` | Migrate | Write or extend the SSOT (skip writing when an existing home already documents the concept); rewrite call sites to cite + de-recap inline reproductions; sweep references by invoking `/docs-hygiene:rename-references` via the Skill tool if a heading/identifier changed; verify |
 | `batch <cluster-list>` | Multi-candidate orchestration | Auto-`verify` filter, file-overlap matrix, sequential-by-default dispatch, lesson injection between subagents. See `actions/batch.md` |
 | `unwind <ssot-name>` | Reverse | Re-introduce duplication per Sandi Metz wrong-abstraction recovery |
 
 One action per response; actions don't chain implicitly.
+
+### Flags
+
+Accepted by `identify` and `batch` (the roster-producing surfaces); `batch` passes them through to each dispatched `identify`/`verify`.
+
+| Flag | Default | Behavior |
+|------|---------|----------|
+| `--min-instances=<N>` | `1` | Lowest bucket to roster. `--min-instances=3` is the regression guard — it reproduces the pre-bucket behavior where sub-three clusters never reach the user |
+| `--buckets=<list>` | all | Filter the roster to the named buckets, e.g. `--buckets=1,2` for the non-abstracting work only |
+| `--fix` | off | Apply ONLY the non-abstracting remedies (`trim-to-citation`, `normalize-wording`). Never writes a new artifact; still honors the per-bucket review gate unless `--yes` |
+| `--dry-run` | off | Print the diff `--fix` would apply; write nothing |
+| `--yes` | off | Non-interactive; skip the per-bucket review gate. Only meaningful with `--fix` |
+
+Bare invocation (no flags) stays read-only: it reports the buckets and stops, matching `/docs-hygiene:audit-noise` and `/docs-hygiene:audit-derivability`. Full flag semantics: `actions/identify.md`.
 
 ## Bare invocation — confirm scope first
 
@@ -109,9 +125,17 @@ whole-repo intent.
 
 ## Decision framework
 
-Before recommending extraction, run the 6-test gate (all must pass) + 5-test inline gate (any one keeps inline). Full checklist with evidence and worked examples in `context/decision-framework.md`.
+Before recommending a NEW SSOT artifact, run the 6-test gate (all must pass) + 5-test inline gate (any one keeps inline). Full checklist with evidence and worked examples in `context/decision-framework.md`.
 
-Headline gate: **Rule of Three** (Don Roberts / Fowler) — refuse extraction at <3 instances. Premature abstraction is the dominant failure mode.
+Headline gate: **Rule of Three** (Don Roberts / Fowler) — refuse *creation of a new SSOT artifact* at <3 instances. Premature abstraction is the dominant failure mode. Rule of Three gates artifact creation, NOT reporting: every candidate is rostered at its own multiplicity, and the bucket decides which remedies are on the table.
+
+| Bucket | Rostered? | Permitted remedies | Creates a new artifact? |
+|---|---|---|---|
+| N=1 — inline recap of an existing SSOT | always | `trim-to-citation`, `normalize-wording` | never |
+| N=2 — source-of-truth bifurcation risk | always | `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
+| N≥3 — Rule of Three met | always | all of the above, plus `rule-file` / `new-skill` / `new-action` | only behind the 6-test gate |
+
+Lowering the reporting threshold does not lower the abstraction threshold: the sub-three buckets offer only remedies that edit files already present. Full rationale: `context/decision-framework.md` "Reporting gate vs abstraction gate".
 
 ## Output type
 
@@ -120,9 +144,11 @@ Markdown branch (primary):
 | Shape | Target | Trigger |
 |-------|--------|---------|
 | Concept already has an SSOT home | Consolidate into the existing file (extend it only where a consumer carries nuance the home lacks) + de-recap the inline reproductions; create no new artifact | An existing rule/skill/doc already owns the concept and consumers recap it inline instead of citing it. Positive output-type form of `verify` Gate 2 + anti-pattern Shape C; `identify` flags it as `edit-existing-rule` / `trim-to-citation` |
-| Vocabulary, IF-THEN rules, hard constraints, ≤500 lines | Rule file wherever the consuming repository's own conventions place shared rules — default `.claude/rules/<topic>.md` (always-loaded) or a path-scoped rule file | Categorical markdown content; consumers cite by H3 heading |
-| Workflow, multi-action, has its own actions/anti-patterns | New skill at `.claude/skills/<name>/SKILL.md`, authored via the consumer's skill-authoring workflow (e.g. the skill-creator plugin) | Process content; consumers invoke `/<name>` |
-| New action on existing skill | Action row added to the skill's action router | The workflow maps cleanly onto an existing skill's concern — same domain, same triggers, same output surface — rather than warranting a new top-level skill |
+| Divergent phrasings of one agreed truth | `normalize-wording` — align every site onto the canonical/agreed wording in place; **no new artifact** | Instances say the same thing differently and the drift itself is the defect. Available in every bucket, including N=1 and N=2 |
+| Two files assert the same contract, neither declared canonical | `name-an-owner` — declare one existing file the owner; the other cites it | Accidental source-of-truth bifurcation (anti-pattern #11, accidental branch); the N=2 bucket's default remedy. **No new artifact** |
+| Vocabulary, IF-THEN rules, hard constraints, ≤500 lines | Rule file wherever the consuming repository's own conventions place shared rules — default `.claude/rules/<topic>.md` (always-loaded) or a path-scoped rule file | Categorical markdown content; consumers cite by H3 heading. **Artifact-creating — N≥3 only, behind the 6-test gate** |
+| Workflow, multi-action, has its own actions/anti-patterns | New skill at `.claude/skills/<name>/SKILL.md`, authored via the consumer's skill-authoring workflow (e.g. the skill-creator plugin) | Process content; consumers invoke `/<name>`. **Artifact-creating — N≥3 only, behind the 6-test gate** |
+| New action on existing skill | Action row added to the skill's action router | The workflow maps cleanly onto an existing skill's concern — same domain, same triggers, same output surface — rather than warranting a new top-level skill. **Artifact-creating — N≥3 only, behind the 6-test gate** |
 
 Skill-vs-rule heuristic: if the SSOT body is mostly nouns (named units the caller cites), it's a rule file. If the SSOT body is mostly verbs (steps the caller invokes), it's a skill.
 
@@ -171,7 +197,8 @@ Per-phase checklist: `context/execution-checklist.md`.
 
 | When | Check | Evidence |
 |------|-------|----------|
-| Pre-extraction | 3+ instances confirmed via grep (Tier 0) | Grep output captured in the plan/working notes |
+| Pre-roster | Instance count confirmed via grep (Tier 0) and the bucket assigned from it | Grep output captured in the plan/working notes |
+| Pre-new-artifact | 3+ full reproductions confirmed via grep (Tier 0); at 1-2 the remedy stays non-abstracting | Grep output captured in the plan/working notes |
 | Pre-extraction | Cluster has stable identity that can be named; instances change together | Decision-framework checklist marked in the plan |
 | Pre-extraction | File-class scope identified (markdown / code / config / mixed) | Listed in the plan; citation form chosen per class |
 | Per-callsite | Citation/import in the form native to the call site's file class | Diff review |
@@ -209,4 +236,4 @@ Per-phase checklist: `context/execution-checklist.md`.
 | External tool/CLI/API documented inside an SSOT rule ships a major version bump | Re-verify the Tier 0 flag/verb set in the affected rule file; cited entries may have moved or renamed |
 | `/docs-hygiene:rename-references` adds a new syntactic form to its 10-pattern sweep | Update the sweep step in `context/execution-checklist.md` |
 | Anthropic ships a first-class native rule/skill linker (heading-rename auto-sweep) | Demote the `/docs-hygiene:rename-references` step to advisory; reduce sweep scope |
-| Practitioner-authored skill failure rate drops below 20% (SkillsBench refresh) | Reduce gate strictness; consider relaxing Rule of Three to Two for low-risk vocabulary |
+| Practitioner-authored skill failure rate drops below 20% (SkillsBench refresh) | Reduce gate strictness; consider relaxing the artifact-creation gate from Rule of Three to Two for low-risk vocabulary (the reporting buckets are unaffected — they already roster at one) |

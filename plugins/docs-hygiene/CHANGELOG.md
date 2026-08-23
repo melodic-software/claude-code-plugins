@@ -1,5 +1,49 @@
 # Changelog — docs-hygiene plugin
 
+## [0.19.0]
+
+### Changed
+
+- **`extract-ssot` reports duplication at every multiplicity; the Rule of Three now gates
+  artifact creation, not reporting (#3114).** One threshold had been doing two jobs. Gating
+  *creation of a new SSOT artifact* at three instances is what the cited evidence supports
+  (~19% failure on curated skills, ~50% on practitioner-authored ones) — but the same number
+  was also deciding whether the user heard about the duplication at all, so two real defect
+  classes were discarded in silence: a consumer inlining a recap of an SSOT that already
+  exists (N=1), and two files asserting the same contract with no declared owner, drifting
+  apart (N=2).
+
+  `identify` now rosters candidates in three labelled buckets with the instance count shown
+  per candidate: **N=1** (inline recap of an existing SSOT), **N=2** (source-of-truth
+  bifurcation risk), **N≥3** (Rule of Three met). `verify` Gate 1 assigns that bucket from the
+  full-reproduction count and emits it in a new `bucket:` output field;
+  `REFUSE-rule-of-three-fails` is retained as the reason code but now fires only against an
+  *artifact-creating* remedy (`rule-file` / `new-skill` / `new-action`) below three — never
+  against reporting, and never against the non-abstracting remedies. Gate 4 gains the
+  intentional-vs-accidental split: a deliberate two-audience bifurcation still refuses, while
+  accidental bifurcation with no declared owner PROCEEDs as the N=2 bucket's own defect.
+
+  **Lowering the reporting threshold does not lower the abstraction threshold**, because the
+  sub-three buckets offer only remedies that edit files already present. The 6-test gate is
+  untouched and still governs every N≥3 extraction.
+
+### Added
+
+- **Two non-abstracting remedies for `extract-ssot` (#3114).** `normalize-wording` (align
+  divergent phrasings onto the canonical or agreed wording in place) and `name-an-owner`
+  (declare one existing file the canonical owner and make the other cite it). Neither creates
+  a file. They join `trim-to-citation` and `edit-existing-rule` in the suggested-output
+  vocabulary, and they are what make a rule-of-one reporting default safe.
+- **Five flags on the `identify` / `batch` surfaces (#3114).** `--min-instances=<N>` (default
+  `1`; `--min-instances=3` is the regression guard that reproduces the pre-bucket behavior
+  exactly), `--buckets=<list>`, `--fix` (applies only `trim-to-citation` and
+  `normalize-wording`, never creates an artifact), `--dry-run`, and `--yes`. Bare invocation
+  stays read-only: it reports the buckets and stops.
+- **Four eval expectations and two new eval cases** covering the N=1 bucket and the
+  `--min-instances=3` regression guard; the former `refuse-below-rule-of-three` case is now
+  `two-instances-bucketed-no-new-artifact` and asserts both halves — the candidate is
+  rostered, and no new artifact is proposed below three.
+
 ## [0.18.3]
 
 ### Changed
