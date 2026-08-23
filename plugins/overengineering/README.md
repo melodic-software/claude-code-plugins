@@ -13,10 +13,11 @@ evidence earns its keep**.
 |---|---|
 | `/overengineering:audit` | Read-only walk of the enforcement surface. Reconstructs what each mechanism was built to solve, re-solves the problem fresh with a bias toward native and built-in mechanisms, and returns a verdict argued in cost of carry — KEEP / RETIRE / DOWNGRADE / CONSOLIDATE / UNPROVEN, with security-class artifacts capped at FLAG-FOR-HUMAN. Emits a diffable findings artifact plus an inline summary. |
 | `/overengineering:realign` | The only skill that changes anything. Consumes the findings artifact and, per accepted finding, drives interview → explore/research → plan → implement through presence-gated skill composition. Nothing is touched without explicit per-item acceptance. |
+| `/overengineering:delta` | The recurring lane. Captures the prior findings spine, re-runs the audit, and reports **only what moved** since the last run — above a configurable noise budget, so a repeat cycle is a short delta instead of the whole surface again. Read-only always; it never enters `realign`, and verdict changes queue for the human. |
 
-The shared method both skills apply lives once, in
-[`context/scrutiny-method.md`](context/scrutiny-method.md); neither skill restates it. The artifact
-that joins them is specified once, in
+The shared method all three skills apply lives once, in
+[`context/scrutiny-method.md`](context/scrutiny-method.md); no skill restates it. The artifact that
+joins them is specified once, in
 [`context/findings-artifact.md`](context/findings-artifact.md).
 
 ## Why this exists
@@ -45,6 +46,11 @@ Three postures follow, and they are what make the audit different from an opinio
 `/overengineering:audit` reports and never mutates. That is the marketplace's `audit` verb contract,
 and here it is also the safety property that makes the plugin runnable on a surface nobody has
 reviewed in a year: the worst outcome of a bare run is a file in the memory tier and a wrong opinion.
+
+`/overengineering:delta` inherits that boundary unchanged and adds nothing to it: it composes the
+audit, compares two spines, and never invokes or enters `realign` — including when the operator asks
+for it mid-run. A lane that can run on a schedule has nobody to give the per-item acceptance realign
+requires, so it queues verdict changes instead of acting on them.
 
 Everything that changes the repo happens through `/overengineering:realign`, which is invoked
 deliberately, consumes the findings artifact rather than scanning on its own, and stops at a per-item
@@ -116,18 +122,35 @@ convention: `.claude/overengineering.md`, carrying
 
 - the **protected-categories set** — extend, narrow, or empty it;
 - **threshold overrides** for the analogical rows, each of which can also be switched off entirely;
-- the **observation window** the rollback ladder's rung 2 runs for; and
+- the **observation window** the rollback ladder's rung 2 runs for;
+- the **delta noise budget** — what the recurring lane lists rather than counts, per delta class; and
 - optional **suppression entries** — the durable record of a judgment an operator has already made,
   shaped by the marketplace's finding-suppression contract and written only behind realign's
   per-item gate.
 
 The protected-set and suppression keys sit in the cascade's policy-floor class: the team-tracked
 layer wins a direct conflict, personal layers may extend or tighten only, and a personal
-contribution is named in the report. Thresholds and the observation window take ordinary refinement.
+contribution is named in the report. Thresholds, the observation window, and the delta noise budget
+take ordinary refinement.
 
 **Keys, values, defaults, and per-key merge forms are owned by
 [`reference/consumer-config.md`](reference/consumer-config.md).** All layers absent is a valid state:
 the bundled defaults apply and the run says so.
+
+## Running it on a cadence
+
+`/overengineering:delta` is the recurring lane, and it is a **single-pass mechanic**: it runs once,
+compares once, reports once, and exits. **This plugin adopts no cadence and ships no schedule
+file** — a plugin that scheduled itself on install would be an unratified standing commitment in
+somebody else's repository, which is the exact class of thing it exists to find and retire. Four
+consumer-agnostic wiring shapes, and the trade each makes, are in
+[`skills/delta/context/recurring-wiring.md`](skills/delta/context/recurring-wiring.md).
+
+The property that makes a recurring run worth having is that it **stops re-serving the surface**. The
+first cycle establishes a baseline and reports no deltas; every later cycle reports only what moved,
+filtered through a noise budget with per-class rules, and a cycle where nothing moved is one line.
+Recurrence changes nothing about the read-only boundary: no cadence reaches `realign`, and verdict
+changes queue for a human rather than being acted on.
 
 ## Where the findings artifact lands
 

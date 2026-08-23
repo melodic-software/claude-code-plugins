@@ -1,9 +1,10 @@
 # Findings artifact — the audit → realign contract
 
 One markdown file is the whole seam between this plugin's two skills. `overengineering:audit`
-produces it and is read-only on everything else; `overengineering:realign` is its **only** consumer
-and its only writer of operator judgment. Both skills read this document; **neither restates it**,
-and no other plugin is assumed to read it.
+produces it and is read-only on everything else; `overengineering:realign` is its **only mutating**
+consumer and its only writer of operator judgment. `overengineering:delta` reads it across runs and
+writes nothing here at all. All three skills read this document; **none restates it**, and no other
+plugin is assumed to read it.
 
 The artifact is the single source of truth for a run: everything that drives the reasoning —
 evidence citations, liveness answers, intent reconstruction, rediscovery, cost weighing, verdict —
@@ -194,11 +195,40 @@ The split is a contract, not a formatting preference, and it exists for two cons
   with a line diff. Two independent prose passes over the same tree will never be byte-identical,
   and live evidence sources move between runs by design (an appending log grows; a history query
   returns more). A comparison over full prose rows reports model noise as change and is worthless.
-- **A future delta lane inherits this as its contract.** Whatever reports "what changed since the
-  last run" reads the spine; the prose is context for a human, not an input to a comparison.
+- **The delta lane inherits this as its contract.** `overengineering:delta` reports "what changed
+  since the last run" by reading the spine; the prose is context for a human, not an input to a
+  comparison.
 
 Two rules keep the spine extractable: a spine value never contains a newline, and a spine value is
 never a sentence. Anything that wants to be a sentence is prose and belongs below the spine.
+
+## The spine-capture obligation
+
+**This artifact is rewritten in place, so a cross-run comparison must capture the prior spine before
+the next audit begins.** "Re-run merge semantics" below makes a re-audit merge into the existing
+file, and the audit writes per layer as it walks, so the prior content starts disappearing at the
+first layer rather than at the end of the run. **After an audit has run, there is nothing left to
+compare against.** Any consumer reporting change across runs therefore captures first and audits
+second; a consumer that reverses those two steps does not fail loudly, it reports "no baseline" every
+cycle forever.
+
+**The capture is a sibling file in the same resolved home, not a second artifact.** `spine-baseline.md`
+beside `findings.md`, memory tier, branch-keyed, and ephemeral on exactly the same terms. It carries
+only material already fixed by this contract — each finding's `### <finding-id>` heading and its four
+spine lines verbatim, each container's `**Members (<n>):**` lines verbatim, and the per-tier tokens
+from `## Evidence availability` — and no prose field, ever.
+
+Three properties keep it from becoming a second record of findings:
+
+- **Its `type` is `overengineering-spine-baseline`**, deliberately neither `overengineering-findings`
+  nor `review-findings`. `overengineering:realign` neither reads it nor is selected onto it, and no
+  fix relay can locate it.
+- **It carries no judgment of its own.** Every line in it was copied from an artifact this contract
+  already governs; it asserts nothing the artifact did not already assert, and it is never merged
+  into.
+- **It is a snapshot, not a history.** One file per home, overwritten by the next capture — with one
+  exception: a baseline whose comparison never completed is kept rather than overwritten, so an
+  interrupted cycle widens the next comparison's span instead of destroying its only baseline.
 
 ## Aggregating containers — the container is the finding
 
@@ -402,6 +432,11 @@ The key shapes and merge forms for the consumer's concern file are owned by this
 | Leads with the evidence-availability assessment | yes, before any finding | reads it; never recomputes it |
 | Refuses on a mismatched `branch:` or an unrecognized `schema:` | n/a — it writes them | yes, with a visible message |
 | Behavior when the artifact is missing | n/a | **stop** with a visible message naming `overengineering:audit` as the skill that produces it — the artifact-protocol missing-prerequisite rule; never scan on its own |
+
+`overengineering:delta` is a **third reader and no writer of this file**. It captures the spine per
+the obligation above, composes `audit` to produce the next one, and compares the two. It writes no
+field here — least of all `Status`, which stays realign's alone — and a missing artifact is not a
+stop for it but a first run: it says so, establishes the baseline, and reports nothing as a delta.
 
 ## External authority
 

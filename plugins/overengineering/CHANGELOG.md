@@ -3,6 +3,78 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Added
+
+- **`delta` — the recurring lane the findings artifact was designed for (#2898).** A third,
+  read-only skill: it captures the prior findings spine, composes `overengineering:audit` over the
+  same layer scope, compares the two spines, and reports **only what moved** — new clutter, verdict
+  moves, closures, status changes — instead of re-serving the whole surface every cycle. The
+  artifact's stable spine was given its diffable line format for exactly this consumer, and the lane
+  reads the spine alone: prose is recomputed fresh every run, so comparing it would report model
+  noise as change.
+- **Capture-then-audit, stated as the lane's load-bearing ordering.** The artifact is rewritten in
+  place, per layer, as the audit walks, so **after an audit has run there is nothing left to diff
+  against**. The lane captures the prior spine to a memory-tier `spine-baseline.md` sibling *before*
+  invoking the audit. A maintainer who reverses those two steps does not get an error — every cycle
+  silently reports "no baseline, this run establishes one" forever — which is why the ordering is a
+  contract clause in both the skill and `context/findings-artifact.md` rather than an implementation
+  detail.
+- **A noise budget with per-class rules, not a judgment gesture.** Each delta class is disposed as
+  list, count, or omit: new findings list on retirement-direction and capped verdicts and count
+  otherwise; new `UNPROVEN` findings list only the head of the audit's own carry-cost ranking, since
+  an evidence desert produces them in bulk; verdict moves on unjudged findings list only when they
+  cross the keep/retirement boundary, touch `FLAG-FOR-HUMAN`, or enter or leave `UNPROVEN`; closures
+  list when unexpected and count when the prior status was `REALIGNED`; member moves under an
+  unchanged container count. A volume cap bounds the whole report, and **a quiet cycle is one line**
+  — the anti-nag property the lane exists to hold. Evidence-only change is declared **out of scope by
+  construction**: evidence is prose, a spine comparison cannot see it, and no threshold makes it able
+  to.
+- **`delta_noise_budget` in `reference/consumer-config.md`**, seven keys with types and defaults, in
+  the ordinary **refinement** cascade class with the classification justified in the doc: no key can
+  remove a finding from the artifact, change a verdict, suppress a judgment, or weaken the protected
+  cap, so none carries the hazard that puts `protected_categories` and `suppressions` in the
+  policy-floor class. Two delta classes are deliberately not keys at all — a verdict that moved under
+  a **carried-forward judgment** (merge rule 5) and a **status change** are always surfaced, and no
+  layer can weaken either.
+- **Recurring wiring documented, adopted nowhere.** `skills/delta/context/recurring-wiring.md`
+  carries four consumer-agnostic shapes — a fixed-interval loop, a headless scheduled task, a CI
+  schedule, and a recurring tracker item — each with its trade, including the observation that a
+  scheduled CI lane *is itself* an enforcement-surface item this plugin's own audit will later judge
+  on carry cost. The plugin ships no schedule of its own: a cadence is the consumer's ratified
+  decision, not something a plugin adopts on install.
+
+### Changed
+
+- **`context/findings-artifact.md` gains the spine-capture obligation (#2898), additively.** A new
+  section names the capture-before-audit ordering and specifies the `spine-baseline.md` sibling —
+  `type: overengineering-spine-baseline`, deliberately neither `overengineering-findings` nor
+  `review-findings`, so `realign` never reads it and no fix relay can locate it. `schema` stays `1`
+  and no merge rule changed; the doc's forward reference to "a future delta lane" now names the
+  shipped one, and its obligations table records that `delta` is a third **reader** and no writer —
+  least of all of `Status`, which stays realign's alone.
+
+### Contracts
+
+- **Read-only always, and realign is never entered.** The delta lane never invokes or enters
+  `overengineering:realign` — not on a verdict that moved, not on a finding an earlier run accepted,
+  and not when the operator asks for it mid-run. Realign's per-item gate needs a human present at the
+  moment the item is shown, and a lane that can run on a schedule has nobody to give one. Verdict
+  changes **queue**: always in the report's `## Queued for the human` section, and — presence-gated
+  on a reachable work-item tracker, with the report section as the named inline fallback — as one
+  reused item per branch that a quiet cycle never touches, that drops a row the human has already
+  dispositioned, and that the lane never closes.
+- **No baseline is a first-class state, not an error.** A fresh container, a removed worktree, a
+  branch switch, or an artifact whose `branch:` frontmatter names another branch all mean there is no
+  prior spine. The lane says "no baseline; this run establishes one", reports nothing as a delta, and
+  points at the composed audit's own inline summary rather than producing a second full-surface view.
+  An unrecognized `schema:` is a stop instead, per the artifact contract's closed rule.
+- **A layer-scoped cycle is never a clean bill of health.** Findings in a layer absent from this
+  run's `scope` were carried forward untouched by merge rule 4; they contribute to no delta class and
+  are named once as a coverage line with their count — never as unchanged-and-checked, and never as
+  closed.
+
 ## [0.1.1]
 
 ### Changed
