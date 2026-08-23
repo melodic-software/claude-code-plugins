@@ -308,13 +308,14 @@ that could silently regress — how it triggers, how it routes an ambiguous requ
 or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
 from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`, …). A **hook** plugin
 is a skip only in the case its rationale actually describes — deterministic, silent-always-on,
-guarded by `.test.sh`, **no model-invoked skill**. That rationale turns on the absence of a
-judgment-bearing contract, not on invocation mode, so it does not reach a hook plugin that ships a
-`setup` skill. Such a skill sets `disable-model-invocation: true` and so genuinely is *not*
-model-invoked — the skip's literal terms cover it — yet it makes interview and write-config
-decisions that can silently regress, which is the thing the skip exists to excuse the absence of.
-The plugin's shape does not exempt it: a `setup` skill *is* warrantable (the
-`codebase-health/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
+guarded by `.test.sh`, **no skill carrying a judgment-bearing contract**. The condition is the
+absence of that contract, not the invocation mode. Stating it by invocation mode does not work: a
+`setup` skill sets `disable-model-invocation: true`, so both "no model-invoked skill" and "no
+model-facing skill" are satisfied by a plugin that ships one — admitting as skips the very plugins
+the rest of this rule excludes. A `setup` skill makes interview and write-config decisions that can
+silently regress, which is precisely the contract the skip exists to excuse the absence of. The
+plugin's shape does not exempt it: a `setup` skill *is* warrantable (the `codebase-health/setup`
+eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
 This section is the policy; current coverage is verified on demand — a live glob of
