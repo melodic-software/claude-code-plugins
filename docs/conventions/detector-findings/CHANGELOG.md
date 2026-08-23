@@ -4,6 +4,17 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.5.1 — 2026-08-23
+
+**Patch** — docs-only clarification of one adopter row's selection text. No producer-owned field's
+rule moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **`rule-negation-without-positive` now describes paragraph-scoped accumulation (#3195).** The
+  row had inherited 0.21.1's "the line must close its own sentence" gate, which withheld every
+  hard-wrapped prohibition. The detector now accumulates a soft-wrapped sentence before classifying
+  it; the crosswalk row states that, and that a finding is attributed to the first physical line of
+  the triggering sentence. The other eight shapes stay line-scoped.
+
 ## 2.5.0 — 2026-08-23
 
 **Minor under this contract's own rule** — a new adopter's rows are added; no producer-owned field's

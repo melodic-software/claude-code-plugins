@@ -1084,17 +1084,93 @@ forms_count="$(printf '%s\n' "$forms_out" | grep -c '^Finding shape: negation')"
 assert_contains "plain, list, bolded and blockquoted imperatives all still flag" \
   "count=$forms_count" "count=4"
 
-# A hard-wrapped continuation line cannot be shown to lack a positive that sits
-# on the next line, so it must not select on its own.
-NEG_WRAP="$TEST_TMPDIR/negation-wrap.md"
-cat >"$NEG_WRAP" <<'EOF'
-# Wrapped fixture
+# Soft-wrapped sentences are accumulated before the classifier runs. A positive
+# on the continuation line pairs the sentence; a wrap with no positive must
+# flag, attributed to the first physical line of the sentence (where the cue
+# opens). The older line-scoped gate withheld the unpaired wrap.
+NEG_WRAP_PAIRED="$TEST_TMPDIR/negation-wrap-paired.md"
+cat >"$NEG_WRAP_PAIRED" <<'EOF'
+# Wrapped paired fixture
 
-Do not use markdown in your response; compose it instead as
-smoothly flowing prose paragraphs.
+Do not use markdown;
+compose flowing prose instead.
 EOF
-wrap_out="$(bash "$DETECT" "$NEG_WRAP")"
-assert_not_contains "a hard-wrapped continuation does not select" "$wrap_out" "Finding shape: negation"
+wrap_paired_out="$(bash "$DETECT" "$NEG_WRAP_PAIRED")"
+assert_not_contains "a wrapped sentence with its positive on the next line is not flagged" \
+  "$wrap_paired_out" "Finding shape: negation"
+
+NEG_WRAP_BARE="$TEST_TMPDIR/negation-wrap-bare.md"
+cat >"$NEG_WRAP_BARE" <<'EOF'
+# Wrapped bare fixture
+
+Do not use markdown
+in the summary body.
+EOF
+wrap_bare_out="$(bash "$DETECT" "$NEG_WRAP_BARE")"
+assert_contains "a wrapped sentence with no positive is flagged" \
+  "$wrap_bare_out" "Finding shape: negation"
+assert_contains "and is attributed to the first line of the sentence" \
+  "$wrap_bare_out" $'Finding shape: negation\nFinding line: 3'
+
+NEG_WRAP_CTRL="$TEST_TMPDIR/negation-wrap-control.md"
+cat >"$NEG_WRAP_CTRL" <<'EOF'
+# Unwrapped control
+
+Never emit a bare summary.
+EOF
+wrap_ctrl_out="$(bash "$DETECT" "$NEG_WRAP_CTRL")"
+assert_contains "an unwrapped imperative still flags" \
+  "$wrap_ctrl_out" "Finding shape: negation"
+
+# The other shapes stay line-scoped: joining would invent a citation that no
+# physical line actually contains.
+LINE_SCOPED="$TEST_TMPDIR/negation-line-scoped-sibling.md"
+cat >"$LINE_SCOPED" <<'EOF'
+# Line-scoped sibling fixture
+
+Empirically
+observed inside a wrap that would match if joined.
+EOF
+line_scoped_out="$(bash "$DETECT" "$LINE_SCOPED")"
+assert_not_contains "citation does not accumulate across a soft wrap" \
+  "$line_scoped_out" "Finding shape: citation"
+
+# Frontmatter, fences and opt-out markers still bound accumulation: a wrapped
+# prohibition inside any of them must not join a later body sentence.
+NEG_FENCE_WRAP="$TEST_TMPDIR/negation-fence-wrap.md"
+cat >"$NEG_FENCE_WRAP" <<'EOF'
+# Fence-bounded wrap
+
+```text
+Do not use markdown
+in the fenced body.
+```
+
+Do not use markdown
+in the summary body.
+EOF
+fence_wrap_out="$(bash "$DETECT" "$NEG_FENCE_WRAP")"
+fence_wrap_count="$(printf '%s\n' "$fence_wrap_out" | grep -c '^Finding shape: negation')"
+assert_contains "a fenced wrap is skipped and the body wrap still flags once" \
+  "count=$fence_wrap_count" "count=1"
+assert_contains "the body wrap is attributed past the fence" \
+  "$fence_wrap_out" $'Finding shape: negation\nFinding line: 8'
+
+NEG_IGNORE_WRAP="$TEST_TMPDIR/negation-ignore-wrap.md"
+cat >"$NEG_IGNORE_WRAP" <<'EOF'
+# Opt-out-bounded wrap
+
+<!-- markdown-discipline-ignore -->
+Do not use markdown
+in the ignored paragraph.
+
+Do not use markdown
+in the summary body.
+EOF
+ignore_wrap_out="$(bash "$DETECT" "$NEG_IGNORE_WRAP")"
+ignore_wrap_count="$(printf '%s\n' "$ignore_wrap_out" | grep -c '^Finding shape: negation')"
+assert_contains "an ignored wrap is skipped and the body wrap still flags once" \
+  "count=$ignore_wrap_count" "count=1"
 
 # The imperative gate is PER SENTENCE. A line-level gate admits the whole line
 # on its first sentence and then lets a later DESCRIPTIVE sentence be reported —
