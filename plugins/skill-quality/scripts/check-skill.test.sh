@@ -2320,6 +2320,59 @@ else
   fail "1100-codepoint description should WARN at its codepoint length under LC_ALL=C (rc=$rc): $out"
 fi
 
+# 29e. Check 2a at the exact boundary: a description of exactly 1024 chars is AT
+#      the spec field maximum, not over it, so the `>` comparison stays silent
+#      and only the informational count line reports it.
+desc_1024="$(printf 'd%.0s' $(seq 1 1024))"
+make_skill field-cap-boundary-pass "---
+name: field-cap-boundary-pass
+description: \"$desc_1024\"
+---
+
+## Purpose
+
+Boundary fixture whose description is exactly 1024 chars, at the spec field
+maximum rather than over it.
+
+## Gotchas
+
+None known.
+"
+out="$(run field-cap-boundary-pass 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'description field is' <<<"$out" &&
+  grep -q 'description field 1024/1024 chars' <<<"$out"; then
+  pass "a description at exactly 1024 chars does not warn on the field maximum (check 2a)"
+else
+  fail "1024-char description should sit at the field maximum without warning (rc=$rc): $out"
+fi
+
+# 29f. The other half of the boundary pair: one char more is over the maximum
+#      and WARNs, proving the cap is >1024 and not >=1024.
+desc_1025="$(printf 'd%.0s' $(seq 1 1025))"
+make_skill field-cap-boundary-warn "---
+name: field-cap-boundary-warn
+description: \"$desc_1025\"
+---
+
+## Purpose
+
+Boundary fixture whose description is 1025 chars, one over the spec field
+maximum.
+
+## Gotchas
+
+None known.
+"
+out="$(run field-cap-boundary-warn 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: description field is 1025 chars' <<<"$out"; then
+  pass "a description one char over 1024 warns on the field maximum (check 2a)"
+else
+  fail "1025-char description should WARN one char over the field maximum (rc=$rc): $out"
+fi
+
 # 38a. Check 22: a summary of exactly 100 codepoints passes (boundary
 #      guard — the cap is >100, not >=100).
 sum_100="$(printf 's%.0s' $(seq 1 100))"
