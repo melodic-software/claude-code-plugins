@@ -50,9 +50,17 @@ trap 'rm -rf "$TMP"' EXIT
 OWNS_TRACKED_CONFIG='the check-only carve-out is unavailable here'
 NO_DECLARATION='must declare the check-only carve-out it relies on'
 NO_USER_CONFIG='requires the plugin manifest to declare userConfig'
+NO_DOCUMENTED_APPLY='must document the apply action'
 REGISTRY_MISSING='the consumer-config registry is required'
 REGISTRY_UNSTRUCTURED='must carry an "## Implementers" section'
 REGISTRY_EMPTY='named no surfaces'
+
+# fail() prints `- <path>: <message>`. A warn-only path would still contain
+# the message substring but would not carry the leading `- ` bullet.
+has_fail_line() {
+  local needle="$1"
+  grep -qE "^- .*: .*${needle}" <<<"$out"
+}
 
 reset_fixture() {
   rm -rf "$TMP/plugins" "$TMP/docs"
@@ -157,7 +165,7 @@ write_registry alpha
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
-if grep -q "$OWNS_TRACKED_CONFIG" <<<"$out" &&
+if has_fail_line "$OWNS_TRACKED_CONFIG" &&
   grep -q 'narrow-write shape' <<<"$out" &&
   grep -qE 'alpha[/\\]skills[/\\]setup[/\\]SKILL\.md' <<<"$out"; then
   pass "a carve-out claim from a plugin owning tracked consumer config fails the gate"
@@ -182,7 +190,7 @@ mkdir -p "$TMP/docs/conventions/config-cascade"
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
-if grep -q "$OWNS_TRACKED_CONFIG" <<<"$out"; then
+if has_fail_line "$OWNS_TRACKED_CONFIG"; then
   pass "a plugin named alongside the surface it co-owns is read out of the registry row"
 else
   fail "a co-owner named in the surface cell should not reach the carve-out: $out"
@@ -198,10 +206,27 @@ write_setup_skill alpha check <<'BODY'
 `check` reports readiness. There is no `apply` action here.
 BODY
 out="$(run_fixture)"
-if grep -q "$NO_DECLARATION" <<<"$out"; then
+if has_fail_line "$NO_DECLARATION"; then
   pass "a skill offering no apply must declare the carve-out, not merely mention apply"
 else
   fail "an undeclared carve-out shape should fail the gate: $out"
+fi
+
+# --- 3b. Advertising apply in argument-hint without documenting it. --------
+reset_fixture
+write_registry alpha
+make_plugin alpha alpha_api_key
+write_setup_skill alpha 'check | apply' <<'BODY'
+## Purpose
+
+Check-only under the native `userConfig` surface: `check` reports readiness.
+There is no apply action here.
+BODY
+out="$(run_fixture)"
+if has_fail_line "$NO_DOCUMENTED_APPLY"; then
+  pass "advertising apply without documenting it fails the gate"
+else
+  fail "an advertised-but-undocumented apply should fail the gate: $out"
 fi
 
 # --- 4. A userConfig-only claim the manifest does not back. -----------------
@@ -209,7 +234,7 @@ reset_fixture
 make_plugin alpha ''
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
-if grep -q "$NO_USER_CONFIG" <<<"$out"; then
+if has_fail_line "$NO_USER_CONFIG"; then
   pass "claiming the userConfig-only carve-out with no declared userConfig fails the gate"
 else
   fail "an unbacked userConfig-only claim should fail the gate: $out"
@@ -224,7 +249,7 @@ write_setup_skill alpha check <<'BODY'
 Check-only under the native `userConfig` surface: `check` reports readiness.
 BODY
 out="$(run_fixture)"
-if grep -q "$NO_USER_CONFIG" <<<"$out"; then
+if has_fail_line "$NO_USER_CONFIG"; then
   pass "doctrine wording that names userConfig without a manifest declaration fails the gate"
 else
   fail "a native-userConfig-surface claim with no userConfig should fail: $out"
@@ -272,7 +297,7 @@ rm -rf "$TMP/docs"
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
-if grep -q "$REGISTRY_MISSING" <<<"$out"; then
+if has_fail_line "$REGISTRY_MISSING"; then
   pass "a missing consumer-config registry fails the gate"
 else
   fail "a missing registry should fail rather than silently skip: $out"
@@ -286,7 +311,7 @@ printf '# Consumer config cascade (fixture)\n\nNo Implementers section here.\n' 
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
-if grep -q "$REGISTRY_UNSTRUCTURED" <<<"$out"; then
+if has_fail_line "$REGISTRY_UNSTRUCTURED"; then
   pass "a registry with no Implementers section fails the gate"
 else
   fail "a restructured registry should fail rather than silently skip: $out"
@@ -309,7 +334,7 @@ mkdir -p "$TMP/docs/conventions/config-cascade"
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha check
 out="$(run_fixture)"
-if grep -q "$REGISTRY_EMPTY" <<<"$out"; then
+if has_fail_line "$REGISTRY_EMPTY"; then
   pass "an Implementers table naming no surfaces fails the gate"
 else
   fail "an empty registry table should fail rather than silently skip: $out"

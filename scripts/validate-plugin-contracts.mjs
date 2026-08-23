@@ -136,7 +136,7 @@ function readTrackedConfigOwners() {
   }
   const owners = new Set();
   for (const line of lines.slice(heading + 1)) {
-    if (/^##\s/.test(line)) break;
+    if (/^#{1,6}\s/.test(line)) break;
     if (!line.startsWith("|")) continue;
     // Column 1 names the surface, and where the surface name is not itself the
     // owning plugin it names the plugins alongside it ("`standards`
@@ -208,6 +208,12 @@ for (const path of setupSkills) {
   // its prose says, so the carve-out's preconditions are checked there rather
   // than on the presence of the words "check-only" anywhere in the body.
   const offersApply = /^argument-hint:\s*"[^"]*\bapply\b/m.test(frontmatter);
+  if (offersApply && !/`apply`/.test(body)) {
+    fail(
+      path,
+      "a setup skill advertising apply in argument-hint must document the apply action",
+    );
+  }
   if (!offersApply) {
     const plugin = relative(pluginRoot, path).split(sep)[0];
     if (!/check-only/i.test(body)) {
