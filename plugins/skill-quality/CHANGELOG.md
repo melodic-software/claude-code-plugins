@@ -3,6 +3,45 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **`check`: Check 2b — description field cap (1024; WARN; #3119).** The gate
+  carried one description limit, `DESC_CHAR_CAP=1536`, and treated it as the only
+  one. That value is Claude Code's in-context listing truncation for the assembled
+  entry (`description` + `" - "` + `when_to_use`). The Agent Skills spec states a
+  separate, smaller maximum for the `description` **field alone**: "Must be
+  non-empty / Maximum 1024 characters / Cannot contain XML tags"
+  (platform.claude.com Agent Skills overview, fetched 2026-08-23). Two limits at
+  two layers, and only the looser one was checked — so a description could sit
+  under 1536 combined, breach 1024 on its own, and pass clean. Nineteen skills in
+  this marketplace did (lower bound; measured with an independent extractor that
+  reads slightly short of the gate's own).
+
+  Check 2b reports the field breach separately from check 2, with its own message.
+
+  Counted in **codepoints**, not bytes — the spec says "Maximum 1024 characters",
+  and `${#var}` degrades to byte counting under a byte-oriented locale, so 600
+  `é` characters report as 1200 under `LC_ALL=C` and a valid multilingual
+  description would false-warn. Uses the same UTF-8 → UTF-32BE `iconv` form as
+  check 22, with the same UTF-8-locale fallback where `iconv` is absent.
+  `DESC_LEN` stays a byte count for check 2, whose 1536 listing cap is a separate
+  measure. Caught in review by the Codex reviewer on this PR.
+
+  **WARN, not FAIL, on measured evidence.** No local validator enforces the field
+  maximum: `claude plugin validate --strict` (Claude Code 2.1.241) passes a
+  1248-char description clean — verified against a throwaway fixture plugin on
+  2026-08-23, the only warning raised being an unrelated missing `author`. The
+  breach is latent for filesystem and plugin skills, and hard only for a skill
+  uploaded through the Skills API. Failing the build on it would block a fleet
+  over a limit nothing in the local toolchain applies.
+
+  Numbered `2b` rather than `26`: it is the same concern as check 2 at a second
+  layer, and renumbering would break the identity of checks 3–25, which are cited
+  by number across this repo and in tracker items. The plugin's "twenty-five
+  deterministic checks" claim is left standing on that reading.
+
 ## [0.18.1]
 
 ### Fixed
