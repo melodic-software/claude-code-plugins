@@ -215,7 +215,7 @@ be followed.
 
 **A trap that already cost one measurement.** An early run read as a **null** — "the install wrote
 no record" — purely because the reader compared the 8.3 short form inherited from `%TEMP%`
-(`C:\Users\ALICE~1\…`) against the long form the CLI writes (`C:\Users\AliceExample\…`). The record
+of the user directory (`ALICE~1`) against the long form the CLI writes (`AliceExample`). The record
 was there the whole time. Any consumer comparing these paths must resolve first (`pwd -W` on Git
 Bash yields the native long form), unify separators, and fold case on Windows. Two related shapes
 bite the same way: `jq` on Git Bash terminates lines with CRLF, and `@tsv` escapes each backslash to

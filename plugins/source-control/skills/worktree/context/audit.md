@@ -70,10 +70,17 @@ some other project's checkout may be perfectly current — including one whose v
 mounted right now — and this skill has no standing to judge it. Report the count; stop there.
 
 **What the `candidate orphan` bucket cannot tell you, and must say so.** It is reached by two
-failures, not by positive evidence of death, and a path on an unmounted network share or a detached
-external volume fails both tests exactly as a deleted worktree does. Present the bucket with that
-caveat attached to every row — never as "these are dead" — and require the user to confirm each path
-individually before anything is run.
+failures, not by positive evidence of death. Three different live things fail both tests exactly as a
+deleted worktree does, and every row must carry all three as its caveat — never "these are dead":
+
+- a path on an **unmounted network share** or a **detached external volume**;
+- **another lane's live worktree whose main clone has been moved, deleted, or unmounted** — it still
+  holds all its work and still carries its `.git` file, but `rev-parse` fails, which is the case
+  [cleanup.md](cleanup.md) calls the load-bearing one;
+- any directory whose contents nobody has accounted for.
+
+So before confirming a row, check it the way `cleanup` does: no `.git` entry, empty, not a symlink.
+Require the user to confirm each path individually before anything is run.
 
 **The remedy, emitted for the user to run, never inline.** Removing a record requires standing in
 the directory it names (`-s project` has no path flag), so the only route to a path that no longer

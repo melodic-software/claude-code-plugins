@@ -22,7 +22,7 @@ Run `status` logic internally and identify candidates:
 
 | Reason | Detection method |
 |--------|-----------------|
-| **Orphaned directory** | Directory exists under a worktree root but NOT in `git worktree list` output — **and** it passes all three qualifying tests in Step 4b (not a work tree, no `.git` entry, empty). Those tests are not optional: the external root is shared across repositories, so another repository's live worktree is absent from this one's list, and a live worktree whose main clone is unreachable fails the `rev-parse` test while still holding all its work. Scan every root your project uses — common layouts: (1) the **configured external root** (`melodic.worktreeroot`, then the `worktree_root` plugin option, then the plugin data dir) where `create` actually places every worktree, and which is shared across repositories; (2) `<repo-root>/.worktrees/`; (3) Claude Code's default `<repo-root>/.claude/worktrees/`; (4) bare-clone hub `<hub-root>/<name>/` — siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists — from terminal kill without clean exit, OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
+| **Orphaned directory** | Directory exists under a worktree root but NOT in `git worktree list` output — **and** it passes all four qualifying tests in Step 4b (not a symlink, not a work tree, no `.git` entry, empty). Those tests are not optional: the external root is shared across repositories, so another repository's live worktree is absent from this one's list, and a live worktree whose main clone is unreachable fails the `rev-parse` test while still holding all its work. Scan every root your project uses — common layouts: (1) the **configured external root** (`melodic.worktreeroot`, then the `worktree_root` plugin option, then the plugin data dir) where `create` actually places every worktree, and which is shared across repositories; (2) `<repo-root>/.worktrees/`; (3) Claude Code's default `<repo-root>/.claude/worktrees/`; (4) bare-clone hub `<hub-root>/<name>/` — siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists — from terminal kill without clean exit, OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
 | **Prunable** | `git worktree list --porcelain` shows `prunable` flag |
 | **PR merged** | `gh pr list --state merged --head <branch>` returns non-empty result |
 | **Stale** | Last commit > threshold days, no open PR, no locked flag |
@@ -65,7 +65,10 @@ Skipping 4a is the usual reason a previous `/source-control:worktree cleanup` le
 ### Step 4b: Remove the worktree
 
 ```bash
-# Orphaned directory (on disk, not in `git worktree list`): remove the husk
+# Orphaned directory: remove the husk — ONLY after it has passed all four
+# qualifying tests below (not a symlink, not a work tree, no `.git` entry,
+# empty). Absence from `git worktree list` is NOT on its own a licence to run
+# this line.
 rm -rf <path>
 
 # Git-tracked worktree — plain removal first. It FAILS on a dirty worktree
@@ -156,16 +159,21 @@ only gate standing between a live directory and an unrecoverable reap plus `rm -
 right now, do not scan it and do not classify anything under it. The volume is detached, and every
 path under it would qualify on identical evidence.
 
-**Three tests, ALL of which must hold.** The first two are negatives and prove nothing on their own;
-the third is the only positive evidence available, and it is what the presentation row's
+**Four tests, ALL of which must hold.** The first three are negatives and prove nothing on their
+own; the last is the only positive evidence available, and it is what the presentation row's
 "(empty, no git ref)" has always claimed:
 
 ```bash
-git -C <path> rev-parse --is-inside-work-tree 2>/dev/null   # must NOT print `true`
+test -L "<path>"                                             # must be FALSE — not a symlink
+git -C <path> rev-parse --is-inside-work-tree 2>/dev/null    # must NOT print `true`
 test -e "<path>/.git"                                        # must NOT exist (file OR directory)
-find "<path>" -mindepth 1 | head -1                          # must return nothing
+find "<path>" -mindepth 1 | head -1                          # must return NOTHING (read the output, not the status)
 ```
 
+0. **Not a symlink.** `find <path> -mindepth 1` does not descend a symlinked start point, so a link
+   to a busy directory reports **empty** and passes test 3 — while the reap, which resolves `pwd`
+   through the link, would act on the *target's* records. A symlink is never a husk this action
+   created; disqualify it and report it.
 1. **Not a work tree.** `true` means the directory belongs to some repository — not necessarily this
    one. The external worktree root is **shared**: `create` places worktrees at
    `<root>/<owner>-<repo>-<slug>`, one root serving every repository on the machine
@@ -177,9 +185,11 @@ find "<path>" -mindepth 1 | head -1                          # must return nothi
    while `rev-parse` fails — so test 1 alone calls another lane's live worktree a husk and destroys
    it. A `.git` entry present, resolvable or not, disqualifies the candidate outright.
 3. **Empty.** A husk is empty; a worktree is not. Nothing else in this action tests this, and without
-   it "orphaned directory" is an inference from two failures rather than an observation.
+   it "orphaned directory" is an inference from two failures rather than an observation. Read the
+   **output**, never the exit status: `find … | head -1` exits 0 whether or not it printed anything,
+   so a status check would call every directory empty.
 
-A candidate failing any of the three is **not** an orphaned directory. Report it as another lane's
+A candidate failing any of the four is **not** an orphaned directory. Report it as another lane's
 worktree, or as a directory whose contents nobody has accounted for, and leave it entirely alone:
 do not reap, do not remove. Deriving deadness from the negatives alone is exactly the inference
 [audit.md](audit.md) refuses to make on the same evidence, and the acting path may not be the more

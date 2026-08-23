@@ -40,8 +40,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   registration test before anything is called an orphan. `cleanup`'s
   orphaned-directory candidate — the only candidate class with no stranded-work
   row to read, since the engine enumerates from `git worktree list` — is held to
-  a stricter bar still: *not a work tree*, *no `.git` entry*, and *empty*, all
-  three. The middle test is the load-bearing one and the first does not imply it,
+  a stricter bar still: *not a symlink*, *not a work tree*, *no `.git` entry*,
+  and *empty* — all four. The `.git` test is the load-bearing one and the
+  work-tree test does not imply it,
   because a live worktree whose main clone was moved, deleted, or unmounted keeps
   its `.git` file while `rev-parse` fails. Both surfaces also stop scanning a
   configured root that does not resolve. Read-only: removal needs the

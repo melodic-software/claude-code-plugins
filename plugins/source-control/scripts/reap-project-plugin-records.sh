@@ -89,10 +89,10 @@ fi
 
 # On MSYS/Git Bash `pwd -W` yields the native long form (`D:/worktrees/x`),
 # which is the form Claude Code records. `$PWD` there is a POSIX mount path and
-# an inherited value can also be an 8.3 short form (`C:/Users/ALICE~1/...`),
-# which compares unequal to the long form the CLI writes — that mismatch is
-# what made an early probe of this behaviour read as a null. Resolve, never
-# compare raw.
+# an inherited value can also carry an 8.3 short component (`ALICE~1` where the
+# directory is really `AliceExample`), which compares unequal to the long form
+# the CLI writes. That mismatch is what made an early probe of this behaviour
+# read as a null. Resolve, never compare raw.
 native_pwd() {
   local p
   p="$(pwd -W 2>/dev/null)" || p=""
@@ -117,8 +117,11 @@ norm_path() {
   # where it matters.
   # `join("\t")` above, not `@tsv`: @tsv escapes each backslash to `\\`, which
   # would survive into the key as a doubled separator. The squeeze below is the
-  # second belt on that same class — applied to BOTH sides, so it can only ever
-  # make two spellings of one path agree, never two different paths.
+  # second belt on that same class, applied to BOTH sides. It is not a perfect
+  # injection: a UNC `//server/share/x` squeezes to `/server/share/x`, so in
+  # principle two spellings could merge. No valid Windows path spells the latter,
+  # and the cwd guard below confines the ACTION regardless of what the matcher
+  # returns — a false match can only ever produce a reported no-op.
   # `\134` is tr's octal for a backslash — written that way because the literal
   # forms are a quoting minefield here.
   p="$(printf '%s' "$p" | tr -d '\r' | tr "\134" '/' | tr -s '/')"
