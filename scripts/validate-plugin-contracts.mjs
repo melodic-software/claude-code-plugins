@@ -138,9 +138,10 @@ function readTrackedConfigOwners() {
   for (const line of lines.slice(heading + 1)) {
     if (/^##\s/.test(line)) break;
     if (!line.startsWith("|")) continue;
-    // Column 1 names the surface, and names co-consuming plugins alongside it
-    // ("`standards` (`planning`, `review`)"), so every backticked token in the
-    // cell is an owner.
+    // Column 1 names the surface, and where the surface name is not itself the
+    // owning plugin it names the plugins alongside it ("`standards`
+    // (`planning`, `review`)"), so every backticked token in the cell is taken
+    // as an owner. Tokens naming no plugin directory are inert.
     for (const [, name] of (line.split("|")[1] ?? "").matchAll(/`([^`]+)`/g)) {
       owners.add(name);
     }
@@ -176,7 +177,8 @@ for (const path of setupSkills) {
   }
   // Uniform contract shape (PLUGIN-PHILOSOPHY "Setup is explicit and repeatable"):
   // check is the default read-only action; apply exists unless the skill declares the
-  // userConfig-only check-only carve-out the doctrine sanctions.
+  // check-only carve-out the doctrine sanctions, whose three qualifying surfaces
+  // are checked below — native userConfig is one of them, not the whole set.
   if (!/^argument-hint:\s*"check(?:\s*\||\s*\[|")/m.test(frontmatter)) {
     fail(path, 'setup skills must declare check as the leading action in argument-hint ("check", "check | apply ...", or "check [<subaction>]")');
   }
@@ -185,7 +187,7 @@ for (const path of setupSkills) {
     fail(path, "setup skills must document the read-only check action");
   }
   if (!/`apply`/.test(body) && !/check-only/i.test(body)) {
-    fail(path, "setup skills must document apply, or declare the check-only userConfig-only carve-out");
+    fail(path, "setup skills must document apply, or declare the check-only carve-out and the surface qualifying it");
   }
 
   // Which shape a setup skill takes is declared where a reader and a gate can

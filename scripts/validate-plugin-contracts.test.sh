@@ -165,6 +165,29 @@ else
   fail "a registered tracked-config owner should not reach the carve-out: $out"
 fi
 
+# --- 2b. The registry names a surface whose owning plugin is listed alongside
+#         it, the shape the shipping "`standards` (`planning`, `review`)" row
+#         takes. Every backticked token in the cell is an owner. -------------
+reset_fixture
+mkdir -p "$TMP/docs/conventions/config-cascade"
+{
+  echo '# Consumer config cascade (fixture)'
+  echo
+  echo '## Implementers'
+  echo
+  echo '| Surface | Consumer config path | Layers | Conformance |'
+  echo '|---|---|---|---|'
+  echo '| `a-shared-surface` (`alpha`, `gamma`) | `.claude/shared.yaml` | all three | conforms |'
+} >"$TMP/docs/conventions/config-cascade/README.md"
+make_plugin alpha alpha_api_key
+carve_out_body | write_setup_skill alpha check
+out="$(run_fixture)"
+if grep -q "$OWNS_TRACKED_CONFIG" <<<"$out"; then
+  pass "a plugin named alongside the surface it co-owns is read out of the registry row"
+else
+  fail "a co-owner named in the surface cell should not reach the carve-out: $out"
+fi
+
 # --- 3. The substring the old gate accepted is no longer the pass condition:
 #        a carve-out-shaped skill whose body only mentions apply in prose. ---
 reset_fixture
