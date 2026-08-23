@@ -32,7 +32,21 @@ it. A no-op fails as a whole unit; shortening it leaves a shorter no-op."*).
 
 ## Method
 
-Reimplementable without the original harness. Every number below follows from these five choices.
+The harness is committed alongside this record, in
+[`d1-model-already-knows-measurement/`](d1-model-already-knows-measurement/) — three scripts plus
+a reproduction recipe. The summary below states the five choices that drive every number; the
+scripts carry the parts prose can only summarise (the fixed imperative-opener, abbreviation,
+extension, and emphasis-word lists, and the deterministic ordering the sample is drawn over).
+
+### Pinned revision
+
+Measured against **`dff0942917e56929f6146261117a0eceeac502c8`**
+(`docs(work-items): de-slop instruction surfaces (0.39.13) (#3107)`).
+
+The corpus selectors below are relative to a working tree, so their counts move as the fleet
+grows — applying them to a later `main` yields a different corpus and different totals. Every
+number in this record is a measurement of that revision, and reproducing it requires that
+revision. Re-running the committed harness against it returns the published figures exactly.
 
 ### Corpus
 
@@ -53,29 +67,37 @@ The sentence, because that is the unit #3124 deletes.
 Segmentation strips YAML frontmatter, fenced and indented code, HTML comments, headings, table
 rows, horizontal rules, and link-only lines. List items and blockquote lines are segmented as
 their own blocks; checkbox and bullet markers are removed. Remaining blocks are split on sentence
-punctuation, guarding a fixed abbreviation list (`e.g.`, `i.e.`, `vs.`, …). Fragments under 12
+punctuation, guarding a fixed abbreviation list (`ABBREV` in `d1_proxy.py`). Fragments under 12
 characters are dropped.
 
 A sentence counts as an **instruction** if it opens with a base-form imperative from a fixed opener
-list, or contains a modal directive (`must`, `never`, `always`, `should`, `do not`, `don't`,
-`avoid`, `prefer`, `ensure`, `required`, `cannot`, `need to`, `make sure`).
+list (`IMPERATIVE_OPENERS`, 125 verbs), or contains a modal directive (`must`, `never`, `always`,
+`should`, `do not`, `don't`, `avoid`, `prefer`, `ensure`, `required`, `cannot`, `need to`,
+`make sure`).
 
 ### Predicate
 
 Flag the sentence when it contains **none** of:
 
 - a code span (paired backticks);
-- a path-like token (a `/`-joined segment, or a bare `name.ext` for a known extension);
+- a path-like token (a `/`-joined segment, or a bare `name.ext` for one of the 12 extensions in
+  `PATHISH`);
 - a version (`v?\d+\.\d+(\.\d+)?`);
 - any digit;
 - an environment variable (`$NAME` or `${NAME}`);
 - a capitalised token that is neither sentence-initial, nor a member of a fixed
-  emphasis/function-word list, nor all-caps.
+  emphasis/function-word list (`NOT_PROPER`), nor all-caps.
+
+Each named constant is in `d1_proxy.py`; the membership of the three lists changes what is
+flagged, so they are shipped rather than paraphrased.
 
 ### Sample
 
 `random.Random(3121)`, stratified across the five surfaces, allocation proportional to each
 stratum's flagged count with a floor of 5 per stratum. **n = 185.**
+
+The draw is order-sensitive, so the population is sorted by `(file, sentence)` within each stratum
+before sampling — without that the seed alone would not fix the rows. `sample.py` owns it.
 
 ### Adjudication
 
