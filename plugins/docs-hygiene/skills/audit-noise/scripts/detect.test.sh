@@ -1172,6 +1172,67 @@ ignore_wrap_count="$(printf '%s\n' "$ignore_wrap_out" | grep -c '^Finding shape:
 assert_contains "an ignored wrap is skipped and the body wrap still flags once" \
   "count=$ignore_wrap_count" "count=1"
 
+# Every qualifying sentence in one paragraph is a finding, attributed to its
+# own first physical line. Returning after the first match would drop the
+# second imperative.
+NEG_TWO_WRAP="$TEST_TMPDIR/negation-two-in-paragraph.md"
+cat >"$NEG_TWO_WRAP" <<'EOF'
+# Two-sentence paragraph
+
+Do not use markdown.
+Never include XML.
+EOF
+two_wrap_out="$(bash "$DETECT" "$NEG_TWO_WRAP")"
+two_wrap_count="$(printf '%s\n' "$two_wrap_out" | grep -c '^Finding shape: negation')"
+assert_contains "each imperative sentence in a paragraph flags" \
+  "count=$two_wrap_count" "count=2"
+assert_contains "the first sentence is attributed to its own line" \
+  "$two_wrap_out" $'Finding shape: negation\nFinding line: 3'
+assert_contains "the second sentence is attributed to its own line" \
+  "$two_wrap_out" $'Finding shape: negation\nFinding line: 4'
+
+# Sibling list items are separate blocks. Joining them would let the second
+# item's `Prefer` pair the first item's prohibition.
+NEG_LIST_SIBLING="$TEST_TMPDIR/negation-list-siblings.md"
+cat >"$NEG_LIST_SIBLING" <<'EOF'
+# List-sibling fixture
+
+- Do not use markdown
+- Prefer HTML.
+EOF
+list_sib_out="$(bash "$DETECT" "$NEG_LIST_SIBLING")"
+assert_contains "a later list item cannot pair an earlier item" \
+  "$list_sib_out" "Finding shape: negation"
+
+# Inline backticks on an earlier line must not shift attribution.
+NEG_TICK_ATTR="$TEST_TMPDIR/negation-tick-attr.md"
+cat >"$NEG_TICK_ATTR" <<'EOF'
+# Tick attribution fixture
+
+Use `foo`.
+Do not use markdown.
+EOF
+tick_attr_out="$(bash "$DETECT" "$NEG_TICK_ATTR")"
+assert_contains "attribution ignores earlier inline backticks" \
+  "$tick_attr_out" $'Finding shape: negation\nFinding line: 4'
+
+# Line-scoped shapes on a later line must not print before an earlier
+# negation once the file is flushed — per-file rows sort by line number.
+NEG_ORDER="$TEST_TMPDIR/negation-order.md"
+cat >"$NEG_ORDER" <<'EOF'
+# Order fixture
+
+Do not use markdown
+in the summary. Empirically observed later.
+EOF
+order_out="$(bash "$DETECT" "$NEG_ORDER")"
+order_neg_line="$(printf '%s\n' "$order_out" | awk '/Finding shape: negation/{getline; if($1=="Finding" && $2=="line:") print $3}')"
+order_cit_line="$(printf '%s\n' "$order_out" | awk '/Finding shape: citation/{getline; if($1=="Finding" && $2=="line:") print $3}')"
+# The printed order must be negation (line 3) then citation (line 4).
+order_shapes="$(printf '%s\n' "$order_out" | awk '/^Finding shape:/{print $3}')"
+assert_contains "findings print in line-number order" \
+  "$(printf '%s' "$order_shapes")" $'negation\ncitation'
+
 # The imperative gate is PER SENTENCE. A line-level gate admits the whole line
 # on its first sentence and then lets a later DESCRIPTIVE sentence be reported —
 # the exact prose the gate exists to exclude, re-entering behind a compliant

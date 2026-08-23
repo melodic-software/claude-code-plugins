@@ -205,26 +205,38 @@ audit_noise_resolve_convention_roots
 
 total_t1=0 total_t2=0 total_t3=0 files_audited=0
 
-# Emit one finding. Counters are namerefs so audit_file can keep them local.
-audit_noise_emit_finding() {
-  local file="$1" at_line="$2" shape="$3" excerpt="$4"
-  local -n _t1="$5" _t2="$6" _t3="$7"
+# Record one finding into a nameref array as a US-delimited row so the file
+# can emit in line-number order after paragraph-scoped negation is flushed.
+audit_noise_record_finding() {
+  local at_line="$1" shape="$2" excerpt="$3" marker="${4:-}"
+  local -n _rows="$5"
+  local -n _t1="$6" _t2="$7" _t3="$8"
   local tier=""
   audit_noise_shape_tier_into "$shape" tier
-  printf 'File: %s\n' "$file"
-  printf 'Finding tier: %s\n' "$tier"
-  printf 'Finding shape: %s\n' "$shape"
-  printf 'Finding line: %s\n' "$at_line"
-  printf 'Finding excerpt: %s\n' "$excerpt"
-  if [[ "$shape" == 'negation' && -n "${AUDIT_NOISE_FIRED_MARKER:-}" ]]; then
-    printf 'Finding marker: %s\n' "$AUDIT_NOISE_FIRED_MARKER"
-  fi
-  printf '%s\n' '---'
+  _rows+=("${at_line}"$'\x1f'"${tier}"$'\x1f'"${shape}"$'\x1f'"${excerpt}"$'\x1f'"${marker}")
   case "$tier" in
   1) _t1=$((_t1 + 1)) total_t1=$((total_t1 + 1)) ;;
   2) _t2=$((_t2 + 1)) total_t2=$((total_t2 + 1)) ;;
   *) _t3=$((_t3 + 1)) total_t3=$((total_t3 + 1)) ;;
   esac
+}
+
+audit_noise_print_findings() {
+  local file="$1"
+  local -n _rows="$2"
+  local row at_line tier shape excerpt marker
+  ((${#_rows[@]})) || return 0
+  while IFS=$'\x1f' read -r at_line tier shape excerpt marker; do
+    printf 'File: %s\n' "$file"
+    printf 'Finding tier: %s\n' "$tier"
+    printf 'Finding shape: %s\n' "$shape"
+    printf 'Finding line: %s\n' "$at_line"
+    printf 'Finding excerpt: %s\n' "$excerpt"
+    if [[ "$shape" == 'negation' && -n "$marker" ]]; then
+      printf 'Finding marker: %s\n' "$marker"
+    fi
+    printf '%s\n' '---'
+  done < <(printf '%s\n' "${_rows[@]}" | LC_ALL=C sort -t$'\x1f' -k1,1n)
 }
 
 audit_file() {
@@ -240,7 +252,7 @@ audit_file() {
   local in_ignored_para=0 skip_next=0
   local in_frontmatter=0 in_fence=0
   local fence_char="" fence_len=0
-  local -a shapes=()
+  local -a shapes=() finding_rows=()
   local shape tier excerpt line heading_text
   local fence_delim fence_dchar fence_dlen
   local is_heading=0
@@ -248,28 +260,35 @@ audit_file() {
   # Other shapes stay line-scoped. Attribution is the first physical line of
   # the triggering sentence — that is where the cue opens, so the fix action
   # lands on the instruction's start rather than its wrap continuation.
-  local neg_joined=""
+  # Offsets are tracked on the UNWRAPPED join so inline backticks cannot shift
+  # attribution onto an earlier line.
+  local neg_unwrapped=""
   local -a neg_line_nums=() neg_line_texts=() neg_offsets=()
 
+  reset_negation() {
+    neg_unwrapped=""
+    neg_line_nums=()
+    neg_line_texts=()
+    neg_offsets=()
+  }
+
   flush_negation() {
-    local unwrapped="" idx offset attr_line attr_excerpt sentence_off
-    [[ -n "${neg_joined//[[:space:]]/}" ]] || {
-      neg_joined=""
-      neg_line_nums=()
-      neg_line_texts=()
-      neg_offsets=()
+    local sentences=() s idx offset attr_line attr_excerpt sentence_off prefix
+    [[ -n "${neg_unwrapped//[[:space:]]/}" ]] || {
+      reset_negation
       return 0
     }
-    audit_noise_unwrap_backticks "$neg_joined" unwrapped
-    if audit_noise_line_has_negation_without_positive "$unwrapped" "paragraph"; then
+    # Every qualifying sentence in the paragraph is a finding. Returning after
+    # the first would drop a later imperative on its own physical line.
+    audit_noise_split_sentences_into sentences "$neg_unwrapped"
+    for s in "${sentences[@]}"; do
+      audit_noise_line_has_negation_without_positive "$s" "paragraph" || continue
       attr_line="${neg_line_nums[0]}"
       attr_excerpt=""
       sentence_off=0
-      if [[ -n "${AUDIT_NOISE_FIRED_SENTENCE:-}" ]]; then
-        local prefix="${unwrapped%%"${AUDIT_NOISE_FIRED_SENTENCE}"*}"
-        if [[ "$prefix" != "$unwrapped" ]]; then
-          sentence_off=${#prefix}
-        fi
+      prefix="${neg_unwrapped%%"${s}"*}"
+      if [[ "$prefix" != "$neg_unwrapped" ]]; then
+        sentence_off=${#prefix}
       fi
       idx=0
       for offset in "${neg_offsets[@]}"; do
@@ -280,12 +299,10 @@ audit_file() {
         idx=$((idx + 1))
       done
       [[ -n "$attr_excerpt" ]] || audit_noise_trim_excerpt "${neg_line_texts[0]}" attr_excerpt
-      audit_noise_emit_finding "$file" "$attr_line" "negation" "$attr_excerpt" t1 t2 t3
-    fi
-    neg_joined=""
-    neg_line_nums=()
-    neg_line_texts=()
-    neg_offsets=()
+      audit_noise_record_finding "$attr_line" "negation" "$attr_excerpt" \
+        "${AUDIT_NOISE_FIRED_MARKER:-}" finding_rows t1 t2 t3
+    done
+    reset_negation
   }
 
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -379,21 +396,33 @@ audit_file() {
       audit_noise_trim_excerpt "$line" excerpt
       for shape in "${shapes[@]}"; do
         [[ -z "$shape" ]] && continue
-        audit_noise_emit_finding "$file" "$line_num" "$shape" "$excerpt" t1 t2 t3
+        audit_noise_record_finding "$line_num" "$shape" "$excerpt" "" \
+          finding_rows t1 t2 t3
       done
     fi
 
     if [[ -z "${line//[[:space:]]/}" ]]; then
       continue
     fi
-    # Accumulate this physical line into the negation paragraph. A heading is
-    # its own paragraph so it cannot join the prose that follows it.
-    local trimmed="${line#"${line%%[![:space:]]*}"}"
-    if [[ -n "$neg_joined" ]]; then
-      neg_joined+=" "
+    # A new list item is its own block, not a soft-wrap continuation of the
+    # previous item. Flush first so `- Do not use markdown` / `- Prefer HTML.`
+    # cannot pair across items. Hold the regex in a variable so the unquoted
+    # `)` in `[.)]` is not parsed as bash syntax.
+    local list_item_re='^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]'
+    if [[ "$line" =~ $list_item_re ]] && [[ ${#neg_line_nums[@]} -gt 0 ]]; then
+      flush_negation
     fi
-    neg_offsets+=(${#neg_joined})
-    neg_joined+="$trimmed"
+    # Accumulate this physical line into the negation paragraph. Offsets are
+    # taken on the unwrapped join so a backticked earlier line cannot pull
+    # attribution forward. A heading is its own paragraph.
+    local trimmed uwrapped=""
+    trimmed="${line#"${line%%[![:space:]]*}"}"
+    audit_noise_unwrap_backticks "$trimmed" uwrapped
+    if [[ -n "$neg_unwrapped" ]]; then
+      neg_unwrapped+=" "
+    fi
+    neg_offsets+=(${#neg_unwrapped})
+    neg_unwrapped+="$uwrapped"
     neg_line_nums+=("$line_num")
     neg_line_texts+=("$line")
     if [[ $is_heading -eq 1 ]]; then
@@ -401,6 +430,7 @@ audit_file() {
     fi
   done <"$file"
   flush_negation
+  audit_noise_print_findings "$file" finding_rows
 
   printf 'Summary file: %s | T1=%s T2=%s T3=%s\n' "$file" "$t1" "$t2" "$t3"
 }
