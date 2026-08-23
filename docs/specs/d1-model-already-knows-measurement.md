@@ -71,9 +71,13 @@ punctuation, guarding a fixed abbreviation list (`ABBREV` in `d1_proxy.py`). Fra
 characters are dropped.
 
 A sentence counts as an **instruction** if it opens with a base-form imperative from a fixed opener
-list (`IMPERATIVE_OPENERS`, 125 verbs), or contains a modal directive (`must`, `never`, `always`,
-`should`, `do not`, `don't`, `avoid`, `prefer`, `ensure`, `required`, `cannot`, `need to`,
-`make sure`).
+list (`IMPERATIVE_OPENERS`, 125 verbs), or contains a modal directive (`MODALS`, 20 tokens — the
+`must` / `never` / `should` / `shall` family, the negated modals, and the `ensure` / `require` /
+`make sure` group).
+
+This test gates what enters the 13,529-sentence denominator, so the constant is authoritative and
+is not restated here as a list. An earlier draft of this section enumerated 13 of the 20 and was
+wrong by omission for exactly the reason this record now names the constants instead.
 
 ### Predicate
 
