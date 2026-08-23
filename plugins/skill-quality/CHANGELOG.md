@@ -3,6 +3,26 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Changed
+
+- **`check`: Check 2 splits into two criteria, one per layer (#3119).** `DESC_CHAR_CAP=1536` is
+  Claude Code's per-skill listing-entry truncation cap over `description` + `when_to_use`
+  combined; the Agent Skills spec caps the `description` FIELD itself at 1024 characters. Only
+  the looser one was ever checked, so a skill could pass the gate while breaching the documented
+  field maximum (19 of 224 fleet skills do today). A new `DESC_FIELD_CHAR_CAP=1024` constant
+  gives the field maximum its own criterion with its own message naming the spec limit and its
+  packaging/upload-path enforcement; the 1536 listing criterion and its message are unchanged.
+  The passing-path note now reports both budgets. Severity is deliberate: the field maximum
+  WARNs, because Claude Code enforces no local 1024 validation (a 1526-char description was
+  observed loading into a live session listing in full), so the breach is latent on the
+  filesystem and live only on the API and claude.ai upload paths, while the 19 in-fleet offenders
+  cannot be trimmed mechanically (check 3 protects the quoted trigger phrases their descriptions
+  carry). The rationale is recorded in the script beside the criterion; a follow-up may flip it
+  to FAIL once the offenders are trimmed. Two contract tests: a 1200-char description trips the
+  field criterion only, a 1600-char combined entry trips the listing criterion only.
+
 ## [0.18.0]
 
 ### Added

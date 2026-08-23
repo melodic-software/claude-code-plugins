@@ -41,9 +41,12 @@
 # Checks:
 #   1. Frontmatter parses; description present; a declared name matches the dir
 #      (and, in a plugin skill, WARNs as redundant)
-#   2. description + when_to_use <= 1536 chars (per-skill listing-entry cap;
-#      counts the literal " - " joiner the harness inserts when when_to_use is
-#      populated)
+#   2. Two description budgets at two layers, reported as separate criteria:
+#      2a. description <= 1024 chars on its own (WARN; the Agent Skills spec's
+#          field maximum, enforced on the package/upload path)
+#      2b. description + when_to_use <= 1536 chars (FAIL; per-skill
+#          listing-entry cap; counts the literal " - " joiner the harness
+#          inserts when when_to_use is populated)
 #   3. Trigger-keyword preservation vs the base ref (skipped for new skills;
 #      a phrase moved verbatim to a sibling skill's listing text — one the
 #      sibling did not carry at the base ref — WARNs, since the marketplace
@@ -203,7 +206,16 @@ if [[ "$HAVE_GIT" == 1 ]]; then
   SKILL_REL="${SKILL_REL%/}"
 fi
 
-# Tunables (listing description cap; SKILL.md line caps; vendor sync age).
+# Tunables (description caps; SKILL.md line caps; vendor sync age).
+#
+# The two description caps belong to DIFFERENT layers and are not
+# interchangeable. DESC_FIELD_CHAR_CAP is the Agent Skills SPEC field maximum:
+# the `description` field on its own, whatever `when_to_use` holds.
+# DESC_CHAR_CAP is Claude Code's per-skill LISTING-entry truncation cap
+# (skillListingMaxDescChars) over description + when_to_use combined. Check 2
+# reports each as its own criterion; collapsing them lets a skill breach the
+# spec field maximum while passing the looser listing cap.
+DESC_FIELD_CHAR_CAP=1024
 DESC_CHAR_CAP=1536
 LINE_HARD_CAP=500
 LINE_SOFT_CAP=200
@@ -327,12 +339,22 @@ else
   fi
 fi
 
-# --- Check 2: description + when_to_use <= DESC_CHAR_CAP chars --------------
-# Cap is per-skill listing entry (description + when_to_use combined) — overflow
-# truncates the listing and degrades auto-invocation. The harness assembles the
-# entry as description + " - " + when_to_use — a literal 3-char joiner — so the
-# combined length must include it whenever when_to_use is populated, or this
-# check under-counts by 3 and can pass an entry that actually overflows.
+# --- Check 2: description budgets (spec field maximum + listing cap) --------
+# Two criteria at two layers, deliberately kept distinct:
+#
+#   2a (WARN) description alone vs DESC_FIELD_CHAR_CAP, the Agent Skills spec
+#      field maximum.
+#   2b (FAIL) description + when_to_use vs DESC_CHAR_CAP, the per-skill
+#      listing-entry cap. Overflow truncates the listing and degrades
+#      auto-invocation. The harness assembles the entry as
+#      description + " - " + when_to_use, a literal 3-char joiner, so the
+#      combined length must include it whenever when_to_use is populated, or
+#      this check under-counts by 3 and can pass an entry that actually
+#      overflows.
+#
+# A long description can satisfy 2b and still breach 2a, which is exactly the
+# gap the split exists to surface: the caps are 512 chars apart and only the
+# looser one was ever checked.
 JOINER_LEN=0
 CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
 CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
@@ -342,12 +364,39 @@ DESC_LEN=${#CUR_DESC}
 WTU_LEN=${#CUR_WTU}
 ((WTU_LEN > 0)) && JOINER_LEN=3
 COMBINED_LEN=$((DESC_LEN + JOINER_LEN + WTU_LEN))
+
+# 2a: the spec field maximum. WARN, not FAIL, and the reasoning is recorded here
+# because the severity is the whole decision this criterion turns on.
+#
+# The Agent Skills overview (platform.claude.com, read 2026-08-23) states the
+# `description` field requirement outright: non-empty, at most 1024 characters,
+# no XML tags. That requirement is enforced where a skill is packaged or
+# uploaded through the API, so a breach is a real rejection on that path.
+#
+# Locally it is latent. Claude Code's own documentation describes only the
+# 1536-char listing truncation (tunable via skillListingMaxDescChars) and no
+# local validation of the 1024 field maximum, and a 1526-char description was
+# observed loading into a live Claude Code session listing in full, with no
+# rejection and no truncation at 1024. So a filesystem or plugin-tree skill that
+# breaches 1024 keeps working until it reaches the API or claude.ai upload path.
+#
+# Severity follows from that split plus fleet state: 19 in-fleet skills breach
+# 1024 today, and trimming them is not mechanical because check 3 protects the
+# quoted trigger phrases their descriptions carry. FAILing now would turn the
+# gate red on skills that load fine, ahead of the gated trimming work. WARN
+# makes every breach visible without blocking; flip it to err once the offenders
+# are trimmed.
+if ((DESC_LEN > DESC_FIELD_CHAR_CAP)); then
+  warn "description field is $DESC_LEN chars (Agent Skills spec field maximum $DESC_FIELD_CHAR_CAP for 'description' alone, separate from the $DESC_CHAR_CAP listing cap below). Local loading does not enforce it; packaging and API upload do, so this skill is rejectable on that path."
+fi
+
+# 2b: the listing-entry cap.
 if ((COMBINED_LEN > DESC_CHAR_CAP)); then
   err "description+when_to_use is $COMBINED_LEN chars (cap $DESC_CHAR_CAP — overflow truncates the listing)"
 elif ((WTU_LEN > 0)); then
-  note "description+when_to_use $COMBINED_LEN/$DESC_CHAR_CAP chars (desc $DESC_LEN + joiner $JOINER_LEN + when_to_use $WTU_LEN)"
+  note "description+when_to_use $COMBINED_LEN/$DESC_CHAR_CAP listing chars (desc $DESC_LEN + joiner $JOINER_LEN + when_to_use $WTU_LEN); description field $DESC_LEN/$DESC_FIELD_CHAR_CAP chars"
 else
-  note "description length $DESC_LEN/$DESC_CHAR_CAP chars"
+  note "description+when_to_use $COMBINED_LEN/$DESC_CHAR_CAP listing chars; description field $DESC_LEN/$DESC_FIELD_CHAR_CAP chars"
 fi
 
 # --- Check 3: trigger-keyword preservation vs HEAD -------------------------

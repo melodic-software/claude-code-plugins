@@ -2205,6 +2205,66 @@ else
   fail "check 2 should count the 3-char joiner and fail at 1537/1536 (rc=$rc): $out"
 fi
 
+# 29a. Check 2a: a 1200-char description breaches the Agent Skills spec field
+#      maximum (1024) while sitting well under the 1536 listing cap. The two
+#      criteria are separate, so this WARNs on the field maximum, says nothing
+#      about the listing cap, and still exits 0.
+desc_1200="$(printf 'd%.0s' $(seq 1 1200))"
+make_skill field-cap-only "---
+name: field-cap-only
+description: \"$desc_1200\"
+---
+
+## Purpose
+
+Fixture whose description alone is 1200 chars: over the 1024 spec field
+maximum, under the 1536 listing cap.
+
+## Gotchas
+
+None known.
+"
+out="$(run field-cap-only 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'WARN: description field is 1200 chars' <<<"$out" &&
+  ! grep -q 'description+when_to_use is' <<<"$out"; then
+  pass "a 1200-char description warns on the spec field maximum only (check 2a)"
+else
+  fail "1200-char description should WARN on the field maximum and not trip the listing cap (rc=$rc): $out"
+fi
+
+# 29b. Check 2b: desc(1000) + joiner(3) + wtu(597) = 1600 breaches the listing
+#      cap while the description alone stays under the 1024 field maximum, so
+#      the listing criterion FAILs and the field criterion stays silent. The
+#      pair with 29a proves the two caps are checked independently.
+desc_1000="$(printf 'd%.0s' $(seq 1 1000))"
+wtu_597="$(printf 'w%.0s' $(seq 1 597))"
+make_skill listing-cap-only "---
+name: listing-cap-only
+description: \"$desc_1000\"
+when_to_use: \"$wtu_597\"
+---
+
+## Purpose
+
+Fixture whose combined listing entry is 1600 chars while the description
+field alone is 1000, under the 1024 spec field maximum.
+
+## Gotchas
+
+None known.
+"
+out="$(run listing-cap-only 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q 'description+when_to_use is 1600 chars (cap 1536' <<<"$out" &&
+  ! grep -q 'description field is' <<<"$out"; then
+  pass "a 1600-char combined entry fails the listing cap only (check 2b)"
+else
+  fail "1600-char combined entry should FAIL the listing cap and not trip the field maximum (rc=$rc): $out"
+fi
+
 # 38a. Check 22: a summary of exactly 100 codepoints passes (boundary
 #      guard — the cap is >100, not >=100).
 sum_100="$(printf 's%.0s' $(seq 1 100))"
