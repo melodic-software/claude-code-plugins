@@ -19,7 +19,10 @@
 # Enforcement is deliberately these classes, not the full normative target
 # (agent content, schema files, and a fleet-wide bare organization name stay
 # ungated). Widening those is a separate decision; do not add a class here
-# without remediating the corpus it would fail.
+# without remediating the corpus it would fail. An unknown class name is a
+# hard error — a typo such as `fleet-keey` must not silently drop tokens.
+# If `plugins/github` exists, `plugins/github/github.test.sh` is required
+# and its agnostic-conformance regex must match this file's `github` class.
 #
 # The independent portability-lint job stages a related publisher-token class
 # in scripts/skill-portability-tokens.txt. If that class activates, it must

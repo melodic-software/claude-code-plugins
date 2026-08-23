@@ -43,8 +43,9 @@ site either reads it or is a documented narrowing/extension of it:
   `autonomy` plugin (`plugin.json` `author` remains exempt).
 - **github** — this plugin's markdown only, adding `melodic`, `medley`, and `pulumi`.
   `plugins/github/github.test.sh`'s "agnostic conformance" check is that extension, a sibling of
-  that file's D4 zero-vendored-knowledge sweeps, not one of them. The validator fails if the
-  test's regex drifts from the `github` class.
+  that file's D4 zero-vendored-knowledge sweeps, not one of them. The validator fails if that
+  test file is missing while the plugin exists, or if its regex drifts from the `github` class.
+  An unknown class name in the token file is a hard error.
 
 Agent content, schema files, and a fleet-wide bare organization name are **not gated**. That is a
 deliberate narrowing of enforcement to the classes above, not an accident a green build absolves.

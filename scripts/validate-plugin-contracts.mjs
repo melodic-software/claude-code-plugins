@@ -9,13 +9,22 @@ const failures = [];
 
 // Org-agnosticism tokens live in scripts/org-agnosticism-tokens.txt — one
 // data file, every site either reads it or is a documented extension (#3136).
-function loadOrgAgnosticismClass(cls) {
+// The class set is closed: a typo (`fleet-keey`) must fail, not drop tokens.
+const ORG_AGNOSTICISM_CLASSES = Object.freeze([
+  "fleet-id",
+  "fleet-key",
+  "setup",
+  "autonomy",
+  "github",
+]);
+
+function loadOrgAgnosticismTokens() {
+  const byClass = Object.fromEntries(ORG_AGNOSTICISM_CLASSES.map((cls) => [cls, []]));
   const path = join(root, "scripts", "org-agnosticism-tokens.txt");
   if (!existsSync(path)) {
     failures.push(`scripts/org-agnosticism-tokens.txt: missing (org-agnosticism SSOT)`);
-    return null;
+    return byClass;
   }
-  const pats = [];
   for (const raw of read(path).split(/\r?\n/)) {
     if (!raw || raw.startsWith("#")) continue;
     const match = raw.match(/^(\S+)\s+(\S+)\s*$/);
@@ -23,21 +32,35 @@ function loadOrgAgnosticismClass(cls) {
       failures.push(`scripts/org-agnosticism-tokens.txt: malformed line: ${raw}`);
       continue;
     }
-    if (match[1] === cls) pats.push(match[2]);
+    const [, cls, ere] = match;
+    if (!ORG_AGNOSTICISM_CLASSES.includes(cls)) {
+      failures.push(
+        `scripts/org-agnosticism-tokens.txt: unknown class ${cls} (want ${ORG_AGNOSTICISM_CLASSES.join(", ")})`,
+      );
+      continue;
+    }
+    byClass[cls].push(ere);
   }
-  if (pats.length === 0) {
-    failures.push(`scripts/org-agnosticism-tokens.txt: no tokens for class ${cls}`);
-    return null;
+  for (const cls of ORG_AGNOSTICISM_CLASSES) {
+    if (byClass[cls].length === 0) {
+      failures.push(`scripts/org-agnosticism-tokens.txt: no tokens for class ${cls}`);
+    }
   }
+  return byClass;
+}
+
+function orgAgnosticismRegex(pats) {
+  if (!pats || pats.length === 0) return null;
   return new RegExp(pats.join("|"), "i");
 }
 
+const orgAgnosticismPats = loadOrgAgnosticismTokens();
 const orgTokens = {
-  fleetId: loadOrgAgnosticismClass("fleet-id"),
-  fleetKey: loadOrgAgnosticismClass("fleet-key"),
-  setup: loadOrgAgnosticismClass("setup"),
-  autonomy: loadOrgAgnosticismClass("autonomy"),
-  github: loadOrgAgnosticismClass("github"),
+  fleetId: orgAgnosticismRegex(orgAgnosticismPats["fleet-id"]),
+  fleetKey: orgAgnosticismRegex(orgAgnosticismPats["fleet-key"]),
+  setup: orgAgnosticismRegex(orgAgnosticismPats.setup),
+  autonomy: orgAgnosticismRegex(orgAgnosticismPats.autonomy),
+  github: orgAgnosticismRegex(orgAgnosticismPats.github),
 };
 
 function filesUnder(directory) {
@@ -354,20 +377,29 @@ if (existsSync(marketplacePath)) {
 
 // github.test.sh's agnostic-conformance regex is a documented extension of
 // this file's `github` class — same tokens, plugin-local reach. Drift here
-// would recreate the two-set problem #3136 closed.
-if (orgTokens.github) {
+// would recreate the two-set problem #3136 closed. If the plugin exists, the
+// test file is required — a missing file must not skip the alignment check.
+{
+  const githubPlugin = join(pluginRoot, "github");
   const githubTest = join(pluginRoot, "github", "github.test.sh");
-  if (existsSync(githubTest)) {
-    const source = read(githubTest);
-    const found = source.match(/grep -riEn "([^"]+)" "\$PLUGIN_DIR" --include='\*\.md'/);
-    const expected = orgTokens.github.source;
-    if (!found) {
-      fail(githubTest, "agnostic-conformance grep not found; keep it aligned with scripts/org-agnosticism-tokens.txt class github");
-    } else if (found[1] !== expected) {
+  if (existsSync(githubPlugin) && statSync(githubPlugin).isDirectory()) {
+    if (!existsSync(githubTest)) {
       fail(
-        githubTest,
-        `agnostic-conformance regex drifted from scripts/org-agnosticism-tokens.txt class github (file has ${found[1]}; tokens file has ${expected})`,
+        githubPlugin,
+        "github.test.sh is missing; keep the agnostic-conformance grep aligned with scripts/org-agnosticism-tokens.txt class github",
       );
+    } else if (orgTokens.github) {
+      const source = read(githubTest);
+      const found = source.match(/grep -riEn "([^"]+)" "\$PLUGIN_DIR" --include='\*\.md'/);
+      const expected = orgTokens.github.source;
+      if (!found) {
+        fail(githubTest, "agnostic-conformance grep not found; keep it aligned with scripts/org-agnosticism-tokens.txt class github");
+      } else if (found[1] !== expected) {
+        fail(
+          githubTest,
+          `agnostic-conformance regex drifted from scripts/org-agnosticism-tokens.txt class github (file has ${found[1]}; tokens file has ${expected})`,
+        );
+      }
     }
   }
 }
