@@ -5,6 +5,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ## [0.37.2]
 
+### Fixed
+
+- **De-slop review repairs.** Restored sentence-initial capitals after period
+  splits, and reconnected the lanes refresh fallback prohibition to its
+  `context/refresh.md` subject.
+
 ### Changed
 
 - **Instruction-surface de-slop (#2891, shard 8).** Rewrote this plugin's `README.md` and every

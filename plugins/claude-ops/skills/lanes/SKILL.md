@@ -179,7 +179,7 @@ data_dir="${CLAUDE_PLUGIN_DATA}"
 ```
 
 Copy it as it renders **here**, already substituted to an absolute path. Writing
-the placeholder, or a `${CLAUDE_PLUGIN_DATA:-…}` env fallback. Inside
+the placeholder, or a `${CLAUDE_PLUGIN_DATA:-…}` env fallback, inside
 `context/refresh.md` would not work: that file is read raw, and per
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables)
 `CLAUDE_PLUGIN_DATA` reaches only hook and MCP/LSP subprocesses as a real

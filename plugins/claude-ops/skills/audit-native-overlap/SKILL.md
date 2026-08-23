@@ -160,7 +160,7 @@ Five values, no blanket preference rule:
 | Verdict | Means |
 |---|---|
 | `prefer-native` | The native surface does this job at least as well; ours should route to it |
-| `prefer-ours` | Ours is materially better for this job. **a reason is required**, not optional |
+| `prefer-ours` | Ours is materially better for this job. **A reason is required**, not optional |
 | `complementary` | Different jobs that look alike; both keep their lane and each names the other |
 | `superseded` | The native surface fully absorbed ours; ours is a retirement candidate |
 | `defer` | Undetermined. Gated, experimental, or unverifiable from this session's evidence |
