@@ -1,5 +1,36 @@
 # Changelog — docs-hygiene plugin
 
+## [0.18.4]
+
+### Fixed
+
+- **`audit-noise` default-target discovery no longer drops files silently
+  (#3143).** Two defects in the `git status --porcelain` parse in
+  `skills/audit-noise/scripts/detect.sh` made markdown files vanish from a
+  no-argument run, reported as a reassuring `files=0` rather than as an error:
+  - The rename split fired on any record whose path contained `" -> "`, not
+    only on a rename, so a file literally named `notes -> draft.md` was reduced
+    to `draft.md` — a name matching nothing on disk. The split is now gated on
+    an `R`/`C` status letter in **either** porcelain column, which is both
+    narrower and complete: a rename staged as intent-to-add records in the
+    worktree column, so gating on the index column alone would miss it.
+  - C-quoted paths unescaped `\"` but not `\\`, so a path containing a
+    backslash stayed escaped and resolved to nothing. Both forms are now
+    unescaped, `\"` before `\\`.
+- **`audit-noise`'s SKILL.md preview keeps quoted paths (#3143).** The
+  `Uncommitted .md files:` context line filtered with `grep '\.md$'`; a C-quoted
+  path ends with the closing quote, so every spaced, arrowed, backslashed or
+  quoted markdown file was dropped from the preview. Now `grep -E '\.md"?$'`.
+  Display-only — it shares the defect class with the parse above, not the code.
+
+### Notes
+
+- Neither surface decodes git's **octal escapes** for control and non-ASCII
+  bytes, so those paths still miss. The limitation is recorded at both sites.
+  Converging on `git status --porcelain -z` would close the class outright and
+  is the better long-term fix; it is not taken here because it changes rename
+  records from `old -> new` into two separate fields.
+
 ## [0.18.3]
 
 ### Changed

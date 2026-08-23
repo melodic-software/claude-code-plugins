@@ -119,16 +119,27 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
     while IFS= read -r line; do
       line="${line//$'\r'/}"
       [[ -z "$line" ]] && continue
-      # XY + space + path; rename shows "old -> new" — take the new path.
+      # XY + space + path.
       local_path="${line:3}"
-      if [[ "$local_path" == *" -> "* ]]; then
+      # Rename/copy entries read "old -> new" — audit the new path. Gated on the
+      # status letters so an ordinary path that happens to contain " -> " is left
+      # intact; the ungated split reduced a file literally named "notes -> draft.md"
+      # to "draft.md", which names nothing and dropped out of the audit silently
+      # (#3143). BOTH columns matter: X is the index status and Y the worktree
+      # status, and a rename staged only as intent-to-add lands in Y
+      # (`mv old new && git add -N new` emits " R old -> new").
+      if [[ "${line:0:1}" == [RC] || "${line:1:1}" == [RC] ]]; then
         local_path="${local_path##* -> }"
       fi
-      # Untracked / quoted paths: git may wrap as "path with spaces.md"
+      # Paths with spaces or other special characters arrive C-quoted: "my notes.md".
+      # Unwrap and unescape. Backslash-escaped quotes and backslashes are both
+      # handled, in that order; git's octal escapes for control and non-ASCII bytes
+      # are not, so such a path still misses.
       if [[ "$local_path" == \"*\" ]]; then
         local_path="${local_path#\"}"
         local_path="${local_path%\"}"
         local_path="${local_path//\\\"/\"}"
+        local_path="${local_path//\\\\/\\}"
       fi
       [[ "$local_path" == *.md ]] || continue
       TARGETS+=("$local_path")

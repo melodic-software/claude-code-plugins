@@ -3,6 +3,10 @@
 # plugin; fixtures are built inline in a tmpdir).
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DETECT="$SCRIPT_DIR/detect.sh"
 TEST_TMPDIR="$(mktemp -d)"
@@ -455,6 +459,96 @@ assert_contains "chunk still emits findings for selected file" "$chunk_out" "chu
 bad_chunk_exit=0
 bash "$DETECT" --offset -1 "$CLEAN" >/dev/null 2>&1 || bad_chunk_exit=$?
 assert_exit "negative --offset exits 2" 2 "$bad_chunk_exit"
+
+# --- Default-target porcelain parse (#3143) -------------------------------------------
+# With no arguments the audit discovers targets from `git status --porcelain`. Two defects
+# in that parse dropped files silently — reported as a reassuring files=0 rather than as an
+# error. A plain path passes either implementation, so each fixture name must carry the
+# specific character that breaks it. The arms live in separate repos on purpose: sharing one
+# would let a correctly-parsed file keep files= above zero and mask the other's disappearance.
+
+# A. An ordinary path containing " -> " is NOT a rename and must survive intact. The
+# ungated split fired on any record whose path contained the arrow, reducing this file to
+# "draft.md" — a name matching nothing on disk.
+REPO_ARROW="$TEST_TMPDIR/repo-arrow"
+mkdir -p "$REPO_ARROW"
+git -C "$REPO_ARROW" init -q
+cp "$ALL_SHAPES" "$REPO_ARROW/notes -> draft.md"
+
+arrow_out="$(cd "$REPO_ARROW" && bash "$DETECT")"
+assert_not_contains "arrow-in-name default target is not reported as files=0" "$arrow_out" "files=0"
+assert_contains "arrow-in-name default target audited whole" "$arrow_out" "Summary file: notes -> draft.md"
+assert_contains "arrow-in-name default target finds shapes" "$arrow_out" "Finding shape: scope-meta"
+
+# B. A genuine rename still resolves to the new path — the gate must narrow the split, not
+# remove it.
+REPO_RENAME="$TEST_TMPDIR/repo-rename"
+mkdir -p "$REPO_RENAME"
+git -C "$REPO_RENAME" init -q
+cp "$ALL_SHAPES" "$REPO_RENAME/original.md"
+git -C "$REPO_RENAME" add original.md
+git -C "$REPO_RENAME" -c user.email=t@example.com -c user.name=t commit -qm init
+git -C "$REPO_RENAME" mv original.md renamed.md
+
+rename_out="$(cd "$REPO_RENAME" && bash "$DETECT")"
+assert_contains "renamed default target resolves to the new path" "$rename_out" "Summary file: renamed.md"
+assert_not_contains "renamed default target does not audit the old path" "$rename_out" "Summary file: original.md"
+
+# C. Porcelain is XY: a rename staged only as intent-to-add lands in Y, not X
+# (`mv old new && git add -N new` emits " R old -> new"). Gating on X alone would leave the
+# record unsplit, so the whole "old -> new" string becomes the path and resolves to nothing.
+REPO_WT_RENAME="$TEST_TMPDIR/repo-wt-rename"
+mkdir -p "$REPO_WT_RENAME"
+git -C "$REPO_WT_RENAME" init -q
+cp "$ALL_SHAPES" "$REPO_WT_RENAME/old.md"
+git -C "$REPO_WT_RENAME" add old.md
+git -C "$REPO_WT_RENAME" -c user.email=t@example.com -c user.name=t commit -qm init
+mv "$REPO_WT_RENAME/old.md" "$REPO_WT_RENAME/new.md"
+git -C "$REPO_WT_RENAME" add -N new.md
+
+wt_rename_out="$(cd "$REPO_WT_RENAME" && bash "$DETECT")"
+assert_not_contains "worktree-column rename is not reported as files=0" "$wt_rename_out" "files=0"
+assert_contains "worktree-column rename resolves to the new path" "$wt_rename_out" "Summary file: new.md"
+
+# D. Git C-quotes a path for an embedded backslash too. Unescaping \" but not \\ left the
+# path as the escaped literal, which resolves to nothing.
+REPO_BSLASH="$TEST_TMPDIR/repo-bslash"
+mkdir -p "$REPO_BSLASH"
+git -C "$REPO_BSLASH" init -q
+cp "$ALL_SHAPES" "$REPO_BSLASH/back\\-slash.md"
+
+bslash_out="$(cd "$REPO_BSLASH" && bash "$DETECT")"
+assert_not_contains "backslash default target is not reported as files=0" "$bslash_out" "files=0"
+assert_contains "backslash default target unescapes to the real path" "$bslash_out" 'Summary file: back\-slash.md'
+
+# E. Interleaved escapes prove the unescape ORDER: \" must run before \\, or the backslash
+# pass re-creates a quote the quote pass has already consumed.
+REPO_BOTH="$TEST_TMPDIR/repo-both"
+mkdir -p "$REPO_BOTH"
+git -C "$REPO_BOTH" init -q
+cp "$ALL_SHAPES" "$REPO_BOTH/both\\\".md"
+
+both_out="$(cd "$REPO_BOTH" && bash "$DETECT")"
+assert_not_contains "interleaved-escape target is not reported as files=0" "$both_out" "files=0"
+assert_contains "interleaved-escape target unescapes both forms" "$both_out" 'Summary file: both\".md'
+
+# F. SKILL.md's `Uncommitted .md files:` line previews the same discovery with a grep, not
+# with detect.sh's parse. It shares the defect CLASS rather than the code: a C-quoted path
+# ends with the closing quote, not `.md`, so `grep '\.md$'` dropped every spaced, arrowed,
+# backslashed or quoted markdown file from the preview with no signal. Extracted from
+# SKILL.md and executed so the two surfaces cannot drift apart silently.
+SKILL_MD="$SCRIPT_DIR/../SKILL.md"
+if [[ -f "$SKILL_MD" ]]; then
+  skill_grep="$(sed -n 's/^Uncommitted \.md files: !`git status --porcelain 2>\/dev\/null | \(grep [^|]*\) | head.*/\1/p' "$SKILL_MD")"
+  if [[ -n "$skill_grep" ]]; then
+    skill_out="$(cd "$REPO_ARROW" && eval "git status --porcelain | $skill_grep")"
+    assert_contains "SKILL.md preview keeps a quoted .md path" "$skill_out" 'notes -> draft.md'
+  else
+    fail "SKILL.md preview grep is extractable" "a grep expression" "no match in $SKILL_MD"
+  fi
+else
+  fail "SKILL.md exists for parity check" "$SKILL_MD" "missing"
+fi
 
 # --- Final report --------------------------------------------------------------------
 
