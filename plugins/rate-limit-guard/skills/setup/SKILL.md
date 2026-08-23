@@ -285,8 +285,10 @@ fallback lives in the file that was just deleted.
 
 ## What this skill does NOT do
 
-- Edit `settings.json` (user or project), write `pluginConfigs`, or touch any Claude Code settings
-  surface — the printed edit is the operator's to apply.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
+  contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace
+  repository). Nor `settings.json` (user or project) or any other Claude Code settings surface —
+  the printed edit is the operator's to apply.
 - Install `jq` or any system package.
 - Write to the contract files — the wrapper and the hook own `rate-limits.json` and
   `stop-events.jsonl`; `apply` owns only `bin/statusline-shim.sh`.

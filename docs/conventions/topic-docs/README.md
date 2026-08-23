@@ -96,14 +96,26 @@ Five rules hold at this row:
    creates the file in the current working directory, which is the
    consumer's repository (reproduced against GNU coreutils 8.32,
    2026-07-27) — and the flags
-   that would fix it are not portable (`--tmpdir` is GNU-only, `-t` is
-   deprecated there). That root is the ambient `$TMPDIR` or system
-   default — **not** `CLAUDE_CODE_TMPDIR`, which overrides the temp
-   directory Claude Code uses for its *own internal* files: the env-var
-   reference states that "Unsandboxed Bash commands inherit your shell's
-   `$TMPDIR` unchanged" (verified 2026-07-27). A plugin shelling out to
-   `mktemp` therefore never observes that override, and no plugin should
-   claim it does.
+   that would fix it are not portable. `-p` (which GNU also spells
+   `--tmpdir`) exists in both dialects but means different things: GNU
+   treats the template as relative to that directory and lets the flag
+   beat `TMPDIR`, while BSD/macOS consult it only as a fallback for `-t`
+   when `TMPDIR` is unset — so with a bare template and no `-t` the flag
+   does nothing there and the template still resolves against the
+   current directory. GNU marks `-t` deprecated, and BSD's `-t` takes a
+   prefix rather than a template. An absolute path in the positional
+   template is reinterpreted by neither. That root is the ambient
+   `$TMPDIR` or system default — **not** `CLAUDE_CODE_TMPDIR`, which
+   overrides the temp directory Claude Code uses for its *own internal*
+   files: the env-var reference states that "Unsandboxed Bash commands
+   inherit your shell's `$TMPDIR` unchanged" (verified 2026-07-27). A
+   plugin shelling out to `mktemp` therefore never observes that
+   override, and no plugin should claim it does. This placement rule
+   governs **every** ephemeral file a plugin creates through the temp
+   primitive, not only the artifacts this convention names tiers for —
+   the portability traps belong to the platform, so a producer whose
+   output takes no topic-docs row (a scrape spill, a rendered report)
+   follows it unchanged.
 2. **The lifetime outlives the call.** A path handed back to the user
    must still be readable when they open it, so a producer that RETURNS
    a path does not delete the file in a `finally` — that races the

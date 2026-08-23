@@ -53,5 +53,7 @@ rerun observes the new rendered value.
 ## Boundaries
 
 - Do not produce or file a bug report; invoke `/bug-report:write` via the Skill tool.
-- Do not write Claude Code settings.
+- Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
+  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  marketplace repository).
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

@@ -7,13 +7,14 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — formatting and linting rules
-come from the repository's own `PSScriptAnalyzerSettings.psd1`, and the only tunable is the
-native `userConfig` toggle. The `pwsh` runtime and the PSScriptAnalyzer module are resolved
-from the environment (never bundled, never downloaded), and the plugin installs nothing, so
-`apply` is guidance-only with **no write path** — it never modifies the repository, user
-settings, or the plugin cache.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — formatting
+and linting rules come from the repository's own `PSScriptAnalyzerSettings.psd1`, and the
+only tunable is the native `userConfig` toggle. The `pwsh` runtime and the PSScriptAnalyzer
+module are resolved from the environment (never bundled, never downloaded), and the plugin
+installs nothing, so `apply` is guidance-only with **no write path** — it never modifies
+the repository, user settings, or the plugin cache.
 
 Note the deliberate asymmetry vs the sibling formatter plugins: only `jq` absence is a
 prerequisite defect here. A machine without PowerShell — or without the PSScriptAnalyzer
@@ -26,9 +27,10 @@ offers remediation guidance. Both are non-interactive — never prompt when the 
 ## `check` (read-only)
 
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh`) is the single source of
-truth for what it requires and how it resolves things. **Read it first** — probe what it
-actually does, don't recite this file. Then run each probe via Bash and report a
-PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+truth for what it requires and how it resolves things.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately
@@ -113,8 +115,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - Run the formatter or linter — editing any `.ps1`, `.psm1`, or `.psd1` file exercises the
   hook end-to-end. The `check` pwsh probes are read-only capability checks; they never format,
   lint, or mutate any file.
-- Write anything: not the repository (including `PSScriptAnalyzerSettings.psd1`), not Claude
-  Code user settings, not `pluginConfigs`, not the plugin cache. The `pwsh` runtime and the
-  PSScriptAnalyzer module are resolved from the environment, never installed, so remediation is
-  guidance only.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the repository,
+  including `PSScriptAnalyzerSettings.psd1` — the `pwsh` runtime and the PSScriptAnalyzer module
+  are resolved from the environment, never installed, so remediation is guidance only.
 - Download tools during `check` beyond the read-only presence and version probes.

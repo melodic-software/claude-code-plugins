@@ -7,11 +7,13 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration and no `userConfig` — it
-recommends `@playwright/cli`'s own defaults — so the only tunable prerequisite is the CLI
-binary itself. `apply` is guidance-and-verify with exactly one write path: the explicitly
-invoked `apply install-cli` global npm install described below.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration and no
+`userConfig` — it recommends `@playwright/cli`'s own defaults — so the only tunable
+prerequisite is the CLI binary itself. `apply` is guidance-and-verify with exactly one
+write path: the explicitly invoked `apply install-cli` global npm install described
+below.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers the resolution for each finding; `apply install-cli` additionally authorizes the global
@@ -22,9 +24,9 @@ CLI install. All are non-interactive — never prompt when the action is given.
 The main skill and its reference files are the single source of truth for what the CLI
 requires: `${CLAUDE_PLUGIN_ROOT}/skills/playwright/SKILL.md` (Prerequisite + quick start) and
 `${CLAUDE_PLUGIN_ROOT}/skills/playwright/reference/` (`commands.md`, `windows-quirks.md`).
-**Read them first** — probe what they actually require, don't recite this file. Then run each
-probe via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not
-modify anything.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 1. **`playwright-cli` binary** — `command -v playwright-cli` (the binary name the skill drives;
    the npm package is `@playwright/cli`). FAIL if absent — remediation is `apply install-cli`
@@ -62,7 +64,7 @@ nothing and reports "already configured".
 
 ## What this skill does NOT do
 
-- Write anything other than the one explicitly invoked `apply install-cli` global npm install;
-  it never edits project files, settings, or the plugin cache.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor project files — the
+  one explicitly invoked `apply install-cli` global npm install is the only write it performs.
 - Provision browsers, run E2E flows, or take screenshots — that is `/playwright:playwright`.
 - Run or wrap the maintainer update flow (`/playwright:playwright update`).

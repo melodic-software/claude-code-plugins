@@ -7,24 +7,27 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — the normalization policy is
-the repository's own `.gitattributes`, and the only tunable is the native `userConfig`
-toggle. Every prerequisite is a system tool (Bash, jq, git), so `apply` is pure guidance and
-writes nothing.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — the
+normalization policy is the repository's own `.gitattributes`, and the only tunable is the
+native `userConfig` toggle. Every prerequisite is a system tool (Bash, jq, git), so `apply`
+is pure guidance and writes nothing.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 points at each remediation. Both are non-interactive — never prompt when the action is given.
 
 ## `check` (read-only)
 
-The hook is the single source of truth for what it requires and how it resolves things.
-**Read it first** — the entry script (`${CLAUDE_PLUGIN_ROOT}/hooks/eol-normalizer.sh`) sources
-`${CLAUDE_PLUGIN_ROOT}/hooks/normalize-eol.sh`, and that sourced library is where the real
-resolution lives (the `git check-attr` calls, the repo-root anchoring, and the NUL-byte
-binary guard). Read both, probe what they actually do, don't recite this file. Then run each
-probe via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not
-modify anything.
+The hook is the single source of truth for what it requires and how it resolves things, and it
+spans the entry script and the libraries it sources: `${CLAUDE_PLUGIN_ROOT}/hooks/eol-normalizer.sh`
+sources `${CLAUDE_PLUGIN_ROOT}/hooks/normalize-eol.sh` (alongside the shared hook utilities), and
+that sourced library is where the real resolution lives (the `git check-attr` calls, the repo-root
+anchoring, and the NUL-byte binary guard), so the sourced files are in scope and the entry script
+alone will not tell you what runs.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately
@@ -92,6 +95,6 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 ## What this skill does NOT do
 
 - Normalize any file — editing a file exercises the hook end-to-end.
-- Write `.gitattributes`, the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor `.gitattributes`.
 - Install any tool, during either `check` or `apply` — all prerequisites are system tools
   resolved with guidance only.

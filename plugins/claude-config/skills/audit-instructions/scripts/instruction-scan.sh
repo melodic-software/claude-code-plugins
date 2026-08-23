@@ -55,9 +55,20 @@
 # are
 # skipped, not errors.
 #
+# --body-only skips YAML frontmatter (a leading `---` block), so no row can point
+# at a `description`, `when_to_use`, or any trigger phrase quoted in one. This is
+# the fence the findings-relay path requires: check-skill.sh check 3 hard-FAILs a
+# dropped `'trigger phrase'` versus the base ref, so a remediation that edits a
+# description is an auto-invocation regression. It is OPT-IN rather than the
+# default because the human-facing audit legitimately reports on frontmatter
+# content (a stale harness claim in a description is a real finding) — what must
+# never happen is such a row reaching an APPLY relay. Callers that persist
+# findings pass it; the report path does not.
+#
 # Usage:
 #   instruction-scan.sh FILE...            # one candidate row per line; exit 0
 #   instruction-scan.sh --count FILE...    # integer candidate count only; exit 0
+#   instruction-scan.sh --body-only FILE...  # skip YAML frontmatter; exit 0
 #   instruction-scan.sh --help
 
 set -uo pipefail
@@ -66,11 +77,13 @@ usage() {
   cat <<'EOF'
 instruction-scan.sh — mark I6/I8/I10/I23/I25/I27/I28 instruction candidates in given files.
 
-Usage: instruction-scan.sh [--count|--help] FILE...
+Usage: instruction-scan.sh [--count] [--body-only] [--help] FILE...
 
-  FILE...    print one candidate row (file:line:check-id) per match; exit 0
-  --count    print the integer candidate count only; exit 0
-  --help     this message
+  FILE...       print one candidate row (file:line:check-id) per match; exit 0
+  --count       print the integer candidate count only; exit 0
+  --body-only   skip YAML frontmatter, so no row can point at a description,
+                when_to_use, or a trigger phrase quoted in one; exit 0
+  --help        this message
 
 I8 pattern families (model-era candidates; model lane adjudicates): I8-a
 instructed self-check, I8-b conservative-reporting, I8-c don't-think /
@@ -87,11 +100,11 @@ EOF
 }
 
 case "${1:-}" in
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *) ;;
+-h | --help)
+  usage
+  exit 0
+  ;;
+*) ;;
 esac
 
 if ! command -v grep >/dev/null 2>&1; then
@@ -100,10 +113,20 @@ if ! command -v grep >/dev/null 2>&1; then
 fi
 
 mode="report"
-if [[ "${1:-}" == "--count" ]]; then
-  mode="count"
-  shift
-fi
+body_only=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --count)
+    mode="count"
+    shift
+    ;;
+  --body-only)
+    body_only=1
+    shift
+    ;;
+  *) break ;;
+  esac
+done
 
 # --- Detection patterns (case-insensitive) -----------------------------------
 # POSIX ERE has no word-boundary assertion (GNU grep's ERE \b is an extension
@@ -158,6 +181,42 @@ I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 
 rows=()
 
+# frontmatter_end <file>
+#
+# Print the line number of a leading YAML frontmatter block's CLOSING `---`, or 0
+# when the file has none. Frontmatter is recognized only when `---` is the very
+# first line, which is the form every skill, agent, and output-style surface
+# uses; a `---` thematic break mid-document therefore opens nothing. An UNCLOSED
+# leading `---` returns the file's line count, fencing the whole file rather than
+# none of it — the fail-safe direction, since the alternative would route a
+# malformed-frontmatter description straight to an apply relay.
+#
+# BOTH comparisons use `^---[[:space:]]*$`, deliberately identical to this repo's
+# authoritative extractor `skill_frontmatter::extract`
+# (plugins/skill-quality/scripts/skill-frontmatter.sh) — what `check-skill.sh`, the
+# hard-FAIL gate this fence exists to satisfy, actually parses frontmatter with.
+# Exact equality against `---` is STRICTER than that parser, and the mismatch runs
+# the dangerous way: a delimiter carrying trailing whitespace or a CR is real
+# frontmatter to the gate but invisible here, so the block would be read as body
+# and the description and when_to_use lines would become emittable candidates —
+# the fence silently inverted on exactly the Windows-authored and
+# hand-edited files it most needs to hold for. Measured, not theorized: before
+# this, a CRLF fixture produced rows at lines 2 and 3. `[[:space:]]` covers CR.
+frontmatter_end() {
+  local file="$1"
+  head -n 1 "$file" 2>/dev/null | grep -qE '^---[[:space:]]*$' || {
+    printf '0\n'
+    return 0
+  }
+  local close
+  close="$(awk 'NR>1 && $0 ~ /^---[[:space:]]*$/ {print NR; exit}' "$file")"
+  if [[ -n "$close" ]]; then
+    printf '%s\n' "$close"
+  else
+    awk 'END {print NR}' "$file"
+  fi
+}
+
 # collect_rows <file> <check-id> <ere> <grep-flags> [<require-ere>] [<reject-ere>]
 #
 # Append one `file:line:check-id` row per line of <file> matching <ere>. The
@@ -173,6 +232,12 @@ collect_rows() {
     [[ -n "$hit" ]] || continue
     lineno="${hit%%:*}"
     text="${hit#*:}"
+    # Body-scope fence: drop every hit inside the frontmatter block, so no
+    # emitted row can carry a remediation that edits a description, when_to_use,
+    # or a trigger phrase quoted in one.
+    if [[ "$body_only" -eq 1 && "$lineno" -le "$fm_end" ]]; then
+      continue
+    fi
     if [[ -n "$reject" ]] && printf '%s\n' "$text" | grep -qiE "$reject"; then
       continue
     fi
@@ -186,6 +251,13 @@ collect_rows() {
 scan_file() {
   local file="$1"
   [[ -f "$file" ]] || return 0
+
+  # Resolved once per file and read by collect_rows; only consulted under
+  # --body-only, so the default path costs one head/awk pass and nothing else.
+  fm_end=0
+  if [[ "$body_only" -eq 1 ]]; then
+    fm_end="$(frontmatter_end "$file")"
+  fi
 
   collect_rows "$file" I6 "$I6_ERE" -niE "" "$RATIONALE_ERE"
   collect_rows "$file" I10 "$I10_ERE" -niE

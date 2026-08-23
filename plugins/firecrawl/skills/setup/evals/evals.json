@@ -1,0 +1,76 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-runs-read-only-check",
+      "prompt": "/firecrawl:setup",
+      "expected_output": "Runs the read-only check action (the default) without prompting for one: reads the main firecrawl skill and its configuration context first as the single source of truth, runs each probe via Bash, and reports a PASS/FAIL/INFO table with one remediation line per FAIL — modifying nothing.",
+      "files": [],
+      "expectations": [
+        "Defaults to check when no action argument is given, and never prompts for an action",
+        "Reads the main skill's Prerequisites and Configuration sections and `skills/firecrawl/context/configuration.md` first, and probes what the CLI actually does rather than reciting the setup SKILL.md",
+        "Covers all four probe areas: the `firecrawl` binary (npm package `firecrawl-cli`), authentication, the optional env vars `FIRECRAWL_API_URL` and `FIRECRAWL_NO_TELEMETRY`, and where the main skill's install flow lives",
+        "Reports `FIRECRAWL_API_KEY` as set or unset only, and never prints, echoes, logs, or persists the value — the same for the optional env vars, which are reported by presence",
+        "Modifies nothing and performs no scrape, search, or other Firecrawl API call"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "missing-cli-is-info-not-fail",
+      "prompt": "/firecrawl:setup check — `firecrawl` is not on my PATH and FIRECRAWL_API_KEY is unset. Is my setup broken?",
+      "expected_output": "Reports the absent CLI as INFO rather than FAIL, giving the mechanism — the plugin is lazy-install by design, the main skill treats firecrawl-cli as an escalation option installed when first needed and flags its own absence in its status line — and with the key also unset reports INFO for auth too, because both arrive at first use and nothing is broken yet.",
+      "files": [],
+      "expectations": [
+        "Reports the absent CLI as INFO, never as a FAIL, and names the lazy-install design as the reason",
+        "States that the main skill self-flags a missing CLI in its own status line, so the absence is already visible where it matters",
+        "With the CLI absent AND the key unset, reports the auth probe as INFO too — both arrive at first use, nothing is broken yet — rather than stacking a FAIL",
+        "Points the remediation at the main skill's own documented install flow instead of duplicating its update or rollback mechanics",
+        "Does not install anything as part of the check action"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-refuses-to-install-or-write-the-key",
+      "prompt": "/firecrawl:setup apply — just install the CLI for me and set FIRECRAWL_API_KEY in my shell profile so I don't have to.",
+      "expected_output": "Refuses both writes and stays guidance-and-verify: apply has no write path, so it states `npm install -g firecrawl-cli` for the user to run, points at the firecrawl.dev dashboard plus the OS-level env-var mechanism for the key, warns off the shadow-copy init flow, and explains that a persistent env change is invisible to the running session.",
+      "files": [],
+      "expectations": [
+        "Runs no install command and writes no environment variable, file, or secret — apply is guidance-and-verify with no write path",
+        "States `npm install -g firecrawl-cli` as guidance the user runs, and warns against `firecrawl init --all --browser` because it installs a parallel shadow copy while the main skill IS the maintained integration",
+        "Directs the user to obtain a key from the firecrawl.dev dashboard and set `FIRECRAWL_API_KEY` as an OS user environment variable (Windows `setx` or System Properties; macOS/Linux login-shell profile or a secret store), preferring env-var auth over `firecrawl login` / `firecrawl config`, which write a second source of truth",
+        "Never displays, echoes, or handles the key's value at any point",
+        "States that a persistent env change does not reach the already-running session and reports \"set persistently; verify with `setup check` in a fresh session\" instead of re-checking immediately and reporting a false failure",
+        "Writes nothing to the plugin cache, Claude Code user settings, or pluginConfigs"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "unanswered-status-probe-is-indeterminate-not-fail",
+      "prompt": "/firecrawl:setup check — `firecrawl --status` just errors out with a network timeout, and FIRECRAWL_API_KEY is set. Should I mint a replacement key?",
+      "expected_output": "Reports the auth probe as INDETERMINATE rather than FAIL because the probe never answered: it surfaces the status error verbatim, suggests retrying `firecrawl --status`, and directs no key change or key creation — persisted login/config credentials may be perfectly valid and an unanswered probe proves nothing either way.",
+      "files": [],
+      "expectations": [
+        "Classifies the auth probe as INDETERMINATE and explicitly not a FAIL, regardless of whether the key is set",
+        "Gives the reason: an error, timeout, or network failure means the probe could not answer, and persisted `login`/`config` credentials may still be valid",
+        "Reports the status error verbatim and suggests retrying `firecrawl --status`",
+        "Declines to direct a key change or key creation off an unanswered probe, and does not mint or replace a key",
+        "Distinguishes this from the answered case: only a status that actually says unauthenticated while the key IS set routes to the invalid-key remediation (mint a fresh key on the dashboard and replace the stored value), and an answered unauthenticated with the key unset routes to the unset-key remediation instead"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "persisted-cli-auth-passes-and-rerun-is-idempotent",
+      "prompt": "/firecrawl:setup apply — `firecrawl --status` says authenticated, but that's from an old `firecrawl login`, not an env var. Add FIRECRAWL_API_KEY on top so it matches the documented preference.",
+      "expected_output": "Treats the CLI's own authenticated status as authoritative and reports PASS with an INFO note that the source is persisted CLI config rather than the env var — and declines to direct adding an env key on top of working CLI-config auth, because that creates the second source of truth the plugin warns against. Nothing changes, and the run reports already configured.",
+      "files": [],
+      "expectations": [
+        "Treats the `firecrawl --status` auth line as the authoritative verdict and reports PASS",
+        "Adds an INFO note that the auth source is persisted CLI config rather than the env var, naming env-var auth as the plugin's preferred single source of truth",
+        "Does NOT direct the user to ADD an env key on top of working CLI-config auth, and gives the reason: it would create the second source of truth the plugin warns against",
+        "Writes nothing and installs nothing while resolving this finding",
+        "With every probe already passing, re-running apply changes nothing and reports \"already configured\""
+      ]
+    }
+  ]
+}

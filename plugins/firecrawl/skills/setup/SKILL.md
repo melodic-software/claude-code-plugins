@@ -7,13 +7,14 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin is **lazy-install by design** — the main skill treats `firecrawl-cli`
-as an escalation option installed when first needed and flags its own absence in its status
-line — so a missing CLI is an INFO here, not a failure. This plugin owns no consumer-project
-configuration and no `userConfig`; auth is an OS-environment concern. So `apply` is pure
-guidance-and-verify with **no write path**: it installs nothing, writes no environment
-variables, and defers to the main skill's own documented install flow.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin is **lazy-install by design** — the main skill treats
+`firecrawl-cli` as an escalation option installed when first needed and flags its own
+absence in its status line — so a missing CLI is an INFO here, not a failure. This plugin
+owns no consumer-project configuration and no `userConfig`; auth is an OS-environment
+concern. So `apply` is pure guidance-and-verify with **no write path**: it installs nothing,
+writes no environment variables, and defers to the main skill's own documented install flow.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers the resolution for each finding. Both are non-interactive — never prompt when the
@@ -24,8 +25,10 @@ action is given.
 The main skill is the single source of truth for what the CLI requires and how auth is wired:
 `${CLAUDE_PLUGIN_ROOT}/skills/firecrawl/SKILL.md` (Prerequisites + Configuration sections) and
 `${CLAUDE_PLUGIN_ROOT}/skills/firecrawl/context/configuration.md` (the exact env vars the CLI
-reads). **Read them first** — probe what they actually require, don't recite this file. Then
-run each probe via Bash and report a PASS/FAIL/INFO table. Do not modify anything.
+reads).
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 1. **`firecrawl-cli` binary** — the installed binary is `firecrawl` (the npm package is
    `firecrawl-cli`). `command -v firecrawl`. INFO when absent (lazy-install design): report
@@ -90,5 +93,6 @@ configured".
 
 - Install `firecrawl-cli`, write `FIRECRAWL_API_KEY` or any environment variable, or print the
   key's value — `apply` is guidance-and-verify with no write path.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Perform scrapes, searches, or any Firecrawl API call — that is `/firecrawl:firecrawl`.
 - Run the maintainer update flow (`/firecrawl:update`) — a separate, gated skill.

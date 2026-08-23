@@ -7,13 +7,14 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — actionlint auto-discovers its
-own optional config from the repository, and the tunables are the native `userConfig`
-options (the `actionlint_enabled` toggle and `stdin_read_timeout`). Every prerequisite is a
-`PATH` binary the plugin never bundles, and the plugin never
-installs system packages, so `apply` is guidance-only with **no write path** — it never
-modifies the repository, user settings, or the plugin cache.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — actionlint
+auto-discovers its own optional config from the repository, and the tunables are the native
+`userConfig` options (the `actionlint_enabled` toggle and `stdin_read_timeout`). Every
+prerequisite is a `PATH` binary the plugin never bundles, and the plugin never installs
+system packages, so `apply` is guidance-only with **no write path** — it never modifies the
+repository, user settings, or the plugin cache.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers remediation guidance. Both are non-interactive — never prompt when the action is given.
@@ -21,9 +22,10 @@ offers remediation guidance. Both are non-interactive — never prompt when the 
 ## `check` (read-only)
 
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/actionlint-check.sh`) is the single source of
-truth for what it requires and how it resolves things. **Read it first** — probe what it
-actually does, don't recite this file. Then run each probe via Bash and report a
-PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+truth for what it requires and how it resolves things.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately
@@ -114,7 +116,6 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the linter — editing any `.github/workflows/*.yml` or `*.yaml` file exercises the hook
   end-to-end.
-- Write anything: not the repository, not Claude Code user settings, not `pluginConfigs`, not
-  the plugin cache. Every prerequisite is a `PATH` binary or the native toggle, so remediation
-  is guidance only.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the repository —
+  every prerequisite is a `PATH` binary or the native toggle, so remediation is guidance only.
 - Download or execute tools during `check` beyond the read-only `command -v` presence probes.

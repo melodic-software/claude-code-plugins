@@ -166,23 +166,48 @@
 # environment error (fail closed — never a silent skip).
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/token-scan.sh
+. "$SCRIPT_DIR/lib/token-scan.sh" || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
-TOKENS="${SHELL_PORTABILITY_TOKENS:-scripts/shell-portability-tokens.txt}"
-if [[ ! -f "$TOKENS" ]]; then
-  printf 'Error: token list not found: %s\n' "$TOKENS" >&2
+# require_token_file carries the same awk operand disambiguation the scanned
+# file gets below, and for a worse reason: a token path shaped like
+# identifier=value (`tokens=custom.txt`) is parsed by awk as a variable
+# assignment rather than opened, so the `FNR == NR` loading pass never runs, NO
+# patterns are active, and every file reports clean while awk still exits 0 — a
+# silent fail-open in the gate itself, invisible to the scanner-fault check.
+# See #1513; shared with check-skill-portability.sh, which was missing it
+# entirely until #2914.
+TOKENS_SRC="${SHELL_PORTABILITY_TOKENS:-scripts/shell-portability-tokens.txt}"
+TOKENS="" # assigned through the nameref below; declared so shellcheck sees it
+if ! token_scan::require_token_file TOKENS "$TOKENS_SRC"; then
   exit 2
 fi
-# Same awk operand disambiguation the scanned file already gets below, and for
-# a worse reason: a token path shaped like identifier=value (`tokens=custom.txt`)
-# is parsed by awk as a variable assignment rather than opened, so the
-# `FNR == NR` loading pass never runs, NO patterns are active, and every file
-# reports clean while awk still exits 0 — a silent fail-open in the gate itself,
-# invisible to the scanner-fault check. See #1513.
-case "$TOKENS" in
-./* | /*) ;;
-*) TOKENS="./$TOKENS" ;;
-esac
+
+# Active patterns are resolved HERE instead of inside the awk program, so the
+# comment/blank rule is the shared one (#3161) rather than a private copy — and
+# so this gate stops carrying TWO different rules, since its skill-md baseline
+# above already goes through the same library in `inline` mode. `leading` here:
+# an entry is an ERE (or a `!class` token) and may legitimately contain a `#`.
+#
+# `!class` lines count as active, so the empty-set guard below fires only when
+# the list yields nothing at all — matching the awk-side `np == 0 && ncls == 0`
+# check, which stays as defence in depth.
+token_patterns=()
+read_list::into token_patterns "$TOKENS_SRC" --comments leading || exit 2
+if ((${#token_patterns[@]} == 0)); then
+  printf 'Error: token list loaded no active patterns: %s\n' "$TOKENS_SRC" >&2
+  exit 2
+fi
+TOKENS_ACTIVE="$(mktemp)" || exit 2
+trap 'rm -f "$TOKENS_ACTIVE"' EXIT
+printf '%s\n' "${token_patterns[@]}" >"$TOKENS_ACTIVE"
+TOKENS="$(token_scan::awk_operand "$TOKENS_ACTIVE")"
 
 # Pre-existing skill-markdown debt (#2704): widening selection onto every
 # SKILL.md / context/*.md / reference/*.md that already carries a token hit
@@ -236,7 +261,12 @@ is_scannable() {
 # Active baseline entries: exact repo-relative paths, full-string equality.
 baseline_entries=()
 if [[ -f "$BASELINE" ]]; then
-  mapfile -t baseline_entries < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$BASELINE" | grep -v '^$' || true)
+  # `inline`: baseline entries are repo-relative paths, never regexes, so a `#`
+  # anywhere on the line is a comment. This gate's OTHER list — the token file —
+  # takes `leading` instead, because its entries are EREs that may contain a
+  # `#`. Those two modes are exactly the divergence #3161 collapsed into one
+  # library; this file is the one that carried both shapes.
+  read_list::into baseline_entries "$BASELINE" --comments inline || exit 2
 fi
 
 baselined() {
@@ -284,23 +314,23 @@ case "$mode" in
   shift
   (($# == 0)) || usage
   apply_baseline=1
-  if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
+  if ! changed_files::verify_base "$base"; then
     printf 'Error: base ref %s is not a valid commit\n' "$base" >&2
     exit 2
   fi
-  # NUL-delimited (-z) so a pathname Git would C-quote (non-ASCII bytes under
-  # the default core.quotePath, or a literal quote/backslash) arrives verbatim
-  # — a quoted path would miss the *.sh / skill-md suffix check below and be
-  # silently dropped, the exact silent exclusion the contract forbids.
+  # The NUL-safe read and the deletion filter live in the shared resolver; a
+  # failed diff is fatal there rather than arriving here as an empty scope.
   # Diff plugins/ in addition to *.sh so skill markdown under
   # plugins/*/skills/ reaches is_scannable (#2704); a plugins/*/skills/
   # pathspec alone does not match under git's default (non-pathname) globbing
   # (same rationale as check-skill-portability.sh).
-  while IFS= read -r -d '' f; do
+  changed=()
+  changed_files::into changed "$base" -- '*.sh' 'plugins/' || exit 2
+  for f in ${changed[@]+"${changed[@]}"}; do
     is_scannable "$f" || continue
     [[ -f "$f" ]] || continue # a rename-away/deletion leaves nothing to scan
     files+=("$f")
-  done < <(git diff --name-only --diff-filter=d -z "$base" -- '*.sh' 'plugins/' | sort -z -u)
+  done
   ;;
 esac
 
@@ -323,14 +353,10 @@ scan_file() {
   # awk operand disambiguation: a bare relative operand shaped like
   # identifier=value (e.g. a top-level file literally named FOO=bar.sh) is
   # parsed by awk as a command-line variable assignment, not opened as a
-  # file — silently dropping it from the scan. Prefixing an unrooted operand
-  # with `./` breaks the identifier=value shape (`./` is never a valid awk
-  # identifier lead character) so it is unambiguously a filename. See #1513.
-  local awk_file="$file"
-  case "$awk_file" in
-  ./* | /*) ;;
-  *) awk_file="./$awk_file" ;;
-  esac
+  # file — silently dropping it from the scan. See #1513; the rule now lives in
+  # scripts/lib/token-scan.sh, shared with the twin scanner.
+  local awk_file
+  awk_file="$(token_scan::awk_operand "$file")"
   awk '
     # Spelled as octal escapes because this program is itself embedded in a
     # single-quoted shell word, where a literal quote cannot appear.
@@ -1535,11 +1561,12 @@ scan_file() {
     # shipped list, or in a caller override, silently disable a whole class
     # while the run still reported clean — the one outcome the contract of this
     # gate forbids everywhere else.
+    # Pass 1: load the token list. It arrives PRE-FILTERED — trimmed, no blanks,
+    # no comment lines — because scripts/lib/read-list.sh resolved it in the
+    # shell (#3161). Only the `!class` dispatch, which is scanner-specific rather
+    # than list-format, stays here.
     FNR == NR {
       line = $0
-      sub(/^[[:space:]]+/, "", line)
-      sub(/[[:space:]]+$/, "", line)
-      if (line == "" || line ~ /^#/) next
       if (substr(line, 1, 1) == "!") {
         if (line == AMPTOK) { CLS_AMP = 1; ncls++; next }
         printf "Error: unknown script-implemented class in token list: %s\n", line > "/dev/stderr"

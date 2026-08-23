@@ -7,8 +7,9 @@ disable-model-invocation: true
 
 ## Purpose
 
-Inspect and configure the source-control plugin per the uniform setup contract: `check` reports the
-effective configuration, `apply` writes it. Two configuration surfaces:
+Inspect and configure the source-control plugin per the uniform setup contract
+(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository):
+`check` reports the effective configuration, `apply` writes it. Two configuration surfaces:
 
 1. The commit-subject / PR-title convention config, layered across a user-global file, the tracked
    team file, and a gitignored personal overlay and merged per key by
@@ -311,6 +312,6 @@ Skill-behavior failure patterns hit in real runs. Add to this section when new o
   pre-check against.
 - Write the consumer's `.gitignore`. The personal overlay needs `.claude/*.local.*` ignored; this
   skill recommends the line and leaves the edit to the consumer.
-- Write the plugin cache, Claude Code user settings, or `pluginConfigs` — the convention lives in the
-  consumer's own config layers; babysit settings live in Claude-Code-owned `userConfig`,
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. The convention lives in
+  the consumer's own config layers; babysit settings live in Claude-Code-owned `userConfig`,
   reconfigured only through the two paths above.

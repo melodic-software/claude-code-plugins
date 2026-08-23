@@ -27,7 +27,12 @@
 # DOCS_ONLY_ALLOWLIST overrides the allowlist path (test injection).
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/read-list.sh
+. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 emit() {
   printf 'docs_only=%s\n' "$1"
@@ -45,14 +50,21 @@ if [[ ! -f "$ALLOWLIST" ]]; then
   exit 0
 fi
 
-if ! git rev-parse --verify --quiet "${BASE}^{commit}" >/dev/null; then
+if ! changed_files::verify_base "$BASE"; then
   echo "check-docs-only: base ref '$BASE' is not a resolvable commit — running full suite" >&2
   emit false
   exit 0
 fi
 
-# Active prefixes: strip inline comments and surrounding blank lines.
-mapfile -t prefixes < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$ALLOWLIST" | grep -v '^$')
+# Active prefixes. `inline` is this file's family: a path prefix never contains a
+# `#`, so a `#` anywhere on the line is a comment. The token lists take the other
+# mode — see scripts/lib/read-list.sh for why the two must stay distinct.
+prefixes=()
+if ! read_list::into prefixes "$ALLOWLIST" --comments inline; then
+  echo "check-docs-only: could not read the allowlist ($ALLOWLIST) — running full suite" >&2
+  emit false
+  exit 0
+fi
 
 if [[ ${#prefixes[@]} -eq 0 ]]; then
   echo "check-docs-only: allowlist has no active entries — running full suite" >&2
@@ -60,7 +72,23 @@ if [[ ${#prefixes[@]} -eq 0 ]]; then
   exit 0
 fi
 
-mapfile -t changed < <(git diff --name-only "$BASE")
+# --include-deleted is deliberate and is NOT the portability scanners' setting.
+# This gate classifies paths rather than opening them, and a DELETED path is a
+# change the classification must still see: dropping a source file is exactly
+# the kind of edit that must force the full suite, and filtering deletions out
+# would let a delete-only commit look docs-only. Nothing here needs the file to
+# exist on disk.
+#
+# A failed diff is fatal in the resolver rather than arriving here as an empty
+# list — which this gate would otherwise have read as "no changed paths" and,
+# via the fail-safe branch below, still resolved to `docs_only=false`. Failing
+# loudly instead keeps a broken diff distinguishable from a genuinely empty one.
+changed=()
+if ! changed_files::into changed "$BASE" --include-deleted --; then
+  echo "check-docs-only: could not resolve paths changed vs '$BASE' — running full suite" >&2
+  emit false
+  exit 0
+fi
 
 if [[ ${#changed[@]} -eq 0 ]]; then
   echo "check-docs-only: no changed paths vs '$BASE' — running full suite" >&2

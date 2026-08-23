@@ -16,6 +16,38 @@ consumer tiers, explicit adoption — is owned by `melodic-software/standards`
 `conventions/engineering/shareable-artifact-design.md`; this document specializes it for Claude Code
 plugins and adds only what is plugin-specific.
 
+**Org-agnosticism** names the publisher half of that boundary, and it governs *tokens in shipped
+content*, not only runtime behavior: the publishing organization's name, its marketplace id, its own
+repository names, and publisher-prefixed configuration keys do not appear in a plugin's skill, agent,
+or schema content. One use is sanctioned — a citation that *names a source rather than a target the
+plugin acts on*: a documentation URL, or a cross-plugin reference to this marketplace's own published
+files, cited for a reader to consult. Whether that sanctioned citation is forfeited turns on the
+target's owner: a skill instructed to fetch, poll, or write a **publisher-owned** file has made the
+publisher a runtime dependency and is not conforming. A third-party documentation URL creates no such
+dependency, so fetching one does not forfeit the citation — this rule reaches publisher-owned targets
+only. For publisher-owned targets, distinguishing
+an instruction to fetch from a citation offered for a reader remains genuinely hard, and this
+statement does not settle it; `plugins/architecture/reference/topic-docs.md` is an open case.
+(`plugin.json` publisher metadata sits outside
+this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
+the manifest is for.)
+
+Like the setup contract below, **this is a normative target, not a description of the fleet**, and
+enforcement reaches a strict subset of it.
+`scripts/validate-plugin-contracts.mjs` gates the
+marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys across every plugin's skill
+content, and holds the `autonomy` plugin to a stricter token set;
+`plugins/github/github.test.sh` sweeps a wider token set over a narrower scope — its own plugin's
+prose only — as its "agnostic conformance" check, a sibling of that file's D4 zero-vendored-knowledge
+checks, not one of them. The
+bare organization name in skill prose is gated nowhere *fleet-wide* — only inside `autonomy` and
+`github`, each by a sweep scoped to that one plugin — and agent content is gated nowhere at all, so
+shipped skills predating this statement are nonconforming until brought into conformance rather than
+absolved by a green build. A fleet-wide edit answers to two independent mechanisms, each running in
+its own step of the same `plugin-gate` CI job and neither aware of the other; consolidating them
+behind this statement, and
+settling that conformance gap deliberately, is tracked in issue #3136.
+
 Keep plugins horizontally decoupled:
 
 - A plugin owns its skills, hooks, agents, scripts, dependencies, and state.
@@ -367,8 +399,33 @@ is closed. Setup must be:
 - idempotent and safe to rerun;
 - transparent about what it inferred, changed, skipped, or could not verify;
 - limited to configuration the plugin owns;
-- safe for existing files, preserving unrelated user content; and
+- safe for existing files, preserving unrelated user content;
+- evidence-bearing: after making or routing a change, it reports the stored value it *observed*,
+  and says plainly where it could not observe one — never an unobserved change; and
 - non-interactive when complete arguments are supplied, so automation and headless use remain possible.
+
+The readback is a property of the `setup` skill, not of the `apply` verb: it belongs to whichever
+action made or routed the change, so a check-only skill (below) carries it in `check`. Where the
+change was routed to a surface setup may not write — Claude Code's native configuration flow, an
+edit left to the operator — the rule is unchanged.
+
+**Keep two claims apart:** that the write was issued and stored, and how the *running* session
+behaves. They can legitimately disagree, so a naive readback reports false failures — and reporting
+one as a failed write is the specific error this clause exists to prevent. Verify the effective value
+by re-checking in a **fresh session**, and never claim an unobserved change. A same-session `check`
+therefore satisfies the bullet above by reporting the stored value it observed *and* naming the
+running session's behaviour as not yet established, not by pretending that session already reflects
+the write. The stored value read in-session is current; it is the behaviour that lags.
+
+Two mechanisms are offered across the fleet as the reason the two diverge: that a `${user_config.*}`
+value is substituted into skill content at load, and that a hook's `CLAUDE_PLUGIN_OPTION_*` mirror
+comes from an environment fixed at session start. Both timings are **untested here**.
+[Smoke-test D](extensibility-contract-smoke-tests.md) records the rendered *result* in skill content
+on Claude Code 2.1.212, not when substitution happens; smoke-test B records only a negative on
+2.1.207, that a skill-spawned Bash subprocess receives no mirror at all, and sources the
+agent-content half of that seam to upstream spec rather than to an observation. The rule does not
+rest on either: a fresh-session re-check is correct whichever way they resolve, which is why it is
+the prescription and they are only the explanation.
 
 Setup is one **plugin-level** `setup` skill, never a per-skill setup action. Setup granularity
 follows install granularity: a plugin installs and is configured as a unit, and its configuration
