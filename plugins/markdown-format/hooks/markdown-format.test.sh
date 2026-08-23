@@ -948,6 +948,34 @@ if printf '%s' "$OUT_NO_MDLINT" | jq -e '
 else
   fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT"
 fi
+# #3134: plugin-bin directories collapse to a count; plausible dirs stay.
+PLUGIN_BIN_HOME="$WORK/fake-plugin-home"
+mkdir -p "$PLUGIN_BIN_HOME/.local/bin"
+plugin_bins=""
+i=0
+while ((i < 20)); do
+  d="$PLUGIN_BIN_HOME/.claude/plugins/cache/mp/plugin-${i}/bin"
+  mkdir -p "$d"
+  plugin_bins="${plugin_bins}:${d}"
+  i=$((i + 1))
+done
+PD_TRIM="$(mktemp -d "$WORK/pd.XXXXXX")"
+OUT_TRIM="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$FA" |
+  env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_TRIM" \
+    CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
+    PATH="/usr/bin:${PLUGIN_BIN_HOME}/.local/bin${plugin_bins}:/bin" \
+    bash "$HOOK")"
+if printf '%s' "$OUT_TRIM" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
+  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+  (.hookSpecificOutput.additionalContext | contains("/usr/bin")) and
+  (.hookSpecificOutput.additionalContext | contains($local)) and
+  (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted")) and
+  ((.hookSpecificOutput.additionalContext | contains(".claude/plugins/cache/mp/plugin-0/bin")) | not)
+' >/dev/null 2>&1; then
+  ok "PATH probed trims plugin-bin directories to a count"
+else
+  fail "PATH probed trim wrong: $OUT_TRIM"
+fi
 # In-repo missing-tool: repo-local `npm i -D` is still the reliable route (#2868).
 if printf '%s' "$OUT_NO_MDLINT" | jq -e '
   (.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) and

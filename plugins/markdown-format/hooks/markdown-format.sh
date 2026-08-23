@@ -642,6 +642,48 @@ markdownlint_skip_remediation() {
   printf '%s' ". This hook does not invoke npx or download tools."
 }
 
+# Format the PATH-probe diagnostic (#3134). Keep directories that could
+# plausibly hold a user- or repo-installed markdownlint-cli2, and collapse
+# Claude Code plugin-bin entries (dozens per session) to a count. Dumping the
+# raw PATH was 4,570 bytes/channel and made a later re-notice unaffordable.
+format_probed_path() {
+  if [[ -z "${PATH+x}" ]]; then
+    printf '%s' '<unset>'
+    return 0
+  fi
+  if [[ -z "$PATH" ]]; then
+    printf '%s' '<empty>'
+    return 0
+  fi
+  local keep="" omitted=0 p oldifs="$IFS"
+  IFS=':'
+  # shellcheck disable=SC2086 # intentional IFS-split of PATH
+  for p in $PATH; do
+    case "$p" in
+    */.claude/plugins/* | */plugins/cache/*)
+      omitted=$((omitted + 1))
+      ;;
+    *)
+      if [[ -n "$keep" ]]; then
+        keep="${keep}:${p}"
+      else
+        keep="$p"
+      fi
+      ;;
+    esac
+  done
+  IFS="$oldifs"
+  if ((omitted > 0)); then
+    if [[ -n "$keep" ]]; then
+      printf '%s (+%d plugin-bin directories omitted)' "$keep" "$omitted"
+    else
+      printf '%s' "<plugin-bin directories only: ${omitted} omitted>"
+    fi
+  else
+    printf '%s' "$keep"
+  fi
+}
+
 MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
@@ -657,7 +699,8 @@ else
   # edit and recovers silently mid-session when the tool becomes resolvable —
   # there is no skip latch. Saying "skipped for this session" made operators
   # and agents stop retrying. The trailing PATH line is the probe diagnostic
-  # (what this hook process actually searched); do not widen the probe to
+  # (plausible directories this hook process actually searched; plugin-bin
+  # entries collapse to a count — #3134); do not widen the probe to
   # nvm/rbenv layout guesses — that is a separate environment/bootstrap fix.
   #
   # Remediation is scoped (#2868): `npm i -D` is the reliable route only
@@ -667,7 +710,7 @@ else
   if hook::notice_once "markdown-format-markdownlint" "$INPUT"; then
     hook::emit_skip_notice PostToolUse \
       "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; only this notice latches once per session — there is no skip latch). $(markdownlint_skip_remediation)
-PATH probed: ${PATH:-<unset>}"
+PATH probed: $(format_probed_path)"
   fi
   emit_tel "skipped" '[]'
   exit 0

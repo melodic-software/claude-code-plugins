@@ -11,7 +11,9 @@ This document is the fleet checklist. Per-hook notices must:
 1. Say the skip is for **this edit** (the probe re-runs; only the notice latches).
 2. Name the environment-inheritance cause (not "install it again").
 3. Prefer a **repo-local / filesystem** install route when one exists.
-4. Append `PATH probed: …` so the miss is diagnosable.
+4. Append `PATH probed: …` so the miss is diagnosable. Prefer plausible
+   directories (user/repo install locations); collapse Claude Code plugin-bin
+   entries to a count so the dump stays short enough for a later re-notice.
 5. **Never** widen the probe into nvm/rbenv layout guesses — that is bootstrap work
    (#2739 / #2748), not a hook-side search expansion.
 

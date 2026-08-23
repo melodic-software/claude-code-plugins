@@ -3,6 +3,16 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.29]
+
+### Changed
+
+- **PATH-probe dump trims plugin-bin directories (#3134).** The missing-tool
+  notice still prints `PATH probed:` so a miss is checkable, but Claude Code
+  plugin-bin entries (dozens per session, previously ~4,570 bytes/channel)
+  collapse to a count. Plausible user/repo directories stay listed. Unblocks a
+  short re-notice for the shared skip-latch work.
+
 ## [0.11.28]
 
 ### Changed
