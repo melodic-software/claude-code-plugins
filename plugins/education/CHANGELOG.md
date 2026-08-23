@@ -3,6 +3,150 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+
+## [0.8.2]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). This skill is
+  check-only — it has no `apply` action — and `check` still closes by telling the reader to
+  rerun it in a fresh session and report the observed value, never asserting an unobserved
+  change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+## [0.8.1]
+
+### Changed
+
+- **`teach`: the whole research-grounding ladder names the Skill tool (#3002).** Tier 1's
+  `/discovery:research` and its `/context7:lookup` / `/firecrawl:firecrawl` fallback rungs, tier 2's
+  `/discovery:research-deep`, tier 3's `/knowledge:map-corpus`, and the adjacent intake/sources
+  line (`/discovery:blindspot`, `/dometrain:grounding`, `/x:read`) now all say "via the Skill
+  tool" — applying the rule to one rung of a ladder and not the rest was the defect. Tier 1 also
+  lost a mid-sentence lowercase "invoke" left by the first pass. `context/lessons.md`'s visual-design
+  delegation to `/frontend-design:frontend-design` carries the phrasing too: the rubric's
+  `disable-model-invocation: true` exemption is keyed on the TARGET, and `teach` being `true`
+  itself says nothing about what it may reach.
+  Wording only — the tier order, presence gates, and the terminal WebSearch rung are unchanged.
+  `education:setup` references are left as prose: it is `disable-model-invocation: true`, so the
+  rubric's invocation-reach invariant keeps it human-only.
+
+## [0.8.0]
+
+### Added
+
+- **`teach`: build a diagram up rather than opening with the finished one, and stop a lesson
+  degenerating into a reference dump.** Two rules absorbed from an upstream cursor/plugins skill
+  (`docs/upstream/cursor-pstack.md`, the `teach` section) into the lesson contract.
+
+  For anything with three or more moving parts, the lesson draws a short series where each picture
+  redraws the last and adds exactly one part, so the learner watches the system assemble — to teach
+  A→B→C, draw A→B, then redraw and add C, then redraw and add the return edge. Three small growing
+  diagrams beat one crowded one, and the series is the opposite of a wall: each step is small and
+  carries one idea. A single all-at-once diagram, especially one saved for the end, is a reference.
+  Verified absent fleet-wide before landing.
+
+  The second rule names the failure the first one prevents in prose: enumerating the functions,
+  constants, or fields a thing has produces something shaped like a lesson that teaches nothing. Say
+  what problem each part solves and how it works; if the draft reads like a changelog it belongs in
+  the concept's `reference.md`.
+
+  Both landed in `context/lessons.md` rather than in `visualization:visualize` or
+  `education:explain`, which an adversarial audit of the plan showed were both wrong homes.
+  `visualize` declares itself a form-and-medium router that "is not a craft teacher" and does not do
+  comprehension work, and the build-up rule is comprehension-driven by upstream's own words. And
+  `explain` is an ELI5 altitude drop that never lists functions in the first place, whereas the
+  Teach/Practice/Go-deeper lesson unit is exactly what can degenerate into one.
+
+## [0.7.1]
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `explain` and `quiz-me` (#2968).** Both skills now state the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
+## [0.7.0]
+
+Two consumer-visible default changes (lesson format, topic-workspace location) — the
+`teach-skill-comparison` topic audit (PR #2958 carries the full Brief and plan) is the design record.
+
+### Changed
+
+- **Learning workspaces are classified as user documents, not machine state — a deliberate,
+  documented deviation from the plugin philosophy's plugin-data default.** A learning workspace
+  is the user's own long-lived study material (mission, glossary, lessons, references): it should
+  be visible, portable, and survive plugin removal the way documents do, not live in an opaque
+  machine-state directory. `teach` therefore resolves a workspace-root ladder — project
+  declaration → `workspace_root` userConfig → one-time ask → the OS Documents folder's
+  `Claude Learning/` home → `${CLAUDE_PLUGIN_DATA}` — and topic-mode workspaces default to the
+  Documents home where one is eligible. **Codebase-mode workspaces stay under plugin data by
+  default**: their lessons embed repo snippets, and Documents roots are commonly cloud-synced
+  (OneDrive/iCloud), so repo-derived state must not silently leave the machine for a private
+  repo — privacy beats visibility there. Existing plugin-data workspaces stay readable forever
+  (the ladder always scans that root); migration is a one-time offer, never forced.
+- **Lessons default to interactive, self-contained HTML where the learner's host can render
+  it** (headless/SSH/remote/cloud hosts keep markdown; so do lessons where interactivity pays
+  nothing). The durable trio — `reference.md`, learning records, `GLOSSARY.md` — stays
+  markdown. Lesson HTML embeds shared assets by a scripted splice from the workspace `assets/`
+  library (stylesheet + answer-shuffling quiz component), never re-emitted per lesson; in-page
+  quizzes end in a copy-out result block graded in conversation, recorded as learning-record
+  evidence — the page never self-certifies.
+- **Mission interview runs BEFORE workspace creation** (it crystallizes the raw subject name
+  the slug and collision guard need) and harvests fields the opening message already answers;
+  whole-repo/deictic subjects route to codebase mode under a stable derived content name.
+- **codebase action argument renamed `<concept>` → `<topic>`** with the concepts-are-smaller-
+  units mapping stated.
+
+### Added
+
+- **Storage-strength pedagogy** (from the upstream teach skill, re-adopted): fluency-vs-storage
+  distinction, desirable-difficulty triad (retrieval practice, spacing, interleaving — skills
+  practice only), the knowledge/skills difficulty asymmetry, and the equal-length quiz-answer
+  rule.
+- **Graduated research-grounding ladder** for lesson claims: tier 0 no-dispatch (repo files
+  Read this turn, verified RESOURCES.md citations) → tier 1 `/discovery:research` with
+  inline-fetch fallbacks → tier 2 seeding via `/discovery:research-deep` → tier 3
+  `/knowledge:map-corpus` + digests — every cross-plugin name presence-gated; roughly one
+  research dispatch per session; parametric recall banned at every tier.
+- **Spaced review**: `resume` surfaces due-for-review floor concepts (record age × domain
+  velocity) before advancing the frontier; `status` adds a due-for-review flag from
+  filename/mtime heuristics only.
+- **Open-lesson affordance** (permission-gated `open`/`xdg-open`/`start`; skipped on
+  remote/web hosts) and a presence-gated publish-as-artifact flavor.
+- **`workspace_root` userConfig** for teach, mirroring the `knowledge.library_dir` value
+  grammar; surfaced by `/education:setup`.
+- **`list-workspaces.sh` multi-root scan + `--default-root`** (OS Documents resolution with the
+  exists-and-not-`$HOME` guard), linked-worktree slug hoisting via `git rev-parse
+  --git-common-dir` with legacy per-worktree slugs still scanned and labeled; regression suite
+  extended to 29 checks.
+- **Five new teach evals** (research-tier selection, root-ladder resolution, platform-aware
+  lesson format, due-for-review surfacing, deictic routing); eval 1 amended to the root-ladder
+  expectation.
+
 ## [0.6.4]
 
 ### Changed

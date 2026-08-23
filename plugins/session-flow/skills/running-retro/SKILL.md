@@ -11,16 +11,10 @@ metadata:
 
 ## Context — gather first
 
-Collect these with **individual** Bash calls, one command per call:
-
-- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
-- Current branch — `git branch --show-current`
-- Recent commits — `git log --oneline -5`
-- Working tree status — `git status --porcelain`, reading **at most the first 20 entries**
-
-Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
-because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
-fail at load — keep `$`-expansion out of the pre-compute block (#1687).
+Take `session-id`, `branch`, `status`, and `recent-commits` at `-5`. Probe commands, the
+one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale for
+gathering at run time rather than pre-computing:
+[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 ## Purpose
 
@@ -144,6 +138,14 @@ Present the checkpoint findings, then OFFER the forward routes; act only on the 
 - **Codify a durable learning** → `/session-flow:retro codify` (running-retro never edits
   `CLAUDE.md`, rules, or memory itself).
 - **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
+- **Build the new-skill candidate** → read `/playbooks:skill-authoring` for the authoring doctrine
+  and draft against it, then gate the result on `/skill-quality:check`, when those are installed;
+  otherwise say the candidate has no authoring route here and leave it recorded. The checkpoint
+  already emits a "New-skill candidates" line, and a candidate with no named destination is a
+  finding that evaporates. Read the doctrine before drafting rather than inventing a shape from
+  scratch — a skill written ad hoc at the end of a checkpoint is the one most likely to miss the
+  conventions that playbook exists to carry. (It is a knowledge surface: it takes no arguments and
+  performs no actions, so it informs the drafting rather than doing it.)
 - **Nothing actionable** → say so and continue the task.
 
 ## Post-checkpoint checklist

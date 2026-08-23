@@ -1,5 +1,22 @@
 # Anti-patterns guarded
 
+## Contents
+
+- [1. Citation rot](#1-citation-rot)
+- [2. Over-indirection](#2-over-indirection)
+- [3. Leaky abstraction](#3-leaky-abstraction)
+- [4. Loss of locality](#4-loss-of-locality)
+- [5. Reference resolution failure](#5-reference-resolution-failure)
+- [6. Wrong abstraction (Sandi Metz failure mode)](#6-wrong-abstraction-sandi-metz-failure-mode)
+- [7. Premature extraction](#7-premature-extraction)
+- [8. Self-generated SSOT](#8-self-generated-ssot)
+- [9. Always-loaded SSOT propagation lag](#9-always-loaded-ssot-propagation-lag)
+- [10. Encapsulation violation](#10-encapsulation-violation)
+- [11. Source-of-truth bifurcation (REFUSE trigger)](#11-source-of-truth-bifurcation-refuse-trigger)
+- [12. Primary-source citation gate (REFUSE trigger)](#12-primary-source-citation-gate-refuse-trigger)
+- [13. Shape C — dedup-by-deletion (POSITIVE pattern)](#13-shape-c--dedup-by-deletion-positive-pattern)
+- [Cross-references](#cross-references)
+
 13-pattern taxonomy. Each entry: pattern + symptom + mitigation procedure. SKILL.md cites this file for the full taxonomy; the body lists pattern names only.
 
 Patterns are framed for markdown extraction (the dominant case) but apply to code and config extractions too — citation rot has a code analog (function rename = stale `import`), over-indirection has a code analog (re-export chains), wrong abstraction is the same Sandi Metz failure regardless of language. File-class adaptations are called out per pattern below.
@@ -15,7 +32,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 **Mitigation.**
 
 1. Cite by EXACT heading text (markdown), exact identifier (code), exact anchor (config) — never by line number or section number
-2. After ANY heading/identifier/anchor edit in an SSOT, run `/docs-hygiene:rename-references` immediately — it sweeps all 10 syntactic forms, not just pure-token grep
+2. After ANY heading/identifier/anchor edit in an SSOT, invoke `/docs-hygiene:rename-references` via the Skill tool immediately — it sweeps all 10 syntactic forms, not just pure-token grep
 3. The SSOT file should include a `## Recheck triggers` section — a rename row triggers the sweep
 4. For code: prefer language-aware refactor (IDE / Roslyn / ts-morph) over text grep; combine with `/docs-hygiene:rename-references` for non-source references (docs, configs)
 
@@ -102,9 +119,10 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Mitigation.**
 
-1. The `identify` action requires evidence of 3+ instances before recommending extraction — Tier 0 grep output captured this turn, not recall
-2. Refuse extraction when only 2 instances exist; cite Rule of Three with author attribution (Don Roberts / Fowler)
-3. Offer to record a tracking note in the working notes so future-self knows to revisit when the third instance lands
+1. The `identify` action requires evidence of 3+ instances before suggesting an artifact-creating output (`rule-file` / `new-skill` / `new-action`) — Tier 0 grep output captured this turn, not recall
+2. Refuse CREATION when only 1-2 instances exist (`verify` Gate 1, `REFUSE-rule-of-three-fails`); cite Rule of Three with author attribution (Don Roberts / Fowler)
+3. Do NOT refuse to report it. The candidate stays on the roster in its N=1 or N=2 bucket with that bucket's non-abstracting remedies — `trim-to-citation`, `normalize-wording`, `name-an-owner`, `edit-existing-rule`. Every one of them edits files that already exist, so none can produce the premature abstraction this pattern is about. Suppressing the finding would not prevent the abstraction; it would only prevent the fix
+4. Offer to record a tracking note in the working notes so future-self knows to revisit when the third instance lands
 
 ## 8. Self-generated SSOT
 
@@ -150,14 +168,27 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 **Pattern.** A concept legitimately exists at TWO tiers — a top-level always-loaded source (`CLAUDE.md` / `AGENTS.md`) for the every-session audience, AND a deep-disclosure aggregator rule file for hook/skill/script authors who need detection mechanics or implementation detail. Both are first-class canonicals serving distinct audiences. Forcing the instruction file to cite the rule creates a citation cycle.
 
+**Intentional vs accidental — the distinction that decides the verdict.** The REFUSE trigger
+protects the INTENTIONAL case: two tiers, two named audiences, a split someone chose. The
+accidental case looks similar and is the opposite problem — two files assert the same contract for
+the SAME audience and NEITHER is the declared owner, so nothing keeps them in sync and they drift.
+That is a defect, not a design.
+
+The **N=2 bucket is how accidental bifurcation reaches the user.** Two instances never cleared the
+old reporting threshold, so the most common form of this defect was silently discarded by the very
+skill meant to catch it. `verify` Gate 4 now splits the two: intentional refuses as below;
+accidental PROCEEDs at `bucket: N=2` with the remedy **`name-an-owner`** — declare one of the two
+existing files canonical and make the other cite it. No third file is created; minting one would be
+the premature abstraction Rule of Three guards against.
+
 **Symptom.** A survey claims "N inline reproductions of <fact>" but Tier 0 grep shows 1 reproduction in the instruction file (top-tier canonical) + 1 in a rule file (aggregator) + N-2 single-concern call sites that need only a slice. Forcing single-citation extraction collapses two legitimate canonicals into one.
 
 **Code/config analog.** The same fact lives in a public README (top-tier audience) AND a developer-guide reference doc (deeper audience); collapsing the README to cite the dev-guide breaks the README's stand-alone value for the entry-point audience.
 
 **Mitigation.**
 
-1. The `verify` action Gate 4 detects bifurcation; refuses extraction with `REFUSE-source-of-truth-bifurcation`
-2. Document both canonicals + their respective audiences in the rule file if not already explicit
+1. The `verify` action Gate 4 detects bifurcation and classifies it. Intentional (distinct named audiences) → refuses extraction with `REFUSE-source-of-truth-bifurcation`. Accidental (same audience, no declared owner) → PROCEED at `bucket: N=2` with `name-an-owner` / `edit-existing-rule` / `normalize-wording`
+2. Document both canonicals + their respective audiences in the rule file if not already explicit — that documentation is what makes the split legible as intentional on the next pass
 3. Single-concern call sites can still cite either canonical (whichever serves their narrower scope) — keep their narrow-slice usage rather than forcing whole-fact citation
 4. **Verbatim source.** `lessons.md` Lesson 8.
 

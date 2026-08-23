@@ -17,6 +17,8 @@ Exercises bridge Knowledge → Skills. Each exercise targets 1-2 specific concep
 
 - **One concept per exercise** — don't combine debugging AND new syntax AND architecture in one problem
 - **Immediate feedback** — user gets response right after attempt, not after a batch
+- **Equal-length quiz answers** — in any multiple-choice question, write options of roughly equal length and formatting weight; a longest-or-most-detailed correct answer leaks itself through presentation alone
+- **Effortful retrieval over recognition** — prefer recall-from-memory prompts to "which of these looks right"; interleave related concepts across practice tasks (skills practice only) per SKILL.md "Fluency vs storage strength"
 - **Mission-connected** — tie exercises to `MISSION.md` goals. "For your blog API" not "for a generic app"
 - **Graded difficulty** — start easy, increase. If user breezes through 3 in a row, jump difficulty. If stuck on 2 in a row, simplify or provide more scaffold
 - **Save to workspace** — persist practice per [SKILL.md](../SKILL.md) "Workspace layout" (`concepts/<concept>/exercise.md` in the active topic workspace) so the user can revisit

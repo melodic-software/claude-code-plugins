@@ -6,9 +6,11 @@ outcome gate's artifact-grounded criteria, or not at all.
 
 - **A silent preload miss looks exactly like a good run.** A dispatched agent whose `skills:` entry
   did not resolve starts anyway, writes an artifact, and reports `coverage: complete`; the harness
-  logs a warning to the debug log and nowhere else. The `preload_token` echo is the only seam that
-  distinguishes the two, which is why a missing or mismatched token discards the run rather than
-  downgrading it.
+  logs a warning to the debug log and nowhere else. The `preload_token` echo is the seam that
+  distinguishes "the discipline body reached the agent" from "it did not"; a missing or mismatched
+  token discards the run rather than downgrading it. It does **not** distinguish preload from the
+  disk fallback — that is the `preload:` field. Treating a matching token as proof preload fired is
+  unsound.
 - **Enumerating the corpus from search results.** A Phase 0 ledger built from what searching happened
   to surface inherits precisely the blind spot the ledger exists to close, and then certifies it. Use
   a surface that is exhaustive by construction, and record the corpus as narrowed when it is.

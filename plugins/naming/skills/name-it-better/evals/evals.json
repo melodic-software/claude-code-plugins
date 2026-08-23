@@ -32,10 +32,12 @@
       "id": 3,
       "name": "tournament-honest-framing",
       "prompt": "/naming:name-it-better tournament — this is the public package name, very hard to change later.",
-      "expected_output": "The tournament action widens to ~5 generators and runs elimination rounds with independent scoring judges, presenting the finalist plus runners-up for the human choice. It frames the tournament HONESTLY as an adaptation of elimination brackets plus pairwise scoring, not as a documented naming technique.",
+      "expected_output": "The tournament action widens to ~5 generators and runs elimination rounds with independent scoring judges, presenting the finalist plus runners-up for the human choice. It settles and writes down which resolved criteria decide this name, and their relative weight, BEFORE the candidates come back. It frames the tournament HONESTLY as an adaptation of elimination brackets plus pairwise scoring, not as a documented naming technique.",
       "files": [],
       "expectations": [
         "Widens to ~5 generators and runs elimination rounds with independent judges",
+        "States the scoring criteria and their relative weight BEFORE the candidate pool comes back — never settles or re-weights the rubric after seeing the candidates",
+        "Draws those criteria from the resolved source of truth rather than inventing them, even while deciding which ones decide this name",
         "Explicitly frames tournament mode as an adaptation, not an established naming standard",
         "Presents the finalist plus runners-up for the human to pick"
       ]

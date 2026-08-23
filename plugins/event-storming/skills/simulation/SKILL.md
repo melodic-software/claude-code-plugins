@@ -1,6 +1,7 @@
 ---
 description: "Agentic AI-driven multi-persona EventStorming simulation on Miro. Use when: 'simulate a workshop', 'run an EventStorming simulation', 'agentic EventStorming', 'multi-persona domain modeling on Miro'. Actions: --simulate [domain] (full multi-persona agentic workshop), --process-model / --design-level [board] (deep-dive against an existing board), --evaluate, --retrospective, --induction, --value, --crc, --ux, --discover-bcs (BC heuristics vs Miro board). Needs a Miro MCP server; degrades to structured-markdown output when Miro is absent. For methodology / facilitation reference use /event-storming:methodology."
 user-invocable: true
+disable-model-invocation: false
 argument-hint: "[--simulate|--process-model|--design-level|--evaluate|--retrospective|--induction|--value|--crc|--ux|--discover-bcs] [domain]"
 metadata:
   workflow-stage: plan
@@ -28,7 +29,7 @@ Parse `$ARGUMENTS` for a simulation mode:
 
 If no simulation mode is specified, ask whether to run a full `--simulate` cycle (defaulting the domain to "Developer Conference") or to read facilitation reference instead (`/event-storming:methodology`).
 
-For facilitation knowledge, format guidance, notation, and the no-args interactive discovery flow, use `/event-storming:methodology`.
+For facilitation knowledge, format guidance, notation, and the no-args interactive discovery flow, invoke `/event-storming:methodology` via the Skill tool.
 
 ---
 

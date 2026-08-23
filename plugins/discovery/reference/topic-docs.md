@@ -21,25 +21,35 @@ Discovery writes **memory tier only** — working documents nothing downstream e
 |---|---|
 | `EXPLORE.md` (+ `EXPLORE-<section>.md` sidecars and overflow) | `<memory_dir>/<slug>/` (default `.work/<slug>/`) — never committed |
 | `RESEARCH.md` (+ `RESEARCH-<section>.md` sidecars and overflow) | `<memory_dir>/<slug>/` — never committed |
+| `INTENT.md` (+ `INTENT-<section>.md` sidecars) | `<memory_dir>/<slug>/` — never committed |
+
+`INTENT.md` is **private to `/discovery:trace-intent`**: it appears in this table because this is
+where the plugin states what it writes, and deliberately **not** in the sibling
+`artifact-protocol.md`, because it is not a shared lifecycle kind. Nothing outside this plugin
+consumes it by name. Promoting it would oblige an identical edit to five byte-identical copies of
+that protocol file plus a version bump, which is a price worth paying for an artifact several
+plugins read and not for one that stays here.
 
 Discovery never writes the contract tier; the `contract_tier` setting does not change where its
-artifacts land. The dispatched `discovery:explorer` / `discovery:researcher` agents, and a Tier-2
-`research-deep` subagent, all operate under the contract's **non-interactive / forked mode** rule:
-they cannot ask, so any assumed destination is flagged in the return rather than silently adopted.
+artifacts land. The dispatched `discovery:explorer` / `discovery:researcher` / `discovery:intent-tracer`
+agents, and a Tier-2 `research-deep` subagent, all operate under the contract's **non-interactive /
+forked mode** rule: they cannot ask, so any assumed destination is flagged in the return rather than
+silently adopted.
 
 ## The write boundary — stated once
 
-**This is the single statement of where a dispatched agent may write.** Both agent definitions point
-here rather than restating it; three earlier restatements disagreed with each other about whether
-scratch was inside the boundary or outside it.
+**This is the single statement of where a dispatched agent may write.** All three agent definitions
+point here rather than restating it; three earlier restatements disagreed with each other about
+whether scratch was inside the boundary or outside it.
 
-A dispatched `discovery:explorer` / `discovery:researcher` writes to exactly these:
+A dispatched `discovery:explorer` / `discovery:researcher` / `discovery:intent-tracer` writes to
+exactly these:
 
 | Destination | Who | Notes |
 |---|---|---|
-| The artifact files — index and sidecars, plus `research-checklist.md` — inside the **memory-slice path named in the dispatch prompt** | both | the deliverable |
-| **Scratch inside that same slice**, named `scratch-<purpose>` (a file, or a directory holding several) | both | sanctioned: `artifact-protocol.md` lists "scratch" among the memory-tier kinds under `<memory_dir>/<topic-slug>/` |
-| The **memory root's** self-ignoring `.gitignore` guard, when it is absent | both | the one write outside the slice, and the reason the memory root is its own envelope field |
+| The artifact files — index and sidecars, plus `research-checklist.md` where the family owes one — inside the **memory-slice path named in the dispatch prompt** | all three | the deliverable; only research owes a checklist |
+| **Scratch inside that same slice**, named `scratch-<purpose>` (a file, or a directory holding several) | all three | sanctioned: `artifact-protocol.md` lists "scratch" among the memory-tier kinds under `<memory_dir>/<topic-slug>/` |
+| The **memory root's** self-ignoring `.gitignore` guard, when it is absent | all three | the one write outside the slice, and the reason the memory root is its own envelope field |
 
 Nothing else. Not repository source, not the contract tier, not another slice, not the consumer's
 root `.gitignore`.
@@ -56,8 +66,9 @@ report, not to tidy silently.
 boundary.** `Bash`-mediated downloads of artifacts too large to fetch in context (`curl` into the
 session scratch dir the harness provides) land there, not in the slice. It is not a memory-tier
 location, nothing in it is a deliverable, no artifact ever records a path into it, and this plugin
-owes it no cleanup. `discovery:explorer` has no equivalent: its Bash is read-only, so it downloads
-nothing.
+owes it no cleanup. The same applies to `discovery:intent-tracer` where it pulls down a long-form
+document too large to read in context. `discovery:explorer` has no equivalent: its Bash is read-only,
+so it downloads nothing.
 
 ## Visibility (contract ≥ 2.0.0)
 
@@ -72,8 +83,10 @@ the memory slice.
 
 **Where that rule is reachable from.** A worker does not choose the by-value mode by reading this
 file; it is `persistence: by-value` in the return payload (`agents/explorer.md`,
-`agents/researcher.md`), and the parent acts on it at the `persistence: by-value` rung of both
-recovery ladders — `skills/explore/reference/dispatch.md` and `skills/research/context/dispatch.md`.
+`agents/researcher.md`, `agents/intent-tracer.md`), and the parent acts on it at the
+`persistence: by-value` rung of each family's recovery ladder —
+`skills/explore/reference/dispatch.md`, `skills/research/context/dispatch.md` and
+`skills/trace-intent/context/dispatch.md`.
 The parent writes the slice from the payload's verbatim artifact bodies and then re-runs the
 acceptance gate against disk. The mode changes **who writes**, never **whether the gate passes**:
 findings returned in place of an artifact are a failed dispatch, not a fallback.

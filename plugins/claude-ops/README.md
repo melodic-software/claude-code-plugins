@@ -1,7 +1,8 @@
 # claude-ops
 
 A Claude Code plugin for running Claude Code well over time — one cohesive
-capability across ten skills and a family of telemetry-emitter hooks.
+capability across eleven skills and a family of telemetry-emitter hooks — including diagnosing why
+most of an installed skill fleet never gets used.
 audit-install-state reports on the machine-scope `~/.claude` install directory
 itself, audit-performance captures slowness evidence at the moment a machine or
 session feels slow so the cause is diagnosed instead of nuked,
@@ -18,6 +19,7 @@ Claude Code's native OTEL cannot see.
 
 | Skill | What it does |
 |---|---|
+| `/claude-ops:audit-skill-visibility` | Audits whether the model can actually **see** each installed skill — the question behind "why does most of my fleet never get used?", since a skill the model cannot see can never be chosen. Reports three independent things per skill: **reachability** (visible, `user-only` by design, hidden by an override or disabled plugin, or invisibly misconfigured), **observation** (what usage was actually recorded, always horizon-qualified), and **starvation** (whether it is losing the description-budget contest — Claude Code drops descriptions starting with the skills you invoke least, so an unused skill loses the keywords a request would match and stays unused). Whether the listing overflows is computed from documented settings; which particular skills lose their descriptions is a labelled likelihood band, never an exact cutoff. Withholds every cold verdict the data cannot support instead of reporting absence of data as absence of use. Read-only. |
 | `/claude-ops:audit-install-state` | Read-only audit of the machine-scope Claude Code installation directory — the `~/.claude` tree plus the home-root `~/.claude.json`. Inventories every file (entries labelled as an authored surface or a rolled-up bulk tree, with the complete per-file rows in a CSV artifact), separates what Claude Code's own `cleanupPeriodDays` sweep already manages from what nothing manages, resolves what each number in a filename actually *is* before attempting any process-liveness lookup, and deny-lists any subtree holding a revert ledger before classifying anything as stale. Never deletes; hands off to `claude project purge` and `/disk-hygiene:clean`. |
 | `/claude-ops:audit-performance` | Read-only slowness-diagnostic capture, run at the moment the machine or a session feels slow — before restarting or deleting anything. One timed engine pass separates the three documented suspects: accumulated install-tree state (retention-sweep health including the silent unparsable-`settings.json` pause, plus a timed stat-walk whose duration approximates the product's own daily sweep cost), version regression (CLI version against a bundled known-performance-issues reference), and component bloat (fleet and process censuses, verdict routed to `/claude-ops:plugins audit`). Phase timings are first-class evidence; content reads are allowlisted to `settings.json` and `.last-cleanup` — `~/.claude.json` and `history.jsonl` stay stat-only. Reports and routes; never mutates, never elevates. |
 | `/claude-ops:observability` | Reads locally captured Claude Code telemetry — OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage — and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
@@ -120,9 +122,8 @@ install command:
 claude plugin install claude-ops@<marketplace> --config skill_usage_audit_enabled=false
 ```
 
-These options are user-scoped (stored in your user settings, not the
-project's). To turn a hook off for a single repository, disable the whole plugin
-in that project's `enabledPlugins` instead.
+Option scoping (user vs project settings, and the per-repository escape hatch)
+per "How to set these" below.
 
 ### Wiring the reference sink
 
@@ -296,12 +297,27 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure claude-ops@<marketplace>`.
-2. **Headless, at install time** — repeat `--config` for each option. Replace
+2. **Headless** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install claude-ops@<marketplace> --config registry_dir=<value>
+   claude plugin install claude-ops@<marketplace> -s <scope> --config registry_dir=<value>
    ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value — verified on Claude Code 2.1.240,
+   for a non-sensitive option at `user` scope, by writing a non-default value to an
+   installed plugin and restoring it. The short-circuit message is about the install,
+   not the config write. That has not been verified for a `sensitive` option or for
+   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin.
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior — a check run in the old session
+   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -329,8 +345,9 @@ hands a configured value to a hook process; the value comes from the routes abov
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->

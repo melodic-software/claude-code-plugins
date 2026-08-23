@@ -35,6 +35,8 @@
 
 Resources MUST be verified against the source this turn — fetch and confirm URLs before adding. Training-recall recommendations are unverified synthesis; verify before listing.
 
+**Scope by mode:** the fetch-and-confirm rule applies to EXTERNAL entries. In codebase mode, Repo Sources are the verification — files Read this turn need no fetch, and a Repo-Sources-only `RESOURCES.md` is compliant; add external Knowledge/Wisdom entries only when the mission needs sources beyond the repo.
+
 RESOURCES entries double as the **rot re-verify anchor**: lessons and references cite them inline, and the Staleness check (SKILL.md "Staleness") re-fetches the cited source to refresh a stale durable artifact.
 
 ## Codebase Mode

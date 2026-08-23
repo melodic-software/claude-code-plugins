@@ -15,15 +15,11 @@ Transcript project dirs (recent): !`ls -1dt "$HOME/.claude/projects/"*/ 2>/dev/n
 
 ## Context — gather first
 
-Collect these with **individual** Bash calls, one command per call:
-
-- Claude session id — `printenv CLAUDE_CODE_SESSION_ID`
-- Current branch — `git branch --show-current`
-
-Treat any failure as an unknown value and carry on. These are gathered here rather than pre-computed
-because a worktree-isolated agent refuses any command carrying a `$`-expansion, which made this skill
-fail at load — keep `$`-expansion out of the pre-compute block (#1687). Bare `$HOME` above is the one
-form observed to survive that guard; anything else, including `${HOME}`, is refused.
+Take `session-id` and `branch` only — this skill's detection ladder reads the filesystem, not git
+state. Probe commands, the one-command-per-call and treat-failure-as-unknown rules, and the
+`$`-expansion rationale, including that bare `$HOME` is the one form observed to survive the
+worktree-isolation guard while `${HOME}` is refused:
+[`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 # Find handoff
 
@@ -364,7 +360,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
      `/session-flow:handoff` resume path). For a prompt-only recovery, continue from the inline
      prompt.
    - **Ended mid-work** (the recovered state shows interrupted, in-flight work rather than a
-     deliberate save-point) → hand to `/session-flow:keep-going`, which recovers and continues
+     deliberate save-point) → hand off by invoking `/session-flow:keep-going` via the Skill tool, which recovers and continues
      interrupted work.
 
 ## Read-only + redaction — hard invariants

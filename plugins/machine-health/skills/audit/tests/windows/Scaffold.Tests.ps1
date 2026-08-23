@@ -126,6 +126,17 @@ Describe 'Scaffold -- Mock factories' {
         $m.RealTimeProtectionEnabled | Should -BeTrue
         $m.AntivirusSignatureAge | Should -Be 1
     }
+
+    It 'New-MockEnvironmentKey exposes GetValueNames/GetValueKind/GetValue' {
+        $k = New-MockEnvironmentKey -Entries @{
+            Path              = @{ Kind = 'ExpandString'; Value = 'C:\bin' }
+            GITHUB_TOKEN      = @{ Kind = 'String'; Value = 'planted-secret' }
+        }
+        $k.GetValueNames() | Should -Contain 'Path'
+        $k.GetValueKind('Path') | Should -Be 'ExpandString'
+        $k.GetValue('Path', $null, 1) | Should -Be 'C:\bin'
+        $k.GetValueCalls | Should -Contain 'Path'
+    }
 }
 
 Describe 'Scaffold -- Invoke-FixtureRedaction' {

@@ -9,6 +9,15 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-hook-userconfig-argv.sh"
 
+# A fixture runs a COPY of the gate, so it must also carry the shared libraries
+# that copy sources (scripts/lib/*.sh). Without it the copied gate dies on a
+# missing source at line 1 and every assertion below turns into the same opaque
+# failure. See #3161.
+stage_libs() {
+  mkdir -p "$1/lib"
+  cp "$SELF_DIR/lib/read-list.sh" "$1/lib/"
+}
+
 PASS=0
 FAIL=0
 fail() {
@@ -25,6 +34,7 @@ new_fixture() {
   dir="$(mktemp -d)"
   mkdir -p "$dir/scripts" "$dir/plugins"
   cp "$SCRIPT" "$dir/scripts/check-hook-userconfig-argv.sh"
+  stage_libs "$dir/scripts"
   chmod +x "$dir/scripts/check-hook-userconfig-argv.sh"
   printf '%s' "$dir"
 }

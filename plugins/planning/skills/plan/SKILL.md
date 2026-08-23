@@ -52,7 +52,7 @@ Parse `$ARGUMENTS` to determine the action:
 
 ### Step 1: Prerequisite Check
 
-Before the prerequisite checklist runs, apply a pre-planning discipline checklist. If the `andrej-karpathy-skills` plugin is installed, invoke `/andrej-karpathy-skills:karpathy-guidelines` to prime four behavioral rules — think-before-code, simplicity-first, surgical-changes, goal-driven-execution. If the plugin is absent, fall back gracefully: the consuming project's own rules plus this skill's Step 2 plan-formulation and Step 3 plan stress-test discipline cover the same ground — proceed without prompting.
+Before the prerequisite checklist runs, apply a pre-planning discipline checklist. If the `andrej-karpathy-skills` plugin is installed, invoke `/andrej-karpathy-skills:karpathy-guidelines` via the Skill tool to prime four behavioral rules — think-before-code, simplicity-first, surgical-changes, goal-driven-execution. If the plugin is absent, fall back gracefully: the consuming project's own rules plus this skill's Step 2 plan-formulation and Step 3 plan stress-test discipline cover the same ground — proceed without prompting.
 
 Before planning, verify the knowledge base is ready:
 
@@ -93,7 +93,7 @@ Produce a structured plan using the template in [context/plan-template.md](conte
 
 - **Goal**: what we're trying to achieve and why
 - **Approach**: the specific steps, in order
-- **Test strategy**: how we'll verify the changes work — for which test type each kind of change needs (unit / integration / e2e / architecture / analyzer), `/testing:plan`'s file-type classification table is the SSOT **when the `testing` plugin is installed**; **invoke `/tdd:principles` (if installed)** when formulating this section for authoritative guidance on what to test, which testing style fits, and when to mock; otherwise apply standard test-design judgment. TDD is the default approach — the test strategy should specify Red-Green-Refactor unless genuinely impractical
+- **Test strategy**: how we'll verify the changes work — for which test type each kind of change needs (unit / integration / e2e / architecture / analyzer), `/testing:plan`'s file-type classification table is the SSOT **when the `testing` plugin is installed**; **invoke `/tdd:principles` via the Skill tool (if installed)** when formulating this section for authoritative guidance on what to test, which testing style fits, and when to mock; otherwise apply standard test-design judgment. TDD is the default approach — the test strategy should specify Red-Green-Refactor unless genuinely impractical. **Name the test boundaries** — the public interfaces the tests will drive, and for each whether it already exists or is being introduced (prefer driving an existing interface over introducing one for testability alone). Naming them is what lets Step 5's approval settle them, so implementation writes no test against a boundary the plan never named; on an unattended run, a boundary chosen during implementation that this section did not name is a deviation, logged for PR-time review (`DEVIATIONS.md` beside `PLAN.md` in the contract slice) rather than silently taken
 - **Files affected**: what gets created, modified, or deleted
 - **Alternatives considered**: what was rejected and why
 - **Risks and mitigations**: what could go wrong
@@ -123,11 +123,11 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 
 **Integration-first phase ordering** — once the technique is the kept branch (tracer bullet / walking skeleton), for multi-layer features sequence the FIRST phase as the integration slice and make its `**Sanity Check:**` an end-to-end runtime probe. Skip for pure-horizontal work (migration, lint, doc pass).
 
-**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: route to `/verification:measure performance baseline` (perf) or `/verification:measure metrics baseline` (code metrics) if installed — the measurement mechanism is SSOT there; this skill routes, never reimplements — or measure the pre-change state manually. Store the raw capture under `<memory_dir>/<topic-slug>/baselines/` (default `.work/`; the memory slice — baselines are machine-bound and never committed), then record the distilled baseline value + target in PLAN.md. After the change, re-measure and compare through the same route (its `compare` phase reads the stored baseline, or re-measure manually) and record the comparison in PLAN.md as distilled values only — PLAN never cites the memory-slice capture path (it is invisible outside the writing checkout and the pointer would dangle; topic-docs pointer discipline). Never claim an improvement without a baseline.
+**Measurable-goal baseline capture** — when the brief states a measurable goal (perf / latency / throughput / allocation / complexity / coverage keywords), capture a baseline **by default** BEFORE the change: invoke `/verification:measure performance baseline` (perf) or `/verification:measure metrics baseline` (code metrics) via the Skill tool if installed — the measurement mechanism is SSOT there; this skill routes, never reimplements — or measure the pre-change state manually. Store the raw capture under `<memory_dir>/<topic-slug>/baselines/` (default `.work/`; the memory slice — baselines are machine-bound and never committed), then record the distilled baseline value + target in PLAN.md. After the change, re-measure and compare through the same route (its `compare` phase reads the stored baseline, or re-measure manually) and record the comparison in PLAN.md as distilled values only — PLAN never cites the memory-slice capture path (it is invisible outside the writing checkout and the pointer would dangle; topic-docs pointer discipline). Never claim an improvement without a baseline.
 
 ### Step 3: Plan Stress-Test (MANDATORY — never skip)
 
-**Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent.** The producing main thread MUST NOT self-attack the plan inline — fresh-context verifiers outperform self-critique; the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve.
+**Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent.** The producing main thread MUST NOT self-attack the plan inline — fresh-context verifiers outperform self-critique; the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve (per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
 1. Gather the plan draft + design artifacts (or `design-resolution.md`) + the Brief
 2. Dispatch a read-only general sub-agent with the prompt from [context/plan-reviewer.md](context/plan-reviewer.md)
@@ -155,10 +155,10 @@ If MEDIUM or higher, or any trigger matches: proceed to Step 4 (Formal Stress-Te
 
 This step runs only when the blast-radius assessment triggers it. Note: Step 3 (plan stress-test sub-agent) already ran — this is the deeper, formal version.
 
-1. **Dispatch `/planning:devils-advocate` to a fresh-context sub-agent** — hand it the plan (plus the Brief and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them — sub-agent findings are synthesis, not ground truth
+1. **Dispatch `/planning:devils-advocate` — invoked via the Skill tool — to a fresh-context sub-agent** — hand it the plan (plus the Brief and any design artifacts), not your rationale for it. The producing main thread MUST NOT run the stress-test inline, for the same reason Step 3 dispatches: the context that wrote the plan carries the assumptions that produced its blind spots and converges on approval rather than detection. The stress-test skill runs its own multi-round process (assumption identification, evidence check, failure scenarios, operational gotchas) in that clean context; the main thread then verifies its findings against the actual code/files before acting on them — sub-agent findings are synthesis, not ground truth
 
 2. **Evaluate findings** — if `/planning:devils-advocate` produces CRITICAL or HIGH findings:
-   - Run targeted research to resolve the specific issues surfaced (`/discovery:research` if installed, or the strongest research capability available)
+   - Run targeted research to resolve the specific issues surfaced (invoke `/discovery:research` via the Skill tool if installed, or the strongest research capability available)
    - Update the plan based on new evidence
    - Re-assess: does the updated plan survive scrutiny?
 
@@ -248,7 +248,9 @@ Claude Code's built-in plan mode provides read-only enforcement — Claude reads
 
 The skill does not automatically enter plan mode — the user controls permission modes. But if you're about to plan a complex change and are NOT in plan mode, suggest it: "Consider entering plan mode (`shift+tab`) for safe exploration while we design this."
 
-Plan mode is also a natural moment for clarifying questions — if you're entering plan mode for safe exploration during planning, treat it as a license to ask 1–4 clarifying questions before proposing the plan, as one numbered round. The round renders via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the questions are independent — inline prose otherwise.
+Plan mode is also a natural moment for a **scoping confirm** — if you're entering plan mode for safe exploration during planning, treat it as a license to ask 1–4 questions that settle what this plan covers, as one numbered round before proposing it. The round renders via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the questions are independent — inline prose otherwise.
+
+**Substantive rounds do not belong in plan mode.** A question that resolves *what we are building* — real tradeoffs, contested requirements, anything whose answer changes the plan's shape — routes to `/planning:interview` via the Skill tool, run with **plan mode off**, for two reasons. Mechanically, that skill's ask-time open-question register is a disk write, and plan mode's read-only enforcement blocks it, so questions get asked with nothing on disk holding them. Doctrinally, plan mode primes the run toward producing the plan — the asset rush lane 4 records — when the job is still reaching shared understanding. Plan mode's round confirms scope; it is not a substitute for the interview. **Getting there is the user's move, not yours** — symmetric to entering plan mode above: you do not toggle permission modes, so when plan mode is active and a substantive round comes due, say why and ask the user to exit it (`shift+tab`), then invoke the interview once they have. Do not invoke it from inside plan mode on the assumption the register write will survive — it will not.
 
 ## Plan Review Mode
 
@@ -317,6 +319,21 @@ Write the plan even for small changes — future you or a fresh-session agent wi
 
    **ADR admission test** — a decision earns an ADR only when ALL three hold: **hard to reverse** (changing course later carries real cost), **surprising without context** (a future reader of the code would wonder why it was done this way), and **the result of a real trade-off** (genuine alternatives existed and one was picked for specific reasons). Any one missing → no ADR: an easily reversed decision just gets reversed, an unsurprising one raises no questions, and a no-alternative decision has nothing worth recording. Keep each ADR minimal — a title plus a few sentences covering context, decision, and why; optional sections (status, considered options, consequences) only when they earn their place. Prefer writing the ADR the moment the decision crystallizes during planning over batching candidates at graduation — this step then just moves the already-written file.
 3. Prune with pointer: a final commit before merge deletes the contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`), leaving context pointers (the PR body, the promoted-doc and tracker locations) in its place.
+4. Spec-container ship ritual (presence-gated — only when the `work-items` plugin is installed
+   AND the topic's decomposition published a spec container). **Detect the container
+   mechanically, never from in-session memory** (close-out often runs in a fresh session):
+   first read the topic's PLAN.md for the `**Spec container:** <qualified-id>` line
+   `/work-items:decompose` records under `## Brief` at publish time; absent that line, query
+   the tracker for an open item carrying the binding-resolved container label (default
+   `work-map`) whose body cites the topic slug. Found → run the container's close-at-ship
+   ritual through the path that owns it — `/work-items:decompose` "Container lifecycle
+   (spec-on-tracker)". That section owns the mechanics (verify every sub-item closed, close-out
+   review against the container body, close with a comment linking the shipping PRs — archival
+   by closure); this step only sequences it into close-out and never redefines it. When the
+   shipped work covers only part of the container's sub-items, the container stays open — close
+   it only when the whole spec has shipped. Neither detection path yields a container, or no
+   `work-items` plugin: skip silently. Publishing a container is `/work-items:decompose`'s
+   approval-time offer, never a close-out side effect.
 
 Lifecycle detail and the redaction bar for committed evidence: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 

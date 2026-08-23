@@ -67,14 +67,14 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 2. **Survey-then-deep** — before asking blind, do a fast breadth pass (repo files, recent commits, existing skills, relevant project rules) so questions land in real context
 3. **Climb-to-anchor** — find the nearest `CLAUDE.md`, `AGENTS.md`, domain-vocabulary file, or module README by walking UP from the relevant directory toward repo root; let those shape questions instead of asking what is already documented
 4. **Immediate doc maintenance** *(engineering sessions only)* — when an answer resolves a domain
-   term, invoke `/domain-driven-design:curate-language` (if that plugin is installed — else
+   term, invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is installed — else
    record the term in the Brief's glossary notes) IMMEDIATELY between questions, not
    batched at end. Route
    decisions, gotchas, and conventions to their proper homes (ADR, project rules, side note) in the
    same response. A general session writes no repo docs — it drives to a shared-understanding summary
    only
 
-**Intake the starting point.** Early in the loop (or before it), establish where the user is — one intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER — they can't yet evaluate options because they don't know the domain or codebase area — route to a blindspot-surfacing exploration FIRST (`/discovery:blindspot <area>` if installed, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
+**Intake the starting point.** Early in the loop (or before it), establish where the user is — one intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER — they can't yet evaluate options because they don't know the domain or codebase area — route to a blindspot-surfacing exploration FIRST (invoke `/discovery:blindspot <area>` via the Skill tool if installed, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
 
 When the effort is too big to hold at once AND still too foggy to phrase as sharp questions — the user can't yet list the decisions, let alone lock them — that is upstream of `/planning:interview`. Name `/planning:wayfind` to the user (it charts the fog as a decision map and works the frontier down decision by decision, graduating to a Brief once it clears); recommend, never auto-switch.
 
@@ -291,11 +291,12 @@ knob-picking signals in [`context/session-config.md`](context/session-config.md)
 | Product intent fuzzy (whose problem, what success) | `/planning:prd` | Upstream of `/planning:interview`; PRD answers *what for whom and why* |
 | Need codebase grounding | `/discovery:explore` (if installed) | Reads PLAN.md Brief as scope |
 | Need external evidence | `/discovery:research` (if installed) | Reads PLAN.md Brief as scope |
+| A question needs something built to react to | `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape) (if installed) | Mid-interview detour: confirm scope and checkpoint, build the throwaway, react to it, return and answer in one line |
 | Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output |
 | Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions |
 | Pause and resume later | `/session-flow:handoff` (if installed) | Captures session state, distinct from the Brief (mid-task pause vs pre-execution intent) |
 
-**Mid-interview composition (`me` mode):** research, exploration, and handoff are not only downstream — invoke them *during* the interview when a recommendation needs external/codebase grounding or when branches outgrow the session. Return to the open branch after.
+**Mid-interview composition (`me` mode):** research, exploration, prototyping, and handoff are not only downstream — invoke them *during* the interview when a recommendation needs external/codebase grounding, when a question needs something built to react to, or when branches outgrow the session. Return to the open branch after. **The ungrillable question:** when a look, feel, or behavior question cannot be answered by asking — the user has to see the thing to know what they think — stop grilling and route it to a throwaway prototype: `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape), invoked via the Skill tool if installed. Those skills gate their own model-initiated entry, so confirm the spike's scope with the user and checkpoint this interview before handing off — the detour leaves an active workflow. Checkpointing is persistence the interview already owes: the question registered `open` at ask-time, plus the ledger and Brief written per lock-in, which is what lets the open branch survive the detour. Then come back and answer the question in one line. The prototype is the instrument that produces the answer, not a deliverable; it is thrown away.
 
 `/planning:interview` is sister to `/planning:plan`: one resolves *what*, the other resolves *how*. They share the topic slug, share the directory, feed each other.

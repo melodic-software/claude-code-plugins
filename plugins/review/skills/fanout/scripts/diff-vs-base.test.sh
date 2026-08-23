@@ -6,6 +6,10 @@
 # non-`main` fixtures make the assertions unambiguous about WHICH fallback ran.
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/diff-vs-base.sh"
 
@@ -38,7 +42,7 @@ assert_contains() {
 }
 
 # Fixture repos must never inherit an outer hook chain's exported git env.
-git_env_reset() { unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR; }
+git_env_reset() { unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG; }
 
 # make_fixture <name> <branch> — bare origin whose HEAD is <branch>, plus a clone-ish
 # work repo one commit ahead of the pushed tip. Echoes the work-repo path.

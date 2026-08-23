@@ -1,6 +1,6 @@
 ---
-description: "Sweep the codebase's source comments — not tracker items — for actionable markers (TODO/FIXME/HACK/XXX) and resolve or file each one. Use when: 'scan TODOs', 'scan for FIXME', 'sweep the codebase for markers', 'find TODO comments', 'resolve TODO/FIXME/HACK', 'scan for tech-debt comments', 'clean up markers'. NOT the encouraged workflow for new work — durable work belongs in the tracker at authoring time; prefer a commit-time hygiene gate. Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:triage (raw intake), /work-items:decompose (plan → tickets)."
-argument-hint: "[--path <dir>] [--work] — sweep TODO/FIXME/HACK/XXX markers"
+description: "Sweep the codebase's source comments, not tracker items, for actionable markers (TODO/FIXME/HACK/XXX) and resolve or file each one. Use when: 'scan TODOs', 'scan for FIXME', 'sweep the codebase for markers', 'find TODO comments', 'resolve TODO/FIXME/HACK', 'scan for tech-debt comments', 'clean up markers'. NOT the encouraged workflow for new work. Durable work belongs in the tracker at authoring time; prefer a commit-time hygiene gate. Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:triage (raw intake), /work-items:decompose (plan → tickets)."
+argument-hint: "[--path <dir>] [--work]. Sweep TODO/FIXME/HACK/XXX markers"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -22,7 +22,7 @@ seam via the `/work-items:track add` path; the core inlines no provider commands
 
 ## Purpose
 
-Sweep the codebase for actionable comment markers (`TODO`/`FIXME`/`HACK`/`XXX`) and resolve or file each one. **Not** the encouraged workflow for new work — durable work belongs in the tracker at authoring time; prefer a commit-time hygiene gate (linter or git hook) in the consuming repo to catch new violations as they land.
+Sweep the codebase for actionable comment markers (`TODO`/`FIXME`/`HACK`/`XXX`) and resolve or file each one. **Not** the encouraged workflow for new work. Durable work belongs in the tracker at authoring time; prefer a commit-time hygiene gate (linter or git hook) in the consuming repo to catch new violations as they land.
 
 ## Usage
 
@@ -32,8 +32,8 @@ Sweep the codebase for actionable comment markers (`TODO`/`FIXME`/`HACK`/`XXX`) 
 
 ## Flags
 
-- `--path <dir>` — Limit scan to a specific directory (default: repo root)
-- `--work` — After presenting groups, auto-select the smallest group and start resolving
+- `--path <dir>`, Limit scan to a specific directory (default: repo root)
+- `--work`, After presenting groups, auto-select the smallest group and start resolving
 
 ## Detection
 
@@ -50,7 +50,7 @@ git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TO
 
 ## Workflow
 
-1. **Scan** using the detection command above (or the repo's own tooling). Avoid per-file grep loops over large trees — one `git grep` pass scales; per-file spawning is unusable on Windows.
+1. **Scan** using the detection command above (or the repo's own tooling). Avoid per-file grep loops over large trees, one `git grep` pass scales; per-file spawning is unusable on Windows.
 
 1. **Group** by parent folder. Count items per group.
 
@@ -60,13 +60,13 @@ git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TO
 
 1. **For each marker**, read context (10 lines before/after), then classify:
 
-- **Resolve now** — small fix; do the work, remove the marker
-- **File a work item + remove marker** — significant work; create via `/work-items:track add` following the shared self-observation contract ([`${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md`](${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md): dedupe → categorize → fixed shape → `needs-triage`), remove the inline marker (do not leave `TODO` as a stand-in for the item)
-- **Remove (already done)** — work completed; delete the comment
-- **False positive** — structured grammar or external upstream citation misclassified; fix the exclusion if systemic, otherwise note it in the PR
+- **Resolve now**, small fix; do the work, remove the marker
+- **File a work item + remove marker**, significant work; create it by invoking `/work-items:track add` via the Skill tool following the shared self-observation contract ([`${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md`](${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md): dedupe → categorize → fixed shape → `needs-triage`), remove the inline marker (do not leave `TODO` as a stand-in for the item)
+- **Remove (already done)**, work completed; delete the comment
+- **False positive**, structured grammar or external upstream citation misclassified; fix the exclusion if systemic, otherwise note it in the PR
 
 **Never** "Keep (intentional)" for actionable `TODO`/`FIXME`/`HACK`/`XXX` in merged production code.
 
 1. **After processing a group**, present results table with file, line, action, detail.
 
-1. **Verify** — run the consuming repo's build/test/lint commands if any source files were modified.
+1. **Verify**. Run the consuming repo's build/test/lint commands if any source files were modified.

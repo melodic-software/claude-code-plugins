@@ -2,6 +2,7 @@
 description: "Generate and evaluate fresh name candidates for anything — a variable, function, file, module, skill, repo, or domain term — then let the human pick. Use when the target name is still UNDECIDED: 'name it better', 'better name', 'that name is wrong', 'suggest names', 'what should I call this', 'need a name for', 'come up with a name', 'help me rename this to something better'. Not for an already-decided rename ('rename X to Y', 'I renamed X') — that routes to the rename-references sweep. Spawns blind fresh-context generators from distinct lenses; never auto-locks a name. Optional 'tournament' arg for high-stakes, hard-to-refactor names."
 argument-hint: "[tournament]"
 user-invocable: true
+disable-model-invocation: false
 metadata:
   workflow-stage: plan
   summary: Generate and evaluate name candidates from blind fresh-context lenses
@@ -197,6 +198,16 @@ a user-stated blocklisted word, or collide with the existing vocabulary
 (agent-inferred blocklist matches enter the bracket flagged, not
 disqualified). A rejected, blocklisted, or colliding name must never enter
 the bracket, let alone reach the finalist.
+
+**Settle the scoring criteria before the generators return, and write them
+down.** The criteria are still resolved from the consuming project's own
+declared standards, not chosen here — but *which* of them decide this name,
+and how they rank, is a judgement, and it must be made while the pool is
+still unknown. A rubric fixed after the candidates land gets shaped by
+them, and one that already fits the pool cannot eliminate anything: the
+independent judges then score against a standard the pool itself authored.
+A criterion found missing mid-bracket still routes upstream, and adding it
+means re-scoring the round it changes.
 
 HONEST FRAMING: a "naming tournament / bracket" is NOT a documented
 software-naming technique. This mode ADAPTS elimination brackets plus

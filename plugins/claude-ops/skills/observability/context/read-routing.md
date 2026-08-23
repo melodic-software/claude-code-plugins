@@ -29,6 +29,7 @@ Hooks ──▶ hook-events.jsonl
 |---|---|---|
 | Token/cost totals, per-model split, billing blocks | ccusage MCP or CLI | [data-sources.md](data-sources.md) §1 |
 | Hook p95 latency, hook errors, recurring hook sequences | `hook-events.jsonl` | [data-sources.md](data-sources.md) §2 |
+| Why most installed skills never get used — starved by the listing budget, unreachable, or simply unobserved | `/claude-ops:audit-skill-visibility` | That skill owns interpretation of skill-usage data; this skill owns the store, the OTEL pipeline, and retention |
 | Tool latency, API errors (historical) | DuckDB `cc_logs` | [otel-queries.md](otel-queries.md) |
 | Token/cost metrics (historical) | DuckDB `cc_metrics` | [otel-queries.md](otel-queries.md) |
 | Cache health — is prompt caching working | DuckDB `cc_metrics`, `cacheRead` vs `cacheCreation` per model | [otel-queries.md](otel-queries.md) |
@@ -64,6 +65,7 @@ Hooks ──▶ hook-events.jsonl
 | OTEL structure (logs + traces) | `CC_OTEL_RETENTION_DAYS` | 7 days |
 | OTEL API bodies (logs only) | `CC_OTEL_BODY_RETENTION_DAYS` | 2 days |
 | JSONL hook events | `/claude-ops:observability clean --keep-days N` | 30 days |
+| JSONL skill usage | `/claude-ops:observability clean --skill-usage-scope <scope>` | 365 days (opt-in; inert without the flag) |
 | Aspire RAM | none | restart to reclaim |
 
 Full prune mechanics: [operator-setup-retention.md](operator-setup-retention.md) "Pruning the store (retention) — two tiers".
@@ -84,4 +86,4 @@ Full prune mechanics: [operator-setup-retention.md](operator-setup-retention.md)
 | **`/claude-ops:observability`** | **Your** telemetry — hooks, OTEL store, collector, dashboard, ccusage, trends |
 | **`/claude-ops:known-issues`** | **Anthropic product** bugs — GitHub issue registry, health checks, workarounds |
 
-CC behaving unexpectedly → `/claude-ops:known-issues search <feature>`. Reading what CC emitted → this file.
+CC behaving unexpectedly → invoke `/claude-ops:known-issues search <feature>` via the Skill tool. Reading what CC emitted → this file.

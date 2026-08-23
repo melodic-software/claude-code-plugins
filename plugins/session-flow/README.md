@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin bundling thirteen skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling fourteen skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
 interruption, how to leave it durable before the machine goes away, how to retire finished work and
 reconcile the task ledger, where things stand and why, whether its assumptions are still current,
@@ -21,6 +21,7 @@ what to learn from it while it runs and after, and how to arm it for delegation-
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
+| `/session-flow:show-options` | Which skills fit this moment, and what am I forgetting I could run? |
 
 ## Output styles
 
@@ -55,6 +56,14 @@ when follow-ups are small. Handoff files chain via `session_id` / `previous_hand
 skill always STOPS after emitting the save-point — continuing would defeat the purpose. The
 save-point machinery itself (destination resolution, path choice, redaction, rails prompt) lives in
 the shared `reference/save-point.md` engine doc that `continue-in-background` also delivers from.
+
+The response opens with a **"You are here" position panel** for the operator — a vertical rail with
+one line per unit of whatever the work is divided into (workflow stages, plan phases, a sub-issue
+chain, tasks, or completion criteria), the current position marked, a completeness read, and three
+one-line blocks: what was done this session, where we are, what is next. It restates what the
+save-point already established rather than sweeping durable state — that is `orient` — and it never
+delays or displaces the rails prompt. Work with no delineated units gets the prose blocks and no
+rail; units are never invented to fill one.
 
 ```shell
 /session-flow:handoff                 # auto-detect full vs prompt-only
@@ -249,9 +258,33 @@ a spawned subagent's internal task list is not readable. It touches no git state
 /session-flow:reconcile   # inventory → inspect → retire finished + close done → report
 ```
 
+### show-options
+
+Turns the installed catalog from something the operator must remember into something they consult.
+Renders five buckets — **Now**, **Next**, **Skipped upstream** (artifact-grounded), **Later** (the
+in-domain remainder beyond the near horizon, rendered as bare names only), and a rotating
+**Spotlight** of three — each as a ranked shortlist of at most five in full treatment plus the
+complete remainder by bare name with an explicit count, so nothing is off-screen unstated.
+
+Its contract is two rules: **never omit a candidate's name**, and **never invent one**. A skill the
+evidence says already ran is ranked normally and annotated `(ran this session)` — the model's judgment
+reaches rank and annotations, never presence. Candidates resolve from the full installed catalog
+(`/claude-ops:inventory` when installed, else a project-supplied catalog, else the in-context listing
+*with its truncation disclosed*), because that listing omits every manual-only skill and drops
+descriptions starting with the least-invoked ones — the very skills worth surfacing. Durable state is
+the primary signal; it builds no probe of its own and routes to `orient` for that.
+
+Distinct from `workflow`, which routes to exactly one next **stage**: this one lays out the menu and
+lets the human choose. Writes only its small Spotlight rotation ledger; otherwise read-only.
+
+```shell
+/session-flow:show-options            # menu for the current moment
+/session-flow:show-options my-topic   # scope the artifact-grounded reads to a topic slice
+```
+
 ### setup
 
-A check-centric setup for the **observer substrate only** — the other eleven skills are zero-config.
+A check-centric setup for the **observer substrate only** — the other thirteen skills are zero-config.
 `check` (default) verifies the observer's runtime prerequisites (Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;
@@ -346,12 +379,27 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure session-flow@<marketplace>`.
-2. **Headless, at install time** — repeat `--config` for each option. Replace
+2. **Headless** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install session-flow@<marketplace> --config observer_enabled=<value>
+   claude plugin install session-flow@<marketplace> -s <scope> --config observer_enabled=<value>
    ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value — verified on Claude Code 2.1.240,
+   for a non-sensitive option at `user` scope, by writing a non-default value to an
+   installed plugin and restoring it. The short-circuit message is about the install,
+   not the config write. That has not been verified for a `sensitive` option or for
+   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin.
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior — a check run in the old session
+   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -379,8 +427,9 @@ hands a configured value to a hook process; the value comes from the routes abov
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->

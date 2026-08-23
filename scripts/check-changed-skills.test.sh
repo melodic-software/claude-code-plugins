@@ -9,6 +9,16 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-changed-skills.sh"
+
+# A fixture runs a COPY of the gate, so it must also carry the shared
+# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
+# fixture a faithful copy; without it the copied gate dies on a missing
+# source at line 1 and every assertion below turns into the same opaque
+# failure. See #2914.
+stage_libs() {
+  mkdir -p "$1/lib"
+  cp "$SELF_DIR/lib/changed-files.sh" "$1/lib/"
+}
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
@@ -42,6 +52,7 @@ mk_repo() {
   git_init_safe "$dir"
   mkdir -p "$dir/scripts"
   cp "$SCRIPT" "$dir/scripts/check-changed-skills.sh"
+  stage_libs "$dir/scripts"
   printf '%s' "$dir"
 }
 
@@ -229,6 +240,7 @@ mkdir -p "$r/plugins/p1/skills/newbie"
 cat >"$r/plugins/p1/skills/newbie/SKILL.md" <<'EOF'
 ---
 description: "A new skill. Use when: 'testing the evals ratchet'."
+disable-model-invocation: false
 ---
 
 ## Purpose
@@ -258,6 +270,7 @@ mkdir -p "$r/plugins/p1/skills/legacy"
 cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
 ---
 description: "A legacy skill. Use when: 'testing the evals ratchet'."
+disable-model-invocation: false
 ---
 
 ## Purpose
@@ -289,6 +302,7 @@ mkdir -p "$r/plugins/p1/skills/legacy/evals"
 cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
 ---
 description: "A legacy skill. Use when: 'testing the evals ratchet'."
+disable-model-invocation: false
 ---
 
 ## Purpose

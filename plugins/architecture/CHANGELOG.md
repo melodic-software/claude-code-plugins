@@ -3,6 +3,90 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.3]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.6.2]
+
+### Fixed
+
+- **The `graft-record` field now has a writer.** 0.6.0 added `graft-record:` to the durable
+  candidate schema in `skills/improve/actions/deepening.md` and told the Design-It-Twice research
+  file that the record "travels into `agreed-shape`" — but no step ever wrote it: the Handoff step
+  named `status` and `agreed-shape` and stopped. A schema field nothing fills is a field that is
+  always empty, so the left-behind half of a graft survived nowhere, and that is the half that
+  stops a later explorer re-proposing a shape this exploration already weighed and dropped. Handoff
+  now fills it in the same edit, and states that it is a sibling field rather than part of
+  `agreed-shape` and that this is the only step that writes it.
+  `skills/improve/research/deepening/interface-design.md` said the record "travels into
+  `agreed-shape`" — the wrong field, since the record is that field's sibling. That sentence is
+  replaced rather than annotated: leaving it standing beside the correction would have shipped a
+  file that names two different destinations for one record. It now names the Handoff step and the
+  moment it runs.
+- **Declared correction inside the released 0.6.0 body.** That entry read "the five-part schema was
+  pinned in three places"; the eval pins it in two — the `expected_output` line and the
+  subagent-brief expectation. Corrected in place under the changelog contract's sanctioned form for
+  released bodies: the heading is untouched, and the edit is named here and in the PR body.
+
+## [0.6.1]
+
+### Changed
+
+- **`improve`: the glossary hand-offs name the Skill tool (#3002).** Both
+  `/domain-driven-design:curate-language` invocations — the interview-loop table row and the
+  deepening action's "new concept or sharpened term" step — now say "via the Skill tool". Wording
+  only; presence gates and fallbacks unchanged. Follows the invocation-mode rubric's cross-skill
+  phrasing rule, now unconditional after the fleet sweep.
+
+## [0.6.0]
+
+### Added
+
+- **`improve` Design-It-Twice: a sixth return part, a read of the spread, and a graft record.**
+  Three additions to the deepening interview's Design-It-Twice mode, absorbed from an upstream
+  skill this marketplace decided not to ship (`docs/upstream/cursor-pstack.md`, the `arena` row).
+  (1) Each subagent's structured result gains **rejected shapes** — the alternatives that design
+  considered and turned down, each with its `rejected-reason`, deliberately reusing the field name
+  the durable candidate artifact already carries so one vocabulary covers both. Without it a
+  design's structure reads as principled and accidental alike, and a reader grafting from it cannot
+  tell which. The part is fenced: it never travels into a fresh-eyes dispatch, because the
+  delegation contract hands a reviewer the artifact and not the story, and importing the author's
+  reasoning re-imports the bias the fresh context exists to remove. It is safe in this flow only
+  because the step-3 comparison is done by the parent, which already holds that reasoning; the
+  fence names adding an independent judge as the trigger to stop it at the parent.
+  (2) **Read what the spread itself tells you** — a new step-3 section splitting three readings of
+  the fan-out's disagreement. Convergence *despite* orthogonal constraints is a stronger consensus
+  signal than agreement between same-brief candidates, precisely because this fan-out was built to
+  prevent it. Shape-divergence is the designed null result and never a reason to re-frame — the
+  orthogonality is deliberate, so a rule that fired on it would fire on every healthy run.
+  Assumption-divergence about callers, invariants, or ordering is the real signal: those designs
+  answered different questions, which means step 1's framing left those facts open, and choosing
+  between the returns would be picking a question rather than a design.
+  (3) A proposed hybrid now carries a **graft record** — what was taken from which design, and what
+  was considered and left behind with its reason — which travels into `agreed-shape` when the shape
+  is grilled. The durable candidate schema in `actions/deepening.md` gains a matching
+  `graft-record:` field; without it the ledger would live only in conversation prose and evaporate.
+  Evals updated: the five-part schema was pinned in two places.
+
+## [0.5.4]
+
+### Changed
+
+- **`improve`: cross-dimension improvement asks now route to `/improvement:find` in the listing
+  description.** The new `improvement` plugin's finder claims the general "what should we improve" /
+  "find improvements" / "highest-impact improvement" asks, and one-sided boundaries cannot resolve an
+  auto-invocation race — both descriptions must route. The Skip-when clause now hands a
+  cross-dimension or evidence-driven ask to `/improvement:find` and names this skill as the
+  single-lens architecture-depth pass, mirroring `improvement:find`'s own Skip-when, which hands
+  single-lens architecture deepening here. Every base trigger phrase is preserved verbatim
+  ('what should we improve' moved into the routing clause, still quoted); guarded by the
+  skill-quality trigger-continuity check. Description-only — no body or behavior change.
+
 ## [0.5.3]
 
 ### Changed

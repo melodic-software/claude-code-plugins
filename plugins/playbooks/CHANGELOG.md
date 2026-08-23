@@ -4,6 +4,45 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.9]
+
+### Changed
+
+- **README:** deduplicated the hand-written option-scoping preamble against the
+  generated options block, which already states both facts (#2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.8.8]
+
+### Added
+
+- **`skill-authoring`: an authoring-time pointer to the cross-skill phrasing rule (#3002).** The
+  "Skill-tool composition" section now points at the invocation-mode rubric's
+  "Cross-skill invocation phrasing" section for how an operative hand-off is worded, and says the
+  rule is author-enforced rather than lint-enforced. Points, does not restate — the rubric stays
+  the single home.
+
+## [0.8.7]
+
+### Added
+
+- **`skill-authoring`: authoring-time pointer to the invocation-mode rubric (#2968).** The
+  Skill-tool composition section now routes the mode decision to
+  `docs/conventions/invocation-mode/README.md` — the model-invoked default, the three exception
+  classes a `true` may claim, and the split-by-invocation question — and notes that
+  `skill-quality:check` enforces the explicit key. Points, never restates.
+
+## [0.8.6]
+
+### Added
+
+- **`skill-authoring`: Skill-tool composition doctrine (#2940).** Melodic Software addition:
+  the Skill tool takes one skill per call (two skills → two calls); never Skill-tool-invoke a
+  `disable-model-invocation: true` target — tell the user to run `/plugin:skill` instead.
+  Eval coverage extended.
+
 ## [0.8.5]
 
 ### Changed

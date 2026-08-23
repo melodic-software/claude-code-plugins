@@ -66,7 +66,8 @@ Scope boundary with adjacent audit lanes: this skill verifies **factual claims**
 against code state. Claude Code configuration files (`settings.json`, `.mcp.json`, hooks,
 permissions) and automation-landscape gap analysis are different lanes — when the
 `claude-config` plugin is installed, route those to `/claude-config:audit` and
-`/claude-config:audit-automation-gaps`; otherwise state they are out of scope rather than
+`/claude-config:audit-automation-gaps`, invoked via the Skill tool; otherwise state they are out of
+scope rather than
 running claim-extraction over them.
 
 ---
@@ -165,8 +166,9 @@ rubber-stamps it; an independent agent re-reading the doc claim AND the actual c
 false positives and miscategorized-but-correct claims. Where the finding set is high-stakes and
 correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up** —
 e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the
-fresh-context same-vendor subagent as the fallback, never a route to a command that may not
-resolve. Fence each validator to read-only (its
+fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve
+(per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
+Fence each validator to read-only (its
 findings' files + verification-sources).
 
 ### External research (required when the tooling exists)

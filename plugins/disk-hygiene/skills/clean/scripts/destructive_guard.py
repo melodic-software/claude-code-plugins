@@ -287,7 +287,6 @@ def _plugin_cache_family_root() -> str | None:
 
 
 def _within_plugin_cache_family(value: str) -> bool:
-    """Whether ``value`` resolves inside this plugin's own cached-version tree."""
     family = _plugin_cache_family_root()
     if family is None:
         return False
@@ -677,7 +676,6 @@ def _argv_flag_value(argv: list[str], flag: str) -> str | None:
 
 
 def _argv_authorized_data_root(argv: list[str]) -> str | None:
-    """Read the authorized data root the runtime substituted into the hook argv."""
     return _argv_flag_value(argv, _AUTHORIZED_DATA_ROOT_FLAG)
 
 
@@ -911,12 +909,7 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
                     return None
                 name = optionals[index + 1]
                 # Immediate basename only — no separators, no . / ..
-                if (
-                    "/" in name
-                    or "\\" in name
-                    or name in {".", ".."}
-                    or not name
-                ):
+                if "/" in name or "\\" in name or name in {".", ".."} or not name:
                     return None
                 root_child_names.append(name)
                 index += 2
@@ -1049,9 +1042,10 @@ def _parse_bracket_test_words(command: str) -> list[str] | None:
 
 
 def _is_readonly_find(tokens: list[str]) -> bool:
-    """True only when ``find`` carries no side-effect primary."""
     for token in tokens[1:]:
-        if token.casefold() in {name.casefold() for name in _FIND_SIDE_EFFECT_PRIMARIES}:
+        if token.casefold() in {
+            name.casefold() for name in _FIND_SIDE_EFFECT_PRIMARIES
+        }:
             return False
     return True
 
@@ -1220,7 +1214,11 @@ def _trusted_system_readonly_head(head: str) -> bool:
             return False
         for git_root in _nt_known_git_installation_roots():
             mapped = git_root.joinpath(*rel_parts)
-            for variant in (mapped, mapped.with_suffix(".exe"), mapped.with_suffix(".EXE")):
+            for variant in (
+                mapped,
+                mapped.with_suffix(".exe"),
+                mapped.with_suffix(".EXE"),
+            ):
                 try:
                     resolved = variant.resolve()
                 except OSError:
@@ -1762,9 +1760,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         # would bypass the user's permission prompt for an allowlisted command
         # that also names the engine path (#2774). `ask` keeps the ergonomic
         # win while preserving the prompt for sessions that never invoked clean.
-        permission = (
-            "ask" if resolve_mode() == _MODE_ENGINE_GATE else "allow"
-        )
+        permission = "ask" if resolve_mode() == _MODE_ENGINE_GATE else "allow"
         print(
             json.dumps(
                 decision(

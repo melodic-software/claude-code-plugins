@@ -252,18 +252,24 @@ fi
 
 prev_label="${last:-unobserved}"
 zone_label="$zone"
-[[ -n "$degraded" ]] && zone_label="dumb (evidence-degraded: this session was compacted, so its context evidence is already lossy regardless of the snapshot's numbers)"
+[[ -n "$degraded" ]] && zone_label="dumb (evidence-degraded: this session was compacted)"
 
 # Model channel: the determination, then the counter-steer. No exit menu, no
-# continuation router, no invitation to end the turn — see the header.
-guidance="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). This is a measurement reported to you, not an instruction and not a decay signal: degradation shows up in your own output — drift, repetition, dropped constraints — never in a zone word. Do not volunteer to end the session, start a new one, summarize, hand off, or trim your work on the strength of this reading; keep working the task in hand. Continuation is the operator's call, and nothing here is being asked of you. Act on a continuation when the operator asks for one, when a mechanism gates on it, or when your own output shows the degradation this reading cannot see."
+# continuation router, no invitation to end the turn — see the header. The
+# "crossed from the ${prev_label}" phrasing is pinned by the contract test
+# (partial-write recovery asserts the true previous zone is named).
+guidance="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone. This is a measurement, not an instruction: real degradation shows up in your own output — drift, repetition, dropped constraints — never in a zone word. Do not volunteer to end the session, summarize, hand off, or trim your work on the strength of this reading; keep working the task in hand. Continuation is the operator's call — act on one when the operator asks, a mechanism gates on it, or your own output shows the degradation this reading cannot see."
 if [[ "$zone" == "dumb" ]]; then
-  guidance+=" The dumb zone additionally means compaction distance is short, which is true regardless of model: write every expensive conclusion to a durable note as it stabilizes rather than at session end, so an unchosen compaction cannot take it."
+  guidance+=" The dumb zone also means compaction distance is short, on every model: write each expensive conclusion to a durable note as it stabilizes, so an unchosen compaction cannot take it."
 fi
 
 # Operator channel: the same crossing, plus the continuation menu that is the
-# human's call to make.
-operator="context-guard: this session crossed from the ${prev_label} into the ${zone_label} context zone (snapshot seam, conservative-min over percentage and token bands). On many models response quality degrades as context occupancy grows; onset varies by model — some vendor model guides state consistency through the full window — and the bands are tunable defaults (zones.json). Compaction distance shrinks regardless of model. Continuation options, yours to choose: (1) continue in-session if the remaining work is small or simple enough for degraded context; (2) /clear if this session's context is disposable; (3) write a durable handoff then /clear if state must survive — /session-flow:handoff (if that plugin is installed; otherwise write a resume file by hand before clearing); (4) /compact only at a phase boundary, as a last resort. For the full continuation router, /session-flow:workflow (if installed)."
+# human's call to make. Menu-first and terse — the detail behind the bands
+# lives in the plugin README, not on the status line. The "(if installed)"
+# hedges stay, and option 3 keeps a manual alternative: context-guard installs
+# standalone (see header), so a menu naming only session-flow leaves such an
+# install no actionable path when state must survive.
+operator="context-guard: context zone ${prev_label} → ${zone_label}. Response quality can degrade as context fills (bands tunable: zones.json). Continuation options, yours to choose: (1) continue — remaining work is small; (2) /clear — this context is disposable; (3) /session-flow:handoff (if installed) or a hand-written resume note, then /clear — state must survive; (4) /compact — last resort, at a phase boundary. Full router: /session-flow:workflow (if installed)."
 
 hook::emit_channels "$EVENT" "$guidance" "$operator"
 hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \

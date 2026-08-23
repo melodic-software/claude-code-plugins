@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-08-16T20:46:30Z",
+  "hook": "block-exported-msys-pathconv",
+  "hook_event": "PreToolUse",
+  "status": "blocked",
+  "duration_ms": 11,
+  "data": {
+    "tool": "Bash",
+    "subject": "Bash:unset",
+    "form": "export"
+  }
+}

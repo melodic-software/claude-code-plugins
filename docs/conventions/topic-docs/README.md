@@ -40,7 +40,7 @@ read again even if that session rarely looks at the file itself.
 |---|---|---|---|
 | Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
 | Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
-| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/` | Never committed | session handoffs; review reports; running-retro ledgers — their axes are session and branch, so they sit outside topic slices |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings — their axes are session and branch, so they sit outside topic slices |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
@@ -96,14 +96,26 @@ Five rules hold at this row:
    creates the file in the current working directory, which is the
    consumer's repository (reproduced against GNU coreutils 8.32,
    2026-07-27) — and the flags
-   that would fix it are not portable (`--tmpdir` is GNU-only, `-t` is
-   deprecated there). That root is the ambient `$TMPDIR` or system
-   default — **not** `CLAUDE_CODE_TMPDIR`, which overrides the temp
-   directory Claude Code uses for its *own internal* files: the env-var
-   reference states that "Unsandboxed Bash commands inherit your shell's
-   `$TMPDIR` unchanged" (verified 2026-07-27). A plugin shelling out to
-   `mktemp` therefore never observes that override, and no plugin should
-   claim it does.
+   that would fix it are not portable. `-p` (which GNU also spells
+   `--tmpdir`) exists in both dialects but means different things: GNU
+   treats the template as relative to that directory and lets the flag
+   beat `TMPDIR`, while BSD/macOS consult it only as a fallback for `-t`
+   when `TMPDIR` is unset — so with a bare template and no `-t` the flag
+   does nothing there and the template still resolves against the
+   current directory. GNU marks `-t` deprecated, and BSD's `-t` takes a
+   prefix rather than a template. An absolute path in the positional
+   template is reinterpreted by neither. That root is the ambient
+   `$TMPDIR` or system default — **not** `CLAUDE_CODE_TMPDIR`, which
+   overrides the temp directory Claude Code uses for its *own internal*
+   files: the env-var reference states that "Unsandboxed Bash commands
+   inherit your shell's `$TMPDIR` unchanged" (verified 2026-07-27). A
+   plugin shelling out to `mktemp` therefore never observes that
+   override, and no plugin should claim it does. This placement rule
+   governs **every** ephemeral file a plugin creates through the temp
+   primitive, not only the artifacts this convention names tiers for —
+   the portability traps belong to the platform, so a producer whose
+   output takes no topic-docs row (a scrape spill, a rendered report)
+   follows it unchanged.
 2. **The lifetime outlives the call.** A path handed back to the user
    must still be readable when they open it, so a producer that RETURNS
    a path does not delete the file in a `finally` — that races the
@@ -443,7 +455,8 @@ cite it rather than redefining it.
   with a scope qualifier or an ISO date suffix — never a bare ordinal.
 - Timestamps in filenames: ISO-basic UTC `YYYYMMDDTHHMMSSZ` (no colons).
 - Reserved first-level names under the memory root: `handoffs`,
-  `reviews`, `running-retros` (a topic slug that collides takes the `-x` suffix).
+  `reviews`, `running-retros`, `overengineering` (a topic slug that
+  collides takes the `-x` suffix).
 - The same slug names the topic in both tiers — that is the traceability
   bridge.
 
@@ -559,11 +572,13 @@ relationship to the contract is fully stated by their table row.
 | adhd | rendered decision-table HTML view | ephemeral | by reference — the ephemeral row's five rules are its entire relationship |
 | discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
 | architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers); deepening HTML report | memory + ephemeral | delta doc |
+| coupling | `coupling-ledger.md` (repo-scoped finding ledger, updated in place; constant-slug delta) | memory | delta doc |
 | planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist; five optional rendered HTML views (dense-round decision table, PRD pitch, brainstorm reaction page, plan view, design topology) | contract + memory + ephemeral | delta doc |
 | implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |
 | session-flow | handoffs; running-retro ledgers | memory (`handoffs/`, `running-retros/`) | delta doc |
 | review | review reports | memory (`reviews/`) | delta doc |
+| overengineering | `findings.md` — enforcement-surface audit findings, statuses updated in place by its realign skill | memory (`overengineering/<branch-slug>/`) | delta doc |
 | work-items | per-topic action ledger; tracker projections | memory; ticket edge | delta doc |
 | toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
 | knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) | by reference — the carve-out above is its entire delta |

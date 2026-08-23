@@ -92,10 +92,13 @@ prs: []
 resolution: null
 ```
 
-Body sections: **Summary**, **Findings** (each with evidence + doc citations), **Suggested
-remediations** (cheapest first), **Evidence packet** (path), **Audit contract** (locked scope +
-assumptions). Claim protocol for consumers of such a directory: set `status: claimed` +
-`claimed_by` + `claimed_at`; a claim older than `lease_ttl_hours` may be reclaimed.
+Body sections: **Summary**, **Findings** (each with evidence + doc citations — URL, fetch
+date, the retrieval channel it came over (rung-1 `curl` of the `.md`, or rung-2
+`WebFetch`), and a byte count or line number; a citation that omits the channel or the
+count is emitted as **unverified**), **Suggested remediations** (cheapest first),
+**Evidence packet** (path), **Audit contract** (locked scope + assumptions). Claim
+protocol for consumers of such a directory: set `status: claimed` + `claimed_by` +
+`claimed_at`; a claim older than `lease_ttl_hours` may be reclaimed.
 
 ### Compat reconciliation (recorded 2026-07-24)
 

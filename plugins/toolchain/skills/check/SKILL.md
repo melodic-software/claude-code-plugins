@@ -1,6 +1,7 @@
 ---
 description: "Run build, test, and lint verification for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown) from git status, with the consuming project's own documented commands overriding portable defaults. Use when: 'does it compile', 'run tests', 'build it', 'run the tests', 'does this still build', 'check it', or after any code edit; for lint-only use /toolchain:lint, for full outcome verification use /verification:confirm."
 user-invocable: true
+disable-model-invocation: false
 argument-hint: "[ecosystem] (e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all — default: auto-detect from git status)"
 shell: bash
 metadata:
@@ -172,7 +173,7 @@ When composing `/toolchain:check` from another skill (like `/verification:confir
 
 - **To get command tables**: resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) — consumer `.claude/ecosystems/<ecosystem>.yaml` wins, bundled defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the fallback — or the relevant `context/<ecosystem>.md` for gotchas and prose detail
 - **To run full verification**: invoke `/toolchain:check` or `/toolchain:check <ecosystem>` via the Skill tool
-- **To run lint-only checks**: invoke `/toolchain:lint` or `/toolchain:lint <ecosystem>` (it resolves through the same ladder and additionally owns the `yaml` and `cross-cutting` surfaces)
+- **To run lint-only checks**: invoke `/toolchain:lint` or `/toolchain:lint <ecosystem>` via the Skill tool (it resolves through the same ladder and additionally owns the `yaml` and `cross-cutting` surfaces)
 - **To embed commands in agent prompts**: resolve per the ladder AND read the corresponding `context/<ecosystem>.md` for gotchas
 
 ## Gotchas (cross-ecosystem)

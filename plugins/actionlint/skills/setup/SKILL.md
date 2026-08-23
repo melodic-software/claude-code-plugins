@@ -7,13 +7,14 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — actionlint auto-discovers its
-own optional config from the repository, and the tunables are the native `userConfig`
-options (the `actionlint_enabled` toggle and `stdin_read_timeout`). Every prerequisite is a
-`PATH` binary the plugin never bundles, and the plugin never
-installs system packages, so `apply` is guidance-only with **no write path** — it never
-modifies the repository, user settings, or the plugin cache.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — actionlint
+auto-discovers its own optional config from the repository, and the tunables are the native
+`userConfig` options (the `actionlint_enabled` toggle and `stdin_read_timeout`). Every
+prerequisite is a `PATH` binary the plugin never bundles, and the plugin never installs
+system packages, so `apply` is guidance-only with **no write path** — it never modifies the
+repository, user settings, or the plugin cache.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers remediation guidance. Both are non-interactive — never prompt when the action is given.
@@ -21,9 +22,10 @@ offers remediation guidance. Both are non-interactive — never prompt when the 
 ## `check` (read-only)
 
 The hook script (`${CLAUDE_PLUGIN_ROOT}/hooks/actionlint-check.sh`) is the single source of
-truth for what it requires and how it resolves things. **Read it first** — probe what it
-actually does, don't recite this file. Then run each probe via Bash and report a
-PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+truth for what it requires and how it resolves things.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately
@@ -60,20 +62,27 @@ Run `check`, then for each FAIL point at the resolution — this skill installs 
   (the [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md)).
 - missing `jq` / Bash: platform install instructions from the README Requirements section.
 - toggle off: direct to `/plugin configure actionlint` (interactive, any
-  time). Headless: current official docs document `--config` only as a
-  `claude plugin install` flag that sets manifest-declared options; its
-  behavior against an already-installed plugin is undocumented, and in
-  practice the reliable headless path is `claude plugin uninstall actionlint -s <scope>`
-  then `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`;
-  this skill never writes user settings or `pluginConfigs`. Both commands default to
-  `-s user` — pass the scope `claude plugin list` reports for this plugin (`user`, `project`,
-  or `local`), and run from that project's directory for a `project`/`local` scope. Defaulting
-  instead uninstalls a separate user-scope record while the effective install stays in place,
-  so the reinstall lands at a scope that does not load. Uninstalling also drops the stored
-  `pluginConfigs` entry, so the reinstall must re-supply **every** key whose value should stay
-  non-default — both `actionlint_enabled` and `stdin_read_timeout`, not only the key being
-  changed. Record the current values before uninstalling; afterwards there is nothing left to
-  read them from.
+  time). Headless: rerun the install with the new value —
+  `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`
+  (repeatable per key). The official docs document `--config` only as a `claude plugin install`
+  flag and say nothing about an already-installed plugin, so this rests on observation, not
+  documentation: against an already-installed plugin the command prints `already installed`
+  **and still writes the value** — verified on Claude Code 2.1.240 (a non-sensitive option at
+  `user` scope: a non-default value written to an installed plugin, then restored). The
+  short-circuit is about the install, not the config write. Re-verify before relying on it
+  outside those conditions — a `sensitive` option, or `project`/`local` scope, were not covered.
+  Do **not** uninstall to reconfigure: uninstalling drops this plugin's entire stored
+  `pluginConfigs` entry, resetting every option in the README's Options reference table to its
+  manifest default. `-s` defaults to `user`, so pass the scope `claude plugin list` reports for
+  this plugin (`user`, `project`, or `local`), and run from that project's directory for a
+  `project`/`local` scope, or the write lands at a scope that does not load. This skill never
+  writes user settings or `pluginConfigs`.
+  Afterwards, keep the two claims apart. The write is issued and the stored value is what you
+  passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
+  skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
+  session start, so a same-session `check` still reports the OLD value — reporting that as a
+  failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
+  session**, and never claim an unobserved change.
 
 After pointing at a remediation, re-run the relevant `check` probe and report its actual
 result — never claim resolved on the reader's report that they installed something.
@@ -88,9 +97,13 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   settings `env` block still works). That is why `stdin_read_timeout` is declared in this
   plugin's manifest even though the shared hook lib supplies its default; hook plugins reusing
   the shared lib should declare it too (claude-ops set the precedent).
-- **`--config` post-install behavior is undocumented.** The docs describe it only as an
-  install-time flag; do not assume re-running install re-applies config on an installed
-  plugin — the verified headless path is uninstall-then-install (see `apply` above).
+- **`--config`'s post-install behavior is undocumented, so the guidance above rests on
+  observation.** The official docs describe `--config` only as a `claude plugin install` flag
+  and say nothing about an already-installed plugin. This skill's `apply` route is therefore
+  stamped rather than cited: on Claude Code 2.1.240 the command printed `already installed`
+  and still wrote the value, for a non-sensitive option at `user` scope. Re-verify if the CLI's
+  plugin surface changes, and do not extend the observation to a `sensitive` option or to
+  `project`/`local` scope — neither was covered.
 - **`-shellcheck=` / `-pyflakes=` are deliberate, and the deadlock claim is a local
   observation.** The hook disables actionlint's external run-block linters primarily for
   edit-time latency; the additional "ShellCheck deadlocks on large blocks under the Windows
@@ -103,7 +116,6 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the linter — editing any `.github/workflows/*.yml` or `*.yaml` file exercises the hook
   end-to-end.
-- Write anything: not the repository, not Claude Code user settings, not `pluginConfigs`, not
-  the plugin cache. Every prerequisite is a `PATH` binary or the native toggle, so remediation
-  is guidance only.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the repository —
+  every prerequisite is a `PATH` binary or the native toggle, so remediation is guidance only.
 - Download or execute tools during `check` beyond the read-only `command -v` presence probes.

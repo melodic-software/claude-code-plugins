@@ -17,7 +17,7 @@ metadata:
 ## Pre-computed context
 
 Current user: !`gh api user --jq '.login' 2>/dev/null || echo "unknown"`
-Open maps: !`gh issue list --label work-map --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null || echo "none"`
+Open maps: !`gh issue list --label "$(l=$(jq -r '.config.container_label | if type=="string" then . else "" end' .work-item-tracker.json 2>/dev/null); echo "${l:-work-map}")" --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null || echo "none"`
 
 ## Variables
 
@@ -58,6 +58,12 @@ For every uncertainty, ask: **can I phrase it as a sharp question?**
 Sharpness, not blockedness, is the line. A blocked-but-phrasable question is a ticket; an
 unblocked-but-unphrasable worry is fog.
 
+## Refer by name
+
+In everything the human reads (chart report, work frontier, map-body index lines), name
+each item by **title**, number as a link or suffix — never a wall of bare `#42, #43, #44`.
+Pre-computed context already prints `"#<number> <title>"`; keep both halves.
+
 ## Action Router
 
 Parse the first token of `$ARGUMENTS`.
@@ -79,21 +85,25 @@ an interactive session — do not fabricate a map.
    decision item; foggy → *Not-yet-specified* prose. **No-fog bail-out:** if the survey
    leaves *both* halves of the trigger unmet — every uncertainty is already sharp, or the
    whole effort fits one session — this effort does not need a map. STOP and route out
-   instead of fabricating one: a single contract to lock → `/planning:interview`; a set of
+   instead of fabricating one: a single contract to lock → invoke `/planning:interview` via the
+   Skill tool; a set of
    sharp tickets → `/work-items`; small enough to just do → say so. (The trigger is too-big
    AND foggy — both, never either alone.)
-2. **Create or extend the map issue.** On first use in a repo, **verify** the wayfind label
-   taxonomy (`work-map`, `wayfind: *`, `needs-human`) is present — an unknown `--label` fails the
+2. **Create or extend the map issue.** On first use in a repo, resolve the container label
+   (the seam's `config.container_label` key, default `work-map` — snippet in
+   `context/tracker-mechanics.md`), then **verify** the wayfind label
+   taxonomy (the container label, `wayfind: *`, `needs-human`) is present — an unknown `--label` fails the
    create. Honor the consuming repository's declared label ownership. If it names a label-as-code
    source of truth, STOP and report the exact missing set to that owner; otherwise report the set and
-   ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labelled bare `work-map`
+   ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labelled with the bare container label
    (+ any repo program labels). Body carries the five sections — **Destination** (where this is going once the
    fog clears) / **Notes** (durable pointers only — PRs, committed docs, prior items, external links;
    memory-tier `<memory_dir>/` artifacts are checkout-local, so distill their relevant content inline
    instead of pointing at paths other readers cannot resolve) /
-   **Decisions-so-far** (a *pointer index* — each resolved decision's home is its own item's
-   resolution comment, never recopied here) / **Not-yet-specified** (fog, prose) /
-   **Out-of-scope**. Template + exact `gh` calls: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
+   **Decisions-so-far** (a *pointer index* of resolved-in-scope decisions — each home is its own item's
+   resolution comment, never recopied here; wrongly scoped closures do not get a pointer) /
+   **Not-yet-specified** (fog, prose — fog never graduates into Out-of-scope) /
+   **Out-of-scope** (scope exclusions, not unphraseable fog). Template + exact `gh` calls: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
 3. **Create typed decision items** as sub-issues of the map, one per sharp question. Type
    label sets the routing target and the default mode (below). Wire `blocked-by` edges where
    one decision genuinely gates another — never invent edges to impose false order.
@@ -101,8 +111,8 @@ an interactive session — do not fabricate a map.
    `prototype`) get the `needs-human` label; `research` omits it (autonomous-capable); `task`
    is per-item. One mechanism — the presence/absence of `needs-human` — carries the mode; no
    parallel `Mode:` body field.
-5. **Hand off to `work`.** Report the frontier (open, unblocked, unassigned items) and
-   recommend `/planning:wayfind work` to start resolving. If the fresh frontier holds
+5. **Hand off to `work`.** Report the frontier (open, unblocked, unassigned items) **by title**,
+   number as a link or suffix, and recommend `/planning:wayfind work` to start resolving. If the fresh frontier holds
    `research`-typed items, offer to fire them now in parallel (work mode's research
    exception) — their resolutions often sharpen the remaining fog before the first HITL
    session.
@@ -110,8 +120,9 @@ an interactive session — do not fabricate a map.
 ## Work mode
 
 1. **Session-start reclaim + map hygiene.** Reclaim any of your own stale in-progress items
-   (idempotent). Check the map's invariants: every closed decision has a *Decisions-so-far*
-   pointer line; no item resolved-in-comment but still open. Fix violations before proceeding.
+   (idempotent). Check the map's invariants: every closed **in-scope** decision has a *Decisions-so-far*
+   pointer line (closed-as-out-of-scope items have an Out-of-scope line instead, not a pointer);
+   no item resolved-in-comment but still open. Fix violations before proceeding.
 2. **Compute the frontier.** `frontier = open ∧ zero OPEN blockers ∧ unassigned` (a *closed*
    blocker no longer holds an item back — count open blockers, not the raw edge count). In a
    non-interactive session, further filter OUT `needs-human` items; if that empties the
@@ -135,10 +146,14 @@ an interactive session — do not fabricate a map.
    | `wayfind: prototype` | HITL | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX) — the item body says which |
    | `wayfind: task` | per-item | Direct decision-unblocking work — no feature code, no PR tie |
 
-5. **Graduate on every resolution.** When the decision resolves: post the resolution as a
-   comment on the item, add its one-line pointer to the map's *Decisions-so-far* index, then
-   close the item (comment → index → close, as one atomic sequence). If the resolution
-   sharpened previously-foggy uncertainty, chart the new sharp items now.
+5. **Graduate on every resolution.** When the decision resolves **in scope**: post the resolution as a
+   comment on the item, add its one-line pointer (title, number as suffix) to the map's
+   *Decisions-so-far* index, then close the item (comment → index → close, as one atomic sequence).
+   If the item is **wrongly scoped** (on the tracker but not this effort): add one
+   Out-of-scope line linking it, then close it — it does **not** get a Decisions-so-far
+   pointer. Fog stays in
+   Not-yet-specified and never graduates into Out-of-scope. If the resolution sharpened
+   previously-foggy uncertainty, chart the new sharp items now.
 6. **Map closure → destination handoff.** When the frontier is empty and every decision item
    is closed, the destination is coherent: close the map issue and hand the destination
    onward (`/planning:interview` or `/planning:prd` for a Brief/PRD; `/planning:plan`

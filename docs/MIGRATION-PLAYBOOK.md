@@ -306,15 +306,33 @@ a skill ships them only when they earn their keep.
 **Warrant rule.** A skill **warrants** evals when it carries a judgment-bearing behavioral contract
 that could silently regress — how it triggers, how it routes an ambiguous request, when it refuses,
 or the shape of what it emits. A skill is an explicit **skip** when it is pure-reference (answers
-from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`, …) or lives in a **hook** plugin
-(deterministic, silent-always-on, guarded by `.test.sh`, no model-invoked skill). A `setup`
-skill *is* warrantable — it makes interview and write-config decisions (the
-`codebase-health/setup` eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
+from a knowledge corpus with no decision contract — `playbooks:fable-5`, `tdd`, …). A **hook** plugin
+is a skip only in the case its rationale actually describes — deterministic, silent-always-on,
+guarded by `.test.sh`, **no skill carrying a judgment-bearing contract**. The condition is the
+absence of that contract, not the invocation mode. Stating it by invocation mode does not work: a
+`setup` skill sets `disable-model-invocation: true`, so "no model-invoked skill" is satisfied by a
+plugin that ships one — admitting as a skip the very plugin the rest of this rule excludes. A `setup` skill makes interview and write-config decisions that can
+silently regress, which is precisely the contract the skip exists to excuse the absence of. The
+plugin's shape does not exempt it: a `setup` skill *is* warrantable (the `codebase-health/setup`
+eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves — a satisfied "looks covered" is not a warrant.
 This section is the policy; current coverage is verified on demand — a live glob of
 `plugins/*/skills/*/evals/evals.json` against the tree, read against the warrant rule above — never a
 checked-in snapshot that decays the moment a skill lands.
+
+**The gate is operative, and it is broader than this policy.** `scripts/check-changed-skills.sh`
+passes `--require-evals` for every skill whose `SKILL.md` is new or modified, and
+`plugins/skill-quality/scripts/check-skill.sh` then hard-FAILs on a missing `evals/evals.json` for
+any skill shape — with no allowlist, frontmatter opt-out, or plugin-type awareness in either, and no
+way for the one CI caller to override it. So a "skip" verdict recorded here holds only until someone
+touches that `SKILL.md`, at which point CI requires evals and gets them. Read this policy as
+governing what a skill ships *absent a touch*, and expect the gate to decide otherwise the moment
+the file changes. That is a real disagreement rather than a nuance, and the pure-reference skip is
+where it still bites: the standing resolution — either the gate learns a recorded-skip mechanism
+(the repo's idiom is an exemptions file carrying the verdict, as
+`scripts/skill-count-claim-exemptions.txt` does) or this policy drops "skip" and evals become
+mandatory — is tracked in issue #3135 and is not settled here.
 
 **Rich form.** Each case carries `id`, a kebab-case `name`, a `prompt`, an `expected_output`
 description, optional `files` fixtures, and an `expectations` array of objectively-verifiable checks
@@ -332,6 +350,26 @@ eval. Two deliberate divergences from the guidance, both consequences of the def
 (medley#1418): case volume stays low (the guidance's volume-over-polish principle assumes cheap
 automated grading, which does not exist here yet), and grading is a human judgment pass (the
 method the guidance ranks last). Both revisit when the runner lands.
+
+**Which eval format this is, and why it is not `claude plugin eval`'s.** Two Anthropic-owned eval
+formats exist and they are not the same. The one shipped here is **`skill-creator`'s**:
+`evals/evals.json` inside the skill directory, cases carrying `id` / `prompt` / `expected_output` /
+`files` / `expectations`, which is why the schema's own `description` notes that upstream names that
+last field `assertions`. It is the ecosystem-wide shape — a public code search returns thousands of
+`evals.json` files in that form against a handful in any other. **`claude plugin eval` consumes a
+different layout** (`<eval dir>/**/case.yaml`, or `prompt.md` plus `graders/*.md`, with
+`experimental.evals` naming the directory). This repo has none of it, deliberately: the command is
+**early access** and refuses to run (`plugin eval is currently in early access`), so adopting its
+format would trade a corpus CI checks on every PR for one nobody here can execute. Adoption stays
+deferred behind the same `melodic-software/medley#1418` tracker as the runner; revisit when the
+command leaves early access. **The consequence for authors:** no command in *this* marketplace and
+nothing in *this* CI executes a prompt — the gates lint and schema-check them — so a case must be
+readable and followable by a human or an agent working by hand, and must not depend on a runner
+having been invoked. That is not the same as no runner existing: a consumer with Anthropic's
+`skill-creator` installed can run these suites, which is the format's own runner and which stages a
+case's `files[]` for it. So use `files[]` to declare fixtures and reference them by their documented
+path; do not hand-roll staging inside the `prompt` string. A prompt that builds its own workspace is
+neither followable by hand nor compatible with the runner that would otherwise stage it.
 
 **Consumer-verify recipe — "verify this plugin in MY repo".** There is **no first-party command that
 executes model-graded evals today** — automated eval *running* is a deferred surface (owned by
@@ -1316,13 +1354,22 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    cutover, which pairs both fields in the project settings.
 2. **Enable at project scope** so every clone inherits it — declare `enabledPlugins` in the same
    checked-in `.claude/settings.json` (choose user scope instead for machine-wide, not per-repo).
-3. **Install and seed config on one fresh install.** `--config` is accepted only on a fresh install
-   (smoke-test C), so pass every option on the install command, never a later call: `claude plugin
+3. **Install and seed config.** Pass every option on the install command: `claude plugin
    install <plugin>@<marketplace> --scope project --config KEY=VALUE …` (repeatable, schema-validated).
    Non-sensitive options land in the **user** `settings.json` `pluginConfigs` regardless of the enable
-   scope; a sensitive value still routes to secure credential storage (smoke-tests A and C).
-   Interactively, `/plugin configure` owns personal `userConfig`; an explicit setup skill owns any
-   separate tracked project configuration declared by the plugin.
+   scope — documented behavior, not an observation: seam 1 above records that non-sensitive values
+   **store** in user settings, and that a sensitive value routes to secure credential storage
+   instead.
+   Re-running that command later against an already-installed plugin prints `already installed`
+   **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
+   install rather than an uninstall/reinstall — verified for a **non-sensitive option at `user`
+   scope** on Claude Code 2.1.240 and **not** at the `--scope project` this step uses, so read the
+   stored value back — for a non-sensitive option, from the **user** `settings.json` `pluginConfigs`
+   per the storage rule above, not from the project settings this command names; a `sensitive` value
+   is absent from settings entirely (smoke-test A) and cannot be verified this way — rather
+   than assuming the write landed. Interactively, `/plugin configure` owns personal
+   `userConfig`; an explicit setup skill owns any separate tracked project configuration declared by
+   the plugin.
 4. **Headless prompting caveat.** Install never prompts non-interactively — a required `userConfig`
    option left unset does **not** block the install; it stays advisory until set (smoke-test C). Seed
    every required option on the install command so the plugin does not run unconfigured.
@@ -1368,10 +1415,17 @@ surface to a published plugin for a single consumer's low-value nicety.
    marketplace does not install its plugins, so do both explicitly at project scope: `claude plugin
    marketplace add <repo> --scope project` then `claude plugin install <plugin>@<marketplace> --scope
    project --config KEY=VALUE …`, seeding every
-   non-default `userConfig` toggle on that install command — `--config` applies only on a fresh install and
-   is ignored once the plugin is already installed (smoke-test C), so a headless reconfiguration later
-   means uninstall/reinstall. **Exception:** a `directory`/`file` relative-path entry in checked-in
-   project settings resolves against the repo checkout (cloud sessions included) — see
+   non-default `userConfig` toggle on that install command — re-running it later against an
+   already-installed plugin prints `already installed` **and still writes the value** (smoke-test C),
+   so a headless reconfiguration is another `--config` install, not an uninstall/reinstall. That was
+   verified for a **non-sensitive option at `user` scope** on Claude Code 2.1.240 and is **untested at
+   the `project` scope this step uses**, so read the stored value back before reporting a
+   project-scope reconfiguration as applied — for a non-sensitive option, from the **user**
+   `settings.json` `pluginConfigs`, where such options land regardless of enable scope (seam 1 above
+   records that they **store** there), not from the project settings this command names; a
+   `sensitive` value is absent from settings entirely (smoke-test A) and cannot be verified this way.
+   **Exception:** a `directory`/`file` relative-path entry in checked-in project settings resolves
+   against the repo checkout (cloud sessions included) — see
    [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md). Otherwise the marketplace is known but the plugin is absent, and step 3's
    verify edit would run with no plugin hook.
 2. Interactively, `/plugin configure` adjusts `userConfig` toggles at any time; keep the

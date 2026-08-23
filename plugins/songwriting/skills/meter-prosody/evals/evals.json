@@ -1,0 +1,84 @@
+{
+  "skill_name": "meter-prosody",
+  "evals": [
+    {
+      "id": 1,
+      "name": "scan-measures-in-stresses-not-syllables",
+      "prompt": "/songwriting:meter-prosody meter \"I drove past the house where we used to live / and counted the lights in the windows\"",
+      "expected_output": "Routes to the meter action and loads the meter research file. Marks the stresses on each line, names the paradigm the pattern falls in, and reports line length as a count of STRESSED syllables. Says what the meter is doing FOR the meaning rather than scanning for its own sake. Runs the response-filter Critique filter first, naming each box pass / fail / skip-with-reason aloud.",
+      "files": [],
+      "expectations": [
+        "Runs response-filter section 3 (Critique filter) as a pre-flight and NAMES each box's pass / fail / skip-with-reason — a silent skip is a failure",
+        "Does NOT use section 6 (Form filter) as the gate — form calls are outside this skill's boundary",
+        "Marks stresses explicitly on both lines before making any length claim",
+        "Reports line length in stressed syllables, never as a raw-syllable count presented as length",
+        "If no stress map is marked, states the length box was skipped instead of asserting a length",
+        "Names the paradigm / meter pattern (e.g. tetrameter, common meter, a Paradigm number) rather than only counting",
+        "States what the meter does for the meaning or emotion, not scansion in isolation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "stability-scan-is-a-tool-not-a-verdict",
+      "prompt": "/songwriting:meter-prosody stability my chorus feels wrong but I can't say why — four lines, two long two short, abab perfect rhyme",
+      "expected_output": "Routes to the stability action and loads the stable/unstable research file. Runs the stable/unstable scan across the five elements of structure (number of lines, length of lines, rhythm of lines, rhyme scheme, rhyme type), names whether the section reads stable or unstable, and asks whether that reading serves the section's job. Leaves the choice with the writer instead of issuing a verdict.",
+      "files": [],
+      "expectations": [
+        "Routes to the `stability` action and loads the stable/unstable meta-diagnostic",
+        "Scans the five elements of structure (line count, line length, rhythm, rhyme scheme, rhyme type)",
+        "Names the section as stable or unstable AND says whether that serves the section's job",
+        "Frames stability as a tool, not a verdict — the writer chooses",
+        "Any 'longer'/'shorter'/'balanced' claim about the lines is backed by a marked stress count",
+        "Does NOT declare the chorus the wrong length or shape — that judgement routes to `/songwriting:song-form`",
+        "Names the Critique-filter boxes' pass / fail / skip-with-reason before emitting the finding"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-rewrite-routes-to-co-write",
+      "prompt": "/songwriting:meter-prosody scan line 3 of my verse and then just rewrite it so it scans properly",
+      "expected_output": "Performs the measurement — marks the stresses, names where the scan breaks, and says what the break costs the meaning — then STOPS at the boundary. Declines to emit the rewritten line, because this skill measures and does not write the line it measures, and routes the rewrite to the co-write line-brainstorm action. If the fix the writer wants is a replacement word chosen for stress plus rhyme, routes that to the rhyme skill instead.",
+      "files": [],
+      "expectations": [
+        "Delivers the scansion finding (stresses marked, break located, cost to meaning named)",
+        "Does NOT emit a rewritten line that scans better",
+        "Routes the rewrite explicitly to `/songwriting:co-write` line-brainstorm",
+        "Routes a stress-plus-rhyme replacement word to `/songwriting:rhyme` rather than choosing one here",
+        "States the boundary reason — this skill measures, it does not choose the words that fix a bad scan",
+        "Does not treat the writer's direct request as an override of the boundary table"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "positional-template-for-already-sung-melody",
+      "prompt": "/songwriting:meter-prosody align-melody I need to swap one line in my demo — the melody is already sung and every note stays where it is. Give me what I need to write the replacement.",
+      "expected_output": "Routes to align-melody and loads the lyric-melodic roadmaps material plus the meter file's fitting procedure. Emits a POSITIONAL TEMPLATE first: the sung line split into syllables, a stress row, and a numbered syllable row with the stressed slots bracketed. States that the template is built from the recording, not the lyric sheet, that matching the stress COUNT is not fitting because the positions are the template, and that the singer's actual phrasing overrides the inferred grid. Emits the template only — the fitted line goes to the co-write skill.",
+      "files": [],
+      "expectations": [
+        "Routes to `align-melody` and pairs it with the prosody material",
+        "Emits a positional template with three labelled rows: the syllabified line, the stress marks, and numbered syllables with stressed slots bracketed",
+        "Instructs transcribing from the recording, not the lyric sheet",
+        "States that a candidate with the right stress COUNT in the wrong POSITIONS does not sit on the melody",
+        "States that a slot the singer pushes is a strong slot whatever the scan says — the ear outranks the inferred grid",
+        "Frames the syllable count here as an inventory of notes already sung, NOT a length claim about the line",
+        "Treats a mismatch in EITHER direction as a greedy spot, because the frame is lyric-against-melody",
+        "Does NOT emit the fitted replacement line — routes it to `/songwriting:co-write`"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "too-cold-is-not-a-stress-error",
+      "prompt": "/songwriting:meter-prosody prosody I'm matching verse 2 to verse 1. Scan verse 2 for greedy spots in both directions — hot and cold.",
+      "expected_output": "Names the frame before scanning: this is a lyric measured against a MODEL LYRIC, not against a melody, so greed is one-directional — a stressed syllable forced into a position the model leaves unstressed. Corrects the premise that 'too cold' is the mirror-image stress error: the stresses land correctly and the strong positions carry filler, so no stress check finds it. Reads what stands on each strong position instead of scanning for it.",
+      "files": [],
+      "expectations": [
+        "Names the frame explicitly as lyric-against-model-lyric before scanning",
+        "States that greed in this frame is one-directional — stressed syllable in a position the model leaves unstressed",
+        "Corrects the user's premise: 'too cold' is NOT a mirror-image stress error and is not a stress error at all",
+        "Does NOT scan for the cold failure — instead reads what content sits on each strong position",
+        "Contrasts with the melody frame, where a mismatch in either direction IS a greedy spot",
+        "Any length or match claim about the two verses is stated in stressed syllables"
+      ]
+    }
+  ]
+}

@@ -1,5 +1,15 @@
 # Execution checklist
 
+## Contents
+
+- [Pre-extraction (before writing or extending the SSOT)](#pre-extraction-before-writing-or-extending-the-ssot)
+- [Per-callsite (during migration of each consumer)](#per-callsite-during-migration-of-each-consumer)
+- [Sweep references (after all callsites migrated)](#sweep-references-after-all-callsites-migrated)
+- [Post-extraction (before declaring done)](#post-extraction-before-declaring-done)
+- [Sanity-check format for the working notes](#sanity-check-format-for-the-working-notes)
+- [Failure recovery](#failure-recovery)
+- [Cross-references](#cross-references)
+
 Per-phase checks for the `execute` action. SKILL.md ships the phase header (identify-cluster → architect-plan → execute-migration → sweep-references → verify); this file covers what to verify before, during, and after each call site is migrated.
 
 Composes with `decision-framework.md` (gate before extraction), `citation-form.md` (form at each call site), `/docs-hygiene:audit-encapsulation` (remediation paths for violations), `anti-patterns.md` (failure modes to guard against), and SKILL.md "Evidence discipline" (Tier 0 evidence).
@@ -47,7 +57,7 @@ After every callsite is migrated, run the rename sweep across the WHOLE repo to 
 | 1 | All 10 syntactic forms swept | `/docs-hygiene:rename-references` invoked with the SSOT name + each new identifier (heading / function / anchor) as renames-of-record | `/docs-hygiene:rename-references` (owns the 10-pattern sweep) |
 | 2 | Pure-token grep returns no orphans | `grep -rn 'OldText\|OldIdentifier'` across all tracked files returns clean | `citation-form.md` "Rename discipline" |
 | 3 | New SSOT is grep-discoverable | `grep -rn '<new-filename-or-identifier>'` across tracked files shows the expected callsites | Tier 0 verification |
-| 4 | No violation patterns reintroduced | Re-run `/docs-hygiene:audit-encapsulation detect` | `/docs-hygiene:audit-encapsulation` |
+| 4 | No violation patterns reintroduced | Re-invoke `/docs-hygiene:audit-encapsulation detect` via the Skill tool | `/docs-hygiene:audit-encapsulation` |
 | 5 | Code/config: language-aware refactor cross-checked | If applicable, run the IDE rename refactor and confirm the result matches the grep sweep — the IDE catches typed call sites grep misses | `anti-patterns.md` #1 |
 
 ## Post-extraction (before declaring done)

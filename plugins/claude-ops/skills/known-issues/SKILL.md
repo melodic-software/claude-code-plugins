@@ -152,7 +152,7 @@ without it, write up the defect manually. This skill covers Claude product issue
 
 ## What This Skill Does NOT Do
 
-- **Does not read local telemetry** — OTEL store, collector, hooks, ccusage → `/claude-ops:observability`
+- **Does not read local telemetry** — OTEL store, collector, hooks, ccusage → invoke `/claude-ops:observability` via the Skill tool
 - **Does not fix bugs** — reports and tracks them
 - **Does not test features** — searches for KNOWN issues
 - **Issue creation requires explicit confirmation** — `create` action always shows draft first, never auto-files

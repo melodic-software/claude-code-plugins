@@ -1,6 +1,7 @@
 ---
 description: "EventStorming facilitation knowledge and reference across Big Picture, Process Modeling, and Design-Level formats. Use when: 'run EventStorming', 'model a domain', 'discover bounded contexts', 'Big Picture session', 'map domain events', 'find aggregates', 'DDD workshop', 'bounded context heuristics'. Actions: --big-picture / --process / --design-level (format guidance), --patterns (facilitation patterns/anti-patterns), --glossary, --notation, --remote. No args: interactive discovery — checks Miro for boards (if available), asks goal, recommends format. Not for agentic simulation — use /event-storming:simulation."
 user-invocable: true
+disable-model-invocation: false
 argument-hint: "[--big-picture|--process|--design-level|--patterns|--glossary|--notation|--remote]"
 metadata:
   workflow-stage: plan
@@ -27,7 +28,7 @@ Parse `$ARGUMENTS` for:
 
 If no filter is specified, run the **Interactive Discovery** flow below.
 
-To *run* an agentic AI-driven workshop (multi-persona simulation on Miro) rather than read facilitation guidance, use `/event-storming:simulation`.
+To *run* an agentic AI-driven workshop (multi-persona simulation on Miro) rather than read facilitation guidance, invoke `/event-storming:simulation` via the Skill tool.
 
 ---
 

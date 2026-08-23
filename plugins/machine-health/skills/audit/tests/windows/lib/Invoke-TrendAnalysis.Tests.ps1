@@ -157,6 +157,26 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $result[0].trend.adjusted_from | Should -Be 'WARN'
     }
 
+    It 'maps environment-health to user_path_length without a generic upward upgrade' {
+        Get-TrendRelevantKey -CheckId 'environment-health' | Should -Be 'user_path_length'
+        Test-WorseningTrend -CheckId 'environment-health' -CurrentValue 420 -PriorValue 400 |
+            Should -BeFalse -Because 'composite WARN causes must not escalate on PATH growth'
+
+        $history = @(
+            New-HistoryEntry `
+                -SeverityByCategory @{ config = [pscustomobject]@{ WARN = 1 } } `
+                -TopMetrics @{ 'environment-health.user_path_length' = 400 } `
+                -ChecksRan @('environment-health')
+        )
+        $checks = @(New-CheckStub -Id 'environment-health' -Category 'config' `
+                -Severity 'WARN' -Detail @{ user_path_length = 420 })
+        $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
+        $result[0].trend.delta | Should -Match 'user_path_length'
+        $result[0].trend.delta | Should -Match '\+20'
+        $result[0].severity | Should -Be 'WARN'
+        $result[0].trend.adjusted_from | Should -BeNullOrEmpty
+    }
+
     It 'treats battery downward drop as worsening (fullCapacityPct going down)' {
         $history = @(
             New-HistoryEntry `

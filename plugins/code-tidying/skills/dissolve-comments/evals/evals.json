@@ -1,0 +1,65 @@
+{
+  "skill_name": "dissolve-comments",
+  "evals": [
+    {
+      "id": 1,
+      "name": "deletes-class-a-restatement",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains one code file whose comments restate the adjacent lines: a '// increment counter' above 'counter++;' and a commented-out block of dead code. The file has no other comments.)",
+      "narration": true,
+      "expectations": [
+        "Classifies both comments as class A (zero information) and deletes them outright",
+        "Does not modify any non-comment code in the file",
+        "Reports per-file counts of applied class-A deletions",
+        "Does not commit; leaves the edits in the working tree for review"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "proposes-class-b-without-test-net",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a code file where a comment narrates what a 6-line block does — a class-B extract-function candidate. The repository has no discoverable test command: no test script in the package manifest, no Makefile target, no ecosystem default that resolves.)",
+      "narration": true,
+      "expectations": [
+        "Classifies the block comment as class B with Extract Function as the named move",
+        "Does NOT apply the refactoring or delete the comment, because no runnable test net was discovered",
+        "Emits the class-B treatment as a proposal in the report",
+        "Does not treat the presence of a linter as a substitute for tests"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "safe-mode-applies-removals-only",
+      "prompt": "/code-tidying:dissolve-comments safe\n\n(The uncommitted diff contains one file with a class-A restating comment, a class-B magic-literal comment, and the repository has a working test suite.)",
+      "narration": true,
+      "expectations": [
+        "Applies the class-A deletion",
+        "Does NOT apply the class-B refactoring even though a test net exists — safe mode restricts applied edits to removals",
+        "Emits the class-B item (Replace Magic Literal) as a proposal",
+        "Report distinguishes applied removals from proposed refactorings"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-touches-exempt-surfaces",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains: a public exported function with a JSDoc block, a file-top license header, a line with '// eslint-disable-next-line', a 'TODO(#412): remove after migration' marker, a terse '// items must stay sorted; binary search depends on it' constraint comment, and a change inside .github/workflows/ci.yml.)",
+      "narration": true,
+      "expectations": [
+        "Leaves the public-API JSDoc, license header, lint directive, and TODO(#412) marker untouched",
+        "Keeps the sorted-items constraint comment as a class-C keep and says why in the report",
+        "Never edits the .github/workflows/ file — excluded path dropped at scoping time",
+        "Refuses to reinterpret 'remove comments' as deleting the class-C or exempt material"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "stages-narrative-before-deletion",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a file with a 10-line comment justifying why one caching strategy was chosen over another; one line of it states a durable constraint — the cache must be invalidated before writes.)",
+      "narration": true,
+      "expectations": [
+        "Extracts the durable constraint into a terse one-line class-C comment",
+        "Stages the removed justification narrative as a proposed commit-message block in the output before the deletion is final",
+        "Does not silently destroy the narrative text",
+        "Recommends handing the staged block to /source-control:commit when committing"
+      ]
+    }
+  ]
+}

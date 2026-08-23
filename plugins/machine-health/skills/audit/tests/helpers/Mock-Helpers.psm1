@@ -249,6 +249,52 @@ function New-MockWinGetPackage {
     }
 }
 
+function New-MockEnvironmentKey {
+    <#
+    .SYNOPSIS
+    RegistryKey-shaped stand-in for HKCU:\Environment / HKLM Environment.
+
+    .DESCRIPTION
+    Check scripts call GetValueNames, GetValueKind, and the 3-arg GetValue
+    (name, default, RegistryValueOptions). A real RegistryKey does not
+    Export-Clixml in a form tests can rehydrate, so this factory is the
+    fixture surface. Entries is Name -> @{ Kind = 'String'|'ExpandString';
+    Value = '...' }. Credential tests plant a Value that the check must
+    never read — GetValue still returns it if called, so a leak is visible.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable] $Entries
+    )
+
+    $map = [hashtable]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($k in $Entries.Keys) { $map[$k] = $Entries[$k] }
+
+    $key = [pscustomobject]@{
+        _entries      = $map
+        GetValueCalls = [System.Collections.Generic.List[string]]::new()
+    }
+    $key | Add-Member -MemberType ScriptMethod -Name GetValueNames -Value {
+        @($this._entries.Keys | ForEach-Object { [string]$_ })
+    } -Force
+    $key | Add-Member -MemberType ScriptMethod -Name GetValueKind -Value {
+        param($Name)
+        if (-not $this._entries.ContainsKey($Name)) {
+            throw "Property $Name does not exist."
+        }
+        return $this._entries[$Name].Kind
+    } -Force
+    $key | Add-Member -MemberType ScriptMethod -Name GetValue -Value {
+        param($Name, $Default, $Options)
+        $this.GetValueCalls.Add([string]$Name)
+        if (-not $this._entries.ContainsKey($Name)) { return $Default }
+        return $this._entries[$Name].Value
+    } -Force
+    return $key
+}
+
 function New-MachineHealthTempDir {
     # Creates a uniquely-named scratch directory under the system temp root and
     # returns its path. Centralizes the pattern repeated across tests that need
@@ -277,6 +323,7 @@ Export-ModuleMember -Function @(
     'New-MockBattery'
     'New-MockDefenderComputerStatus'
     'New-MockDriver'
+    'New-MockEnvironmentKey'
     'New-MockEventLogRecord'
     'New-MockPartition'
     'New-MockPhysicalDisk'

@@ -4,6 +4,147 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.5.0 — 2026-08-23
+
+**Minor under this contract's own rule** — a new adopter's rows are added; no producer-owned field's
+rule moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **`docs-hygiene/audit-noise` joins the crosswalk (#3123)**, the third producer and the second to
+  reach the relay from a read-only audit skill. Two rows:
+  - `rule-negation-without-positive` — **IMPORTANT**, argued from `severity.md`'s **stated-rule**
+    limb rather than the degradation limb both `audit-instructions` rows walk. The fleet's own
+    `docs-hygiene:write-for-agents` "Prompt the positive" is the stated rule a bare prohibition
+    violates, so the argument does not have to reach for a nameable degradation trigger.
+    `Auto-applicable: No` — contained to `Location`, but recovering the positive target is a rewrite
+    judgment.
+  - `rule-negation-hard-guardrail` — **non-emitting**, and its row states which ground it uses, as
+    the admission test requires: the **Boundary**'s "findings that never reach a relay", never a
+    tier test. The claim is that the candidate is not a defect at all — the write-side rule itself
+    preserves a negation "when the positive form genuinely loses the constraint" — and a tier test
+    can only ever return a tier.
+- **The adopter is a worked instance of admission test 2 checked on EVERY withholding boundary.**
+  This producer has three (paired positive, hard guardrail, worked example) and each requires its
+  evidence PRESENT on the sentence, so absence of that evidence selects the emitting rule. That is
+  the failure 2.4.0's own pilot recorded — a criterion satisfied on the boundary easiest to argue
+  while the second stayed open — met here by construction rather than by re-argument.
+- **It is also the first adopter whose fall-through placement is forced by having two output
+  surfaces.** The carve-out sits in the shared scanner, before either the human report or the
+  findings file is composed, so one candidate carries one disposition on both. The contract binds
+  the outcome and not a structure, and this is a second shape that satisfies it — the pilot placed
+  its bar at classification for the same reason, from a different starting point.
+
+## 2.4.1 — 2026-08-21
+
+Two clarifications to prose this contract already had. **Patch under its own rule**: no
+producer-owned field's rule moves, no coexistence obligation changes, no enforceability verdict
+changes, no adopter row is added, and nothing a producer emits or a consumer parses is different.
+Both passages are corrected to say what the consumer already does.
+
+- **"Auto-applicability is settled per rule, at contract time" stated its criterion unqualified.**
+  The opening sentence read as a fence over every finding — "a fix is auto-applied only when it is
+  contained to its `Location`, high-confidence, and not a call for architectural judgment" — while
+  the section directly above it, and the Declared-dispositions table, both turn on the fact that
+  `fix-pass-mode.md` "Step 4" states that fence under its **correctness-class** heading and a
+  cleanup-class row never passes through it. Read literally the sentence contradicted its own
+  neighbours. It is now scoped to the correctness class, with the consequence this contract owns
+  (settle it once per rule, in the crosswalk) marked as the class-independent half. **This wording
+  predates the 2.4.0 release**: it entered with the crosswalk in #2737 on 2026-08-15, and 2.4.0 only
+  put a second passage beside it that made the tension legible.
+- **The `Auto-applicable: No` bullet described the cleanup route as `/simplify`-only.** It said the
+  route "hands that class wholesale to `/simplify`". Step 4 has two branches — `/simplify` when it
+  is available in the session, otherwise the cleanup findings applied directly, one file at a time —
+  and the bullet named one. Its conclusion is unaffected and was never at risk: a `No` cell cannot
+  restrain the route under *either* branch, which is why the bullet was written. The correction
+  states both branches and why the cell reaches neither: on the first no consumer reads it, and on
+  the second the reader is the cleanup route, whose fence is the file rather than auto-applicability.
+
+The same `/simplify`-only description appears in 2.4.0's own entry below and in
+`plugins/review/CHANGELOG.md`. Those are published entries recording what was written at the time
+and are deliberately left as they stand; this note is the correction's home.
+
+## 2.4.0 — 2026-08-21
+
+A producer can now name the skill that owns its findings' remediation (#3033). New section, "When
+the remediation is owned by the producer's own skill": a rule whose repair is contained to
+`Location` but safe only under discipline the producer owns leads its crosswalk `Auto-applicable`
+cell with ``No, remediated by `<invocation>` `` (a code span; a consumer strips the delimiters before matching). The consumer resolves that declaration through the
+qualified rule id every conforming row already leads its `Finding` cell with, and routes those rows
+to that surface instead of the cleanup route's `/simplify`.
+
+Minor under this contract's own rule: the disposition is **opt-in and additive**. No existing
+obligation changes, no producer-owned field's rule moves, nothing about what a producer emits
+changes, and a row that declares nothing behaves exactly as it did.
+
+**The declaration is per RULE and lives only in the crosswalk**, which is this contract's own
+settle-once rule applied rather than restated — "Auto-applicability is settled per rule, at contract
+time" already says a rule's remediation shape does not vary run to run, and who owns the repair is
+exactly such a fact. Requiring every emitted row to carry a copy would be the per-finding
+restatement that section forbids, and would make conformance a property of a producer's emitter
+rather than of its rule set. A producer MAY additionally lead an `Action` cell with
+``Remediate with `<invocation>` `` (same code-span convention), which **corroborates** the crosswalk
+declaration and never substitutes for it: the crosswalk row is NECESSARY, and a rule with no
+crosswalk declaration is not producer-owned however its `Action` reads. Where both are present and
+name different invocations the crosswalk wins and the row is the defect.
+
+**That asymmetry is a trust boundary rather than a preference**, and the section says so in terms a
+later reader cannot relax by accident. The crosswalk lives in the consuming repo's own docs, outside
+the artifact being consumed; the `Action` cell is inside it. Nothing authenticates the writer of a
+findings file — this contract's own opening premise — and this is the disposition that hands rows to
+a skill the consumer does not then re-fence, so an `Action`-alone route would let any component that
+can write a conforming file name any already-installed skill and hand it arbitrary rows, bounded by
+neither `Location` nor the consumer's own step. Availability is not authentication. An unreachable
+crosswalk is therefore the no-declaration case, never a fallback to the `Action` cell.
+
+The section opens by ruling out the two cheaper answers, because both were checked first and the
+reasoning is what makes the third disposition defensible rather than accreted:
+
+- **Off-site does not reach it.** Its producer obligation binds a remediation "outside `Location`'s
+  file" and both of the consumer's limbs are site limbs, so a rule whose repair is *at* `Location`
+  would have to assert something false to reach the disposition — and would then be routed to
+  surface-only, which is the wrong destination when the producer ships a surface that can apply the
+  fix.
+- **`Auto-applicable: No` does not reach it either.** `fix-pass-mode.md` Step 4's
+  surface-instead-of-applying fence sits under its correctness-class heading; a prose-style row
+  classifies as cleanup by content and the cleanup route hands the class wholesale to `/simplify`,
+  which reads no findings file. A cell no consumer reads on that path cannot restrain it.
+
+**No column was added**, for the three reasons the off-site remediation-target column was rejected
+plus one that is new: `scripts/check-detector-findings-crosswalk.sh` locates the crosswalk by its
+exact five-column header and fails any row splitting into a different field count. The leading-token
+device is this contract's own precedent — it is how the rule id rides in `Finding` without a column.
+
+Also here: `Auto-applicable`'s cell grammar is stated (four leading forms, argument after);
+producer-owned joins cross-file and architectural judgment as a third shape that is never
+auto-applicable *by the consumer*; the fourteen non-`rule-utm-params` `ai-slop:audit` rows carry the
+new lead; two Enforceability rows are added, one deterministic (the leading form is a literal-prefix
+read of a cell the crosswalk gate already parses) and one reasoning-only (nothing outside the
+session can see which skill the fixer invoked, so the declaration is checkable and the honoring is
+not). All three adopter rows now state their disposition explicitly — `ai-slop:audit` declares an
+owner, `mutation-testing:audit` is off-site and decided first, `testing:audit` declares none because
+no skill owns choosing an oracle.
+
+The consumer half lands in `review` 0.26.0.
+
+## 2.3.0 — 2026-08-19
+
+Three `ai-slop:audit` rows join the crosswalk (`rule-chatbot-artifacts`, `rule-filler-phrases`,
+`rule-stacked-hedging`), from the plugin's integration of Cursor's `unslop` pattern set (ai-slop
+0.2.0). Minor under this contract's own rule: additive crosswalk rows, no obligation changed.
+`rule-chatbot-artifacts` argues IMPORTANT on the same degradation walk as the
+knowledge-cutoff-disclaimer row (chat-turn residue asserts a conversational exchange false of the
+committed document); the other two argue SUGGESTION. The adopter row's tier-spread counts update
+to twelve SUGGESTION and three IMPORTANT.
+
+## 2.2.0 — 2026-08-17
+
+Third adopter tabled (`ai-slop:audit`), with its twelve rules admitted to the crosswalk. Minor
+under this contract's own rule: a new adopter row and additive crosswalk rows, no obligation
+changed. One additive clarification rides along: the flat-map paragraph now says explicitly that
+a tier spread sourced from the RULES (each row arguing which claim its rule makes) is admitted —
+what stays forbidden is a spread sourced from a finding's prose. `ai-slop:audit` is the first
+producer to use it (ten SUGGESTION style rules, two IMPORTANT generation-residue rules) and the
+first whose persist is default-on for repo-examining runs rather than opt-in.
+
 ## 2.1.0 — 2026-08-15
 
 Second adopter tabled, with its rules admitted to the crosswalk (#2684). Minor under this

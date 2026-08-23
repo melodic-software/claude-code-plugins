@@ -25,16 +25,21 @@ When a grant is dropped the failure is silent: it parses, looks correct, and doe
 the session enters auto mode, so the action falls through to the classifier and can be denied even when
 the operator intended to pre-approve it. A convention plus an enforceable check is the durable fix.
 
-## Auto mode is the default from 2026-08-14, not a state you opt into
+## Auto mode is the built-in default, not a state you opt into
 
 Read every "under auto mode" clause below as the **default** condition on the plans this repository's
-operators use, not as a conditional one. Per
+operators use, not as a conditional one. The upstream page no longer dates the rollout — it states a
+version floor. Per
 [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
-(fetched 2026-08-10):
+(fetched 2026-08-17):
 
-> Starting August 14, 2026, auto mode becomes the default permission mode for new sessions on Pro,
-> Max, and Team plans. You can switch modes at any time. A default you set yourself stays in place
-> unless you accept the one-time switch prompt, and a default your organization manages is unchanged.
+> The built-in `auto` default requires Claude Code v2.1.228 or later on macOS, Linux, and WSL, and
+> v2.1.233 or later on native Windows. On earlier versions, the built-in default is Manual.
+
+> On Pro, Max, and Team plans, if your `~/.claude/settings.json` sets a different `defaultMode` and
+> no other settings file sets one, your terminal sessions keep starting in that mode, and Claude
+> Code asks once, in the terminal or in the extension, whether to change the setting to auto mode.
+> If you decline, your setting stays as it is.
 
 Two consequences for this convention, and one non-consequence:
 

@@ -9,14 +9,23 @@ readonly WIT_LEASE_MARKER='<!-- work-item-lease v1 '
 
 # wit_lease_json <marker-line-or-comment-body> — extract the lease JSON from a
 # lease marker; empty output when the input is not a lease marker.
+#
+# Anchored on the FIRST ` -->` after the marker, not on the body ENDING there:
+# a comment carrying the lease may have trailing content appended by whatever
+# posts it — a bot wrapper's attribution footer, a signature, a CI note. An
+# end-anchored match treated every such comment as "not a lease", which is
+# silent and dangerous rather than merely lossy: claim's arbitration would find
+# no incumbent lease and grant, and renew-lease would refuse to renew a lease it
+# had just written. Taking the first ` -->` is also strictly more correct — an
+# HTML comment cannot contain `-->`, so the first occurrence always closes it.
 wit_lease_json() {
   local body="$1"
   case "$body" in
-    "$WIT_LEASE_MARKER"*" -->")
-      body="${body#"$WIT_LEASE_MARKER"}"
-      printf '%s\n' "${body% -->}"
-      ;;
-    *) printf '' ;;
+  "$WIT_LEASE_MARKER"*" -->"*)
+    body="${body#"$WIT_LEASE_MARKER"}"
+    printf '%s\n' "${body%% -->*}"
+    ;;
+  *) printf '' ;;
   esac
 }
 

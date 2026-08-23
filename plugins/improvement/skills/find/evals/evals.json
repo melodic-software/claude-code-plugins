@@ -1,0 +1,46 @@
+{
+  "skill_name": "find",
+  "evals": [
+    {
+      "id": 1,
+      "name": "vague-prompt-whole-repo-ranked-scan",
+      "prompt": "What should we improve in this repo? I'm not sure where to start — just tell me what would move the needle.",
+      "expected_output": "Recognizes the cross-dimension improvement ask and invokes /improvement:find (not architecture:improve, code-tidying:tidy, or a review skill). Scans the full dimension inventory — code/architecture, performance, product-level behavior, config/automation outside the codebase, Claude Code operational setup — and presents one ranked list led by the highest value-to-effort candidate, every row carrying an evidence citation with its ladder rung, an S/M/L size, and a value-to-effort rationale, with evidence-gap lines after the list. Ends by asking which candidate to pick; edits nothing.",
+      "files": [],
+      "expectations": [
+        "Routes the vague 'what should we improve' ask to /improvement:find rather than a single-lens skill or ad-hoc advice",
+        "Walks the explicit scan-dimension inventory instead of collapsing to code-only",
+        "Every candidate row carries an evidence citation with its ladder rung, an S/M/L size, and a value-to-effort rationale; the highest-impact candidate leads",
+        "Unavailable evidence sources appear as recorded gap lines — never fabricated or silently skipped",
+        "Stays interactive (presents the list and asks for a pick) and performs no code edits"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "targeted-prompt-narrows-scope-and-size",
+      "prompt": "/improvement:find improve the checkout flow — quick wins only",
+      "expected_output": "Maps the named feature to its concrete surfaces (files, workflows, config, ops touchpoints) before gathering evidence, gathers evidence for those surfaces only rather than scanning the whole repo, and restricts candidates to the small size band per the 'quick wins only' narrowing. If the checkout flow has no measurement above model judgment, the top candidate is an instrument-first proposal, explained as such.",
+      "files": [],
+      "expectations": [
+        "Narrows the scan to the named feature's mapped surfaces instead of scanning the whole repo",
+        "Interprets 'quick wins only' as the small size band and filters candidates accordingly",
+        "Still cites evidence per candidate; an unmeasured target yields an instrument-first top candidate rather than dressed-up guesses",
+        "Does not error on the prose narrowing — size-band and target parsing accept prose equivalents of the flags"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "unattended-declaration-no-questions-persisted-report",
+      "prompt": "/improvement:find --unattended\n\nThis runs unattended as a scheduled routine — there is no interactive user to answer any question. File at most 2 items this run.",
+      "expected_output": "Enters unattended mode because the caller declared it: asks no questions, persists the full ranked report (with run metadata and evidence-gap lines) under ${CLAUDE_PLUGIN_DATA} keyed per project, and files top candidates via work-items:track only if installed — deduped against open items first, honoring the prompt's cap of 2 over the adaptive default, suppressing previously dismissed candidates. It never edits code, never prioritizes the queue, and never self-disposes.",
+      "files": [],
+      "expectations": [
+        "Enters unattended mode on the caller's declaration and asks zero questions end to end",
+        "Persists the ranked report under ${CLAUDE_PLUGIN_DATA} with the per-project state key — never into the target repository",
+        "Files via work-items:track presence-gated, deduping against open items before spending a cap slot",
+        "Honors the invocation prompt's cap of 2 over the adaptive filing default",
+        "Performs no code edits, no queue prioritization, and no self-disposal — report persistence and filing are the only mutations"
+      ]
+    }
+  ]
+}

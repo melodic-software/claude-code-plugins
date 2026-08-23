@@ -1,6 +1,7 @@
 ---
 description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), stash (stash audit/triage), tree (destructive fresh-pull reset), tree-batch (multi-repo tree reset with skip-list + dirty guard), all, and fleet batch forms of the selective tiers (caches-batch / build-batch / git-batch / all-batch over many repos behind one gate). Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when: 'clean', 'free up disk space', 'remove caches', 'clear build artifacts', 'fresh pull', 'fresh clone state', 'reset to origin', 'reset all my repos', 'clean caches across all repos', 'clear build artifacts across all my repos', 'prune git across the fleet', 'stale branches', 'clean up my stashes', 'repo hygiene'. Skip: removing git worktree directories (a worktree-management tool handles those)."
 user-invocable: true
+disable-model-invocation: false
 argument-hint: "[scan|caches|build|git|stash|tree|tree-batch|all|caches-batch|build-batch|git-batch|all-batch|aliases…] (bare → menu or auto-detect)"
 allowed-tools:
   # Read-only scripts only, one narrow rule each. The mutating scripts

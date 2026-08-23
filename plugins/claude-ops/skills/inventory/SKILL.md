@@ -116,8 +116,8 @@ marker; never promote "present in the binary" to "available to you". `/skills` a
 authority on what resolves right now.
 
 **`enabledPlugins: false` does not settle enablement.** It spans several scopes, and a plugin's
-hooks live in its own manifest. Report the map as read and route the verdict to
-`/claude-ops:plugins audit`.
+hooks live in its own manifest. Report the map as read and tell the user to run
+`/claude-ops:plugins audit` for the verdict.
 
 **Counts that disagree are data, not noise.** `bundled_skill_notes` carries `registrations_seen`
 alongside `resolved`. When they differ, some registration used a dynamically computed name; say so

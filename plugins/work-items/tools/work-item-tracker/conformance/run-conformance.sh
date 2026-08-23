@@ -10,6 +10,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../work-item-tracker.sh"
 source "$SCRIPT_DIR/../tests/lib.sh"
+# shellcheck source=../lib/binding.sh
+source "$SCRIPT_DIR/../lib/binding.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   echo "usage: run-conformance.sh --binding <name>  (runs the abstract seam conformance suite through the core CLI against the named adapter binding under bindings/<name>.sh)"
@@ -25,24 +27,58 @@ usage_error() {
 binding_name=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --binding)
-      if [[ $# -lt 2 ]]; then
-        usage_error
-      fi
-      binding_name="$2"
-      shift 2
-      ;;
-    *)
+  --binding)
+    if [[ $# -lt 2 ]]; then
       usage_error
-      ;;
+    fi
+    binding_name="$2"
+    shift 2
+    ;;
+  *)
+    usage_error
+    ;;
   esac
 done
 if [[ -z "$binding_name" ]]; then
   usage_error
 fi
-BINDING_FILE_SH="$SCRIPT_DIR/bindings/$binding_name.sh"
+# The name becomes a path segment under a bindings root. Constrain it to the
+# adapter-name charset BEFORE it is interpolated, so `--binding ../../x` cannot
+# escape the searched roots and source an arbitrary file. Allowlisting is the
+# same posture the adapters use on binding-supplied keys.
+if ! [[ "$binding_name" =~ ^[a-z][a-z0-9-]*$ ]]; then
+  echo "run-conformance: invalid binding name '$binding_name' (expected ^[a-z][a-z0-9-]*\$)" >&2
+  exit 2
+fi
+# Conformance bindings resolve the SAME two-root way adapters do (CONTRACT.md
+# "Adapter resolution"), and for the same reason: a consumer-local or generated
+# adapter lands in the consuming repo, and the plugin directory it would
+# otherwise need to write its binding into is read-only and replaced on plugin
+# update. First existing match wins:
+#   1. WIT_CONFORMANCE_BINDINGS_DIR — a single explicit bindings root, no search
+#      (the sibling of WIT_ADAPTERS_DIR; tests).
+#   2. Consumer-local — <repo root>/tools/work-item-tracker/conformance/bindings.
+#   3. Plugin-bundled fallback — this copy's own bindings/ (the shipped set).
+# When none exists the bundled path is named in the one not-found error.
+resolve_binding_file() {
+  local name="$1" root
+  if [[ -n "${WIT_CONFORMANCE_BINDINGS_DIR:-}" ]]; then
+    printf '%s\n' "$WIT_CONFORMANCE_BINDINGS_DIR/$name.sh"
+    return 0
+  fi
+  if root="$(wit_project_root)"; then
+    local local_file="$root/tools/work-item-tracker/conformance/bindings/$name.sh"
+    if [[ -f "$local_file" ]]; then
+      printf '%s\n' "$local_file"
+      return 0
+    fi
+  fi
+  printf '%s\n' "$SCRIPT_DIR/bindings/$name.sh"
+}
+
+BINDING_FILE_SH="$(resolve_binding_file "$binding_name")"
 [[ -f "$BINDING_FILE_SH" ]] || {
-  echo "run-conformance: no binding at $BINDING_FILE_SH" >&2
+  echo "run-conformance: no binding for '$binding_name' (searched consumer-local then plugin-bundled) — last tried $BINDING_FILE_SH" >&2
   exit 2
 }
 
@@ -69,8 +105,8 @@ wit_case() {
   WIT_RC=$?
   assert_eq "$label (exit code)" "$expected_rc" "$WIT_RC"
   case "$WIT_OUT" in
-    *$'\r'*) fail "$label (stdout CR-free)" "no CR" "CR present" ;;
-    *) pass "$label (stdout CR-free)" ;;
+  *$'\r'*) fail "$label (stdout CR-free)" "no CR" "CR present" ;;
+  *) pass "$label (stdout CR-free)" ;;
   esac
 }
 
@@ -94,6 +130,49 @@ wit_case "no verb → usage" 2
 wit_case "unknown verb → usage" 2 definitely-not-a-verb
 WIT_OUT="$(WORK_ITEM_TRACKER_BINDING="/nonexistent-$$.json" bash "$TRACKER" capabilities 2>/dev/null)"
 assert_eq "missing binding → exit 3" "3" "$?"
+
+# --- binding overlay (CONTRACT.md "Setup (binding file)") ---
+# The gitignored personal overlay beside the binding merges allowlisted keys only
+# (lease TTL, jira auth identity); any other key is a configuration error (exit 3,
+# same first-run signal as a missing binding), and removing the overlay restores
+# the team view. Deep merge semantics are unit-tested (lib/binding.test.sh); this
+# asserts the seam-level behavior through the CLI.
+OVERLAY_PATH="$(cd "$(dirname "$WORK_ITEM_TRACKER_BINDING")" && pwd)/.work-item-tracker.local.json"
+printf '%s\n' '{"config":{"lease_ttl_hours":1}}' >"$OVERLAY_PATH"
+wit_case "allowlisted overlay key merges; verbs still dispatch" 0 capabilities
+printf '%s\n' '{"provider":"someone-elses-provider"}' >"$OVERLAY_PATH"
+WIT_OUT="$(bash "$TRACKER" capabilities 2>/dev/null)"
+assert_eq "non-overlayable overlay key → exit 3" "3" "$?"
+rm -f "$OVERLAY_PATH"
+wit_case "overlay removal restores the team binding" 0 capabilities
+
+# --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---
+# Every dispatched case in this suite already passes through the handshake against
+# the real adapter's manifest (a bad declared version would fail every case), and
+# the capabilities assertions above pinned its schema_version. Skew behavior is
+# asserted here against a synthetic shadow of the SAME provider name via
+# WIT_ADAPTERS_DIR: major skew refuses (exit 3, both versions named); newer-minor
+# proceeds with a stderr notice (tolerant reader).
+
+SKEW_ROOT="$(mktemp -d)"
+mkdir -p "$SKEW_ROOT/$PROVIDER"
+printf '%s\n' "{\"schema_version\":\"99.0\",\"provider\":\"$PROVIDER\",\"verbs\":{\"capabilities\":true}}" \
+  >"$SKEW_ROOT/$PROVIDER/capabilities.json"
+SKEW_ERR="$(WIT_ADAPTERS_DIR="$SKEW_ROOT" bash "$TRACKER" capabilities 2>&1 >/dev/null)"
+assert_eq "major-skew manifest refused (exit code)" "3" "$?"
+assert_contains "major-skew stderr names both versions" "$SKEW_ERR" "99.0"
+
+cat >"$SKEW_ROOT/$PROVIDER/capabilities.sh" <<EOF
+#!/usr/bin/env bash
+jq -c . "$SKEW_ROOT/$PROVIDER/capabilities.json"
+EOF
+printf '%s\n' "{\"schema_version\":\"1.99\",\"provider\":\"$PROVIDER\",\"verbs\":{\"capabilities\":true}}" \
+  >"$SKEW_ROOT/$PROVIDER/capabilities.json"
+WIT_OUT="$(WIT_ADAPTERS_DIR="$SKEW_ROOT" bash "$TRACKER" capabilities 2>/dev/null)"
+assert_eq "newer-minor manifest proceeds (exit code)" "0" "$?"
+SKEW_ERR="$(WIT_ADAPTERS_DIR="$SKEW_ROOT" bash "$TRACKER" capabilities 2>&1 >/dev/null)"
+assert_contains "newer-minor proceeds with a stderr notice" "$SKEW_ERR" "newer than core"
+rm -rf "$SKEW_ROOT"
 
 verb_supported() {
   [[ "$(jq -r --arg v "$1" '.verbs[$v] // false' <<<"$CAPS")" == "true" ]]
@@ -245,7 +324,14 @@ if verb_supported claim && [[ -n "$ITEM_A_ID" ]]; then
     # newer one — reason "lease live", never "lease already superseded".
     wit_case "reclaim live lease is a no-op" 0 reclaim "$ITEM_A_ID"
     assert_eq "live lease not reclaimed" "false" "$(jq -r '.reclaimed' <<<"$WIT_OUT")"
-    assert_eq "reclaim picked the active lease" "lease live" "$(jq -r '.reason' <<<"$WIT_OUT")"
+    # `reason` is FREE TEXT — CONTRACT.md's output table gives it no vocabulary — so this
+    # asserts the semantic fact, not one adapter's prose. Exact-matching github's "lease
+    # live" made the suite unrunnable for any adapter that words it differently: linear
+    # says "lease is still live", so its first live run would have been spent chasing a
+    # string mismatch rather than a real defect. What must hold is that reclaim selected
+    # the ACTIVE lease rather than the superseded newer one.
+    assert_contains "reclaim picked the active lease" "$(jq -r '.reason' <<<"$WIT_OUT")" "live"
+    assert_not_contains "…and not the superseded one" "$(jq -r '.reason' <<<"$WIT_OUT")" "superseded"
 
     # Expired-lease reclaim: ttl 0 lease on B expires immediately.
     if [[ -n "$ITEM_B_ID" ]]; then

@@ -1,7 +1,7 @@
 # Save-point engine — produce the save-point and the resume prompt
 
 Shared by `/session-flow:handoff` and `/session-flow:continue-in-background`. This document owns
-the delivery-agnostic machinery: locating the position, choosing the path, producing the (redacted)
+delivery-agnostic machinery: locating the position, choosing the path, producing the (redacted)
 save-point, and emitting the rails resume prompt. The citing skill owns everything after the rails
 prompt — its delivery step (`/clear`-then-paste, or a background-agent launch) and its own STOP
 semantics. Neither skill restates this content; both walk it in order.
@@ -16,6 +16,15 @@ at **`<memory_dir>/handoffs/`** (default `.work/handoffs/`) — files named `<TS
 with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). On the session's first
 memory-tier write, verify the resolved memory root's `.gitignore` exists and contains `*` — create
 it (announced) when absent; never edit the consumer's root `.gitignore`.
+
+**Worktree caveat.** A save-point written inside a `git worktree` checkout resolves its memory
+root within that worktree, so the handoff file lives there — and dies with `git worktree remove`.
+Acceptable only when the worktree completes as a merged PR unit: the work is durable in merged
+history by the time the worktree goes. When pausing un-merged worktree work, write the handoff
+from the main checkout, or rely on `/session-flow:clean-stop`'s preserve-before-remove step —
+before removing a worktree it inspects ignored content a plain `git status` hides
+(`git status --ignored`) and preserves or surfaces anything not reproducible, generated handoff
+data included.
 
 ## Locate the position first
 
@@ -42,23 +51,24 @@ clearly hold:
 - No invariant a resuming session could violate without noticing
 - No side effect already applied that a fresh session would otherwise repeat
 
-The last two are the sharpest: a short, straightforward remainder is exactly the shape that passes
-every other test, and "the migration is already applied — do not re-run" is precisely the fact a
-prompt-only bullet list drops. A single one of them is enough to force the full path.
+The last two are the sharpest: a short, straightforward remainder is the shape that passes every
+other test, and "the migration is already applied — do not re-run" is the fact a prompt-only
+bullet list drops. A single one of them forces the full path.
 
 ANY doubt → full save-point. A wrongly-skipped file loses state the fresh session must rediscover;
-a wrongly-written one costs nothing. An explicit method argument overrides auto-detect — but note
-`prompt` leaves a gap in the session-id chain that `/session-flow:retro` walks (no file, no chain pointer).
+a wrongly-written one costs nothing. An explicit method argument overrides auto-detect — but
+`prompt` leaves a gap in the session-id chain that `/session-flow:retro` walks (no file, no chain
+pointer).
 
 ## Redaction pass — mandatory on BOTH paths
 
 Before writing the handoff file or emitting the resume prompt, sweep everything outbound — body
-sections, TaskList snapshot, frontmatter, and the prompt between the rails — for secrets, API keys,
-tokens, credentials, connection strings, and PII, and redact each hit with a shape marker
-(`<REDACTED: API key>`), never the value. Save-point output outlives the session: it sits on disk
-uncommitted-but-readable, travels to other sessions and machines, and gets read in contexts the
-current conversation never anticipated. A value acceptable to see in-session is not acceptable to
-persist. This pass gates the write — no artifact or prompt is emitted before it runs.
+sections, TaskList snapshot, frontmatter, the position panel, and the prompt between the rails —
+for secrets, API keys, tokens, credentials, connection strings, and PII, and redact each hit with
+a shape marker (`<REDACTED: API key>`), never the value. Save-point output outlives the session: it
+sits on disk uncommitted-but-readable, travels to other sessions and machines, and gets read in
+contexts the current conversation never anticipated. A value acceptable to see in-session is not
+acceptable to persist. This pass gates the write — no artifact or prompt is emitted before it runs.
 
 **Git remote URLs are a named vector on that list, and they take a different treatment.** A remote
 embeds its credential in the URL's userinfo component (`https://<token>@host/…`), where it reads as
@@ -93,7 +103,7 @@ a fact to forward.
 
 This governs both paths, not just the full path's body sections. On the full path it shows up
 throughout [`structure.md`](structure.md) — most visibly the met/unmet marks in Completion criteria.
-Prompt-only writes no body sections at all, so the marker attaches directly to whichever inline
+Prompt-only writes no body sections, so the marker attaches directly to whichever inline
 remaining-work bullet carries the inherited status; a bullet that folds in an inherited "done" or
 "blocked" without `UNVERIFIED (<source>)` reproduces the exact failure this rule exists to prevent,
 with no file left behind for a later review to catch it in.
@@ -101,8 +111,8 @@ with no file left behind for a later review to catch it in.
 ## Original goal — mandatory on BOTH paths
 
 The goal in the user's own words travels with every save-point, and a chain of them carries it
-forward unchanged. A save-point serializes the machinery in front of it effortlessly — the phase,
-the checklist, the bundle — and hands the resuming session a mission made of process, which that
+forward unchanged. A save-point serializes the machinery in front of it — the phase, the
+checklist, the bundle — and hands the resuming session a mission made of process, which that
 session then optimizes faithfully. State is what a save-point preserves for free; intent is what it
 drops in silence, and no amount of detail elsewhere replaces it.
 
@@ -122,6 +132,49 @@ later hops. The full path preserves that history in §1's `Amended:` field; a pr
 collapses it back to a single line discards the record of what the goal was and when it stopped
 being that, which no later full-path handoff can reconstruct.
 
+## The purpose argument tailors emphasis only
+
+A citing skill may hand the engine optional trailing purpose text — the invocation's answer to
+"what will the next session be used for?" (the producer's `[file|prompt] [topic] [purpose...]`
+surface, parsed from `$ARGUMENTS`). When present, purpose tailors **emphasis only**, in exactly
+three places:
+
+- The **Resumption brief** leads with it — the brief's framing opens from what the next session is
+  for, still inside its six-line cap.
+- **Suggested skills** are selected for it — the skills recommended are the ones serving that use,
+  each still tied to a concrete remaining item.
+- **Remaining actions** are ordered by it — among actions whose order is otherwise free; a genuine
+  sequencing dependency still binds, purpose never licenses running an action before one it
+  depends on.
+
+**Prompt-only carries the purpose inline — never discard it.** The three surfaces above are
+full-path sections, and prompt-only writes none of them; its delivery can also hand the rails
+block to a background agent as the only thing that agent ever sees. So on prompt-only, a stated
+purpose travels between the rails as a single `Purpose: <text>` line directly below the goal
+quote (and its dated amendment lines, when present) and above the remaining-work bullets — the
+same travels-in-the-prompt-or-not-at-all rationale the Original goal rule above states. The
+inline bullets are still ordered by it where ordering is free, but ordering alone cannot carry
+it — with one action left it expresses nothing — so the line is the carrier, not a fallback.
+This is content between the rails, not a shape change: every detection-contract signal below
+(the rails, the copy-instruction line, the `Read @…` directive, the `Prior session:` line) is
+untouched.
+
+What purpose may NEVER do:
+
+- It never drops, renames, or reorders the mandatory section set ([`structure.md`](structure.md)'s
+  ordered body sections). The structure is the anti-drift contract; every section is still present,
+  and one with nothing purpose-relevant to say still says so.
+- It never alters the emitted resume-prompt shape — the rails, the directive, the origin line, the
+  re-arm notes. That shape is the detection contract below; changing it for a purpose would be a
+  knowing contract break requiring a coordinated `find-handoff` change, which passing a purpose is
+  not.
+- It never amends the Original goal. A purpose that contradicts the goal is **flagged at write
+  time, not silently obeyed**: say plainly that the stated purpose does not serve the recorded
+  goal and ask whether the goal has changed — the goal moves only by the explicit dated amendment
+  the structure doc's `Amended:` field records, never because a purpose pointed elsewhere.
+
+Absent purpose text, nothing here applies and the engine behaves exactly as it always has.
+
 ## Writing the handoff file (full path)
 
 The body sections, the TaskList reconstitute format, and the frontmatter shape (including the
@@ -130,8 +183,115 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 — walk it while writing the file; never write the section list from memory.
 
 When the target file already exists on disk (extending an earlier turn's write), re-read it from
-disk immediately before writing and append to it — never rewrite the whole file from the in-context
-copy, which goes stale the moment disk moved on without this conversation seeing it.
+disk immediately before writing and append to it — never rewrite the whole file from the
+in-context copy, which goes stale the moment disk moved on without this conversation seeing it.
+
+## Emit the position panel
+
+A save-point is written for the NEXT session, but a human reads the turn that produces it — and at
+that moment they decide two things the save-point never tells them: whether this is a sane place
+to stop, and whether the work is still pointed where they wanted it. Everything needed to answer
+both was already established by "Locate the position first" and the sections above; without this
+step it is all filed into the handoff document, whose stated reader is a session with no prior
+context, and on prompt-only it is written down nowhere. The panel renders that state for the
+operator.
+
+**It restates; it never discovers.** Every line comes from what this turn already established. A
+fact not good enough for the file is not good enough here, and the panel never triggers a read the
+save-point did not already need. That separates it from `/session-flow:orient`, which sweeps
+durable and off-thread state on demand; this is the free exit-side view.
+
+**One call is exempt, and only one:** the `TaskList` fetch a FORCED prompt-only save-point never
+made (unit ladder, rung 4). It reads the session's own task ledger rather than the world outside
+the conversation, so it cannot turn the panel into an orientation sweep — which is the thing this
+rule exists to prevent. Nothing else is exempt: no `gh`, no ledger re-read, no artifact this turn
+has not already opened.
+
+**Shape — a vertical rail, one unit per line:**
+
+```text
+**You are here**
+
+  [x] Phase 1 — discovery
+  [x] Phase 2 — engine
+▸ [~] Phase 3 — wiring          you are here
+  [ ] Phase 4 — evals
+  [ ] Phase 5 — docs
+
+2 of 5 phases complete · completion criteria 4/7 met (2 UNVERIFIED)
+
+Done this session — retry wrapper landed and green (a1b2c3d); OrderWriter stub does not compile yet.
+Where we are — mid Phase 3, blocked on that stub.
+Up next — finish the cancellation pass-through, then Phase 3 edge-case tests (§11 owns the rest).
+```
+
+**Every line stands alone — nothing wraps.** One unit per line, and each of the three blocks is a
+single line. When a line runs long, tighten the wording; never continue it onto an indented second
+line. The rail is vertical rather than a `→`-chained row because a horizontal rail wraps at
+whatever width the terminal happens to be, and the wrap orphans the position marker from the unit
+it marks — destroying the one thing the panel exists to show.
+
+Status glyphs are the ones [`structure.md`](structure.md) already uses for the TaskList snapshot
+(`[x]` completed, `[~]` in progress, `[ ]` pending, `[!]` blocked), so a reader who has seen a
+handoff file needs no legend. The `▸` gutter marker and the trailing `you are here` label are the
+only additions.
+
+**Above 8 units the middle elides; the panel never scrolls.** Keep the first two units, the current
+unit with one neighbour either side, and the last one, replacing each dropped run with a `… N more`
+line. A map keeps its ends and its "you are here" and drops the middle — readable at a glance. A
+rail long enough to scroll is one the operator will not read.
+
+The whole panel is capped at 16 lines, blocks included.
+
+**The count is of COMPLETED units, and an in-progress unit is not one.** The example above reads
+`2 of 5` with a `[~]` third phase for that reason: `[~]`, `[ ]`, and `[!]` all count against the
+total, and only `[x]` counts toward it. Rounding the current unit up is the one arithmetic a
+progress read is most tempted into and least allowed — it reports work as landed while the operator
+is looking at the line that says it is not.
+
+### Resolving the units
+
+Units are whatever THIS work is actually divided into, which is why the panel reads differently on
+different tasks. Take the FIRST that applies, and name the unit kind in the rail so the operator
+knows what they are looking at:
+
+1. Workflow-checklist stages — the stage ledger at `<memory_dir>/<slug>/` the sibling `workflow`
+   skill maintains.
+2. Phases named by a backing plan, spec, or PRD — the artifact "Locate the position first" already
+   read this turn.
+3. An issue chain — the parent work-item and its sub-issues.
+4. Live `TaskList` items — **full path only, where they are already fetched** for
+   [`structure.md`](structure.md)'s `Environment to re-establish`, so the panel spends nothing on
+   them. Prompt-only walks no body sections and so makes no such call: skip this rung there and
+   fall through to 5. That costs almost nothing, because "no non-trivial task list to reconstitute"
+   is one of the criteria that selects prompt-only in the first place ("Choosing the path") — a
+   session with a task list worth drawing was supposed to be on the full path. When prompt-only was
+   FORCED by the explicit `prompt` argument, so that criterion was never tested, make the one
+   `TaskList` call rather than guessing from the conversation.
+5. Completion criteria, as the units of last resort.
+6. **None of the above — emit no rail.** Give the three blocks as prose and say plainly that the
+   work has no delineated units. **Never invent phases to have something to draw.** A fabricated
+   rail reads as a plan that exists, and the operator will resume against it.
+
+### Rules the panel inherits
+
+- **Claim provenance** ("Claim provenance — mandatory on BOTH paths") governs it. An inherited
+  status carries its `UNVERIFIED (<source>)` marker, and the completeness line says how many of its
+  marks are unverified — a bare count reads as measured when it is partly remembered.
+- **Redaction** ("Redaction pass — mandatory on BOTH paths") sweeps it with everything else
+  outbound. The panel is screen output, and screen output is copied, pasted, and screenshotted.
+- **Divergence is surfaced, not resolved.** Where the rail and the durable record disagree, say so
+  in one line and point at `/session-flow:reanchor`; do not pick a side inside the panel.
+
+### The panel NEVER gates the rails prompt
+
+If the units will not resolve, a count cannot be grounded, or anything else about the panel is
+uncertain, emit an abbreviated panel — or none, saying so in a line — and continue immediately to
+the rest of the response. The panel is a courtesy; the rails prompt is the deliverable, and the one
+observed failure mode of this whole engine is a turn that ends before that prompt reaches the screen
+(the citing skill's gotchas). Nothing added here may become a new reason to reach that ending.
+
+Where the panel sits in the response belongs to the citing skill, which owns its own output order.
 
 ## Emit the copy/paste resume prompt
 
@@ -351,6 +511,12 @@ and (3) the `Prior session: <UUID>` line, which — together with the `type: han
 ([`structure.md`](structure.md)) — pins the session chain; it is emitted by the file-mode shape
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
 required key.
+
+**The position panel sits outside this contract.** It is emitted above every keyed signal and
+outside the copy region, carries no rails, no directive, and no `Prior session:` line, and a
+consumer that ignores it entirely recovers exactly what it recovered before. Adding it is
+therefore not a contract change and needs no `find-handoff` edit — stated explicitly because
+everything else in this section treats a shape change as a knowing break.
 
 **Signal 1 carries a rooted path now, and a consumer must still accept the rootless form.** Every
 handoff emitted before this rule shipped states a repo-relative path, and those files and

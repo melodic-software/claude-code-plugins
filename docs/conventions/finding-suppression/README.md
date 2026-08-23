@@ -221,6 +221,19 @@ A skill reading this surface:
 - **One in-repo precedent went the other way and is deliberately not followed:** the `review` plugin
   declined to add a config surface for smell suppression, letting it ride existing project docs.
   Rejected here because a suppression that cannot be keyed cannot be checked for staleness.
+- **`ai-slop` suppresses at the finding site and is deliberately not an adopter.** Its audit exempts
+  a prose tell with an in-file marker on the flagged line, block, or file, not with a keyed entry in
+  a `.claude/` record. This is not the gap the row above describes, because the staleness problem
+  that motivates keying does not arise: an `ai-slop` finding *is* a line, so the marker travels with
+  the line it exempts. Editing the line carries the marker along, and deleting it deletes the
+  marker — obligation 3's disposition machinery is structural there rather than computed. The two
+  substantive protections this contract exists to supply are still met by other means: every marker
+  form takes a `: reason`, and exempted candidates are reported as per-rule declined counts, so a
+  suppression is visible and never silent. What the marker form gives up is real and accepted — no
+  layer merge, no team-versus-personal distinction, and no id by which a corpus-wide sweep could
+  audit the suppression set. That trade holds only while findings stay per-line and per-repo; a
+  future `ai-slop` finding spanning files, or one an operator would accept fleet-wide, would need
+  this contract instead, and the argument would have to be re-derived rather than inherited.
 - **No expiry key.** An expiry would be a second staleness mechanism competing with obligation 3,
   which already retires an entry the moment its finding is gone. Revisit if a consumer demonstrates a
   suppression that should lapse while its finding persists.

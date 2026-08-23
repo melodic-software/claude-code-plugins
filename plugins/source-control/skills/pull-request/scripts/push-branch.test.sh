@@ -22,6 +22,10 @@
 #   * the fetch-ambiguous case proves a failed fetch resolution degrades to a
 #     plain push (no clobber), never an abort.
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PUSH_BRANCH="${SCRIPT_DIR}/push-branch.sh"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"

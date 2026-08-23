@@ -28,14 +28,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-    *"$3"*) fail "$1" "unexpected substring: $3" ;;
-    *) pass "$1" ;;
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
   esac
 }
 
@@ -259,7 +259,103 @@ assert_contains "flags third-person 'reduces effort … short'" "$OUT" "$I27F:12
 assert_contains "flags third-person 'lowers effort … briefer'" "$OUT" "$I27F:13:I27"
 assert_contains "flags third-person 'drops effort … concise'" "$OUT" "$I27F:14:I27"
 
-# --- Case 16: missing grep exits 2 -------------------------------------------
+# --- Case 16: --body-only fences YAML frontmatter -----------------------------
+# The fence exists because check-skill.sh check 3 hard-FAILs a dropped
+# `'trigger phrase'` versus the base ref: a row pointing at a description or a
+# when_to_use invites a remediation that is an auto-invocation regression. It is
+# opt-in, so the default path must keep reporting frontmatter.
+FMF="$TEST_TMPDIR/frontmatter.md"
+cat >"$FMF" <<'EOF'
+---
+description: "CRITICAL: audit things. You MUST run this."
+when_to_use: "if in doubt, use this skill"
+---
+
+CRITICAL: run the linter first.
+Default to using the seam.
+EOF
+rc=0
+OUT=$(bash "$SCRIPT" "$FMF") || rc=$?
+assert_exit "default mode exits 0 on a frontmatter file" 0 "$rc"
+assert_contains "default mode still reports the description line" "$OUT" "$FMF:2:I28-a"
+assert_contains "default mode still reports the when_to_use line" "$OUT" "$FMF:3:I28-b"
+rc=0
+OUT=$(bash "$SCRIPT" --body-only "$FMF") || rc=$?
+assert_exit "--body-only exits 0" 0 "$rc"
+assert_not_contains "--body-only drops the description line" "$OUT" "$FMF:2:"
+assert_not_contains "--body-only drops the when_to_use line" "$OUT" "$FMF:3:"
+assert_contains "--body-only keeps the body emphasis line" "$OUT" "$FMF:6:I28-a"
+assert_contains "--body-only keeps the body blanket-default line" "$OUT" "$FMF:7:I28-b"
+OUT=$(bash "$SCRIPT" --count --body-only "$FMF")
+assert_eq "--count composes with --body-only" "2" "$OUT"
+OUT=$(bash "$SCRIPT" --body-only --count "$FMF")
+assert_eq "flag order does not matter" "2" "$OUT"
+
+# A file with no frontmatter must be unaffected by the fence.
+NOFM="$TEST_TMPDIR/nofrontmatter.md"
+cat >"$NOFM" <<'EOF'
+CRITICAL: run the linter first.
+EOF
+OUT=$(bash "$SCRIPT" --body-only "$NOFM")
+assert_contains "--body-only is a no-op without frontmatter" "$OUT" "$NOFM:1:I28-a"
+
+# A `---` that is a thematic break, not frontmatter, opens no block.
+BREAKF="$TEST_TMPDIR/thematic.md"
+cat >"$BREAKF" <<'EOF'
+# Heading
+
+---
+
+CRITICAL: run the linter first.
+EOF
+OUT=$(bash "$SCRIPT" --body-only "$BREAKF")
+assert_contains "a mid-document --- is not frontmatter" "$OUT" "$BREAKF:5:I28-a"
+
+# An UNCLOSED leading `---` fences the whole file: fail-safe, since the
+# alternative routes a malformed-frontmatter description to an apply relay.
+UNCLOSED="$TEST_TMPDIR/unclosed.md"
+cat >"$UNCLOSED" <<'EOF'
+---
+description: "IMPORTANT: x"
+CRITICAL: never terminated
+EOF
+OUT=$(bash "$SCRIPT" --body-only "$UNCLOSED")
+assert_not_contains "unclosed frontmatter fences the whole file" "$OUT" "$UNCLOSED:"
+OUT=$(bash "$SCRIPT" "$UNCLOSED")
+assert_contains "unclosed frontmatter still reports in default mode" "$OUT" "$UNCLOSED:2:I28-a"
+
+# --- Case 17: CRLF files do not defeat the fence -----------------------------
+# `head`/`awk` leave a terminal CR, so a CRLF delimiter reads as "---\r" and
+# matched neither frontmatter test: the block was treated as body and the
+# description and when_to_use lines became candidates. The fence inverted on
+# exactly the Windows-authored files it most needs to hold for.
+CRLFF="$TEST_TMPDIR/crlf.md"
+printf -- '---\r\ndescription: "CRITICAL: you MUST not edit this."\r\nwhen_to_use: "if in doubt, use this"\r\n---\r\n\r\nCRITICAL: run the linter.\r\n' >"$CRLFF"
+OUT=$(bash "$SCRIPT" --body-only "$CRLFF")
+assert_not_contains "CRLF: description line is fenced" "$OUT" "$CRLFF:2:"
+assert_not_contains "CRLF: when_to_use line is fenced" "$OUT" "$CRLFF:3:"
+assert_contains "CRLF: the body line is still a candidate" "$OUT" "$CRLFF:6:I28-a"
+OUT=$(bash "$SCRIPT" "$CRLFF")
+assert_contains "CRLF: default mode still reports the description" "$OUT" "$CRLFF:2:I28-a"
+
+# A CRLF file with an UNCLOSED leading `---` must still fence the whole file.
+CRLFU="$TEST_TMPDIR/crlf-unclosed.md"
+printf -- '---\r\ndescription: "IMPORTANT: x"\r\nCRITICAL: never terminated\r\n' >"$CRLFU"
+OUT=$(bash "$SCRIPT" --body-only "$CRLFU")
+assert_not_contains "CRLF: unclosed frontmatter fences the whole file" "$OUT" "$CRLFU:"
+
+# Trailing whitespace on a delimiter is real frontmatter to
+# skill_frontmatter::extract (^---[[:space:]]*$) and so must be here too — the
+# three implementations of "is this the fence" have to agree, or the fence is
+# only as strong as the loosest reader.
+WSF="$TEST_TMPDIR/trailing-ws.md"
+printf -- '---   \ndescription: "CRITICAL: you MUST not edit this."\nwhen_to_use: "if in doubt, use this"\n---\t\n\nCRITICAL: run the linter.\n' >"$WSF"
+OUT=$(bash "$SCRIPT" --body-only "$WSF")
+assert_not_contains "trailing-space delimiter: description is fenced" "$OUT" "$WSF:2:"
+assert_not_contains "trailing-tab delimiter: when_to_use is fenced" "$OUT" "$WSF:3:"
+assert_contains "trailing-ws delimiter: the body line is still a candidate" "$OUT" "$WSF:6:I28-a"
+
+# --- Case 18: missing grep exits 2 -------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
 mkdir -p "$empty_path_dir"

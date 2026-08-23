@@ -39,7 +39,12 @@ tool that needs it — so long-running workflows can route heavy work away from 
 - **Reader contract** (`reference/reader-contract.md`) — the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
   the zones.json shape, session-id discovery via `${CLAUDE_SESSION_ID}`, and the
-  zone-is-not-a-compaction-indicator rule.
+  zone-is-not-a-compaction-indicator rule. Its companion
+  `reference/cloud-headless-capture.md` is the writer-side channel inventory: why the statusline is
+  the only capture channel, which other channels were checked and rejected (with sources and
+  dates) — including the two that do carry live occupancy and still cannot supply a snapshot — and
+  why `unknown` in a session that runs no statusline, a cloud or headless session by default, is
+  structural rather than a defect.
 
 ## Behavior
 
@@ -58,7 +63,13 @@ tool that needs it — so long-running workflows can route heavy work away from 
   or missing `jq` all resolve `unknown` — consumers take their conservative path on data they
   cannot trust, never a fabricated zone. The shipped bands are declared judgment defaults: no
   official auto-compaction threshold is documented (verified 2026-07-24); `zones.json` is the
-  tuning path.
+  tuning path. The trigger itself is operator-tunable even though its default is unpublished —
+  `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and
+  `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` — and bands belong **below** whatever it resolves
+  to, normalized into the percentage shape, so the session reaches a boundary decision before the
+  harness compacts for it. Note that `used_percentage` always measures against the model's *full*
+  window, so a lowered auto-compact window no longer shows up in the percentage. The reader
+  contract owns those surfaces, their verification dates, and the rationale.
 - **Integrity boundary (stated honestly).** The snapshot directory is owner-only where POSIX
   modes work; on Windows ACL volumes the `chmod` is a no-op and other local users could forge
   snapshots. Zones are routing hints — consumers must never attach security or egress decisions
@@ -142,12 +153,27 @@ Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
    plugin. To change them later: `/plugin configure context-guard@<marketplace>`.
-2. **Headless, at install time** — repeat `--config` for each option. Replace
+2. **Headless** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install context-guard@<marketplace> --config context_guard_hooks_enabled=<value>
+   claude plugin install context-guard@<marketplace> -s <scope> --config context_guard_hooks_enabled=<value>
    ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value — verified on Claude Code 2.1.240,
+   for a non-sensitive option at `user` scope, by writing a non-default value to an
+   installed plugin and restoring it. The short-circuit message is about the install,
+   not the config write. That has not been verified for a `sensitive` option or for
+   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin.
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior — a check run in the old session
+   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -175,8 +201,9 @@ hands a configured value to a hook process; the value comes from the routes abov
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
-- [Configuration scopes](https://code.claude.com/docs/en/settings#configuration-scopes) — user vs project vs local precedence
+- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect) — user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->

@@ -24,7 +24,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 # Fresh repo, isolated from any ambient git-hook env that would leak into it.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX 2>/dev/null || true
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_CONFIG 2>/dev/null || true
 git -C "$TMP" init -q
 git -C "$TMP" config user.email test@example.com
 git -C "$TMP" config user.name test
@@ -2314,6 +2314,7 @@ printf '{"name":"demo","version":"0.1.0"}\n' >"$TMP/plugins/demo/.claude-plugin/
 printf '%s' '---
 name: aliased-skill
 description: "Repeats its directory. Use when: '"'"'checking the plugin redundancy warning'"'"'."
+disable-model-invocation: false
 ---
 
 ## Purpose
@@ -2571,6 +2572,833 @@ if [[ $rc -eq 2 ]] && grep -q 'no skills root set' <<<"$out"; then
   pass "outside git with no skills root still exits 2 naming the missing root"
 else
   fail "outside git with no skills root should exit 2 (rc=$rc): $out"
+fi
+
+# 23a. A numbered procedure of 3+ steps with no completion-criteria signal
+#      token anywhere in the block warns (advisory) but passes.
+make_skill cc-signal-missing '---
+name: cc-signal-missing
+description: "Rotate the config. Use when: '"'"'rotating the config'"'"'."
+---
+
+## Steps
+
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file.
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-missing 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'completion-criteria signal' <<<"$out"; then
+  pass "3-step procedure without any completion signal warns (completion-criteria)"
+else
+  fail "signal-free numbered procedure should warn (rc=$rc): $out"
+fi
+
+# 23b. The same procedure whose final step states an observable done-condition
+#      is silent — the block carries a completion signal.
+make_skill cc-signal-present '---
+name: cc-signal-present
+description: "Rotate the config safely. Use when: '"'"'rotating the config safely'"'"'."
+---
+
+## Steps
+
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file; the step is done when `validate --config` exits 0.
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-present 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'completion-criteria signal.*no completion' <<<"$out" && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "procedure with a done-condition does not warn (completion-criteria)"
+else
+  fail "signal-carrying procedure should not warn (rc=$rc): $out"
+fi
+
+# 23g. A literal ~~~ line inside a backtick fence does not close it — the
+#      numbered list after it is still masked (matching-marker close semantics).
+make_skill cc-signal-mixed-fence '---
+name: cc-signal-mixed-fence
+description: "Show fence forms. Use when: '"'"'showing fence forms'"'"'."
+---
+
+## Example
+
+```markdown
+You can also use ~~~ fences:
+
+~~~text
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file.
+~~~
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-mixed-fence 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "literal tilde markers inside a backtick fence stay masked (matching-close)"
+else
+  fail "mixed fence markers should not unmask fenced content (rc=$rc): $out"
+fi
+
+# 23e. Two independent 2-step lists separated only by a blank line do NOT merge
+#      into one 4-step block — numbering restart after a blank closes the block.
+make_skill cc-signal-adjacent '---
+name: cc-signal-adjacent
+description: "Two short flows. Use when: '"'"'running two short flows'"'"'."
+---
+
+## Flow A then flow B
+
+1. Open the first file.
+2. Update the first value.
+
+1. Open the second file.
+2. Update the second value.
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-adjacent 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "adjacent 2-step lists split at the numbering restart (no spurious warn)"
+else
+  fail "adjacent short lists should not merge into a warnable block (rc=$rc): $out"
+fi
+
+# 23f. A LOOSE ascending list (blank lines between items, numbering continues)
+#      is still ONE block — a signal-free 3-step loose procedure warns.
+make_skill cc-signal-loose '---
+name: cc-signal-loose
+description: "Rotate the loose config. Use when: '"'"'rotating the loose config'"'"'."
+---
+
+## Steps
+
+1. Open the config file.
+
+2. Update the rotation value.
+
+3. Save the file.
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-loose 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "loose ascending 3-step list stays one block and warns when signal-free"
+else
+  fail "loose signal-free procedure should still warn (rc=$rc): $out"
+fi
+
+# 23d. A signal-free numbered list inside a TILDE-fenced code block is ignored
+#      (both CommonMark fence forms are illustrative content).
+make_skill cc-signal-tilde '---
+name: cc-signal-tilde
+description: "Show a tilde sample plan. Use when: '"'"'showing a tilde sample plan'"'"'."
+---
+
+## Example output
+
+~~~text
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file.
+~~~
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-tilde 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "tilde-fenced numbered list is ignored by the completion-criteria heuristic"
+else
+  fail "tilde-fenced list should not fire the completion-criteria warn (rc=$rc): $out"
+fi
+
+# 23c. A signal-free numbered list inside a fenced code block is ignored
+#      (illustrative content never fires the heuristic).
+make_skill cc-signal-fenced '---
+name: cc-signal-fenced
+description: "Show a sample plan. Use when: '"'"'showing a sample plan'"'"'."
+---
+
+## Example output
+
+```text
+1. Open the config file.
+2. Update the rotation value.
+3. Save the file.
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run cc-signal-fenced 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carry no completion-criteria signal' <<<"$out"; then
+  pass "fenced numbered list is ignored by the completion-criteria heuristic"
+else
+  fail "fenced list should not fire the completion-criteria warn (rc=$rc): $out"
+fi
+
+# 24a. An explicit `disable-model-invocation: false` reports the fleet default
+#      and raises no missing-key finding.
+make_skill dmi-explicit-false '---
+name: dmi-explicit-false
+description: "State the mode. Use when: '"'"'stating the mode'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+A skill that states its invocation mode.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-explicit-false 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'invocation mode: model-invoked' <<<"$out" &&
+  ! grep -q 'no explicit disable-model-invocation key' <<<"$out"; then
+  pass "explicit disable-model-invocation: false reports the fleet default"
+else
+  fail "explicit false should report the model-invoked default (rc=$rc): $out"
+fi
+
+# 24b. Outside the marketplace plugin tree a missing key WARNs, never fails —
+#      the absent-key default is already false, so a consumer's own skill is
+#      informed, not broken, by this fleet's convention.
+out="$(run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: frontmatter has no explicit disable-model-invocation key' <<<"$out"; then
+  pass "missing key outside plugins/ warns without failing"
+else
+  fail "missing key outside plugins/ should warn, not fail (rc=$rc): $out"
+fi
+
+# 24c. Inside plugins/*/skills/* the same omission FAILs — the rubric is this
+#      fleet's convention and the fleet is normalized to it.
+PLUGIN_SKILLS="$TMP/plugins/demo/skills"
+mkdir -p "$PLUGIN_SKILLS/dmi-plugin-missing"
+printf '%s' '---
+name: dmi-plugin-missing
+description: "Omit the mode. Use when: '"'"'omitting the mode'"'"'."
+---
+
+## Purpose
+
+A plugin skill missing its invocation mode.
+
+## Gotchas
+
+None known.
+' >"$PLUGIN_SKILLS/dmi-plugin-missing/SKILL.md"
+out="$( (cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$PLUGIN_SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" dmi-plugin-missing) 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FAIL: frontmatter has no explicit disable-model-invocation key' <<<"$out"; then
+  pass "missing key inside plugins/*/skills/* fails"
+else
+  fail "missing key inside plugins/ should fail (rc=$rc): $out"
+fi
+
+# 24d. A non-boolean value fails wherever it appears — the key is a boolean and
+#      a typo'd value would otherwise read as an unreviewed mode.
+make_skill dmi-bad-value '---
+name: dmi-bad-value
+description: "State a bad mode. Use when: '"'"'stating a bad mode'"'"'."
+disable-model-invocation: yes
+---
+
+## Purpose
+
+A skill whose invocation mode is not a boolean.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-bad-value 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "disable-model-invocation is 'yes'" <<<"$out"; then
+  pass "non-boolean disable-model-invocation fails"
+else
+  fail "non-boolean value should fail (rc=$rc): $out"
+fi
+
+# 24d-quoted. A QUOTED boolean is a YAML string, not the boolean the key takes —
+#      stripping the quotes before validating would let malformed invocation
+#      metadata ship while the check reported PASS.
+make_skill dmi-quoted-value '---
+name: dmi-quoted-value
+description: "Quote the mode. Use when: '"'"'quoting the mode'"'"'."
+disable-model-invocation: "false"
+---
+
+## Purpose
+
+A skill whose invocation mode is a quoted string.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-quoted-value 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'quoted string' <<<"$out"; then
+  pass "a quoted boolean fails as the YAML string it is"
+else
+  fail "quoted boolean should fail (rc=$rc): $out"
+fi
+
+# 24d-internal-space. Whitespace is trimmed at the ends only. Deleting it
+#      wholesale would splice a scalar broken by an internal space back into a
+#      passing boolean.
+make_skill dmi-split-value '---
+name: dmi-split-value
+description: "Split the mode. Use when: '"'"'splitting the mode'"'"'."
+disable-model-invocation: fa lse
+---
+
+## Purpose
+
+A skill whose invocation mode carries an internal space.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-split-value 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'expected the boolean true or false' <<<"$out"; then
+  pass "internal whitespace is not collapsed into a passing boolean"
+else
+  fail "internally-spaced value should fail (rc=$rc): $out"
+fi
+
+# 24d-comment. A trailing YAML comment is the sanctioned way to record which
+#      exception class a `true` claims, so it must not turn the value invalid.
+make_skill dmi-commented-value '---
+name: dmi-commented-value
+description: "Annotate the mode. Use when: '"'"'annotating the mode'"'"'."
+disable-model-invocation: true # class (i) — mutating fleet sync, manual timing
+---
+
+## Purpose
+
+A skill annotating its exception class inline.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-commented-value 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'hand-verify it against an exception class' <<<"$out"; then
+  pass "a trailing exception-class comment leaves the boolean valid"
+else
+  fail "commented boolean should stay valid (rc=$rc): $out"
+fi
+
+# 24e. A non-setup `true` is noted for hand-verification against the exception
+#      classes — never warned, because no static scan can clear it.
+make_skill dmi-true-nonsetup '---
+name: dmi-true-nonsetup
+description: "Hide from the model. Use when: '"'"'hiding from the model'"'"'."
+disable-model-invocation: true
+---
+
+## Purpose
+
+A user-invoked-only skill that is not a setup skill.
+
+## Gotchas
+
+None known.
+'
+out="$(run dmi-true-nonsetup 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'hand-verify it against an exception class' <<<"$out" &&
+  ! grep -q 'WARN.*exception class' <<<"$out"; then
+  pass "non-setup true is noted for hand-verification, not warned"
+else
+  fail "non-setup true should emit a hand-verify note (rc=$rc): $out"
+fi
+
+# 24f. A `setup` skill's true is class (ii) by the setup contract — the one
+#      attribution a static scan can make on its own.
+make_skill setup '---
+name: setup
+description: "Install the thing. Use when: '"'"'installing the thing'"'"'."
+disable-model-invocation: true
+---
+
+## Purpose
+
+The setup skill.
+
+## Gotchas
+
+None known.
+'
+out="$(run setup 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'exception class (ii), setup contract' <<<"$out"; then
+  pass "setup skill's true is attributed to class (ii) deterministically"
+else
+  fail "setup skill should be attributed to class (ii) (rc=$rc): $out"
+fi
+
+# 25a. Report-only verb (audit) whose description lead advertises mutation
+#      without override language warns (the listing-surface defect).
+make_skill audit '---
+name: audit
+description: "Rewrites the files it reviews. Use when: '"'"'rewriting reviewed files'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+An audit skill whose listing text advertises mutation.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+  grep -q "leaf verb 'audit' is a read-only findings report" <<<"$out"; then
+  pass "audit verb + mutate-advertising description warns (verb-contract)"
+else
+  fail "audit+mutate-desc should warn (rc=$rc): $out"
+fi
+
+# 25b. The compliant override shape — audit + --fix in the listing — is silent.
+make_skill audit-fixok '---
+name: audit-fixok
+description: "Reports findings and remediates them. Use when: '"'"'auditing config'"'"'; pass --fix to apply auto-correctable findings."
+disable-model-invocation: false
+---
+
+## Purpose
+
+claude-config:audit [--fix] is the compliant precedent.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-fixok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "audit + --fix override in the listing is silent (compliant shape)"
+else
+  fail "audit+--fix should not warn (rc=$rc): $out"
+fi
+
+# 25c. Mutate verb (fix) whose description lead claims read-only warns.
+make_skill fix '---
+name: fix
+description: "Read-only findings report. Use when: '"'"'reporting findings'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+A fix skill whose listing text claims it does not mutate.
+
+## Gotchas
+
+None known.
+'
+out="$(run fix 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+  grep -q "leaf verb 'fix' mutates the target" <<<"$out"; then
+  pass "fix verb + read-only description warns (verb-contract)"
+else
+  fail "fix+readonly-desc should warn (rc=$rc): $out"
+fi
+
+# 25d. Description claims read-only; body mutates on bare invocation.
+make_skill report-then-write '---
+name: report-then-write
+description: "Read-only findings report. Use when: '"'"'reporting then writing'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+On bare invocation, edit the tracked files in place.
+
+## Gotchas
+
+None known.
+'
+out="$(run report-then-write 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+  grep -q 'body mutates on bare invocation' <<<"$out"; then
+  pass "read-only description + bare-mutate body warns (verb-contract)"
+else
+  fail "readonly-desc+bare-mutate-body should warn (rc=$rc): $out"
+fi
+
+# 25e. Description advertises fixing; body claims the skill never mutates.
+make_skill advertise-no-write '---
+name: advertise-no-write
+description: "Rewrites the files you point at. Use when: '"'"'rewriting pointed files'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+This skill never mutates anything; it only reports.
+
+## Gotchas
+
+None known.
+'
+out="$(run advertise-no-write 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description/verb-contract mismatch' <<<"$out" &&
+  grep -q 'description lead advertises fixing' <<<"$out"; then
+  pass "mutate-advertising description + never-mutates body warns (verb-contract)"
+else
+  fail "mutate-desc+never-mutate-body should warn (rc=$rc): $out"
+fi
+
+# 25f. A Use-when trigger phrase containing "fix" does not advertise mutation
+#      — polarity is the lead clause only.
+make_skill audit-trigger-fix '---
+name: audit-trigger-fix
+description: "Emit a findings report. Use when: '"'"'fix the formatting'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Trigger-list "fix" is not a mutate advertisement.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-trigger-fix 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "Use-when 'fix' trigger does not advertise mutation"
+else
+  fail "trigger-list fix should not warn (rc=$rc): $out"
+fi
+
+# 25g. "read-only by default" on a mutate verb is a default-then-override
+#      shape, not a never-mutates claim.
+make_skill clean '---
+name: clean
+description: "Inventory leftovers and optionally remove them after approval. Read-only by default. Use when: '"'"'cleaning leftovers'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Hybrid clean skill; default is read-only.
+
+## Gotchas
+
+None known.
+'
+out="$(run clean 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "read-only by default on a clean verb is silent"
+else
+  fail "read-only-by-default should not warn (rc=$rc): $out"
+fi
+
+# 25h. "remediation" as a noun and a negated "or rewrites" list are not
+#      mutate-advertising — the false-positive pair the prototype caught.
+make_skill audit-noun '---
+name: audit-noun
+description: "Emits a findings report; remediation only when pre-approved. It never deletes, prunes, or rewrites. Use when: '"'"'auditing with a noun'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Noun and negated-list must not read as mutate-advertising.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-noun 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "remediation-noun and negated rewrites list are silent"
+else
+  fail "noun/negated-list should not warn (rc=$rc): $out"
+fi
+
+# 25i. A fenced example of mismatch language does not trip the body limbs.
+make_skill audit-fenced '---
+name: audit-fenced
+description: "Read-only findings report. Use when: '"'"'showing a fenced example'"'"'."
+disable-model-invocation: false
+---
+
+## Example
+
+```text
+On bare invocation, edit the tracked files in place.
+This skill never mutates anything.
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-fenced 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "fenced mismatch language is ignored by the body limbs"
+else
+  fail "fenced body example should not warn (rc=$rc): $out"
+fi
+
+# 25j. A consistent mutate verb (fix + rewrites the files + body mutates)
+#      is silent — the check is mismatch-only.
+make_skill fix-ok '---
+name: fix-ok
+description: "Rewrites the files that fail the gate. Use when: '"'"'rewriting failing files'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+On bare invocation, rewrite the failing files. The step is done when the gate exits 0.
+
+## Gotchas
+
+None known.
+'
+out="$(run fix-ok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "consistent fix verb + mutate description + mutate body is silent"
+else
+  fail "consistent fix skill should not warn (rc=$rc): $out"
+fi
+
+# 25k. "never rewrites the files" is a negation, not a mutate advertisement.
+make_skill audit-never-rewrite '---
+name: audit-never-rewrite
+description: "Reports findings and never rewrites the files. Use when: '"'"'reporting without rewriting'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Negated rewrite clause must not read as mutate-advertising.
+
+## Gotchas
+
+None known.
+'
+out="$(run audit-never-rewrite 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "never-rewrites-the-files is silent (negated mutate verb)"
+else
+  fail "never-rewrites-the-files should not warn (rc=$rc): $out"
+fi
+
+# 25l. A mutate lead with a scoped "does not modify X" is not a never-mutates
+#      claim — the restriction is on a particular target.
+make_skill fix-scoped '---
+name: fix-scoped
+description: "Fixes the source files but does not modify vendored dependencies. Use when: '"'"'fixing sources only'"'"'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+On bare invocation, rewrite the failing source files. The step is done when the gate exits 0.
+
+## Gotchas
+
+None known.
+'
+out="$(run fix-scoped 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; then
+  pass "scoped does-not-modify next to a mutate lead is silent"
+else
+  fail "scoped does-not-modify should not warn (rc=$rc): $out"
+fi
+
+# Portability guard: no ERE interval expressions in the checker's awk regexes.
+#
+# Every other assertion here is black-box, but this failure mode is invisible to
+# a black-box run on the CI runner: gawk compiles intervals happily, so a
+# reintroduced interval passes the whole suite on CI and only breaks for
+# consumers on mawk — silently, because mawk 1.3.4 panics out of the awk program
+# before it emits a record and mawk 1.3.3 matches the braces as literal text.
+# Either way the affected check reports a clean run over a file it never
+# scanned, which is the worst shape a gate can fail in. A source-level assertion
+# is the only form that fires on a gawk runner, so it is deliberately
+# implementation-aware.
+#
+# All three interval forms are rejected, {n} included: mawk panics on an
+# exact-count interval before a group (a{3}(b)) exactly as it does on the
+# a{0,3}(b) that motivated this guard, so a comma-only pattern would leave the
+# same silent-failure class open.
+#
+# Scoped to what awk actually compiles, because Bash is not mawk and its own
+# [[ =~ ]] regexes may use intervals freely — check-skill.sh dates a frontmatter
+# synced: value with one, and rejecting it would be a false positive on correct
+# code. Two surfaces reach awk:
+# slash-delimited regex literals inside the embedded programs, and the judge
+# regex handed across with -v.
+INTERVAL_RE='\{[0-9]+(,[0-9]*)?\}'
+interval_hits="$(
+  {
+    # Regex literals in the embedded awk programs, comment lines exempt (the
+    # rule is documented in prose that necessarily names the forbidden syntax).
+    grep -nE "/[^/]*${INTERVAL_RE}[^/]*/" "$SUT" | grep -vE '^[0-9]+:[[:space:]]*#'
+    # The judge regex is a POSIX ERE that awk compiles, even though it is
+    # written as a shell string and never appears between slashes.
+    grep -nE "^[[:space:]]*FRESH_EYES_JUDGE_RE=.*${INTERVAL_RE}" "$SUT"
+  } 2>/dev/null
+)"
+if [[ -n "$interval_hits" ]]; then
+  fail "awk regexes must contain no ERE interval expressions (mawk-portability): ${interval_hits//$'\n'/ | }"
+else
+  pass "awk regexes are free of ERE interval expressions (mawk-portable)"
+fi
+
+# Check 2b: description FIELD cap (1024, Agent Skills spec) is a separate limit
+# from check 2's listing-entry cap (1536). The discriminating case is the middle
+# band — a description over 1024 but whose assembled entry is under 1536 — which
+# check 2 passes and only check 2b catches. Without that case a single cap could
+# satisfy both assertions, so it is the one that proves the layers are distinct.
+
+# 2b-i. A description one char over the field cap WARNs, and does NOT fail: no
+#       local validator enforces this limit (measured — `claude plugin validate
+#       --strict` 2.1.241 passes an oversized description clean), so failing the
+#       build on it would block a fleet over a breach only the Skills API sees.
+desc_1025="$(printf 'd%.0s' $(seq 1 1025))"
+make_skill field-cap-over "---
+name: field-cap-over
+description: \"$desc_1025\"
+---
+
+## Purpose
+
+Field-cap fixture: description alone is 1025 chars, one over the 1024 spec
+field maximum, while the assembled listing entry stays well under 1536.
+"
+out="$(run field-cap-over 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'description alone is 1025 codepoints' <<<"$out"; then
+  pass "check 2b warns at 1025 chars without failing the run"
+else
+  fail "check 2b should WARN (not FAIL) at 1025/1024 (rc=$rc): $out"
+fi
+
+# 2b-ii. Boundary guard: exactly 1024 is legal — the cap is >1024, not >=1024.
+desc_1024="$(printf 'd%.0s' $(seq 1 1024))"
+make_skill field-cap-exact "---
+name: field-cap-exact
+description: \"$desc_1024\"
+---
+
+## Purpose
+
+Field-cap fixture: description alone is exactly 1024 chars, the spec maximum,
+which is legal.
+"
+out="$(run field-cap-exact 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description alone is' <<<"$out"; then
+  pass "check 2b stays silent at exactly 1024 chars (cap is >1024, not >=)"
+else
+  fail "check 2b should not warn at exactly 1024 (rc=$rc): $out"
+fi
+
+# 2b-iii. The discriminating case: desc(1100) + joiner(3) + wtu(40) = 1143 —
+#         comfortably under check 2's 1536 listing cap, so check 2 passes and
+#         reports no overflow, while the description alone breaches 1024. Proves
+#         the two caps are independent layers rather than one limit checked twice.
+desc_1100="$(printf 'd%.0s' $(seq 1 1100))"
+wtu_40="$(printf 'w%.0s' $(seq 1 40))"
+make_skill field-cap-independent "---
+name: field-cap-independent
+description: \"$desc_1100\"
+when_to_use: \"$wtu_40\"
+---
+
+## Purpose
+
+Independence fixture: the assembled entry is 1143 chars (passes check 2) while
+the description field alone is 1100 (breaches check 2b).
+"
+out="$(run field-cap-independent 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'description alone is 1100 codepoints' <<<"$out" &&
+  ! grep -q 'description+when_to_use is .* chars (cap 1536' <<<"$out"; then
+  pass "check 2b fires on a field breach that check 2's listing cap does not see"
+else
+  fail "check 2b should catch desc 1100 while check 2 passes the 1143 entry (rc=$rc): $out"
+fi
+
+# 2b-iv. Codepoints, not bytes. 600 'é' is 600 characters and 1200 UTF-8 bytes;
+#        the spec's limit is "Maximum 1024 characters", so this must stay silent.
+#        Run under LC_ALL=C, where `${#var}` degrades to byte counting and would
+#        report 1200 — so the assertion fails on the byte-counting form rather
+#        than passing incidentally on a UTF-8 host.
+desc_600_multibyte="$(printf 'é%.0s' $(seq 1 600))"
+make_skill field-cap-multibyte "---
+name: field-cap-multibyte
+description: \"$desc_600_multibyte\"
+---
+
+## Purpose
+
+Multibyte fixture: 600 codepoints, 1200 UTF-8 bytes. Legal against a 1024
+character cap; a byte count would report 1200 and warn.
+"
+out="$(LC_ALL=C run field-cap-multibyte 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description alone is' <<<"$out"; then
+  pass "check 2b counts codepoints, not bytes (600 multibyte chars stay silent under LC_ALL=C)"
+else
+  fail "check 2b must count codepoints: 600 'é' is 600 chars, not 1200 bytes (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

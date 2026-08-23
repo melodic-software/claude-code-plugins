@@ -3,6 +3,74 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.3]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.9.2]
+
+### Fixed
+
+- **`explore-directions` step 6 restated the shared discipline in its pre-0.9.0 form.** 0.9.0
+  widened `context/discipline.md`'s when-done capture to record the directions that lost and — when
+  the verdict is a graft — which piece came from where, and what the discarded parts held that the
+  graft deliberately left behind. Step 6 of `explore-directions` still said only "record which
+  variant won and why", and then listed the deletions. A reader following that skill end to end
+  therefore never reached the widened capture, and the bullets immediately below delete the losing
+  variants irreversibly. Step 6 now carries all three clauses — the left-behind one included, which
+  is the half the discipline argues is worth the most — and repeats the shared surface's warning
+  that whatever is not written down before those deletions is gone.
+
+## [0.9.1]
+
+### Changed
+
+- **The two wrong-facet routes name the Skill tool (#3002).** `explore-directions` →
+  `/prototype:pressure-test` and `pressure-test` → `/prototype:explore-directions`. Wording only;
+  the facet boundary is unchanged.
+
+## [0.9.0]
+
+### Added
+
+- **The shared discipline now records the directions that lost, not only the one that won.**
+  Absorbed from an upstream skill this marketplace decided not to ship
+  (`docs/upstream/cursor-pstack.md`, the `arena` row), whose claim that the rejection notes are the
+  highest-signal part of the record had no counterpart here. `context/discipline.md`'s when-done
+  capture now asks for each direction that was tried and the reason it lost, and — when the verdict
+  is a graft rather than a single winner, which `explore-directions` step 5 already names as the
+  usual outcome ("I want the header from B with the sidebar from C") — which piece came from where
+  and what the discarded parts held that the graft deliberately left behind. The argument is that a
+  losing direction is the cheapest available answer to "why not just do it this way?" and the only
+  part of the exercise a future reader cannot reconstruct from the shipped result, while the very
+  next step deletes it irreversibly. Rule 6 changes with it: "the answer is the only thing worth
+  keeping" now says the answer is larger than the winner and points at the capture section, because
+  as written it licensed dropping exactly this.
+
+## [0.8.0]
+
+### Added
+
+- **`explore-directions`: an opt-in design-canvas alternative to the HTML mockup substrate.**
+  When the intent selector lands on the HTML mockup substrate and the bundled `design` skill
+  (the Claude Design canvas preview) appears in the session's skill list, the skill offers a
+  choice — the throwaway HTML mockup stays the default; the canvas drafts the variants as
+  artboards published as an editable Artifact. The offer names the lifecycle difference
+  (published, versioned, persistent, default-private, shareable at the user's choice — vs the
+  throwaway local file), and the fallback branches on two distinct states: absent from the
+  skill list → the HTML mockup, silently (never suggest `/design` to a user who lacks it);
+  listed but invocation refused → suggest the user run `/design` themselves. Carries a
+  four-part upstream-drift stamp (the preview is undocumented upstream; no version floor is
+  statable; recheck on first official naming or an invocability change).
+- **`context/discipline.md`: a substrate-scoped exception to the no-persistence/delete-when-done
+  rules** for the user-chosen canvas, so the shared discipline and the new substrate do not
+  contradict each other. The repo side stays clean either way: nothing tracked references the
+  canvas, and the durable answer is still captured in markdown.
+
 ## [0.7.0]
 
 ### Fixed

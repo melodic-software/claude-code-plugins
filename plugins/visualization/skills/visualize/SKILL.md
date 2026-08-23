@@ -1,7 +1,8 @@
 ---
-description: "Decide the best visual FORM and MEDIUM for what is in the conversation right now, then render it. Use when: 'visualize', 'visualize this', 'show me a diagram of this', 'diagram this', 'render this as', 'draw this', 'sketch this', 'make a picture of this', 'what is the best way to show this', 'turn this into a visual'. Infers the target from the conversation, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks ONLY when the target is genuinely ambiguous and no form was named. It ROUTES chart craft and artifact-design fundamentals to those capabilities when installed — it does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
+description: "Decide the best visual FORM and MEDIUM for what is in the conversation right now, then render it. Use when: 'visualize', 'visualize this', 'show me a diagram of this', 'diagram this', 'render this as', 'draw this', 'sketch this', 'make a picture of this', 'what is the best way to show this', 'turn this into a visual'. Infers the target from the conversation, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, a rich rendered page — or, where the bundled design skill is available, a hand-editable design canvas) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks ONLY when the target is genuinely ambiguous and no form was named. It ROUTES chart craft and artifact-design fundamentals to those capabilities when installed — it does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
 argument-hint: "[terminal|file|artifact] — omit to auto-decide; name a form in the request itself"
 user-invocable: true
+disable-model-invocation: false
 metadata:
   workflow-stage: anytime
   summary: Pick the best visual form for what is in the conversation and render it
@@ -59,12 +60,30 @@ rendering-surface facts these rest on — lives in
 | Quantities: trend, distribution, proportion, ranking | a **chart** — route the craft to a chart-craft/dataviz capability |
 | Small structural sketch, directory tree, box layout | **ASCII / Unicode art** |
 | A composite, interactive, or large multi-part view | a **rich rendered page** |
+| A visual layout the user would rather tweak by hand — a UI mockup, screen flow, poster, banner, one-pager | a **design canvas** — route to a design-canvas capability (the bundled `design` skill), when available |
 
 When the form is a chart and a chart-craft/dataviz capability is installed, invoke
 it for the craft (form heuristic, palette, mark specs); when it is not installed,
 fall back to a simple, honest default (a labelled bar/line as inline SVG on a
 page, or a Unicode bar/sparkline in the terminal) and say the craft capability was
 unavailable. Never restate its craft here.
+
+When the form is a hand-tweakable visual layout, route to the design-canvas
+capability — the bundled `design` skill, when it appears in this session's skill
+list. The canvas exists only on the published-Artifact tier, so the offer is
+also gated on Step 3's medium selection: when an explicit `terminal`/`file`
+argument or the configured preference pins delivery on-machine ("never
+published"), do not offer the canvas — the rich rendered page or local file
+carries the layout instead. Where the medium permits publishing, offer it as an
+explicit alternative, never a silent default: the canvas is a
+published, versioned, persistent Artifact (default-private, shareable with
+teammates at the user's choice; hand-editable where saving is enabled for the
+account, view-plus-PNG/PDF-export otherwise), where this skill's other page paths
+are throwaway or plain-static. When the skill is **absent from the list**, the
+rich rendered page covers the same ground — do not mention `/design` (that user
+has no such command). When it is **listed but the invocation is refused**, suggest
+the user run `/design` themselves. The canvas surface facts and their
+verified-on/recheck record live in the catalog spoke — do not restate them here.
 
 ## Step 3 — Pick the medium
 
@@ -97,20 +116,9 @@ create a private run directory and echo it in the same call —
 `d=$(mktemp -d "${TMPDIR:-/tmp}/visualize-XXXXXX"); echo "$d"` — then write the
 page to `<echoed dir>/visualize.html`. Echo it because shell state does not
 survive between Bash calls: the directory name is random, so an unechoed path is
-unrecoverable in the call that writes the file. Carry the temp root in the
-positional template rather than reaching for a flag: `-p` (which GNU also spells
-`--tmpdir`) exists in both dialects but means different things. GNU treats the
-template as relative to that directory and lets the flag beat `TMPDIR`;
-BSD/macOS consult it only as a
-fallback for `-t` when `TMPDIR` is unset — so with a bare template and no `-t`
-the flag does nothing there and the template resolves against the **current
-directory**, silently writing into the consumer's repo. GNU also marks `-t`
-deprecated, and BSD's `-t` takes a prefix rather than a template, so the two
-produce different names. An absolute path in the positional template is
-reinterpreted by neither. The `XXXXXX` must also be **trailing** — BSD `mktemp`
-substitutes only trailing Xs, so `visualize-XXXXXX.html` cannot be created at
-all on macOS — which is why the page takes a fixed name inside the generated
-directory instead of an extension on the template. On Windows,
+unrecoverable in the call that writes the file. Carry the temp root in the positional template — the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing** — BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable (per `docs/conventions/topic-docs/README.md` "The ephemeral tier" in the marketplace repository).
+That is why the page takes a fixed name inside the generated directory rather
+than a `visualize-XXXXXX.html` template, which macOS cannot create at all. On Windows,
 a user-scoped temp under
 `%LOCALAPPDATA%\Temp`. One file per run. The path is handed back to the user, so
 do not delete it — it must still be readable when they open it. Open it for the

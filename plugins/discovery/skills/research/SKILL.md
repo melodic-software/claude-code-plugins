@@ -17,7 +17,7 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 External research is mandatory before acting on external facts. Goal: **maximum knowledge, maximum consensus, latest information** from authoritative + official sources. Training data drifts, library APIs change, SEO content farms outrank authoritative sources, and AI synthesis tools repackage the same secondary blogs as "multi-source" — so cross-tool consensus, primary-source priority and recency verification are what drive accuracy.
 
-Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers what SHOULD BE. For a multi-topic or workflow-driven pass, use `/discovery:research-deep`, which layers tiered execution on this discipline. **Philosophy**: more tokens + more time = more accuracy + less rework. Deploy a **research team**, not a single lookup, and give every invocation full depth regardless of task size.
+Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers what SHOULD BE. For a multi-topic or workflow-driven pass, invoke `/discovery:research-deep` via the Skill tool, which layers tiered execution on this discipline. **Philosophy**: more tokens + more time = more accuracy + less rework. Deploy a **research team**, not a single lookup, and give every invocation full depth regardless of task size.
 
 ## Routing — dispatch by default
 
@@ -31,19 +31,19 @@ Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers
 
 **Not an escape-hatch reason:** an un-runnable research gate. Before **dispatching**, probe `--help` on the artifact checker and the coverage checker; before an **inline** research run, probe the coverage checker (criterion 11 still applies inline). A denied or errored probe **halts** — do not take inline to dodge an un-runnable post-dispatch gate, and do not self-grade the coverage ledger by reading the table. Invocation forms (shebang path, `bash`, PowerShell / Python twin) and the halt rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 
-**Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently** — logged to the debug log and nowhere else. A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload:
+**Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently** — logged to the debug log and nowhere else. The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired.
 
 ```text
 discovery-research-preload-4c1f9a
 ```
 
-A missing or mismatched token is a **hard failure: the parent discards the run**, never downgrades or accepts the artifact. Rationale and the full parent-side contract: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`.
+A missing or mismatched token is a **hard failure: the parent discards the run**. Provenance is `preload: fired | fallback`; `fallback` is the accepted recovery. Rationale and the full parent-side contract: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`.
 
 **Post-dispatch acceptance gate — parent-side, before the payload is believed.** `status: complete` and `coverage: complete` are the agent's claims about its own run, and a claim is not evidence. Grade the run **off disk**, against the memory-slice path from the parent's own pre-dispatch envelope — **carry that path across the dispatch, because it is this gate's input** — never a path read out of the payload: the failure this gate exists to catch is a payload carrying no pointer at all. In order:
 
 **Pre-dispatch:** create the memory slice and touch `<that slice>/.research-dispatch` as the gate's freshness baseline, then hand that file to the gate as `--newer-than`. Without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. On an N-topic fan-out one baseline at the slice root serves every sub-slice. **Both shell forms of that command are in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)** — copy the one matching this session's shell, because the POSIX form's `touch` is not a command in PowerShell and its directory flag is a parameter error there. Same file carries the envelope template this dispatch owes and the one obligation this gate does not grade (the memory root's `.gitignore` guard).
 
-1. **The payload is well-formed** — `preload_token` matches the sentinel verbatim, and an `artifact:` pointer is present. Missing either is a **failed dispatch** whatever the `status` field says; a missing token is a discard, per the rule above.
+1. **The payload is well-formed** — `preload_token` matches the token verbatim, `preload:` is `fired` or `fallback`, and an `artifact:` pointer is present. Missing token or artifact is a **failed dispatch** whatever the `status` field says. A missing or unrecognized `preload:` field is an out-of-date agent definition, not a pass. A matching token does not prove preload fired; `preload: fallback` is not a discard.
 
    **And `topic_as_received` matches the topic the parent actually sent** — compared against the envelope the parent wrote, not against what it meant. It is the only check here that fires on an input that is present and wrong. A mismatch is a **failed dispatch**: re-dispatch with the topic restated in a form that survives the trip (see the caveat under **Topic**); do not accept the artifact and mentally translate it. A well-formed payload carrying no `topic_as_received` is an out-of-date agent definition, not a pass.
 2. **The artifact set is actually on disk, and this run put it there:**

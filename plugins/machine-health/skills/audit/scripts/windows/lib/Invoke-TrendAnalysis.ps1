@@ -157,6 +157,7 @@ function Get-TrendRelevantKey {
         'drivers' { return 'unsigned_in_store_count' }
         'reliability' { return 'stability_min_7d' }
         'claude-temp-root' { return 'total_gb' }
+        'environment-health' { return 'user_path_length' }
         default { return $null }
     }
 }
@@ -187,6 +188,10 @@ function Test-WorseningTrend {
         'winget-upgrades', 'windows-update', 'services', 'drivers',
         'claude-temp-root'
     )
+    # environment-health is mapped to user_path_length for history, but is
+    # not in $upwardWorsens: the check has several independent WARN causes
+    # (credential names, DISABLE_AUTOUPDATER, REG_SZ Path). A generic
+    # upgrade would turn those into CRIT whenever Path grew by >=5 chars.
     $downwardWorsens = @('battery', 'reliability')
 
     $delta = $cur - $prev

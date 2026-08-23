@@ -3,6 +3,88 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.20]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+
+## [0.20.19]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+## [0.20.18]
+
+### Changed
+
+- **`clean`: both single-repository routes name the Skill tool (#3002).** "Use
+  `/repo-hygiene:clean`" became "Invoke `/repo-hygiene:clean` via the Skill tool", and the
+  worktree-checkout bullet's "hand off to `/source-control:worktree status`/`cleanup`" became
+  "hand off by invoking … via the Skill tool" (that target is `disable-model-invocation: false`,
+  so the invocation-reach invariant permits it). Wording only —
+  the scope boundary is unchanged. Follows the invocation-mode rubric's cross-skill phrasing rule,
+  now unconditional after the fleet sweep.
+
+## [0.20.17]
+
+### Fixed
+
+- The `disk_hygiene_enabled` row in the README's options table used a curly
+  apostrophe in "clean skill's". It was the only genuine punctuation residue
+  found across the marketplace's 1214 tracked markdown files, so it is repaired
+  rather than exempted.
+
+## [0.20.16]
+
+### Changed
+
+- `destructive_guard.py` drops three docstrings that restated their
+  function names (comment-only; full hygiene suite green).
+
+## [0.20.15]
+
+### Fixed
+
+- **`test_hygiene.py` no longer lets a fixture's git identity land in the caller's
+  repository ([#2840](https://github.com/melodic-software/claude-code-plugins/issues/2840)).**
+  The module clears `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
+  `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_OBJECT_DIRECTORY` and `GIT_CONFIG` from
+  `os.environ` at import. `git -C <fixture>` is a readability guard, not an
+  isolation guarantee: `-C` changes directory, while an exported **absolute**
+  `GIT_DIR` overrides repository discovery, so `git config`'s default `--local`
+  scope resolves to the caller's gitdir and the fixture identity is written
+  there instead — leaving the fixture with no `.git` and silently re-authoring
+  the caller's next commit. That is the incident behind #2827. `GIT_CONFIG` is
+  a **second** leak path rather than another spelling of the first: it replaces
+  the file the `git config` subcommand reads and writes, so an identity write
+  follows it past `-C`, past a cleared `GIT_DIR`, and past the working
+  directory. Test-only change; no shipped skill, hook or engine behavior is
+  affected.
+
 ## [0.20.14]
 
 ### Added

@@ -3,6 +3,103 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.3]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.15.2]
+
+### Fixed
+
+- **`implement-dispatch`'s unverified-versus-omitted rule names the lanes it borrows from.** It
+  read "the same grounding rule the loop lanes apply to their cycle reports" — an unresolvable
+  pointer for a consumer who installs `implementation` alone and has never met that phrase. It now
+  names `work-items:work-loop` and `source-control:babysit-loop`, which is what 0.15.0's own
+  release note already told a changelog reader the rule cited. The wording deliberately echoes
+  theirs: same reason, same unwatched-run failure mode, so a reader who has seen one recognises the
+  other.
+
+## [0.15.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `implement`'s Karpathy pre-execution
+  checklist, its scope-creep and major-divergence replan routes, its research escalation, the
+  pre-PR sequence read (`/session-flow:workflow pre-pr`), the config/docs verification note, and
+  all four rows of its handoff table — the mid-implementation research row and the pre-PR-sequence
+  row were left bare beside two rewritten siblings; `implement-dispatch`'s main-side build/test in
+  both the cadence step and the integration table, the worker's worktree provisioning
+  (`/source-control:worktree`), and the inline-routed hand-back.
+  Wording only — routing thresholds, gates, and step order unchanged.
+
+- **`implement-dispatch`: citations to `/implementation:implement`'s NAMED STEPS stay citations
+  (#3002).** The first pass rewrote "run the `/implementation:implement` 'Step 1: Prerequisite
+  Check' preflight" into "invoke `/implementation:implement` via the Skill tool and run its
+  'Step 1…'", and did the same to the Step 3 divergence ladder, the Step 4 phase-boundary ritual,
+  and two integration-table rows. Those are different actions: the text says to APPLY another
+  skill's enumerated checklist here, not to hand control to it — and handing control to it is a
+  re-entry hazard, since `/implementation:implement`'s Step 0 detects worker routing and chains
+  straight back into this skill. All five sites are back to the citation form, and the
+  Prerequisites paragraph now says outright that the criteria are enumerated in place and names
+  the loop it would otherwise create. Genuine whole-skill hand-backs (the inline-routed cadence
+  hand-back, and "All phases complete" → Step 5) keep the invocation phrasing.
+
+## [0.15.0]
+
+### Added
+
+- **`implement-dispatch`: the autonomous deviation log is now append-only, and each entry carries
+  its evidence and its outcome.** Absorbed from an upstream cursor/plugins skill
+  (`docs/upstream/cursor-pstack.md`, the `show-me-your-work` section). `DEVIATIONS.md` already
+  recorded what was planned, what was done instead, why, and the blast radius; it said nothing about
+  whether the entry could be edited later, how an entry should be backed, or whether the choice
+  actually worked. Four rules close that: append and supersede rather than edit, because rewriting
+  history hides the reversal a PR reviewer most needs to see; evidence is a pointer (a SHA, a
+  `file:line`, a test name) and preferably one a committed script produced, so the reviewer can
+  re-run it rather than believe it; an entry carries its outcome and says `unverified` rather than
+  reading as settled; and one entry is one decision, because an entry that does not fit on a line or
+  two is a decision that is not crisp yet.
+
+  The unverified-versus-omitted rule deliberately cites the grounding discipline
+  `work-items:work-loop` and `source-control:babysit-loop` already apply to their cycle reports
+  rather than restating it a third time — same reason, same unwatched-run failure mode.
+
+  Selected as the landing site after checking every audit-trail surface in the fleet: this is the
+  only one that is a decision trail written by the acting agent at decision time. The others are a
+  change inventory, loop counters, a hook-wired notification record, an in-place status comment,
+  OTel spans whose contract forbids a parallel schema, and a human-attested return record that says
+  outright it is "not activity". That table is in the provenance file, and it is why this landed as
+  an absorb into one consumer instead of a marketplace convention.
+
+## [0.14.0]
+
+### Changed
+
+- **`implement`'s completion handoff stops prescribing its own pre-PR order (closes #3047).**
+  Step 5 is titled *"Hand off to the pre-PR sequence"* and then prescribed an order that sequence
+  forbids: `/verification:confirm` first, review after. `session-flow`'s `pre-pr.md` puts review at
+  step 2 and outcome verification at step 7, with the simplify pass (4–6) between them — so under
+  this skill's order, `confirm` rendered its verdict on pre-simplify code and the simplify edits
+  shipped unverified.
+
+  Both sites (step 5 and the chaining table's completion row) now read **review → verify → PR**,
+  with every presence gate intact: `/review:quality-gate`, then `/verification:confirm` once the
+  diff is final, then `/source-control:pull-request`, each gated on its plugin being installed and
+  each keeping its stated fallback. Step 5 also now points at
+  `/session-flow:workflow pre-pr` (gated) for the sequence itself, so the handoff names its
+  destination instead of paraphrasing it.
+
+  This was a one-surface correction, not a coin flip between two doctrines. The `verification`
+  plugin's **own** chaining table already fired on "review gate passes (no blocking findings)" →
+  suggest `/verification:confirm`, and suggested the PR flow only after a CONFIRMED verdict. The
+  skill that renders the verdict, the skill that lists the sequence, and the plugin that opens the
+  PR all agreed; this handoff step was the lone dissenter. The order now has an owner doc,
+  `docs/conventions/pre-pr-ordering/`, which both surfaces cite.
+
 ## [0.13.2]
 
 ### Changed

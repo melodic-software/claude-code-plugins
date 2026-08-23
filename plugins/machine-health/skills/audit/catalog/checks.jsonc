@@ -239,6 +239,19 @@
       "added_on": "2026-07-26",
       "crash_count": 0,
       "identical_streak": 0
+    },
+    {
+      "id": "environment-health",
+      "category": "config",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-EnvironmentHealth.ps1",
+      "severity_rules": "references/windows/check-catalog.md#18-environment-and-path-health",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-08-21",
+      "crash_count": 0,
+      "identical_streak": 0
     }
   ]
 }

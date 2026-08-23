@@ -204,11 +204,11 @@ These paths are documented for completeness — the in-tree `output/build/*.js` 
 
 ### PPTX fallback
 
-Invoke `/document-skills:pptx` (marketplace `anthropic-agent-skills`) for `--format slides` when in-tree `build-pptx.js` is unavailable. It does not auto-apply org brand — you must pass theme tokens explicitly. Result deviates from the canonical look unless brand tokens are reproduced verbatim from `slides-data.js` `theme`.
+Invoke `/document-skills:pptx` via the Skill tool (marketplace `anthropic-agent-skills`) for `--format slides` when in-tree `build-pptx.js` is unavailable. It does not auto-apply org brand — you must pass theme tokens explicitly. Result deviates from the canonical look unless brand tokens are reproduced verbatim from `slides-data.js` `theme`.
 
 ### HTML fallback
 
-Invoke `/frontend-design:frontend-design` (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with `/ui-ux-pro-max:slides` (marketplace `claude-plugins-official`) for slide layout patterns. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box — reproduce those from `build-html.js`.
+Invoke `/frontend-design:frontend-design` via the Skill tool (marketplace `claude-plugins-official`) for `--format html` when in-tree `build-html.js` is unavailable, paired with `/ui-ux-pro-max:slides` (marketplace `claude-plugins-official`) for slide layout patterns. These do not include keyboard nav / `?print=1` flag / SVG provider logos out of the box — reproduce those from `build-html.js`.
 
 ### PDF fallback paths
 

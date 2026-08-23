@@ -1,0 +1,13 @@
+{
+  "user": {
+    "Path": { "kind": "ExpandString", "value": "{userBin}" }
+  },
+  "machine": {
+    "Path": { "kind": "ExpandString", "value": "{machineBin}" }
+  },
+  "dirs": {
+    "userBin": { "exists": true, "files": ["user-tool.exe"] },
+    "machineBin": { "exists": true, "files": ["system-tool.exe"] }
+  },
+  "process_path": ["{userBin}", "{machineBin}"]
+}

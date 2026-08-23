@@ -50,6 +50,11 @@ export const EXCLUDED_SKILL_NAME = { name: "setup", reason: "infra setup" };
 
 // Skill-level exclusions, keyed `plugin/skill`.
 export const EXCLUDED_SKILLS = new Map([
+  // Same class as the `setup` name rule above — provisioning, not a
+  // dev-lifecycle action. It onboards a tracker the plugin does not bundle,
+  // and routes bundled providers to `work-items/setup`; it just is not named
+  // `setup`, so the rule above does not reach it.
+  ["work-items/onboard-adapter", "infra setup"],
   ["dometrain/sync", "maintainer-only vendored-content drift check"],
   ["firecrawl/update", "maintainer-only upstream sync"],
   ["playbooks/update", "maintainer-only upstream sync"],

@@ -3,6 +3,61 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.10]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+
+## [0.10.9]
+
+### Fixed
+
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+### Added
+
+- **`/repo-hygiene:setup`** — the plugin declared `userConfig` but shipped no setup skill. Adds
+  the fleet's uniform check/apply contract: `check` verifies what the native configuration
+  prompt cannot, `apply` routes a reconfiguration and then reads the effective value back before
+  reporting it ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
+
+## [0.10.8]
+
+### Fixed
+
+- **Fixture isolation now clears `GIT_CONFIG` (#2889).** The shared clean
+  test helper already unset the discovery variables at source time; it now
+  also unsets `GIT_CONFIG`. Test-only; no skill behavior change.
+
+## [0.10.7]
+
+### Changed
+
+- **`batch-common.test.sh`'s Windows drive-path fixture now carries a `portability-ok:` marker**, so
+  the whole-repo `check-shell-portability.sh --all` audit runs clean instead of reporting a hit it
+  will always report. The backslashes in `'D:\work\acme\keepme'` are the input the case normalizes,
+  not a GNU `\w` class. No behavior change; the assertion is untouched.
+
+## [0.10.6]
+
+### Changed
+
+- **Explicit `disable-model-invocation` on `clean` (#2968).** The skill now states the
+  invocation mode the harness already applied for an absent key (`false`), so the choice is
+  auditable and gated by `skill-quality:check` check 24. No behavior change. Rubric:
+  `docs/conventions/invocation-mode/README.md`.
+
 ## [0.10.5]
 
 ### Changed

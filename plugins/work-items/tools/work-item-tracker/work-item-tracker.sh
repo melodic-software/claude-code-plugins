@@ -24,18 +24,21 @@ readonly EX_CAPABILITY=6
 # existing match wins:
 #   1. WIT_ADAPTERS_DIR override — a single explicit adapter root, no search
 #      (tests/conformance).
-#   2. Consumer-local — ${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>:
+#   2. Consumer-local — <repo root>/tools/work-item-tracker/adapters/<provider>:
 #      lets a consuming repo add an unshipped provider or shadow a bundled one.
+#      The root is wit_project_root (CLAUDE_PROJECT_DIR, else git toplevel) — the
+#      same anchor the binding read uses, so a bare shell that finds the binding
+#      also finds consumer-local adapters instead of silently skipping them.
 #   3. Plugin-bundled fallback — <seam-dir>/adapters/<provider> (the shipped set).
 # When none exists the bundled path is echoed so the caller emits one not-found error.
 wit_resolve_adapter_dir() {
-  local provider="$1"
+  local provider="$1" root
   if [[ -n "${WIT_ADAPTERS_DIR:-}" ]]; then
     printf '%s\n' "$WIT_ADAPTERS_DIR/$provider"
     return 0
   fi
-  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local local_dir="$CLAUDE_PROJECT_DIR/tools/work-item-tracker/adapters/$provider"
+  if root="$(wit_project_root)"; then
+    local local_dir="$root/tools/work-item-tracker/adapters/$provider"
     if [[ -d "$local_dir" ]]; then
       printf '%s\n' "$local_dir"
       return 0
@@ -68,9 +71,18 @@ fail_config() {
   exit "$EX_CONFIG"
 }
 
-check_gh_version() {
+# Presence and version are separate prerequisites. Every github verb that shells
+# out needs the binary; only the native sub-issue/dependency surface needs 2.94.
+# Keeping them separate preserves the clean exit 3 a gh-less session gets
+# (CONTRACT.md "Degradation without gh") instead of letting the lease verbs
+# dispatch and die on `gh: command not found` inside the adapter.
+check_gh_present() {
   command -v gh >/dev/null 2>&1 ||
-    fail_config "prerequisite missing: gh (GitHub CLI) >= 2.94 — see CONTRACT.md Prerequisites"
+    fail_config "prerequisite missing: gh (GitHub CLI) — see CONTRACT.md Prerequisites"
+}
+
+check_gh_version() {
+  check_gh_present
   local raw major minor
   raw="$(gh --version 2>/dev/null | head -n1 | sed -E 's/^gh version ([0-9]+\.[0-9]+).*/\1/')"
   major="${raw%%.*}"
@@ -110,7 +122,21 @@ main() {
   [[ -f "$manifest" ]] ||
     fail_config "adapter '$WIT_PROVIDER' has no capabilities.json manifest"
 
-  [[ "$WIT_PROVIDER" == "github" ]] && check_gh_version
+  # Contract-version handshake (CONTRACT.md "Contract-version handshake"):
+  # adapters resolve consumer-local first, so a shadowing/generated adapter can
+  # skew from this engine — refuse major skew, tolerate minor skew loudly.
+  wit_check_contract_version "$WIT_PROVIDER" "$manifest" ||
+    exit "$EX_CONFIG"
+
+  # Tell the adapter where THIS engine's lib/ is. Adapters resolve consumer-local
+  # first, so a consumer-local or generated adapter sits in the consuming repo
+  # while the engine it is dispatched by lives in the read-only plugin directory —
+  # its own `../../lib` then points at a seam copy the consumer never vendored.
+  # Exporting the engine's own lib dir (each verb runs as a fresh `bash <verb>.sh`,
+  # so only exported vars cross) lets such an adapter source the seam libs of the
+  # engine actually dispatching it, which is also the engine its manifest just
+  # handshook against. Bundled adapters resolve relatively and ignore this.
+  export WIT_SEAM_LIB_DIR="$SCRIPT_DIR/lib"
 
   local adapter_verb="$verb"
   case "$verb" in
@@ -136,6 +162,31 @@ main() {
     exit "$EX_USAGE"
     ;;
   esac
+
+  # gh >= 2.94 buys exactly one thing: the native sub-issue/dependency surface
+  # (`--parent`, `--blocked-by`, `--add-blocked-by`, and the `blockedBy` /
+  # `parent` / `subIssues` --json fields). Gate the verbs that touch it, not the
+  # whole dispatcher — a blanket gate also blocked the lease trio (claim,
+  # renew-lease, reclaim) and `capabilities`, none of which reads that surface,
+  # so an older gh lost race-safe claiming for a prerequisite it never used.
+  # `capabilities` is the sharpest case: it reads a JSON manifest and never
+  # invokes gh at all, yet could not answer what the provider supports without
+  # meeting a requirement the answer itself might have said was unnecessary.
+  # Keyed on adapter_verb (resolved above), so `list-frontier --parent` gates
+  # through its list-sub-items dispatch rather than needing its own entry.
+  if [[ "$WIT_PROVIDER" == "github" ]]; then
+    case "$adapter_verb" in
+    create-item | get-item | list-items | list-sub-items | link-blocks | add-sub-item)
+      check_gh_version
+      ;;
+    capabilities)
+      # Reads the JSON manifest only; never shells out to gh.
+      ;;
+    *)
+      check_gh_present
+      ;;
+    esac
+  fi
 
   if [[ "$(jq -r --arg v "$adapter_verb" '.verbs[$v] // false' "$manifest")" != "true" ]]; then
     printf "work-item-tracker: verb '%s' unsupported by provider '%s' (capabilities.json)\n" \
@@ -195,8 +246,12 @@ main() {
     if ((rc != 0)); then
       exit "$rc"
     fi
+    # WIT_HUMAN_GATED_LABEL and WIT_CONTAINER_LABEL are guaranteed by
+    # wit_read_binding (which already gated dispatch above) — no inline defaults
+    # here; the shipped defaults are defined once in lib/labels.sh and resolved
+    # by the binding layer (config.role_labels / config.container_label).
     printf '%s\n' "$out" | wit_strip_cr |
-      wit_filter_frontier "$autonomous" "${WIT_HUMAN_GATED_LABEL:-needs-human}" "$WIT_CONTAINER_LABEL"
+      wit_filter_frontier "$autonomous" "$WIT_HUMAN_GATED_LABEL" "$WIT_CONTAINER_LABEL"
     exit 0
   fi
 

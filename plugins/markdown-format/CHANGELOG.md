@@ -3,6 +3,136 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.28]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- **README:** deduplicated the hand-written option-scoping preamble against the
+  generated options block, which already states both facts (#2698).
+
+## [0.11.27]
+
+### Fixed
+
+- **Trust gate: the escape tier missed every escape but `\uXXXX`, and skipped
+  `.yaml` entirely (#3110).** Tier two exists to catch a declarative config
+  whose raw text can differ from what markdownlint decodes and loads. It
+  enumerated `\uXXXX` for `.jsonc` and `\x`/`\u`/`\U` for `.yaml`, so a module
+  value spelled `".\/rules\/local.cjs"` — JSON's `\/`, which decodes to a plain
+  `/` — passed the tier and earned an approval pinned to the raw spelling
+  rather than the path actually loaded; `.yaml` was never scanned for quoted
+  escapes at all. The test is now any backslash inside a double-quoted scalar,
+  in both grammars: enumerating escapes is the unbounded shape that kept
+  reopening the specifier findings, and the property that matters is only
+  whether the scanned text can differ from the decoded text. The YAML
+  escaped-line-join and `!!` tag tests are unchanged. New `.jsonc` and `.yaml`
+  fixtures cover it, each verified to fail against the previous predicate.
+
+## [0.11.26]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes `claude plugin
+  uninstall` + reinstall. That instruction rested on an unversioned claim that `claude plugin
+  install --config` is ignored once a plugin is installed, and following it dropped the plugin's
+  whole stored `pluginConfigs` entry, resetting every declared option to its manifest default.
+  On Claude Code 2.1.240 a plain `claude plugin install … --config` against an already-installed
+  plugin prints `already installed` and still writes the value, so that is now the documented
+  route — stamped with the CLI version it was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` also
+  now separates the write from its effect: the stored value changes immediately, but the running
+  session's hooks keep the `CLAUDE_PLUGIN_OPTION_*` they were handed at session start, so
+  verification means rerunning `check` in a FRESH session — a same-session rerun reports the old
+  value, which is not a failed write. It never asserts an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+### Added
+
+- **`setup` evals:** the skill now ships `evals/evals.json`, covering trigger and routing, the
+  happy path, the guardrails it must not cross, and the corrected headless reconfiguration
+  guidance ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
+
+## [0.11.25]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.11.24]
+
+### Fixed
+
+- **Do not launch the PostToolUse hook on non-Markdown Writes (#2867).** The
+  script is advisory and has no non-zero exit path, but Claude Code still
+  recorded `PostToolUse:Write` as `hook_non_blocking_error` with
+  `Failed with non-blocking status code: No stderr output` — official exit-code
+  semantics for a canceled or non-zero hook with empty stdout/stderr
+  ([hooks reference](https://docs.claude.com/en/docs/claude-code/hooks),
+  fetched 2026-08-21). The failing invocation was a `.txt` Write: the matcher
+  `Write|Edit` launched the process, and the script never reached its
+  applicability `exit 0` (timeout/cancel and a failed Git Bash spawn both
+  produce that exact no-stderr record). `hooks.json` now carries two handlers
+  with `if: Edit(*.md)` and `if: Edit(*.mdc)` — Edit path rules cover Write;
+  a `Write(*.md)` rule is never consulted
+  ([permissions](https://docs.claude.com/en/docs/claude-code/permissions),
+  fetched 2026-08-21) — plus explicit `shell: bash` so Windows does not fall
+  through to PowerShell, which cannot run a `.sh` handler. The in-script
+  extension check remains defense in depth. Advisory/fail-open semantics are
+  unchanged.
+
+## [0.11.23]
+
+### Fixed
+
+- **Out-of-repo missing-tool notice no longer recommends `npm i -D` (#2868).** The skip
+  notice still prints `PATH probed:` and still points at a repo-local
+  `npm i -D markdownlint-cli2` when that command has a place to land: a git working
+  tree, or a `package.json` between the file and `REPO_ROOT` (an unpacked / non-git
+  Node project). A scratch dir with neither is not a repo-local install target; the
+  notice says so and names a durable user-scope directory already on the probed PATH
+  — only `~/.bun/bin`, `~/.local/bin`, or `~/bin`, never a generic `$HOME/…` fallback
+  (version-manager install/shim trees are not durable). When the chosen target is
+  exactly bun's default `globalBinDir` (`~/.bun/bin`;
+  [bunfig `install.globalBinDir`](https://bun.com/docs/runtime/bunfig), fetched
+  2026-08-21) it also names `bun install --global markdownlint-cli2`. The official
+  markdownlint-cli2 global form
+  [`npm install markdownlint-cli2 --global`](https://github.com/DavidAnson/markdownlint-cli2#install)
+  (fetched 2026-08-21) is documented here only; the notice never cites it, because
+  an fnm/nvm `npm i -g` is the #2748 failure mode.
+
+## [0.11.22]
+
+### Fixed
+
+- **The duplicate-heading probe in `markdown-format.test.sh` no longer depends on ERE intervals.**
+  Its awk heading match used `#{1,6}`, which mawk 1.3.3 does not implement — it matches the braces
+  as literal text, so the probe would stop recognizing headings and the MD024 assertion would pass
+  vacuously rather than fail loudly. Rewritten as one hash plus five optional ones: same ATX bound
+  (1–6 hashes, 7 rejected), verified in both directions under mawk 1.3.4. Not broken on any mawk
+  shipping today — this closes the latent 1.3.3 case found while fixing the same class in
+  `skill-quality`'s check 21 (#3005).
+
+## [0.11.21]
+
+### Changed
+
+- Sync `hook-utils.sh` from `lib/` — two header-echo comments removed in
+  `hook::emit_telemetry` (comment-only; no behavior change).
+
 ## [0.11.20]
 
 ### Changed

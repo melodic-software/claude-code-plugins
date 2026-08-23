@@ -1,5 +1,486 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.0]
+
+### Added
+
+- **`audit-noise`: a ninth shape, `negation`, wired to the apply relay (#3123).** A prohibition with
+  no positive alternative stated in the same sentence. This is the audit-side completion of a
+  doctrine the fleet already adopted on the write side — `docs-hygiene:write-for-agents` "Prompt the
+  positive" — and official guidance names the technique directly (*"Do not use markdown"* →
+  *"Your response should be composed of smoothly flowing prose paragraphs"*). Tier 2: the treatment
+  includes an edit, so it cannot be Tier 3.
+- **`audit-noise` is now a conforming `detector-findings` producer** — the first in this plugin.
+  `--persist-findings` writes the run's `negation` findings as a `type: review-findings` file that
+  `review:fanout`'s `fix` action consumes, via the new `scripts/emit-findings.sh`, reusing the
+  producer pattern #3120 established in `claude-config:audit-instructions`. Off by default; a bare
+  invocation reports and stops.
+- **Eval fixtures for the shape and its fences** — `negation-shapes.md` (flags, paired positives,
+  hard guardrails, worked example) and `negation-trigger-fence.md` (a real negation that also quotes
+  a trigger phrase from its own `description`).
+
+### Changed
+
+- **`audit-noise`'s read-only hard rule now distinguishes target mutation from artifact emission.**
+  The rule read "No `Edit`, no `Write`, no mutating `Bash` ops", which as written forbade the
+  producer contract this release adds — shipping a detector that quietly violated its own skill's
+  stated hard rule was not acceptable. The rule now states the distinction in its own text rather
+  than leaving it implied: **read-only binds every audited target unconditionally**, while the
+  findings artifact is a NEW file in the gitignored memory tier, written only under
+  `--persist-findings`, and is a proposal for a human-gated relay rather than an applied edit. The
+  rule widens exactly that far — no audited file becomes writable, and a bare invocation still
+  writes nothing.
+- **`negation` carries one crosswalk rule id**, `rule-negation-without-positive`, at `IMPORTANT`,
+  argued from `severity.md`'s **stated-rule** limb rather than the degradation limb the sibling
+  `audit-instructions` rules use: "Prompt the positive" is a rule this fleet already adopted in
+  writing, so a bare prohibition violates a stated rule rather than being one working phrasing among
+  several. `Auto-applicable: No`, matching both sibling rules — the repair is contained to
+  `Location`, but recovering the positive target is a rewrite judgment.
+- **All three negation carve-outs are evidence-gated, so an unresolved candidate is EMITTED.** A
+  paired positive, a hard guardrail whose constraint a positive form cannot carry, and a worked
+  example each require their evidence present on the sentence; absence selects the finding. The
+  contract's admission test 2 is checked on **every** withholding boundary rather than only the one
+  easiest to argue. The carve-out lives in the shared scanner, so the human report and the relay
+  file give one candidate one disposition — the contract's "fall-through takes effect before the
+  producer's FIRST output" for a producer with two output surfaces.
+- **The negation shape reads the backtick-UNWRAPPED line, not the inline-code strip** the five older
+  shapes read. A hard-guardrail marker is routinely the code span itself (`--force`, `rm -rf`), and
+  stripping it would erase the very evidence the carve-out needs — turning a guardrail into a false
+  finding rather than a withheld one. Found by testing the backticked case, not by inspection.
+- **The negation predicates match a lowercased sentence** rather than using leading either-case
+  character classes. The class form leaves a truncated word behind it that the repo's `typos` linter
+  reads as a misspelling and FAILs the file on; found by running the linter.
+
+### Fixed
+
+Eight review findings on the shape as first written, all reproduced before being fixed:
+
+- **The sentence splitter collapsed a whole line when it met an embedded abbreviation.** The
+  left-anchored form could not skip a period not followed by whitespace (`e.g.`), so the match failed
+  on the first iteration and the entire line became one "sentence". On
+  `See e.g. the credential rotation policy. Never call the tool directly.` the guardrail word in the
+  first clause then suppressed the real prohibition in the second — **silent finding loss**, the one
+  outcome the carve-outs exist to make impossible, reached through the splitter rather than through a
+  marker. Sentences are now peeled right-to-left with a greedy leading `.*`, which splits at every
+  terminator that IS followed by whitespace; an abbreviation merely over-splits, and over-splitting
+  only narrows the window a suppressing marker can act from. The header comment had claimed the
+  opposite behaviour ("over-split … the fail-safe direction") and was wrong.
+
+- **Every marker is fenced to a whole word.** The withholding predicates matched bare substrings, so
+  `secretary` satisfied the `secret` guardrail and `preferentially` satisfied the `prefer` pairing —
+  each **silently dropping a real finding**, which is the one direction this rule set is built to
+  make impossible. Inflections of `prefer` are enumerated so the verb still pairs; `vulnerab` stays
+  deliberately stemmed but is now bounded on the left.
+- **The contraction pattern is an apostrophe class, not `.`.** `don.t` matched `donut`, emitting
+  ordinary prose as a Tier 2 finding.
+- **The fired marker comes from the sentence that triggered.** On `Never commit a secret. Do not use
+  markdown.` the first sentence is carved out, but the emitted row reported `prohibition="never"` and
+  pointed review at the guardrail. `detect.sh` now carries a `Finding marker:` field, which keeps ONE
+  implementation of the sentence walk instead of a second copy in the writer free to drift.
+- **The out-of-repo fence fails closed on a traversing path.** The prefix test is lexical, so
+  `<repo>/../outside.md` passed it while resolving outside the repository. A `..` segment now
+  declines. Residual recorded at the site: a symlink inside the repo pointing out still resolves past
+  a lexical test.
+- **`branch:` is quoted when YAML would implicitly type it.** Git accepts `true`, `null`, `no`, `123`
+  and `2026-08-23` as branch names; left plain, a consumer reads back a boolean, null, number or date
+  and the relay's exact-string admission never matches the file. (The sibling
+  `claude-config:audit-instructions` producer shares this gap in its own copy of `yaml_scalar` — out
+  of scope here, worth a follow-up.)
+- **`allowed-tools` no longer grants unscoped `Bash(git:*)`.** The scripts need exactly
+  `git branch --show-current` and `git rev-parse --show-toplevel`; the blanket grant also authorized
+  `git reset --hard`, `git clean -fd` and `git push --force` — mutating operations the read-only hard
+  rule added in this same release disclaims, enforced in prose only. Narrowed to the two subcommands.
+- **Deferred, and filed rather than dropped (#3195):** `negation` is scoped to one physical line, so
+  a sentence markdown soft-wraps is judged in pieces and a positive alternative on the next line does
+  not suppress the finding. The direction is a false positive, never a silent withhold. Recorded as a
+  known limitation in `SKILL.md` "Hard rules" until #3195 lands.
+
+## [0.20.1]
+
+### Fixed
+
+- **`audit-noise`'s `SKILL.md` preview line dropped the same paths `detect.sh` used to
+  drop (#3143).** 0.19.1 fixed the porcelain parse in `detect.sh` and left the
+  `Uncommitted .md files:` pre-computed-context line in `SKILL.md` untouched. That line
+  previews the same discovery with `grep '\.md$'` rather than with the parse, so it shared
+  the defect *class* without sharing the code — and it survived the fix that removed the
+  class everywhere else.
+
+  Git C-quotes any path it treats specially, and a quoted porcelain record ends with the
+  closing quote, not `.md`. So `grep '\.md$'` matched nothing for a file named
+  `my notes.md`, `notes -> draft.md`, or `back\-slash.md`, and the preview reported those
+  files as absent with no signal — the same silent false negative, reaching the model one
+  surface earlier. Now `grep -E '\.md"?$'`.
+
+  The regression test **extracts the grep out of `SKILL.md` and executes it** rather than
+  restating it. A restatement would keep passing while the real line rotted, which is how
+  the two surfaces came apart in the first place: `detect.sh` was fixed and its preview
+  was not. Verified as a discriminator — reverting only the `SKILL.md` line fails exactly
+  the quoted-path assertion while the ordinary-path assertion still passes, so the case
+  cannot pass vacuously.
+
+## [0.20.0]
+
+### Added
+
+- **`audit-noise` gains the three residue shapes markdown had no owner for (#3125).** The code-side
+  sibling `/code-tidying:audit-comment-residue` detects four residue shapes; this skill detected
+  five noise shapes; the two sets did not tile the space. Only `history-narration` had a markdown
+  counterpart (this skill's `citation`). `plan-reference`, `conversational-antecedent`, and
+  `ticket-pr-residue` had **no detector on either side of the boundary**, so a README, rule body, or
+  `CLAUDE.md` saying "as you asked, retry three times" or "see PR #45 for the rationale" was
+  invisible to the whole fleet — not because a file type was skipped, but because of a gap behind an
+  otherwise correct boundary. `audit-noise` is now an eight-shape classifier: `plan-reference` and
+  `conversational-antecedent` at Tier 1, `ticket-pr-residue` at Tier 2.
+
+  **The shapes went to `audit-noise` rather than widening the code skill to `.md`**, and the reason
+  is a treatment conflict, not a preference. On a markdown line the code skill's `history-narration`
+  and this skill's `citation` fire together with opposite rulings — `citation` says relocate to a
+  `## Sources` footer, `history-narration` says delete. Two owners for one line is a precedence
+  problem; one owner per file type is not. So the boundary is now explicitly by FILE TYPE, with the
+  three shape *names* deliberately shared so one authoring failure keeps one name wherever it lands.
+  The shapes also inherit this skill's more mature target router (`--paths-file`, offset/limit
+  pagination, space-safe porcelain parsing) for free.
+
+  **The patterns are adapted, not copied, and the adaptation is the substance of the change.** The
+  code lib classifies only the extracted *comment* portion of a line; this one classifies whole
+  prose, where the same words are load-bearing far more often. Measured against this repository's
+  own 1136-file tracked-markdown corpus, four of the sibling's cues had to go: `per the plan`
+  prefix-matches "per the planning chapter" (and a doc citing a plan artifact that still exists is a
+  live cross-reference, not residue); `as planned` is a substring of "was planned", so "what was
+  planned, what was done instead" self-matched; `in this change` and `in this session` are ordinary
+  domain vocabulary in an agent-tooling corpus. `in this PR` survives only with a first-person actor
+  behind it, which is what separates narration ("in this PR we switch the default") from a live
+  referent ("the files changed in this PR"). `as we discussed` stands down in front of an anaphoric
+  follower (`above`, `below`, `in §3`), which makes it an intra-document cross-reference. Those
+  tightenings cut the corpus delta from 32 findings to 12.
+
+  **`conversational-antecedent`'s follower test asks what the reference points AT**, rather than
+  which preposition introduces it. A bare `in` exemption would have spared "as we decided in the
+  ADR" (right) and "as we decided in favor of X" or "as we discussed in yesterday's meeting"
+  (wrong — the referent there is the conversation, not a document), so `in` stands the shape down
+  only ahead of a document locator: a `§` or `#anchor`, a section/chapter/step/table, a link or
+  path, an inline-code reference the strip removed, or a named durable document. Tracker nouns are
+  deliberately absent from that set — a decision parked in an issue is provenance, which
+  `ticket-pr-residue` owns and this shape must not launder — as are nouns for the conversation
+  itself. Followers are compared case-insensitively, so a capitalised `Above` no longer falls
+  through. Both first-person actor tests — this one and `plan-reference`'s `in this PR` — admit a
+  contracted pronoun in either the straight or the typographic (U+2019) apostrophe, so
+  "in this PR we've already switched the default" and "as we've discussed" no longer escape the
+  shape they are; `conversational-antecedent` admits only `'ve` and `'d`, the two auxiliaries its
+  past-participle follower can take, which keeps the present-tense passive "as you're asked" out.
+
+  **The actor-less passive `As requested, …` is the same shape without the pronoun**, and it is
+  matched only as a clause-final adverbial. That bound is what keeps the live attribution "as
+  requested by the client" and the ordinary verb phrase "was requested" out, without a second
+  pattern to maintain; a closing quote does not count as the clause break, because behind one the
+  words are a quoted voice rather than the page's own address to its reader.
+
+  **`ticket-pr-residue`'s carve-out is restated in markdown terms** rather than inherited: a task-list
+  checklist item (`- [ ] … #123`) and a `TODO(#123)`-family marker are never flagged, because both
+  denote OUTSTANDING tracked work — the reference is the actionable part of the line — which is what
+  the code skill's sanctioned-`TODO` exception is actually about. Nothing further is carved out: the
+  sanctioned home for a *provenance* citation is a `## Sources` / `## History` footer, and the
+  existing section exemptions already skip those (as they skip `CHANGELOG.md`, fenced blocks, and
+  frontmatter) before any shape runs, so re-implementing that as a pattern would duplicate a rule
+  that already holds. An inline parenthetical (`… (tracked in #482)`) stays Tier 2 on purpose, so a
+  reviewer rules on it rather than the scanner.
+
+## [0.19.2]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [0.19.1]
+
+### Fixed
+
+- **`audit-noise` no longer loses files whose paths git treats specially (#3143).**
+  Two defects in `detect.sh`'s `git status --porcelain` parse, both of the
+  silent-false-negative class: a file that should have been audited simply
+  disappeared from the target list.
+
+  The rename split fired on any record whose path contained `" -> "`, not only on
+  a rename, so a file literally named `notes -> draft.md` was reduced to
+  `draft.md` — a name that resolves to nothing. The split is now gated on the
+  status letter in either column (`[RC]`), which is both narrower and complete.
+
+  Separately, the unquote step undid `\"` but not `\\`. Git C-quotes a path for an
+  embedded backslash too, so `back\-slash.md` stayed escaped and resolved to
+  nothing. Both escapes are now undone, `\"` before `\\`.
+
+  Regression cases cover a path containing a literal `" -> "` and a path
+  containing a backslash — a plain path passes either implementation, so neither
+  case is redundant — plus a genuine rename, to show the new gate does not cost
+  the `old -> new` handling it narrows. The suite also picks up the
+  `unset GIT_DIR GIT_WORK_TREE GIT_CONFIG` isolation line that 0.18.3's sweep
+  missed here.
+
+  This lands the same gate and the same two-step unescape that #3140 gave
+  `code-tidying/audit-comment-residue`, so the two porcelain parsers now agree
+  rather than failing in opposite directions on renames.
+
+  Known residual, recorded at the parse site: git's octal escapes (`\NNN`) for
+  control and non-ASCII bytes are still not decoded, so those paths continue to
+  miss. Converging the parse on `git status --porcelain -z` would close the class
+  outright rather than extending the string parse again.
+
+## [0.19.0]
+
+### Changed
+
+- **`extract-ssot` reports duplication at every multiplicity; the Rule of Three now gates
+  artifact creation, not reporting (#3114).** One threshold had been doing two jobs. Gating
+  *creation of a new SSOT artifact* at three instances is what the cited evidence supports
+  (~19% failure on curated skills, ~50% on practitioner-authored ones) — but the same number
+  was also deciding whether the user heard about the duplication at all, so two real defect
+  classes were discarded in silence: a consumer inlining a recap of an SSOT that already
+  exists (N=1), and two files asserting the same contract with no declared owner, drifting
+  apart (N=2).
+
+  `identify` now rosters candidates in three labelled buckets with the instance count shown
+  per candidate: **N=1** (inline recap of an existing SSOT), **N=2** (source-of-truth
+  bifurcation risk), **N≥3** (Rule of Three met). `verify` Gate 1 assigns that bucket from the
+  full-reproduction count and emits it in a new `bucket:` output field;
+  `REFUSE-rule-of-three-fails` is retained as the reason code but now fires only against an
+  *artifact-creating* remedy (`rule-file` / `new-skill` / `new-action`) below three — never
+  against reporting, and never against the non-abstracting remedies. Gate 4 gains the
+  intentional-vs-accidental split: a deliberate two-audience bifurcation still refuses, while
+  accidental bifurcation with no declared owner PROCEEDs as the N=2 bucket's own defect.
+
+  **Lowering the reporting threshold does not lower the abstraction threshold**, because the
+  sub-three buckets offer only remedies that edit files already present. The 6-test gate is
+  untouched and still governs every N≥3 extraction.
+
+### Added
+
+- **Two non-abstracting remedies for `extract-ssot` (#3114).** `normalize-wording` (align
+  divergent phrasings onto the canonical or agreed wording in place) and `name-an-owner`
+  (declare one existing file the canonical owner and make the other cite it). Neither creates
+  a file. They join `trim-to-citation` and `edit-existing-rule` in the suggested-output
+  vocabulary, and they are what make a rule-of-one reporting default safe.
+- **Five flags on the `identify` / `batch` surfaces (#3114).** `--min-instances=<N>` (default
+  `1`; `--min-instances=3` is the regression guard that reproduces the pre-bucket behavior
+  exactly), `--buckets=<list>`, `--fix` (applies only `trim-to-citation` and
+  `normalize-wording`, never creates an artifact), `--dry-run`, and `--yes`. Bare invocation
+  stays read-only: it reports the buckets and stops.
+- **Four eval expectations and two new eval cases** covering the N=1 bucket and the
+  `--min-instances=3` regression guard; the former `refuse-below-rule-of-three` case is now
+  `two-instances-bucketed-no-new-artifact` and asserts both halves — the candidate is
+  rostered, and no new artifact is proposed below three.
+
+### Fixed
+
+Four defects in the bucket design above, surfaced by automated review of the shipping PR
+(#3114):
+
+- **`trim-to-citation` is part of the N=2 permitted-remedy set.** The bucket contract and the
+  `verify` permitted-remedies schema had listed only `edit-existing-rule` / `name-an-owner` /
+  `normalize-wording`, none of which removes two redundant recaps when the canonical home
+  already exists and is complete — even though the routing rules already prescribed
+  `trim-to-citation` for that case. N=2 is now described as the two shapes it actually covers:
+  two consumers recapping an existing home (trim both to citations), or two files asserting one
+  contract with no declared owner (name one). `REFUSE-rule-of-three-fails` is now stated
+  positively — it fires only against `rule-file` / `new-skill` / `new-action` below N≥3 —
+  instead of enumerating the remedies it spares, which is what let the set drift incomplete.
+- **Sibling routing thresholds match the new entry point.** `/docs-hygiene:compress`,
+  `/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`,
+  `/docs-hygiene:write-for-agents`, and `/docs-hygiene:write-for-humans` each routed cross-file
+  duplication to `/docs-hygiene:extract-ssot` only at 3+ files, so the sub-three buckets were
+  unreachable from the flows that feed them. They now route repeated content at any multiplicity;
+  creating a NEW artifact still waits for the third instance. `/docs-hygiene:compress`'s
+  `context/integration.md` boundary note, which restated the old 3+ threshold in prose, was
+  reconciled with the same rule.
+- **`verify` Gate 1 counts semantic clusters by reading, not phrase grep.** A paraphrase cluster
+  (`identify` forms c2/i) shares no verbatim ≥8-word phrase, so a phrase grep found only the
+  file the phrase was lifted from — assigning a real N=2/N≥3 cluster to N=1 and, with no prior
+  canonical, returning `REFUSE-not-found`, after which the mandatory `batch` verify filter
+  dropped the candidate. Gate 1 now counts by evidence shape (phrase grep for literal clusters,
+  the reading-derived canonical-truth roster for semantic ones) and gained a semantic Tier 0
+  evidence form; Gate 0's `REFUSE-not-found` fires only when neither grep nor reading resolves
+  any instance.
+- **The `batch` per-dispatch verdict enum covers completed non-abstracting remedies.** Step 8's
+  schema offered only `EXTRACTED` / `REFUSED-*` / `DEFERRED`, none of which fits a sub-three
+  bucket that finished its work without creating an artifact; it gains `REMEDIED-{remedy}`, so
+  the schema and the Step 10 batch-summary example agree.
+
+## [0.18.3]
+
+### Changed
+
+- **Fixture-building tests clear inherited git environment (#2872).** Suites
+  that build a git fixture now unset `GIT_DIR`, `GIT_WORK_TREE`, and
+  `GIT_CONFIG` so an inherited environment cannot write the fixture identity
+  into the caller's repository. Test-only; no plugin behavior change.
+
+## [0.18.2]
+
+### Fixed
+
+- **`write-for-humans`' self-check is scoped to the standard the skill resolved, question by
+  question, and the three always-rules now say why they survive one.** 0.18.0 shipped the
+  seven-question completion gate unconditionally, and four of those seven restate a bundled layer:
+  1 is Diátaxis, 2 and 3 are ASD-STE100, and 5 is Global English's ambiguity set. So a run that
+  followed the skill to its end would have graded a project's README against the bundled standards
+  *after* resolving that project's own Microsoft guide, and rewritten it to conform. That is a
+  lane-1 hardcode wearing lane-2 clothing: it reverses the skill's own first instruction, and it
+  falsifies two of the six evals.
+
+  **The gate is split rather than switched off wholesale**, because the other three questions are
+  not bundled-layer restatements at all — 4 restates "cut every word that does no work", and 6 and
+  7 restate "write the real name". Those are the three rules the same section says survive a
+  declared guide, so a gate that dropped all seven under a project guide would contradict itself
+  one line later. It now says which four come from the bundled layers and stand down when a project
+  guide is in force, and which three apply whichever standard was resolved.
+
+  The section formerly headed "Three rules above the layers" is now "Three rules that survive a
+  declared guide" and says why they do — they are about doing the work rather than picking a style —
+  and that a project guide still wins if it somehow contradicts one. The heading was the tell: it
+  asserted three rules sat *above* a set the resolve rule had already called a fallback.
+
+## [0.18.1]
+
+### Changed
+
+- **Cross-skill chains name the Skill tool (#3002).** `audit-encapsulation`'s SSOT-verify step,
+  its rename sweep, and its post-fix checklist row; `audit-noise`'s optional reuse of the
+  derivability rubric; `compress`' caveman backend selection; `extract-ssot`'s `execute` action
+  row, its heading-rename sweep, its `audit-encapsulation detect` composition, and the sweep
+  instructions in
+  `context/anti-patterns.md`, `context/citation-form.md`, and `context/execution-checklist.md`.
+  `write-for-agents` and `write-for-humans` already conformed. The derivability rubric's
+  `route to …` verdict *annotations* are left alone — they annotate a verdict, they do not hand
+  work off. So are the three private-surface encapsulation banners under `extract-ssot/actions/`:
+  each names its OWN skill (`extract-ssot` → `extract-ssot`), which is a self-reference and an
+  access-contract statement, not a cross-skill chain. Wording only; gates, verdicts, and step
+  order unchanged.
+
+## [0.18.0]
+
+### Added
+
+- **`write-for-humans` — the write-side doctrine for prose a person reads.** Adapted from an
+  upstream cursor/plugins skill (`docs/upstream/cursor-pstack.md`, the `technical-writing` row).
+  This closes a hole the plugin declared twice about itself: `write-for-agents` excludes
+  human-facing docs in both its description and its "What this skill does NOT do", and nothing
+  else in the marketplace claimed end-user READMEs, RFCs, release notes, or guides. Two of the
+  four layers it carries — Google developer documentation style and Global English — had zero
+  presence anywhere in the fleet; Diátaxis appeared three times and was never applied to pick a
+  document's mode.
+
+  **The skill resolves the consuming project's own style guide before it applies anything
+  bundled.** This is the design decision the port turns on, and it came out of an adversarial
+  audit of the plan. `PLUGIN-PHILOSOPHY.md:198-202` admits a shipped default "only when it is a
+  good-practice value that cannot conflict in *any* repo the plugin drops into" — and the draft
+  plan contained its own disproof, in the form of a decision to delete two Global English rules
+  because they already conflicted with this repository's measured em-dash ruling. A standard that
+  must be pre-edited to stop fighting its home repo is not that class of value. So the four
+  standards ship as a **named, replaceable default set** applied only when the project declares
+  nothing, with the fallback stated out loud so a project can overrule it later. The punctuation
+  rules stay in the set, where a consumer's own guide disables them, rather than being deleted for
+  every consumer because one repository disagreed.
+
+  Ships the Diátaxis mode picker with the don't-mix rule; three always-rules; a rhythm section
+  aimed at prose that obeys every rule and still reads machine-written; one
+  `reference/sentence-rules.md` spoke carrying the address, load, and ambiguity layers together
+  (they apply to every sentence at once, so splitting them by standard would force three opens per
+  sentence — the sibling's own co-location doctrine); `reference/sources.md` with a four-part drift
+  stamp per standard, including the caveat that the ASD-STE100 layer is a principles subset and a
+  document written to it is not thereby STE-conformant; a fully generic worked example carrying no
+  path or symbol from any real repository; a Gotchas surface; and a seven-item self-check with an
+  explicit done-condition. Six evals cover guide resolution, visible fallback, mode-mixing,
+  the overruled-punctuation case, surface declines, and the write-time-only posture.
+
+### Changed
+
+- **`write-for-agents` now routes to its new sibling in both directions.** Its description and its
+  "does NOT do" entry previously ended the human-facing exclusion without naming an owner; both now
+  point at `write-for-humans`. One-directional routing is what the invocation-mode convention's own
+  collision precedent forbids, so the new skill routes back. Every existing trigger phrase is
+  preserved verbatim and guarded by the skill-quality trigger-continuity check; description and
+  one bullet only, no behavior change.
+
+## [0.17.2]
+
+### Fixed
+
+- **The `markdownlint-cli2` requirement said "the other five skills do not use it" — wrong on the
+  count and wrong on the substance.** The plugin has eight skills, so "the other" is seven; and
+  `extract-ssot` does use it, naming it as one option for its ship-gate lint step. The sentence now
+  names its subjects instead of counting them: `compress` is the only skill that gates its entry
+  point on the linter, `extract-ssot` offers it as a lint option, and no other skill calls it. That
+  is the treatment this plugin's own `audit-noise` `enum-list` shape prescribes for a hardcoded
+  consumer count — a derivation or a category citation in place of a number that drifts on every
+  add. Found by `scripts/check-skill-count-claims.sh`, a new fleet gate for exactly this defect;
+  the count half of that gate is the mechanical counterpart to `enum-list`'s advisory half.
+
+## [0.17.1]
+
+### Changed
+
+- `write-for-agents`: the restructure-before-pointer caveat now names its landed audit-side
+  remediation home (`claude-memory:audit` C5 fix guidance, #2987), retiring the 0.17.0 entry's
+  pending note; the principle stays stated inline so the skill remains complete when
+  claude-memory is not installed.
+
+## [0.17.0]
+
+### Added
+
+- New skill `write-for-agents`: the write-side complement to the audit skills —
+  authoring-time doctrine firing while agent-consumed markdown is written
+  (CLAUDE.md/AGENTS.md content, `.claude/rules` files, agent-loaded reference/context
+  docs, navigation-pointer lines, doc-plus-pointer extractions). Inlines the adapted
+  doctrine (two-loads budgeting, branch-covering front-loaded pointers,
+  steps-vs-reference separation with co-location, observable completion criteria with
+  premature-completion/post-completion/legwork guards, split-by-sequence,
+  positive-form prompting) and points at the audit siblings, the invocation-mode
+  rubric, and `curate-language` rather than restating them; the
+  restructure-before-pointer caveat is stated inline pending its audit-side home
+  (#2987). Ships `reference/agent-doc-surfaces.md`
+  (docs-verified auto-read surface table, Claude Code v2.1.233 baseline, plus
+  other-ecosystem analogues) and a 9-case eval suite gating trigger reliability
+  (5 positive writing-moment cases, 3 negative route-away controls, 1 doctrine
+  behavior case). Route-away fence: SKILL.md authoring, audit requests, and
+  human-facing docs stay with their incumbent owners. Design contract:
+  `docs/specs/write-for-agents-brief.md` (course lane 7, #2909); build issue #2962.
+
+## [0.16.1]
+
+### Changed
+
+- `audit-noise` ghost-ref bare-root exemption tracks the topic-docs concern-scoped
+  roster's fourth reserved name, `overengineering/` (topic-docs convention 2.5.1):
+  a bare `.work/overengineering/` citation on a durable surface is not a ghost ref;
+  a concrete child under it still flags.
+
+## [0.16.0]
+
+### Added
+
+- **New skill `audit-progressive-disclosure`:** read-only classifier grading
+  agent-facing instruction markdown against a three-tier load-cost model
+  (always-loaded / invocation-loaded / on-demand). Seven finding shapes in two
+  lanes — split opportunities (`oversize`, `mixed-concerns`, `tier-mismatch`)
+  and hub/spoke structure defects (`blind-pointer`, `orphan-spoke`,
+  `deep-nesting`, `missing-toc`) — with audit-noise-style Tier 1/2/3 semantics
+  and per-shape treatment guidance. Ships a deterministic `detect.sh` fact
+  emitter (sizes, heading census, load-tier classification, pointer inventory,
+  orphan/chain detection) with a 28-case contract test, a
+  `context/tier-model.md` reference (official numbers, split triggers,
+  pointer-quality criteria, citation posture), evals with three fixture sets,
+  and participation in the shared clean-tree fallback. Design contract locked
+  via interview + verified multi-source research over Anthropic's prescribed
+  progressive-disclosure model (#2888; the contract slice was pruned before
+  merge per the topic-docs convention). Notable postures: thresholds advisory
+  (ceilings, not targets),
+  two-band TOC treatment reflecting the official 100-vs-300-line
+  inconsistency, never flagging small single-file skills for lacking spokes,
+  and flagging pointer chains deeper than one level.
+
 ## [0.15.2]
 
 ### Changed

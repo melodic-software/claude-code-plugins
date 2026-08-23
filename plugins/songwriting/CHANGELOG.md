@@ -3,6 +3,36 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.8]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
+## [1.4.7]
+
+### Changed
+
+- **Dead first-party beat-article link (#2907).** `suno.com/hub/how-to-make-beats` now 404s. The
+  `power-tips.md` "Tag order" citation points at the April 2026 Wayback snapshot that still
+  carries the quoted hierarchy sentence. The live slug is not rewritten to a different article.
+
+## [1.4.6]
+
+### Changed
+
+- **Three craft-skill routes name the Skill tool (#3002).** `object-writing`'s "a metaphor request
+  routes to `/songwriting:metaphor`" hand-over, `workflow`'s draft-is-diagnosis route to
+  `/songwriting:diagnose`, and `diagnose`'s reciprocal wrong-skill route back to
+  `/songwriting:workflow` for an incomplete fragment or idea. The per-skill "Related skills" lists and `workflow`'s concern-skill
+  catalog table are left alone — they are see-also surfaces, not hand-offs. Wording only.
+
 ## [1.4.5]
 
 ### Changed

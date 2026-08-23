@@ -20,7 +20,7 @@ Pair with `tips.md` (lyric-side performance tricks) and `lyrics.md` "Per-section
 
 Practical: if mood matters more than genre for a specific song, lead with mood. If a single instrument is the song's signature, name it before the genre. Cheap to try.
 
-**Also first-party on ordering:** [how-to-make-beats](https://suno.com/hub/how-to-make-beats), fetched 2026-08-12 — Suno *"reads prompts as structured instructions. A clear hierarchy matters … A strong prompt follows this order: tempo, genre, rhythm style, instruments, and mood."* That prescribes an ordering of descriptor **categories** and is scoped to beat-making, so it corroborates "order is meaningful" without speaking to per-tag weight.
+**Also first-party on ordering:** [how-to-make-beats](https://web.archive.org/web/20260420183956/https://suno.com/hub/how-to-make-beats) (live `suno.com/hub/how-to-make-beats` 404s as of 2026-08-21; this April 2026 snapshot still carries the quote), fetched 2026-08-12 — Suno *"reads prompts as structured instructions. A clear hierarchy matters … A strong prompt follows this order: tempo, genre, rhythm style, instruments, and mood."* That prescribes an ordering of descriptor **categories** and is scoped to beat-making, so it corroborates "order is meaningful" without speaking to per-tag weight.
 
 **Recheck trigger:** Suno documents style-prompt ordering for v5 or later, **or** an r/SunoAI thread dated to the v5.x era tests front-loading on conversational prompts, **or** a re-read finds the cited post no longer carrying its Key Insight 1. Not a date.
 

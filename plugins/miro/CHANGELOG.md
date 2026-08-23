@@ -3,6 +3,45 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6]
+
+### Changed
+
+- **setup:** normalized restated setup-contract prose (preamble, probe-ladder
+  opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
+  canonical fleet wording, keeping the operable text inline with a provenance-only citation
+  (whole-repo extract-ssot batch, #2698).
+
+## [0.3.5]
+
+### Fixed
+
+- **`setup` skill:** the destructive `claude plugin uninstall` + reinstall recipe for a headless
+  token rotation is removed. It rested on an unversioned claim that `claude plugin install
+  --config` is ignored once a plugin is installed, and following it dropped this plugin's whole
+  stored `pluginConfigs` entry. That claim now appears only as the thing it is — unstamped and
+  contradicted for a non-sensitive option at `user` scope on Claude Code 2.1.240, where a plain
+  `claude plugin install … --config` against an already-installed plugin printed `already
+  installed` and still wrote the value
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
+  `miro_api_token` is `sensitive: true`, which that observation does **not** cover, so `/plugin
+  configure miro@<marketplace>` remains the prescribed rotation path — it also masks input,
+  where a token on the command line lands in shell history and the process table.
+- **Docs:** the generated options block no longer presents a post-install `--config` as a
+  supported way to rotate this plugin's credential. The 2.1.240 observation behind that claim
+  covered a NON-sensitive option, and every option here is `sensitive`, so the block now routes
+  rotation to `/plugin configure` — which also masks input — and says plainly that the
+  post-install behavior is unverified for a sensitive value
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream
+  links that pointed at empty backward-compatibility anchors on the settings page were
+  repointed at the headings that hold the content.
+
+## [0.3.4]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#3020): `@biomejs/biome` 2.5.7→2.5.8, `@types/node` 26.1.2→26.2.0, `esbuild` 0.28.1→0.28.2.
+
 ## [0.3.3]
 
 ### Changed

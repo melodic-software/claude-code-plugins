@@ -2,7 +2,7 @@
 description: "Read and report on locally captured Claude Code telemetry — OTEL DuckDB store, collector, optional Aspire dashboard, hook-event JSONL, ccusage — with cross-session trend reports and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing'; read-only except the explicit clean action."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[scope|action] — week (default), session, day, month, since:YYYY-MM-DD, all, clean [--keep-days N] [--dry-run]"
+argument-hint: "[scope|action] — week (default), session, day, month, since:YYYY-MM-DD, all, clean [--keep-days N] [--dry-run] [--skill-usage-scope repo|user|data-dir]"
 shell: bash
 metadata:
   workflow-stage: operator
@@ -75,7 +75,7 @@ remains the durable record).
 
 | Action | Args | Effect |
 |---|---|---|
-| `clean` | `[--keep-days N]` (default 30) `[--dry-run]` `[--quiet]` | Prune JSONL + OTEL store — see [context/read-routing.md](context/read-routing.md) "Retention" and `scripts/clean.sh` |
+| `clean` | `[--keep-days N]` (default 30) `[--dry-run]` `[--quiet]` `[--skill-usage-scope repo\|user\|data-dir]` `[--skill-usage-dir REL]` `[--keep-skill-usage-days N]` (default 365) | Prune JSONL + OTEL store — see [context/read-routing.md](context/read-routing.md) "Retention" and `scripts/clean.sh`. Skill-usage pruning is **opt-in**: inert unless `--skill-usage-scope` is passed, and `data-dir` requires an explicit `--skill-usage-dir` rather than trusting `CLAUDE_PLUGIN_DATA` |
 
 Action invocation: `/claude-ops:observability clean [flags]`.
 
@@ -139,7 +139,7 @@ Unchanged — [context/data-sources.md](context/data-sources.md), [context/priva
 
 ## What this skill does NOT do
 
-- **Does not track GitHub bugs** — use `/claude-ops:known-issues`
+- **Does not track GitHub bugs** — invoke `/claude-ops:known-issues` via the Skill tool
 - **Does not modify code** — read-only
 - **Does not replace built-in `/insights`** or your own retrospective workflow
 - **Does not write to memory** unless user explicitly saves
