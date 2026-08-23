@@ -63,6 +63,7 @@ fi
 
 MARKETPLACE="${PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE:-.claude-plugin/marketplace.json}"
 SETTINGS="${PLUGIN_CATALOG_ENABLEMENT_SETTINGS:-.claude/settings.json}"
+BOOTSTRAP="${PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP:-.claude/cloud-bootstrap.sh}"
 
 for f in "$MARKETPLACE" "$SETTINGS"; do
   if [[ ! -f "$f" ]]; then
@@ -74,6 +75,13 @@ for f in "$MARKETPLACE" "$SETTINGS"; do
     exit 2
   fi
 done
+
+if [[ ! -f "$BOOTSTRAP" ]]; then
+  echo "check-plugin-catalog-enablement: $BOOTSTRAP not found" >&2
+  echo "  Without it the marketplace-identity coherence check below cannot run, and a green" >&2
+  echo "  result would overstate what this gate verified. Failing rather than skipping." >&2
+  exit 2
+fi
 
 # The marketplace this repo declares for itself. Derived rather than
 # hardcoded, so renaming the marketplace does not leave the gate silently
@@ -156,6 +164,34 @@ if [[ -n "$declared_keys" ]]; then
   fi
 fi
 
+# 4. IDENTITY -- the bootstrap must agree on which marketplace this is.
+# This gate derives the suffix from extraKnownMarketplaces; .claude/cloud-
+# bootstrap.sh hardcodes `marketplace_name` and selects its install set with
+# endswith("@" + $n). Rename the marketplace and update both settings keys and
+# the catalog, and the two disagree: `wanted` matches nothing, cloud sessions
+# install none of the catalog, and this lane stays green over it -- a parity
+# gate certifying a set nobody installs. Raised as P2 by the Codex review on
+# #3235. Verifying the constant rather than deriving it keeps the bootstrap's
+# behavior byte-identical (it must work before anything else does) while making
+# a rename that touches only one of the two impossible to merge.
+bootstrap_name="$(sed -n 's/^marketplace_name="\([^"]*\)".*/\1/p' "$BOOTSTRAP" | head -1)"
+
+if [[ -z "$bootstrap_name" ]]; then
+  printf 'UNREADABLE BOOTSTRAP IDENTITY: %s declares no marketplace_name="..." assignment at line start.\n' \
+    "$BOOTSTRAP" >&2
+  printf '  This gate cannot confirm the bootstrap installs the marketplace it holds the catalog against.\n' >&2
+  printf '  If the constant moved or was renamed, update this check with it.\n' >&2
+  errors=$((errors + 1))
+elif [[ "$bootstrap_name" != "$MARKET" ]]; then
+  printf "MARKETPLACE IDENTITY MISMATCH: %s declares marketplace_name='%s', but %s declares the marketplace '%s'.\n" \
+    "$BOOTSTRAP" "$bootstrap_name" "$SETTINGS" "$MARKET" >&2
+  printf "  The bootstrap selects what it installs with endswith(\"@%s\"), so it would install none of the\n" \
+    "$bootstrap_name" >&2
+  printf "  '%s' catalog this gate just checked. Update both, or the parity below certifies a set nobody installs.\n" \
+    "$MARKET" >&2
+  errors=$((errors + 1))
+fi
+
 if ((errors > 0)); then
   {
     echo
@@ -163,9 +199,11 @@ if ((errors > 0)); then
     echo "$SETTINGS, and every enabledPlugins key for the '$MARKET'"
     echo "marketplace must name a catalogued plugin. A key set to false is a"
     echo "recorded decision and passes; an absent key is drift and does not."
+    echo "$BOOTSTRAP must name that same marketplace, or what it installs and"
+    echo "what this gate checks are two different sets."
   } >&2
   exit 1
 fi
 
 catalog_count="$(printf '%s\n' "$catalog" | grep -c . || true)"
-echo "Every one of the $catalog_count catalogued plugins carries an enabledPlugins key for '$MARKET'; none orphaned; keys sorted."
+echo "Every one of the $catalog_count catalogued plugins carries an enabledPlugins key for '$MARKET'; none orphaned; keys sorted; $BOOTSTRAP installs that same marketplace."

@@ -276,7 +276,11 @@ enables; the cloud bootstrap installs (see
   `eol-normalizer`) shell out to.
 - The `plugin-catalog-enablement-gate` CI lane holds that whole-catalog claim to the file, in both
   directions: every `.claude-plugin/marketplace.json` entry must carry an `enabledPlugins` key, and
-  every key for this marketplace must name a catalogued plugin. It exists because the claim was
+  every key for this marketplace must name a catalogued plugin. It also checks that
+  `cloud-bootstrap.sh`'s hardcoded `marketplace_name` still names the marketplace the settings file
+  declares — the bootstrap selects what it installs with `endswith("@" + $n)`, so a rename that
+  updated the settings and the catalog but not that constant would leave its install set empty
+  while the parity lane stayed green over it. It exists because the claim was
   prose for three plugin releases that shipped catalogued but never enabled — a silent failure,
   since the bootstrap computes its install set from the same map and a session simply comes up
   without those skills. `claude-config`'s `check-plugin-drift.sh` cannot cover it: that detector

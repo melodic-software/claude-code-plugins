@@ -73,14 +73,25 @@ write_settings() {
   } >"$SETTINGS"
 }
 
+write_bootstrap() {
+  # the marketplace name the fixture bootstrap claims to install
+  printf '#!/usr/bin/env bash\nmarketplace_name="%s"\n' "$1" >"$TMP/.claude/cloud-bootstrap.sh"
+}
+
 run() {
   (
     cd "$TMP" &&
       PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE=".claude-plugin/marketplace.json" \
         PLUGIN_CATALOG_ENABLEMENT_SETTINGS=".claude/settings.json" \
+        PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP=".claude/cloud-bootstrap.sh" \
         bash "$SUT" 2>&1
   )
 }
+
+# Every fixture below declares the "fixture" marketplace unless it overrides
+# this, so the identity check agrees by default and each case exercises only
+# the drift class it names.
+write_bootstrap fixture
 
 # --- 1. Happy path: catalog and enabledPlugins name the same set. -----------
 write_marketplace alpha beta gamma
@@ -171,6 +182,7 @@ fi
 # gate reporting drift that did not exist while missing the shape it exists
 # to catch. Raised as informational by the security review on #3235.
 write_marketplace alpha
+write_bootstrap 'melodic.software'
 {
   echo '{'
   echo '  "enabledPlugins": {'
@@ -189,6 +201,46 @@ if [[ $rc -eq 0 ]]; then
 else
   fail "'.' in the marketplace name must not match any character (rc=$rc): $out"
 fi
+write_bootstrap fixture
+
+# --- 6c. The bootstrap must install the marketplace the gate checks. --------
+# .claude/cloud-bootstrap.sh hardcodes `marketplace_name` and selects its
+# install set with endswith("@" + $n), while this gate derives the suffix from
+# extraKnownMarketplaces. A rename that updates settings and catalog but not
+# the bootstrap leaves `wanted` empty -- cloud sessions install none of the
+# catalog -- with this lane green over it. Raised as P2 by the Codex review on
+# #3235.
+write_marketplace alpha beta
+printf 'alpha true\nbeta true\n' | write_settings
+write_bootstrap old-market-name
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'MARKETPLACE IDENTITY MISMATCH' <<<"$out"; then
+  pass "a bootstrap naming a different marketplace fails the gate"
+else
+  fail "bootstrap/settings marketplace mismatch should fail (rc=$rc): $out"
+fi
+
+# A bootstrap whose constant moved or was renamed cannot be verified, and a
+# green result would overstate what ran -- so it fails rather than skipping.
+printf '#!/usr/bin/env bash\n# no marketplace_name assignment here\n' >"$TMP/.claude/cloud-bootstrap.sh"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'UNREADABLE BOOTSTRAP IDENTITY' <<<"$out"; then
+  pass "a bootstrap with no marketplace_name assignment fails rather than skipping"
+else
+  fail "unreadable bootstrap identity should fail (rc=$rc): $out"
+fi
+
+rm -f "$TMP/.claude/cloud-bootstrap.sh"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'cloud-bootstrap.sh not found' <<<"$out"; then
+  pass "a missing bootstrap exits 2 rather than passing silently"
+else
+  fail "missing bootstrap should exit 2 (rc=$rc): $out"
+fi
+write_bootstrap fixture
 
 # --- 7. Ambiguous input is fatal, not a guess. ------------------------------
 write_marketplace alpha
