@@ -2265,6 +2265,61 @@ else
   fail "1600-char combined entry should FAIL the listing cap and not trip the field maximum (rc=$rc): $out"
 fi
 
+# 29c. Check 2a counts CODEPOINTS, not bytes: 900 ASCII chars + 100 em-dashes is
+#      1000 codepoints but 1200 UTF-8 bytes. Run with LC_ALL=C, the locale where
+#      a `${#var}` measurement degrades to byte counting, so a byte-counting
+#      regression reads 1200 and warns on a description that is inside the cap.
+desc_mb_under="$(printf 'd%.0s' $(seq 1 900))$(printf '—%.0s' $(seq 1 100))"
+make_skill field-cap-multibyte-under "---
+name: field-cap-multibyte-under
+description: \"$desc_mb_under\"
+---
+
+## Purpose
+
+Fixture whose description is 1000 codepoints but 1200 UTF-8 bytes.
+
+## Gotchas
+
+None known.
+"
+out="$(cd "$TMP" && LC_ALL=C CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" field-cap-multibyte-under 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  ! grep -q 'description field is' <<<"$out" &&
+  grep -q 'description field 1000/1024 chars' <<<"$out"; then
+  pass "a 1000-codepoint multi-byte description is silent under LC_ALL=C (check 2a counts codepoints)"
+else
+  fail "1000-codepoint/1200-byte description should not trip the field maximum under LC_ALL=C (rc=$rc): $out"
+fi
+
+# 29d. The companion direction: 1000 ASCII chars + 100 em-dashes is 1100
+#      codepoints, genuinely over the field maximum, and still WARNs under
+#      LC_ALL=C at its codepoint length rather than its byte length.
+desc_mb_over="$(printf 'd%.0s' $(seq 1 1000))$(printf '—%.0s' $(seq 1 100))"
+make_skill field-cap-multibyte-over "---
+name: field-cap-multibyte-over
+description: \"$desc_mb_over\"
+---
+
+## Purpose
+
+Fixture whose description is 1100 codepoints, over the spec field maximum.
+
+## Gotchas
+
+None known.
+"
+out="$(cd "$TMP" && LC_ALL=C CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" field-cap-multibyte-over 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: description field is 1100 chars' <<<"$out"; then
+  pass "an 1100-codepoint multi-byte description still warns under LC_ALL=C (check 2a)"
+else
+  fail "1100-codepoint description should WARN at its codepoint length under LC_ALL=C (rc=$rc): $out"
+fi
+
 # 38a. Check 22: a summary of exactly 100 codepoints passes (boundary
 #      guard — the cap is >100, not >=100).
 sum_100="$(printf 's%.0s' $(seq 1 100))"

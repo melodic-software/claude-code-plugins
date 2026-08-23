@@ -22,6 +22,12 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   carry). The rationale is recorded in the script beside the criterion; a follow-up may flip it
   to FAIL once the offenders are trimmed. Two contract tests: a 1200-char description trips the
   field criterion only, a 1600-char combined entry trips the listing criterion only.
+  Both criteria measure Unicode CODEPOINTS, locale-independently, through a shared
+  `codepoint_len` helper (#3141): bash `${#var}` counts UTF-8 BYTES on a locale-pinned host
+  (`LC_ALL=C`, `POSIX`, or an uninstalled UTF-8 locale), which silently tightened both caps for
+  any description carrying non-ASCII text. Check 22's inline measurement now calls the same
+  helper, so the technique lives in one place; two contract tests pin the behavior under
+  `LC_ALL=C`.
 
 ## [0.18.0]
 

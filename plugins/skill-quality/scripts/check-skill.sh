@@ -238,6 +238,24 @@ note() {
   printf 'INFO: %s\n' "$*"
 }
 
+# Length of a string in Unicode CODEPOINTS, counted locale-independently.
+# `${#var}` alone is insufficient: bash measures characters through the current
+# locale, so on a locale-pinned host (LC_ALL=C, POSIX, or a UTF-8 locale that is
+# not installed) it silently degrades to counting UTF-8 BYTES and a character
+# cap tightens for every multi-byte value. Converting UTF-8 -> UTF-32BE makes
+# every codepoint exactly 4 bytes, so byte-count/4 is the codepoint count on any
+# host. Hosts without iconv fall back to the UTF-8-locale `${#}` form.
+codepoint_len() {
+  if command -v iconv >/dev/null 2>&1; then
+    printf '%s' "$(($(printf '%s' "$1" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))"
+  else
+    (
+      LC_ALL=C.UTF-8
+      printf '%s' "${#1}"
+    )
+  fi
+}
+
 # Sorted-unique trigger phrases in a frontmatter block's LISTING text — the
 # description + when_to_use pair the harness assembles into one listing entry.
 # Reads the frontmatter as a string so every caller (working tree, base ref,
@@ -360,8 +378,11 @@ CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field descript
 CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
 # Working-tree listing triggers, derived once: checks 3 and 12 both read them.
 CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
-DESC_LEN=${#CUR_DESC}
-WTU_LEN=${#CUR_WTU}
+# Both budgets are stated in characters, so both are measured in codepoints via
+# the shared helper: a byte count would tighten either cap on a locale-pinned
+# host for any description carrying non-ASCII text.
+DESC_LEN=$(codepoint_len "$CUR_DESC")
+WTU_LEN=$(codepoint_len "$CUR_WTU")
 ((WTU_LEN > 0)) && JOINER_LEN=3
 COMBINED_LEN=$((DESC_LEN + JOINER_LEN + WTU_LEN))
 
@@ -1311,26 +1332,15 @@ done
 
 # --- Check 22: metadata.summary length cap -----------------------------------
 # The key is the generated skill cheat sheet's row source; the cap keeps rows
-# scannable. Length is Unicode CODEPOINTS, not bytes, counted
-# locale-independently: UTF-8 -> UTF-32BE via iconv makes every codepoint
-# exactly 4 bytes, so byte-count/4 is the codepoint count on any host — a
-# locale-pinned ${#var} silently degrades to byte counting where the pinned
-# locale does not exist, tightening the cap for multi-byte summaries. Hosts
-# without iconv fall back to the UTF-8-locale form. The value is read via
-# metadata_field (trailing-comment strip) + strip_quotes, matching how the
-# sheet generator reads it.
+# scannable. Length is Unicode CODEPOINTS, not bytes, measured through the
+# shared codepoint_len helper so the locale-independent technique lives in one
+# place. The value is read via metadata_field (trailing-comment strip) +
+# strip_quotes, matching how the sheet generator reads it.
 
 SUMMARY_CP_CAP=100
 CUR_SUMMARY="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field summary <<<"$FRONTMATTER")")"
 if [[ -n "$CUR_SUMMARY" ]]; then
-  if command -v iconv >/dev/null 2>&1; then
-    SUMMARY_CP_LEN=$(($(printf '%s' "$CUR_SUMMARY" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
-  else
-    SUMMARY_CP_LEN="$(
-      LC_ALL=C.UTF-8
-      printf '%s' "${#CUR_SUMMARY}"
-    )"
-  fi
+  SUMMARY_CP_LEN=$(codepoint_len "$CUR_SUMMARY")
   if ((SUMMARY_CP_LEN > SUMMARY_CP_CAP)); then
     err "metadata.summary is $SUMMARY_CP_LEN codepoints (cap $SUMMARY_CP_CAP — the cheat sheet row it generates must stay scannable)"
   else
