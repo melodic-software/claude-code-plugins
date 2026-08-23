@@ -7,7 +7,7 @@ allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(grep:*)",
 shell: bash
 metadata:
   workflow-stage: anytime
-  summary: Classify markdown noise: citations, ghost refs, meta-commentary, plan/conversational/tracker residue
+  summary: "Classify markdown noise: citations, ghost refs, meta-commentary, plan/conversational/tracker residue"
 ---
 
 ## Pre-computed context
