@@ -106,4 +106,4 @@ it:
 Titles here are the cover names, kept longer than the short names used elsewhere
 in this plugin so they are searchable in a bookshop. See
 [`context/pat-pattison/research/book-references.md`](context/pat-pattison/research/book-references.md)
-for the citation convention. **this list is a deliberate exception to it.**
+for the citation convention. **This list is a deliberate exception to it.**

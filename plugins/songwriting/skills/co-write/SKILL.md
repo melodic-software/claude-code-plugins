@@ -129,7 +129,7 @@ is in that class deliberately: a refutation pass costs a subagent dispatch, and 
 worth spending on a given batch is a judgement, not a rule the writer laid down. Skip it by name
 and reason, and expect to be asked why, because self-attestation is what failed.
 
-**The rubric row alone does not carry that clause**, because it is not offered to the writer at all
+**The rubric row alone does not carry that clause**, because it is not offered to the writer at all.
 It is the AI checking its own output before spending his attention, and he cannot overrule a check
 he never saw run. The full statement of the rules behind it is
 [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md)

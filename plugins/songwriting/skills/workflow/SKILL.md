@@ -14,7 +14,7 @@ Coaching posture** (and the output-type section for anything emitted). NAME each
 skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid; silent skips
 are not.
 
-When an action here emits a lyric line. `fragment` most often, the output-type section is §2, and
+When an action here emits a lyric line, most often `fragment`, the output-type section is §2, and
 §2 has not been run until the files on its own **Reference:** line have been read:
 [meter](../../context/pat-pattison/research/meter.md) and
 [phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate, plus

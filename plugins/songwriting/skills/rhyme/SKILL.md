@@ -10,8 +10,8 @@ disable-model-invocation: false
 Before emitting any rhyme suggestion or rhyme list, run **§1 Rhyme suggestion filter** of
 [response-filter](../../context/pat-pattison/research/response-filter.md). NAME each box's
 pass / fail / skip-with-reason (aloud or in reasoning), correct before emission. Skips are valid;
-silent skips are not. Without the filter, generic LLM defaults. Perfect rhymes, predictable
-end-lines, single-winner picks. Ship instead of Pat's craft.
+silent skips are not. Without the filter, generic LLM defaults ship instead of Pat's craft:
+perfect rhymes, predictable end-lines, single-winner picks.
 
 ## Purpose
 

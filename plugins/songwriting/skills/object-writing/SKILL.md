@@ -100,7 +100,7 @@ Dispatch rules:
    agent spawn takes a model and has no effort parameter, so a fan-out that needs the effort lever
    belongs in a workflow, whose per-agent call takes both.
 
-   **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs, rhyme-field enumeration, word-pool merge, syllable counting, dedup, are reading-heavy and
+   **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs, meaning rhyme-field enumeration, word-pool merge, syllable counting, and dedup, are reading-heavy and
    low-reasoning, and a cheaper tier is correct there. Object-writing is neither. Dropping the
    writing fleet's own tier to save cost is the writer's call, not the plugin's: ask, and never
    record the answer as his without a source that says so.
