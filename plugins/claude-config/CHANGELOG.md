@@ -41,6 +41,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   mechanically selected — both are too common in ordinary technical prose to select without
   swamping the relay. The deferral is written down rather than left as a silent gap.
 
+- **`emit-findings.sh` refuses when no branch resolves**, rather than writing a file the relay can
+  never match. `branch:` is load-bearing for the consumer (`fix-pass-mode.md` "Step 1" admits a
+  candidate only on an exact branch match), so with no `--branch` and no current branch the script
+  exits 2 and writes nothing. This is the normal state on a detached-HEAD CI checkout of a PR merge
+  ref, and it is now covered by its own test rather than discovered through an unrelated case.
+
 ### Security
 
 - **The body-scope fence is recomputed by the writer, not trusted from the caller.**

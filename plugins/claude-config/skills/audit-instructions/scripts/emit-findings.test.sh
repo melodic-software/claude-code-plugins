@@ -76,16 +76,44 @@ bash "$EMIT" --from "$FIXTURES/protected-content.md" --out "$TEST_TMPDIR/o.md" -
 assert_exit "unknown argument exits 2" 2 "$rc"
 
 # --- Case 3: non-scanner input refused (exit 3) ------------------------------
+# --branch is passed explicitly so this case isolates the scanner-row check.
+# Without it the branch default runs first, and on a DETACHED HEAD — which is
+# exactly what a CI checkout of a PR merge ref gives you — that default resolves
+# to empty and exits 2, masking the condition under test. Case 3b below asserts
+# that exit-2 path on purpose instead of tripping over it here.
 NOTSCAN="$TEST_TMPDIR/notscan.txt"
 printf 'this is not scanner output\nneither is this\n' >"$NOTSCAN"
 rc=0
-bash "$EMIT" --from "$NOTSCAN" --out "$TEST_TMPDIR/o3.md" >/dev/null 2>&1 || rc=$?
+bash "$EMIT" --from "$NOTSCAN" --out "$TEST_TMPDIR/o3.md" --branch testbranch >/dev/null 2>&1 || rc=$?
 assert_exit "input with no scan rows exits 3" 3 "$rc"
 if [[ -e "$TEST_TMPDIR/o3.md" ]]; then
   fail "refused input writes no file" "o3.md was created"
 else
   pass "refused input writes no file"
 fi
+
+# --- Case 3b: no resolvable branch refuses rather than guessing --------------
+# `branch:` is load-bearing for the consumer: fix-pass-mode.md "Step 1" admits a
+# candidate only when its branch: equals the current branch EXACTLY. With no
+# current branch there is nothing correct to write, so the script must refuse
+# rather than emit a file the relay can never match. GIT_DIR is pointed at a
+# nonexistent path so `git branch --show-current` cannot resolve one, which is
+# the hermetic stand-in for CI's detached-HEAD checkout of a PR merge ref.
+bash "$SCAN" --body-only "$FIXTURES/frontmatter-emphasis.md" >"$TEST_TMPDIR/nb.txt"
+rc=0
+GIT_DIR="$TEST_TMPDIR/no-such-git-dir" bash "$EMIT" \
+  --from "$TEST_TMPDIR/nb.txt" --out "$TEST_TMPDIR/nb.md" >/dev/null 2>&1 || rc=$?
+assert_exit "no --branch and no current branch exits 2" 2 "$rc"
+if [[ -e "$TEST_TMPDIR/nb.md" ]]; then
+  fail "an unresolvable branch writes no file" "nb.md was created"
+else
+  pass "an unresolvable branch writes no file"
+fi
+rc=0
+GIT_DIR="$TEST_TMPDIR/no-such-git-dir" bash "$EMIT" \
+  --from "$TEST_TMPDIR/nb.txt" --out "$TEST_TMPDIR/nb2.md" --branch explicit >/dev/null 2>&1 || rc=$?
+assert_exit "an explicit --branch works with no git branch" 0 "$rc"
+assert_contains "the explicit branch is what gets written" "$(cat "$TEST_TMPDIR/nb2.md")" "branch: explicit"
 
 # --- Case 4: conforming frontmatter ------------------------------------------
 bash "$SCAN" --body-only "$FIXTURES/frontmatter-emphasis.md" >"$TEST_TMPDIR/fm.txt"
