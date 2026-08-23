@@ -15,10 +15,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   those constructs before the heading and keyword scan, using the same
   CommonMark fence-close rules the pinned `pr-issue-linkage` reusable applies
   ([#3206](https://github.com/melodic-software/claude-code-plugins/issues/3206)).
-
-
-### Fixed
-
 - **PR-body linkage gates now check all four contract sections.** The shared
   validator (`pr-linkage-validator.sh`) only required a closing keyword and a
   non-empty `## Related` section, so both local pre-checks — the MCP gate and
