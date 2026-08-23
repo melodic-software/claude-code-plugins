@@ -73,7 +73,7 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
-**Two guards run before ANY removal, plain or forced, in this order.** The stranded-work guard first, because it can abort the removal outright — running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing.
+**Two guards and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → reap → removal.** The stranded-work guard first, because it can abort the removal outright — running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last of the three for the same reason inverted: it is the only one of the three that is *not* undoable, so it must not fire for a worktree the guards are about to save.
 
 **1. Stranded-work guard:** removal itself is recoverable — `git worktree remove` unregisters the directory and leaves the branch ref intact — but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` emitted in Step 4c finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
 
@@ -99,6 +99,50 @@ the worktree toplevel (skip unmatched globs) AND from `MAIN_ROOT` — before rem
 new carried file → offer the copy-to-main sync; main-side file ABSENT in the worktree → offer
 removing main's copy only on explicit confirmation of a deliberate deletion (default keep — the
 file may simply never have been carried). Removal without this pass loses the edits with exit 0.
+
+**3. Reap the worktree's project-scope plugin install records.** Claude Code records a project-scope
+plugin install in `~/.claude/plugins/installed_plugins.json` keyed by a literal `projectPath`, and
+nothing reaps that record when the path goes away. A worktree therefore leaves one record per
+installed plugin behind, permanently — measured on this convention's own author machine: 108
+project-scope records, across 8 marketplaces, every one of them naming a single worktree directory
+that no longer exists. Removing the directory is the last moment at which those records are both
+identifiable and provably dead, so removal is where they are removed too:
+
+```bash
+# Run FROM INSIDE the candidate, after both guards above have cleared.
+cd <path> && bash "${CLAUDE_PLUGIN_ROOT}/scripts/reap-project-plugin-records.sh" --worktree-path <path>
+```
+
+The `cd` is not incidental. `claude plugin uninstall <id> -s project` has **no path flag**: it
+resolves strictly against the current directory (measured — [fixtures/README.md](../fixtures/README.md)
+§ `project-scope-reap-probe.sh`, Claude Code 2.1.240, re-run unchanged on 2.1.241). The helper
+enforces the same thing from the other side: it refuses unless `--worktree-path` names the directory
+it is already standing in, so it structurally cannot act on any path but its own.
+
+Four rules govern this step, and each closes a way it could do real harm:
+
+- **The trigger is this teardown, never path liveness.** Reap a worktree *this cleanup is removing*.
+  Never reap "a path that does not currently resolve": a project-scope record for a live repository
+  on an unmounted network share or a detached external volume is indistinguishable from a dead
+  worktree to a bare existence check, and destroying those records is unrecoverable data loss for
+  the user. Pre-existing orphans from worktrees removed before this step existed are **reported by
+  `audit`, not reaped here** — see [audit.md](audit.md).
+- **A non-zero exit is a no-op to report, never an escalation.** The CLI's own failure text for an id
+  with no project-scope record here reads `Plugin "<id>" is installed in user scope, not project.
+  Use --scope user to uninstall.` Following that suggestion would uninstall the plugin **fleet-wide**.
+  Never run `-s user`, and never `--prune` (which reaches past project scope into shared
+  auto-installed dependencies).
+- **Never hand-edit `installed_plugins.json`.** It is Claude Code's internal state, not a published
+  contract. Every removal goes through the CLI; the helper only ever reads the file, and only to
+  report survivors.
+- **A degrade is reported, not swallowed.** Exit 3 (no `claude` on PATH, no `jq`, or enumeration
+  failed) means the records survive the removal — say so and continue with the removal. Exit 1 means
+  some record survived the pass; surface it. The zero case (`no records recorded here`) is reported
+  too, so "nothing to reap" is never indistinguishable from "never checked".
+
+In `--dry-run` mode pass `--dry-run` through: it names what would be removed and calls nothing.
+The **orphaned-directory** candidate (on disk, absent from `git worktree list`) takes the same step
+before its `rm -rf` — it is a directory this action is destroying, which is the whole trigger.
 
 **Escalation guard (before any `--force`):** when the plain removal fails, inspect why — `git -C <path> status --porcelain` (uncommitted edits) and `git -C <path> log HEAD --not --remotes --oneline | head` (unpushed commits). `HEAD`, not `--branches`: on a detached HEAD — the one case where removal makes commits unreachable *immediately*, with no branch ref left holding them — `--branches` reports every other branch in the repository and nothing about this worktree's own commits, so the guard reads clean at exactly the moment it matters most. If either is non-empty, present the summary to the user and get explicit per-worktree confirmation BEFORE forcing — forced removal permanently discards those changes. Only after confirmation (or when the failure is a lock/metadata issue with a verifiably clean tree):
 
@@ -150,4 +194,8 @@ Report honestly — never count a husk as removed:
 - **Fully removed** — directory gone AND metadata pruned.
 - **Unregistered, husk remains** — `git worktree list` is clean but the directory is still on disk (a lock survived Step 4a). Surface the path; the user removes it after closing the holding process.
 
-Report: "Removed N worktrees (M fully deleted, K husks remaining — paths above). Run `/source-control:worktree status` to verify."
+- **Records reaped** — the count the reap step returned per candidate, plus any it could not remove.
+  A record that survived, or a reap that degraded (exit 3), is named with its path so the user can
+  re-run the helper from a directory recreated there; it is never quietly dropped.
+
+Report: "Removed N worktrees (M fully deleted, K husks remaining — paths above); reaped R project-scope plugin install records. Run `/source-control:worktree status` to verify."

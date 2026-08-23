@@ -3,6 +3,45 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.0]
+
+### Added
+
+- **`worktree cleanup` reaps the project-scope plugin install records a torn-down
+  worktree leaves behind (#3113).** Claude Code keys a project-scope install to a
+  literal `projectPath` in `~/.claude/plugins/installed_plugins.json` and nothing
+  reaps it when that path goes away, so every worktree this plugin created and
+  destroyed left one record per installed plugin behind permanently — measured on
+  the author's machine: 108 records across 8 marketplaces, all naming a single
+  worktree directory that no longer exists, and every project-scope record on that
+  machine an orphan. `cleanup` Step 4b now runs
+  `scripts/reap-project-plugin-records.sh` from inside the candidate, after the
+  stranded-work and carried-file guards clear and before the directory is removed.
+  The trigger is the teardown, never path non-resolution: a record for a live
+  repository on an unmounted share is indistinguishable from a dead worktree to an
+  existence check.
+- **`scripts/reap-project-plugin-records.sh`.** Enumerates through
+  `claude plugin list --json` and removes through
+  `claude plugin uninstall <id> -s project`; it never edits
+  `installed_plugins.json`, never runs `-s user` (the CLI's own failure text
+  suggests it, and following that would uninstall the plugin fleet-wide), and never
+  passes `--prune`. It refuses unless `--worktree-path` names the directory it is
+  already standing in, which is the cwd boundary rendered in code rather than in
+  prose. `--dry-run` supported; degrades visibly (exit 3) when the CLI or `jq` is
+  absent.
+- **`worktree audit` Step 2b reports pre-existing orphaned records.** Records left by
+  worktrees removed before the reap existed are unreachable by it, so audit makes
+  them visible — bucketed as *orphaned worktree records* (under the resolved
+  worktree root, no longer registered) versus *other project records*, listed for
+  information only with no remedy offered. Read-only: removal needs the directory
+  recreated first, which the audit emits for the user and never performs.
+- **`skills/worktree/fixtures/project-scope-reap-probe.sh`** plus its
+  `fixtures/README.md` record. Six arms establish that `-s project` has no path flag
+  and resolves strictly against the resolved absolute cwd, that `plugin list --json`
+  enumeration is cwd-independent, and that a record outlives its directory but is
+  reachable from an empty directory recreated at the same path. Claude Code
+  **2.1.240**, re-run unchanged on **2.1.241**, Windows.
+
 ## [0.54.16]
 
 ### Changed

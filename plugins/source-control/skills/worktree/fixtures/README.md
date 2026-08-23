@@ -166,3 +166,71 @@ measurement is the only adjudicator and why an undisclosed fixture was fatal.
 **When you re-run it:** record the outcome here — *including a null, which is a finding* — and
 refresh the as-of stamp in `SKILL.md` with the verdict, per the upstream-drift convention's
 "when a trigger fires" procedure. Do not treat a zero-event fixture failure as a null.
+
+## `project-scope-reap-probe.sh` — what `plugin uninstall -s project` acts on
+
+**Claim.** `claude plugin uninstall <id> -s project` has no path flag and resolves strictly against
+the **resolved absolute current directory**. From any other directory it exits 1 and touches
+nothing. From the recorded directory — whether that is the live original or an empty one recreated
+at the same path — it exits 0 and removes the record from `installed_plugins.json`. Enumeration is
+the other half: `claude plugin list --json` reports **every** project-scope record on the machine
+regardless of cwd, so a reap can enumerate through the documented CLI and never needs to read
+`installed_plugins.json` at all.
+
+**Basis.** Six arms of `claude plugin install|list|uninstall` against throwaway directories under
+the platform temp, with the record store read (never written) between arms. No network beyond
+installing from an already-configured marketplace; no `claude -p` turns.
+
+**As-of.** 2026-08-22, Claude Code **2.1.240**, re-run unchanged on **2.1.241**, Windows (Git Bash).
+The CLI self-updated between the first and last run of this probe; both versions produced the same
+outcome on every arm, which is recorded here rather than collapsed into one version.
+
+**Recheck trigger.** A Claude Code release note naming plugin scopes, `plugin uninstall`,
+`installed_plugins.json`, or project-scope resolution; or a `--project`/`--path` flag appearing on
+`plugin uninstall --help`, which would retire the cwd constraint this design is built on.
+
+### Recorded outcome
+
+| Arm | Question | Result |
+|---|---|---|
+| 1 | does `install -s project` write a record, keyed by what? | Yes — one record per plugin, `scope: "project"`, `projectPath` set to the **resolved native absolute cwd**, backslash-separated. A plain non-git directory is enough; it also writes `<cwd>/.claude/settings.json`. Count 108 → 111 |
+| 2 | is `plugin list --json` enumeration cwd-independent? | Yes — run from two unrelated directories, the project-scope record set was identical (111 records, same `cksum`) |
+| 3 | does `uninstall -s project` reach another path's record? | **No** — exit 1, count unchanged at 111 |
+| 4 | from the recorded directory? | Exit 0, record removed (111 → 109 over two ids) |
+| 5 | after the directory is deleted? | The record **survives** the directory. Recreating an **empty** directory at the same path and running the uninstall from inside it exits 0 and removes it (109 → 108). The recreated directory is left holding `<path>/.claude/settings.json` |
+| 6 | where no record exists here? | Exit 1, no-op |
+
+Verbatim failure text, arms 3 and 6 — the same message for "belongs to another path" and "no record
+here":
+
+```text
+✘ Failed to uninstall plugin "caveman@caveman": Plugin "caveman@caveman" is installed in user
+scope, not project. Use --scope user to uninstall.
+```
+
+**A trap this fixture exists to stop.** That message names a remedy — `--scope user` — that would
+uninstall the plugin **fleet-wide**, for every project and the user scope both. A non-zero exit from
+a reap call is a no-op to report, never an escalation, and the suggestion in this line is never to
+be followed.
+
+**A trap that already cost one measurement.** An early run read as a **null** — "the install wrote
+no record" — purely because the reader compared the 8.3 short form inherited from `%TEMP%`
+(`C:\Users\ALICE~1\…`) against the long form the CLI writes (`C:\Users\AliceExample\…`). The record
+was there the whole time. Any consumer comparing these paths must resolve first (`pwd -W` on Git
+Bash yields the native long form), unify separators, and fold case on Windows. Two related shapes
+bite the same way: `jq` on Git Bash terminates lines with CRLF, and `@tsv` escapes each backslash to
+`\\` — both leave a `projectPath` that silently matches nothing.
+
+### What this settles in the plugin
+
+- `scripts/reap-project-plugin-records.sh` requires `--worktree-path` to name the directory it is
+  already standing in, and refuses otherwise. That is arm 3 rendered in code: the CLI cannot reach
+  another path's record, so a helper that could only ever be a no-op or a mistake there declines to
+  run at all.
+- The reap runs **before** `git worktree remove`, from inside the worktree — arm 4, the shortest
+  route, needing no directory to be recreated.
+- Arm 5 is what makes pre-existing orphans reachable at all, and it is also the arm most capable of
+  harm, because it works on any path a user can recreate. `audit` therefore **reports** such records
+  and never removes them on its own; see [../context/audit.md](../context/audit.md).
+- Nothing anywhere edits `installed_plugins.json`. Arm 2 is why that is affordable: enumeration and
+  removal both have documented CLI surfaces.
