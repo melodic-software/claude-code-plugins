@@ -1,6 +1,6 @@
 ---
-description: "Draft an `autoMode` classifier block for Claude Code by interviewing you about what should and should not be auto-approved, then printing a paste-ready JSON block to stdout. Entries follow the shape the classifier actually reads well — a label, bulleted COVERED / NOT COVERED, one line of rationale — and every section keeps `\"$defaults\"` so customizing does not discard the built-in rules. Use when: 'help me write auto mode rules', 'draft an autoMode block', 'set up auto mode', 'add an auto-mode rule for X', 'my auto mode rules are too vague', 'rewrite this classifier entry', or after an audit shows rules being dropped or ignored. Prints only — never writes any settings file."
-argument-hint: "[section] — environment | allow | soft_deny | hard_deny to focus the interview"
+description: "Draft an `autoMode` classifier block for Claude Code by interviewing you about what should and should not be auto-approved, then printing a paste-ready JSON block to stdout. Entries follow the shape the classifier actually reads well: a label, bulleted COVERED / NOT COVERED, one line of rationale. Every section keeps `\"$defaults\"` so customizing does not discard the built-in rules. Use when: 'help me write auto mode rules', 'draft an autoMode block', 'set up auto mode', 'add an auto-mode rule for X', 'my auto mode rules are too vague', 'rewrite this classifier entry', or after an audit shows rules being dropped or ignored. Prints only, never writes any settings file."
+argument-hint: "[section]: environment | allow | soft_deny | hard_deny to focus the interview"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,7 +11,7 @@ metadata:
 ## Purpose
 
 The `autoMode` block is a natural-language prompt for a classifier, not a rule list the harness
-matches — so it fails in ways a config file does not. `claude auto-mode critique`, run against a real
+matches, so it fails in ways a config file does not. `claude auto-mode critique`, run against a real
 66 KB hand-authored block, found the pattern: the classifier is "an LLM doing a single pass under a
 'default is ALLOW' instruction", so "buried conditions in paragraph position 40 will be missed at a
 materially higher rate than conditions in a bullet list."
@@ -27,7 +27,7 @@ thing this plugin exists not to do.
 ## Scope boundary (route out)
 
 - What is in effect now, what auto mode drops, what a section discards →
-  `claude-config:audit-permission-state`. **Run it first** — drafting against rules you have not read
+  `claude-config:audit-permission-state`. **Run it first.** Drafting against rules you have not read
   is how a block ends up contradicting itself.
 - Grant portability and auto-mode durability → `claude-config:audit-permission-grants`.
 - Whether an existing block is any good → `claude auto-mode critique`, surfaced by
@@ -66,17 +66,17 @@ Three things there change what you should ask:
 Ask about one entry at a time. For each, you need four things, and the fourth is where drafts fail:
 
 1. **Which section.** `allow` (auto-approve), `soft_deny` (block, overridable), `hard_deny` (never),
-   `environment` (facts the classifier needs — organization, repositories, trusted domains).
-2. **A short label** — the subject, two or three words. It is what a reader scans for.
+   `environment` (facts the classifier needs: organization, repositories, trusted domains).
+2. **A short label**: the subject, two or three words. It is what a reader scans for.
 3. **What is covered, and what is explicitly not.** Both. An entry with no stated exclusions is one
    the classifier will over-apply.
 4. **A condition visible in the transcript.** This is the one that matters. The critique's finding was
-   that "uncheckable conditions are the biggest weakness" — entries state preconditions the classifier
+   that "uncheckable conditions are the biggest weakness". Entries state preconditions the classifier
    cannot evaluate from the command text, so it either allows blindly (the condition is decorative) or
    blocks (the grant is inoperable), with no stated disposition.
 
-   When an answer names something the classifier cannot see — a person's intent, a fact about the
-   build server, whether a change was reviewed — **say so and ask for the observable form instead**.
+   Some answers name something the classifier cannot see: a person's intent, a fact about the
+   build server, whether a change was reviewed. **Say so and ask for the observable form instead.**
    "Only when the deploy is approved" is not checkable; "only when the command names the staging
    endpoint" is.
 
@@ -99,15 +99,15 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/draft-auto-mode-rules/scripts/draft-automode-
 ```
 
 It prints a JSON object carrying only the sections that got entries. **An unknown section name
-is a hard failure** — exit 2, nothing on stdout — rather than a warning beside partial output,
+is a hard failure**, exiting 2 with nothing on stdout rather than warning beside partial output,
 because a caller capturing both streams together would otherwise get unparsable JSON. **Every section opens with
-`"$defaults"`** — customizing a section replaces the built-in list rather than adding to it, so
+`"$defaults"`.** Customizing a section replaces the built-in list rather than adding to it, so
 omitting the token silently discards every shipped rule in that section.
 
 ## Phase 4: Hand it over
 
-Print the block, say exactly where it goes — the `autoMode` key of
-`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` — and stop.
+Print the block. Say exactly where it goes: the `autoMode` key of
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`. Then stop.
 
 Two things to say while handing it over, because both are load-bearing:
 

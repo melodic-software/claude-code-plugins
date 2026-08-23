@@ -3,6 +3,24 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.2]
+
+### Changed
+
+- **De-slop the instruction surfaces (#2891).** Fifth shard of the em-dash purge, after
+  `session-flow` (#3106), `planning` (#3105), `work-items` (#3107) and `source-control` (#3108).
+  Rewrote `README.md` and all ten `SKILL.md` files under `/ai-slop:audit fix` semantics: em dashes
+  become periods, commas, a colon before a list, or a restructured sentence, never parentheses, en
+  dashes, or a spaced hyphen, since each of those is the same interruption wearing a different mark.
+  482 `rule-em-dash` findings cleared to zero, verified with the rule force-enabled (this repo's
+  `.claude/ai-slop.json` disables it corpus-wide, so the check runs against an isolated config).
+  Frontmatter `description` and `argument-hint` values are rewritten too; no quoted auto-invocation
+  trigger phrase contained an em dash, so no trigger changed. Wording only, with no change to any
+  check, phase, gate, lane, or contract. Rebased across 0.39.0 and 0.39.1: the `--persist-findings`
+  flag, the `context/report-keying.md` and `context/persist-findings.md` spokes, and 0.39.1's
+  canonical SSOT wording are all retained, with the em dashes in that newer prose purged in the
+  same style rather than reverted.
+
 ## [0.39.1]
 
 ### Changed
