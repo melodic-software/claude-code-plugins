@@ -24,6 +24,47 @@
         "Rejects machine-absolute team paths",
         "Routes persistence through Claude Code and verifies on rerun"
       ]
+    },
+    {
+      "id": 3,
+      "name": "apply-scaffolds-the-tracked-lane-config",
+      "prompt": "/bug-report:setup apply",
+      "expected_output": "Reports the effective lane config per layer first, drafts lanes from the repository layout, settles filing_posture, writes only .claude/bug-report.md in the documented format, then re-reads it and confirms it is tracked rather than gitignored.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the check probes before writing anything",
+        "Writes only the tracked .claude/bug-report.md team layer",
+        "Uses the key contract in reference/config.md instead of inventing keys",
+        "Verifies the written file by re-reading it and by git check-ignore"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-stays-off-user-config-and-gitignore",
+      "prompt": "/bug-report:setup apply\n\nAlso point output_dir at docs/bug-reports/ and add the ignore line for my personal overlay.",
+      "expected_output": "Writes the lane config only, routes the output_dir change to Claude Code's plugin configuration prompt, and recommends the recursive .claude ignore line for the .local.md overlay without editing .gitignore.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not write settings files, pluginConfigs, or userConfig",
+        "Routes output_dir through Claude Code's native configuration flow",
+        "Recommends the overlay gitignore line but leaves the edit to the consumer"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "check-reports-every-cascade-layer",
+      "prompt": "/bug-report:setup check\n\nWhich lanes does scan actually use here?",
+      "expected_output": "Reports each cascade layer separately with the layer that supplied each value, names an empty-list opt-out as an opt-out, treats all layers absent as a working state served by the bundled default lanes, and changes nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names each layer's presence and version-control verdict separately",
+        "Reports the effective lanes and filing_posture with per-value provenance",
+        "Treats an absent config as INFO served by the bundled default lanes",
+        "Modifies no file"
+      ]
     }
   ]
 }
