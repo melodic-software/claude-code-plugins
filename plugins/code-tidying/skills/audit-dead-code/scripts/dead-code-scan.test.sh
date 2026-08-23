@@ -19,6 +19,15 @@
 # script's READING of that output, not the detectors themselves.
 set -uo pipefail
 
+# This suite builds throwaway git repositories as fixtures (the cap ordering is
+# git-recency-based, so a fixture needs real commits). An inherited ABSOLUTE
+# GIT_DIR overrides repository discovery and outranks -C, so without this the
+# fixture's `git config user.email` would land in the CALLER's .git/config —
+# shared by every worktree of the clone — instead of in the fixture. Any process
+# can export it (a git hook is one way, an ad-hoc command another), so it is
+# cleared unconditionally rather than conditionally.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCAN="$SCRIPT_DIR/dead-code-scan.sh"
 FIXTURES="$SCRIPT_DIR/../evals/fixtures"
