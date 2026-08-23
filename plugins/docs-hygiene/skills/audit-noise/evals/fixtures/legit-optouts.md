@@ -47,3 +47,13 @@ Status amended from `accepted` to `superseded by ADR-NNNN`. Bar replaced by Baz 
 
 - 2026-04-30 — Bar contract finalized after stakeholder review
 - 2026-05-15 — Bar superseded by Baz per ADR-NNNN
+
+## Outstanding work
+
+Tracker references here are outstanding work, not provenance, so the `ticket-pr-residue`
+carve-out covers them in an ordinary (non-exempt) section.
+
+- [ ] Reconcile the BarContract split with the Baz successor, see issue 42 for the acceptance test
+- [x] Publish the Bar deprecation note, see issue 43
+
+TODO(#123): see issue 44 before the next release cuts.
