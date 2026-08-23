@@ -15,13 +15,13 @@ ImageMagick: !`magick -version 2>/dev/null | head -1 || echo "MISSING — instal
 
 # Course Digest
 
-Transform online video courses into structured knowledge and actionable repo recommendations — without watching a single video.
+Transform online video courses into structured knowledge and actionable repo recommendations, without watching a single video.
 
 ## How it works
 
 Uses browser automation (claude-in-chrome) to navigate course platforms, extract transcripts, capture screenshots of code/slides, and collect downloadable resources. Synthesizes raw content into analysis focused on what applies to the current repository.
 
-Where this skill says "deeper research," use whatever external-research capability your project provides. Repo conventions override course claims — surface convention conflicts explicitly; never silently adopt a course's shortcut over team rules.
+Where this skill says "deeper research," use whatever external-research capability your project provides. Repo conventions override course claims. Surface convention conflicts explicitly; never silently adopt a course's shortcut over team rules.
 
 ## Emit checklist
 
@@ -31,11 +31,11 @@ This skill's `.work/` root is **formally carved out** of the marketplace topic-d
 
 ## Prerequisites (verify before starting)
 
-1. **course-extraction deps** — `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates) and provisions Playwright's Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`. Idempotent — safe to re-run, and re-run after a plugin update.
-2. **Platform auth** — set `COURSE_EMAIL`/`COURSE_PASSWORD` (Dometrain → Clerk) or `TEACHABLE_EMAIL`/`TEACHABLE_PASSWORD` (Teachable) in your shell before invoking; they inherit into the pipeline's node subprocess. The env-var prefix is course-config-driven via `platformConfig.authEnvPrefix`. Session cookies persist under `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` and are reused across runs. **Interactive manual login is the fallback** when no credentials are set — it opens a browser window for you to log in. NOTE: the manual-login prompt (`node:readline` + headed browser) may not function under headless plugin execution; env-var + cookie-reuse carry the skill regardless, and manual login is a known limitation there, not a blocker. These credentials stay in shell env (rather than migrating to plugin `userConfig` like this plugin's non-secret scalars) deliberately: a `sensitive: true` userConfig option still persists as plaintext in `~/.claude/.credentials.json` on Windows, so they remain in env until keychain-backed sensitive storage lands there.
-3. **ffmpeg** — required for video frame extraction (scene detection, interval capture). Check: `ffmpeg -version`. Install: `winget install Gyan.FFmpeg` (Windows), `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux). Floor 7.1+ (newer codecs — AV1, Opus — degrade or fail below this).
-4. **ImageMagick 7** — required by `classify-frames.js` for contact sheet generation (`magick montage`). Check: `magick -version`. Install: `winget install ImageMagick.ImageMagick` (Windows), `brew install imagemagick` (macOS), `sudo apt install imagemagick` (Linux). Ubuntu <26.04 ships v6 — v7 may require building from source.
-5. **claude-in-chrome MCP** — needed for Phase 1 (course discovery) and frame extraction HLS URL retrieval. Run `tabs_context_mcp` as preflight.
+1. **course-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates) and provisions Playwright's Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`. Idempotent. Safe to re-run, and re-run after a plugin update.
+2. **Platform auth**. Set `COURSE_EMAIL`/`COURSE_PASSWORD` (Dometrain → Clerk) or `TEACHABLE_EMAIL`/`TEACHABLE_PASSWORD` (Teachable) in your shell before invoking; they inherit into the pipeline's node subprocess. The env-var prefix is course-config-driven via `platformConfig.authEnvPrefix`. Session cookies persist under `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` and are reused across runs. **Interactive manual login is the fallback** when no credentials are set. It opens a browser window for you to log in. NOTE: the manual-login prompt (`node:readline` + headed browser) may not function under headless plugin execution; env-var + cookie-reuse carry the skill regardless, and manual login is a known limitation there, not a blocker. These credentials stay in shell env (rather than migrating to plugin `userConfig` like this plugin's non-secret scalars) deliberately: a `sensitive: true` userConfig option still persists as plaintext in `~/.claude/.credentials.json` on Windows, so they remain in env until keychain-backed sensitive storage lands there.
+3. **ffmpeg**, required for video frame extraction (scene detection, interval capture). Check: `ffmpeg -version`. Install: `winget install Gyan.FFmpeg` (Windows), `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux). Floor 7.1+ (newer codecs, AV1, Opus, degrade or fail below this).
+4. **ImageMagick 7**, required by `classify-frames.js` for contact sheet generation (`magick montage`). Check: `magick -version`. Install: `winget install ImageMagick.ImageMagick` (Windows), `brew install imagemagick` (macOS), `sudo apt install imagemagick` (Linux). Ubuntu <26.04 ships v6. V7 may require building from source.
+5. **claude-in-chrome MCP**. Needed for Phase 1 (course discovery) and frame extraction HLS URL retrieval. Run `tabs_context_mcp` as preflight.
 
 If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node dependencies + Chromium; the media binaries (ffmpeg, ImageMagick) are OS-level installs via your platform's package manager per the commands above.
 
@@ -67,18 +67,18 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" extract-cou
 node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" extract-course.js --course-dir <path-to-course-data> --metadata-only
 ```
 
-Script uses Playwright's bundled Chromium with a fresh temp context (not Chrome itself — Chrome 136+ blocks CDP on default profiles). Auth handled via `addCookies()` after context launch: with credentials set it logs in and saves state; subsequent runs inject cached cookies automatically. Skips already-extracted lessons (crash-safe, resumable). Runs headless by default (`--show-browser` to show the browser).
+Script uses Playwright's bundled Chromium with a fresh temp context (not Chrome itself. Chrome 136+ blocks CDP on default profiles). Auth handled via `addCookies()` after context launch: with credentials set it logs in and saves state; subsequent runs inject cached cookies automatically. Skips already-extracted lessons (crash-safe, resumable). Runs headless by default (`--show-browser` to show the browser).
 
 **Key technical details:**
 
 - Uses `--disable-blink-features=AutomationControlled` to bypass automation detection on course platform logins
-- Chrome profiles are NOT used — Playwright's own Chromium with a dedicated temp context dir in the OS temp directory
+- Chrome profiles are NOT used. Playwright's own Chromium with a dedicated temp context dir in the OS temp directory
 - Auth state saved to `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` (session expiry depends on the platform's auth provider, configured in `platformConfig.authWarnDays`)
-- HLS video URLs captured via DOM read from the video player element (selector from `platformConfig.videoPlayerSelector`) — no claude-in-chrome needed
+- HLS video URLs captured via DOM read from the video player element (selector from `platformConfig.videoPlayerSelector`). No claude-in-chrome needed
 - Frame extraction via ffmpeg scene detection (threshold 0.1), with interval fallback for sparse results
-- Content type derived from extraction results (scene detection = code, interval + high dup = talking head) — no manual tagging
+- Content type derived from extraction results (scene detection = code, interval + high dup = talking head). No manual tagging
 - Progress tracking with per-lesson elapsed time, ETA, structured `run-report.json` output
-- SIGINT handler saves progress on Ctrl+C — no work lost on interruption
+- SIGINT handler saves progress on Ctrl+C. No work lost on interruption
 
 **Long-running extractions (50+ lessons):** the CC Bash tool has a hard 10-minute timeout limit. For large courses:
 
@@ -96,7 +96,7 @@ cat <course-dir>/run-report.json
 
 ## Platform detection and adapter architecture
 
-Extraction pipeline uses a **provider adapter pattern**. Platform-specific code lives in adapter modules (`extraction/adapters/{platform}.js`). The orchestrator (`extract-course.js`) delegates to adapters via a contract — zero platform-specific code in the orchestrator.
+Extraction pipeline uses a **provider adapter pattern**. Platform-specific code lives in adapter modules (`extraction/adapters/{platform}.js`). The orchestrator (`extract-course.js`) delegates to adapters via a contract. Zero platform-specific code in the orchestrator.
 
 **Architecture:**
 
@@ -127,30 +127,30 @@ extraction/
   utils.js                    # Provider-agnostic utilities only
 ```
 
-Adapters are thin composition layers — delegate to shared `lib/players/` and `lib/auth/` modules for reusable tech-layer concerns, keeping only platform-specific DOM selectors, URL patterns, and orchestration logic.
+Adapters are thin composition layers. Delegate to shared `lib/players/` and `lib/auth/` modules for reusable tech-layer concerns, keeping only platform-specific DOM selectors, URL patterns, and orchestration logic.
 
-**Every adapter method returns `Result`** (`ok`/`fail` from `@melodic/video-digestion/shared/result`) — explicit success/failure with timing, operation name, context. No silent catches, no null returns.
+**Every adapter method returns `Result`** (`ok`/`fail` from `@melodic/video-digestion/shared/result`). Explicit success/failure with timing, operation name, context. No silent catches, no null returns.
 
 | URL pattern | Platform | Adapter | Reference |
 |---|---|---|---|
 | `dometrain.com` | Dometrain | `adapters/dometrain.js` | [reference/adapters/dometrain.md](reference/adapters/dometrain.md) |
 | `*.teachable.com`, `courses.*.tech` | Teachable (Hotmart video) | `adapters/teachable.js` | [reference/adapters/teachable.md](reference/adapters/teachable.md) |
-| Single public YouTube videos | — | use /knowledge:video-digest | — |
-| `pluralsight.com` | Pluralsight | (future) | — |
-| `udemy.com` | Udemy | (future) | — |
+| Single public YouTube videos |, | use /knowledge:video-digest |, |
+| `pluralsight.com` | Pluralsight | (future) |. |
+| `udemy.com` | Udemy | (future) |. |
 
-**To add a new platform adapter:** follow [Provider Discovery Checklist](reference/adapters/discovery-checklist.md) to explore the platform systematically, then create `adapters/{platform}.js` implementing the 5 required methods (`extractTranscript`, `extractHlsUrl`, `detectResources`, `deriveLandingUrl`, `buildLessonUrl`). Compose from shared modules where the tech stack matches — e.g., a new platform using Hotmart video + Clerk auth would `import * as hotmart from "../lib/players/hotmart.js"` and `import * as clerk from "../lib/auth/clerk.js"`, then delegate player/auth methods while implementing only platform-specific DOM selectors and URL patterns. Add the platform to `course.json` `platform` field; the factory auto-discovers it via dynamic import. The discovery checklist also serves as regression guide when existing adapters break.
+**To add a new platform adapter:** follow [Provider Discovery Checklist](reference/adapters/discovery-checklist.md) to explore the platform systematically, then create `adapters/{platform}.js` implementing the 5 required methods (`extractTranscript`, `extractHlsUrl`, `detectResources`, `deriveLandingUrl`, `buildLessonUrl`). Compose from shared modules where the tech stack matches, e.g., a new platform using Hotmart video + Clerk auth would `import * as hotmart from "../lib/players/hotmart.js"` and `import * as clerk from "../lib/auth/clerk.js"`, then delegate player/auth methods while implementing only platform-specific DOM selectors and URL patterns. Add the platform to `course.json` `platform` field; the factory auto-discovers it via dynamic import. The discovery checklist also serves as regression guide when existing adapters break.
 
 ## The pipeline
 
-Follow the 8-phase workflow in [context/workflow.md](context/workflow.md), each building on the previous — Discover → Extract → Process Frames → Analyze Code Repo → Validate → Synthesize → Analyze → Recommend (phases 1, 2, 2b, 2c, 2d, 3, 4, 5). Phases 1-2d are extraction (browser + CLI); 3-5 are analysis (LLM-heavy, parallelizable across modules). Storage runs continuously throughout.
+Follow the 8-phase workflow in [context/workflow.md](context/workflow.md), each building on the previous. Discover → Extract → Process Frames → Analyze Code Repo → Validate → Synthesize → Analyze → Recommend (phases 1, 2, 2b, 2c, 2d, 3, 4, 5). Phases 1-2d are extraction (browser + CLI); 3-5 are analysis (LLM-heavy, parallelizable across modules). Storage runs continuously throughout.
 
 **Critical rule:** ALL context (transcripts + frames + code repo) must be gathered before Phase 3.
 Module summaries note their context level: `[transcript-only]`, `[transcript+frames]`, `[full-context]`.
 
 ### Phase 3 modalities (`[full-context]` requires all three)
 
-Synthesis combines three modalities — transcript (`transcript.md`), visual frames (PNG files + `manifest.json`), and companion code (`code/repo/<section>/`). Each module gets parallel agents (transcript + visual + code exploration), then a synthesis pass. Full modality table + multi-agent approach: [context/workflow.md](context/workflow.md) Phase 3.
+Synthesis combines three modalities. Transcript (`transcript.md`), visual frames (PNG files + `manifest.json`), and companion code (`code/repo/<section>/`). Each module gets parallel agents (transcript + visual + code exploration), then a synthesis pass. Full modality table + multi-agent approach: [context/workflow.md](context/workflow.md) Phase 3.
 
 Multi-modal extraction gaps beyond these three (code OCR from frames, slide-text extraction, audio re-transcription) are evaluated with priority and effort in [context/multimodal-evaluation.md](context/multimodal-evaluation.md).
 
@@ -158,7 +158,7 @@ Multi-modal extraction gaps beyond these three (code OCR from frames, slide-text
 
 Dedup phase (`classify-frames.js --phase dedup`) **reports** near-duplicates but does NOT
 delete frame files. Actual frame curation happens in `generate-manifests.js` which sets
-`keep: true/false` per frame. Frame PNG files remain on disk — manifests define which frames to use
+`keep: true/false` per frame. Frame PNG files remain on disk. Manifests define which frames to use
 during synthesis.
 
 ### Phase tracking
@@ -169,7 +169,7 @@ phase-specific metrics. On resume, check which phases are non-null to skip compl
 
 ### Repo freshness caveat
 
-Companion GitHub repos may be updated after course publication; classify transcript/code discrepancies per [context/workflow.md](context/workflow.md) "Freshness verification". **All course action items require external research verification before adoption** — course content is a starting point for research, not a final answer.
+Companion GitHub repos may be updated after course publication; classify transcript/code discrepancies per [context/workflow.md](context/workflow.md) "Freshness verification". **All course action items require external research verification before adoption**. Course content is a starting point for research, not a final answer.
 
 ## Invocation patterns
 
@@ -177,12 +177,12 @@ Skill supports different scopes:
 
 | User says | Action |
 |---|---|
-| `/knowledge:course-digest <url>` | Full pipeline — discover + extract all + analyze |
-| `/knowledge:course-digest extract <url>` | Phases 1-2 only — extract raw content, skip analysis |
-| `/knowledge:course-digest analyze <slug>` | Phases 3-5 only — analyze previously extracted content |
+| `/knowledge:course-digest <url>` | Full pipeline. Discover + extract all + analyze |
+| `/knowledge:course-digest extract <url>` | Phases 1-2 only. Extract raw content, skip analysis |
+| `/knowledge:course-digest analyze <slug>` | Phases 3-5 only. Analyze previously extracted content |
 | `/knowledge:course-digest status` | Show all digested courses and their completion state |
 | `/knowledge:course-digest resume <slug>` | Resume extraction from where it left off (reads course.json phases) |
-| `/knowledge:course-digest continue <slug>` | Continue from a prior session — reads continuation prompt file |
+| `/knowledge:course-digest continue <slug>` | Continue from a prior session. Reads continuation prompt file |
 | `/knowledge:course-digest` (no args) | Auto-detect: check for in-progress courses, resume the most recent |
 
 ### Session handoff protocol
@@ -202,15 +202,15 @@ The `continue` action reads the continuation prompt and reconstructs task contex
 Courses can have 60+ lessons. Processing all in one session may hit context limits.
 
 - **After discovering course structure** (Phase 1): present module/lesson list and ask user which modules to process, or confirm "all"
-- **After each module completes**: save progress immediately — a crash shouldn't lose work
+- **After each module completes**: save progress immediately, a crash shouldn't lose work
 - **At a module boundary, if the session has run long, quality is degrading, or a compaction has occurred**: suggest saving progress and resuming in a new session with `/knowledge:course-digest resume <slug>`
 
 ## Analysis output format
 
 Repo-applicability analysis follows the template in [reference/analysis-template.md](reference/analysis-template.md). Key deliverables:
 
-- **`repo-candidates.md`** — Specific patterns/practices from the course that could improve the repository, with references to where in the course they're taught
-- **`action-items.md`** — Concrete next steps: rule candidates, skill suggestions, architecture patterns, testing practices, work-item candidates
+- **`repo-candidates.md`**. Specific patterns/practices from the course that could improve the repository, with references to where in the course they're taught
+- **`action-items.md`**. Concrete next steps: rule candidates, skill suggestions, architecture patterns, testing practices, work-item candidates
 
 ## Storage
 
@@ -218,7 +218,7 @@ Generated course output lands under the invoking project's `library_dir` seam (o
 
 **Critical rules:**
 
-- No video or audio files — transcripts and screenshots capture the content
-- Screenshots are PNG files — keep small (resize to 1280px wide max)
-- Save progress incrementally — never buffer an entire course in memory
+- No video or audio files. Transcripts and screenshots capture the content
+- Screenshots are PNG files. Keep small (resize to 1280px wide max)
+- Save progress incrementally, never buffer an entire course in memory
 - Each course is self-contained under its own slug directory

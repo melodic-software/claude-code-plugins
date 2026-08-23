@@ -10,9 +10,9 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 | Skill | Invoke | What it does |
 |---|---|---|
 | `book-distill` | `/knowledge:book-distill` | Turns a technical book (PDF/EPUB) into concept-organized, author-attributed skill reference files through a structured, multi-session read-write pipeline, updating the target skill's routing table. |
-| `course-digest` | `/knowledge:course-digest` | Extracts and synthesizes an online video course (Dometrain, Teachable) — transcripts, frames, resources, companion code — into repo-applicable recommendations. Actions: full pipeline (default), `extract`, `analyze`, `status`, `resume`, `continue`. |
-| `docpage-digest` | `/knowledge:docpage-digest` | Ingests a single online documentation page (docs-site URL) into a verified knowledge slice — unaltered original, INDEX inventory, per-section model-matched digests, dual verification (one cross-vendor verifier), and an interview-ready handoff artifact. Publisher profiles (fetch channel, applicability filter, doc queue) are separable context files; first profile: Anthropic docs. |
-| `video-digest` | `/knowledge:video-digest` | Watches a single public video from YouTube or X (Twitter) — transcript + visual frames — harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
+| `course-digest` | `/knowledge:course-digest` | Extracts and synthesizes an online video course (Dometrain, Teachable), transcripts, frames, resources, companion code, into repo-applicable recommendations. Actions: full pipeline (default), `extract`, `analyze`, `status`, `resume`, `continue`. |
+| `docpage-digest` | `/knowledge:docpage-digest` | Ingests a single online documentation page (docs-site URL) into a verified knowledge slice. Unaltered original, INDEX inventory, per-section model-matched digests, dual verification (one cross-vendor verifier), and an interview-ready handoff artifact. Publisher profiles (fetch channel, applicability filter, doc queue) are separable context files; first profile: Anthropic docs. |
+| `video-digest` | `/knowledge:video-digest` | Watches a single public video from YouTube or X (Twitter), transcript + visual frames, harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
 | `setup` | `/knowledge:setup` | `check` (default) verifies `library_dir` against the repository's artifact convention and probes the extraction prerequisites read-only; `apply` routes personal option changes through Claude Code's plugin configuration prompt; `apply install-deps` provisions the video pipelines' node dependencies and Chromium. |
 
 ## What book-distill produces
@@ -23,21 +23,20 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 - **Routing-table and quick-decision-guide updates** to the target skill's
   `SKILL.md`, so the skill loads the right reference file for a given developer
   question at query time.
-- **Multi-author merges** — where two books cover the same concept, their
+- **Multi-author merges**, where two books cover the same concept, their
   content is consolidated into a shared file.
 
 You name the target skill when you invoke `/knowledge:book-distill`, so output
-lands somewhere you chose (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target>/`) —
-either an existing skill it extends or a new one it creates. Cross-session state
+lands somewhere you chose (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target>/`): either an existing skill it extends or a new one it creates. Cross-session state
 (the file plan, page map, and a checklist) persists under `${CLAUDE_PLUGIN_DATA}`,
 which survives plugin updates.
 
-## Usage caution — copyright
+## Usage caution. Copyright
 
 This plugin is a neutral tool; **you own the rights decision** for everything you
 distill with it. A condensed distillation of a copyrighted book is a
-**derivative work** (17 U.S.C. §§ 101, 106) — the copyright holder's exclusive
-rights include preparing and distributing derivatives — so distilled outputs
+**derivative work** (17 U.S.C. §§ 101, 106), the copyright holder's exclusive
+rights include preparing and distributing derivatives, so distilled outputs
 carry **redistribution risk**. Keeping a private distillation for your own study
 is a different act from publishing, committing, or sharing one; fair use is a
 defense raised after the fact, not a safe harbor you can assume in advance.
@@ -46,7 +45,7 @@ yourself that doing so is lawful for that book. This is a caution, not legal
 advice.
 
 The distilled output is written into a skill that Claude later **auto-loads as
-model context** — so review it before you commit or share it: treat the source
+model context**, so review it before you commit or share it: treat the source
 book as untrusted input and confirm the distillation reflects the book rather than
 any instructions injected through its text.
 
@@ -54,7 +53,7 @@ any instructions injected through its text.
 
 `video-digest` ships as a skill inside this plugin rather than a standalone plugin
 because a separate plugin cannot reach this one's vendored `video-digestion`
-package — plugins are isolated, with no sibling reach-outs. Extract a standalone
+package. Plugins are isolated, with no sibling reach-outs. Extract a standalone
 `youtube` plugin once that package is independently distributable, or a consumer
 needs video without the rest of the knowledge stack.
 
@@ -63,11 +62,11 @@ needs video without the rest of the knowledge stack.
 - A PDF or EPUB you have the right to read. PDF works natively with Claude
   Code's Read tool; EPUB requires unzipping and text extraction first.
 - **Bash + coreutils** for the skills' inline mechanics (`book-distill`
-  hashes its progress-file slug with `sha256sum`/`shasum` on every run) — on
+  hashes its progress-file slug with `sha256sum`/`shasum` on every run). On
   native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
   so they run under Git Bash, which bundles `sha256sum`.
-- **`unzip` on `PATH` for the EPUB branch** — not bundled with Git Bash;
+- **`unzip` on `PATH` for the EPUB branch**, not bundled with Git Bash;
   install it or extract the EPUB with another archive tool first. PDF-only
   use does not need it.
 
@@ -78,7 +77,7 @@ needs video without the rest of the knowledge stack.
 /plugin install knowledge@<marketplace>
 ```
 
-Migrating from the standalone `book-distill` plugin? Nothing to do — the
+Migrating from the standalone `book-distill` plugin? Nothing to do. The
 marketplace's `renames` map migrates `book-distill@<marketplace>` to
 `knowledge@<marketplace>` automatically on your next session; the skill is now
 invoked as `/knowledge:book-distill`.
@@ -97,7 +96,7 @@ defaults keep every pipeline working):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `library_dir` | directory | `.` (repo root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the project directory. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value — expanded when a pipeline resolves the root (the `video-digest` launcher and the `docpage-digest` work root today), failing loud on an unset variable. `book-distill` is unaffected — it writes to the target skill you name at invocation. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+| `library_dir` | directory | `.` (repo root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the project directory. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value. Expanded when a pipeline resolves the root (the `video-digest` launcher and the `docpage-digest` work root today), failing loud on an unset variable. `book-distill` is unaffected. It writes to the target skill you name at invocation. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
 | `yt_dlp_js_runtimes` | string | `node` | `video-digest`: JavaScript runtime yt-dlp uses for YouTube signature deciphering. Set to `off` to omit the flag entirely. |
 | `yt_dlp_cookies_file` | string | (empty) | `video-digest`: path to a Netscape cookies.txt for authenticated acquisition. Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | (empty) | `video-digest`: browser to pull YouTube cookies from (`chrome`, `firefox`, `edge`, …), forcing one instead of the automatic fallback. A cookies file wins over this. |
@@ -107,9 +106,10 @@ defaults keep every pipeline working):
 needs no configuration to run; `library_dir` is the shared artifact-landing seam
 the plugin's ingestion pipelines resolve through. The `video-digest` acquisition
 options above tune yt-dlp authentication and throttling; **course-platform
-credentials are intentionally not** `userConfig` — they stay in shell env vars
+credentials are intentionally not** `userConfig`. They stay in shell env vars
 because a `sensitive` option persists as plaintext on Windows today.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -186,6 +186,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
