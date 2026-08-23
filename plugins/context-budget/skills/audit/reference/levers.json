@@ -5,7 +5,7 @@
     "honestyRule": "A lever whose category cannot be determined for the consumer's configuration is not offered. Rows whose category is condition-dependent say so in `conditions`; the audit resolves the condition by measurement before presenting the lever.",
     "dualLedger": "Two ledgers, never conflated: the CONTEXT-WINDOW ledger (what occupies reasoning space — the /context headline) and the REQUEST ledger (what ships and is billed every turn). Deferral moves weight between them; removal clears both. Each row's category refers to the request ledger unless `conditions` says otherwise.",
     "staleness": "Every row carries `verified` (the date its claims were checked against the cited sources at the named CLI version) and `recheckTrigger`. A row whose trigger fired is re-derived from a fresh fetch of its citations before being offered — never trusted from this file alone.",
-    "verifiedAgainst": { "cliVersion": "2.1.232", "date": "2026-08-17" },
+    "verifiedAgainst": { "cliVersion": "2.1.241", "date": "2026-08-23" },
     "categories": {
       "removes-weight": "Genuinely removes tokens from the request payload (and the context window where applicable).",
       "works-but-saves-nothing-here": "The mechanism functions as documented, but under the consumer's current configuration the measured saving is zero (for example, budget-capped surfaces that redistribute freed space).",
@@ -85,10 +85,10 @@
       ],
       "citations": [
         "https://code.claude.com/docs/en/workflows",
-        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/settings-reference#disableworkflows",
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-08-23",
       "recheckTrigger": "The workflows page changes its disable mechanisms, or denying/disabling Workflow stops moving the prefix bucket."
     },
     {
@@ -99,19 +99,21 @@
       "categoryBasis": "Settings and env rows documented; tool-plus-skills removal versus deny-leaves-skills measured at the verified version.",
       "conditions": null,
       "posture": "recommendable-on-fit",
-      "scope": "disableArtifact at any scope including managed (takes precedence); enableArtifact is written by the Artifacts row in /config and is IGNORED in project and local settings; env var equivalent to disableArtifact.",
+      "scope": "User or managed. Do not emit either key into project `.claude/settings.json`: enableArtifact is ignored there, and a project disableArtifact is overridden by any higher-precedence file rather than acting as a lock. enableArtifact: false is the user-scope form (the /config Artifacts row); disableArtifact is the org-wide lock (managed). Env var CLAUDE_CODE_DISABLE_ARTIFACT is equivalent for one session.",
       "detection": "disableArtifact/enableArtifact across scopes; CLAUDE_CODE_DISABLE_ARTIFACT in the environment; Artifact in the baseline tool list; artifact-* rows in the skill listing.",
-      "measurement": "attribute --tools Artifact prices the schema; snapshot before/after disableArtifact additionally shows the skill-listing rows leaving (subject to the listing cap — see cap dynamics).",
-      "emittedConfig": "{\"disableArtifact\": true}",
+      "measurement": "attribute --tools Artifact prices the schema; snapshot before/after the user-scope write additionally shows the skill-listing rows leaving (subject to the listing cap — see cap dynamics).",
+      "emittedConfig": "{\"enableArtifact\": false}",
       "caveats": [
         "Prefer this over a bare-name deny for never-publishes-artifacts operators: the deny is the weaker trim, leaving the companion skill descriptions listed.",
-        "enableArtifact requires v2.1.196+ and is scope-restricted; do not emit it into project or local settings."
+        "Emit at user scope (`~/.claude/settings.json`). A project write is the wrong scope: enableArtifact is ignored there and a project disableArtifact is not a lock.",
+        "enableArtifact requires v2.1.196+; managed disableArtifact takes precedence over a user's enableArtifact."
       ],
       "citations": [
-        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/settings-reference#disableartifact",
+        "https://code.claude.com/docs/en/settings-reference#enableartifact",
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-08-23",
       "recheckTrigger": "The settings reference changes either artifact key's semantics or scope restrictions."
     },
     {
@@ -130,9 +132,9 @@
         "Trades away built-in commit/PR guidance; a repo relying on it should keep it or replace it with its own conventions."
       ],
       "citations": [
-        "https://code.claude.com/docs/en/settings"
+        "https://code.claude.com/docs/en/settings-reference#includegitinstructions"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-08-23",
       "recheckTrigger": "The settings row's wording changes, or the measured delta stops landing in System tools."
     },
     {
@@ -195,10 +197,10 @@
         "/doctor is exempt from bundled-skill kill switches and needs its own skillOverrides entry or DISABLE_DOCTOR_COMMAND to hide."
       ],
       "citations": [
-        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/settings-reference#skilloverrides",
         "https://code.claude.com/docs/en/skills"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-08-23",
       "recheckTrigger": "The skills page's visibility-override section changes reach (plugin skills included, say), or the listing budget mechanism changes."
     },
     {
@@ -218,9 +220,9 @@
       ],
       "citations": [
         "https://code.claude.com/docs/en/skills",
-        "https://code.claude.com/docs/en/settings"
+        "https://code.claude.com/docs/en/settings-reference#disablebundledskills"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-08-23",
       "recheckTrigger": "The skills or settings pages change the key, its survivors, or the listing budget mechanism."
     },
     {
@@ -239,10 +241,11 @@
         "This is the knob that explains why per-skill disabling saves nothing while over budget — surface it as explanation before offering it as a lever."
       ],
       "citations": [
-        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction",
+        "https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars",
         "https://code.claude.com/docs/en/skills"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-08-23",
       "recheckTrigger": "Either settings row changes name, default, or semantics."
     },
     {
@@ -327,10 +330,10 @@
         "Author-side MCP tool-definition weight (verbose descriptions) is the mcp-tools plugin's territory when installed; this lever only includes or excludes whole servers."
       ],
       "citations": [
-        "https://code.claude.com/docs/en/settings",
+        "https://code.claude.com/docs/en/settings-reference#disabledmcpjsonservers",
         "https://code.claude.com/docs/en/mcp"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-08-23",
       "recheckTrigger": "The settings reference changes the .mcp.json approval key family."
     },
     {

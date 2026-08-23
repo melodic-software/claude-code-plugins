@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "context-budget",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "description": "Measure a Claude Code session's fixed startup context payload per item, on the consumer's machine at a pinned, version-stamped binary — including per-tool attribution of the built-in tool pools that /context reports only as lump sums, derived live by A/B bare-name-deny differencing with enforced comparability rules (skill-listing signature, one mode, one binary), an SDK-primary exact meter degrading to a version-aware headless /context parser and then to an honest structured error (never a wrong number), and a per-project measure-toggle-remeasure ledger under the plugin data directory recording every lever's real before/after delta. Report-only: prints exact config, applies nothing.",
   "author": {
     "name": "Melodic Software",

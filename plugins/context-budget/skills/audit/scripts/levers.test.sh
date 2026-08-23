@@ -76,6 +76,50 @@ else
   while IFS= read -r line; do fail "$line"; done <<<"$out"
 fi
 
+# Keys that left the settings overview page for settings-reference (#3198).
+citeout="$(node -e '
+const cat = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+const problems = [];
+const moved = {
+  "disable-workflows": "settings-reference#disableworkflows",
+  "disable-artifact": "settings-reference#disableartifact",
+  "include-git-instructions": "settings-reference#includegitinstructions",
+  "skill-overrides": "settings-reference#skilloverrides",
+  "disable-bundled-skills": "settings-reference#disablebundledskills",
+  "skill-listing-budget": "settings-reference#skilllistingbudgetfraction",
+  "mcp-project-servers": "settings-reference#disabledmcpjsonservers",
+};
+for (const [id, needle] of Object.entries(moved)) {
+  const lever = (cat.levers ?? []).find((l) => l.id === id);
+  if (!lever) { problems.push("missing lever " + id); continue; }
+  if (!(lever.citations ?? []).some((c) => c.includes(needle))) {
+    problems.push(id + " does not cite " + needle);
+  }
+  if ((lever.citations ?? []).some((c) => /docs\/en\/settings(?:$|#)/.test(c))) {
+    problems.push(id + " still cites the settings overview page");
+  }
+}
+const artifact = (cat.levers ?? []).find((l) => l.id === "disable-artifact");
+if (artifact) {
+  if (!String(artifact.emittedConfig || "").includes("enableArtifact")) {
+    problems.push("disable-artifact emittedConfig is not the user-scope enableArtifact form");
+  }
+  if (!/user scope/i.test([artifact.scope, ...(artifact.caveats ?? [])].join("\n"))) {
+    problems.push("disable-artifact does not say user scope");
+  }
+}
+if (cat.meta?.verifiedAgainst?.cliVersion !== "2.1.241") {
+  problems.push("verifiedAgainst.cliVersion is not 2.1.241");
+}
+console.log(problems.length ? problems.join("\n") : "CLEAN");
+' "$CATALOGUE")"
+
+if [[ "$citeout" == "CLEAN" ]]; then
+  ok "moved settings keys cite settings-reference anchors; disableArtifact is user-scope"
+else
+  while IFS= read -r line; do fail "$line"; done <<<"$citeout"
+fi
+
 echo
 echo "passed: $PASS, failed: $FAIL"
 [[ $FAIL -eq 0 ]] || exit 1

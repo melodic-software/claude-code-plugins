@@ -6,10 +6,11 @@
 # comparability rules (identical runs comparable; skill-listing signature
 # mismatch marks System tools incomparable; schema validation), the ledger
 # (one file per run plus an appended history line; schema-checked append),
-# and the attribute/additivity pipeline in cli-parse mode against a fake
+# the attribute/additivity pipeline in cli-parse mode against a fake
 # `claude` binary (a vanished bucket is unmeasured and incomparable, never a
-# coerced zero). The sdk measurement path spawns a real Claude Code binary
-# and is exercised manually, not here — this suite must stay hermetic.
+# coerced zero), and verify-catalogue (binary-scan present/absent, never
+# invents presence). The sdk measurement path spawns a real Claude Code
+# binary and is exercised manually, not here — this suite must stay hermetic.
 #
 # Prerequisites: node on PATH (the engine's own runtime — required for
 # correctness; absent, this suite fails loudly rather than skipping).
@@ -356,6 +357,67 @@ if (cd "$WORK" && FAKE_MODE=novocab node "$ENGINE" attribute --tools AlphaTool,B
     "additivity over the present bucket alone still verifies" "vocabulary-absent additive wrong"
 else
   fail "attribute (novocab scenario) exited nonzero"
+fi
+
+# --- verify-catalogue: binary existence, never invents presence -----------
+# A tiny catalogue plus a byte file standing in for the binary: one row's
+# keys are in the file, one row's key is not, one row has nothing to grep.
+# The engine must report present/absent from the bytes, not from the
+# catalogue's own claims.
+
+minicat="$WORK/mini-levers.json"
+node -e '
+const fs = require("fs");
+fs.writeFileSync(process.argv[1], JSON.stringify({
+  schema: "context-budget.levers/1",
+  meta: { categories: { "removes-weight": "x" }, verifiedAgainst: { cliVersion: "9.9.9", date: "2026-01-01" } },
+  levers: [
+    {
+      id: "has-key",
+      title: "disableWorkflows / CLAUDE_CODE_DISABLE_WORKFLOWS",
+      category: "removes-weight", categoryBasis: "t", posture: "recommendable-on-fit",
+      detection: "x", measurement: "x",
+      emittedConfig: "{\"disableWorkflows\": true}",
+      citations: ["https://example.com"], verified: "2026-01-01", recheckTrigger: "x",
+    },
+    {
+      id: "missing-key",
+      title: "notInThisBinaryKey",
+      category: "removes-weight", categoryBasis: "t", posture: "recommendable-on-fit",
+      detection: "x", measurement: "x",
+      emittedConfig: "{\"notInThisBinaryKey\": true}",
+      citations: ["https://example.com"], verified: "2026-01-01", recheckTrigger: "x",
+    },
+    {
+      id: "no-tokens",
+      title: "No extractable identifier here",
+      category: "removes-weight", categoryBasis: "t", posture: "recommendable-on-fit",
+      detection: "x", measurement: "x", emittedConfig: null,
+      citations: ["https://example.com"], verified: "2026-01-01", recheckTrigger: "x",
+    },
+  ],
+}));
+' "$minicat"
+printf 'padding disableWorkflows CLAUDE_CODE_DISABLE_WORKFLOWS disableWorkflows padding' >"$WORK/fake-strings-bin"
+
+vcat="$WORK/verify-cat.json"
+if node "$ENGINE" verify-catalogue --binary "$WORK/fake-strings-bin" --catalogue "$minicat" --out "$vcat" >/dev/null; then
+  assert_eq "$(jsonget "$vcat" 'j.schema')" "context-budget.catalogue-verify/1" \
+    "verify-catalogue emits the catalogue-verify schema" "verify-catalogue schema wrong"
+  assert_eq "$(jsonget "$vcat" 'j.rows.find((r)=>r.id==="has-key").tokens.find((t)=>t.name==="disableWorkflows").present')" "true" \
+    "present key is reported present" "present key marked absent"
+  assert_eq "$(jsonget "$vcat" 'j.rows.find((r)=>r.id==="has-key").tokens.find((t)=>t.name==="disableWorkflows").hits')" "2" \
+    "hit count matches the binary occurrences" "hit count wrong"
+  assert_eq "$(jsonget "$vcat" 'j.rows.find((r)=>r.id==="has-key").tokens.find((t)=>t.name==="CLAUDE_CODE_DISABLE_WORKFLOWS").present')" "true" \
+    "present env name is reported present" "present env name marked absent"
+  assert_eq "$(jsonget "$vcat" 'j.rows.find((r)=>r.id==="missing-key").tokens.find((t)=>t.name==="notInThisBinaryKey").present')" "false" \
+    "absent key is reported absent (never invented present)" "absent key marked present"
+  assert_eq "$(jsonget "$vcat" 'j.rows.find((r)=>r.id==="no-tokens").skipped')" "true" \
+    "a row with no extractable key is skipped" "no-token row not skipped"
+  assert_eq "$(jsonget "$vcat" 'j.missing')" "1" \
+    "missing count is the absent-token total" "missing count wrong"
+else
+  fail "verify-catalogue exited nonzero on a readable fake binary"
 fi
 
 # --- snapshot: pinned-binary honesty --------------------------------------

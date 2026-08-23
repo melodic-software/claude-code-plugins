@@ -78,6 +78,12 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
 - `context-budget.ledger/1` — one before/after: `lever`, `emittedConfig`, `before`/`after`
   summaries, `delta` per category, `totalDelta`, `comparability`. A category present in only one
   run gets `null`, never an invented number.
+- `context-budget.catalogue-verify/1` — `verify-catalogue`: a docs-independent existence
+  check. Reads the stamped binary and reports `present`/`absent` (with hit counts) for every
+  settings key and env name the catalogue row names. The binary is the authority on *existence
+  at the measured version*; a fresh docs fetch remains the authority on *semantics*. Rows with
+  no extractable key/env name are `skipped`. Absence is a finding in the record (`absent[]`,
+  `missing`), not an invented number and not a degradation.
 - `context-budget.error/1` — the degradation record: `error`, `detail`, `remediation`. Exit 3.
 
 ## Ledger layout

@@ -127,7 +127,17 @@ catalogue's own meta:
 - **Honor recheck triggers.** A row whose trigger has plausibly fired (version jump past the
   catalogue's `verifiedAgainst`, upstream page moved) is re-verified against a fresh fetch of its
   citations before being offered — and a measured result always outranks the catalogue's stored
-  expectation.
+  expectation. On a version jump, also run the binary-strings existence check against the
+  stamped binary (docs pages move; the binary is what the consumer actually runs):
+
+  ```shell
+  node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" verify-catalogue \
+    --binary <stamped-binary> --out <data-dir>/catalogue-verify.json
+  ```
+
+  The binary is the authority on *existence* of each key/env name at the measured version; the
+  docs fetch remains the authority on *semantics*. Report every `absent` token by name — silence
+  reads as "present".
 - **Keep the two ledgers apart** (the catalogue's `dualLedger` note): context-window occupancy
   versus per-request weight. Deferral moves weight between them; only removal clears both.
 

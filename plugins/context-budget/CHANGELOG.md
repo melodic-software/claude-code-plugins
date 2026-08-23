@@ -5,6 +5,28 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.7]
+
+### Changed
+
+- **Catalogue:** settings-key citations that had drifted onto the settings overview page
+  (`docs/en/settings`) now point at the per-key anchors on
+  [`settings-reference`](https://code.claude.com/docs/en/settings-reference)
+  (`disableWorkflows`, `disableArtifact`/`enableArtifact`, `includeGitInstructions`,
+  `skillOverrides`, `disableBundledSkills`, `skillListingBudgetFraction` /
+  `skillListingMaxDescChars`, `disabledMcpjsonServers`). `disableArtifact`'s emitted config is
+  the user-scope form (`enableArtifact: false`); a project-scope write is the wrong lock
+  ([#3198](https://github.com/melodic-software/claude-code-plugins/issues/3198)).
+  `verifiedAgainst` is now CLI 2.1.241 (2026-08-23).
+
+### Added
+
+- **Engine:** `verify-catalogue` greps the stamped binary for each catalogue row's settings
+  keys and env names and reports present/absent with hit counts. Run automatically on a
+  version-jump recheck; the binary is the authority on existence at the measured version, the
+  docs fetch on semantics
+  ([#3198](https://github.com/melodic-software/claude-code-plugins/issues/3198)).
+
 ## [0.6.6]
 
 ### Fixed
