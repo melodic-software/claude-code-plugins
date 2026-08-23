@@ -20,13 +20,15 @@ points at each remediation. Both are non-interactive — never prompt when the a
 ## `check` (read-only)
 
 The guard scripts (`${CLAUDE_PLUGIN_ROOT}/hooks/*.sh`) and `hooks.json` are the single
-source of truth for the guard inventory and each guard's runtime needs. **Read them
-first** — probe what they actually require, don't recite this file. Then run each probe
-via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL.
+source of truth for the guard inventory and each guard's runtime needs.
 
-When every guard's toggle is disabled, prerequisite absences downgrade from FAIL to INFO —
-a deliberately disabled plugin is not broken. Report the probes informationally and note
-that re-enabling restores the FAIL semantics.
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+
+When every guard's toggle is disabled, every prerequisite absence downgrades from FAIL to
+INFO — each guard exits through its enabled-gate before probing anything, so a deliberately
+disabled plugin is not broken. Report the probes informationally and note that re-enabling
+restores the FAIL semantics.
 
 1. **Bash 5.0+** — the guards' documented runtime floor (Git Bash on native Windows).
    FAIL below the floor with the README Requirements remediation.

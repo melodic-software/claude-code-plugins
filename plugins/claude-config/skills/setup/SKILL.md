@@ -21,10 +21,12 @@ Both are non-interactive — never prompt when the action is given.
 
 ## `check` (read-only)
 
-The bundled scripts are the single source of truth for what they require. **Read them first** — probe
-what they actually do, don't recite this file — then run each probe via Bash and report a PASS/FAIL/INFO
-table with one remediation line per FAIL — read-only; leave every file untouched. The runtime scripts
-and their tools:
+The bundled scripts are the single source of truth for what this plugin requires.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+
+The runtime scripts and their tools:
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh` — jq **and** curl, plus awk and sort
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` — jq; `fix-plugin-drift.sh` — jq plus sort

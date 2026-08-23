@@ -24,9 +24,9 @@ CLI install. All are non-interactive — never prompt when the action is given.
 The main skill and its reference files are the single source of truth for what the CLI
 requires: `${CLAUDE_PLUGIN_ROOT}/skills/playwright/SKILL.md` (Prerequisite + quick start) and
 `${CLAUDE_PLUGIN_ROOT}/skills/playwright/reference/` (`commands.md`, `windows-quirks.md`).
-**Read them first** — probe what they actually require, don't recite this file. Then run each
-probe via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not
-modify anything.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 1. **`playwright-cli` binary** — `command -v playwright-cli` (the binary name the skill drives;
    the npm package is `@playwright/cli`). FAIL if absent — remediation is `apply install-cli`

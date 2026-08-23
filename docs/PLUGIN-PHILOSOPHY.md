@@ -391,6 +391,41 @@ target, never a CI gate — [`docs/conventions/topic-docs/`](conventions/topic-d
 stays unhoisted and unregistered, and the fleet conformance audit tracks the skills still carrying
 the older pathless wording.
 
+**How a setup skill's `check` opens.** The same inline-not-cited discipline governs the `check`
+action's own framing, carried by a third normalized block. One per-plugin sentence names what this
+plugin's single source of truth for its prerequisites is — the hook script, the library it sources,
+the bundled scripts, the main skill's own reference files, whatever the probes must be read from —
+and the directive that follows it is fixed, its `it` referring to that named source of truth however
+many files constitute it:
+
+```text
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+```
+
+The directive is what makes `check` a probe of the shipped runtime rather than a recital of the
+skill body; its PASS/FAIL/INFO table maps the absence classes of "Prerequisites and failure
+behavior" below onto a report — that section classifies a hook's behavior on absence, this one
+reports it. Setup skills still carrying an older wording of the directive are tracked by the
+fleet conformance audit, the same way the routing block above tracks its stragglers. Where
+the plugin has a disable gate that short-circuits before any prerequisite is reached, a second fixed
+sentence pair states the downgrade, with the gate condition and the reason it never reaches the
+prerequisite as its only per-plugin slots:
+
+```text
+When <the gate is closed>, every prerequisite absence downgrades from FAIL to INFO — <why the gated surface never reaches the prerequisite>, so a deliberately disabled plugin is not broken. Report the probes informationally and note that re-enabling restores the FAIL semantics.
+```
+
+A setup skill whose probes run regardless of any toggle — a lazy-install CLI, a docs-driven
+prerequisite — omits that pair rather than inventing a gate to state. The reason slot is a *verified*
+fact about that plugin's own gate, never a template phrase: a toggle that makes the plugin enforce
+*more* when it is off (an audit-only kill switch) is not a short-circuit, and stating one there would
+contradict the exception the same skill goes on to make. Genuine per-plugin exceptions (a step that
+stays FAIL even when the toggle is off, a gate scoped to each guard's own toggle rather than one
+plugin toggle, an independent second pass reported separately) are stated *after* the normalized
+sentences, on the same never-reword rule the routing line follows above. Neither block carries its
+own citation: the provenance naming above is once per skill, and these sentences are operable inline
+text on their own.
+
 Setup is one **plugin-level** `setup` skill, never a per-skill setup action. Setup granularity
 follows install granularity: a plugin installs and is configured as a unit, and its configuration
 surface — tracked project files, external prerequisites, `userConfig` — is plugin-scoped and

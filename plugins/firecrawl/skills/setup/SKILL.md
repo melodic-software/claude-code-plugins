@@ -25,8 +25,10 @@ action is given.
 The main skill is the single source of truth for what the CLI requires and how auth is wired:
 `${CLAUDE_PLUGIN_ROOT}/skills/firecrawl/SKILL.md` (Prerequisites + Configuration sections) and
 `${CLAUDE_PLUGIN_ROOT}/skills/firecrawl/context/configuration.md` (the exact env vars the CLI
-reads). **Read them first** — probe what they actually require, don't recite this file. Then
-run each probe via Bash and report a PASS/FAIL/INFO table. Do not modify anything.
+reads).
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 1. **`firecrawl-cli` binary** — the installed binary is `firecrawl` (the npm package is
    `firecrawl-cli`). `command -v firecrawl`. INFO when absent (lazy-install design): report

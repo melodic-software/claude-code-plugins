@@ -20,11 +20,12 @@ action is given.
 
 ## `check` (read-only)
 
-The hook scripts are the single source of truth for what they require and how they degrade:
-`${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notification.sh` and the shared
-`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`. **Read them first** — probe what they actually
-do, don't recite this file. Then run each probe via Bash and report a PASS/FAIL/INFO table
-with one remediation line per FAIL. Do not modify anything.
+The hook script and the shared library it sources are the single source of truth for what this
+plugin requires and how it degrades: `${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notification.sh` and
+`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately

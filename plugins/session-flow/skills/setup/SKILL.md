@@ -23,14 +23,15 @@ resolution for each finding. Both are non-interactive — never prompt when the 
 
 The hook and launcher are the single source of truth for what they require and how they degrade:
 `${CLAUDE_PLUGIN_ROOT}/hooks/observer-arm.sh`, `${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/arm_observer.py`,
-and `observer.py` beside it. **Read them first** — probe what they actually do, don't recite this file.
-Then run each probe via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do
-not modify anything.
+and `observer.py` beside it.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the observer is disabled (`observer_enabled` off AND no `arm` invocation in use), every
 prerequisite absence downgrades from FAIL to INFO — the hook exits through its opt-in gate before
-touching anything, so a deliberately-off observer is not broken. Note that re-enabling restores FAIL
-semantics.
+touching anything, so a deliberately disabled plugin is not broken. Report the probes informationally
+and note that re-enabling restores the FAIL semantics.
 
 1. **Python 3.10+** — the launcher and tailer are stdlib-only Python 3.10+. Probe the same interpreter
    detection the hook uses (`python3` then `python`, requiring `sys.version_info >= (3, 10)`). FAIL if

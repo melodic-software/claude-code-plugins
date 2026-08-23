@@ -19,13 +19,15 @@ points at each remediation. Both are non-interactive — never prompt when the a
 
 ## `check` (read-only)
 
-The hook is the single source of truth for what it requires and how it resolves things.
-**Read it first** — the entry script (`${CLAUDE_PLUGIN_ROOT}/hooks/eol-normalizer.sh`) sources
-`${CLAUDE_PLUGIN_ROOT}/hooks/normalize-eol.sh`, and that sourced library is where the real
-resolution lives (the `git check-attr` calls, the repo-root anchoring, and the NUL-byte
-binary guard). Read both, probe what they actually do, don't recite this file. Then run each
-probe via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not
-modify anything.
+The hook is the single source of truth for what it requires and how it resolves things, and it
+spans the entry script and the libraries it sources: `${CLAUDE_PLUGIN_ROOT}/hooks/eol-normalizer.sh`
+sources `${CLAUDE_PLUGIN_ROOT}/hooks/normalize-eol.sh` (alongside the shared hook utilities), and
+that sourced library is where the real resolution lives (the `git check-attr` calls, the repo-root
+anchoring, and the NUL-byte binary guard), so the sourced files are in scope and the entry script
+alone will not tell you what runs.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately

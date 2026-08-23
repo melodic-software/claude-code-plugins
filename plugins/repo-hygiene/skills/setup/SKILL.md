@@ -23,10 +23,13 @@ each remediation. Both are non-interactive — never prompt when the action is g
 
 ## `check` (read-only)
 
-The clean skill and its bundled scripts (`${CLAUDE_PLUGIN_ROOT}/skills/clean/`) are the source of
-truth for what each tier requires — read them first and probe what they actually require rather
-than reciting this file. Then report a PASS/FAIL/INFO table with one remediation line per FAIL.
-Modify nothing; install nothing; run no mutating tier.
+The clean skill and its bundled scripts (`${CLAUDE_PLUGIN_ROOT}/skills/clean/`) are the single
+source of truth for what each tier requires.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+
+Install nothing, and run no mutating tier.
 
 1. **`git` on `PATH`** — `command -v git`, and report the resolved path and version. FAIL when
    absent, and state what is lost rather than a blanket "the plugin is broken":

@@ -22,11 +22,14 @@ each remediation. Both are non-interactive — never prompt when the action is g
 
 ## `check` (read-only)
 
-The audit skill and its engine are the source of truth for what this plugin requires. Read
+The audit skill and its engine are the single source of truth for what this plugin requires:
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`](../audit/SKILL.md) § Prerequisites and the header of
-`${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs` first, and probe what they actually
-require rather than reciting this file. Then report a PASS/FAIL/INFO table with one remediation
-line per FAIL. Modify nothing; install nothing.
+`${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs`.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+
+Install nothing.
 
 1. **`node` on `PATH`** — `command -v node`, and report the resolved path and version. This is the
    plugin's one hard prerequisite, and it carries *two* dependents. Report both:
