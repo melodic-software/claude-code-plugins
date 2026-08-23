@@ -38,7 +38,8 @@ the base ref ("dropped trigger keyword(s) vs HEAD (auto-invocation regression)")
 that edits a `description`, a `when_to_use`, or a quoted trigger phrase is therefore a regression
 this repo's own gate rejects — not a debatable suggestion. Two consequences bind every run:
 
-- Scan with `instruction-scan.sh --body-only`, which drops frontmatter hits.
+- Scan with `instruction-scan.sh --body-only` (I28) and `restatement-scan.py` (I29, body-scoped
+  by construction). Concatenate both onto the `--from` stream.
 - Do **not** rely on that alone. `emit-findings.sh` recomputes the fence over its input and
   additionally declines any body row quoting a trigger phrase that appears in the file's own
   `description`. A fence that lives only in the caller is one caller away from being bypassed.
@@ -60,15 +61,18 @@ consumer-precedence rule).
 
 ## Which findings enter the file
 
-**Only the two I28 families.** `instruction-scan.sh` marks ten check families; the other eight
-(I6, I8-a/b/c, I10, I23, I25, I27) have no severity-crosswalk row, and the contract admits no row
-whose tier cannot be looked up from one. They stay in the human report and are counted in
-`## Surfaces` as `reason=no-severity-crosswalk-row` — declined, never silently dropped.
+**Only the I28 and I29 families.** `instruction-scan.sh` marks ten check families and
+`restatement-scan.py` marks two more; the eight older families (I6, I8-a/b/c, I10, I23, I25, I27)
+have no severity-crosswalk row, and the contract admits no row whose tier cannot be looked up
+from one. They stay in the human report and are counted in `## Surfaces` as
+`reason=no-severity-crosswalk-row` — declined, never silently dropped.
 
 | Scanner family | Rule id | Tier |
 |---|---|---|
 | `I28-a` | `claude-config/audit-instructions/rule-coercive-emphasis` | IMPORTANT |
 | `I28-b` | `claude-config/audit-instructions/rule-blanket-tool-default` | IMPORTANT |
+| `I29-a` | `claude-config/audit-instructions/rule-description-restatement` | IMPORTANT |
+| `I29-b` | `claude-config/audit-instructions/rule-sibling-restatement` | IMPORTANT |
 
 The model lane's criteria carve-outs still apply **before** persistence: emphasis guarding a
 destructive, security, or permission gate, a stated hard precondition, and a document *about* the

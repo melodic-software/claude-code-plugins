@@ -1638,9 +1638,9 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
 - **Verified 2026-08-08** against that page, fetched as raw markdown. **Recheck trigger:** those
   three sections changing, or any model guide stating that a current model undertriggers and needs
   emphasis restored — that would re-open the scoping question.
-- **Routes to the findings relay.** I28 is the only check in this catalog whose findings reach
-  `review:fanout`'s apply relay, behind `--persist-findings`. Its two arms carry one crosswalk rule
-  id each — `claude-config/audit-instructions/rule-coercive-emphasis` (arm 1) and
+- **Routes to the findings relay.** I28 and I29 are the only checks in this catalog whose findings
+  reach `review:fanout`'s apply relay, behind `--persist-findings`. I28's two arms carry one
+  crosswalk rule id each — `claude-config/audit-instructions/rule-coercive-emphasis` (arm 1) and
   `claude-config/audit-instructions/rule-blanket-tool-default` (arm 2) — both `IMPORTANT`, argued in
   [the severity crosswalk](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md).
   Every other check here stays report-only: no crosswalk row, no relay. The persist mechanics,
@@ -1670,6 +1670,42 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
   under this row; only the deterministic scanner withholds. Widening either is a calibration
   change that lands in the scanner with fixtures, the same way `ai-slop` deferred its third
   negative-parallelism pattern.
+
+### I29: Body prose that restates the always-in-context description, or a sibling section
+
+Tier `mechanical` · Authority `HOUSE` · Severity `warning` · Surfaces: skill bodies, agent
+definitions, and any markdown file whose listing `description` is already in context. Unscoped —
+the defect is session knowledge, not a model-era scar.
+
+- **Detect — two arms of one defect, body copy the model already has loaded:**
+  1. **Description-restatement** — an H2 section whose content is *wholly* recoverable from
+     the file's own `description` (the capability sentence; the Use-when / Not-for tail is
+     stripped before comparison so a trigger list cannot rescue or manufacture a finding).
+  2. **Sibling-section-restatement** — an H2 section whose content is wholly recoverable from
+     another H2 section of the same file.
+- **Must NOT flag: partial overlap.** Most Purpose sections open with a sentence echoing the
+  description and then add a failure mode, a path, or a threshold. Flagging the echo guts them.
+  The finding keys on a section whose every content unit is recoverable; one unique content
+  token is enough to stand the section down.
+- **Must NOT flag: inline fencing.** A bolded `What tidy is NOT` sub-block inside `## Purpose`
+  is the upstream inline pattern, not a standalone heading, and is not a section.
+- **Must NOT flag: short orientation.** A section whose normalized text is under the scanner's
+  length/token floor is the "deliberate short restatement in a genuinely short skill" case
+  #3186 parks for the model-graded lane. The mechanical scanner stays silent; the lane may
+  still judge it.
+- **Must NOT flag: footer / index headings as findings.** `## Cross-references`, `## Sources`,
+  `## History`, `## External authority`, `## Recheck triggers` are sources for sibling
+  comparison and are never themselves a restatement finding.
+- **Remediate:** cut the body restatement. **Never** edit the `description`, `when_to_use`, or
+  a quoted `'trigger phrase'`. The always-in-context field stays; only the body copy that
+  restates it is removed. Verify by re-running `restatement-scan.py` — the heading should
+  disappear from the candidate list.
+- **Routes to the findings relay** behind `--persist-findings`, same producer contract as I28.
+  The two arms carry one crosswalk rule id each —
+  `claude-config/audit-instructions/rule-description-restatement` (arm 1) and
+  `claude-config/audit-instructions/rule-sibling-restatement` (arm 2) — both `IMPORTANT`.
+- **Body-scoped when it routes to the relay.** The scanner never points at frontmatter. A
+  description-level concern is reported to the human, never routed to the apply relay.
 
 ---
 
