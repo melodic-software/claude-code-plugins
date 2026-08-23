@@ -530,6 +530,39 @@ neg_guard_out="$(bash "$DETECT" "$NEG_GUARD")"
 assert_not_contains "a marked hard guardrail is not reported" "$neg_guard_out" "Finding shape: negation-without-positive"
 assert_contains "hard-guardrail file is clean" "$neg_guard_out" "| T1=0 T2=0 T3=0"
 
+# --- 12c. A transparent adverb only suppresses when something FOLLOWS it -------------
+#
+# "just", "simply", "then" lead an imperative without being one, so the
+# positive-clause test looks THROUGH them to the next word. The trap is the
+# dangling case: with nothing after it, an adverb would otherwise fall through
+# as if it were the content word it was standing in front of, and silently
+# suppress a real finding. Both directions are pinned here because only the
+# pair distinguishes "looked through" from "treated as content".
+
+NEG_ADV="$TEST_TMPDIR/neg-adverb.md"
+cat >"$NEG_ADV" <<'EOF'
+# Dangling adverbs name nothing
+
+Never resolve the thread, just.
+
+Do not stop there, then.
+EOF
+neg_adv_out="$(bash "$DETECT" "$NEG_ADV")"
+assert_contains "a dangling transparent adverb still reports" "$neg_adv_out" "Finding shape: negation-without-positive"
+assert_contains "both dangling-adverb lines report" "$neg_adv_out" "| T1=0 T2=2 T3=0"
+
+NEG_ADV_OK="$TEST_TMPDIR/neg-adverb-ok.md"
+cat >"$NEG_ADV_OK" <<'EOF'
+# An adverb followed by an imperative is a positive alternative
+
+Don't diagnose yet. Just mark.
+
+Never re-run the whole suite. Simply re-run the failing case.
+EOF
+neg_adv_ok_out="$(bash "$DETECT" "$NEG_ADV_OK")"
+assert_not_contains "an adverb-led imperative suppresses" "$neg_adv_ok_out" "Finding shape: negation-without-positive"
+assert_contains "adverb-led-imperative file is clean" "$neg_adv_ok_out" "| T1=0 T2=0 T3=0"
+
 # --- 13. negation-without-positive: no remediation touches a trigger surface ----------
 #
 # check-skill.sh:414 hard-FAILs a dropped 'trigger phrase' against the base ref,

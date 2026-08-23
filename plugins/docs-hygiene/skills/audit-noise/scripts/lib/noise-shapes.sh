@@ -208,6 +208,9 @@ audit_noise_clause_names_alternative() {
       break
     done
     [[ -n "$first" ]] || continue
+    # A transparent adverb the loop could not look THROUGH (nothing follows it)
+    # names no alternative either — "Never do X, just." must still report.
+    [[ "$AUDIT_NOISE_CLAUSE_TRANSPARENT" == *" $first "* ]] && continue
     [[ "$AUDIT_NOISE_CLAUSE_STOPWORDS" == *" $first "* ]] && continue
     return 0
   done <<<"$body"
