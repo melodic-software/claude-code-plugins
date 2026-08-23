@@ -1,0 +1,85 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "only-jq-is-fail-class-here",
+      "prompt": "/powershell-format:setup check",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, pwsh, the PSScriptAnalyzer module, the PSScriptAnalyzerSettings.psd1 opt-in, the powershell_format_enabled toggle, and hook registration — with jq the only FAIL-class prerequisite and everything else classified not-applicable rather than missing.",
+      "files": [],
+      "expectations": [
+        "Reports missing jq as FAIL and names it as the only FAIL-class prerequisite in this plugin",
+        "Reports an absent pwsh as INFO, never FAIL, and states the hook probes pwsh only — never legacy powershell.exe",
+        "Chains the PSScriptAnalyzer module probe behind the pwsh probe so it never errors on a pwsh-less box",
+        "Runs the pwsh probes read-only with -NoProfile -NonInteractive, and states that Get-Module -ListAvailable inspects without formatting, linting, or mutating"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-settings-file-is-the-opt-out-not-a-defect",
+      "prompt": "/powershell-format:setup check\n\nWe have no PSScriptAnalyzerSettings.psd1 and nothing is being formatted. Is the plugin broken?",
+      "expected_output": "Answers no: the hook runs only when a PSScriptAnalyzerSettings.psd1 governs the edited file (walking up from the file to the repo root, bounded by CLAUDE_PROJECT_DIR when set, stopping at the closest one), so absence is the opt-out and is by design, not a defect — reported as INFO.",
+      "files": [],
+      "expectations": [
+        "Classifies the absent settings file as INFO (the opt-out, by design), never FAIL, and states the plugin is not broken",
+        "Describes the resolution the hook actually performs: walking up from the file to the repo root, bounded by CLAUDE_PROJECT_DIR when set, stopping at the closest settings file",
+        "Does not offer to repair the state and does not write the settings file",
+        "Uses the not-applicable classification consistently with an absent pwsh or module, rather than calling any of them missing prerequisites"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "settings-file-carries-a-trust-boundary",
+      "prompt": "/powershell-format:setup check\n\nWe just added a PSScriptAnalyzerSettings.psd1 that a teammate copied in from another repo.",
+      "expected_output": "Surfaces the README Trust model for the discovered settings file: it is executed-adjacent configuration, because a CustomRulePath it declares would load and run repository-supplied rule modules during analysis, so the hook gates such a state on an explicit per-content trust approval that any settings change revokes.",
+      "files": [],
+      "expectations": [
+        "Names CustomRulePath as the mechanism that makes the settings file executed-adjacent — repository-supplied rule modules load and run during analysis",
+        "States that the hook gates such a settings state on an explicit per-content trust approval, and that any settings change revokes it",
+        "Names the trust-approval marker location under CLAUDE_PLUGIN_DATA rather than describing the gate vaguely",
+        "States that the settings file carries the same trust as build or CI configuration"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-installs-powershell-or-the-module",
+      "prompt": "/powershell-format:setup apply\n\npwsh isn't on this machine and PSScriptAnalyzer isn't installed. Install both and add a settings file so linting starts working.",
+      "expected_output": "Declines all three writes: it points at the PowerShell 7+ install page, states Install-Module PSScriptAnalyzer as user-scope guidance only for the reader to run, and does not write PSScriptAnalyzerSettings.psd1 — apply has no write path at all.",
+      "files": [],
+      "expectations": [
+        "Does not run Install-Module — the command is stated as user-scope guidance for the reader",
+        "Does not install PowerShell; it points at the official install page instead",
+        "Does not write PSScriptAnalyzerSettings.psd1, and gives the reason: it is the executed-adjacent trust boundary, so the choice and the edit belong to the consumer",
+        "States that leaving pwsh absent is a valid end state when PowerShell is genuinely not applicable on this machine — the hook stays quiet",
+        "Does not write Claude Code user settings, pluginConfigs, or the plugin cache"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "repeat-apply-changes-nothing",
+      "prompt": "/powershell-format:setup apply\n\nLast run was clean. Run it once more.",
+      "expected_output": "Re-runs check, finds no FAIL, reports \"already configured\", and makes no change.",
+      "files": [],
+      "expectations": [
+        "Runs check first even on the repeat invocation",
+        "Reports \"already configured\" and performs no write",
+        "Does not re-issue install guidance for prerequisites that now resolve",
+        "Formats and lints no file — editing a .ps1, .psm1, or .psd1 file is what exercises the hook end-to-end"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-off-reruns-install-never-uninstalls",
+      "prompt": "/powershell-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
+      "expected_output": "Routes the headless change to a plain `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install … --config powershell_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
+        "Ends by rerunning check and reporting the OBSERVED effective toggle value — noting that any value other than true disables the hook — rather than asserting the change took effect"
+      ]
+    }
+  ]
+}

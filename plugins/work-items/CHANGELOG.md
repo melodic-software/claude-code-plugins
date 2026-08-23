@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.14]
+## [0.39.15]
 
 ### Fixed
 
@@ -37,8 +37,25 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   the protocol itself (assign, sole-assignee check, lease post, arbitration) passed vacuously.
   `lease-coordination.test.sh` now drives it against the stubbed `gh`: the happy path, the
   foreign-assignee conflict with its rollback, and the silently-dropped-assignment guard. Its
-  `gh` stub matches the REST assignee shapes, and the new cases capture exit codes with
-  `|| rc=$?` because errexit is in effect from the existing renew-lease case onward.
+  `gh` stub matches the REST assignee shapes.
+- **`lease-coordination.test.sh` no longer enables errexit by accident.** The renew-lease case
+  wrapped its call in `set +e` and then "restored" with `set -e 2>/dev/null || true`, which
+  ENABLES errexit rather than restoring the file's declared `set -uo pipefail` mode. Every later
+  case expecting a non-zero exit aborted the suite at that line instead of asserting on it, which
+  is why the claim cases could not be added until it was found. Both sites now use `|| rc=$?`.
+
+## [0.39.14]
+
+### Changed
+
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
 
 ## [0.39.13]
 

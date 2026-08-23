@@ -17,11 +17,13 @@
       "id": 2,
       "name": "non-default-location-routes-through-claude",
       "prompt": "Our skills live under packages/agent/skills. /skill-quality:setup apply",
-      "expected_output": "Verifies the non-default root non-interactively, routes the persistent skills_root change through Claude Code's plugin configuration prompt (with the fresh-install-only --config headless path), optionally explains the one-run CHECK_SKILL_SKILLS_ROOT override, and never persists either mechanism itself.",
+      "expected_output": "Verifies the non-default root non-interactively, routes the persistent skills_root change through Claude Code's plugin configuration prompt (headless: a plain claude plugin install ... --config skills_root=<dir> rerun, never an uninstall), optionally explains the one-run CHECK_SKILL_SKILLS_ROOT override, and never persists either mechanism itself.",
       "files": [],
       "expectations": [
         "Verifies the named non-default root without an interactive confirmation gate",
         "Routes persistent configuration through Claude Code",
+        "Gives the headless route as a plain `claude plugin install ... --config skills_root=<dir>` rerun against the already-installed plugin, carrying the CLI version the claim was verified on — the literal 2.1.240",
+        "Never prescribes `claude plugin uninstall` as the way to reconfigure, and gives the reason: uninstalling drops the whole stored pluginConfigs entry",
         "Does not edit settings or persist the environment override"
       ]
     }

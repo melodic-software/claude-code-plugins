@@ -111,10 +111,13 @@ new_scenario
 EXP_MARKER="$(marker alice "$PAST" 24)"
 lease_array 123 "$EXP_MARKER" >"$GH_STUB_DIR/lease-comments"
 jq -cn --arg b "$EXP_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
-set +e
-bash "$RENEW" "$ID" --lease-comment-id 123 >/dev/null 2>&1
-rc=$?
-set -e 2>/dev/null || true
+# `|| rc=$?` rather than a `set +e` / `set -e` pair: this file runs under
+# `set -uo pipefail` with errexit deliberately OFF, and the pair used to restore
+# it with `set -e 2>/dev/null || true`, which ENABLES errexit rather than
+# restoring the prior state. Every later case that expected a non-zero exit then
+# aborted the suite at that line instead of asserting on it.
+rc=0
+bash "$RENEW" "$ID" --lease-comment-id 123 >/dev/null 2>&1 || rc=$?
 assert_eq "renew-lease returns conflict (7) for an expired active lease" "7" "$rc"
 if grep -q '^PATCH' "$GH_STUB_DIR/calls.log"; then
   fail "renew-lease does NOT revive the expired lease (no PATCH)" "no PATCH logged" "PATCH logged"
@@ -214,8 +217,6 @@ new_scenario
 printf 'alice\n' >"$GH_STUB_DIR/login"
 jq -cn '["alice","bob"]' >"$GH_STUB_DIR/assignees"
 lease_array 1 "$(marker alice "$FUTURE" 24)" >"$GH_STUB_DIR/lease-comments"
-# `|| rc=$?` rather than a bare call: errexit is in effect from the `set -e` on
-# the renew-lease case above, so an unguarded non-zero exit would abort the suite.
 rc=0
 bash "$CLAIM" "$ID" --ttl-hours 24 >/dev/null 2>&1 || rc=$?
 assert_eq "claim returns conflict (7) when another login is assigned" "7" "$rc"
