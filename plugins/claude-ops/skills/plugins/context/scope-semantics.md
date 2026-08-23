@@ -1,11 +1,18 @@
 # Scope semantics — verified facts this skill depends on
 
 Every claim below was verified against a fetched official-docs page or an empirical test on a real
-machine, not assumed from training data. Last re-verified 2026-07-18 against
+machine, not assumed from training data. Last re-verified 2026-08-22 against
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference),
 [discover-plugins](https://code.claude.com/docs/en/discover-plugins), the published plugin-manifest
-JSON Schema, and the Claude Code changelog (version gates). Re-verify against those pages if Claude
-Code's plugin CLI changes shape.
+JSON Schema, and the Claude Code changelog (version gates), with CLI behaviour checked live on
+**Claude Code 2.1.240**.
+
+**Recheck trigger** (a date alone is not one): re-verify this file on any Claude Code **minor**
+version bump that touches the plugin CLI, `pluginConfigs`/`userConfig` substitution, or
+`/reload-plugins` — those are the observable events that can invalidate what is below. Each claim
+that rests on an empirical probe rather than on documentation names the CLI version it was taken
+on, so a stamp older than the running CLI is the signal to re-run that probe, not to trust it
+harder.
 
 ## Scope-by-cwd loading
 
@@ -110,6 +117,32 @@ The two layers therefore disagree, which is a real blind spot — see
 [gotchas.md](gotchas.md). It also means two `git worktree` checkouts of one repo, sharing one `.git`
 and one tracked `.claude/settings.json`, hold independent records and pin independently.
 
+## A `projectPath` outlives its directory, and no CLI verb reaps the record
+
+Removing the directory a project/local install was made from leaves the install record in place,
+still naming the path. **Verified on Claude Code 2.1.240**: `claude plugin --help` lists no verb that
+removes an install record by path, and `claude plugin prune --help` reports "Remove auto-installed
+dependencies that are no longer needed" — a *dependency* axis, whose own `-s project` has the same
+no-path-flag behaviour documented above, so it acts on the cwd and cannot reach a record belonging to
+a directory that is gone.
+
+`fleet-state.sh` therefore annotates each project/local record (and each `divergences[].scopes[]`
+entry) with `projectPathPresent: true|false|null` — a plain directory test, `null` where not
+applicable. Read it precisely:
+
+- It answers **"is this path present on this machine right now"**, and nothing else.
+- `false` is **not** a verdict that the directory is gone. An unmounted volume, an offline network
+  share, and unplugged removable media all produce `false`, and worktrees — which pin independently
+  per the section above — are exactly the population most likely to look absent while being
+  perfectly recoverable.
+- It is **advisory**: it must never filter `installed[]` or `divergences[]`. Suppressing rows on a
+  directory test hides real drift from anyone whose repos are not on a permanently-attached disk.
+
+`sync` reports these rows in a section of their own, outside the actionable Divergences count,
+because `converge`'s `(cd "<projectPath>" && …)` form cannot execute against an absent path. Naming
+the condition is this skill's whole role here; reaping the record is not something it can or should
+do.
+
 ## `/reload-plugins` — bare by default, `--force` for the MCP-cache-invalidation case
 
 **Verified against `code.claude.com/docs/en/discover-plugins`**: `/reload-plugins` refreshes skills,
@@ -134,13 +167,53 @@ when they say a plugin is already active, believe the summary rather than tellin
 again; and when the summary named the prompt-cache case, that is the same condition `--force` exists
 for below.
 
-`--force` is real (Claude Code ≥ 2.1.163), but scoped to one specific case: a plugin that provides an
-MCP server whose tools aren't deferred by tool search invalidates the prompt cache on reload, and
-`/reload-plugins` warns and does **not** apply the reload rather than eating that cost silently;
-`--force` applies it anyway. Only suggest `--force` when the updated/installed component in this
-sync's report actually ships such an MCP server (or the report already surfaced that warning) — never
-recommend it by default alongside every reload, since it exists specifically to opt into a real token
-cost the bare command declines to pay automatically.
+`--force` is real (Claude Code ≥ 2.1.163). **The general condition it exists for is prompt-cache
+invalidation** — per `code.claude.com/docs/en/discover-plugins`: "When the reload would invalidate
+the prompt cache, the command warns and skips until you rerun it with `--force`."
+
+The MCP case is the docs' worked example of that condition, not the condition itself: a plugin
+providing an MCP server whose tools aren't deferred by tool search "costs more when its tools aren't
+deferred by tool search", so it is **the common cause** of the warning — but treating it as the sole
+trigger tells a reader that a warning arising any other way is not a `--force` case, when it is.
+
+So follow the docs' own two-step rather than predicting the cause:
+
+> Check the install summary: if it reports `Run /reload-plugins to activate.`, run `/reload-plugins`,
+> and if that warns that the reload will re-read the conversation, rerun it as `/reload-plugins --force`.
+
+Never recommend `--force` pre-emptively alongside every reload — it exists specifically to opt into a
+real token cost the bare command declines to pay automatically. Recommend bare; escalate on the
+warning.
+
+## `pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules
+
+This skill reads both surfaces, and they do not agree on which scopes count. Getting this backwards
+is silent in both directions, so the asymmetry is stated here once and pointed at from everywhere
+else.
+
+**`pluginConfigs` — three sources only.** Per `code.claude.com/docs/en/plugins-reference`: "Claude
+Code reads all `pluginConfigs` values from only three settings sources" — user settings
+(`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
+managed → `--settings` → user. And explicitly:
+
+> Entries in a project's `.claude/settings.json` or `.claude/settings.local.json` are ignored. Both
+> files live in the workspace, so a cloned repository could supply values there, and those values
+> would flow into plugin hook commands, MCP server configs, LSP commands, and monitor commands.
+> Before v2.1.207, these entries were read. The restriction is specific to `pluginConfigs`:
+> `enabledPlugins` still honors project and local settings.
+
+**`enabledPlugins` — user, project, and local all count**, merged local > project > user. That is
+why `fleet-state.sh` reads all three settings maps for enablement, and why doing the same for
+`pluginConfigs` would be wrong.
+
+Two consequences this skill must not get wrong:
+
+- Setting `install_new` in a repo's `.claude/settings.json` does **nothing**. The value is ignored,
+  the render falls back to the unset placeholder, and `sync` proceeds under the `ask` default with no
+  indication the configured value was discarded. Never advise setting it at project or local scope.
+- A `--setting-sources` invocation that omits `user` drops user settings from that three-source read
+  list, so a headless `sync` launched that way silently loses `install_new` the same way. See
+  [sync.md](sync.md) Step 4 — the fallback is correct, the silence is not.
 
 ## `userConfig` has no `enum` field
 
