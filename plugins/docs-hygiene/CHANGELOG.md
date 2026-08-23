@@ -22,7 +22,9 @@
   dropped after the first). Sibling list items are separate blocks, so a later
   item cannot pair an earlier prohibition. Attribution offsets are taken on the
   unwrapped join so an earlier inline-code span cannot pull the line number
-  forward. Findings print in line-number order after the paragraph flush. The
+  forward. A search cursor walks the join so two identical sentences do not
+  both pin to the first occurrence's line. Findings print in line-number order
+  after the paragraph flush. The
   other eight shapes stay line-scoped. Frontmatter, fenced code, exempt
   sections and opt-out markers still bound the accumulation.
 
