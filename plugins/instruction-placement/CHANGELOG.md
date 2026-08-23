@@ -3,6 +3,32 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`setup` skill and consumer configuration.** The plugin earns one on all three of the setup
+  contract's criteria, but one carries the weight: **the index target is an external referent whose
+  validity a configuration prompt cannot establish.** A prompt stores the path you typed; it cannot
+  tell you Claude Code will never read it. `check` runs the reachability probe and leads with that
+  verdict, because it is the single failure every other gate reports green through.
+
+  Also verifies `git` (tracked-file discovery degrades without it) and reports the Claude Code CLI
+  and `jq` as *optional* prerequisites that affect only the empirical load probe — "optional,
+  absent" and "missing" are stated as different things.
+
+  Configuration reporting names each value's **source**, not just its value: "75 (default)" and
+  "75 (configured)" are different facts about a repository, and only one of them explains a
+  surprising result.
+
+  `apply` writes nothing on its own. Every remediation here edits a file that steers agent behavior,
+  so it presents the exact change and asks — then re-verifies, because an apply that does not
+  re-verify has not finished.
+
+- `userConfig`: `breadth_max` (default 75) and `index_max_rows` (default 40). Both have defaults that
+  behave, so the plugin still runs with no configuration at all, and `setup` says so rather than
+  presenting configuration as a prerequisite to a first audit.
+
 ## [0.6.0]
 
 ### Added

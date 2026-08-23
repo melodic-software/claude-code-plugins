@@ -15,8 +15,11 @@ before proposing it, and executes it behind a human gate.
 | `/instruction-placement:audit` | Read-only findings report | Sweeps the instruction layer and ordinary markdown, classifies candidates, emits a diffable findings artifact |
 | `/instruction-placement:realign` | Per-item human-gated apply | Executes accepted findings; the only mutating surface, with no blanket-approve path |
 | `/instruction-placement:check` | Deterministic pass/fail gate | Verifies every rule glob resolves and the always-loaded index is current |
+| `/instruction-placement:setup` | Verify prerequisites, report config | Confirms the index target is one Claude Code will actually read, and resolves every setting with its source |
 
-Start with `audit`. Nothing changes until you accept a specific finding in `realign`. Wire `check`
+Run `setup` first on a new repository — it catches the one failure the other gates cannot see, an
+index Claude Code never loads. Then `audit`. Nothing changes until you accept a specific finding in
+`realign`. Wire `check`
 into CI beside the linters.
 
 ## Why this is not just "move things into `.claude/rules/`"

@@ -1,0 +1,58 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "unreachable-index-target-is-the-headline",
+      "prompt": "/instruction-placement:setup — we have a CLAUDE.md and an AGENTS.md, and I ran the index generator last week. Everything reports green but I don't think the rules are reaching subagents.",
+      "expected_output": "Resolves the index target, runs the reachability probe, and leads with the UNREACHABLE verdict: the root CLAUDE.md does not import AGENTS.md, so Claude Code — which reads CLAUDE.md, not AGENTS.md — never loads the index at all. It distinguishes this from staleness explicitly, since a reachable index can be stale and a stale index can be reachable, and names sync as the sibling check skill's job. The remediation is shown as an exact change (an `@AGENTS.md` first line, or a CLAUDE.md symlink) and is not applied under the read-only check action.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the reachability probe rather than only checking the file exists",
+        "Leads with UNREACHABLE and explains that Claude Code reads CLAUDE.md, not AGENTS.md",
+        "Distinguishes reachability from index staleness",
+        "Shows the exact remediation without applying it under check"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "absent-optional-prerequisite-is-not-a-failure",
+      "prompt": "/instruction-placement:setup check — this is a CI container, there's no Claude CLI on it.",
+      "expected_output": "Reports the Claude Code CLI and jq as optional and absent, states that only the empirical load probe (verify-load.sh) degrades, and confirms that every static gate — glob validation, index sync, reachability — works without them. It does not report an overall failure on this basis, and it does not offer to install anything. The distinction between 'optional, absent' and 'missing' is made explicitly rather than left to the reader.",
+      "files": [],
+      "expectations": [
+        "Classifies the CLI and jq as optional, not missing",
+        "Names verify-load.sh as the only affected surface",
+        "Does not report a repository problem on this basis",
+        "Offers no installation on the operator's behalf"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reports-config-sources-not-just-values",
+      "prompt": "/instruction-placement:setup check — why is it calling our **/*.md rule over-broad?",
+      "expected_output": "Prints the effective configuration with a source for every value, so the surprising number is traceable: the breadth ceiling is 75 and whether that is the default or a configured value is stated rather than implied. It explains that over-broad is advisory and never fails the gate, and names raising `breadth_max` as the lever for a repository where one extension legitimately covers most files. A value equal to the default is still reported with its source, because '75 (default)' and '75 (configured)' are different facts.",
+      "files": [],
+      "expectations": [
+        "Reports each setting with its source, not only its value",
+        "States that over-broad is advisory and does not fail the gate",
+        "Names breadth_max as the specific lever",
+        "Reports a default-valued setting with its source rather than omitting it"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "no-index-home-is-distinct-from-unreachable",
+      "prompt": "/instruction-placement:setup — fresh repo, we've never run this before.",
+      "expected_output": "Reports that no index block exists yet and treats that as a starting state rather than a defect — distinct from an UNREACHABLE verdict, which means the file exists and is never read. It names which file apply would target under the documented resolution order, confirms the plugin works with no configuration at all because every setting has a behaving default, and does not present configuration as a prerequisite to a first audit.",
+      "files": [],
+      "expectations": [
+        "Distinguishes 'no index yet' from 'index unreachable'",
+        "Names the file the resolution order would pick",
+        "States that the plugin works with zero configuration",
+        "Does not gate a first audit behind setup"
+      ]
+    }
+  ]
+}
