@@ -731,6 +731,31 @@ jobs:
       - name: Check every catalog entry resolves to a present, name-matching plugin manifest
         run: scripts/check-plugin-manifest-presence.sh
 
+  # docs/CLOUD-SESSIONS.md promises `enabledPlugins` "turns on the whole
+  # catalog, so this repo dogfoods everything it publishes"; nothing enforced
+  # it, and ai-slop (#2892), context-budget (#2932) and improvement (#2985)
+  # each reached main catalogued but never enabled. The failure is silent by
+  # construction: .claude/cloud-bootstrap.sh computes its install set from that
+  # same enabledPlugins map, so a session comes up green with the plugin's
+  # skills simply absent and nothing naming what is missing. The consumer-side
+  # detector cannot cover this — check-plugin-drift.sh resolves marketplaces
+  # through `source.repo` and SKIPs one that declares none, which is exactly
+  # this repo's relative `directory` source. Repo-wide and static, so it always
+  # runs. The self-test runs first so a broken detector cannot mask a
+  # regression behind a green gate.
+  plugin-catalog-enablement-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the plugin-catalog-enablement gate
+        run: bash scripts/check-plugin-catalog-enablement.test.sh
+      - name: Check every catalogued plugin carries an enabledPlugins key
+        run: scripts/check-plugin-catalog-enablement.sh
+
   # Every file under a skill's evals/fixtures/ must be consumed by a grader — an
   # eval files[] entry or a test assertion — so an ungraded suite cannot sit in
   # the tree reading as tested. The check is repo-wide and static; existing debt
@@ -1471,6 +1496,7 @@ jobs:
       - silent-skip-gate
       - stale-base-overlap-gate
       - plugin-manifest-presence-gate
+      - plugin-catalog-enablement-gate
       - orphaned-fixture-gate
       - fixture-git-isolation-gate
       - fleet-finding-test-coverage-gate
