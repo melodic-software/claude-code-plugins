@@ -97,34 +97,24 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       TARGETS+=("$(cr_anchor_path "$line")")
     done <"$PATHS_FILE"
   elif [[ -n "$repo_root" ]]; then
-    # Uncommitted files: modified/added/renamed/untracked, per git status. Parse porcelain
-    # by slicing, not by splitting on whitespace, so paths containing spaces survive (#3126);
-    # $NF dropped everything before the last space and kept git's closing quote, so a spaced
-    # path resolved to a nonexistent file and vanished from the audit with no signal.
-    while IFS= read -r line; do
-      line="${line//$'\r'/}"
-      [[ -z "$line" ]] && continue
-      # XY + space + path.
-      status_path="${line:3}"
-      # Rename/copy entries read "old -> new" — audit the new path. Gated on the status
-      # letters so an ordinary path that happens to contain " -> " is left intact. BOTH
-      # columns matter: X is the index status and Y the worktree status, and a rename
-      # staged only as intent-to-add lands in Y (`mv old new && git add -N new` emits
-      # " R old -> new"). Checking X alone left that record unsplit and unresolvable.
-      if [[ "${line:0:1}" == [RC] || "${line:1:1}" == [RC] ]]; then
-        status_path="${status_path##* -> }"
-      fi
-      # Paths with spaces or other special characters arrive C-quoted: "my helper.sh".
-      # Unwrap and unescape. Backslash-escaped quotes and backslashes are handled; git's
-      # octal escapes for control and non-ASCII bytes are not, so such a path still misses.
-      if [[ "$status_path" == \"*\" ]]; then
-        status_path="${status_path#\"}"
-        status_path="${status_path%\"}"
-        status_path="${status_path//\\\"/\"}"
-        status_path="${status_path//\\\\/\\}"
-      fi
-      TARGETS+=("$status_path")
-    done < <(git status --porcelain 2>/dev/null)
+    # Uncommitted files: modified/added/renamed/untracked, per git status. Read the NUL-delimited
+    # -z form, which git documents as performing no quoting or backslash-escaping: the default v1
+    # output wraps any path holding a space, a non-ASCII byte, or a control character in quotes and
+    # C-style-escapes it (an é becomes \303\251), and splitting that back apart cannot be done reliably.
+    # Porcelain paths are repo-relative and the cd to repo_root above already ran, so they need no
+    # anchoring.
+    while IFS= read -r -d '' record; do
+      [[ -z "$record" ]] && continue
+      # Each record is XY + space + path. A rename/copy emits the NEW path here and the ORIGINAL
+      # as the next record (the reverse of v1's "old -> new" display order), so consume that
+      # second record and drop it rather than auditing a path that no longer exists.
+      case "${record:0:2}" in
+      [RC]? | ?[RC]) IFS= read -r -d '' _ || true ;;
+      *) ;;
+      esac
+      local_path="${record:3}"
+      [[ -n "$local_path" ]] && TARGETS+=("$local_path")
+    done < <(git status --porcelain -z 2>/dev/null)
   fi
 fi
 
