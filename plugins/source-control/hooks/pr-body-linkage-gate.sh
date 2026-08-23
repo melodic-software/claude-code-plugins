@@ -2,22 +2,23 @@
 # PreToolUse hook: block a bare `gh pr create` / `gh pr edit` whose PR BODY
 # would fail the consuming repository's own `pr-issue-linkage` CI gate.
 #
-# WHY IT EXISTS — the gate is a REQUIRED check, so a body missing either half
-# blocks the merge; but nothing enforced the contract at authoring time, so the
-# failure was only ever discovered post-hoc, one CI round trip after the PR was
-# already open. `/source-control:pull-request create` runs the equivalent
-# pre-create gate (skills/pull-request/reference/create.md §2.4.2); this hook
-# covers the calls that never go through the skill.
+# WHY IT EXISTS — the gate is a REQUIRED check, so a body missing any of the
+# five requirements blocks the merge; but nothing enforced the contract at
+# authoring time, so the failure was only ever discovered post-hoc, one CI
+# round trip after the PR was already open. `/source-control:pull-request
+# create` runs the equivalent pre-create gate (skills/pull-request/reference/
+# create.md §2.4.2); this hook covers the calls that never go through the skill.
 #
-# WHAT IT ENFORCES — the two halves the reusable
+# WHAT IT ENFORCES — the five requirements the reusable
 # melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml validator
 # requires, mirrored: after stripping HTML comments (terminated ones, then an
 # unterminated `<!--` swallowing the rest — both, in that order, exactly as the
 # validator does), the body must carry
 #   (a) a native closing keyword (`Closes/Fixes/Resolves #N`, including
 #       `owner/repo#N`) OR the literal `No linked issue` / `No related issue:`;
-#   (b) a `## Related` section that is present AND non-empty, where a DEEPER
-#       heading (`### …`) is that section's content, not its terminator.
+#   (b) four present AND non-empty contract sections — `## Summary`, `## Fix`,
+#       `## Verification`, `## Related` — where a DEEPER heading (`### …`) is
+#       that section's content, not its terminator.
 #
 # SCOPE GUARD — enforcement is keyed to the repository's OWN policy: the gate
 # runs only when the repo root carries `.github/workflows/pr-issue-linkage.yml`
@@ -212,6 +213,12 @@ block() {
   echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (required check 'pr-issue-linkage / pr-issue-linkage')." >&2
   echo "Add to the body:" >&2
   echo "  Closes #<issue>      (or the literal line: No linked issue)" >&2
+  echo "  ## Summary" >&2
+  echo "  <what and why>" >&2
+  echo "  ## Fix" >&2
+  echo "  <concrete change>" >&2
+  echo "  ## Verification" >&2
+  echo "  <evidence the change works>" >&2
   echo "  ## Related" >&2
   echo "  - <related PR / ADR / decision this PR does not close, or N/A>" >&2
   echo "Or create the PR through /source-control:pull-request create, which gates the body first." >&2

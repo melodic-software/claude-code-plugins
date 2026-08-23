@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.11]
+
+### Fixed
+
+- **PR-body linkage gates now check all four contract sections.** The shared
+  validator (`pr-linkage-validator.sh`) only required a closing keyword and a
+  non-empty `## Related` section, so both local pre-checks — the MCP gate and
+  the Bash `gh pr create`/`edit` sibling — allowed bodies the pinned
+  `pr-issue-linkage` reusable rejects. Observed on #3205: a body with
+  `No linked issue` plus Summary, Verification, and Related (no Fix) passed
+  both local gates and failed CI with `Missing a "## Fix" section`. The
+  validator now looks up `## Summary`, `## Fix`, `## Verification`, and
+  `## Related` through one heading-level helper (a nested `###` is still
+  content, not a terminator), reports every missing or empty section in one
+  pass, and the blocked-message remedy lists all four so following it produces
+  a body CI accepts. Both surfaces pick the change up from the shared core
+  ([#3206](https://github.com/melodic-software/claude-code-plugins/issues/3206)).
+
 ## [0.55.10]
 
 ### Fixed

@@ -71,28 +71,32 @@ UPDATE=mcp__github__update_pull_request
 OWNER=acme-corp
 REPO=widgets
 
-GOOD=$'Closes #12\n\n## Summary\n\nx\n\n## Related\n\n- N/A'
-NO_RELATED=$'Closes #12\n\n## Summary\n\nx'
-EMPTY_RELATED=$'Closes #12\n\n## Related\n'
-NO_KEYWORD=$'## Summary\n\nx\n\n## Related\n\n- N/A'
-OPTOUT=$'No linked issue\n\n## Related\n\n- N/A'
-OPTOUT_ALIAS=$'No related issue: tracked in the profile file itself.\n\n## Related\n\n- N/A'
-PAST_TENSE=$'Fixed #31\n\n## Related\n\n- N/A'
+SECTIONS=$'\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
+GOOD=$'Closes #12'"$SECTIONS"
+NO_RELATED=$'Closes #12\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx'
+EMPTY_RELATED=$'Closes #12\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n'
+NO_KEYWORD=$'## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
+OPTOUT=$'No linked issue'"$SECTIONS"
+OPTOUT_ALIAS=$'No related issue: tracked in the profile file itself.'"$SECTIONS"
+PAST_TENSE=$'Fixed #31'"$SECTIONS"
 COMMENTED=$'<!-- Closes #12 -->\n\n## Summary\n\nx\n\n<!-- ## Related\n- N/A -->'
-BARE_HASH=$'Closes #\n\n## Related\n\n- N/A'
-DEEP_HEADING=$'Fixes #7\n\n## Related\n\n### sub\n\ncontent'
-CROSS_REPO=$'Resolves other/repo#9\n\n## Related\n\n- N/A'
+BARE_HASH=$'Closes #'"$SECTIONS"
+DEEP_HEADING=$'Fixes #7\n\n## Summary\n\n### why\n\nbody\n\n## Fix\n\n### how\n\nbody\n\n## Verification\n\n### evidence\n\nbody\n\n## Related\n\n### sub\n\ncontent'
+CROSS_REPO=$'Resolves other/repo#9'"$SECTIONS"
+# #3205 reproduction: linkage + Summary + Verification + Related, no Fix.
+ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidence\n\n## Related\n\n- N/A'
 
 run 0 "valid body passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$GOOD")"
 run 2 "missing Related blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
 run 2 "empty Related blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$EMPTY_RELATED")"
 run 2 "missing keyword blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_KEYWORD")"
+run 2 "#3205 body (no ## Fix) is blocked" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$ISSUE_3205")"
 run 0 "No linked issue opt-out passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT")"
 run 0 "No related issue alias passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT_ALIAS")"
 run 0 "past-tense keyword (Fixed #N) passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$PAST_TENSE")"
 run 2 "markers only inside HTML comments block" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$COMMENTED")"
 run 2 "bare 'Closes #' with no number blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$BARE_HASH")"
-run 0 "deeper heading is Related content" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$DEEP_HEADING")"
+run 0 "deeper heading is section content" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$DEEP_HEADING")"
 run 0 "owner/repo#N keyword form passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$CROSS_REPO")"
 run 2 "create with no body field blocks (empty body)" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO)"
 run 0 "update with no body field passes" "$GATED" "$(payload "$GATED" $UPDATE $OWNER $REPO)"

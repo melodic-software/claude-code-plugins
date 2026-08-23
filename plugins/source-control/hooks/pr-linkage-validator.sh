@@ -98,8 +98,14 @@ has_linkage() {
   [[ "$probe" =~ $KEYWORD_ERE || "$probe" =~ $NO_ISSUE_ERE ]]
 }
 
-# Content of the first `## Related` section on stdout; returns 1 when there is
-# no such heading, which is a different verdict from an empty one. Only a
+# The four contract sections the pinned ci-workflows reusable requires
+# (melodic-software/ci-workflows pr-issue-linkage.yml @ v0.14.2). Stated once
+# here so both hook surfaces, the blocked-message remedy, and the tests cannot
+# drift from each other the way "Related only" drifted from the other three.
+REQUIRED_SECTIONS=(Summary Fix Verification Related)
+
+# Content of the first `## <heading>` section on stdout; returns 1 when there
+# is no such heading, which is a different verdict from an empty one. Only a
 # heading at the SAME level or higher (fewer or equal `#`) closes the section,
 # so a nested `### …` subsection is content — a naive "next line starting with
 # #" reading would call such a section empty.
@@ -107,8 +113,8 @@ has_linkage() {
 # Trimming is spelled inline at both per-line sites rather than through `trim`:
 # a command substitution forks, and one fork per body line put a 1000-line body
 # past this hook's own declared timeout.
-related_section() {
-  local body="$1" line t start=0 lvl i=0 out=""
+section_content() {
+  local body="$1" heading_lc="${2,,}" line t start=0 lvl i=0 out=""
   local -a lines=()
   # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done < <(printf '%s\n' "$body")
@@ -116,7 +122,7 @@ related_section() {
     t="${lines[i]}"
     t="${t#"${t%%[![:space:]]*}"}"
     t="${t%"${t##*[![:space:]]}"}"
-    [[ "${t,,}" =~ ^##[[:space:]]+related$ ]] && {
+    [[ "${t,,}" =~ ^##[[:space:]]+${heading_lc}$ ]] && {
       start=$((i + 1))
       break
     }
@@ -136,21 +142,24 @@ related_section() {
   trim "$out"
 }
 
-# Aggregate verdict: strip comments, judge both halves. Fills the global
-# LINKAGE_PROBLEMS array with one line per missing half; returns 0 when the
-# body passes (array empty), 1 otherwise. The consuming hook owns what a
-# failure DOES — block message, telemetry, exit code.
+# Aggregate verdict: strip comments, then the closing-keyword half plus every
+# required section. Fills the global LINKAGE_PROBLEMS array with one line per
+# problem so the author sees the full set in one pass; returns 0 when the body
+# passes (array empty), 1 otherwise. The consuming hook owns what a failure
+# DOES — block message, telemetry, exit code.
 LINKAGE_PROBLEMS=()
 linkage::problems() {
-  local body related
+  local body heading content
   body=$(strip_html_comments "$1")
   LINKAGE_PROBLEMS=()
-  # shellcheck disable=SC2310  # the two exits ARE the verdict: absent vs present
-  if related=$(related_section "$body"); then
-    [[ -n "$related" ]] || LINKAGE_PROBLEMS+=('The "## Related" section is empty.')
-  else
-    LINKAGE_PROBLEMS+=('Missing a "## Related" section.')
-  fi
+  for heading in "${REQUIRED_SECTIONS[@]}"; do
+    # shellcheck disable=SC2310  # the two exits ARE the verdict: absent vs present
+    if content=$(section_content "$body" "$heading"); then
+      [[ -n "$content" ]] || LINKAGE_PROBLEMS+=("The \"## ${heading}\" section is empty.")
+    else
+      LINKAGE_PROBLEMS+=("Missing a \"## ${heading}\" section.")
+    fi
+  done
   has_linkage "$body" ||
     LINKAGE_PROBLEMS+=('Missing a native closing keyword (Closes/Fixes/Resolves #N) and no "No linked issue" marker.')
   ((${#LINKAGE_PROBLEMS[@]} == 0))

@@ -99,9 +99,17 @@ gh_body() {
   printf "gh pr create --title 'T' --body '%s'" "$1"
 }
 
-GOOD=$'Closes #5\n\n## Related\n\n- refs #9'
-NO_RELATED=$'Closes #5\n\nJust a summary.'
-NO_KEYWORD=$'Some summary.\n\n## Related\n\n- refs #9'
+# Four contract sections the pinned reusable requires. Appended to every
+# allow-path fixture so a missing Summary/Fix/Verification cannot masquerade
+# as a passing closing-keyword case.
+SECTIONS=$'\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x'
+GOOD=$'Closes #5'"$SECTIONS"
+NO_RELATED=$'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx'
+NO_KEYWORD=$'## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- refs #9'
+# #3205 reproduction: linkage + Summary + Verification + Related, no Fix.
+# Local gates used to allow this; CI rejected it.
+ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidence\n\n## Related\n\n- N/A'
+NESTED=$'Closes #5\n\n## Summary\n\n### why\n\nbody\n\n## Fix\n\n### how\n\nbody\n\n## Verification\n\n### evidence\n\nbody\n\n## Related\n\n### links\n\n- x'
 
 # --- Scope guard -------------------------------------------------------------
 
@@ -109,62 +117,64 @@ assert_allow "ungated repo: bad body allowed" "$UNGATED" "$(gh_body "$NO_RELATED
 assert_allow "non-gh command allowed" "$GATED" "git commit -m 'x'"
 assert_allow "gh command that is not pr create/edit allowed" "$GATED" "gh pr view 5"
 
-# --- The two halves ----------------------------------------------------------
+# --- Closing keyword + four contract sections --------------------------------
 
 assert_allow "compliant body allowed" "$GATED" "$(gh_body "$GOOD")"
 assert_block "missing ## Related blocks" "$GATED" "$(gh_body "$NO_RELATED")"
 assert_block "missing closing keyword blocks" "$GATED" "$(gh_body "$NO_KEYWORD")"
 assert_block "empty ## Related blocks" "$GATED" \
-  "$(gh_body $'Closes #5\n\n## Related\n\n## Test plan\n\n- ran it')"
+  "$(gh_body $'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n## Test plan\n\n- ran it')"
+assert_block "#3205 body (no ## Fix) is blocked" "$GATED" "$(gh_body "$ISSUE_3205")"
+assert_allow "nested ### inside each required section is content" "$GATED" "$(gh_body "$NESTED")"
 
-run "$GATED" "$(gh_body "$NO_RELATED")"
-if [[ "$ERR" == *'Missing a "## Related" section.'* && "$ERR" == *"## Related"* && "$ERR" == *"Closes #<issue>"* ]]; then
-  ok "block message names the missing half and the line to add"
+run "$GATED" "$(gh_body "$ISSUE_3205")"
+if [[ "$ERR" == *'Missing a "## Fix" section.'* && "$ERR" == *"## Summary"* && "$ERR" == *"## Fix"* && "$ERR" == *"## Verification"* && "$ERR" == *"## Related"* && "$ERR" == *"Closes #<issue>"* ]]; then
+  ok "block message names the missing Fix section and lists all four in the remedy"
 else
-  fail "block message lacks the missing half or the template: $ERR"
+  fail "block message lacks the missing Fix section or the four-section remedy: $ERR"
 fi
 
 # --- Closing-keyword shapes --------------------------------------------------
 
 for kw in Closes closes Closed Fixes fix fixed Resolves resolve resolved; do
   assert_allow "keyword '$kw' accepted" "$GATED" \
-    "$(gh_body "$kw #5"$'\n\n## Related\n\n- x')"
+    "$(gh_body "$kw #5$SECTIONS")"
 done
 assert_allow "colon form accepted" "$GATED" \
-  "$(gh_body $'Closes: #5\n\n## Related\n\n- x')"
+  "$(gh_body $'Closes: #5'"$SECTIONS")"
 assert_allow "owner/repo#N form accepted" "$GATED" \
-  "$(gh_body $'Closes melodic-software/standards#5\n\n## Related\n\n- x')"
+  "$(gh_body $'Closes melodic-software/standards#5'"$SECTIONS")"
 assert_allow "No linked issue marker accepted" "$GATED" \
-  "$(gh_body $'No linked issue\n\n## Related\n\n- x')"
+  "$(gh_body $'No linked issue'"$SECTIONS")"
 assert_allow "No related issue: marker accepted" "$GATED" \
-  "$(gh_body $'No related issue: drift sweep\n\n## Related\n\n- x')"
+  "$(gh_body $'No related issue: drift sweep'"$SECTIONS")"
 
 # Word boundaries: JavaScript's \b makes both of these non-matches, so a body
 # carrying only one of them must still block.
 assert_block "trailing word char after #N is not a match" "$GATED" \
-  "$(gh_body $'Closes #12abc\n\n## Related\n\n- x')"
+  "$(gh_body $'Closes #12abc'"$SECTIONS")"
 assert_block "keyword glued to a preceding word is not a match" "$GATED" \
-  "$(gh_body $'unclosed #5\n\n## Related\n\n- x')"
+  "$(gh_body $'unclosed #5'"$SECTIONS")"
 
 # --- HTML comments -----------------------------------------------------------
 
 assert_block "markers only inside a terminated comment do not count" "$GATED" \
   "$(gh_body $'<!-- Closes #5 and a ## Related section -->\n\nSummary.')"
 assert_block "an unterminated comment swallows the rest of the body" "$GATED" \
-  "$(gh_body $'Summary.\n<!-- oops\nCloses #5\n\n## Related\n\n- x')"
+  "$(gh_body $'Summary.\n<!-- oops\nCloses #5'"$SECTIONS")"
 assert_allow "content around a comment still counts" "$GATED" \
-  "$(gh_body $'Closes #5 <!-- issue --> \n\n## Related\n<!-- list below -->\n- x')"
+  "$(gh_body $'Closes #5 <!-- issue --> \n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n<!-- list below -->\n- x')"
 
 # --- Section boundaries ------------------------------------------------------
 
 assert_allow "a deeper subsection is Related's content, not its terminator" "$GATED" \
-  "$(gh_body $'Closes #5\n\n## Related\n\n### Prior art\n\n- x\n\n## Test plan\n\n- ran it')"
+  "$(gh_body $'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n### Prior art\n\n- x\n\n## Test plan\n\n- ran it')"
 assert_block "a same-level heading terminates Related, leaving it empty" "$GATED" \
-  "$(gh_body $'Closes #5\n\n## Related\n## Summary\n\n- x')"
+  "$(gh_body $'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n## Extra\n\n- x')"
 assert_allow "Related is matched case-insensitively" "$GATED" \
-  "$(gh_body $'Closes #5\n\n##   RELATED\n\n- x')"
+  "$(gh_body $'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n##   RELATED\n\n- x')"
 assert_block "a Related heading with trailing text is not the section" "$GATED" \
-  "$(gh_body $'Closes #5\n\n## Related work\n\n- x')"
+  "$(gh_body $'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related work\n\n- x')"
 
 # --- Body sources ------------------------------------------------------------
 
@@ -420,14 +430,14 @@ locale_case() {
   fi
 }
 
-locale_case "NBSP between keyword and issue" $'Closes:\xc2\xa0#5\n\n## Related\n\n- x'
-locale_case "em space between keyword and issue" $'Closes\xe2\x80\x83#5\n\n## Related\n\n- x'
-locale_case "ideographic space in the heading" $'Closes #5\n\n##\xe3\x80\x80Related\n\n- x'
-locale_case "BOM ahead of the heading" $'Closes #5\n\n\xef\xbb\xbf## Related\n\n- x'
+locale_case "NBSP between keyword and issue" $'Closes:\xc2\xa0#5'"$SECTIONS"
+locale_case "em space between keyword and issue" $'Closes\xe2\x80\x83#5'"$SECTIONS"
+locale_case "ideographic space in the heading" $'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n##\xe3\x80\x80Related\n\n- x'
+locale_case "BOM ahead of the heading" $'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n\xef\xbb\xbf## Related\n\n- x'
 
 # --- CRLF --------------------------------------------------------------------
 
-printf 'Closes #5\r\n\r\n## Related\r\n\r\n- x\r\n' >"$GATED/crlf-good.md"
+printf 'Closes #5\r\n\r\n## Summary\r\n\r\nx\r\n\r\n## Fix\r\n\r\nx\r\n\r\n## Verification\r\n\r\nx\r\n\r\n## Related\r\n\r\n- x\r\n' >"$GATED/crlf-good.md"
 printf 'Closes #5\r\n\r\nno related\r\n' >"$GATED/crlf-bad.md"
 assert_allow "a CRLF body validates" "$GATED" "gh pr create -t T --body-file crlf-good.md"
 assert_block "a CRLF body still fails when it should" "$GATED" "gh pr create -t T --body-file crlf-bad.md"
@@ -444,7 +454,7 @@ assert_block "a CRLF body still fails when it should" "$GATED" "gh pr create -t 
     printf 'filler line %d with several words on it\n' "$perf_i"
     perf_i=$((perf_i + 1))
   done
-  printf '\n## Related\n\n- x\n'
+  printf '\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x\n'
 } >"$GATED/big.md"
 perf_start=${EPOCHREALTIME:-}
 run "$GATED" "gh pr create -t T --body-file big.md"
