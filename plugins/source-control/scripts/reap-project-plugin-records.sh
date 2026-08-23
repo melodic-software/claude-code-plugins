@@ -59,7 +59,7 @@ PROG=${0##*/}
 have() { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
-  sed -n '2,46p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,53p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 worktree_path=""
