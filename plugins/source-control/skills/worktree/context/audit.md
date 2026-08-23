@@ -13,6 +13,7 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 | Gitignored-file propagation | Check whether a `.worktreeinclude` file exists at the repo root | Optional — suggest when the project keeps local secrets/config in gitignored files (e.g. `.claude/settings.local.json`); Claude Code copies matching gitignored files into new worktrees |
 | Project worktree hooks | If the project registers `WorktreeCreate` / SessionStart setup hooks in its settings, confirm they are present as its docs expect | Per project convention — skip when the project has none |
 | Stale metadata | `git worktree list --porcelain` shows no `prunable` entries | Clean — otherwise suggest `git worktree prune` via `/source-control:worktree cleanup` |
+| Claim liveness | `bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-claim.sh" report --repo-dir <repo>` | Exit 0. Every linked worktree carries a lock reason (a claim other agents can read). Exit 1 lists each `UNCLAIMED` path: a plain `git worktree add` that bypassed `worktree-create.sh`. Claim with `worktree-claim.sh claim <path>` or leave it reported; do not rewrite an existing helper reason |
 | Orphaned plugin install records | `claude plugin list --json`, project-scope records grouped by `projectPath`, classified per Step 2b (which requires a **liveness** test, not just registration in this repository — the worktree root is shared across repositories) | Zero paths in the `candidate orphan` bucket |
 
 ## Step 2b: Orphaned project-scope plugin install records
