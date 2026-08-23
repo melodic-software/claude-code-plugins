@@ -53,6 +53,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
@@ -437,6 +441,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Verify plugin copies match the shared lib
         run: scripts/sync-hook-utils.sh --check
@@ -453,6 +461,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Verify plugin copies match the shared parser
         run: scripts/sync-parse-concern-value.sh --check
@@ -469,6 +481,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Verify managed-scope cluster matches canonical
         run: scripts/sync-managed-scope.sh --check
@@ -485,6 +501,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Verify state-key cluster matches canonical
         run: scripts/sync-state-key.sh --check
@@ -501,6 +521,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Verify plugin copies match the shared resolver
         run: scripts/sync-resolve-convention-pattern.sh --check
@@ -517,6 +541,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Verify plugin binding copies match the canonical contract
         run: scripts/sync-standards-contract.sh --check
@@ -760,6 +788,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the fleet finding-kind test-coverage detector
         run: bash scripts/check-fleet-finding-test-coverage.test.sh
@@ -775,6 +807,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the fleet audit doc-grammar detector
         run: bash scripts/check-fleet-audit-doc-grammar.test.sh
@@ -798,13 +834,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out
-        uses: ./.github/actions/checkout-with-base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # PR head, not the synthetic merge commit: overlap is computed against
           # the branch tip the author will squash, so merge-base math must match
           # that tip rather than an already-merged-with-base tree. Push falls
           # back to github.sha so `ref` is never empty on main.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
       - name: Test the stale-base overlap detector
         run: bash scripts/check-stale-base-overlap.test.sh
       - name: Fail when behind base on overlapping paths
@@ -827,6 +866,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the changelog-parity gate
         run: bash scripts/check-changelog-parity.test.sh
@@ -867,6 +910,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the contract-slice prune gate
         run: bash scripts/check-contract-slice-prune.test.sh
@@ -953,6 +1000,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
@@ -1056,6 +1107,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
@@ -1120,6 +1175,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
@@ -1168,6 +1227,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
@@ -1213,6 +1276,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
@@ -1258,6 +1325,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       # Self-test first so a broken orchestrator can never mask a real skill
       # regression behind a green gate.
@@ -1311,6 +1382,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the portability gate
         run: bash scripts/check-skill-portability.test.sh
@@ -1335,6 +1410,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
         uses: ./.github/actions/checkout-with-base
       - name: Test the shell-portability gate
         run: bash scripts/check-shell-portability.test.sh

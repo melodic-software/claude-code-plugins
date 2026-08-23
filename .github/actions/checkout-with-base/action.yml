@@ -1,43 +1,43 @@
 name: Checkout with base
 description: >
-  Check out the repository with full history, fetch origin/$BASE_REF on
-  pull_request events, and export BASE_REF for later steps. Owns the
-  fetch-depth, explicit base fetch, and BASE_REF export that were previously
-  copied across CI jobs.
+  Deepen a just-checked-out worktree to full history and fetch
+  origin/$BASE_REF on pull_request events. A same-repo composite cannot
+  be the first step of a job (GitHub has not fetched the tree yet), so
+  callers still run a pinned actions/checkout first; this action owns
+  the depth and the explicit base fetch that used to be copied beside
+  that checkout. It does not write GITHUB_ENV — callers already pass
+  BASE_REF from github.base_ref, and zizmor flags GITHUB_ENV writes.
 
 inputs:
-  ref:
-    description: >
-      Git ref to check out. Empty uses actions/checkout's event default
-      (the PR merge commit, or the pushed SHA). Pass the PR head SHA when
-      the job must compute against the branch tip rather than the merge
-      commit.
-    required: false
-    default: ""
   fetch-base:
     description: >
-      When true (the default, and the safe one), fetch origin/$BASE_REF on
-      pull_request events and export BASE_REF into the job environment so
-      later steps can resolve origin/$BASE_REF with no extra fetch of their
-      own. Only the stale-base lane used to do this fetch explicitly.
+      When true (the default, and the safe one), fetch origin/$BASE_REF
+      on pull_request events so later steps can resolve that ref with no
+      extra fetch of their own.
     required: false
     default: "true"
+
+outputs:
+  base-ref:
+    description: The PR base branch name, or empty when this is not a pull_request.
+    value: ${{ steps.base.outputs.base-ref }}
 
 runs:
   using: composite
   steps:
-    - name: Check out
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      with:
-        persist-credentials: false
-        fetch-depth: 0
-        ref: ${{ inputs.ref }}
+    - name: Deepen history
+      shell: bash
+      run: |
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          git fetch --prune --unshallow --no-tags
+        fi
 
     - name: Fetch base ref
+      id: base
       if: inputs.fetch-base == 'true' && github.event_name == 'pull_request' && github.base_ref != ''
       shell: bash
       env:
         BASE_REF: ${{ github.base_ref }}
       run: |
         git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
-        echo "BASE_REF=$BASE_REF" >> "$GITHUB_ENV"
+        echo "base-ref=$BASE_REF" >> "$GITHUB_OUTPUT"
