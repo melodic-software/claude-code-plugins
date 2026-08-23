@@ -259,8 +259,10 @@ hand-edit — migrates to `userConfig` with the schema used honestly:
   lands in `~/.claude/.credentials.json`, so verify storage on the target platform before migrating
   a secret; and
 - `claude plugin install --config` documented in the plugin's setup skill for headless use — note
-  in that same documentation that this flag only seeds a value on a fresh install; re-running it
-  against an already-installed plugin does not update the stored value (empirically verified); and
+  in that same documentation that re-running it against an already-installed plugin prints
+  `already installed` **and still writes the value** (verified on Claude Code 2.1.240 with a
+  non-sensitive option at `user` scope; a `sensitive` option and `project`/`local` scope were not
+  covered — re-verify before relying on those); and
 - for any `sensitive: true` option, the plugin's README documents `/plugin configure
   <plugin>@<marketplace>` as the rotation/clear path (see
   [`docs/extensibility-contract-smoke-tests.md`](extensibility-contract-smoke-tests.md) Test E —
@@ -453,6 +455,26 @@ Setup may inspect the repository and create or update the plugin's tracked proje
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
 configuration surface.
+
+**How a setup skill states what it will not write.** That prohibition is stated inline in every
+`setup` skill rather than cited in place of the words, for the reason the routing line above gives:
+an installed plugin has no path to this file. One fixed sentence carries it, in whatever boundaries
+list the skill already keeps, naming the three surfaces in this order and no other:
+
+```text
+Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
+```
+
+A skill whose boundaries list is phrased in the imperative prefixes a `Do not` to that sentence,
+lowercasing only its first letter and changing nothing else in it. Nothing is ever folded into the
+three-item list: a plugin that also refuses a surface of its own — its plugin data directory, a
+consumer's tracked file, machine-local state, the hook scripts — names that surface in a following
+sentence in the same bullet, and a plugin that has a single narrow permitted write names *that* in a
+following sentence too. Keeping the list contiguous and word-for-word is what makes a change to the
+forbidden set one greppable sweep across the fleet instead of thirty judgement calls. The provenance
+naming stays once per skill, in the fixed form given above: a skill that already names this section
+elsewhere adds no second naming here, and a skill that names it nowhere else carries the
+parenthetical on this sentence so every setup skill points home exactly once.
 
 `apply` is owed wherever the plugin owns a **writable artifact**, and only there. The test is
 ownership plus permission, not location: an artifact whose schema this plugin defines and documents

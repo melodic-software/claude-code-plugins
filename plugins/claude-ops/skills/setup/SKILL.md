@@ -89,5 +89,5 @@ nothing and reports "already configured".
 
 - Run known-issues, registry, or observability operations — those are the other claude-ops skills and
   have their own documented controls.
-- Write Claude Code user settings, `pluginConfigs`, or the plugin cache.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Invent organization-specific configuration.

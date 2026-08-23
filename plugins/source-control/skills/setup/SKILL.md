@@ -312,6 +312,6 @@ Skill-behavior failure patterns hit in real runs. Add to this section when new o
   pre-check against.
 - Write the consumer's `.gitignore`. The personal overlay needs `.claude/*.local.*` ignored; this
   skill recommends the line and leaves the edit to the consumer.
-- Write the plugin cache, Claude Code user settings, or `pluginConfigs` — the convention lives in the
-  consumer's own config layers; babysit settings live in Claude-Code-owned `userConfig`,
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. The convention lives in
+  the consumer's own config layers; babysit settings live in Claude-Code-owned `userConfig`,
   reconfigured only through the two paths above.

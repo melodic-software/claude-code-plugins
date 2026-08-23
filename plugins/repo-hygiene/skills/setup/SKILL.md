@@ -95,4 +95,5 @@ nothing — re-running it after everything passes changes nothing and reports "a
 - Scan, clean, prune, or reset anything — those are `/repo-hygiene:clean`'s tiers, with their own
   dry-run-first and confirmation contract.
 - Install `git`, `ghq`, or any tool, during either `check` or `apply` — guidance only.
-- Write the plugin cache, Claude Code user settings, `pluginConfigs`, or any settings surface.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor any other Claude Code
+  settings surface.

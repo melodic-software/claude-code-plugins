@@ -99,4 +99,5 @@ nothing and installs nothing — re-running it after everything passes changes n
 
 - Run a measurement, attribution, or ledger operation — that is `/context-budget:audit`.
 - Install `node`, the CLI, or the Agent SDK, during either `check` or `apply` — guidance only.
-- Write the plugin cache, Claude Code user settings, `pluginConfigs`, or any settings surface.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor any other Claude Code
+  settings surface.

@@ -127,9 +127,9 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 - Run the linter or formatter — editing any `.sh` or `.bash` file exercises the hook
   end-to-end.
-- Write anything: not the repository (including `.editorconfig` / `.shellcheckrc`), not Claude
-  Code user settings, not `pluginConfigs`, not the plugin cache. Every prerequisite is a `PATH`
-  binary or the native toggle, so remediation is guidance only.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the repository,
+  including `.editorconfig` / `.shellcheckrc` — every prerequisite is a `PATH` binary or the
+  native toggle, so remediation is guidance only.
 - Download or execute tools during `check` beyond the read-only `command -v` presence probes.
 
 ## Gotchas

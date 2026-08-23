@@ -95,6 +95,6 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 ## What this skill does NOT do
 
 - Normalize any file — editing a file exercises the hook end-to-end.
-- Write `.gitattributes`, the plugin cache, Claude Code user settings, or `pluginConfigs`.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor `.gitattributes`.
 - Install any tool, during either `check` or `apply` — all prerequisites are system tools
   resolved with guidance only.

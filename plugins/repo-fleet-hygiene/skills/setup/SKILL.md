@@ -175,8 +175,8 @@ GitHub remote identity on both sides first.
 
 - Run a fleet audit — that is `/repo-fleet-hygiene:audit`. `check` validates config only; it never
   walks the fleet.
-- Write Claude Code settings, `pluginConfigs`, the plugin cache, or any machine-local state — the
-  config is the consumer's own tracked file.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor any machine-local
+  state — the config is the consumer's own tracked file.
 - Touch Git remotes, branches, or worktrees.
 
 ## Gotchas

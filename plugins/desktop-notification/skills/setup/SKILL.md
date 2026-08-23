@@ -98,7 +98,7 @@ configured".
 
 ## What this skill does NOT do
 
-- Install `jq`, `libnotify`, or any system package, and never writes user settings or
-  `pluginConfigs` — `apply` is guidance-and-verify with no write path.
+- Install `jq`, `libnotify`, or any system package — `apply` is guidance-and-verify with no
+  write path.
 - Fire a notification — a `permission_prompt` or `idle_prompt` exercises the hook end-to-end.
-- Modify the plugin cache or the hook scripts.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the hook scripts.
