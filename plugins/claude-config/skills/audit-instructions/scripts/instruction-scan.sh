@@ -190,14 +190,21 @@ rows=()
 # leading `---` returns the file's line count, fencing the whole file rather than
 # none of it — the fail-safe direction, since the alternative would route a
 # malformed-frontmatter description straight to an apply relay.
+#
+# BOTH comparisons strip a terminal CR first. On a CRLF-formatted file the
+# delimiter reads as `---\r`, which matches neither test, so the block would be
+# seen as body content and the description and when_to_use lines would become
+# emittable candidates — the fence silently inverted on exactly the Windows-authored
+# files it most needs to hold for. Measured, not theorized: before this strip, a
+# CRLF fixture produced rows at lines 2 and 3.
 frontmatter_end() {
   local file="$1"
-  [[ "$(head -n 1 "$file" 2>/dev/null)" == "---" ]] || {
+  [[ "$(head -n 1 "$file" 2>/dev/null | tr -d '\r')" == "---" ]] || {
     printf '0\n'
     return 0
   }
   local close
-  close="$(awk 'NR>1 && $0=="---" {print NR; exit}' "$file")"
+  close="$(awk '{ sub(/\r$/, "") } NR>1 && $0=="---" {print NR; exit}' "$file")"
   if [[ -n "$close" ]]; then
     printf '%s\n' "$close"
   else

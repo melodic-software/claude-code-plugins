@@ -47,6 +47,31 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   exits 2 and writes nothing. This is the normal state on a detached-HEAD CI checkout of a PR merge
   ref, and it is now covered by its own test rather than discovered through an unrelated case.
 
+- **Out-of-repo surfaces never reach the relay.** Phase A inventories user-level surfaces under
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, but `Location` is contractually repo-relative and the fix
+  action fences each remediation to it. `emit-findings.sh` declines any row whose path is not under
+  the repo root, counted as `reason=outside-repo-root`; those findings stay in the human report.
+  Without this, a hit in a user `CLAUDE.md` entered the relay with an absolute `Location` and the
+  fix pass could try to mutate a file outside the working tree.
+- **`--declined-carveout <n>`** records how many I28 candidates the model lane dropped for a
+  criteria carve-out before the writer ran, so that exclusion is counted in `## Surfaces` instead of
+  going unrecorded. Dropping the rows silently would have made the section report fewer candidates
+  examined than were actually looked at.
+- **Branch names that are YAML indicators are quoted.** git accepts `@foo`, `!foo`, `#foo`; emitted
+  as plain scalars, `#foo` reads as a comment and the others as indicators, so the consumer — which
+  admits a candidate only on an exact `branch:` match — silently dropped every finding for such a
+  branch. Quoting is conditional, so an ordinary branch name stays a byte-identical plain scalar.
+
+### Fixed
+
+- **CRLF files no longer defeat the body-scope fence (measured).** `head`/`awk` leave a terminal
+  CR, so a CRLF frontmatter delimiter read as `---\r` and matched neither comparison in either
+  layer. The block was then treated as body content, and `description` / `when_to_use` rows became
+  emittable — the fence inverted on exactly the Windows-authored files it most needs to hold for. A
+  CRLF fixture emitted a finding pointing at its own `description` line before the fix. Both the
+  scanner and the writer now strip a terminal CR before comparing, and both layers carry regression
+  cases including the unclosed-frontmatter variant.
+
 ### Security
 
 - **The body-scope fence is recomputed by the writer, not trusted from the caller.**

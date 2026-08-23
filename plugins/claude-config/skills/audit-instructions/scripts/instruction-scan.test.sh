@@ -324,7 +324,27 @@ assert_not_contains "unclosed frontmatter fences the whole file" "$OUT" "$UNCLOS
 OUT=$(bash "$SCRIPT" "$UNCLOSED")
 assert_contains "unclosed frontmatter still reports in default mode" "$OUT" "$UNCLOSED:2:I28-a"
 
-# --- Case 17: missing grep exits 2 -------------------------------------------
+# --- Case 17: CRLF files do not defeat the fence -----------------------------
+# `head`/`awk` leave a terminal CR, so a CRLF delimiter reads as "---\r" and
+# matched neither frontmatter test: the block was treated as body and the
+# description and when_to_use lines became candidates. The fence inverted on
+# exactly the Windows-authored files it most needs to hold for.
+CRLFF="$TEST_TMPDIR/crlf.md"
+printf -- '---\r\ndescription: "CRITICAL: you MUST not edit this."\r\nwhen_to_use: "if in doubt, use this"\r\n---\r\n\r\nCRITICAL: run the linter.\r\n' >"$CRLFF"
+OUT=$(bash "$SCRIPT" --body-only "$CRLFF")
+assert_not_contains "CRLF: description line is fenced" "$OUT" "$CRLFF:2:"
+assert_not_contains "CRLF: when_to_use line is fenced" "$OUT" "$CRLFF:3:"
+assert_contains "CRLF: the body line is still a candidate" "$OUT" "$CRLFF:6:I28-a"
+OUT=$(bash "$SCRIPT" "$CRLFF")
+assert_contains "CRLF: default mode still reports the description" "$OUT" "$CRLFF:2:I28-a"
+
+# A CRLF file with an UNCLOSED leading `---` must still fence the whole file.
+CRLFU="$TEST_TMPDIR/crlf-unclosed.md"
+printf -- '---\r\ndescription: "IMPORTANT: x"\r\nCRITICAL: never terminated\r\n' >"$CRLFU"
+OUT=$(bash "$SCRIPT" --body-only "$CRLFU")
+assert_not_contains "CRLF: unclosed frontmatter fences the whole file" "$OUT" "$CRLFU:"
+
+# --- Case 18: missing grep exits 2 -------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
 mkdir -p "$empty_path_dir"

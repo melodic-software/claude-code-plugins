@@ -75,6 +75,21 @@ destructive, security, or permission gate, a stated hard precondition, and a doc
 pattern are not findings (reference/criteria.md, I28). The scanner over-produces by design; drop
 those candidates from the scan output handed to `--from` rather than emitting and retracting.
 
+**Count what you drop.** Removing those rows before the writer sees them would make the exclusion
+invisible in `## Surfaces`, which is precisely the silent decline this contract forbids — the
+section would report fewer candidates examined than were actually looked at. Pass the number
+through: `--declined-carveout <n>`, which records it as its own counted line. Zero dropped → omit
+the flag.
+
+**Surfaces outside the repository never reach the relay.** Phase A inventories user-level surfaces
+under `${CLAUDE_CONFIG_DIR:-~/.claude}` as well as repo-owned ones, but `Location` is contractually
+repo-relative and the fix action fences each remediation to it — an absolute path would have the
+fix pass either edit a file outside the working tree or consume the finding without applying it.
+`emit-findings.sh` declines any row whose path is not under the repo root and counts it as
+`reason=outside-repo-root`. Those findings still belong in the **human report**; route them there,
+and where the surface is upstream-owned, to its owning repository per the skill body's routing
+rule.
+
 ## What each cell says
 
 - **`branch:`** is `git branch --show-current` verbatim.

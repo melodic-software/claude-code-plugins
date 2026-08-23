@@ -37,6 +37,7 @@ set -euo pipefail
 FROM=""
 OUT=""
 BRANCH=""
+CARVEOUT=""
 
 usage() {
   cat <<'EOF'
@@ -44,11 +45,14 @@ emit-findings.sh — compose a review-findings file from instruction-scan.sh out
 
 Usage:
   emit-findings.sh --from <scan-output> --out <path> [--branch <b>]
+                   [--declined-carveout <n>]
 
 --from is instruction-scan.sh output (`file:line:check-id` rows); run it with
 --body-only. --out is the CONVENTION-RESOLVED destination; if it exists, a
 -2/-3 suffix is appended (non-overwrite naming). --branch defaults to the
-current git branch.
+current git branch. --declined-carveout records how many I28 candidates the
+model lane dropped for a criteria carve-out before this script ran, so that
+exclusion is counted in ## Surfaces instead of going unrecorded.
 
 Only I28-a / I28-b rows are emitted (the families carrying severity-crosswalk
 rows); all other check ids are counted as declined and left to the human report.
@@ -78,6 +82,11 @@ while [[ $# -gt 0 ]]; do
   --branch)
     require_opt_value "$@"
     BRANCH="$2"
+    shift 2
+    ;;
+  --declined-carveout)
+    require_opt_value "$@"
+    CARVEOUT="$2"
     shift 2
     ;;
   --help | -h)
@@ -133,8 +142,13 @@ DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # that applies the fix.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 
+if [[ -n "$CARVEOUT" && ! "$CARVEOUT" =~ ^[0-9]+$ ]]; then
+  echo "emit-findings.sh: --declined-carveout takes a non-negative integer" >&2
+  exit 2
+fi
+
 LC_ALL=C awk \
-  -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" '
+  -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" -v carveout="$CARVEOUT" '
   function rule_id(id) {
     if (id == "I28-a") return "claude-config/audit-instructions/rule-coercive-emphasis"
     if (id == "I28-b") return "claude-config/audit-instructions/rule-blanket-tool-default"
@@ -150,16 +164,38 @@ LC_ALL=C awk \
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
   function esc(s) { gsub(/\|/, "\\|", s); return s }
+
+  # Emit a YAML scalar, quoting ONLY when the plain form would misparse. Git
+  # accepts branch names beginning with a YAML indicator: "#foo" reads as a
+  # comment (branch becomes empty), and "@foo" / "!foo" / "&foo" / "*foo" and
+  # friends are indicators too. The consumer admits a candidate only on an EXACT
+  # branch match, so a misparse silently drops every finding for that branch.
+  # Quoting is deliberately conditional rather than unconditional: an ordinary
+  # branch name keeps a byte-identical plain scalar, so this cannot perturb the
+  # common path or diverge from the sibling ai-slop producer on it.
+  function yaml_scalar(s) {
+    if (s ~ /^[-?:,\[\]{}#&*!|>%@`"\x27]/ || s ~ /: / || s ~ / #/ || s ~ /^$/ || s ~ /[ \t]$/) {
+      gsub(/\\/, "\\\\", s)
+      gsub(/"/, "\\\"", s)
+      return "\"" s "\""
+    }
+    return s
+  }
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 
   # Frontmatter close line for <file>, or 0 when there is none. Recomputed here
   # rather than trusted from the caller (header comment: BODY-SCOPE FENCE).
   # An unclosed leading `---` fences the whole file, the fail-safe direction.
+  # Every getline strips a terminal CR before comparing: on a CRLF file the
+  # delimiter reads as "---\r", matching neither test, so the frontmatter would
+  # be treated as body and description/when_to_use rows would become emittable.
+  # Measured before the fix: a CRLF fixture emitted a row pointing at line 2.
   function fm_end(file,   line, n, fmclose, result) {
     if (file in fmcache) return fmcache[file]
     n = 0; fmclose = -1
     while ((getline line < file) > 0) {
       n++
+      sub(/\r$/, "", line)
       if (n == 1) { if (line != "---") { fmclose = 0; break } ; continue }
       if (line == "---") { fmclose = n; break }
     }
@@ -176,6 +212,7 @@ LC_ALL=C awk \
     d = ""; n = 0
     while ((getline line < file) > 0) {
       n++
+      sub(/\r$/, "", line)
       if (n == 1 && line != "---") break
       if (n > 1 && line == "---") break
       if (line ~ /^description:/) d = d " " line
@@ -189,7 +226,10 @@ LC_ALL=C awk \
   # Read line <lno> of <file>.
   function source_line(file, lno,   line, n) {
     n = 0
-    while ((getline line < file) > 0) { n++; if (n == lno) { close(file); return line } }
+    while ((getline line < file) > 0) {
+      n++
+      if (n == lno) { sub(/\r$/, "", line); close(file); return line }
+    }
     close(file)
     return ""
   }
@@ -242,8 +282,15 @@ LC_ALL=C awk \
 
     if (quotes_trigger(file, text)) { declined_trigger[id]++; next }
 
-    loc = file
-    if (repo_root != "" && index(loc, repo_root "/") == 1) loc = substr(loc, length(repo_root) + 2)
+    # OUT-OF-REPO FENCE. The Phase A inventory spans user-level surfaces under
+    # CLAUDE_CONFIG_DIR (default ~/.claude) as well as repo-owned ones, but
+    # Location is contractually repo-relative because the fix action fences each
+    # remediation to it. A user-level hit would otherwise enter the relay
+    # carrying an absolute path, where the fix pass either edits a file outside
+    # the working tree or consumes the finding without applying it. Neither is
+    # acceptable, so such rows are declined here and stay in the human report.
+    if (repo_root == "" || index(file, repo_root "/") != 1) { declined_outofrepo[id]++; next }
+    loc = substr(file, length(repo_root) + 2)
 
     excerpt = trim(text)
     if (length(excerpt) > 160) excerpt = substr(excerpt, 1, 157) "..."
@@ -255,7 +302,7 @@ LC_ALL=C awk \
   }
 
   END {
-    printf "---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n", date_utc, branch
+    printf "---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n", date_utc, yaml_scalar(branch)
     print "## Findings"
     print ""
     print "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |"
@@ -278,8 +325,16 @@ LC_ALL=C awk \
       printf "Declined candidates: %s count=%d reason=frontmatter (body-scope fence)\n", k, declined_frontmatter[k]
     for (k in declined_trigger)
       printf "Declined candidates: %s count=%d reason=quoted-trigger-phrase (body-scope fence)\n", k, declined_trigger[k]
+    for (k in declined_outofrepo)
+      printf "Declined candidates: %s count=%d reason=outside-repo-root (Location must be repo-relative; human report only)\n", k, declined_outofrepo[k]
     for (k in declined_unreadable)
       printf "Declined candidates: %s count=%d reason=source-line-unreadable\n", k, declined_unreadable[k]
+    # The model lane drops carve-out candidates (destructive/security gate,
+    # stated hard precondition, document about the pattern) before this script
+    # sees them, so it reports their count here rather than letting the
+    # exclusion go unrecorded — a decline this file promises is never silent.
+    if (carveout != "")
+      printf "Declined candidates: I28 count=%s reason=criteria-carve-out (model lane; see reference/criteria.md I28)\n", carveout
   }
 ' "$FROM" >"$OUT"
 

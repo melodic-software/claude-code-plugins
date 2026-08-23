@@ -234,6 +234,85 @@ printf '%s\n' "$REMEDIATED" >"$TEST_TMPDIR/remediated.md"
 POST=$(bash "$SCAN" --body-only "$TEST_TMPDIR/remediated.md")
 assert_contains "the remediated line is no longer a candidate" "$POST" "No instruction candidates found."
 
+# --- Case 9c: CRLF files do not defeat the body-scope fence ------------------
+# Regression for a measured defect: awk getline leaves a terminal CR, so a CRLF
+# delimiter reads as "---\r" and matched neither frontmatter test. The block was
+# then treated as body and description/when_to_use rows became emittable — the
+# fence silently inverted on exactly the Windows-authored files it most needs to
+# hold for. The fixture lives inside a throwaway git repo so the out-of-repo
+# fence (case 9d) does not mask what this case is measuring.
+CRLFREPO="$TEST_TMPDIR/crlf-repo"
+mkdir -p "$CRLFREPO"
+git -C "$CRLFREPO" init -q 2>/dev/null
+printf -- '---\r\ndescription: "CRITICAL: you MUST not edit this."\r\nwhen_to_use: "if in doubt, use this"\r\n---\r\n\r\nCRITICAL: run the linter.\r\n' >"$CRLFREPO/crlf.md"
+SCAN_OUT=$(bash "$SCAN" --body-only "$CRLFREPO/crlf.md")
+assert_not_contains "scanner fence holds on CRLF: no description row" "$SCAN_OUT" "crlf.md:2"
+assert_not_contains "scanner fence holds on CRLF: no when_to_use row" "$SCAN_OUT" "crlf.md:3"
+assert_contains "scanner still finds the CRLF body row" "$SCAN_OUT" "crlf.md:6:I28-a"
+# Feed the writer DELIBERATELY UNFENCED CRLF input; its own fence must hold too.
+bash "$SCAN" "$CRLFREPO/crlf.md" >"$TEST_TMPDIR/crlf-unfenced.txt"
+(cd "$CRLFREPO" && bash "$EMIT" --from "$TEST_TMPDIR/crlf-unfenced.txt" \
+  --out "$TEST_TMPDIR/crlf-find.md" --branch testbranch >/dev/null 2>&1)
+CRLF_OUT=$(cat "$TEST_TMPDIR/crlf-find.md")
+assert_not_contains "writer fence holds on CRLF: no description row" "$CRLF_OUT" "crlf.md:2"
+assert_not_contains "writer fence holds on CRLF: no when_to_use row" "$CRLF_OUT" "crlf.md:3"
+assert_contains "writer still emits the CRLF body row" "$CRLF_OUT" "crlf.md:6"
+assert_not_contains "no stray CR survives into a table cell" "$CRLF_OUT" "$(printf '\r')"
+
+# --- Case 9d: surfaces outside the repo never reach the relay ----------------
+# Phase A inventories user-level surfaces under CLAUDE_CONFIG_DIR too, but
+# Location is contractually repo-relative and the fix action fences each
+# remediation to it. An absolute Location would have the fix pass either edit a
+# file outside the working tree or consume the finding without applying it.
+OUTSIDE="$TEST_TMPDIR/fakehome"
+mkdir -p "$OUTSIDE"
+printf -- '# User CLAUDE.md\n\nCRITICAL: You MUST always do this.\n' >"$OUTSIDE/CLAUDE.md"
+bash "$SCAN" --body-only "$OUTSIDE/CLAUDE.md" >"$TEST_TMPDIR/outside.txt"
+assert_contains "the scanner does mark the user-level hit" \
+  "$(cat "$TEST_TMPDIR/outside.txt")" "CLAUDE.md:3:I28-a"
+(cd "$CRLFREPO" && bash "$EMIT" --from "$TEST_TMPDIR/outside.txt" \
+  --out "$TEST_TMPDIR/outside-find.md" --branch testbranch >/dev/null 2>&1)
+OUT_SIDE=$(cat "$TEST_TMPDIR/outside-find.md")
+ROWS=$(printf '%s\n' "$OUT_SIDE" | grep -c '^| [0-9]')
+assert_eq "an out-of-repo surface emits no findings row" "0" "$ROWS"
+assert_not_contains "no absolute path reaches the findings file" "$OUT_SIDE" "$OUTSIDE"
+assert_contains "the out-of-repo decline is counted, never silent" "$OUT_SIDE" "reason=outside-repo-root"
+
+# --- Case 9e: branch names that are YAML indicators ---------------------------
+# git accepts "@foo", "!foo", "#foo". Emitted as plain scalars, "#foo" reads as a
+# comment and the others as YAML indicators, so the consumer — which admits a
+# candidate only on an EXACT branch match — silently drops every finding for that
+# branch. Quoting is conditional: an ordinary name must stay byte-identical.
+bash "$SCAN" --body-only "$FIXTURES/frontmatter-emphasis.md" >"$TEST_TMPDIR/yb.txt"
+for b in '@foo' '!foo' '#foo' '*foo' '&foo'; do
+  bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/yb-out.md" --branch "$b" >/dev/null 2>&1
+  LINE=$(grep '^branch:' "$TEST_TMPDIR/yb-out.md")
+  assert_eq "branch '$b' is emitted as a quoted scalar" "branch: \"$b\"" "$LINE"
+  rm -f "$TEST_TMPDIR/yb-out.md"
+done
+for b in 'main' 'feat/3120-thing' 'release-1.2_x'; do
+  bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/yb-out.md" --branch "$b" >/dev/null 2>&1
+  LINE=$(grep '^branch:' "$TEST_TMPDIR/yb-out.md")
+  assert_eq "ordinary branch '$b' stays an unquoted plain scalar" "branch: $b" "$LINE"
+  rm -f "$TEST_TMPDIR/yb-out.md"
+done
+
+# --- Case 9f: model-lane carve-out declines are counted ----------------------
+# The model lane drops carve-out candidates before this script runs, so without
+# a way to record them ## Surfaces would report fewer examined candidates than
+# were actually looked at — a silent decline, which this producer forbids.
+bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/co.md" \
+  --branch testbranch --declined-carveout 3 >/dev/null 2>&1
+assert_contains "a carve-out decline count is reported" \
+  "$(cat "$TEST_TMPDIR/co.md")" "count=3 reason=criteria-carve-out"
+bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/co2.md" --branch testbranch >/dev/null 2>&1
+assert_not_contains "omitting the flag reports no carve-out line" \
+  "$(cat "$TEST_TMPDIR/co2.md")" "criteria-carve-out"
+rc=0
+bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/co3.md" \
+  --branch testbranch --declined-carveout notanumber >/dev/null 2>&1 || rc=$?
+assert_exit "a non-numeric carve-out count exits 2" 2 "$rc"
+
 # --- Case 10: tier and confidence are rule-keyed, not per-finding ------------
 TIERS=$(printf '%s\n' "$OUT" | grep '^| [0-9]' | awk -F'|' '{print $3}' | tr -d ' ' | sort -u)
 assert_eq "every emitted row carries the crosswalk tier" "IMPORTANT" "$TIERS"
@@ -263,11 +342,15 @@ else
 fi
 
 # --- Case 13: cell escaping ---------------------------------------------------
-PIPEF="$TEST_TMPDIR/pipe.md"
+# The fixture lives inside the throwaway repo from case 9c: the out-of-repo
+# fence would otherwise decline it and this case would measure nothing.
+PIPEF="$CRLFREPO/pipe.md"
 # shellcheck disable=SC2016  # the backticks are literal markdown in the fixture, not a subshell
 printf 'CRITICAL: run `a | b | c` before pushing.\n' >"$PIPEF"
 bash "$SCAN" --body-only "$PIPEF" >"$TEST_TMPDIR/pipe.txt"
-OUT=$(emit "$TEST_TMPDIR/pipe.txt" "$TEST_TMPDIR/pipe-out.md")
+(cd "$CRLFREPO" && bash "$EMIT" --from "$TEST_TMPDIR/pipe.txt" \
+  --out "$TEST_TMPDIR/pipe-out.md" --branch testbranch >/dev/null 2>&1)
+OUT=$(cat "$TEST_TMPDIR/pipe-out.md")
 ROW=$(printf '%s\n' "$OUT" | grep '^| [0-9]')
 assert_contains "literal pipes in the excerpt are escaped" "$ROW" '\|'
 # Count columns the way the consumer's markdown parse does: an escaped `\|` is a
