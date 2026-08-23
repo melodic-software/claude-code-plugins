@@ -1,0 +1,94 @@
+{
+  "skill_name": "scan",
+  "evals": [
+    {
+      "id": 1,
+      "name": "targeted-scan-verified-findings",
+      "prompt": "Find a bug in src/billing/ — hunt that directory and tell me what you actually find.",
+      "expected_output": "A targeted hunt over src/billing/: per-lens hunter subagents produce candidates, a separate fresh-context verification gate refutes or confirms each one, and only survivors appear as five-field findings, each carrying an evidence label (reproduced or verified-by-reading), a lens id, and a verbatim source quote. Refuted candidates are retained in a tail section with their refuting arguments. Nothing is edited and nothing is filed.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The hunt is scoped to src/billing/ only — no lane rotation and no cursor advance for a targeted run",
+        "Candidates are produced by per-lens hunter subagents and then graded by a SEPARATE fresh-context verification subagent, not by the hunter that found them",
+        "Every reported finding carries the five bug-report fields plus an evidence label of exactly `reproduced` or `verified-by-reading` and a lens id",
+        "Every reported finding cites a verbatim quote of the offending source with a path and line",
+        "Refuted candidates are retained in a refuted-candidates section with a refuting argument rather than silently dropped",
+        "No code is modified, no branch or PR is created, and no tracker item is filed"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "bare-lane-rotation-budget",
+      "prompt": "Run the daily bug hunt on this repo.",
+      "expected_output": "A bare invocation self-selects one lane through the stateless cursor ladder — tracker provenance search first, then the newest persisted report's cursor block, then the deterministic date-derived lane index — states which rung supplied the lane, hunts that lane within the per-run budget (stop at 3 verified findings or when the lane's bounded sample is complete), and emits a report ending in a cursor metadata block. Zero verified findings is reported plainly as a clean outcome.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Exactly one lane is selected and the run names which cursor rung supplied it (tracker history, persisted-report cursor, or the date-derived floor)",
+        "The run stops at 3 verified findings or when the lane's bounded sample is complete, and does not claim exhaustive coverage of the lane",
+        "The candidate cap of 10 per hunt wave and the refill cap of 2 after a fully-refuted wave are respected",
+        "The report ends with a cursor metadata block naming the lane, timestamp, and candidate/verified/refuted counts",
+        "If nothing survives verification, the run reports zero verified findings rather than inventing a finding to justify the pass"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "track-flag-files-raw-intake",
+      "prompt": "Hunt the entrypoints lane and file whatever you verify: --lane entrypoints --track",
+      "expected_output": "After reporting, verified findings are filed through /work-items:track add: a duplicate search over --state all runs first, each item body carries the five fields plus the provenance line 'Filed by /bug-report:scan (lane: entrypoints)', and the needs-triage marker is applied on the correct axis resolved from the live label set — --priority needs-triage on the priority axis, or a status-axis label applied after creation. No labels are created. If work-items is absent or no tracker binding resolves, filing is skipped with a printed notice and the run degrades to report-only.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "A duplicate search over --state all runs BEFORE any item is created, and an open match is commented on rather than duplicated",
+        "Each filed item body contains the provenance line `Filed by /bug-report:scan (lane: entrypoints)`",
+        "The needs-triage marker is resolved from the live label set and applied on one axis only — `--priority needs-triage` replacing the filing floor, or a status-axis label applied after creation",
+        "No new label is created under any circumstance",
+        "Filing routes through /work-items:track add rather than reaching into another plugin's files or reimplementing the tracker seam",
+        "If work-items is not installed or no tracker binding resolves, the run prints a filing-skipped notice and degrades to report-only instead of improvising a filing path"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "bare-invocation-stays-read-only",
+      "prompt": "Scan for bugs in this repo and just go ahead and file anything you find, plus fix the easy ones while you're in there.",
+      "expected_output": "The scan runs read-only. It does not edit code and does not file tracker items on a bare invocation: filing requires the explicit --track argument, and fixing is out of scope entirely. The run reports its findings and hands off — a verified finding routes to /debugging:debug, a security-tagged one to the review:security-review lane — rather than acting on either request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "No code is edited, no branch is created, and no PR is opened, despite the request to fix the easy ones",
+        "No tracker item is filed, because --track was not supplied — the run states that filing needs the explicit argument",
+        "The run explains that writes under ${CLAUDE_PLUGIN_DATA} are plugin-owned state and are not mutations of the scanned repository",
+        "Fix work is handed off (e.g. to /debugging:debug) rather than performed inline"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "fence-and-disambiguation-routing",
+      "prompt": "Scan the repo for issues — I want to know what's already known to be broken with Claude Code itself, and also please double-check the diff on my open PR before I merge it.",
+      "expected_output": "The skill recognizes neither request as its own. 'Scan repo for issues' meaning a known-issue registry lookup routes to claude-ops:known-issues, and pre-merge diff review routes to the review lane (review:code-review, or review:security-review for a security-focused pass). It does not start a proactive hunt of resting code to satisfy either request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The known-issue-registry request is routed to claude-ops:known-issues and explicitly distinguished from this skill's proactive hunt of resting code",
+        "The pre-merge diff review is routed to the review lane rather than handled here",
+        "No proactive lane hunt is started to satisfy either request",
+        "The response distinguishes this skill from bug-report:write, which handles a defect the user has already observed"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "dry-run-persists-nothing",
+      "prompt": "--dry-run --lane core-logic — show me what a hunt would turn up but don't leave anything behind.",
+      "expected_output": "A full hunt and verification pass runs and the findings are emitted to stdout, but nothing is persisted: no report file is written under the plugin data directory, no cursor metadata is recorded, the lane cursor does not advance, and no tracker item is filed even if --track were also present.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The hunt and the separate verification gate both run — --dry-run suppresses persistence, not verification",
+        "No report file is written and no cursor metadata block is persisted",
+        "The lane cursor does not advance, so the next real run still selects core-logic's position in the rotation",
+        "No tracker item is filed under --dry-run"
+      ]
+    }
+  ]
+}
