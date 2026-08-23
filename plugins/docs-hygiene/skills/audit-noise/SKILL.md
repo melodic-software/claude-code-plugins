@@ -141,7 +141,7 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 - **Not `/code-tidying:audit-comment-residue`.** The boundary is the FILE TYPE, not the shape vocabulary: three shape names (`plan-reference`, `conversational-antecedent`, `ticket-pr-residue`) are deliberately shared, so the same authoring failure gets the same name whichever file it lands in, and each file type keeps exactly one owner — markdown here, everything else there, no dedup or precedence rule needed. That split is also why the code skill is not simply widened to `.md`: on markdown its `history-narration` would fire on the same lines as this skill's `citation` with the opposite treatment (delete vs. relocate to a `## Sources` footer), and a conflict between two treatments is resolved by ownership, not by scope. The two detectors do not share pattern code, and this skill's are tighter — see Purpose.
 - **Not a markdown linter.** Structural GFM conventions belong to the repo's markdown linter (e.g. markdownlint-cli2); `/docs-hygiene:audit-noise` is semantic noise classification.
 - **Not an Edit operation.** Read-only: it surfaces findings; the author applies treatments.
-- **Not a content deduplicator.** When the noise is the same concept repeated across 3+ files, that is the sibling `/docs-hygiene:extract-ssot`'s territory.
+- **Not a content deduplicator.** When the noise is the same concept repeated across files, that is the sibling `/docs-hygiene:extract-ssot`'s territory at any multiplicity — sub-three repetition lands in its non-abstracting buckets, and only minting a new SSOT artifact waits for 3+.
 
 ## Sources
 

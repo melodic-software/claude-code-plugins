@@ -122,13 +122,22 @@ implement it by reference, do not restate it. Plugin-side notes only:
 `use_ask_user_question` is a native `userConfig` boolean (default `false`) governing whether the
 pipeline skills' question rounds render through `AskUserQuestion` or as inline prose — it is not a
 consumer-project file this skill writes. To change it, direct the user to `/plugin configure planning@<marketplace>`
-(interactive, any time). Headless: `--config` only applies on a fresh install (ignored once installed),
-so reconfigure via `claude plugin uninstall planning -s <scope>` then
-`claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`. Both
-commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin, and run
-from that project's directory for a `project`/`local` scope. Defaulting instead uninstalls a separate
-user-scope record while the effective install stays in place, so the reinstall lands at a scope that
-does not load. This skill never writes Claude Code user settings or `pluginConfigs`.
+(interactive, any time). Headless: rerun the install with the new value —
+`claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`. Against
+an already-installed plugin it prints `already installed` and still writes the value, verified on
+Claude Code 2.1.240 for a non-sensitive option at `user` scope; a `sensitive` option, and
+`project`/`local` scope, were not covered, so re-verify before relying on it there. Do **not**
+uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry, resetting every
+option in the README's Options reference table to its manifest default. `-s` defaults to `user`, so
+pass the scope `claude plugin list` reports for this plugin, and run from that project's directory for
+a `project`/`local` scope, or the write lands at a scope that does not load. This skill never writes
+Claude Code user settings or `pluginConfigs`.
+Afterwards, keep the two claims apart. The write is issued and the stored value is what you
+passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
+skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
+session start, so a same-session `check` still reports the OLD value — reporting that as a failed
+write would be wrong. Verify the effective value by rerunning `check` in a **fresh session**, and
+never claim an unobserved change.
 
 ### Verify after remediation
 

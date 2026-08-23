@@ -44,6 +44,10 @@
 #   2. description + when_to_use <= 1536 chars (per-skill listing-entry cap;
 #      counts the literal " - " joiner the harness inserts when when_to_use is
 #      populated)
+#  2b. description alone <= 1024 Unicode codepoints (Agent Skills spec FIELD
+#      maximum — a separate limit at a separate layer from check 2's listing cap;
+#      WARN, since no local validator enforces it and the Skills API rejects it
+#      at upload; counted locale-independently via iconv, as check 22 does)
 #   3. Trigger-keyword preservation vs the base ref (skipped for new skills;
 #      a phrase moved verbatim to a sibling skill's listing text — one the
 #      sibling did not carry at the base ref — WARNs, since the marketplace
@@ -203,8 +207,18 @@ if [[ "$HAVE_GIT" == 1 ]]; then
   SKILL_REL="${SKILL_REL%/}"
 fi
 
-# Tunables (listing description cap; SKILL.md line caps; vendor sync age).
+# Tunables (listing description cap; description field cap; SKILL.md line caps;
+# vendor sync age).
 DESC_CHAR_CAP=1536
+# Agent Skills spec field maximum for `description` ALONE — a different limit at a
+# different layer from DESC_CHAR_CAP above, which bounds the assembled listing entry
+# (description + " - " + when_to_use). The two do not unify and are checked separately.
+# Enforced by the Skills API at package/upload; NOT enforced locally — measured
+# 2026-08-23, `claude plugin validate --strict` (Claude Code 2.1.241) passes a
+# 1248-char description clean. A breach is therefore latent for filesystem/plugin
+# skills and hard for any skill uploaded through the Skills API, which is why this
+# is a WARN and DESC_CHAR_CAP stays a FAIL.
+DESC_FIELD_CAP=1024
 LINE_HARD_CAP=500
 LINE_SOFT_CAP=200
 SYNCED_MAX_AGE_DAYS=180
@@ -348,6 +362,34 @@ elif ((WTU_LEN > 0)); then
   note "description+when_to_use $COMBINED_LEN/$DESC_CHAR_CAP chars (desc $DESC_LEN + joiner $JOINER_LEN + when_to_use $WTU_LEN)"
 else
   note "description length $DESC_LEN/$DESC_CHAR_CAP chars"
+fi
+
+# --- Check 2b: description field alone <= DESC_FIELD_CAP codepoints ----------
+# The spec's per-FIELD maximum, distinct from check 2's listing-entry cap: a
+# description can sit under 1536 combined and still breach 1024 on its own. The
+# Skills API rejects that at upload; nothing local does (see DESC_FIELD_CAP above),
+# so this warns rather than failing — it reports a real spec breach without
+# blocking a fleet that carries pre-existing offenders.
+#
+# Counted in CODEPOINTS, not bytes: the spec says "Maximum 1024 characters", and
+# a byte count would false-positive on any non-ASCII description under a
+# byte-oriented locale — measured, 600 'é' characters report as 1200 under
+# LC_ALL=C. Same UTF-8 -> UTF-32BE iconv form check 22 uses (every codepoint
+# becomes exactly 4 bytes, so byte-count/4 is the codepoint count on any host),
+# with the same UTF-8-locale fallback where iconv is absent. DESC_LEN stays a
+# byte count for check 2, whose 1536 listing cap is a separate measure.
+if command -v iconv >/dev/null 2>&1; then
+  DESC_CP_LEN=$(($(printf '%s' "$CUR_DESC" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
+else
+  DESC_CP_LEN="$(
+    LC_ALL=C.UTF-8
+    printf '%s' "${#CUR_DESC}"
+  )"
+fi
+if ((DESC_CP_LEN > DESC_FIELD_CAP)); then
+  warn "description alone is $DESC_CP_LEN codepoints (Agent Skills spec field maximum $DESC_FIELD_CAP) — accepted locally, rejected on Skills API upload"
+else
+  note "description field $DESC_CP_LEN/$DESC_FIELD_CAP codepoints (spec field maximum)"
 fi
 
 # --- Check 3: trigger-keyword preservation vs HEAD -------------------------

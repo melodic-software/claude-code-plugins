@@ -1,0 +1,84 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-verifies-the-linter-actually-executes",
+      "prompt": "/markdown-format:setup check",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, markdownlint-cli2 resolution AND liveness, the consumer markdownlint config cascade, gitignored-path scope, the markdown_format_enabled toggle, and hook registration — one remediation line per FAIL, nothing modified.",
+      "files": [],
+      "expectations": [
+        "Resolves markdownlint-cli2 exactly the way the hook does, including its symlink/escape validation of a repo-local shim, so a shim the hook would reject does not PASS here",
+        "Goes past resolution to liveness: runs the resolved tool with --version, and treats resolution without successful execution as FAIL with the execution error in the remediation line",
+        "Names the concrete broken-shim causes the liveness probe catches — a missing Node interpreter or a dangling target",
+        "Reports the effective markdown_format_lint_gitignored value and treats unexpanded or empty as the default false, meaning gitignored Markdown is skipped"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-markdownlint-config-inverts-the-jq-verdict",
+      "prompt": "/markdown-format:setup check\n\nThere is no markdownlint config in this repo and jq isn't installed either. What is actually wrong?",
+      "expected_output": "Answers that the missing config, not jq, is why nothing happens: the hook decides the opt-in first and emits nothing at all without it, so jq's absence is INFO here rather than the usual FAIL, and the un-opted-in path is reported as INFO — inactive, not PASS.",
+      "files": [],
+      "expectations": [
+        "Downgrades the missing jq to INFO in this state and says explicitly that the missing config, not jq, is why nothing happens",
+        "Reports the hook as INFO — inactive, not PASS — for a path no config governs, and states that without the opt-in there is no --fix, no findings, and no notice of any kind",
+        "Never reports markdownlint's own default rules as the fallback — an unconfigured repo gets no rules, not the defaults",
+        "Leads with the missing config rather than burying it under passing prerequisites, and names the remediation in the same line"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "config-cascade-is-per-path-not-repo-wide",
+      "prompt": "/markdown-format:setup check\n\nWe have a markdownlint config under docs/ but none at the repo root. Is the whole repo covered?",
+      "expected_output": "No: the opt-in is per-path, mirroring the hook's walk from an edited file's directory up to the repo root, so a nested config covers only its own subtree while a root config would cover the tree. Reports the root config the cascade discovers (or its absence) and lists nested configs with their directory scope.",
+      "files": [],
+      "expectations": [
+        "States that the opt-in is per-path and that a nested config covers only its own subtree while a root config covers the tree",
+        "Searches the whole tree while skipping node_modules, and lists each nested config with the directory scope it governs",
+        "Surfaces the README's configuration trust boundary for every config the hook's own risk collection would flag",
+        "Does not report the repo as covered on the strength of a nested config alone"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "bare-apply-neither-installs-nor-writes-rules",
+      "prompt": "/markdown-format:setup apply\n\nmarkdownlint-cli2 isn't installed and we have no config. Set it up — install the linter and pick sensible rules for us.",
+      "expected_output": "Bare apply installs nothing: the dependency install runs only under the explicit `apply install-lint` invocation, through the repository's own package manager resolved from its lockfile or packageManager field. Declines to pick rules — a minimal config is offered only when explicitly asked, because which rules a repository adopts is its own decision.",
+      "files": [],
+      "expectations": [
+        "Does not install markdownlint-cli2 from bare apply — states that install-lint is the explicit argument that authorizes it",
+        "Does not choose or write a rule set; offers a minimal config only as an explicitly-requested action",
+        "Never introduces a competing lockfile: with no package.json, an ambiguous multi-lockfile state, or a lockfile contradicting packageManager, it stops with manager-specific guidance instead of guessing",
+        "Never installs system packages and never writes Claude Code user settings, pluginConfigs, or the plugin cache"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "repeat-apply-changes-nothing",
+      "prompt": "/markdown-format:setup apply\n\nEverything was green ten minutes ago. Run it again.",
+      "expected_output": "Re-runs check, finds no FAIL, reports \"already configured\", and makes no change on the second pass.",
+      "files": [],
+      "expectations": [
+        "Runs check first even on the repeat invocation",
+        "Reports \"already configured\" and performs no write",
+        "Does not re-run a dependency install that already succeeded",
+        "Lints, fixes, and touches no repository content — the only execution check performs is the harmless --version liveness probe"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-off-reruns-install-never-uninstalls",
+      "prompt": "/markdown-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
+      "expected_output": "Routes the headless change to a plain `claude plugin install markdown-format@<marketplace> -s <scope> --config markdown_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install … --config markdown_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for, and notes the flag is repeatable for the second key markdown_format_lint_gitignored",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option including the gitignored-lint key to its manifest default",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
+        "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
+      ]
+    }
+  ]
+}

@@ -3,6 +3,26 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.9]
+
+### Fixed
+
+- **Docs:** the generated options block's headless route no longer implies `--config` applies
+  only at install time, and now carries the CLI version its claim was verified against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). The block also
+  now separates the write from its effect: the value is stored immediately, but hooks are handed
+  their `CLAUDE_PLUGIN_OPTION_*` at session start, so a check run in the same session still
+  reports the old value and that is not a failed write. Two upstream links that pointed at empty
+  backward-compatibility anchors on the settings page were repointed at the headings that hold
+  the content.
+
+### Added
+
+- **`/repo-hygiene:setup`** — the plugin declared `userConfig` but shipped no setup skill. Adds
+  the fleet's uniform check/apply contract: `check` verifies what the native configuration
+  prompt cannot, `apply` routes a reconfiguration and then reads the effective value back before
+  reporting it ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
+
 ## [0.10.8]
 
 ### Fixed

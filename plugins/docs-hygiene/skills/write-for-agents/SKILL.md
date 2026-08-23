@@ -96,7 +96,9 @@ the positive alternative in the same sentence.
 
 ## After writing
 
-- Repeated the same prose a third time? Invoke `/docs-hygiene:extract-ssot` via the Skill tool.
+- Repeated the same prose in another file — even a second occurrence, or a recap of an SSOT that
+  already exists? Invoke `/docs-hygiene:extract-ssot` via the Skill tool. Creating a new shared home
+  still waits for the third occurrence; below that it remedies the repetition in place.
 - Resolved or coined a domain term? Invoke `/domain-driven-design:curate-language` via the
   Skill tool (if that plugin is installed) — never hand-write a glossary entry.
 - Editing exposed pre-existing problems in the surrounding doc? Invoke the fitting audit
