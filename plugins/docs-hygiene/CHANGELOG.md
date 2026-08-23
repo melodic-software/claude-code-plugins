@@ -53,7 +53,18 @@
 
 ### Fixed
 
-Seven review findings on the shape as first written, all reproduced before being fixed:
+Eight review findings on the shape as first written, all reproduced before being fixed:
+
+- **The sentence splitter collapsed a whole line when it met an embedded abbreviation.** The
+  left-anchored form could not skip a period not followed by whitespace (`e.g.`), so the match failed
+  on the first iteration and the entire line became one "sentence". On
+  `See e.g. the credential rotation policy. Never call the tool directly.` the guardrail word in the
+  first clause then suppressed the real prohibition in the second — **silent finding loss**, the one
+  outcome the carve-outs exist to make impossible, reached through the splitter rather than through a
+  marker. Sentences are now peeled right-to-left with a greedy leading `.*`, which splits at every
+  terminator that IS followed by whitespace; an abbreviation merely over-splits, and over-splitting
+  only narrows the window a suppressing marker can act from. The header comment had claimed the
+  opposite behaviour ("over-split … the fail-safe direction") and was wrong.
 
 - **Every marker is fenced to a whole word.** The withholding predicates matched bare substrings, so
   `secretary` satisfied the `secret` guardrail and `preferentially` satisfied the `prefer` pairing —

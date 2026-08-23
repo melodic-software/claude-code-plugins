@@ -413,18 +413,35 @@ audit_noise_is_ignore_para_marker() {
 # relay file receive one disposition for one candidate — the contract's
 # "fall-through takes effect before the producer's FIRST output".
 
-# Split into sentences on [.!?] followed by whitespace or end-of-string.
-# Abbreviations ("e.g. ") over-split; that only narrows the window a pairing
-# marker may suppress from, which is the fail-safe direction.
+# Split into sentences on [.!?] followed by whitespace.
+#
+# Peeled RIGHT-TO-LEFT with a greedy leading `.*`, which is what makes an
+# embedded abbreviation safe. A left-anchored `^[^.!?]*[.!?]+[[:space:]]+`
+# cannot skip past `e.g.` — that period is followed by `g`, not whitespace, so
+# the anchored match fails on the FIRST iteration and the whole line collapses
+# into one "sentence". That is not a cosmetic difference: on
+# `See e.g. the credential rotation policy. Never call the tool directly.` the
+# guardrail word in the first clause would then suppress the real prohibition in
+# the second, SILENTLY WITHHOLDING a finding — the one outcome the carve-outs
+# are built to make impossible.
+#
+# Peeling from the right instead splits at every terminator that IS followed by
+# whitespace, so an abbreviation merely over-splits (`See e.g.` becomes its own
+# fragment). Over-splitting only narrows the window a suppressing marker can act
+# from, which is the fail-safe direction.
 audit_noise_split_sentences_into() {
   local -n _audit_noise_sentences_out="$1"
   local rest="$2"
+  local tail_parts=() i
   _audit_noise_sentences_out=()
-  while [[ "$rest" =~ ^([^.!?]*[.!?]+)[[:space:]]+(.*)$ ]]; do
-    _audit_noise_sentences_out+=("${BASH_REMATCH[1]}")
-    rest="${BASH_REMATCH[2]}"
+  while [[ "$rest" =~ ^(.*[.!?])[[:space:]]+(.*)$ ]]; do
+    tail_parts+=("${BASH_REMATCH[2]}")
+    rest="${BASH_REMATCH[1]}"
   done
   [[ -n "${rest//[[:space:]]/}" ]] && _audit_noise_sentences_out+=("$rest")
+  for ((i = ${#tail_parts[@]} - 1; i >= 0; i--)); do
+    [[ -n "${tail_parts[i]//[[:space:]]/}" ]] && _audit_noise_sentences_out+=("${tail_parts[i]}")
+  done
   return 0
 }
 

@@ -821,6 +821,34 @@ marker_out="$(bash "$DETECT" "$NEG_MARKER")"
 assert_contains "marker comes from the triggering sentence" "$marker_out" "Finding marker: do not"
 assert_not_contains "marker is not the carved-out sentence's" "$marker_out" "Finding marker: never"
 
+# SENTENCE SPLITTING AROUND AN EMBEDDED ABBREVIATION. A left-anchored splitter
+# cannot skip a period that is not followed by whitespace, so the whole line
+# collapses into one "sentence" and a carve-out word in an EARLIER clause
+# suppresses a real prohibition in a later one — a silent withhold. The
+# right-to-left peel makes an abbreviation over-split instead, which only
+# narrows the window a suppressing marker acts from.
+NEG_ABBREV="$TEST_TMPDIR/negation-abbrev.md"
+cat >"$NEG_ABBREV" <<'EOF'
+# Abbreviation fixture
+
+See e.g. the credential rotation policy. Never call the tool directly.
+EOF
+abbrev_out="$(bash "$DETECT" "$NEG_ABBREV")"
+assert_contains "a guardrail word in an earlier clause cannot suppress a later prohibition" \
+  "$abbrev_out" "Finding shape: negation"
+assert_contains "and the marker is the later sentence's" "$abbrev_out" "Finding marker: never"
+
+# The carve-out must still hold when the guardrail really is in the SAME
+# sentence — the split fix must not turn every guardrail into a finding.
+NEG_SAME="$TEST_TMPDIR/negation-same-sentence.md"
+cat >"$NEG_SAME" <<'EOF'
+# Same-sentence guardrail fixture
+
+Never commit a credential to the repository.
+EOF
+same_out="$(bash "$DETECT" "$NEG_SAME")"
+assert_not_contains "a same-sentence guardrail still carves out" "$same_out" "Finding shape: negation"
+
 # SKILL.md's `Uncommitted .md files:` line previews the same discovery with a grep rather
 # than with detect.sh's parse, so it shares the defect CLASS without sharing the code: git
 # C-quotes a path it treats specially, and a quoted record ends with the closing quote, not
