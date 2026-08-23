@@ -16,6 +16,30 @@ consumer tiers, explicit adoption — is owned by `melodic-software/standards`
 `conventions/engineering/shareable-artifact-design.md`; this document specializes it for Claude Code
 plugins and adds only what is plugin-specific.
 
+**Org-agnosticism** names the publisher half of that boundary, and it governs *tokens in shipped
+content*, not only runtime behavior: the publishing organization's name, its marketplace id, its own
+repository names, and publisher-prefixed configuration keys do not appear in a plugin's skill, agent,
+or schema content. One use is sanctioned — a citation that *names a source rather than a target the
+plugin acts on*: a documentation URL, or a cross-plugin reference to this marketplace's own published
+files, cited for a reader to consult. The line is what the content does with it, not where it points:
+prose citing such a URL is conforming, while a skill instructed to fetch, poll, or write to it has
+made the publisher a runtime dependency and is not. (`plugin.json` publisher metadata sits outside
+this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
+the manifest is for.)
+
+Like the setup contract below, **this is a normative target, not a description of the fleet**, and
+enforcement reaches a strict subset of it. `scripts/validate-plugin-contracts.mjs` gates the
+marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys across every plugin's skill
+content, and holds the `autonomy` plugin to a stricter token set;
+`plugins/github/github.test.sh` runs a wider sweep over its own plugin's prose as its "agnostic
+conformance" check — a sibling of that file's D4 zero-vendored-knowledge checks, not one of them. The
+bare organization name in skill prose is gated nowhere *fleet-wide* — only inside `autonomy` and
+`github`, each by its own narrower sweep — and agent content is gated nowhere at all, so shipped
+skills predating this statement are nonconforming until brought into conformance rather than absolved
+by a green build. A fleet-wide edit answers to two independent mechanisms, both steps of the same
+`plugin-gate` CI job and neither aware of the other; consolidating them behind this statement, and
+settling that conformance gap deliberately, is tracked in issue #3136.
+
 Keep plugins horizontally decoupled:
 
 - A plugin owns its skills, hooks, agents, scripts, dependencies, and state.
@@ -259,8 +283,11 @@ hand-edit — migrates to `userConfig` with the schema used honestly:
   lands in `~/.claude/.credentials.json`, so verify storage on the target platform before migrating
   a secret; and
 - `claude plugin install --config` documented in the plugin's setup skill for headless use — note
-  in that same documentation that this flag only seeds a value on a fresh install; re-running it
-  against an already-installed plugin does not update the stored value (empirically verified); and
+  in that same documentation that re-running it against an already-installed plugin prints
+  `already installed` **and still writes the value**: the short-circuit is about the install, not the
+  config write. **Empirically verified on Claude Code 2.1.240** (a non-sensitive option at `user`
+  scope: a non-default value written to an installed plugin, then restored) — a `sensitive` option
+  and `project`/`local` scope were not covered, so re-verify before relying on it there; and
 - for any `sensitive: true` option, the plugin's README documents `/plugin configure
   <plugin>@<marketplace>` as the rotation/clear path (see
   [`docs/extensibility-contract-smoke-tests.md`](extensibility-contract-smoke-tests.md) Test E —
@@ -364,8 +391,32 @@ is closed. Setup must be:
 - idempotent and safe to rerun;
 - transparent about what it inferred, changed, skipped, or could not verify;
 - limited to configuration the plugin owns;
-- safe for existing files, preserving unrelated user content; and
+- safe for existing files, preserving unrelated user content;
+- evidence-bearing: after making or routing a change, it reports the effective value it *observed*,
+  and says plainly where it could not observe one — never an unobserved change; and
 - non-interactive when complete arguments are supplied, so automation and headless use remain possible.
+
+The readback is a property of the `setup` skill, not of the `apply` verb: it belongs to whichever
+action made or routed the change, so a check-only skill (below) carries it in `check`. Where the
+change was routed to a surface setup may not write — Claude Code's native configuration flow, an
+edit left to the operator — the rule is unchanged.
+
+**Keep two claims apart:** that the write was issued and stored, and how the *running* session
+behaves. They can legitimately disagree, so a naive readback reports false failures — and reporting
+one as a failed write is the specific error this clause exists to prevent. Verify the effective value
+by re-checking in a **fresh session**, and never claim an unobserved change. A same-session `check`
+therefore satisfies the bullet above by reporting what it observed *and* naming it as possibly stale,
+not by pretending the running session already reflects the write.
+
+Two mechanisms are offered across the fleet as the reason the two diverge: that a `${user_config.*}`
+value is substituted into skill content at load, and that a hook's `CLAUDE_PLUGIN_OPTION_*` mirror
+comes from an environment fixed at session start. Both timings are **untested here**.
+[Smoke-test D](extensibility-contract-smoke-tests.md) records the rendered *result* in skill content
+on Claude Code 2.1.212, not when substitution happens; smoke-test B records only a negative on
+2.1.207, that a skill-spawned Bash subprocess receives no mirror at all, and sources the
+agent-content half of that seam to upstream spec rather than to an observation. The rule does not
+rest on either: a fresh-session re-check is correct whichever way they resolve, which is why it is
+the prescription and they are only the explanation.
 
 Setup is one **plugin-level** `setup` skill, never a per-skill setup action. Setup granularity
 follows install granularity: a plugin installs and is configured as a unit, and its configuration

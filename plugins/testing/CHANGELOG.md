@@ -3,6 +3,32 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.4]
+
+### Fixed
+
+- **`audit`'s own unit suite carried a can't-fail assertion for the `date:` frontmatter
+  field.** `cant-fail-scan.test.sh` asserted `date: 20` under the name "date frontmatter is
+  present" — a truncated prefix of a structured value, so it passed for the emitter's real
+  `2026-08-23T04:37:40Z` and equally for `2026-08-21T13-36-00Z`, a hyphenated time that is
+  ISO-8601 in neither the extended nor the basic profile. That is the same assertion shape
+  that pinned `ai-slop`'s emitter bug rather than catching it (#3097), sitting inside the
+  skill whose whole purpose is finding tests that cannot fail. The assertion now anchors the
+  full extended form with an explicit `Z`
+  (`^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`), and was confirmed
+  discriminating: it FAILS against both malformed shapes above and PASSES against
+  `cant-fail-scan.sh --findings` output. Test-only — the emitter already stamped the correct
+  format, so no scanner behavior changes.
+
+### Added
+
+- **`assert_matches <name> <haystack> <ERE>` in `cant-fail-scan.test.sh`.** An assertion about
+  the *shape* of a field's value now has somewhere to go other than a substring test on part
+  of that value, which is what produced the guard above. The file's sibling assertions were
+  re-read at the same time: every other one pins an exact literal that a malformed value would
+  not contain, so that was the only non-discriminating guard present and nothing else was
+  rewritten.
+
 ## [0.7.3]
 
 ### Changed

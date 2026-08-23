@@ -155,6 +155,46 @@ wit_resolve_repo() {
   printf '%s\n' "$WIT_GH_OUT"
 }
 
+# --- Assignee ops (REST) -----------------------------------------------------
+# These deliberately use `gh api` (REST) rather than `gh issue view/edit`. The
+# `gh issue` subcommands resolve assignees through GraphQL, and sandboxed
+# sessions (Claude Code on the web / remote execution) serve only a pinned set
+# of GraphQL operations, refusing the rest with HTTP 403 — which made the whole
+# lease protocol unrunnable there. REST `…/issues/<n>/assignees` is served.
+# The <writer> argument keeps the identity routing intact: `read` = bare gh =
+# the session identity the claim carve-out requires (README "Edit labels /
+# assignees"); `write` = the bot wrapper.
+
+# wit_read_assignees <owner> <repo> <number> — WIT_GH_OUT = JSON array of logins.
+wit_read_assignees() {
+  wit_run_gh read api "repos/$1/$2/issues/$3" --jq '[.assignees[].login]'
+}
+
+# wit_add_assignee <writer> <owner> <repo> <number> <login>
+# NOTE: unlike `gh issue edit --add-assignee`, REST POST silently IGNORES a user
+# who cannot be assigned (no push access) and still returns 201. Callers that
+# depend on the assignment having landed MUST verify with wit_read_assignees.
+wit_add_assignee() {
+  local writer="$1"
+  wit_run_gh "$writer" api --method POST "repos/$2/$3/issues/$4/assignees" \
+    -f "assignees[]=$5" --jq '[.assignees[].login]'
+}
+
+# wit_remove_assignee <writer> <owner> <repo> <number> <login>
+wit_remove_assignee() {
+  local writer="$1"
+  wit_run_gh "$writer" api --method DELETE "repos/$2/$3/issues/$4/assignees" \
+    -f "assignees[]=$5" --jq '[.assignees[].login]'
+}
+
+# wit_try_remove_assignee <owner> <repo> <number> <login> — best-effort rollback
+# on the session identity; never fails the caller (mirrors the bare-gh `|| true`
+# rollback calls this replaces).
+wit_try_remove_assignee() {
+  gh api --method DELETE "repos/$1/$2/issues/$3/assignees" \
+    -f "assignees[]=$4" >/dev/null 2>&1 || true
+}
+
 # wit_issue_url <owner> <repo> <number>
 wit_issue_url() {
   printf 'https://github.com/%s/%s/issues/%s\n' "$1" "$2" "$3"

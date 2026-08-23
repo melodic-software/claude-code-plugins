@@ -382,18 +382,41 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
                 # forms need no name match: InvocationOperator identifies them,
                 # and their element 0 IS the target, so it is checked too.
                 $loaders = @("Import-Module", "ipmo", "Add-Type", "New-Module",
-                    "Invoke-Expression", "iex", "Import-PowerShellDataFile",
-                    "Invoke-Command", "Start-Job")
+                    "Import-PowerShellDataFile", "Invoke-Command", "Start-Job")
+                # Invoke-Expression is its own case: its argument is CODE, not a
+                # path, so even a constant string cannot be pinned - the code it
+                # evaluates may itself load a file this scan never sees, a
+                # dot-source spelled inside the evaluated text. Listing it as a
+                # loader pins the code STRING as if it named a file, so
+                # `Invoke-Expression 'Import-Module ./evil.psm1'` reads as pinned
+                # while the load it really performs is never seen. Binding it
+                # would mean recursively parsing evaluated text, so the state is
+                # refused instead. A linter rule has no reason to evaluate text.
+                $evaluators = @("Invoke-Expression", "iex")
                 $cmdAsts = $fileAst.FindAll({
                         param($n) $n -is [System.Management.Automation.Language.CommandAst]
                     }, $true)
                 foreach ($cmdAst in $cmdAsts) {
                     $cmdName = $cmdAst.GetCommandName()
+                    # A module-qualified name resolves to the same command:
+                    # `Microsoft.PowerShell.Core\Import-Module` IS Import-Module.
+                    # GetCommandName returns the qualified spelling as written, so
+                    # an exact-name membership test never matches it and the load
+                    # is skipped outright. The bare name after the last qualifier
+                    # separator is what the membership tests below must see.
+                    $bareName = $cmdName
+                    if (-not [string]::IsNullOrEmpty($bareName)) {
+                        $bareName = ($bareName -split "[\\/]")[-1]
+                    }
+                    if ($evaluators -contains $bareName) {
+                        Write-Output "PSSA_TRUST UNPINNABLE"
+                        exit 6
+                    }
                     $isLoad = $cmdAst.InvocationOperator -ne
                         [System.Management.Automation.Language.TokenKind]::Unknown
                     if (-not $isLoad) {
                         $isLoad = [string]::IsNullOrEmpty($cmdName) -or
-                            $loaders -contains $cmdName
+                            $loaders -contains $bareName
                     }
                     if (-not $isLoad) { continue }
                     # A loader fed by a PIPELINE takes its source from the

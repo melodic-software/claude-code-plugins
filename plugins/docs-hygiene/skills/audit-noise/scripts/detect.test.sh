@@ -3,6 +3,10 @@
 # plugin; fixtures are built inline in a tmpdir).
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DETECT="$SCRIPT_DIR/detect.sh"
 TEST_TMPDIR="$(mktemp -d)"
@@ -637,6 +641,40 @@ assert_contains "chunk still emits findings for selected file" "$chunk_out" "chu
 bad_chunk_exit=0
 bash "$DETECT" --offset -1 "$CLEAN" >/dev/null 2>&1 || bad_chunk_exit=$?
 assert_exit "negative --offset exits 2" 2 "$bad_chunk_exit"
+
+# --- Porcelain discovery: tricky paths survive the parse (#3143) ----------------------
+# A plain path passes either implementation, so each case below needs a path git
+# treats specially: one containing a literal " -> ", and one containing a backslash.
+
+PORC_REPO="$TEST_TMPDIR/porcelain-repo"
+mkdir -p "$PORC_REPO"
+git -C "$PORC_REPO" init -q
+git -C "$PORC_REPO" config user.email fixture@example.invalid
+git -C "$PORC_REPO" config user.name fixture
+
+printf '# arrow\n\nEmpirically observed in the arrow file.\n' >"$PORC_REPO/notes -> draft.md"
+printf '# plain\n\nEmpirically observed in the plain file.\n' >"$PORC_REPO/plain.md"
+
+porc_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
+assert_contains "untracked path containing ' -> ' is not split as a rename" "$porc_out" "notes -> draft.md"
+assert_contains "ordinary untracked path still discovered" "$porc_out" "plain.md"
+
+# The gate must not cost us real renames: a genuine R record still yields the NEW path.
+printf '# renamed\n\nEmpirically observed in the renamed file.\n' >"$PORC_REPO/before.md"
+git -C "$PORC_REPO" add before.md
+git -C "$PORC_REPO" commit -qm 'seed rename fixture'
+git -C "$PORC_REPO" mv before.md after.md
+rename_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
+assert_contains "rename record resolves to the new path" "$rename_out" "after.md"
+assert_not_contains "rename record does not keep the old path" "$rename_out" "before.md"
+
+# git C-quotes a path containing a backslash, so \\ needs undoing as well as \".
+if printf '# backslash\n\nEmpirically observed in the backslash file.\n' >"$PORC_REPO/back\\-slash.md" 2>/dev/null; then
+  bs_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
+  assert_contains "backslash path is unescaped and discovered" "$bs_out" 'back\-slash.md'
+else
+  printf 'SKIP: filesystem rejects a backslash in a filename\n'
+fi
 
 # --- Final report --------------------------------------------------------------------
 

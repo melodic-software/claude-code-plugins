@@ -3,6 +3,40 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Added
+
+- **`dissolve-comments` empty-argument scope fallback (#3117).** A clean tree no longer ends the
+  run at the friendly no-op exit: the empty argument now resolves down a ladder — uncommitted
+  diff → the current branch's diff vs. the base/default branch (the PR diff when there is one) →
+  the whole repository. The ladder advances on a rung's absence, never on emptiness — a rung that
+  exists but yields no code files ends the run with the exclusion tally instead of widening, so a
+  docs-only branch never escalates to repo-wide scope. Widening to repo-wide scope is confirmed
+  in an interactive session (state what resolved and why, get a yes); a non-interactive/autonomous
+  run proceeds deterministically but takes any widened scope in **safe mode** (class-A deletions
+  only, every class-B as a proposal), never the full default mode.
+- **Zero-in-scope runs report the exclusion tally (#3117).** A resolved scope whose every
+  enumerated file is dropped by exclusions/exemptions reports total enumerated, 0 in scope, and
+  counts per drop reason (non-code, GLOBAL HARD path, exempt surface, SSOT copy) instead of
+  exiting silently — a clean repo is now distinguishable from a misconfigured run.
+
+### Changed
+
+- **`.claude/` exclusion wording reconciled (#3117).** `tidy`'s exclusions reference phrased the
+  Claude Code surface as an enumerated glob list (`.claude/hooks/**` et al.) while
+  `dissolve-comments`' safety reference said "`.claude/` agent config and hooks" — a literal
+  reader of each reached different answers for a settings-wired bootstrap script outside
+  `.claude/hooks/`. The GLOBAL HARD entry now covers `.claude/**` in full plus any script wired
+  as a hook command in either project settings scope (`.claude/settings.json` or
+  `.claude/settings.local.json`) wherever it lives (hook commands may point outside `.claude/`);
+  the safety reference and `tidy`'s orientation summary state the same list.
+- **The SSOT / materialized-copy header check is a Workflow scoping step (#3117).**
+  `dissolve-comments` checked file headers for SSOT / do-not-edit declarations only as a Gotchas
+  bullet; the check gates whether a file may be edited at all, so it now lives in Workflow step 1
+  (triage the source, run its declared sync, never touch a copy) with the gotcha shrunk to a
+  pointer plus the war story.
+
 ## [0.13.3]
 
 ### Fixed

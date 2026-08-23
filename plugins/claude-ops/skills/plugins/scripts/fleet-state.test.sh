@@ -1162,6 +1162,675 @@ rc=$?
 assert_exit "--ids with --all: exit 2" 2 "$rc"
 assert_contains "--ids with --all: refuses rather than inventing a shape" "$out" "cannot be combined"
 
+# ============================================================================
+# catalog_versions — per-plugin versions read from the marketplace checkout,
+# and the FAIL-OPEN contract that governs every consumer of them.
+# ============================================================================
+
+# Seed a catalog whose entries carry a string `source`, and materialize each
+# named plugin's own manifest under the marketplace subdirectory — the fixture
+# mirror of production's <installLocation>/<entry.source>/.claude-plugin/.
+# Args: case_dir, then `<plugin-name>=<version>` pairs. A pair with an EMPTY
+# version writes a manifest with no `version` key; a plugin named in the
+# catalog but omitted from the pairs gets no manifest directory at all. Both
+# are fail-open inputs, which is why the helper can express them.
+seed_catalog_versions_case() {
+  local case_dir="$1" pair pname pver entries=""
+  shift
+  for pair in "$@"; do
+    pname="${pair%%=*}"
+    pver="${pair#*=}"
+    mkdir -p "$case_dir/catalog/market1/$pname/.claude-plugin"
+    if [[ -n "$pver" ]]; then
+      write "$case_dir/catalog/market1/$pname/.claude-plugin/plugin.json" \
+        "$(jq -cn --arg n "$pname" --arg v "$pver" '{name: $n, version: $v}')"
+    else
+      write "$case_dir/catalog/market1/$pname/.claude-plugin/plugin.json" \
+        "$(jq -cn --arg n "$pname" '{name: $n}')"
+    fi
+    entries+="$pname"$'\n'
+  done
+  write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+}
+
+# A resolvable manifest yields its version; the catalog entry itself carries
+# none, which is the whole reason this read exists.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.2.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "catalog_versions: reads the version from the plugin's own manifest" \
+  "0.2.0" "$(jq -r '.catalog_versions["alpha@market1"]' <<<"$out" 2>/dev/null)"
+
+# `./` prefix on the source is stripped; a bare relative source works too.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.2.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "catalog_versions: a source with no ./ prefix resolves identically" \
+  "0.2.0" "$(jq -r '.catalog_versions["alpha@market1"]' <<<"$out" 2>/dev/null)"
+
+# --- The three fail-open inputs, each asserted to yield null, never a guess.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.2.0
+# `beta` is in the catalog with a valid source but no manifest was materialized.
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}, {"name": "beta", "source": "./beta"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "catalog_versions fail-open: an unmaterialized plugin directory yields null" \
+  "null" "$(jq -r '.catalog_versions["beta@market1"]' <<<"$out" 2>/dev/null)"
+assert_eq "catalog_versions fail-open: a sibling that DOES resolve is unaffected" \
+  "0.2.0" "$(jq -r '.catalog_versions["alpha@market1"]' <<<"$out" 2>/dev/null)"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "catalog_versions fail-open: a manifest with no version key yields null" \
+  "null" "$(jq -r '.catalog_versions["alpha@market1"]' <<<"$out" 2>/dev/null)"
+
+# An object-valued `source` (a remote spec) has no repo-relative path at all.
+# It is skipped entirely, so the lookup misses — which must read as null, the
+# same fail-open answer, not as an error and not as a version.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.2.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}, {"name": "remote", "source": {"source": "github", "repo": "example/remote"}}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "catalog_versions fail-open: an object-valued source yields null, not an error" \
+  "null" "$(jq -r '.catalog_versions["remote@market1"]' <<<"$out" 2>/dev/null)"
+assert_eq "catalog_versions fail-open: an object-valued source does not abort the block" \
+  "0" "$(jq -r 'if .marketplace.error then 1 else 0 end' <<<"$out" 2>/dev/null)"
+
+# A malformed manifest must not take the run down with it.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.2.0
+write "$case_dir/catalog/market1/alpha/.claude-plugin/plugin.json" '{not valid json'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "catalog_versions fail-open: an unparsable manifest still exits 0" 0 "$rc"
+assert_eq "catalog_versions fail-open: an unparsable manifest yields null" \
+  "null" "$(jq -r '.catalog_versions["alpha@market1"]' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
+# --ids update-candidates-user — a CANDIDATE list. It may withhold an id only
+# when it positively proved that id already sits at the catalog version.
+# ============================================================================
+
+# Withheld: installed version equals the catalog version.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+rc=$?
+assert_exit "update-candidates-user: exit 0" 0 "$rc"
+assert_eq "update-candidates-user: withholds an id already at the catalog version" "" "$out"
+
+# Emitted: installed version differs from the catalog version.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.2.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "update-candidates-user: emits an id behind the catalog version" \
+  "alpha@market1" "$out"
+
+# Emitted: installed version is AHEAD of the catalog (a local build). Plain
+# inequality, deliberately not an ordering compare — an ahead id stays a
+# candidate exactly as it is when no pre-filter runs at all.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"9.9.9"}]}}'
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "update-candidates-user: an id AHEAD of the catalog stays a candidate" \
+  "alpha@market1" "$out"
+
+# Never narrows past user scope: a project-scope record is not this selector's
+# business even when its version differs.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"project","projectPath":"C:\\nope","installPath":"x","version":"0.0.1"},{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "update-candidates-user: a differing project-scope record is not a user-scope candidate" \
+  "" "$out"
+
+# --- THE FAIL-OPEN PROOF ---------------------------------------------------
+# The contract that matters is not "one unreadable id is tolerated" — it is
+# that when NO catalog version resolves, the pre-filter degrades to exactly the
+# unfiltered sweep. Measured on real machines this is the COMMON case, not the
+# rare one (a marketplace whose entries carry object sources, or whose checkout
+# does not materialize every plugin directory), so it is asserted as an
+# equality against installed-user rather than as a spot check.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.1.0
+# Four catalog entries; only `alpha` could ever resolve, and its manifest is
+# then removed so that NONE of the four does.
+rm -rf "$case_dir/catalog/market1/alpha"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}, {"name": "beta", "source": "./beta"}, {"name": "gamma", "source": {"source": "github", "repo": "e/g"}}, {"name": "delta"}]}'
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [{"scope": "user", "installPath": "a", "version": "0.1.0"}],
+    "beta@market1":  [{"scope": "user", "installPath": "b", "version": "0.2.0"}],
+    "gamma@market1": [{"scope": "user", "installPath": "c", "version": "0.3.0"}],
+    "delta@market1": [{"scope": "user", "installPath": "d", "version": "0.4.0"}]
+  }
+}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "fail-open proof: no catalog version resolves for any of the four entries" \
+  "0" "$(jq -r '[.catalog_versions | to_entries[] | select(.value != null)] | length' <<<"$out" 2>/dev/null)"
+ARGS=(--marketplace market1 --ids installed-user)
+out_unfiltered=$(run_ids "$case_dir")
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out_candidates=$(run_ids "$case_dir")
+assert_eq "fail-open proof: with no readable catalog version the sweep is not narrowed at all" \
+  "$out_unfiltered" "$out_candidates"
+assert_eq "fail-open proof: and that unnarrowed sweep is every user-scope id, not an empty list" \
+  "alpha@market1
+beta@market1
+gamma@market1
+delta@market1" "$out_candidates"
+
+# Partial resolution narrows only the ids it proved, and leaves every
+# unresolvable sibling in the sweep.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}, {"name": "beta", "source": "./beta"}]}'
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [{"scope": "user", "installPath": "a", "version": "0.1.0"}],
+    "beta@market1":  [{"scope": "user", "installPath": "b", "version": "0.2.0"}]
+  }
+}'
+ARGS=(--marketplace market1 --ids update-candidates-user)
+out=$(run_ids "$case_dir")
+assert_eq "fail-open proof: a partially-readable catalog withholds only the proved id" \
+  "beta@market1" "$out"
+
+# ============================================================================
+# projectPathPresent — advisory annotation. Never a filter, never a verdict.
+# ============================================================================
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+live_dir="$case_dir/live-repo"
+mkdir -p "$live_dir"
+native_live="${live_dir//\//\\}"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg p "$native_live" --arg q 'C:\definitely\not\here\at\all' '{
+    version: 1,
+    plugins: {
+      "alpha@market1": [{scope: "project", projectPath: $p, installPath: "x", version: "0.1.0"}],
+      "beta@market1":  [{scope: "project", projectPath: $q, installPath: "y", version: "0.1.0"}],
+      "gamma@market1": [{scope: "user", installPath: "z", version: "0.1.0"}]
+    }
+  }'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}, {"name": "beta"}, {"name": "gamma"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "projectPathPresent: true for a projectPath that exists" \
+  "true" "$(jq -r '.installed[] | select(.id == "alpha@market1") | .projectPathPresent' <<<"$out" 2>/dev/null)"
+# The load-bearing one: jq's `//` treats FALSE as empty, so a lookup written
+# with the alternative operator would silently rewrite this false into null and
+# collapse "not present" into "not checked" — the exact distinction the field
+# carries.
+assert_eq "projectPathPresent: false for an absent projectPath, NOT rewritten to null" \
+  "false" "$(jq -r '.installed[] | select(.id == "beta@market1") | .projectPathPresent' <<<"$out" 2>/dev/null)"
+assert_eq "projectPathPresent: null for a user-scope record (not applicable)" \
+  "null" "$(jq -r '.installed[] | select(.id == "gamma@market1") | .projectPathPresent' <<<"$out" 2>/dev/null)"
+# Advisory means advisory: an absent path must not remove the record from the
+# report. Suppressing on a directory test would hide real drift from anyone
+# whose repos sit on an unmounted volume or an offline share.
+assert_eq "projectPathPresent: an absent path never filters the record out of installed[]" \
+  "3" "$(jq -r '.installed | length' <<<"$out" 2>/dev/null)"
+
+# The same annotation rides each divergences[].scopes[] entry, and an absent
+# path never removes the divergence row either.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg q 'C:\definitely\not\here\at\all' '{
+    version: 1,
+    plugins: {
+      "alpha@market1": [
+        {scope: "project", projectPath: $q, installPath: "x", version: "0.1.0"},
+        {scope: "user", installPath: "y", version: "0.2.0"}
+      ]
+    }
+  }'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "projectPathPresent: carried on divergences[].scopes[] too" \
+  "false" "$(jq -r '.divergences[0].scopes[] | select(.scope == "project") | .projectPathPresent' <<<"$out" 2>/dev/null)"
+assert_eq "projectPathPresent: an absent path never suppresses the divergence row" \
+  "1" "$(jq -r '.divergences | length' <<<"$out" 2>/dev/null)"
+assert_eq "projectPathPresent: and the row is still graded on version skew alone" \
+  "false" "$(jq -r '.divergences[0].versionsMatch' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
+# user_scope_orphans — the class every other field is structurally blind to.
+# ============================================================================
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "orphan@market1": [{"scope": "project", "projectPath": "C:\\repo-one", "installPath": "x", "version": "0.1.0"}],
+    "localorphan@market1": [{"scope": "local", "projectPath": "C:\\elsewhere", "installPath": "x", "version": "0.1.0"}],
+    "paired@market1": [
+      {"scope": "project", "projectPath": "C:\\repo-one", "installPath": "x", "version": "0.1.0"},
+      {"scope": "user", "installPath": "y", "version": "0.1.0"}
+    ],
+    "useronly@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]
+  }
+}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "orphan"}, {"name": "localorphan"}, {"name": "paired"}, {"name": "useronly"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+# `join(",")` rather than `.[]`: the assertion-side `jq` here is the REAL jq,
+# not fleet-state.sh's CR-stripping wrapper, and on Windows it terminates every
+# line with CRLF. `$(…)` strips only the FINAL terminator as a unit, so a
+# multi-line extraction leaves a trailing CR on every line but the last and the
+# comparison fails against a byte-identical-looking literal. Collapsing to one
+# line keeps the capture in the safe single-line case — the same reason no
+# other case in this suite extracts multiple lines through a test-side jq.
+assert_eq "user_scope_orphans: names project-only and local-only ids" \
+  "localorphan@market1,orphan@market1" "$(jq -r '.user_scope_orphans | join(",")' <<<"$out" 2>/dev/null)"
+# The two exclusions that make the field mean something.
+assert_eq "user_scope_orphans: excludes an id that also holds a user-scope record" \
+  "0" "$(jq -r '[.user_scope_orphans[] | select(. == "paired@market1")] | length' <<<"$out" 2>/dev/null)"
+assert_eq "user_scope_orphans: excludes a user-only id" \
+  "0" "$(jq -r '[.user_scope_orphans[] | select(. == "useronly@market1")] | length' <<<"$out" 2>/dev/null)"
+
+# An id installed ONLY at project/local scope and explicitly disabled somewhere
+# is a decision already made, not a gap. SKILL.md's Report puts this array under
+# "Action needed", so leaving an opt-out in it resurfaces the user's own decline
+# as drift to act on — the same reason missing_from_install and
+# missing_from_user_install both subtract the explicit-false set.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "declined@market1": [{"scope": "project", "projectPath": "C:\\repo-one", "installPath": "x", "version": "0.1.0"}],
+    "wanted@market1": [{"scope": "project", "projectPath": "C:\\repo-one", "installPath": "x", "version": "0.1.0"}]
+  }
+}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "declined"}, {"name": "wanted"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{"declined@market1": false}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+assert_eq "user_scope_orphans: an explicitly-disabled project-only id is NOT an orphan" \
+  "wanted@market1" "$(jq -r '.user_scope_orphans | join(",")' <<<"$out" 2>/dev/null)"
+# Guard the guard: the opt-out must be excluded because it is opted out, not
+# because the fixture failed to produce an orphan population at all.
+assert_eq "user_scope_orphans: the sibling id in the same fixture IS still reported" \
+  "1" "$(jq -r '.user_scope_orphans | length' <<<"$out" 2>/dev/null)"
+# Why the field is needed at all: a single-scope orphan is absent from
+# divergences[] BY CONSTRUCTION (that array discards any id with fewer than two
+# records), so nothing else in the output could carry it.
+assert_eq "user_scope_orphans: the orphans are structurally absent from divergences[]" \
+  "0" "$(jq -r '[.divergences[] | select(.id == "orphan@market1" or .id == "localorphan@market1")] | length' <<<"$out" 2>/dev/null)"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "orphan@market1": [{"scope": "project", "projectPath": "C:\\repo-one", "installPath": "x", "version": "0.1.0"}],
+    "useronly@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]
+  }
+}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "orphan"}, {"name": "useronly"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+ARGS=(--marketplace market1 --ids user-scope-orphans)
+out=$(run_ids "$case_dir")
+rc=$?
+assert_exit "--ids user-scope-orphans: exit 0" 0 "$rc"
+assert_eq "--ids user-scope-orphans: emits the fully-qualified id, one per line" \
+  "orphan@market1" "$out"
+
+# ============================================================================
+# project_root — the top-level field that makes Step 2's skip reportable.
+# Without it, "no project context resolved" and "a project with nothing
+# installed in it" are one indistinguishable signal downstream.
+# ============================================================================
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+nonrepo_dir="$case_dir/not-a-git-repo"
+mkdir -p "$nonrepo_dir"
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+out=$(cd "$nonrepo_dir" && run_state_no_project_dir "$case_dir")
+assert_eq "project_root: null when no project context resolves at all" \
+  "null" "$(jq -r '.project_root' <<<"$out" 2>/dev/null)"
+# The distinction is only useful if it survives alongside a currentProject that
+# is ALSO null — which is precisely the collapse project_root exists to break.
+assert_eq "project_root: null even though every record's currentProject is also null" \
+  "null" "$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+proj_root="$case_dir/sample-repo"
+mkdir -p "$proj_root"
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":[{"scope":"user","installPath":"y","version":"0.1.0"}]}}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$proj_root")
+# A project DID resolve and it simply has no project/local installs — the
+# honest zero, reportable only because project_root is non-null here while every
+# currentProject is still null.
+assert_contains "project_root: names the resolved root when a project context exists" \
+  "$(jq -r '.project_root' <<<"$out" 2>/dev/null)" "sample-repo"
+assert_eq "project_root: a resolved root with no in-repo installs still has no currentProject:true" \
+  "0" "$(jq -r '[.installed[] | select(.currentProject == true)] | length' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
+# catalog_versions in PRODUCTION mode — manifest_base derived from the
+# marketplace's own installLocation rather than from FLEET_STATE_CATALOG_DIR.
+# Every other case above sets the catalog-dir override, so without this one the
+# branch that actually runs on a real machine is never exercised.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+mkdir -p "$case_dir/checkout/.claude-plugin"
+mkdir -p "$case_dir/checkout/alpha/.claude-plugin"
+mkdir -p "$case_dir/outside/.claude-plugin"
+write "$case_dir/checkout/.claude-plugin/marketplace.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}, {"name": "escape", "source": "../outside"}]}'
+write "$case_dir/checkout/alpha/.claude-plugin/plugin.json" '{"name": "alpha", "version": "1.2.3"}'
+# A manifest that DOES exist outside the checkout, reachable only by traversal.
+write "$case_dir/outside/.claude-plugin/plugin.json" '{"name": "escape", "version": "0.0.1"}'
+write "$case_dir/known_marketplaces.json" "$(
+  jq -cn --arg loc "$case_dir/checkout" '{market1: {source: {source: "github", repo: "example/market1"}, installLocation: $loc, lastUpdated: "2026-01-01T00:00:00Z"}}'
+)"
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1":  [{"scope": "user", "installPath": "a", "version": "1.2.3"}],
+    "escape@market1": [{"scope": "user", "installPath": "b", "version": "0.0.1"}]
+  }
+}'
+# Deliberately NOT via run_state: that helper always sets
+# FLEET_STATE_CATALOG_DIR, which is the branch this case exists to bypass.
+out=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+  FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+  FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+  bash "$SCRIPT" --marketplace market1 2>&1)
+assert_eq "production manifest_base: resolves a version from installLocation, no catalog-dir override" \
+  "1.2.3" "$(jq -r '.catalog_versions["alpha@market1"]' <<<"$out" 2>/dev/null)"
+# `source` is third-party content. A traversing source must NOT resolve — it
+# would read a manifest outside the checkout and could positively but falsely
+# "prove" an id is current, which is the ONLY way this pre-filter could wrongly
+# WITHHOLD an update.
+assert_eq "production manifest_base: a ../-traversing source refuses to resolve (yields null)" \
+  "null" "$(jq -r '.catalog_versions["escape@market1"]' <<<"$out" 2>/dev/null)"
+out_ids=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+  FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+  FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+  bash "$SCRIPT" --marketplace market1 --ids update-candidates-user 2>/dev/null)
+assert_eq "production manifest_base: the traversing id stays an update candidate, the resolved one is withheld" \
+  "escape@market1" "$out_ids"
+
+# Windows spelling of the same traversal must be refused identically.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+mkdir -p "$case_dir/checkout/.claude-plugin"
+mkdir -p "$case_dir/outside/.claude-plugin"
+write "$case_dir/checkout/.claude-plugin/marketplace.json" '{"plugins": [{"name": "escape", "source": "..\\outside"}]}'
+write "$case_dir/outside/.claude-plugin/plugin.json" '{"name": "escape", "version": "0.0.1"}'
+write "$case_dir/known_marketplaces.json" "$(
+  jq -cn --arg loc "$case_dir/checkout" '{market1: {source: {source: "github", repo: "example/market1"}, installLocation: $loc, lastUpdated: "2026-01-01T00:00:00Z"}}'
+)"
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"escape@market1":[{"scope":"user","installPath":"b","version":"0.0.1"}]}}'
+out=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+  FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+  FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+  bash "$SCRIPT" --marketplace market1 2>&1)
+assert_eq "production manifest_base: a backslash-spelled traversal is refused too" \
+  "null" "$(jq -r '.catalog_versions["escape@market1"]' <<<"$out" 2>/dev/null)"
+
+# A SYMLINK inside the checkout pointing outside it reaches a foreign manifest
+# through an entirely ordinary `./name` source — no lexical check on the source
+# can see it. If that foreign manifest's version were read, it could positively
+# but falsely "prove" an installed id current and WITHHOLD its update, which is
+# this pre-filter's only unsafe direction. The physical containment check is
+# what closes it; this case is the proof.
+# Skipped where the platform cannot create a symlink (Windows without developer
+# mode / core.symlinks off) — a skip is honest there, since the vector needs a
+# real symlink to exist in the first place.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+mkdir -p "$case_dir/checkout/.claude-plugin"
+mkdir -p "$case_dir/outside/.claude-plugin"
+# The outside manifest deliberately carries the SAME version as the installed
+# record, so reading it would withhold the id. Anything else would pass this
+# test for the wrong reason.
+write "$case_dir/outside/.claude-plugin/plugin.json" '{"name": "evil", "version": "9.9.9"}'
+write "$case_dir/checkout/.claude-plugin/marketplace.json" '{"plugins": [{"name": "evil", "source": "./linkdir"}]}'
+write "$case_dir/known_marketplaces.json" "$(
+  jq -cn --arg loc "$case_dir/checkout" '{market1: {source: {source: "github", repo: "example/market1"}, installLocation: $loc, lastUpdated: "2026-01-01T00:00:00Z"}}'
+)"
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"evil@market1":[{"scope":"user","installPath":"a","version":"9.9.9"}]}}'
+# `MSYS=winsymlinks:nativestrict` is what makes Git Bash emit a REAL symlink
+# instead of silently deep-COPYING the target — the copy would put the manifest
+# genuinely inside the checkout and the case would then assert the opposite of
+# what it means to. The variable is inert on POSIX, where ln -s already links.
+# `[[ -L ]]` is the gate, not `ln`'s exit status: the copying form also succeeds.
+MSYS=winsymlinks:nativestrict ln -s "$case_dir/outside" "$case_dir/checkout/linkdir" 2>/dev/null
+if [[ -L "$case_dir/checkout/linkdir" ]] &&
+  [[ -f "$case_dir/checkout/linkdir/.claude-plugin/plugin.json" ]]; then
+  out=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    bash "$SCRIPT" --marketplace market1 2>&1)
+  assert_eq "symlink escape: a manifest reached through a symlink out of the checkout yields null" \
+    "null" "$(jq -r '.catalog_versions["evil@market1"]' <<<"$out" 2>/dev/null)"
+  out_ids=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+    FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+    FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+    bash "$SCRIPT" --marketplace market1 --ids update-candidates-user 2>/dev/null)
+  assert_eq "symlink escape: the id is NOT withheld — it stays an update candidate" \
+    "evil@market1" "$out_ids"
+else
+  printf 'SKIP: symlink escape (this platform did not produce a real symlink)\n'
+fi
+rm -rf "$case_dir/checkout/linkdir"
+
+# Control for the case above: the identical shape with a REAL directory instead
+# of a symlink still resolves, so the guard is containment and not a blanket
+# refusal of everything that case constructs.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+mkdir -p "$case_dir/checkout/.claude-plugin"
+mkdir -p "$case_dir/checkout/realdir/.claude-plugin"
+write "$case_dir/checkout/realdir/.claude-plugin/plugin.json" '{"name": "good", "version": "9.9.9"}'
+write "$case_dir/checkout/.claude-plugin/marketplace.json" '{"plugins": [{"name": "good", "source": "./realdir"}]}'
+write "$case_dir/known_marketplaces.json" "$(
+  jq -cn --arg loc "$case_dir/checkout" '{market1: {source: {source: "github", repo: "example/market1"}, installLocation: $loc, lastUpdated: "2026-01-01T00:00:00Z"}}'
+)"
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"good@market1":[{"scope":"user","installPath":"a","version":"9.9.9"}]}}'
+out=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+  FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+  FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+  bash "$SCRIPT" --marketplace market1 2>&1)
+assert_eq "containment control: an in-checkout real directory still resolves its version" \
+  "9.9.9" "$(jq -r '.catalog_versions["good@market1"]' <<<"$out" 2>/dev/null)"
+
+# ============================================================================
+# --marketplaces — the name enumeration `sync`'s `all` mode loops. Without it
+# the only way to get the list is a hand-written `jq -r 'keys[]' | while read`
+# over known_marketplaces.json, which carries the identical trailing-CR hazard
+# that --ids exists to prevent.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{
+  "market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"},
+  "market2": {"source": {"source": "github", "repo": "example/market2"}, "installLocation": "z2", "lastUpdated": "2026-01-01T00:00:00Z"}
+}'
+ARGS=(--marketplaces)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--marketplaces: exit 0" 0 "$rc"
+assert_eq "--marketplaces: every marketplace name, one per line" \
+  "market1
+market2" "$out"
+
+# Nothing to enumerate is an answer, not an error.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{}'
+ARGS=(--marketplaces)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--marketplaces: empty object exits 0" 0 "$rc"
+assert_eq "--marketplaces: empty object emits nothing" "" "$out"
+
+# Standalone mode: every shaping flag is refused, and the refusal is
+# order-independent so `--marketplaces --all` and `--all --marketplaces` agree.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_ids_case "$case_dir"
+ARGS=(--marketplaces --all)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--marketplaces with --all: exit 2" 2 "$rc"
+assert_contains "--marketplaces with --all: refuses the combination" "$out" "cannot be combined"
+ARGS=(--all --marketplaces)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--marketplaces after --all: same rejection, order-independent" 2 "$rc"
+ARGS=(--marketplaces --ids installed-user)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "--marketplaces with --ids: exit 2" 2 "$rc"
+
+# CR regression, same stub mechanism as the --ids case above: the documented
+# consumer is a `while read` loop feeding --marketplace, so a surviving CR
+# would corrupt every name but the last into an unresolvable marketplace.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{
+  "market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"},
+  "market2": {"source": {"source": "github", "repo": "example/market2"}, "installLocation": "z2", "lastUpdated": "2026-01-01T00:00:00Z"}
+}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+mkdir -p "$case_dir/crlf-bin"
+REAL_JQ="$(command -v jq)"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'set -o pipefail\n'
+  printf '"%s" "$@" | sed '"'"'s/\\r*$/\\r/'"'"'\n' "$REAL_JQ"
+} >"$case_dir/crlf-bin/jq"
+chmod +x "$case_dir/crlf-bin/jq"
+# Guard the guard: a stub that silently stopped CRLF-terminating would make
+# this case pass while testing nothing.
+stub_probe=$(printf '{"a":"one"}' | PATH="$case_dir/crlf-bin:$PATH" jq -r '.a' | od -An -c | tr -s ' ')
+assert_contains "--marketplaces CR regression: stub jq really emits CRLF" "$stub_probe" 'o n e \r \n'
+ARGS=(--marketplaces)
+out=$(PATH="$case_dir/crlf-bin:$PATH" run_state "$case_dir")
+rc=$?
+assert_exit "--marketplaces CR regression: exit 0 under a CRLF-emitting jq" 0 "$rc"
+case "$out" in
+*$'\r'*) fail "--marketplaces CR regression: no CR survives into the emitted names" \
+  "found a CR in: $(printf '%s' "$out" | od -An -c | tr -s ' ')" ;;
+*) pass "--marketplaces CR regression: no CR survives into the emitted names" ;;
+esac
+assert_eq "--marketplaces CR regression: names are byte-exact under a CRLF-emitting jq" \
+  "market1
+market2" "$out"
+
+# project_root is marketplace-invariant but must ride EVERY block: an --all
+# consumer reads blocks independently, so the field that explains each block's
+# currentProject flags has to travel with it.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+proj_root="$case_dir/sample-repo"
+mkdir -p "$proj_root"
+write "$case_dir/known_marketplaces.json" '{
+  "market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"},
+  "market2": {"source": {"source": "github", "repo": "example/market2"}, "installLocation": "z2", "lastUpdated": "2026-01-01T00:00:00Z"}
+}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/catalog/market2.json" '{"plugins": [{"name": "beta"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+ARGS=(--all)
+out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$proj_root")
+assert_eq "--all: every marketplace block carries project_root" \
+  "2" "$(jq -r '[.marketplaces[] | select(.project_root != null)] | length' <<<"$out" 2>/dev/null)"
+assert_eq "--all: and every block reports the SAME resolved root" \
+  "1" "$(jq -r '[.marketplaces[].project_root] | unique | length' <<<"$out" 2>/dev/null)"
+
+# The unknown-selector help text must name every selector the case arms accept,
+# or the two lists drift apart silently.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_ids_case "$case_dir"
+ARGS=(--marketplace market1 --ids no-such-selector)
+out=$(run_state "$case_dir")
+assert_contains "--ids help text names installed-user" "$out" "installed-user"
+assert_contains "--ids help text names update-candidates-user" "$out" "update-candidates-user"
+assert_contains "--ids help text names current-project" "$out" "current-project"
+assert_contains "--ids help text names missing-user-install" "$out" "missing-user-install"
+assert_contains "--ids help text names missing-enabled" "$out" "missing-enabled"
+assert_contains "--ids help text names user-scope-orphans" "$out" "user-scope-orphans"
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0

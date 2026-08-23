@@ -23,6 +23,16 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-shell-portability.sh"
+
+# A fixture runs a COPY of the gate, so it must also carry the shared
+# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
+# fixture a faithful copy; without it the copied gate dies on a missing
+# source at line 1 and every assertion below turns into the same opaque
+# failure. See #2914.
+stage_libs() {
+  mkdir -p "$1/lib"
+  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/token-scan.sh" "$1/lib/"
+}
 REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
 . "$SELF_DIR/test-git-helpers.sh"
 
@@ -1460,6 +1470,7 @@ tok="$(one_token_list '\\b')"
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/FOO=bar.sh"
 out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="$tok" bash scripts/check-shell-portability.sh --paths "FOO=bar.sh" 2>&1)"
 rc=$?
@@ -1467,6 +1478,41 @@ if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'PORTABILITY: FOO=bar\.sh:1:'; the
   ok "a filename shaped like identifier=value is scanned, not silently dropped by awk"
 else
   fail "an identifier=value-shaped filename must be scanned, not dropped (rc=$rc): $out"
+fi
+rm -rf "$fx" "$tok"
+
+# =============================================================================
+# ...and the same for the TOKEN LIST operand, the worse half of #1513: an
+# unopened list means NO active patterns, so every file reports clean and awk
+# still exits 0 — the gate passing while gating nothing. This gate already
+# carried the guard; the assertion is added here alongside the twin's because
+# the guard now lives in one shared place (scripts/lib/token-scan.sh) and a
+# regression there must turn BOTH suites red, not just the one that was
+# historically missing it (#2914, finding 2).
+#
+# The path must be RELATIVE for this to bite: the gate cd's to its own parent,
+# and an absolute path begins with `/`, which awk can only read as a filename.
+# =============================================================================
+tok="$(one_token_list '\\b')"
+fx="$(mktemp -d)"
+mkdir -p "$fx/scripts"
+cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
+cp "$tok" "$fx/t=custom.txt"
+cp "$tok" "$fx/plain-tokens.txt"
+printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/plain.sh"
+out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="t=custom.txt" bash scripts/check-shell-portability.sh --paths "plain.sh" 2>&1)"
+rc=$?
+if [[ "$rc" -eq 1 ]] && echo "$out" | grep -q 'PORTABILITY: plain\.sh:1:'; then
+  ok "a token list shaped like identifier=value still loads its patterns"
+else
+  fail "an identifier=value-shaped token list must not silently disable the gate (rc=$rc): $out"
+fi
+out="$(cd "$fx" && SHELL_PORTABILITY_TOKENS="plain-tokens.txt" bash scripts/check-shell-portability.sh --paths "plain.sh" 2>&1)"
+if [[ "$?" -eq 1 ]] && echo "$out" | grep -q 'PORTABILITY: plain\.sh:1:'; then
+  ok "the same fixture flags through an ordinary token path (guard is discriminating)"
+else
+  fail "control case did not flag; the token-list assertion above is not discriminating"
 fi
 rm -rf "$fx" "$tok"
 
@@ -1509,6 +1555,7 @@ fx="$(mktemp -d)"
 mkdir -p "$fx/scripts" "$fx/plugins/alpha/vendor" "$fx/plugins/alpha/skills/demo/evals" \
   "$fx/plugins/alpha/skills/demo/context"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/gate.sh"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/vendor/upstream.sh"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/notes.md" # non-skill .md stays out
@@ -1531,6 +1578,7 @@ rm -rf "$fx"
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 if (cd "$fx" && SHELL_PORTABILITY_TOKENS="$(one_token_list '\\b')" bash scripts/check-shell-portability.sh --all >/dev/null 2>&1); then
   ok "an empty tree passes"
 else
@@ -1542,6 +1590,7 @@ rm -rf "$fx"
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo/context"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 out="$(
   cd "$fx" &&
     git_init_test_repo "$fx" &&
@@ -1564,6 +1613,7 @@ rm -rf "$fx"
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts" "$fx/plugins/alpha/skills/demo"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/SKILL.md"
 printf '%s\n' 'plugins/alpha/skills/demo/SKILL.md' >"$fx/scripts/shell-portability-skill-md-baseline.txt"
 out="$(
@@ -1635,6 +1685,7 @@ rm -rf "$fx"
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts"
 cp "$SCRIPT" "$fx/scripts/"
+stage_libs "$fx/scripts"
 quoted_name="$(printf 'quoted-\303\251.sh')" # trailing U+00E9 byte -- non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&
@@ -2952,6 +3003,7 @@ TOK="$(one_token_list 'grep[[:space:]]+-P')"
 TREE="$(mktemp -d)"
 mkdir -p "$TREE/scripts" "$TREE/plugins/demo/hooks"
 cp "$SCRIPT" "$TREE/scripts/"
+stage_libs "$TREE/scripts"
 printf 'hooks/hook-utils.sh\n' >"$TREE/scripts/cross-plugin-source-registry.txt"
 printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/hook-utils.sh"
 printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/not-registered.sh"
@@ -2974,6 +3026,7 @@ TOK="$(one_token_list 'grep[[:space:]]+-P')"
 TREE="$(mktemp -d)"
 mkdir -p "$TREE/scripts" "$TREE/plugins/demo/hooks"
 cp "$SCRIPT" "$TREE/scripts/"
+stage_libs "$TREE/scripts"
 printf 'hooks/*.sh\n' >"$TREE/scripts/cross-plugin-source-registry.txt"
 printf 'grep -P x\n' >"$TREE/plugins/demo/hooks/hook-utils.sh"
 out="$(SHELL_PORTABILITY_TOKENS="$TOK" bash "$TREE/scripts/check-shell-portability.sh" --all 2>&1)"

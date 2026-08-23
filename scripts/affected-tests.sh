@@ -122,7 +122,10 @@
 # mean the file is covered — check that the selected suites actually name it.
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 
@@ -593,30 +596,22 @@ is_no_suite() {
 # Changed-file resolution
 # ---------------------------------------------------------------------------
 
-resolve_base() {
-  local c
-  if [[ -n "$base_ref" ]]; then
-    printf '%s' "$base_ref"
-    return 0
-  fi
-  for c in origin/main origin/master main master; do
-    if git rev-parse --verify --quiet "$c^{commit}" >/dev/null 2>&1; then
-      printf '%s' "$c"
-      return 0
-    fi
-  done
-  return 1
-}
-
 changed_from_diff() {
-  local base mb
-  if ! base="$(resolve_base)"; then
+  local base="" mb
+  # An explicit --base is resolved HERE, not through the shared ladder: a ref
+  # the user typed and got wrong must be an error naming that ref, never a
+  # silent fall-through to origin/main that would report suites for a diff they
+  # did not ask for. The fallback ladder (origin/main, origin/master, main,
+  # master) is the part shared with the checker gates.
+  if [[ -n "$base_ref" ]]; then
+    if ! changed_files::verify_base "$base_ref"; then
+      echo "error: base ref '$base_ref' does not resolve to a commit." >&2
+      exit 2
+    fi
+    base="$base_ref"
+  elif ! changed_files::resolve_base base; then
     echo "error: no diff base resolved (tried --base, origin/main, origin/master, main, master)." >&2
     echo "       Pass --base <ref>, or give explicit paths." >&2
-    exit 2
-  fi
-  if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1; then
-    echo "error: base ref '$base' does not resolve to a commit." >&2
     exit 2
   fi
   # Compare the WORKING TREE against the merge base: a local developer wants the

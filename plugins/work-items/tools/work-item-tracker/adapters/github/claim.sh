@@ -41,8 +41,10 @@ owner="$WIT_ID_OWNER" repo="$WIT_ID_REPO" number="$WIT_ID_NUMBER"
 wit_run_gh read api user --jq .login
 login="$WIT_GH_OUT"
 
-# 1. Assign the session identity.
-wit_run_gh read issue edit "$number" -R "$owner/$repo" --add-assignee "@me"
+# 1. Assign the session identity. `read` routes to bare gh, so the assignee is
+# the session user, not the bot (README "Edit labels / assignees" carve-out);
+# `@me` is resolved to $login explicitly because REST takes a literal login.
+wit_add_assignee read "$owner" "$repo" "$number" "$login"
 
 # Guard the partial-claim window: any failure between this successful
 # assignment and a successful lease-comment write (step 3) would otherwise
@@ -52,16 +54,27 @@ wit_run_gh read issue edit "$number" -R "$owner/$repo" --add-assignee "@me"
 # inside a function does not run the caller's ERR trap (only its EXIT trap) —
 # verified empirically — so this must be an EXIT trap, not ERR.
 _wit_claim_rollback() {
-  gh issue edit "$number" -R "$owner/$repo" --remove-assignee "@me" >/dev/null 2>&1 || true
+  wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
 }
 trap _wit_claim_rollback EXIT
 
 # 2. Sole-assignee check — a different login present means an established claim.
-wit_run_gh read issue view "$number" -R "$owner/$repo" --json assignees --jq '[.assignees[].login]'
+wit_read_assignees "$owner" "$repo" "$number"
 assignees="$WIT_GH_OUT"
+# Confirm our own assignment actually landed. REST POST /assignees returns 201
+# and silently drops a login that cannot be assigned (no push access), where
+# `gh issue edit --add-assignee` used to fail loudly. Without this check a
+# silently-dropped assignment would report a held claim while list-frontier
+# still saw the item unassigned — two workers on one item, the exact race the
+# lease exists to prevent.
+if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$assignees" >/dev/null; then
+  printf 'claim: assignment of %s did not take effect (insufficient permission to self-assign on %s/%s)\n' \
+    "$login" "$owner" "$repo" >&2
+  exit "$EX_AUTH"
+fi
 other="$(jq -r --arg me "$login" '[.[] | select(. != $me)] | first // empty' <<<"$assignees")"
 if [[ -n "$other" ]]; then
-  gh issue edit "$number" -R "$owner/$repo" --remove-assignee "@me" >/dev/null 2>&1 || true
+  wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
   printf 'claim: item already claimed by %s\n' "$other" >&2
   exit "$EX_CONFLICT"
 fi
@@ -114,7 +127,7 @@ if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
   # would also catch this on exit; the explicit call keeps the disarm/removal
   # decision made in this block, not left implicit to the trap).
   if [[ "$winner_holder" != "$login" ]]; then
-    gh issue edit "$number" -R "$owner/$repo" --remove-assignee "@me" >/dev/null 2>&1 || true
+    wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
   else
     trap - EXIT # same-login race — @me legitimately stays assigned
   fi

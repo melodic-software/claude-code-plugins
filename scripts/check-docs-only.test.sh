@@ -9,6 +9,16 @@ set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-docs-only.sh"
+
+# A fixture runs a COPY of the gate, so it must also carry the shared
+# libraries that copy sources (scripts/lib/*.sh). Staging them here keeps the
+# fixture a faithful copy; without it the copied gate dies on a missing
+# source at line 1 and every assertion below turns into the same opaque
+# failure. See #2914.
+stage_libs() {
+  mkdir -p "$1/lib"
+  cp "$SELF_DIR/lib/changed-files.sh" "$1/lib/"
+}
 ALLOWLIST="$SELF_DIR/docs-only-paths.txt"
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
@@ -30,6 +40,7 @@ mk_repo() {
   git_init_safe "$dir"
   mkdir -p "$dir/scripts"
   cp "$SCRIPT" "$dir/scripts/check-docs-only.sh"
+  stage_libs "$dir/scripts"
   cp "$ALLOWLIST" "$dir/scripts/docs-only-paths.txt"
   # A committed base tree spanning every path class the assertions touch.
   mkdir -p "$dir/docs/topics/example" "$dir/docs" "$dir/plugins/p1/skills/alpha" \
