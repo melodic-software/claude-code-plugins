@@ -22,7 +22,7 @@ Run `status` logic internally and identify candidates:
 
 | Reason | Detection method |
 |--------|-----------------|
-| **Orphaned directory** | Directory exists under a worktree root but NOT in `git worktree list` output. Scan every root your project uses — common layouts: (1) `<repo-root>/.worktrees/`; (2) Claude Code's default `<repo-root>/.claude/worktrees/`; (3) bare-clone hub `<hub-root>/<name>/` — siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists — from terminal kill without clean exit, OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
+| **Orphaned directory** | Directory exists under a worktree root but NOT in `git worktree list` output — **and** `git -C <path> rev-parse --is-inside-work-tree` does not print `true`, because the external root is shared across repositories and another repository's live worktree is absent from this one's list (Step 4b spells this out). Scan every root your project uses — common layouts: (1) `<repo-root>/.worktrees/`; (2) Claude Code's default `<repo-root>/.claude/worktrees/`; (3) bare-clone hub `<hub-root>/<name>/` — siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default + `create` pre-flight already use). Empty shells are left when Claude Code's built-in cleanup removes worktree contents but the directory husk persists — from terminal kill without clean exit, OR a file lock blocking deletion (release per Step 4a first). Safe to remove once unlocked |
 | **Prunable** | `git worktree list --porcelain` shows `prunable` flag |
 | **PR merged** | `gh pr list --state merged --head <branch>` returns non-empty result |
 | **Stale** | Last commit > threshold days, no open PR, no locked flag |
@@ -140,9 +140,25 @@ Four rules govern this step, and each closes a way it could do real harm:
   some record survived the pass; surface it. The zero case (`no records recorded here`) is reported
   too, so "nothing to reap" is never indistinguishable from "never checked".
 
-In `--dry-run` mode pass `--dry-run` through: it names what would be removed and calls nothing.
-The **orphaned-directory** candidate (on disk, absent from `git worktree list`) takes the same step
-before its `rm -rf` — it is a directory this action is destroying, which is the whole trigger.
+`--dry-run` never reaches this step — Step 4 reports the candidates and exits before phase 4a. The
+helper carries its own `--dry-run` for a manual check from inside a worktree; it names what would be
+removed and calls nothing.
+
+**The orphaned-directory candidate takes this step too, behind one extra test.** It is a directory
+this action is destroying, which is the whole trigger — but "on disk, absent from *this* repository's
+`git worktree list`" is not evidence it is dead. The external worktree root is **shared**: `create`
+places worktrees at `<root>/<owner>-<repo>-<slug>`, one root serving every repository on the machine
+(`reference/worktree-root-convention.md`), so a scan of that root turns up other repositories' live
+worktrees, every one of them absent from this repository's list. Before reaping (and before the
+`rm -rf`), require a positive answer to *is this a work tree at all*:
+
+```bash
+git -C <path> rev-parse --is-inside-work-tree 2>/dev/null   # prints `true` → NOT a candidate
+```
+
+`true` means the directory belongs to some repository — not necessarily this one. Report it as
+another lane's worktree and leave it entirely alone: do not reap, do not remove. Only a directory
+that fails this test is the empty husk the orphaned-directory row is about.
 
 **Escalation guard (before any `--force`):** when the plain removal fails, inspect why — `git -C <path> status --porcelain` (uncommitted edits) and `git -C <path> log HEAD --not --remotes --oneline | head` (unpushed commits). `HEAD`, not `--branches`: on a detached HEAD — the one case where removal makes commits unreachable *immediately*, with no branch ref left holding them — `--branches` reports every other branch in the repository and nothing about this worktree's own commits, so the guard reads clean at exactly the moment it matters most. If either is non-empty, present the summary to the user and get explicit per-worktree confirmation BEFORE forcing — forced removal permanently discards those changes. Only after confirmation (or when the failure is a lock/metadata issue with a verifiably clean tree):
 

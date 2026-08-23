@@ -166,8 +166,10 @@ have jq || {
 
 # enumerate — ids with a project-scope record whose projectPath is this
 # directory. `claude plugin list --json` reports every project-scope record on
-# the machine regardless of cwd (measured), so enumeration is cwd-independent
-# and the cwd guard above is what confines the ACTION.
+# the machine regardless of cwd — measured, and re-checkable:
+# skills/worktree/fixtures/README.md § project-scope-reap-probe.sh arm 2,
+# Claude Code 2.1.240, re-run unchanged on 2.1.241 — so enumeration is
+# cwd-independent and the cwd guard above is what confines the ACTION.
 list_ids() {
   local raw
   raw="$(claude plugin list --json 2>/dev/null)" || return 1

@@ -31,10 +31,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
   absent.
 - **`worktree audit` Step 2b reports pre-existing orphaned records.** Records left by
   worktrees removed before the reap existed are unreachable by it, so audit makes
-  them visible — bucketed as *orphaned worktree records* (under the resolved
-  worktree root, no longer registered) versus *other project records*, listed for
-  information only with no remedy offered. Read-only: removal needs the directory
-  recreated first, which the audit emits for the user and never performs.
+  them visible, in four buckets: *live here*, *live elsewhere*, *candidate orphan*,
+  and *other project records* (information only, no remedy). The *live elsewhere*
+  bucket is load-bearing: the worktree root is shared across repositories
+  (`<root>/<owner>-<repo>-<slug>`), so "not in this repository's `git worktree
+  list`" is true of every other repository's live worktree under it — a liveness
+  test (`git -C <path> rev-parse --is-inside-work-tree`) is required alongside the
+  registration test before anything is called an orphan, and the same test now
+  gates `cleanup`'s orphaned-directory candidate. Read-only: removal needs the
+  directory recreated first, which the audit emits for the user (plain `mkdir`, so
+  it fails rather than no-ops on a live directory; every step `&&`-chained so a
+  failed reap leaves the directory in place) and never performs.
 - **`skills/worktree/fixtures/project-scope-reap-probe.sh`** plus its
   `fixtures/README.md` record. Six arms establish that `-s project` has no path flag
   and resolves strictly against the resolved absolute cwd, that `plugin list --json`
