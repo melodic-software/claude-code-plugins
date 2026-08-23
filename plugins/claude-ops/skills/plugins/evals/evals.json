@@ -73,6 +73,72 @@
         "The response does not delete or otherwise manipulate a plugin's cache version directory",
         "The response redirects to the appropriate `claude plugin` CLI command (or the converge action) instead of manual state surgery"
       ]
+    },
+    {
+      "id": 7,
+      "name": "sync-reports-skipped-in-repo-step",
+      "prompt": "/claude-ops:plugins sync — run it from my home directory, which is not a project. fleet-state.sh reports project_root: null and all 111 installed[] records carry currentProject: null.",
+      "expected_output": "Step 2 is the self-described primary value path, so a run where it did nothing must say so. With project_root null, the report carries the In-repo row in its 'skipped — no project context resolved' form, naming the cwd. It is NOT reported as '0 updated', and the step is not omitted from the report.",
+      "files": [],
+      "expectations": [
+        "The report contains an In-repo row stating the in-repo step was skipped because no project context resolved, rather than omitting the step entirely",
+        "The response distinguishes 'no project context resolved' from 'a project with zero project/local installs' — it does not report the skip as a count of 0 updated",
+        "The response branches on fleet-state.sh's top-level project_root field, not on `--ids current-project` being empty, which is empty in both cases",
+        "No `claude plugin update -s project` or `-s local` call is issued"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "sync-all-covers-every-marketplace",
+      "prompt": "/claude-ops:plugins sync all — I have 9 marketplaces registered and 72 plugins installed at user scope across all of them.",
+      "expected_output": "In `all` mode Steps 2-5 are the per-marketplace loop body, not a single pass against the default marketplace. Every fleet-state.sh call in those steps carries --marketplace <name>, and the report makes per-marketplace coverage visible rather than emitting one Marketplace line while install/update/enable maintenance touched only one catalog.",
+      "files": [],
+      "expectations": [
+        "Steps 2-5 run once per marketplace, each fleet-state.sh call carrying an explicit --marketplace argument",
+        "The response does not issue a bare `--ids` call (no --marketplace) and treat its result as covering every marketplace",
+        "The response does not attempt `--all` combined with `--ids`, which the script rejects",
+        "The report distinguishes per-marketplace coverage rather than implying a single sweep covered all 9"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "dead-project-path-reported-not-converged",
+      "prompt": "/claude-ops:plugins sync — fleet-state.sh reports 38 actionable divergences whose project-scope records all carry projectPath D:\\worktrees\\scratch-run with projectPathPresent: false, because that worktree was deleted.",
+      "expected_output": "Rows whose projectPath is not present on this machine are reported in their own section, kept out of the actionable Divergences count, and never routed to converge — converge's every project/local command must cd into that path, so those commands cannot execute. The absence is reported as an observation ('not present on this machine'), never as a verdict that the directory is permanently gone, and the skill neither reaps the records nor edits installed_plugins.json.",
+      "files": [],
+      "expectations": [
+        "The stale/not-present project records are reported in a section separate from the Divergences count, not folded into the actionable count",
+        "The response does not tell the user to run `/claude-ops:plugins converge` to resolve rows whose projectPath is absent",
+        "The response does not edit or propose editing installed_plugins.json, and does not claim a `claude plugin` verb exists that reaps an install record by path",
+        "The response describes the path as not present on this machine rather than asserting the directory is dead, acknowledging an unmounted volume or offline share produces the same signal",
+        "The absent-path rows are still shown — they are annotated, never filtered out of the report"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "update-sweep-prefilter-fails-open",
+      "prompt": "/claude-ops:plugins sync — for this marketplace fleet-state.sh's catalog_versions is null for every id because the marketplace entries carry object-valued sources, and 40 plugins are installed at user scope.",
+      "expected_output": "The Step 3 pre-filter may only withhold an id it positively proved is already at the catalog version. With every catalog version null, nothing is proved, so the sweep is not narrowed at all — all 40 user-scope ids get a `claude plugin update` call, exactly as if no pre-filter existed. A shrunken sweep is never treated as evidence that skipped ids were checked.",
+      "files": [],
+      "expectations": [
+        "All 40 user-scope ids are swept — an unreadable catalog version results in the id being updated, never skipped",
+        "The response does not treat a null catalog version as 'already current' or as 'no update needed'",
+        "The ids come from `fleet-state.sh --ids`, never from a hand-written jq extraction over the JSON",
+        "The response does not report the fleet as verified-current on the basis of the pre-filter withholding ids"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "version-capture-never-reports-old-to-old",
+      "prompt": "/claude-ops:plugins sync — during the sweep `claude plugin update alpha@market1 -s user` printed that it updated the plugin, but the post-sweep fleet-state.sh re-read still shows alpha@market1 at its pre-update version.",
+      "expected_output": "The CLI's own reported value is source 2 and outranks the post-sweep re-read (source 3), which can lag if the state write is deferred. So the row reports the CLI's value, or <unknown> when the CLI named no version — never `<old> → <old>`, and the id is never counted as not-updated. A row admitting it cannot tell is better than one asserting nothing changed for a plugin that did.",
+      "files": [],
+      "expectations": [
+        "The report does not render the row as `<old> → <old>`",
+        "The plugin is still counted as updated, not as unchanged",
+        "The response uses the CLI's own reported version, or explicitly `<unknown>`, rather than synthesizing a version from the post-sweep re-read",
+        "The response does not treat the stale post-sweep read as evidence the update failed"
+      ]
     }
   ]
 }

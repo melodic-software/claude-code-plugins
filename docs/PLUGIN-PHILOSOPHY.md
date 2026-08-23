@@ -260,9 +260,10 @@ hand-edit — migrates to `userConfig` with the schema used honestly:
   a secret; and
 - `claude plugin install --config` documented in the plugin's setup skill for headless use — note
   in that same documentation that re-running it against an already-installed plugin prints
-  `already installed` **and still writes the value** (verified on Claude Code 2.1.240 with a
-  non-sensitive option at `user` scope; a `sensitive` option and `project`/`local` scope were not
-  covered — re-verify before relying on those); and
+  `already installed` **and still writes the value**: the short-circuit is about the install, not the
+  config write. **Empirically verified on Claude Code 2.1.240** (a non-sensitive option at `user`
+  scope: a non-default value written to an installed plugin, then restored) — a `sensitive` option
+  and `project`/`local` scope were not covered, so re-verify before relying on it there; and
 - for any `sensitive: true` option, the plugin's README documents `/plugin configure
   <plugin>@<marketplace>` as the rotation/clear path (see
   [`docs/extensibility-contract-smoke-tests.md`](extensibility-contract-smoke-tests.md) Test E —
@@ -369,65 +370,6 @@ is closed. Setup must be:
 - safe for existing files, preserving unrelated user content; and
 - non-interactive when complete arguments are supplied, so automation and headless use remain possible.
 
-**How a setup skill states the contract.** An installed plugin cannot read this repository, so a
-`setup` skill states the contract inline, in operable form, rather than citing it in place of the
-words. Two normalized sentences carry it: a purpose line saying the skill is check-centric and what
-`check` inspects versus what `apply` resolves, and an action-routing line saying that no argument or
-`check` runs the check, that `apply` runs the check first and then this plugin's own apply target,
-and that the actions are non-interactive when the action is given. The per-plugin halves — what this
-plugin inspects, what its `apply` writes — are the only parts that legitimately vary; the framing
-around them stays word-for-word across the fleet so it greps as one unit. Each setup skill names
-this section once, for provenance only, in the fleet's fixed form:
-
-```text
-per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository)
-```
-
-The parenthetical never replaces the inline words and no skill instruction depends on reading this
-file at runtime — an installed plugin has no path to it. A plugin whose routing genuinely differs (a
-check-only carve-out, a destructive-collision guard, an interview when the arguments are incomplete)
-states that difference *after* the normalized sentence rather than rewording it, so a verb-set change
-here stays a single greppable sweep across every setup skill. Byte-identity is a normalization
-target, never a CI gate — [`docs/conventions/topic-docs/`](conventions/topic-docs/README.md)
-"Implementers restate the rules; they do not share a source" already settles that the shared text
-stays unhoisted and unregistered, and the fleet conformance audit tracks the skills still carrying
-the older pathless wording.
-
-**How a setup skill's `check` opens.** The same inline-not-cited discipline governs the `check`
-action's own framing, carried by a third normalized block. One per-plugin sentence names what this
-plugin's single source of truth for its prerequisites is — the hook script, the library it sources,
-the bundled scripts, the main skill's own reference files, whatever the probes must be read from —
-and the directive that follows it is fixed, its `it` referring to that named source of truth however
-many files constitute it:
-
-```text
-**Read it first** — probe what it actually does, don't recite this file. Then run each probe via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
-```
-
-The directive is what makes `check` a probe of the shipped runtime rather than a recital of the
-skill body; its PASS/FAIL/INFO table maps the absence classes of "Prerequisites and failure
-behavior" below onto a report — that section classifies a hook's behavior on absence, this one
-reports it. Setup skills still carrying an older wording of the directive are tracked by the
-fleet conformance audit, the same way the routing block above tracks its stragglers. Where
-the plugin has a disable gate that short-circuits before any prerequisite is reached, a second fixed
-sentence pair states the downgrade, with the gate condition and the reason it never reaches the
-prerequisite as its only per-plugin slots:
-
-```text
-When <the gate is closed>, every prerequisite absence downgrades from FAIL to INFO — <why the gated surface never reaches the prerequisite>, so a deliberately disabled plugin is not broken. Report the probes informationally and note that re-enabling restores the FAIL semantics.
-```
-
-A setup skill whose probes run regardless of any toggle — a lazy-install CLI, a docs-driven
-prerequisite — omits that pair rather than inventing a gate to state. The reason slot is a *verified*
-fact about that plugin's own gate, never a template phrase: a toggle that makes the plugin enforce
-*more* when it is off (an audit-only kill switch) is not a short-circuit, and stating one there would
-contradict the exception the same skill goes on to make. Genuine per-plugin exceptions (a step that
-stays FAIL even when the toggle is off, a gate scoped to each guard's own toggle rather than one
-plugin toggle, an independent second pass reported separately) are stated *after* the normalized
-sentences, on the same never-reword rule the routing line follows above. Neither block carries its
-own citation: the provenance naming above is once per skill, and these sentences are operable inline
-text on their own.
-
 Setup is one **plugin-level** `setup` skill, never a per-skill setup action. Setup granularity
 follows install granularity: a plugin installs and is configured as a unit, and its configuration
 surface — tracked project files, external prerequisites, `userConfig` — is plugin-scoped and
@@ -455,28 +397,6 @@ Setup may inspect the repository and create or update the plugin's tracked proje
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
 configuration surface.
-
-**How a setup skill states what it will not write.** That prohibition is stated inline in each
-`setup` skill rather than cited in place of the words, for the reason the routing line above gives:
-an installed plugin has no path to this file. Setup skills not yet carrying the fixed sentence are
-tracked by the fleet conformance audit, the same way the sibling blocks track their stragglers. One
-fixed sentence carries it, in whatever boundaries list the skill already keeps, naming the three
-surfaces in this order and no other:
-
-```text
-Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-```
-
-A skill whose boundaries list is phrased in the imperative prefixes a `Do not` to that sentence,
-lowercasing only its first letter and changing nothing else in it. Nothing is ever folded into the
-three-item list: a plugin that also refuses a surface of its own — its plugin data directory, a
-consumer's tracked file, machine-local state, the hook scripts — names that surface in a following
-sentence in the same bullet, and a plugin that has a single narrow permitted write names *that* in a
-following sentence too. Keeping the list contiguous and word-for-word is what makes a change to the
-forbidden set one greppable sweep across the fleet instead of thirty judgement calls. The provenance
-naming stays once per skill, in the fixed form given above: a skill that already names this section
-elsewhere adds no second naming here, and a skill that names it nowhere else carries the
-parenthetical on this sentence so every setup skill points home exactly once.
 
 `apply` is owed wherever the plugin owns a **writable artifact**, and only there. The test is
 ownership plus permission, not location: an artifact whose schema this plugin defines and documents
@@ -590,7 +510,6 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
 | Skill invocation-mode rubric | [`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
-| Untrusted-content framing (data, never instruction) | [`docs/conventions/untrusted-content/`](conventions/untrusted-content/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |

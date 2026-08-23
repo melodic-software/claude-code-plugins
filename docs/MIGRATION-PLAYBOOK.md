@@ -1336,13 +1336,15 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    cutover, which pairs both fields in the project settings.
 2. **Enable at project scope** so every clone inherits it — declare `enabledPlugins` in the same
    checked-in `.claude/settings.json` (choose user scope instead for machine-wide, not per-repo).
-3. **Install and seed config on one fresh install.** `--config` is accepted only on a fresh install
-   (smoke-test C), so pass every option on the install command, never a later call: `claude plugin
+3. **Install and seed config.** Pass every option on the install command: `claude plugin
    install <plugin>@<marketplace> --scope project --config KEY=VALUE …` (repeatable, schema-validated).
    Non-sensitive options land in the **user** `settings.json` `pluginConfigs` regardless of the enable
    scope; a sensitive value still routes to secure credential storage (smoke-tests A and C).
-   Interactively, `/plugin configure` owns personal `userConfig`; an explicit setup skill owns any
-   separate tracked project configuration declared by the plugin.
+   Re-running that command later against an already-installed plugin prints `already installed`
+   **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
+   install rather than an uninstall/reinstall. Interactively, `/plugin configure` owns personal
+   `userConfig`; an explicit setup skill owns any separate tracked project configuration declared by
+   the plugin.
 4. **Headless prompting caveat.** Install never prompts non-interactively — a required `userConfig`
    option left unset does **not** block the install; it stays advisory until set (smoke-test C). Seed
    every required option on the install command so the plugin does not run unconfigured.
@@ -1388,10 +1390,11 @@ surface to a published plugin for a single consumer's low-value nicety.
    marketplace does not install its plugins, so do both explicitly at project scope: `claude plugin
    marketplace add <repo> --scope project` then `claude plugin install <plugin>@<marketplace> --scope
    project --config KEY=VALUE …`, seeding every
-   non-default `userConfig` toggle on that install command — `--config` applies only on a fresh install and
-   is ignored once the plugin is already installed (smoke-test C), so a headless reconfiguration later
-   means uninstall/reinstall. **Exception:** a `directory`/`file` relative-path entry in checked-in
-   project settings resolves against the repo checkout (cloud sessions included) — see
+   non-default `userConfig` toggle on that install command — re-running it later against an
+   already-installed plugin prints `already installed` **and still writes the value** (smoke-test C),
+   so a headless reconfiguration is another `--config` install, not an uninstall/reinstall.
+   **Exception:** a `directory`/`file` relative-path entry in checked-in project settings resolves
+   against the repo checkout (cloud sessions included) — see
    [`docs/CLOUD-SESSIONS.md`](CLOUD-SESSIONS.md). Otherwise the marketplace is known but the plugin is absent, and step 3's
    verify edit would run with no plugin hook.
 2. Interactively, `/plugin configure` adjusts `userConfig` toggles at any time; keep the

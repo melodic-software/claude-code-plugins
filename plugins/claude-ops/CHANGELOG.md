@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.5]
+## [0.36.1]
 
 ### Changed
 
@@ -13,6 +13,134 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   (whole-repo extract-ssot batch, #2698).
 - **README:** deduplicated the hand-written option-scoping preamble against the
   generated options block, which already states both facts (#2698).
+
+
+## [0.36.0]
+
+Remediates the `claude-ops:plugins` post-use audit of the `sync` action (#3112). Every claim about
+CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
+
+### Added
+
+- **Catalog-version pre-filter for the Step 3 user-scope sweep.** `marketplace.json` entries carry
+  no version, which is why Step 3 previously called `claude plugin update` for *every* user-scope
+  install and let the CLI no-op. Each plugin's version does exist in the marketplace checkout, at
+  `<installLocation>/<entry.source>/.claude-plugin/plugin.json`, readable with no network call and
+  no CLI invocation. `fleet-state.sh` now exposes it as `catalog_versions`, and a new
+  `--ids update-candidates-user` selector withholds only ids it positively proved already sit at
+  the catalog version. On the authoring machine's own already-current fleet this takes the sweep
+  from 66 `claude plugin update` calls to **0**.
+
+  **The selector fails open by construction, and that is the dominant path, not an edge case.** An
+  id whose catalog version cannot be read — an object-valued `source`, an unmaterialized plugin
+  directory, a manifest with no `version`, unparsable JSON — is emitted as a candidate, exactly as
+  if no pre-filter existed. Measured across the nine marketplaces registered on the authoring
+  machine: the version resolves for **every** entry of five (`melodic-software` 70/70, plus four
+  single-plugin marketplaces), **partially** for two (`claude-plugins-official` 13/53,
+  `dotnet-agent-skills` 1/15), and for **none** of two (`anthropic-agent-skills` 0/5, `caveman`
+  0/1). So a marketplace the pre-filter cannot narrow at all is an ordinary outcome, not a
+  malfunction. `fleet-state.test.sh` proves the degradation as an equality: with no catalog version
+  readable, `update-candidates-user` output is byte-identical to `installed-user`.
+
+  **The manifest it reads must sit inside the marketplace checkout, and that is enforced
+  physically.** A catalog entry's `source` is third-party content, and the only unsafe direction
+  this pre-filter has is *withholding* an update — a foreign manifest that happens to carry the
+  installed version string would suppress a real update. A lexical `../` refusal is not sufficient,
+  because a symlink inside the checkout pointing outside it is reached by an ordinary `./name`
+  source that no string inspection can see. So the resolved manifest path is required to sit under
+  the resolved checkout root, with symlinks followed. `fleet-state.test.sh` covers both: a real
+  symlink escape (created with `MSYS=winsymlinks:nativestrict` so Git Bash emits a link rather than
+  silently deep-copying, and skipped where the platform yields no real symlink) is refused, while an
+  in-checkout directory of the same shape still resolves.
+- **`project_root`** (top level) — the resolved project root, or `null`. Closes the F1 silent no-op:
+  `currentProject` is a tri-state whose `null` collapses "no project context resolved at all"
+  together with "this is a user-scope record", so a run from `$HOME` and a run inside a repo with
+  no in-repo installs produced an identical downstream signal and an identical report.
+- **`user_scope_orphans`** (top level) plus an `--ids user-scope-orphans` selector — ids holding a
+  project/local record and no user-scope record. Structurally invisible before: `divergences[]`
+  discards any id with fewer than two records, and `missing_from_user_install` excludes ids that
+  are installed somewhere, so nothing in the output named them.
+- **`projectPathPresent`** on every project/local `installed[]` record and every
+  `divergences[].scopes[]` entry — advisory only, never a filter.
+- Five eval cases covering the silent-failure paths the suite never reached (skipped in-repo step,
+  `sync all` marketplace coverage, absent-`projectPath` handling, pre-filter fail-open, and the
+  version-capture divergence branch).
+
+### Fixed
+
+- **Step 2 no longer skips silently.** It now branches on `project_root` and the report carries a
+  fixed `In-repo:` row in all three states, including `skipped — no project context resolved`.
+- **`sync all` no longer sweeps one marketplace while reporting as though it covered every one.**
+  Steps 2–5 are the per-marketplace loop body and every `--ids` call carries `--marketplace`.
+- **Divergences are no longer routed to a `converge` command that cannot run.** Records whose
+  `projectPath` is not present get their own report section, outside the actionable Divergences
+  count, and `converge` emits them as *blocked* rather than as runnable commands.
+- **`pluginConfigs` scope claim corrected.** It is read from user settings, `--settings`, and
+  managed settings only — project and local entries are ignored (since v2.1.207) — while
+  `enabledPlugins`, read by this same skill, still honors them. The old text said "some
+  `pluginConfigs` scope", which invited setting `install_new` in a repo where it does nothing.
+- **`/reload-plugins --force` guidance restated as the docs' two-step.** The trigger is prompt-cache
+  invalidation; the MCP-server case is the common cause, not the only one.
+- **Divergence count split** into run-caused versus pre-existing, so the report stops presenting
+  skew the sweep itself just created as discovered drift.
+- **`sync` now reports when it updated `claude-ops` itself**, naming that the algorithm which ran is
+  the pre-update one.
+- **TOCTOU wording matches the implementation**: the re-read boundary is the step, a loop body is
+  deliberately snapshot-driven, and the inert "outcome didn't match the snapshot" detector is
+  replaced with the one signal that is actually distinguishable.
+- **`install_new: all` recurrence** and **unset-`userConfig` install notices** now have report slots
+  instead of living only in prose.
+- **`setup`: the headless `--config` route no longer prescribes an uninstall/reinstall cycle.**
+  Rerunning the install writes the option against an already-installed plugin — it prints
+  `already installed` and still writes the value (verified on Claude Code 2.1.240, for a
+  non-sensitive option at `user` scope; a `sensitive` option and `project`/`local` scope were not
+  covered, and the wording says so). The old cycle was unnecessary and actively destructive:
+  uninstalling drops the whole stored `pluginConfigs` entry, resetting all fifteen options to
+  their manifest defaults (the previous text miscounted them as fourteen, and the
+  `*_audit_enabled` toggles as seven rather than eight).
+
+  It also separates the two claims a reader conflates: the **write** lands, but the **running
+  session's** behavior does not change — `${user_config.*}` is injected at skill load and each
+  hook's `CLAUDE_PLUGIN_OPTION_*` comes from an environment fixed at session start, so a
+  same-session `check` still reports the OLD value and reading that as a failed write is wrong.
+  Verify in a fresh session.
+
+  Wording matches the fleet-wide correction landed in #3115 verbatim apart from this plugin's own
+  option list, so the copies stay identical rather than drifting into a claude-ops variant. This
+  closes a live contradiction on `main`: #3115 regenerated this plugin's README with the corrected
+  guidance while `skills/setup/SKILL.md` still prescribed the destructive cycle, a gap that PR's
+  own reviewer flagged and could not fix because the file sits in this change set's fence.
+
+### Changed
+
+- The `versionsMatch` filter rule now has one origin (`context/scope-semantics.md`); `SKILL.md`,
+  `gotchas.md`, and `converge.md` point at it instead of restating it a fourth time.
+- New gotchas: a `projectPath` outliving its directory, a spoke file never receiving
+  `${user_config.*}` substitution, and `sync` updating its own plugin mid-run.
+- `SKILL.md`'s "index, not a substitute" rule now names its two deliberate exceptions and why they
+  must live in the hub.
+- Version capture now instructs retaining the pre-sweep snapshot for the whole run — it is the sole
+  source of every `<old>`.
+
+### Deferred (audit findings deliberately not closed in this release)
+
+- **`--run-log` written by `fleet-state.sh`** (audit remediation 19, F12's most ambitious tier).
+  The script's own header advertises it as read-only, and the auditor's correction notes the
+  tension. F12's cheapest tier — retain the pre-sweep snapshot — is implemented instead. A durable
+  log, if wanted, belongs in a sibling script that owns it rather than in the read-only inspector.
+- **A fourth `install_new` value with declined-install memory** (remediation 20, F9's durable fix).
+  Needs persistent state the skill does not have today; the recurrence clause narrates the surprise
+  rather than removing it.
+- **F14 (description trigger-phrase trim).** The repo's own `check-changed-skills.sh` gate enforces
+  trigger-keyword preservation against `HEAD` and fails a dropped phrase as an auto-invocation
+  regression. The finding is cosmetic (the skill sets `disable-model-invocation: true`, so the
+  phrases only serve as `/`-menu help) and is not worth fighting a validator for.
+- **A `--selfcheck` that reports whether the rendered `install_new` value is the literal placeholder
+  token** (F8's most ambitious tier). F8 graded the *record*, not the claim — the defect was a stamp
+  with no recheck trigger, and that is fixed. Turning the prose stamp into a runtime observation is
+  a separate enhancement.
+- **An upstream issue for the absent record-reaping verb** (remediation 21) — not a change to this
+  repository.
 
 ## [0.35.4]
 
