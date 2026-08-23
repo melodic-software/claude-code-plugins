@@ -14,8 +14,9 @@ All notable changes to the `education` plugin are documented here. Format follow
   declared option to its manifest default. On Claude Code 2.1.240 a plain
   `claude plugin install … --config` against an already-installed plugin prints
   `already installed` and still writes the value, so that is now the documented route —
-  stamped with the CLI version it was verified against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` now also reads
-  the effective value back and reports it, rather than asserting an unobserved change.
+  stamped with the CLI version it was verified against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). This skill is check-only —
+  it has no `apply` action — and `check` still closes by telling the reader to rerun it in a
+  fresh session and report the observed value, never asserting an unobserved change.
 - **Docs:** the generated options block's headless route no longer implies `--config`
   applies only at install time, and now carries the CLI version its claim was verified
   against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream links that pointed at empty backward-compatibility

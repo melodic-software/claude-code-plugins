@@ -7,15 +7,17 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
 
 ### Fixed
 
-- **`setup` skill:** the headless reconfiguration route no longer prescribes
-  `claude plugin uninstall` + reinstall. That instruction rested on an unversioned claim
-  that `claude plugin install --config` is ignored once a plugin is installed, and
-  following it dropped the plugin's whole stored `pluginConfigs` entry, resetting every
-  declared option to its manifest default. On Claude Code 2.1.240 a plain
-  `claude plugin install … --config` against an already-installed plugin prints
-  `already installed` and still writes the value, so that is now the documented route —
-  stamped with the CLI version it was verified against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` now also reads
-  the effective value back and reports it, rather than asserting an unobserved change.
+- **`setup` skill:** the destructive `claude plugin uninstall` + reinstall recipe for a
+  headless key rotation is removed. It rested on an unversioned claim that
+  `claude plugin install --config` is ignored once a plugin is installed, and following it
+  dropped this plugin's whole stored `pluginConfigs` entry. That claim now appears only as
+  the thing it is — unstamped and contradicted for a non-sensitive option at `user` scope
+  on Claude Code 2.1.240, where a plain `claude plugin install … --config` against an
+  already-installed plugin printed `already installed` and still wrote the value
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
+  `dometrain_api_key` is `sensitive: true`, which that observation does **not** cover, so
+  `/plugin configure dometrain@<marketplace>` remains the prescribed rotation path — it also
+  masks input, where a key on the command line lands in shell history and the process table.
 - **Docs:** the generated options block's headless route no longer implies `--config`
   applies only at install time, and now carries the CLI version its claim was verified
   against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream links that pointed at empty backward-compatibility
