@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.4]
+
+### Fixed
+
+- **Docs:** README only. The generated options block's headless route no longer implies
+  `--config` applies at install time alone, and now carries the CLI version its claim was
+  verified against
+  ([#3111](https://github.com/melodic-software/claude-codeplugins/issues/3111)); two upstream
+  links that resolved to empty backward-compatibility anchors on the settings page were
+  repointed at the headings that hold the content. Emitted by
+  `scripts/sync-plugin-options-docs.py`, which regenerates every plugin README from one
+  template, so this plugin's README moves with the fleet. This plugin's `setup` skill is NOT
+  touched here — the same correction lands there separately.
+
 ## [0.35.3]
 
 ### Changed

@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## [0.18.4]
+## [0.19.1]
 
 ### Fixed
 
@@ -30,6 +30,85 @@
   Converging on `git status --porcelain -z` would close the class outright and
   is the better long-term fix; it is not taken here because it changes rename
   records from `old -> new` into two separate fields.
+
+## [0.19.0]
+
+### Changed
+
+- **`extract-ssot` reports duplication at every multiplicity; the Rule of Three now gates
+  artifact creation, not reporting (#3114).** One threshold had been doing two jobs. Gating
+  *creation of a new SSOT artifact* at three instances is what the cited evidence supports
+  (~19% failure on curated skills, ~50% on practitioner-authored ones) — but the same number
+  was also deciding whether the user heard about the duplication at all, so two real defect
+  classes were discarded in silence: a consumer inlining a recap of an SSOT that already
+  exists (N=1), and two files asserting the same contract with no declared owner, drifting
+  apart (N=2).
+
+  `identify` now rosters candidates in three labelled buckets with the instance count shown
+  per candidate: **N=1** (inline recap of an existing SSOT), **N=2** (source-of-truth
+  bifurcation risk), **N≥3** (Rule of Three met). `verify` Gate 1 assigns that bucket from the
+  full-reproduction count and emits it in a new `bucket:` output field;
+  `REFUSE-rule-of-three-fails` is retained as the reason code but now fires only against an
+  *artifact-creating* remedy (`rule-file` / `new-skill` / `new-action`) below three — never
+  against reporting, and never against the non-abstracting remedies. Gate 4 gains the
+  intentional-vs-accidental split: a deliberate two-audience bifurcation still refuses, while
+  accidental bifurcation with no declared owner PROCEEDs as the N=2 bucket's own defect.
+
+  **Lowering the reporting threshold does not lower the abstraction threshold**, because the
+  sub-three buckets offer only remedies that edit files already present. The 6-test gate is
+  untouched and still governs every N≥3 extraction.
+
+### Added
+
+- **Two non-abstracting remedies for `extract-ssot` (#3114).** `normalize-wording` (align
+  divergent phrasings onto the canonical or agreed wording in place) and `name-an-owner`
+  (declare one existing file the canonical owner and make the other cite it). Neither creates
+  a file. They join `trim-to-citation` and `edit-existing-rule` in the suggested-output
+  vocabulary, and they are what make a rule-of-one reporting default safe.
+- **Five flags on the `identify` / `batch` surfaces (#3114).** `--min-instances=<N>` (default
+  `1`; `--min-instances=3` is the regression guard that reproduces the pre-bucket behavior
+  exactly), `--buckets=<list>`, `--fix` (applies only `trim-to-citation` and
+  `normalize-wording`, never creates an artifact), `--dry-run`, and `--yes`. Bare invocation
+  stays read-only: it reports the buckets and stops.
+- **Four eval expectations and two new eval cases** covering the N=1 bucket and the
+  `--min-instances=3` regression guard; the former `refuse-below-rule-of-three` case is now
+  `two-instances-bucketed-no-new-artifact` and asserts both halves — the candidate is
+  rostered, and no new artifact is proposed below three.
+
+### Fixed
+
+Four defects in the bucket design above, surfaced by automated review of the shipping PR
+(#3114):
+
+- **`trim-to-citation` is part of the N=2 permitted-remedy set.** The bucket contract and the
+  `verify` permitted-remedies schema had listed only `edit-existing-rule` / `name-an-owner` /
+  `normalize-wording`, none of which removes two redundant recaps when the canonical home
+  already exists and is complete — even though the routing rules already prescribed
+  `trim-to-citation` for that case. N=2 is now described as the two shapes it actually covers:
+  two consumers recapping an existing home (trim both to citations), or two files asserting one
+  contract with no declared owner (name one). `REFUSE-rule-of-three-fails` is now stated
+  positively — it fires only against `rule-file` / `new-skill` / `new-action` below N≥3 —
+  instead of enumerating the remedies it spares, which is what let the set drift incomplete.
+- **Sibling routing thresholds match the new entry point.** `/docs-hygiene:compress`,
+  `/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`,
+  `/docs-hygiene:write-for-agents`, and `/docs-hygiene:write-for-humans` each routed cross-file
+  duplication to `/docs-hygiene:extract-ssot` only at 3+ files, so the sub-three buckets were
+  unreachable from the flows that feed them. They now route repeated content at any multiplicity;
+  creating a NEW artifact still waits for the third instance. `/docs-hygiene:compress`'s
+  `context/integration.md` boundary note, which restated the old 3+ threshold in prose, was
+  reconciled with the same rule.
+- **`verify` Gate 1 counts semantic clusters by reading, not phrase grep.** A paraphrase cluster
+  (`identify` forms c2/i) shares no verbatim ≥8-word phrase, so a phrase grep found only the
+  file the phrase was lifted from — assigning a real N=2/N≥3 cluster to N=1 and, with no prior
+  canonical, returning `REFUSE-not-found`, after which the mandatory `batch` verify filter
+  dropped the candidate. Gate 1 now counts by evidence shape (phrase grep for literal clusters,
+  the reading-derived canonical-truth roster for semantic ones) and gained a semantic Tier 0
+  evidence form; Gate 0's `REFUSE-not-found` fires only when neither grep nor reading resolves
+  any instance.
+- **The `batch` per-dispatch verdict enum covers completed non-abstracting remedies.** Step 8's
+  schema offered only `EXTRACTED` / `REFUSED-*` / `DEFERRED`, none of which fits a sub-three
+  bucket that finished its work without creating an artifact; it gains `REMEDIED-{remedy}`, so
+  the schema and the Step 10 batch-summary example agree.
 
 ## [0.18.3]
 

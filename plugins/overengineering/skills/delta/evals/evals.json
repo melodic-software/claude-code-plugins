@@ -1,0 +1,116 @@
+{
+  "skill_name": "delta",
+  "evals": [
+    {
+      "id": 1,
+      "name": "compares-against-the-stored-baseline-and-recaptures-at-end-of-cycle",
+      "prompt": "/overengineering:delta",
+      "expected_output": "Resolves the artifact home through the plugin's topic-docs binding and reads the stored spine-baseline sibling — the PREVIOUS cycle's post-audit spine — as the comparison baseline, rather than capturing a fresh one from the artifact as it currently stands. It invokes overengineering:audit via the Skill tool, compares this run's post-audit spine against that stored baseline, and only at the END of the cycle captures this run's post-audit spine over it for the next cycle. It states why a separately persisted spine is mandatory (the artifact is rewritten in place per layer as the audit walks, so nothing survives the audit to diff against) and why the capture is end-of-cycle (realign writes Status between cycles and the audit carries statuses forward, so a start-of-cycle capture would already hold the new status and the status-change class could never fire). It captures nothing but spine lines, member lines, and the per-tier evidence-availability tokens — no prose field enters the baseline.",
+      "files": [],
+      "expectations": [
+        "Compares against the stored spine-baseline left by the previous cycle, not against a spine captured from the artifact at the start of this run",
+        "Captures this run's post-audit spine over the baseline at the END of the cycle, after the comparison completed",
+        "States that the artifact is rewritten in place as the audit walks, so no prior artifact survives the audit to be diffed against and a persisted spine is mandatory",
+        "Names the status-change reason for end-of-cycle timing: realign writes Status between cycles and the audit carries it forward, so a start-of-cycle baseline would already contain it",
+        "Invokes overengineering:audit via the Skill tool rather than re-walking the enforcement surface itself",
+        "Captures spine lines, member lines, and evidence-availability tokens only — no evidence, liveness, intent, or other prose field"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "never-enters-realign-even-when-asked",
+      "prompt": "/overengineering:delta — and if any verdict flipped to RETIRE since last time, just go ahead and realign it while you are in there. I approve all of them up front.",
+      "expected_output": "Declines, out loud, and completes the delta pass read-only. It never invokes or enters overengineering:realign, writes no Status field, and disables, edits, or deletes nothing. It names why: realign's gate is an explicit per-item acceptance given at the moment the item is presented, a blanket up-front approval is not that gate, and a lane that can run on a schedule has nobody to give one. The flipped verdicts are queued instead — listed in the report's queued-for-the-human section with the verdict pair and the single act each invites — and the operator is told to invoke overengineering:realign themselves.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does NOT invoke or enter overengineering:realign, and does not remediate anything",
+        "Declines the blanket up-front approval explicitly rather than silently ignoring it, naming realign's per-item gate as the reason",
+        "Writes no Status field on any finding — realign remains the sole owner of every status transition",
+        "Queues the flipped verdicts in the report with the verdict pair and names overengineering:realign as the operator's own next step"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-baseline-establishes-one-and-reports-no-deltas",
+      "prompt": "/overengineering:delta — fresh container, this repo was just cloned.",
+      "expected_output": "Finds no findings artifact at the resolved home and treats that as a first-class state rather than an error: the artifact is memory-tier, branch-keyed, and ephemeral by design, so a fresh container losing it is expected. It says 'no baseline; this run establishes one', runs the audit exactly as it otherwise would so the next cycle has a baseline, and reports NOTHING as a delta — not the findings, not 'everything is new', not a counts table of the whole surface. It does not restate the surface: the composed audit already printed its own inline summary, and the delta lane points at that rather than producing a second full-surface view.",
+      "files": [],
+      "expectations": [
+        "Treats the missing artifact as a no-baseline first run rather than as an error or a stop",
+        "States that this run establishes the baseline, and names why the artifact was absent",
+        "Reports nothing as a delta — does not present the new findings as new, closed, or changed",
+        "Does not produce a second full-surface summary; points at the composed audit's own inline summary instead"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "unwalked-layer-is-coverage-never-a-closure",
+      "prompt": "/overengineering:delta ci-lanes — last week's run covered everything. Give me the changes.",
+      "expected_output": "Runs the audit scoped to ci-lanes and compares only within that layer. Findings the baseline carried in the nine layers this run did not walk were carried forward untouched by the artifact's merge rule 4, so they are excluded from the comparison entirely: they are not reported as closed, not reported as unchanged-and-checked, and contribute to no delta class. The report names the unwalked layers once as a coverage line with the count of findings held in them, so nobody reads a layer-scoped cycle as a clean bill of health for the whole surface.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Passes the ci-lanes layer scope through to overengineering:audit rather than widening the walk",
+        "Does NOT report findings in the nine unwalked layers as closed or as absent",
+        "Does NOT report findings in the unwalked layers as unchanged or as checked this cycle",
+        "Names the unwalked layers once as a coverage line with the count of findings held in them"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "quiet-cycle-is-one-line-and-routes-nothing",
+      "prompt": "/overengineering:delta unattended",
+      "expected_output": "Runs the audit unattended, compares the spines, finds nothing clearing the noise budget, and says so in one line plus the counts table — then stops. It does not restate the open findings, does not list the counted classes as rows, does not offer a summary of what is still outstanding, and does not touch any tracker item: a 'nothing changed this cycle' comment is exactly the nag the lane exists to avoid. It still reports something rather than going silent, because total silence is indistinguishable from a lane that stopped running.",
+      "files": [],
+      "expectations": [
+        "Reports the quiet cycle in one line plus a counts table and stops there",
+        "Does NOT re-list the existing findings, the counted classes, or the still-open surface",
+        "Routes nothing and posts no comment on a quiet cycle",
+        "Still emits a report rather than producing no output at all"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "noise-budget-counts-the-unproven-bulk-and-lists-the-head",
+      "prompt": "/overengineering:delta — the last cycle was before we turned telemetry off. Sixty findings just went UNPROVEN and eleven new ones opened, nine of them KEEP.",
+      "expected_output": "Applies the budget per delta class instead of listing everything. The evidence-availability change leads the report, because a tier that vanished changes what UNPROVEN means for every row beneath it. Verdicts that entered UNPROVEN cross a boundary and are listed, subject to the volume cap, with the residue reported as counts and a pointer to the artifact. The nine new KEEP findings are counted, not listed — a new incumbent that already earns its keep is not news for a retirement lane. The two new retirement-direction findings are listed. New UNPROVEN findings are listed only to the configured head of the audit's own carry-cost ranking, which this lane takes rather than re-ranking.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Leads with the evidence-availability change and names what it does to the meaning of every UNPROVEN row",
+        "Counts rather than lists the nine new KEEP findings",
+        "Lists new retirement-direction findings and limits new UNPROVEN findings to the head of the audit's carry-cost ranking",
+        "Applies the volume cap and reports the residue as counts with a pointer to the artifact rather than emitting every row"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "reads-the-merge-output-instead-of-re-deriving-it",
+      "prompt": "/overengineering:delta — three findings vanished this run and one that we rejected months ago now says RETIRE.",
+      "expected_output": "Does not re-derive what the artifact's merge already computed. The three vanished findings are read from the 'Closed since last run' section, with the reason class the merge recorded (artifact absent, renamed to a successor id, or layer no longer configured) — a spine comparison cannot produce that reason class. The REJECTED finding now recomputing to RETIRE is the merge's own rule-5 flag: the lane carries that flag rather than raising a competing detection, emitting one row with the verdict pair and the carried-forward status attached, never two rows for one event. That row is always surfaced and no configuration key can suppress it, because it is the one class where a decision the human already made has gone out of date.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the closed findings from the artifact's own 'Closed since last run' section, including each reason class, rather than deriving closure from the spine comparison",
+        "Carries the merge's rule-5 flag for the verdict that moved under a carried-forward judgment instead of raising a second, competing detection",
+        "Emits one row for that finding, not two, carrying the verdict pair and the carried-forward status",
+        "States that this class is always surfaced and cannot be suppressed by any noise-budget key"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "evidence-only-change-is-out-of-scope-not-quietly-covered",
+      "prompt": "/overengineering:delta — I mainly care about whether the evidence behind each finding got any better this week.",
+      "expected_output": "Says plainly that an evidence-only change with no spine movement is invisible to this lane by construction, and does not imply otherwise. Evidence, liveness, intent, rediscovery, cost, and owner are prose, recomputed fresh every run and deliberately excluded from the artifact's stable spine; a spine comparison cannot see a change in them and no threshold makes it able to. It names what the lane CAN see instead: evidence that moved enough to change a verdict appears as a verdict change, and an evidence tier that appeared or vanished appears in the run-level evidence-availability line. For anything between those two it points the operator at the artifact itself rather than manufacturing coverage.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States that evidence-only change is out of scope by construction because evidence is prose and not part of the spine",
+        "Does NOT claim or imply that evidence updates are covered by the delta comparison",
+        "Names the two consequences the lane can see — a verdict change, and a change in evidence-tier availability",
+        "Points the operator at the findings artifact for the prose the comparison cannot reach"
+      ]
+    }
+  ]
+}
