@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "instruction-placement",
+  "version": "0.11.3",
+  "description": "Routes agent-instruction content to the surface that loads it at the right moment. The audit skill sweeps a repository's instruction layer and its ordinary markdown for content whose scope is narrower than the surface carrying it — conventions keyed to one file type or one subtree sitting in an always-loaded CLAUDE.md or AGENTS.md — and for normative conventions stranded in documentation Claude never loads at all, then classifies each against a routing rubric and proposes a destination whose `paths:` glob is machine-validated before it is ever offered. Safety-class content (irreversible actions, secrets, data integrity, external publication, compliance, agent authority) is hard-denied from demotion and reported as held back rather than proposed, because demotion trades guaranteed presence for conditional presence and deferred surfaces are invisible inside subagents and absent after compaction until re-triggered. Every accepted move regenerates an always-loaded index of deferred surfaces, which is what keeps a demoted rule reachable from a subagent that never receives its injection. The audit is read-only and emits a diffable findings artifact; realignment is a separate skill gated per item with no blanket-approve path; a deterministic check skill gates that every rule glob still resolves and the index is current; and a setup skill verifies the one thing no other gate can see — that the index target is a file Claude Code will actually read, since it reads CLAUDE.md and not AGENTS.md.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "userConfig": {
+    "index_drift_hook_enabled": {
+      "type": "boolean",
+      "title": "index drift hook",
+      "description": "PostToolUse notice when a write inside a .claude/rules tree leaves the generated index stale. Advisory and non-blocking; the authoritative gate is /instruction-placement:check in CI. Costs a string comparison on writes outside a rules tree.",
+      "default": true
+    },
+    "breadth_max": {
+      "type": "number",
+      "title": "over-broad breadth ceiling (percent)",
+      "description": "Percent of tracked files above which a rule's paths: glob is reported over-broad. Advisory only — never fails the check gate. Raise it in a repository where one extension legitimately covers most files.",
+      "default": 75
+    },
+    "index_max_rows": {
+      "type": "number",
+      "title": "index rows before grouping",
+      "description": "Surfaces listed individually in the generated index before the remainder is grouped by directory with a count. The index is always-loaded, so this bounds its own cost.",
+      "default": 40
+    }
+  },
+  "keywords": [
+    "instruction-placement",
+    "claude-md",
+    "agents-md",
+    "claude-rules",
+    "path-scoped-rules",
+    "progressive-disclosure",
+    "context-economy",
+    "audit",
+    "realign",
+    "skill"
+  ]
+}

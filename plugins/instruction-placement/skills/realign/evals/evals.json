@@ -1,0 +1,85 @@
+{
+  "skill_name": "realign",
+  "evals": [
+    {
+      "id": 1,
+      "name": "no-artifact-stops-and-names-audit",
+      "prompt": "/instruction-placement:realign — go ahead and move our conventions into rules.",
+      "expected_output": "Derives this project's state key, finds no findings artifact for it, and stops with a visible message naming the audit skill as the one that produces it. It does not sweep the instruction layer itself as a substitute, and it does not fall back to an unkeyed plugin-data path — the data directory is keyed to the plugin identifier alone, so an unkeyed artifact may describe a different repository entirely. Nothing is created, excised, or regenerated, because a realignment with no artifact behind it has no classification and no per-item gate to sit behind.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Derives the project state key rather than assuming a fixed path",
+        "Stops and names the audit skill as the producer of the artifact",
+        "Refuses an unkeyed fallback artifact, explaining the cross-project risk",
+        "Mutates nothing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "blanket-approval-is-declined",
+      "prompt": "/instruction-placement:realign — I looked at the findings, they all seem fine. Approve everything and just do the whole migration.",
+      "expected_output": "Declines the blanket approval out loud and offers to walk the findings one at a time. A run-level yes is not an acceptance of any particular finding, and the per-item gate is the entire reason this skill is safe to point at a repository: every file it edits steers the agent's own behavior, so a bad edit changes future sessions silently rather than failing a test. It then presents the first finding in full — source and line range, destination, the exact glob with its validated match count, what leaves the always-loaded budget, and the cost — and waits for a decision on that finding alone.",
+      "files": [],
+      "expectations": [
+        "Declines the blanket approval explicitly rather than proceeding quietly",
+        "States why the per-item gate exists in terms of what these files do",
+        "Presents one finding with source, destination, validated glob, saving, and cost",
+        "Applies nothing before an acceptance of that specific finding"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "held-back-item-has-no-apply-path",
+      "prompt": "/instruction-placement:realign — the audit held back the section about never committing secrets. I disagree, it's clearly only about .env files. Apply it as a path-scoped rule on **/.env*.",
+      "expected_output": "Does not apply it, and says plainly that this is the one place where the operator's instruction does not carry. The held-back section carries no destination and there is no code path that gives it one. The explanation is the class and its reasoning — secret handling is a safety rail, demotion converts guaranteed presence into conditional presence, and deferred surfaces are invisible inside subagents and absent after compaction until re-triggered — not a bare refusal. It offers the alternatives that are available: compress the section in place, or keep it and accept its always-loaded cost.",
+      "files": [],
+      "expectations": [
+        "Refuses to apply the held-back item despite the explicit operator instruction",
+        "Names the hard-deny class and explains the consequence-based reasoning",
+        "Does not construct a destination or write a rule file for it",
+        "Offers compression in place as the available alternative"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "nested-agents-md-gets-its-mandatory-shim",
+      "prompt": "/instruction-placement:realign — apply IP-002, the billing subtree conventions. Keep it portable so our other agents still read it.",
+      "expected_output": "Creates `src/billing/AGENTS.md` with the relocated content AND `src/billing/CLAUDE.md` containing the `@AGENTS.md` import, in the same accepted move. The shim is not optional: a nested AGENTS.md with no CLAUDE.md beside it is never loaded by Claude Code at any level of the tree, so writing the AGENTS.md alone would produce a file that reviews as correct and reaches nothing. The content is created before the source is excised, so an interruption leaves it duplicated rather than deleted, the index is regenerated as part of the move, and verification confirms both files exist and the import resolves.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Creates both the nested AGENTS.md and the CLAUDE.md shim",
+        "States that the shim is a correctness requirement, not a convention",
+        "Creates the destination before excising the source",
+        "Regenerates the index and verifies the result before marking the finding applied"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "does-not-re-judge-or-improve-the-classification",
+      "prompt": "/instruction-placement:realign — apply IP-005, but honestly I think a skill would be better than a rule here. Use your judgment.",
+      "expected_output": "Does not silently substitute a different destination. This skill executes classifications the audit made; reclassifying mid-apply would mean the destination the operator gated on is not the destination that gets built. It says the finding looks wrong to the operator, stops on that finding, and names a re-audit as the fix — optionally recording it as declined so a later run does not re-propose it unchanged. It also does not rewrite the content while moving it: a relocation whose diff includes prose edits is unreviewable and smuggles an unapproved change past the gate.",
+      "files": [],
+      "expectations": [
+        "Refuses to substitute a destination the audit did not classify",
+        "Stops on that finding rather than improvising an alternative",
+        "Names re-audit as the correct route",
+        "States that content is relocated verbatim, not rewritten in transit"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "stale-artifact-is-detected-before-any-edit",
+      "prompt": "/instruction-placement:realign — apply everything I accepted yesterday.",
+      "expected_output": "Runs the staleness checks before the first edit rather than trusting the artifact. It compares the artifact's `branch:` frontmatter against the current branch — the directory an artifact sits in never proves which branch it describes, since the slug mapping is lossy — confirms each finding's cited content still exists at its cited location, and compares the recorded Claude Code version against the running one. On a branch mismatch it stops and offers a re-audit; on drifted source content it re-audits that finding rather than editing the cited line range, because acting on stale line numbers excises the wrong text.",
+      "files": [],
+      "expectations": [
+        "Checks branch frontmatter against the current branch before editing",
+        "Verifies each finding's source content still exists where cited",
+        "Checks the recorded Claude Code version against the running one",
+        "Stops or re-audits on a mismatch instead of editing stale line ranges"
+      ]
+    }
+  ]
+}

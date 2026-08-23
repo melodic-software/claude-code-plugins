@@ -134,7 +134,15 @@ $1 == "rule" {
   ks = k SUBSEP scope
   if (!(ks in scope_seen)) {
     scope_seen[ks] = 1
-    scopes[k] = (k in scopes) ? scopes[k] "," scope : scope
+    # The guard is n_scopes, NOT `(k in scopes)`. mawk creates the element named
+    # by an assignment target before it evaluates the right-hand side, so
+    # `scopes[k] = (k in scopes) ? ... : scope` sees its own subscript already
+    # present and takes the append branch on the FIRST contributor -- emitting
+    # `scopes=,project` for a rule that exists in one scope. gawk defers the
+    # creation and the same line reads correctly there, which is what let this
+    # survive: the bug is invisible on a gawk box and wrong on every mawk one.
+    # n_scopes is a plain counter, so reading it uninitialized is 0 under both.
+    scopes[k] = (n_scopes[k] > 0) ? scopes[k] "," scope : scope
     n_scopes[k]++
   }
   next

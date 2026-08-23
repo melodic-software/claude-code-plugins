@@ -3,6 +3,23 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.3]
+
+### Fixed
+
+- **Every merged scope list carried a leading empty element under mawk.**
+  `permission-merge.sh` and `managed-conformance.sh` both built their scope lists with
+  `arr[k] = (k in arr) ? arr[k] "," v : v`. mawk creates the element named by an assignment target
+  *before* it evaluates the right-hand side, so the membership test is already true on the first
+  contributor and the append branch is taken immediately: a rule present in exactly one scope was
+  reported as `scopes=,project`, and a managed finding as `in scope(s) ,user`. gawk defers the
+  creation and reads the same line correctly, which is what let this survive — the defect is
+  invisible on a gawk box and wrong on every mawk one, and mawk is what the CI runner has. Both
+  sites now guard on a plain counter, which reads as 0 uninitialized under either implementation.
+  Restores 23 failing checks across three suites (`permission-merge` 19/51, `automode-entry-diff`
+  3/63, `managed-conformance` 1/37); all seven `audit-permission-state` suites are green again at
+  347 checks. Found while diagnosing a `plugin-gate` failure that reproduced on a clean `main`.
+
 ## [0.39.2]
 
 ### Changed

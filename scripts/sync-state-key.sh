@@ -21,7 +21,7 @@ cd "$script_dir/.."
 
 sync_cluster_script="sync-state-key.sh"
 src="plugins/claude-config/lib/state-key.sh"
-copies=(plugins/claude-memory/lib/state-key.sh plugins/claude-ops/lib/state-key.sh plugins/context-budget/lib/state-key.sh plugins/improvement/lib/state-key.sh)
+copies=(plugins/claude-memory/lib/state-key.sh plugins/claude-ops/lib/state-key.sh plugins/context-budget/lib/state-key.sh plugins/improvement/lib/state-key.sh plugins/instruction-placement/lib/state-key.sh)
 sync_cluster_manifest_strip='/lib/*'
 sync_cluster_noun="Canonical"
 sync_cluster_carrier="carrying"
