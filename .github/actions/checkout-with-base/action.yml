@@ -17,11 +17,6 @@ inputs:
     required: false
     default: "true"
 
-outputs:
-  base-ref:
-    description: The PR base branch name, or empty when this is not a pull_request.
-    value: ${{ steps.base.outputs.base-ref }}
-
 runs:
   using: composite
   steps:
@@ -33,11 +28,9 @@ runs:
         fi
 
     - name: Fetch base ref
-      id: base
       if: inputs.fetch-base == 'true' && github.event_name == 'pull_request' && github.base_ref != ''
       shell: bash
       env:
         BASE_REF: ${{ github.base_ref }}
       run: |
         git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
-        echo "base-ref=$BASE_REF" >> "$GITHUB_OUTPUT"
