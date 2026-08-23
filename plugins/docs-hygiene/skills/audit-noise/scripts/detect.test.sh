@@ -615,6 +615,55 @@ assert_not_contains "document locators keep the antecedent unflagged" \
   "$ante_neg_out" "Finding shape: conversational-antecedent"
 assert_contains "antecedent exemptions file is clean" "$ante_neg_out" "| T1=0 T2=0 T3=0"
 
+# under / at / on used to exempt unconditionally, the same weakness `in` had
+# before the locator predicate. Conversational residue phrased with those
+# prepositions must flag; a real document locus after them must stay exempt.
+# High-traffic `on` idioms that are NOT this shape (based on, depends on, on
+# disk, on the other hand) are pinned so narrowing `on` cannot start matching
+# ordinary prose that never had an antecedent.
+ANTE_PREP="$TEST_TMPDIR/antecedent-prepositions.md"
+cat >"$ANTE_PREP" <<'EOF'
+# Antecedent preposition fixture
+
+As we agreed on Tuesday, the cap is 30s.
+As we decided at the standup, retry three times.
+As we agreed under time pressure, this is temporary.
+As we decided on the ADR's recommendation, the resolver reads the team file.
+The default is based on the measured timeout.
+Retry count depends on the shard width.
+Persist the snapshot on disk after the write.
+On the other hand, keep the current default.
+As we discussed above, the resolver reads the team-tracked file only.
+EOF
+ante_prep_out="$(bash "$DETECT" "$ANTE_PREP")"
+assert_contains "'on Tuesday' is conversational residue" "$ante_prep_out" "the cap is 30s"
+assert_contains "'at the standup' is conversational residue" "$ante_prep_out" "retry three times"
+assert_contains "'under time pressure' is conversational residue" "$ante_prep_out" "this is temporary"
+assert_not_contains "'on the ADR' is a document locator" "$ante_prep_out" "the resolver reads the team file"
+assert_not_contains "anaphoric 'above' is still a blanket exemption" \
+  "$ante_prep_out" "the resolver reads the team-tracked file only"
+assert_not_contains "'based on' is not an antecedent" "$ante_prep_out" "measured timeout"
+assert_not_contains "'depends on' is not an antecedent" "$ante_prep_out" "shard width"
+assert_not_contains "'on disk' is not an antecedent" "$ante_prep_out" "after the write"
+assert_not_contains "'on the other hand' is not an antecedent" "$ante_prep_out" "current default"
+assert_contains "three new preposition residues and nothing else" "$ante_prep_out" "| T1=3 T2=0 T3=0"
+
+# An inline-code locator the strip removes, followed by punctuation, must
+# still count as a document locus after the clause cut — otherwise `on` /
+# `at` / `under` newly flag a real path cite.
+ANTE_TICK="$TEST_TMPDIR/antecedent-inline-locator.md"
+cat >"$ANTE_TICK" <<'EOF'
+# Inline-code locator fixture
+
+As we discussed on `docs/design.md`, retain the fallback.
+As we decided at `§3`, keep the resolver.
+As we agreed under `the ADR`, ship the narrower form.
+EOF
+ante_tick_out="$(bash "$DETECT" "$ANTE_TICK")"
+assert_not_contains "an inline-code locator after on/at/under stays exempt" \
+  "$ante_tick_out" "Finding shape: conversational-antecedent"
+assert_contains "inline-code locator file is clean" "$ante_tick_out" "| T1=0 T2=0 T3=0"
+
 # --- 11f. Contracted first-person actors, straight and curly apostrophes -------------
 # A contraction is the same actor and the same shape; requiring a literal space
 # after the pronoun let it escape silently. Both apostrophe forms must work: `’`
