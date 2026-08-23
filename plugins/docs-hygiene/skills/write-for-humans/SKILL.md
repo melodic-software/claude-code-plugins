@@ -143,8 +143,8 @@ ambiguity). "If exceeded" gets a subject: the request (ambiguity).
 ## After writing
 
 - **Check for AI-writing tells.** Invoke `/ai-slop:audit` via the Skill tool when it is available in
-  the session; when it is not, re-read for the obvious tells yourself. Filler, stacked hedging,
-  negative parallelism, promotional tone, and say that you did the lighter pass.
+  the session; when it is not, re-read for the obvious tells yourself: filler, stacked hedging,
+  negative parallelism, and promotional tone. Then say that you did the lighter pass.
 - **Repeated the same prose in another file. Even a second occurrence, or a recap of an SSOT that
   already exists?** Invoke `/docs-hygiene:extract-ssot` via the Skill tool. Creating a new shared
   home still waits for the third occurrence; below that it remedies the repetition in place.
