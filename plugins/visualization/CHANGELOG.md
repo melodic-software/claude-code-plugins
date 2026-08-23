@@ -10,14 +10,20 @@ All notable changes to the `visualization` plugin are documented here. Format fo
 - **Docs:** the generated options block's headless route no longer implies `--config`
   applies only at install time, and now carries the CLI version its claim was verified
   against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream links that pointed at empty backward-compatibility
-  anchors on the settings page were repointed at the headings that hold the content.
+  anchors on the settings page were repointed at the headings that hold the content. The
+  hand-written Configuration section carried the same correction, so the headless route
+  there is now a plain `claude plugin install … --config medium=<value>` rerun rather than
+  an install-time-only note.
 
-### Added
+### Unchanged, deliberately
 
-- **`/visualization:setup`** — the plugin declared `userConfig` but shipped no setup skill.
-  Adds the fleet's uniform check/apply contract: `check` verifies what the native
-  configuration prompt cannot, `apply` routes a reconfiguration and then reads the
-  effective value back before reporting it ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
+- **No `setup` skill.** One was written and then dropped: `medium` is **trivial** by
+  [PLUGIN-PHILOSOPHY](../../docs/PLUGIN-PHILOSOPHY.md)'s own test — a self-contained scalar
+  with a default preserving zero-config behavior, whose out-of-set values are documented as
+  falling back to that default — and this plugin has no external prerequisite and no
+  consumer-project configuration surface. None of the three criteria that require a `setup`
+  skill holds, so shipping one would be the blanket ceremony that doctrine warns against
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
 
 ## [0.3.1]
 

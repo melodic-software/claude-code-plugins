@@ -1,11 +1,8 @@
 # visualization
 
-A Claude Code plugin for on-demand visualization. One job: at any point in a
-conversation, `/visualization:visualize` decides **what** is most worth showing
-visually and **how** to show it, then renders it — a form-and-medium router, not
-a craft teacher. `/visualization:setup` is the read-only companion that reports
-the effective `medium` preference and which delivery surfaces this session can
-actually reach.
+A Claude Code plugin for on-demand visualization. One skill, one job: at any point
+in a conversation, decide **what** is most worth showing visually and **how** to
+show it, then render it — a form-and-medium router, not a craft teacher.
 
 | Skill | What it does |
 |---|---|
