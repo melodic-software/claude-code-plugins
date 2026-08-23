@@ -25,10 +25,9 @@ files, cited for a reader to consult. Whether that sanctioned citation is forfei
 target's owner: a skill instructed to fetch, poll, or write a **publisher-owned** file has made the
 publisher a runtime dependency and is not conforming. A third-party documentation URL creates no such
 dependency, so fetching one does not forfeit the citation — this rule reaches publisher-owned targets
-only, and says nothing about third-party ones either way. For publisher-owned targets, distinguishing
+only. For publisher-owned targets, distinguishing
 an instruction to fetch from a citation offered for a reader remains genuinely hard, and this
-statement does not settle it; `plugins/architecture/reference/topic-docs.md` is an open case. No
-ticket owns that question — #3136 is about consolidating enforcement sites and is not it.
+statement does not settle it; `plugins/architecture/reference/topic-docs.md` is an open case.
 (`plugin.json` publisher metadata sits outside
 this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
 the manifest is for.)
