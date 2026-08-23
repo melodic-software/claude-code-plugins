@@ -189,6 +189,27 @@ assert_eq "only the I28 row is emitted from a mixed input" "1" "$ROWS"
 assert_contains "non-crosswalk families are declined with a reason" \
   "$OUT" "reason=no-severity-crosswalk-row"
 
+# --- Case 8b: a row pointing past EOF is declined, not emitted blank ---------
+# Sits with Case 8 because both decide which rows are ADMITTED versus declined.
+# The scan output and the source file are read at different moments: the model
+# lane edits the --from file to drop carve-out rows, and a source file touched in
+# that window (or a stale scan-output file reused) leaves a row whose line number
+# no longer exists. source_line() then returns "", and the row must become a
+# COUNTED decline rather than a finding with an empty excerpt. The fail-safe
+# direction was already right; what was missing is the assertion that keeps an
+# off-by-one in source_line's counting loop from silently changing it.
+# Uses its own output variable: `OUT` is read by later cases (10, 11) that expect
+# the downgrade fixture's output, and clobbering it would make those cases assert
+# against this empty run instead.
+EOFROW="$TEST_TMPDIR/past-eof.txt"
+printf '%s\n' "$FIXTURES/frontmatter-emphasis.md:9999:I28-a" >"$EOFROW"
+EOF_OUT=$(emit "$EOFROW" "$TEST_TMPDIR/past-eof.md")
+EOF_ROWS=$(printf '%s\n' "$EOF_OUT" | grep -c '^| [0-9]')
+assert_eq "a scan row past EOF emits no findings row" "0" "$EOF_ROWS"
+assert_contains "the unreadable-source decline is counted, never silent" \
+  "$EOF_OUT" "reason=source-line-unreadable"
+assert_not_contains "no row is emitted with an empty excerpt" "$EOF_OUT" "frontmatter-emphasis.md:9999"
+
 # --- Case 9: DOWNGRADE contract in the Action cell ---------------------------
 # The remediation is a downgrade, never a deletion: the directive survives and
 # only its volume changes. The byte-for-byte survival of a specific directive is
@@ -242,26 +263,6 @@ fi
 printf '%s\n' "$REMEDIATED" >"$TEST_TMPDIR/remediated.md"
 POST=$(bash "$SCAN" --body-only "$TEST_TMPDIR/remediated.md")
 assert_contains "the remediated line is no longer a candidate" "$POST" "No instruction candidates found."
-
-# --- Case 8b: a row pointing past EOF is declined, not emitted blank ---------
-# The scan output and the source file are read at different moments: the model
-# lane edits the --from file to drop carve-out rows, and a source file touched in
-# that window (or a stale scan-output file reused) leaves a row whose line number
-# no longer exists. source_line() then returns "", and the row must become a
-# COUNTED decline rather than a finding with an empty excerpt. The fail-safe
-# direction was already right; what was missing is the assertion that keeps an
-# off-by-one in source_line's counting loop from silently changing it.
-# Uses its own output variable: `OUT` is read by later cases (10, 11) that expect
-# the downgrade fixture's output, and clobbering it here would make those cases
-# assert against this empty run instead.
-EOFROW="$TEST_TMPDIR/past-eof.txt"
-printf '%s\n' "$FIXTURES/frontmatter-emphasis.md:9999:I28-a" >"$EOFROW"
-EOF_OUT=$(emit "$EOFROW" "$TEST_TMPDIR/past-eof.md")
-EOF_ROWS=$(printf '%s\n' "$EOF_OUT" | grep -c '^| [0-9]')
-assert_eq "a scan row past EOF emits no findings row" "0" "$EOF_ROWS"
-assert_contains "the unreadable-source decline is counted, never silent" \
-  "$EOF_OUT" "reason=source-line-unreadable"
-assert_not_contains "no row is emitted with an empty excerpt" "$EOF_OUT" "frontmatter-emphasis.md:9999"
 
 # --- Case 9c: CRLF files do not defeat the body-scope fence ------------------
 # Regression for a measured defect: awk getline leaves a terminal CR, so a CRLF
