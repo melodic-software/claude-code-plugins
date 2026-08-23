@@ -1356,14 +1356,17 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    checked-in `.claude/settings.json` (choose user scope instead for machine-wide, not per-repo).
 3. **Install and seed config.** Pass every option on the install command: `claude plugin
    install <plugin>@<marketplace> --scope project --config KEY=VALUE …` (repeatable, schema-validated).
-   Non-sensitive options land in the **user** `settings.json` `pluginConfigs` regardless of the enable
-   scope; a sensitive value still routes to secure credential storage (smoke-tests A and C).
+   Non-sensitive options land in the **user** `settings.json` `pluginConfigs` rather than in project
+   settings — observed only at `--scope local` (smoke-test A), so treat it as the expected shape and
+   not as established for every enable scope; a sensitive value still routes to secure credential
+   storage (smoke-tests A and C).
    Re-running that command later against an already-installed plugin prints `already installed`
    **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
    install rather than an uninstall/reinstall — verified for a **non-sensitive option at `user`
    scope** on Claude Code 2.1.240 and **not** at the `--scope project` this step uses, so read the
-   stored value back — from the **user** `settings.json` `pluginConfigs`, where non-sensitive options
-   land irrespective of enable scope, not from the project settings this command names — rather than
+   stored value back — for a non-sensitive option, from the **user** `settings.json` `pluginConfigs`
+   per the storage shape recorded above, not from the project settings this command names; a
+   `sensitive` value is not there at all and reads back from secure credential storage — rather than
    assuming the write landed. Interactively, `/plugin configure` owns personal
    `userConfig`; an explicit setup skill owns any separate tracked project configuration declared by
    the plugin.

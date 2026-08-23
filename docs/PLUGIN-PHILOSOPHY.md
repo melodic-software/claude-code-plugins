@@ -21,32 +21,37 @@ content*, not only runtime behavior: the publishing organization's name, its mar
 repository names, and publisher-prefixed configuration keys do not appear in a plugin's skill, agent,
 or schema content. One use is sanctioned — a citation that *names a source rather than a target the
 plugin acts on*: a documentation URL, or a cross-plugin reference to this marketplace's own published
-files, cited for a reader to consult. The prohibition is a conjunction of two conditions: a skill
-instructed to fetch, poll, or write to a file that is **publisher-owned** has made the publisher a
-runtime dependency and is not conforming. Both conditions must hold. A citation conforms wherever it
-points, and a third-party documentation URL creates no publisher dependency even when a skill fetches
-it at runtime — `plugins/claude-config/skills/audit/SKILL.md` reads `code.claude.com` that way and
-conforms.
+files, cited for a reader to consult. **What follows scopes that exception, not the token rule
+above** — a bare publisher token in skill prose is nonconforming whether or not anything is fetched.
+A citation forfeits the exception on a conjunction of two conditions: the skill is instructed to
+fetch, poll, or write the target, **and** that target is publisher-owned. Both must hold. A skill
+that fetches a third-party documentation URL keeps the exception, because no publisher runtime
+dependency is created — `plugins/claude-config/skills/audit/SKILL.md` reads `code.claude.com` that
+way and conforms.
 
 What the ownership condition buys is narrowing, not decidability: it removes third-party targets from
-the prohibition entirely, so the cite-versus-fetch question no longer has to be answered for them.
-For publisher-owned targets that question still governs, and it is genuinely hard — for content an
-agent reads, "cited for a reader to consult" and "instructed to fetch" are not cleanly separable.
-`plugins/architecture/reference/topic-docs.md` is the standing undecided case, and it is undecided on
-two axes at once, since it is also not `skill`, `agent`, or `schema` content and so may sit outside
-this rule's scope altogether. Settling that is part of #3136, not of this statement.
+the question entirely, so cite-versus-fetch no longer has to be answered for them. For
+publisher-owned targets that question still governs, and it is genuinely hard — for content an agent
+reads, "cited for a reader to consult" and "instructed to fetch" are not cleanly separable.
+`plugins/architecture/reference/topic-docs.md` is an undecided case on that axis, and arguably on a
+second, since it is not itself `skill`, `agent`, or `schema` content — though three
+`plugins/architecture/skills/improve/**` sites load it during skill execution, so that second axis is
+weaker than it looks. No ticket currently owns this question; #3136 is about consolidating
+enforcement sites and is not it.
 (`plugin.json` publisher metadata sits outside
 this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
 the manifest is for.)
 
 Like the setup contract below, **this is a normative target, not a description of the fleet**, and
-the gap is wide rather than residual: 41 files under `plugins/*/skills/` across 17 plugins cite a
-publisher-owned URL, and 14 of them carry an explicit instruction to fetch or read one. The strongest
-form is `plugins/ai-slop/skills/audit/context/persist-findings.md`, which fetches a publisher-owned
-contract and is fail-closed on it — "if the contract cannot be fetched, do not write". That is a
-deliberate runtime dependency on the publisher, and the rule above says it is nonconforming. Nothing
-here absolves it; the count is stated so the prohibition is read against what it actually binds
-rather than against the one permitted case worked above. Enforcement reaches a strict subset of it. `scripts/validate-plugin-contracts.mjs` gates the
+the fetch limb has live instances rather than none. Five files under `plugins/*/skills/` carry an
+imperative to fetch or read a publisher-owned URL: `ai-slop/skills/audit/context/persist-findings.md`,
+`claude-config/skills/audit-instructions/context/persist-findings.md`,
+`mutation-testing/skills/audit/context/persist-findings.md`, `testing/skills/audit/SKILL.md`, and
+`work-items/skills/triage/SKILL.md`. The first three are byte-identical and fail-closed — "if the
+contract cannot be fetched, do not write" — which is a deliberate publisher runtime dependency, and
+the rule above says so. They are named rather than counted so the claim can be checked; bare
+citations are not among them, since a citation that is not fetched keeps the exception. Enforcement
+reaches a strict subset of the whole. `scripts/validate-plugin-contracts.mjs` gates the
 marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys across every plugin's skill
 content, and holds the `autonomy` plugin to a stricter token set;
 `plugins/github/github.test.sh` sweeps a wider token set over a narrower scope — its own plugin's

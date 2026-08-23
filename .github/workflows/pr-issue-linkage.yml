@@ -1,14 +1,18 @@
 name: pr-issue-linkage
 
 # Validates the PR body carries a native closing keyword (Closes/Fixes/Resolves
-# #N, including owner/repo#N, or the literal "No linked issue" when the PR closes
+# #N, including owner/repo#N, or a no-issue marker — /no (linked|related)
+# issue/i, matched case-insensitively anywhere in the body — when the PR closes
 # nothing) and four non-empty contract sections — `## Summary`, `## Fix`,
 # `## Verification`, `## Related` (heading match case-insensitive; a nested
 # subsection counts as its parent's content) — via the shared
 # pr-issue-linkage reusable from ci-workflows. `pull_request_target` runs the
 # base-branch definition, so a head-branch edit cannot bypass the gate — safe
-# here because the reusable reads PR body metadata from the event payload only
-# and runs no head code. `edited` re-validates on a body edit. `merge_group`
+# here because the reusable only reads PR metadata and never checks out or
+# executes head code. It does not read the body from the event payload: a
+# "Load current PR body" step re-fetches it through the GitHub API so a
+# superseded run validates the same current body its successor will, falling
+# back to the payload only if that call fails. `edited` re-validates on a body edit. `merge_group`
 # reports the check green in the queue (the body was validated at PR time; inert
 # without a queue). The emitted required-check context is
 # `pr-issue-linkage / pr-issue-linkage`. Public repo: runs on the reusable's
