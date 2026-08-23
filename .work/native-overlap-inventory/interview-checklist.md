@@ -21,21 +21,30 @@ Branch: `claude/cli-skill-inventory-v7hi82`. Mode: `me` (relentless), engineerin
 
 ## Open-question register
 
-- Q1 | open | round 1 | What artifact shape does "bake in" take (registry doc, per-skill soft references, both, runtime router)? |
-- Q2 | open | round 1 | Where does the capability live (claude-ops extension, plugin-quality, new plugin)? |
-- Q3 | open | round 1 | Who decides an overlap verdict — auto-applied or human-gated per overlap? |
-- Q4 | open | round 1 | Preference policy per overlap — always prefer native, or per-case verdict set? |
-- Q5 | open | round 1 | Which native sources and which marketplace targets are in scope for V1? |
-- Q6 | open | round 1 | Refresh trigger — when does the overlap map get re-derived? |
+- Q1 | answered | round 1 | What artifact shape does "bake in" take? | Two layers: generated SSOT registry doc (e.g. docs/NATIVE-SURFACES.md) with verdict + evidence + verified date per overlap, PLUS one guarded soft-reference line per overlapping SKILL.md (accepted recommendation)
+- Q2 | answered | round 1 | Where does the capability live? | Sibling skill in claude-ops (e.g. claude-ops:audit-native-overlap); audit = read-only, baking behind explicit apply step (accepted recommendation)
+- Q3 | answered | round 1 | Who decides an overlap verdict? | Auto-detect candidates with evidence + RECOMMENDED verdict; human gates every verdict before any SKILL.md is touched (accepted recommendation)
+- Q4 | answered | round 1 | Preference policy per overlap? | Per-overlap verdict enum: prefer-native / prefer-ours (with reason) / complementary / superseded — no blanket rule (accepted recommendation)
+- Q5 | answered | round 1 | V1 scope — sources × targets? | Sources: built-in CLI commands + bundled skills + session/environment skills, each tagged by environment (local CLI / cloud / both). Targets: this repo's skills and agents. Deferred: our commands/hooks as targets, MCP tools as sources (accepted recommendation)
+- Q6 | answered | round 1 | Refresh trigger? | On CLI releases via /claude-ops:changelog ingestion + on-demand runs; registry rows carry verified dates (accepted recommendation)
+
+Note: round-1 closing probe (other-repo portability; any known prefer-native/superseded case today)
+was not explicitly answered — carried as validation input for /planning:audit-answers and, if still
+open after, a Brief deferred question.
 
 ## Decision tree (`me` mode)
 
-- [ ] Baking mechanism (Q1)
-- [ ] Packaging/home (Q2)
-- [ ] Verdict authority (Q3)
-- [ ] Preference policy shape (Q4) (blocked by: Q1)
-- [ ] V1 scope: sources × targets (Q5)
-- [ ] Refresh/drift trigger (Q6)
-- [ ] Environment-conditional availability handling (cloud vs local surfaces) — round 2+
-- [ ] Validation depth ("empirically true") — round 2+
-- [ ] Handoff sequencing (explore/research/brainstorm order) — round 2+
+- [x] Baking mechanism (Q1) — registry SSOT + per-skill soft references
+- [x] Packaging/home (Q2) — claude-ops sibling skill
+- [x] Verdict authority (Q3) — auto-candidates, human-gated verdicts
+- [x] Preference policy shape (Q4) — 4-value verdict enum
+- [x] V1 scope: sources × targets (Q5) — native surfaces (env-tagged) × our skills+agents
+- [x] Refresh/drift trigger (Q6) — changelog-triggered + on-demand
+- [ ] Environment-conditional availability handling (cloud vs local surfaces) — folded into Q5 env tags; wording of guarded references to be validated by audit-answers
+- [ ] Validation depth ("empirically true") — inherited from claude-ops:inventory integrity machinery; audit-answers to challenge sufficiency
+- [ ] Handoff sequencing (explore/research/brainstorm order) — next: audit-answers → explore/research → brainstorm → plan
+
+## Resolved (round 1, 2026-08-23)
+
+User: "Lets go with all your recommended" — Q1–Q6 resolved to the recommended answers, then
+requested /planning:audit-answers to validate the auto-accepted set.
