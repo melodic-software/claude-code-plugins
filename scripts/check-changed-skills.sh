@@ -9,8 +9,10 @@
 # and line caps, broken internal refs, evals presence, committed artifacts).
 # When a changed skill's SKILL.md is new or modified vs <base-ref>, the checker
 # is invoked with --require-evals so a missing evals/evals.json FAILs for any
-# shape; untouched legacy skills and non-SKILL.md-only touches keep the legacy
-# WARN-only posture.
+# shape, unless that skill has a recorded skip in
+# scripts/evals-warrant-exemptions.txt (the warrant policy's explicit skip
+# classes — #3135). Untouched legacy skills and non-SKILL.md-only touches keep
+# the legacy WARN-only posture.
 # Any FAIL fails this gate. It replaces the work lane's manual high-blast-radius
 # skill-diff read with a deterministic check, and is the first lane to invoke the
 # otherwise-uninvoked skill-quality checker.
@@ -49,6 +51,40 @@ if [[ ! -f "$CHECKER" ]]; then
   printf 'Error: skill checker not found: %s\n' "$CHECKER" >&2
   exit 2
 fi
+
+# Recorded evals-warrant skips. Missing file = no skips (tests, other repos).
+# A stale row is a gate failure so the list can only shrink.
+EXEMPTIONS="${EVALS_WARRANT_EXEMPTIONS:-scripts/evals-warrant-exemptions.txt}"
+evals_skip_dirs=()
+if [[ -f "$EXEMPTIONS" ]]; then
+  while IFS= read -r raw || [[ -n "$raw" ]]; do
+    raw="${raw%%#*}"
+    raw="${raw#"${raw%%[![:space:]]*}"}"
+    raw="${raw%"${raw##*[![:space:]]}"}"
+    [[ -n "$raw" ]] || continue
+    if [[ "$raw" != plugins/*/skills/* || "$raw" == */*/*/*/* ]]; then
+      printf 'FAIL: %s: not a skill path: %s\n' "$EXEMPTIONS" "$raw" >&2
+      exit 2
+    fi
+    if [[ ! -f "$raw/SKILL.md" ]]; then
+      printf 'FAIL: %s: stale row, skill gone: %s\n' "$EXEMPTIONS" "$raw" >&2
+      exit 1
+    fi
+    if [[ -f "$raw/evals/evals.json" ]]; then
+      printf 'FAIL: %s: stale row, skill now ships evals: %s\n' "$EXEMPTIONS" "$raw" >&2
+      exit 1
+    fi
+    evals_skip_dirs+=("$raw")
+  done <"$EXEMPTIONS"
+fi
+
+evals_warrant_skip() {
+  local dir="$1" listed
+  for listed in ${evals_skip_dirs[@]+"${evals_skip_dirs[@]}"}; do
+    [[ "$listed" == "$dir" ]] && return 0
+  done
+  return 1
+}
 
 # Changed skill dirs, mapped from any touched path (including vendor/ subtrees)
 # to the owning plugins/<plugin>/skills/<skill> dir and de-duplicated.
@@ -104,7 +140,11 @@ for skill_dir in "${changed[@]}"; do
   printf '=== %s ===\n' "$skill_dir"
   require_evals_args=()
   if git diff --name-only "$BASE" -- "$skill_dir/SKILL.md" | grep -q .; then
-    require_evals_args=(--require-evals)
+    if evals_warrant_skip "$skill_dir"; then
+      printf 'evals skip recorded for %s — not passing --require-evals\n' "$skill_dir"
+    else
+      require_evals_args=(--require-evals)
+    fi
   fi
   if ! CHECK_SKILL_SKILLS_ROOT="$PWD/$skills_root" \
     CHECK_SKILL_BASE_REF="$BASE" \

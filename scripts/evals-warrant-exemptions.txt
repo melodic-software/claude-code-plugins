@@ -1,0 +1,23 @@
+# Recorded evals-warrant skip verdicts for scripts/check-changed-skills.sh
+# and plugins/skill-quality/scripts/check-skill.sh --require-evals.
+#
+# Policy: docs/MIGRATION-PLAYBOOK.md § "Evals — warrant policy and consumer-verify
+# recipe". A skip is a reviewed, diffable line, not an implicit absence. The
+# gate honors these rows; anything unlisted still FAILs when its SKILL.md is
+# new or modified.
+#
+# This is an AUDIT TRAIL, not a mute list. Each row records that one skill is
+# an explicit skip under the warrant rule (pure-reference, or a hook plugin
+# with no judgment-bearing skill). A setup skill is warrantable and must not
+# appear here.
+#
+# Format: `plugins/<plugin>/skills/<skill>`, optionally followed by `# reason`.
+# Blank lines and `#` lines are ignored.
+#
+# The gate FAILS on a stale row — a path that no longer exists, or a skill that
+# now ships evals/evals.json — so the list can only shrink. NEVER add a row
+# because CI is red on a skill that warrants evals. Write the evals.
+
+plugins/playbooks/skills/fable-5  # pure-reference: Fable 5 operating doctrine loaded as standing instructions; no decision contract to regress
+plugins/tdd/skills/principles  # pure-reference: answers test-design questions from a knowledge corpus; no decision contract
+plugins/evals/skills/methodology  # pure-reference: answers eval-design questions from Anthropic's guidance; no decision contract

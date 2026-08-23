@@ -3401,6 +3401,57 @@ else
   fail "check 2b must count codepoints: 600 'é' is 600 chars, not 1200 bytes (rc=$rc): $out"
 fi
 
+# 47. --require-evals honors a recorded warrant skip (#3135).
+mkdir -p "$TMP/plugins/p1/skills/skipme" "$TMP/scripts"
+cat >"$TMP/plugins/p1/skills/skipme/SKILL.md" <<'EOF'
+---
+description: "A pure-reference fixture. Use when: 'testing warrant skips'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Pure-reference skip fixture.
+
+## Gotchas
+
+None known.
+EOF
+printf '%s\n' 'plugins/p1/skills/skipme  # test skip' >"$TMP/scripts/evals-warrant-exemptions.txt"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals skipme 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'evals skip recorded' <<<"$out"; then
+  pass "--require-evals honors a recorded warrant skip"
+else
+  fail "--require-evals should pass a recorded skip (rc=$rc): $out"
+fi
+
+# 48. --require-evals still FAILs an unlisted sibling in the same plugins/ tree.
+mkdir -p "$TMP/plugins/p1/skills/listed"
+cat >"$TMP/plugins/p1/skills/listed/SKILL.md" <<'EOF'
+---
+description: "An unlisted fixture. Use when: 'testing warrant unlisted'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Unlisted sibling of the skip fixture.
+
+## Gotchas
+
+None known.
+EOF
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "--require-evals still fails an unlisted skill"
+else
+  fail "unlisted skill should still fail --require-evals (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
