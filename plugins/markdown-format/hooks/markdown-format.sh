@@ -687,7 +687,7 @@ CONFIG_ROOT="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || CONFIG_ROOT="$REPO_ROO
 CONFIG_TARGET_DIR="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd -P)" ||
   CONFIG_TARGET_DIR="$(dirname "$FILE")"
 collect_risky_configs() {
-  local cursor dir candidate config risky
+  local cursor dir candidate config risky quoted_escape_re
   local dirs=()
 
   cursor="$CONFIG_TARGET_DIR"
@@ -744,13 +744,22 @@ collect_risky_configs() {
         # explicit-key syntax (`? customRules` with `:` on the next line)
         # separates the key from its colon — mark the config code-loading.
         # Tier two: any construct capable of synthesizing a spelling the
-        # scan cannot see (JSONC \uXXXX escapes; YAML \x/\u/\U escapes,
-        # escaped line joins, !! tags — a !!binary key decodes to arbitrary
-        # text) marks it UNVERIFIABLE: it gates AND refuses approval below,
-        # because text whose meaning cannot be read cannot be meaningfully
-        # reviewed. YAML anchors/aliases stay verifiable — an alias only
-        # reuses a node whose text is spelled literally elsewhere in the
-        # same file, where tier one sees it.
+        # scan cannot see (an escape inside a double-quoted scalar in either
+        # grammar; YAML escaped line joins and !! tags — a !!binary key
+        # decodes to arbitrary text) marks it UNVERIFIABLE: it gates AND
+        # refuses approval below, because text whose meaning cannot be read
+        # cannot be meaningfully reviewed. YAML anchors/aliases stay
+        # verifiable — an alias only reuses a node whose text is spelled
+        # literally elsewhere in the same file, where tier one sees it.
+        #
+        # The escape test matches ANY backslash inside a double-quoted scalar
+        # rather than an enumerated escape list, and applies to BOTH .jsonc and
+        # .yaml. Each grammar decodes more than \uXXXX: JSON also defines \/,
+        # which decodes to a plain `/`, and YAML adds \x/\U plus a dozen more.
+        # Enumerating them is the same unbounded shape that kept reopening the
+        # specifier findings, and the only property that matters is whether the
+        # raw text this scan resolves can differ from what the parser decodes
+        # and loads — a backslash is exactly that signal, whatever follows it.
         #
         # The two tiers are INDEPENDENT tests, not a chain: a config can carry a
         # literal key AND an escaped module VALUE
@@ -762,13 +771,16 @@ collect_risky_configs() {
         if grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$config" 2>/dev/null; then
           risky=1
         fi
-        if [[ "$config" == *.jsonc ]] &&
-          grep -Eq '\\u[0-9a-fA-F]{4}' "$config" 2>/dev/null; then
+        # ANSI-C quoting for the pattern: a trailing escaped backslash in a
+        # single-quoted string reads as an attempted quote escape.
+        quoted_escape_re=$'"[^"]*\\\\'
+        if [[ "$config" == *.jsonc || "$config" == *.yaml ]] &&
+          grep -Eq "$quoted_escape_re" "$config" 2>/dev/null; then
           risky=1
           RISK_UNVERIFIABLE=1
         fi
         if [[ "$config" == *.yaml ]] &&
-          grep -Eq '\\[xuU][0-9a-fA-F]|\\$|!![A-Za-z]' "$config" 2>/dev/null; then
+          grep -Eq '\\$|!![A-Za-z]' "$config" 2>/dev/null; then
           risky=1
           RISK_UNVERIFIABLE=1
         fi
