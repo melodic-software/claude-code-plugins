@@ -29,8 +29,9 @@ interview on #2941 (2026-08-17); this ADR records it.
 - **One personal layer: a gitignored overlay beside the team file.**
   `.work-item-tracker.local.json` merges **per-key over an allowlist, deny-by-default**:
   `config.lease_ttl_hours`, `config.lease_ttl_minutes` (TTL travels inside each lease
-  record, so per-user is coherent), `config.jira.auth_email`, `config.jira.auth_env` (auth
-  identity is per-account), and the self-describing `docs` pointer. Any other overlay key
+  record, so per-user is coherent), `config.jira.auth_email`, `config.jira.auth_env`,
+  `config.linear.auth_env`, `config.gitea.auth_env` (auth identity is per-account on each
+  of those adapters), and the self-describing `docs` pointer. Any other overlay key
   is a configuration error (exit 3, keys named), never a merge — `provider`,
   `role_labels`, `container_label`, `storage_dir`, and the jira scope/JQL keys are shared
   coordination state, and leases/labels/frontier live provider-side, so a personal

@@ -133,7 +133,7 @@ assert_eq "missing binding → exit 3" "3" "$?"
 
 # --- binding overlay (CONTRACT.md "Setup (binding file)") ---
 # The gitignored personal overlay beside the binding merges allowlisted keys only
-# (lease TTL, jira auth identity); any other key is a configuration error (exit 3,
+# (lease TTL, jira/linear/gitea auth identity); any other key is a configuration error (exit 3,
 # same first-run signal as a missing binding), and removing the overlay restores
 # the team view. Deep merge semantics are unit-tested (lib/binding.test.sh); this
 # asserts the seam-level behavior through the CLI.

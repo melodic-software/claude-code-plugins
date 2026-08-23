@@ -41,7 +41,8 @@ wit_find_binding() {
 # Overlay key allowlist (jq path array). The gitignored per-user overlay
 # (.work-item-tracker.local.json, beside the team binding) may refine ONLY these
 # keys — values that are coherent per-user: lease TTL travels inside each lease
-# record, and jira auth identity is per-account. Everything else (provider,
+# record, and per-provider auth identity (jira auth_email/auth_env, linear
+# auth_env, gitea auth_env) is per-account. Everything else (provider,
 # role_labels, container_label, storage_dir, jira.site/project_keys, ...) is
 # shared coordination state and stays team-layer-only; an overlay value for any
 # such key is a configuration error, never a merge (deny-by-default; CONTRACT.md
@@ -134,9 +135,9 @@ wit_role_label() {
 wit_read_binding() {
   local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container minutes
   # The effective view: team file merged with the allowlisted overlay keys
-  # (lease TTL, jira auth identity). Team-only keys read identically from either
-  # view; the reads below use the merged JSON so overlayable keys resolve
-  # per-user where an overlay exists.
+  # (lease TTL, jira/linear/gitea auth identity). Team-only keys read identically
+  # from either view; the reads below use the merged JSON so overlayable keys
+  # resolve per-user where an overlay exists.
   json="$(wit_effective_binding_json "$path")" || return 1
   version="$(jq -r '.schema_version // empty' <<<"$json")"
   [[ "$version" == 1.* ]] || return 1

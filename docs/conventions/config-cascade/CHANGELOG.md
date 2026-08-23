@@ -6,6 +6,14 @@ semantics, and overlay naming. Per-concern keys and schema are versioned by thei
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Implementers table — 2026-08-23
+
+- **`work-items` overlay allowlist.** The personal overlay may refine linear and
+  gitea `auth_env` alongside the original jira auth identity keys. The
+  Implementers-table wording now matches the seam allowlist so a Linear or Gitea
+  user can discover the personal configuration the contract already intended
+  (#3132).
+
 ## Implementers table — 2026-08-19
 
 - **`ai-slop` row added.** The surface implemented the full three-layer cascade from its first
