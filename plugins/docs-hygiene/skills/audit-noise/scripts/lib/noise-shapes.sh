@@ -552,6 +552,12 @@ audit_noise_clause_names_alternative() {
     # names no alternative either — "Never do X, just." must still report.
     [[ "$AUDIT_NOISE_CLAUSE_TRANSPARENT" == *" $first "* ]] && continue
     [[ "$AUDIT_NOISE_CLAUSE_STOPWORDS" == *" $first "* ]] && continue
+    # A second prohibition is not a positive alternative. "Never call the tool
+    # directly; avoid invoking its wrapper." names two things not to do.
+    # Accepting it would withhold — the direction this rule set forbids.
+    if audit_noise_sentence_opens_with_prohibition "$seg"; then
+      continue
+    fi
     return 0
   done <<<"$body"
   return 1

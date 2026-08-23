@@ -16,7 +16,9 @@
   rather than treated as the clause head, so "Never emit a bare summary — just
   mark the row" pairs too. A function-word or consequence clause (`because`,
   `the`, `and`) is not an alternative, and a transparent adverb with nothing
-  after it (`Never emit a bare summary, just.`) still flags.
+  after it (`Never emit a bare summary, just.`) still flags. A second
+  prohibition is not an alternative (`Never call the tool directly; avoid
+  invoking its wrapper.`).
 
   The existing carve-outs — hard guardrail, worked example, and marker-list
   pairing — are unchanged.

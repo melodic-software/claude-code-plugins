@@ -892,6 +892,17 @@ bare_imp_neg_count="$(printf '%s\n' "$bare_imp_neg_out" | grep -c '^Finding shap
 assert_contains "unpaired and function-word clauses still flag" \
   "count=$bare_imp_neg_count" "count=3"
 
+# A second prohibition is not a positive alternative.
+BARE_IMP_TWO="$TEST_TMPDIR/negation-two-prohibitions.md"
+cat >"$BARE_IMP_TWO" <<'EOF'
+# Two-prohibition fixture
+
+Never call the tool directly; avoid invoking its wrapper.
+EOF
+bare_imp_two_out="$(bash "$DETECT" "$BARE_IMP_TWO")"
+assert_contains "a second prohibition is not a paired positive" \
+  "$bare_imp_two_out" "Finding shape: negation"
+
 # NO-FLAG TEST: a hard guardrail that cannot be phrased positively is not a
 # finding. The prohibition IS the correct form for these.
 GUARD="$TEST_TMPDIR/negation-guardrail.md"
