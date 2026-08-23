@@ -4,11 +4,12 @@
 # Covers: the /context markdown parser (current-format fixture, the
 # stdin-warning trap, loud refusal on an unrecognized format), compare's
 # comparability rules (identical runs comparable; skill-listing signature
-# mismatch marks System tools incomparable; schema validation), and the
-# ledger (one file per run plus an appended history line; schema-checked
-# append). The live sdk / cli-parse measurement paths spawn a real Claude
-# Code binary and are exercised manually, not here — this suite must stay
-# hermetic.
+# mismatch marks System tools incomparable; schema validation), the ledger
+# (one file per run plus an appended history line; schema-checked append),
+# and the attribute/additivity pipeline in cli-parse mode against a fake
+# `claude` binary (a vanished bucket is unmeasured and incomparable, never a
+# coerced zero). The sdk measurement path spawns a real Claude Code binary
+# and is exercised manually, not here — this suite must stay hermetic.
 #
 # Prerequisites: node on PATH (the engine's own runtime — required for
 # correctness; absent, this suite fails loudly rather than skipping).
@@ -241,6 +242,120 @@ if [[ $rc -eq 2 ]]; then
   ok "ledger rejects a relative --dir"
 else
   fail "ledger accepted a relative --dir (exit $rc)"
+fi
+
+# --- attribute: additivity never coerces a vanished bucket to zero --------
+# Hermetic live-path exercise: a fake `claude` binary answers `--version` and
+# `-p /context` with deterministic category tables keyed off the deny list and
+# FAKE_MODE, so the attribute/additivity pipeline runs end-to-end in cli-parse
+# mode with no real Claude Code binary. Run from $WORK so no Agent SDK is
+# resolvable and the engine cannot leave cli-parse mode.
+
+FAKEDIR="$WORK/fakebin"
+mkdir -p "$FAKEDIR"
+cat >"$FAKEDIR/fake-claude.js" <<'EOF'
+const args = process.argv.slice(2);
+if (args.includes('--version')) { process.stdout.write('9.9.9 (fake)\n'); process.exit(0); }
+const di = args.indexOf('--disallowedTools');
+const deny = di >= 0 ? args.slice(di + 1) : [];
+const key = deny.slice().sort().join('+');
+const mode = process.env.FAKE_MODE || 'control';
+// Savings per deny set, constructed additive: combined always equals the sum.
+const prefixSaved = { AlphaTool: 1000, BetaTool: 600, GammaTool: 500, 'AlphaTool+BetaTool': 1600 };
+const deferredSaved = { AlphaTool: 400, BetaTool: 100, GammaTool: 0, 'AlphaTool+BetaTool': 500 };
+const table = { 'System tools': 18000 - (prefixSaved[key] ?? 0) };
+// The deferred bucket is dropped (omitted, not reported as 0) when:
+//   novocab      — this fake "version" has no deferred bucket in any run;
+//   vanish       — the combined deny empties it out of the snapshot (#3197);
+//   GammaTool    — a single deny empties it out of the snapshot.
+const dropDeferred = mode === 'novocab'
+  || (mode === 'vanish' && key === 'AlphaTool+BetaTool')
+  || key === 'GammaTool';
+if (!dropDeferred) table['System tools (deferred)'] = 12000 - (deferredSaved[key] ?? 0);
+table.Messages = 42;
+const lines = ['## Context Usage', '', '**Model:** fake-model', '',
+  '### Estimated usage by category', '',
+  '| Category | Tokens | Percentage |', '|---|---|---|'];
+for (const [name, tokens] of Object.entries(table)) lines.push(`| ${name} | ${tokens} | 0% |`);
+process.stdout.write(lines.join('\n') + '\n');
+EOF
+case "$(uname -s)" in
+  MINGW* | MSYS* | CYGWIN* | Windows_NT*)
+    FAKE="$FAKEDIR/fake-claude.cmd"
+    printf '@node "%%~dp0fake-claude.js" %%*\r\n' >"$FAKE"
+    ;;
+  *)
+    FAKE="$FAKEDIR/fake-claude"
+    printf '#!/usr/bin/env node\n' >"$FAKE"
+    cat "$FAKEDIR/fake-claude.js" >>"$FAKE"
+    chmod +x "$FAKE"
+    ;;
+esac
+
+# The bug (#3197): the combined deny empties the deferred bucket out of the
+# snapshot, its delta is null, and the verifier must publish the record as
+# incomparable with a null combinedSaved — never a coerced 0.
+avanish="$WORK/attr-vanish.json"
+if (cd "$WORK" && FAKE_MODE=vanish node "$ENGINE" attribute --tools AlphaTool,BetaTool --verify-additivity --binary "$FAKE" --out "$avanish" >/dev/null); then
+  assert_eq "$(jsonget "$avanish" 'j.perTool.find((t)=>t.tool==="AlphaTool").savedTokens')" "1400" \
+    "per-tool rows with both buckets present still measure" "AlphaTool row wrong"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.sumOfParts')" "2100" \
+    "sum of parts is the sum of the savers" "sumOfParts wrong"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.combinedSaved')" "null" \
+    "vanished bucket yields combinedSaved null, never a coerced 0" "combinedSaved fabricated from a null delta"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.comparable')" "false" \
+    "vanished bucket marks the additivity record incomparable" "additivity published comparable despite a vanished bucket"
+  assert_eq "$(jsonget "$avanish" 'j.additivity.additive')" "false" \
+    "incomparable additivity is never reported additive" "additive true despite a vanished bucket"
+  if [[ "$(jsonget "$avanish" 'j.additivity.reasons.join(" ")')" == *"System tools (deferred)"* ]]; then
+    ok "additivity record names the vanished bucket in its reasons"
+  else
+    fail "vanished-bucket reason missing from additivity record"
+  fi
+else
+  fail "attribute --verify-additivity (vanish scenario) exited nonzero"
+fi
+
+# Control: all buckets present in every run — the verdict must be untouched.
+actl="$WORK/attr-control.json"
+if (cd "$WORK" && FAKE_MODE=control node "$ENGINE" attribute --tools AlphaTool,BetaTool --verify-additivity --binary "$FAKE" --out "$actl" >/dev/null); then
+  assert_eq "$(jsonget "$actl" 'j.additivity.combinedSaved')" "2100" \
+    "normal additivity case still measures the combined saving" "control combinedSaved wrong"
+  assert_eq "$(jsonget "$actl" 'j.additivity.additive')" "true" \
+    "normal additivity case still verifies additive" "control additive wrong"
+  assert_eq "$(jsonget "$actl" 'j.additivity.comparable')" "true" \
+    "normal additivity case stays comparable" "control comparable wrong"
+else
+  fail "attribute --verify-additivity (control scenario) exited nonzero"
+fi
+
+# A single deny that empties a bucket poisons that per-tool row the same way.
+agamma="$WORK/attr-gamma.json"
+if (cd "$WORK" && FAKE_MODE=control node "$ENGINE" attribute --tools AlphaTool,GammaTool --verify-additivity --binary "$FAKE" --out "$agamma" >/dev/null); then
+  assert_eq "$(jsonget "$agamma" 'j.perTool.find((t)=>t.tool==="GammaTool").savedTokens')" "null" \
+    "per-tool row with a vanished bucket reports savedTokens null" "per-tool savedTokens fabricated from a null delta"
+  assert_eq "$(jsonget "$agamma" 'j.perTool.find((t)=>t.tool==="GammaTool").comparable')" "false" \
+    "per-tool row with a vanished bucket is incomparable" "per-tool row comparable despite a vanished bucket"
+  assert_eq "$(jsonget "$agamma" 'j.additivity')" "null" \
+    "a lone comparable saver runs no additivity check" "additivity ran with fewer than two savers"
+else
+  fail "attribute (gamma scenario) exited nonzero"
+fi
+
+# A bucket absent from BOTH runs is outside the binary's category vocabulary —
+# a non-event, not a missing measurement.
+anv="$WORK/attr-novocab.json"
+if (cd "$WORK" && FAKE_MODE=novocab node "$ENGINE" attribute --tools AlphaTool,BetaTool --verify-additivity --binary "$FAKE" --out "$anv" >/dev/null); then
+  assert_eq "$(jsonget "$anv" 'j.perTool.find((t)=>t.tool==="AlphaTool").savedTokens')" "1000" \
+    "bucket absent from both runs still measures the present bucket" "vocabulary-absent bucket broke the per-tool row"
+  assert_eq "$(jsonget "$anv" 'j.perTool.find((t)=>t.tool==="AlphaTool").comparable')" "true" \
+    "bucket absent from both runs keeps the row comparable" "vocabulary-absent bucket poisoned comparability"
+  assert_eq "$(jsonget "$anv" 'j.additivity.combinedSaved')" "1600" \
+    "additivity over the present bucket alone still measures" "vocabulary-absent combinedSaved wrong"
+  assert_eq "$(jsonget "$anv" 'j.additivity.additive')" "true" \
+    "additivity over the present bucket alone still verifies" "vocabulary-absent additive wrong"
+else
+  fail "attribute (novocab scenario) exited nonzero"
 fi
 
 # --- snapshot: pinned-binary honesty --------------------------------------
