@@ -35,9 +35,12 @@ completeness, not settings-vs-upstream drift).
 **Never silently fixes drift it finds.** `sync` mutates only via the documented CLI actions below,
 and never writes a committed `.claude/settings.json`: its Step 5 enables automatically only at
 `user` and `local` scope, and reports a `project`-scope gap rather than filling it, because `sync`
-has no autonomous-session abort behind which a confirm would mean anything. `converge` is the one
-action that can touch committed settings, and only after an explicit per-plugin confirm. See
-[context/scope-semantics.md](context/scope-semantics.md) for which CLI calls write that file.
+has no autonomous-session abort behind which a confirm would mean anything. After Step 4 installs
+anything, `sync` may reorder keys in user-scope `~/.claude/settings.json` (machine-local, already
+written by `claude plugin install -s user`) so the map stays alphabetical; it never reorders a
+project-scope map. `converge` is the one action that can touch committed settings, and only after
+an explicit per-plugin confirm. See [context/scope-semantics.md](context/scope-semantics.md) for
+which CLI calls write that file.
 
 ## Action Router
 
@@ -91,6 +94,16 @@ whenever a step needs ids; never hand-write a `jq` extraction over the JSON, whi
 trailing `\r` on Windows and silently corrupts every id but the last (see
 [context/gotchas.md](context/gotchas.md)).
 
+After Step 4 installs anything, reorder user-scope `enabledPlugins` with the bundled writer — never
+hand-edit `~/.claude/settings.json`:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh
+```
+
+That write is user-scope only. A project-scope map is inspected with `--report-project` and never
+rewritten. See [context/sync.md](context/sync.md).
+
 Read [context/scope-semantics.md](context/scope-semantics.md) before interpreting its output. In
 particular the `versionsMatch` filter rule, never count or present a raw `divergences[]` length, is defined once there, under "Divergence is not automatically actionable"; every other mention in
 this skill points at it rather than restating it.
@@ -126,6 +139,8 @@ Updated: <N> plugin(s) — <id>@<marketplace>: <old> → <new> (only when N > 0)
 Installed: <N> new catalog plugin(s) — <id>@<marketplace> (only when N > 0; per install_new policy)
   (when the policy is `all`, append: policy install_new: all — these reinstall on every sync
    unless you also disable them)
+Normalized: user enabledPlugins key order (<N> keys reordered)
+  (only when Step 4 installed anything AND the user-scope map was rewritten; omit otherwise)
 Divergences: <N> actionable (<M> newly created by this run — <a> by the in-repo update, <b> by the
   user-scope sweep, <N-M> pre-existing) → run `/claude-ops:plugins converge`
   (N = actionable only — versionsMatch:false; same-version multi-scope installs are not counted
@@ -134,7 +149,8 @@ Stale project records: <K> record(s) across <P> path(s) not present on this mach
   (omit section entirely when K = 0; never counted in Divergences — see below for the row shape)
 Action needed: <bulleted list — missing_from_user_install, missing_from_enabled, project-scope
   enable gaps, CLI failures, unknown/orphaned plugins, user_scope_orphans, plugin(s) installed this
-  run with unset userConfig options> (omit section entirely when empty)
+  run with unset userConfig options, user-scope enabledPlugins reorder failures, a project-scope
+  enabledPlugins map that is unsorted> (omit section entirely when empty)
 ```
 
 **The `In-repo:` row is fixed. It appears whether or not the step did anything.** Step 2 calls

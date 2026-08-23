@@ -347,6 +347,43 @@ declares `userConfig` options left unset, along with its own suggested remedy. T
 per-install information this step is the only one positioned to see, and it belongs in the report's
 "Action needed" list rather than in the scrollback — see SKILL.md's Report section for the slot.
 
+### After any install — normalize user-scope `enabledPlugins` key order
+
+Claude Code's settings writer appends each new `enabledPlugins` key at the end of the map rather
+than inserting it alphabetically. The rest of the map is sorted, so every sync that installs
+something leaves an unsorted tail that never self-heals and churns diffs for anyone whose
+`~/.claude/settings.json` is managed.
+
+There is no `claude plugin` verb that reorders the map. After this step installs **anything**,
+run the bundled normalizer against the user-scope file only:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh
+```
+
+Override the path with `--file` or `FLEET_STATE_USER_SETTINGS` when the run is not using the
+machine default (same override `fleet-state.sh` honors).
+
+- **User scope only.** The write is a strict key reorder: keys and values byte-identical, order
+  alone changed. It is consistent with what this step already does — Step 5 already writes
+  `~/.claude/settings.json` via `claude plugin enable -s user`.
+- **Never normalize project scope.** That is the committed, team-shared file the Scope invariant
+  protects. If a project-scope map is unsorted, report it under Action needed and stop:
+
+  ```bash
+  "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh \
+    --report-project "${project_root}/.claude/settings.json"
+  ```
+
+  `project-unsorted` is a report row, not a write. `converge` remains the only action that may
+  touch that file.
+- **Never silent.** A `normalized keys=N` result becomes the report's `Normalized:` row. A
+  `refused:` result (permission denial, unreadable JSON, a semantic diff) becomes an Action
+  needed bullet — fail loudly, never skip. `--check` is the audit-mode stand-in (predict
+  `would-normalize`, write nothing).
+- **Skip the write when this step installed nothing.** An already-sorted map is a no-op either
+  way (`already-sorted`); the reorder exists to heal the tail this step just created.
+
 ## Step 5 — `enabledPlugins` completeness
 
 Catalog-dependent (`defaultEnabled` comes from catalog metadata): skipped (deferred) for a
