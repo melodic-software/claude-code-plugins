@@ -20,9 +20,7 @@ metadata:
 
 ## Pre-computed context
 
-- Rules files: !`find .claude/rules -name '*.md' 2>/dev/null | wc -l | tr -d ' ' || echo "0"`
-- Root `AGENTS.md`: !`test -f AGENTS.md && echo "present" || echo "absent"`
-- Root `CLAUDE.md`: !`test -f CLAUDE.md && echo "present" || echo "absent"`
+!`"${CLAUDE_PLUGIN_ROOT}/scripts/precompute.sh" check 2>/dev/null || echo "- Orientation unavailable"`
 
 ## Purpose
 

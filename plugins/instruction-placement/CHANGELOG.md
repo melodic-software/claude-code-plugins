@@ -3,6 +3,35 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1]
+
+### Fixed
+
+- **Skill-header orientation counted rules with the open-coded pattern the shared layer replaced.**
+  `precompute.sh audit` and the `check` skill's inline injection both ran a bare
+  `find .claude/rules`, which is the exact line whose four bugs motivated `lib/discover.sh` in
+  0.2.0: it sees only the root tree and only real directories. On a repository with a nested
+  `packages/*/.claude/rules` and a symlinked shared set it reports **1** where the gate walks
+  **3**. Nothing downstream used the number — the engines were already consolidated — but the
+  header is what the model reads before any work starts, and an orientation that understates the
+  repository by two thirds sets the wrong expectation for the sweep it introduces. Both sites now
+  count through `ip_discover_rules`, and the nested-instruction count through
+  `ip_discover_nested_instructions`, so the header and the gate tell one story. Raised in review on
+  #3225.
+
+### Changed
+
+- `precompute.sh` gains a `check` mode, so the `check` skill composes its header through the one
+  script like every other skill in the plugin rather than open-coding three inline injections.
+  Its presence probes drop their backticks to match the `audit` mode's wording.
+
+### Added
+
+- `precompute.sh` gets its own suite (23 cases), covering the count agreement on a fixture that
+  hides rules from a root-only `find`, the corpus rules for nested instruction files, and the
+  degradation contract every mode owes a skill header: exit 0 and a printable value even where
+  there is nothing to read.
+
 ## [0.11.0]
 
 ### Fixed
