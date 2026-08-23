@@ -145,7 +145,7 @@ LC_ALL=C awk \
   function rule_tier(id) { return "IMPORTANT" }
   function rule_action(id) {
     if (id == "I28-a")
-      return "Downgrade the emphasis, never the directive: restate as normal conditional phrasing (\"Use this tool when ...\"). The instruction text itself must survive the edit; only its volume changes."
+      return "Downgrade the emphasis, never the directive: restate as normal conditional phrasing (\"Use this tool when ...\"). The directive must survive the edit verbatim, apart from capitalization forced by dropping a leading wrapper; only its volume changes."
     return "Replace the blanket default with the targeted condition it stood in for (\"Use [tool] when it would ...\"). The condition is the payload; do not delete the instruction."
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.

@@ -1645,10 +1645,16 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
   [the severity crosswalk](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md).
   Every other check here stays report-only: no crosswalk row, no relay. The persist mechanics,
   including the body-scope fence, are [context/persist-findings.md](../context/persist-findings.md).
-- **The remediation is a downgrade, never a deletion.** The directive survives byte-for-byte; only
-  its volume changes. A proposal that removes the instruction rather than its shouting has
-  misread the check — the Source's own worked example replaces `"CRITICAL: You MUST use this tool
-  when…"` with `"Use this tool when…"`, keeping the instruction and dropping the shout.
+- **The remediation is a downgrade, never a deletion.** The directive survives verbatim and only
+  its volume changes. A proposal that removes the instruction rather than its shouting has misread
+  the check — the Source's own worked example replaces `"CRITICAL: You MUST use this tool when…"`
+  with `"Use this tool when…"`, keeping the instruction and dropping the shout.
+  **One byte may legitimately differ: sentence-initial capitalization.** Where the emphasis is a
+  *leading* wrapper, dropping it promotes the next word to sentence-initial position, so
+  `…MUST resolve the item id` becomes `Resolve the item id`. That is forced by the edit, not a
+  rewrite of the directive — and the Source's own example makes the same change (`use` → `Use`).
+  Verbatim survival is therefore asserted **apart from that capitalization**; any other change to
+  the directive's wording means the remediation overreached.
 - **Body-scoped when it routes to the relay.** No emitted finding may carry a remediation that
   edits a `description`, a `when_to_use`, or a quoted `'trigger phrase'`:
   `plugins/skill-quality/scripts/check-skill.sh:414` hard-FAILs a dropped trigger phrase versus the

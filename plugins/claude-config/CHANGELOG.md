@@ -30,7 +30,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   relay; every other check stays report-only, and the eight non-crosswalk scanner families are
   counted as declined in `## Surfaces` rather than silently dropped.
 - **I28's remediation is documented as a downgrade, never a deletion.** The directive survives
-  byte-for-byte and only its volume changes; no emitted `Action` may instruct removal.
+  verbatim and only its volume changes; no emitted `Action` may instruct removal. **One byte may
+  legitimately differ** — dropping a *leading* wrapper promotes the next word to sentence-initial
+  position (`…MUST resolve` → `Resolve`), so verbatim survival is asserted apart from that forced
+  capitalization. The official source's own worked example makes the same change (`use` → `Use`).
+  Found by running the end-to-end proof rather than by inspection: a strict byte-for-byte assertion
+  fails on every leading-wrapper case.
 - **I28's V1 selection scope is recorded as deliberately narrower than its Detect prose.** Whole
   bolded sentences and general all-caps imperative runs are judged by the model lane but not
   mechanically selected — both are too common in ordinary technical prose to select without

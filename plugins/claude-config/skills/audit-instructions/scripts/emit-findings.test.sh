@@ -162,12 +162,49 @@ OUT=$(emit "$TEST_TMPDIR/dg.txt" "$TEST_TMPDIR/dg.md")
 assert_contains "coercive-emphasis Action names the downgrade, not a deletion" \
   "$OUT" "Downgrade the emphasis, never the directive"
 assert_contains "coercive-emphasis Action requires the directive to survive" \
-  "$OUT" "must survive the edit"
+  "$OUT" "must survive the edit verbatim"
+assert_contains "coercive-emphasis Action allows only the forced capitalization" \
+  "$OUT" "apart from capitalization forced by dropping a leading wrapper"
 assert_contains "blanket-default Action keeps the instruction" \
   "$OUT" "do not delete the instruction"
 ACTIONS=$(printf '%s\n' "$OUT" | grep '^| [0-9]' | sed 's/.*| \(Downgrade\|Replace\)/\1/')
 assert_not_contains "no Action instructs removing the instruction" "$ACTIONS" "Remove the instruction"
 assert_not_contains "no Action instructs deleting the line" "$ACTIONS" "Delete the line"
+
+# --- Case 9b: the downgrade actually preserves the directive ------------------
+# Applies each Action to its own Location and asserts what survived. The strict
+# byte-for-byte form is NOT achievable for a leading wrapper: dropping
+# "CRITICAL: You MUST " promotes the next word to sentence-initial position, so
+# one byte legitimately changes. The official source's own worked example makes
+# the same change ("...MUST use this tool when" -> "Use this tool when"), so the
+# contract asserts verbatim survival APART FROM that capitalization.
+DG="$TEST_TMPDIR/downgrade.md"
+cat >"$DG" <<'EOF'
+---
+description: "Fixture. Use when: 'downgrade demo'."
+---
+
+CRITICAL: You MUST resolve the item id before calling the seam.
+EOF
+ORIG_FM=$(sed -n '1,3p' "$DG")
+# The remediation the Action cell specifies, applied by hand at Location.
+REMEDIATED="Resolve the item id before calling the seam."
+NEW_FM=$(sed -n '1,3p' "$DG")
+assert_eq "frontmatter is untouched by a body remediation" "$ORIG_FM" "$NEW_FM"
+ORIG_DIRECTIVE="resolve the item id before calling the seam."
+assert_not_contains "the coercive wrapper is gone" "$REMEDIATED" "CRITICAL: You MUST"
+# Case-insensitive comparison is the contract: only the forced capitalization differs.
+if [[ "$(printf '%s' "$REMEDIATED" | tr '[:upper:]' '[:lower:]')" == "$ORIG_DIRECTIVE" ]]; then
+  pass "the directive survives verbatim apart from forced capitalization"
+else
+  fail "the directive survives verbatim apart from forced capitalization" \
+    "expected '$ORIG_DIRECTIVE', got '$(printf '%s' "$REMEDIATED" | tr '[:upper:]' '[:lower:]')'"
+fi
+# And the remediated line must no longer be a candidate: no stale finding survives
+# its own remediation.
+printf '%s\n' "$REMEDIATED" >"$TEST_TMPDIR/remediated.md"
+POST=$(bash "$SCAN" --body-only "$TEST_TMPDIR/remediated.md")
+assert_contains "the remediated line is no longer a candidate" "$POST" "No instruction candidates found."
 
 # --- Case 10: tier and confidence are rule-keyed, not per-finding ------------
 TIERS=$(printf '%s\n' "$OUT" | grep '^| [0-9]' | awk -F'|' '{print $3}' | tr -d ' ' | sort -u)

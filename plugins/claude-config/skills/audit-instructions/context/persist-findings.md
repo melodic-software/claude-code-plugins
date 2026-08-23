@@ -85,7 +85,10 @@ those candidates from the scan output handed to `--from` rather than emitting an
 - **`Action`** states the **downgrade**: normal conditional phrasing for `rule-coercive-emphasis`,
   the targeted condition for `rule-blanket-tool-default`. **The remediation is never a deletion.**
   A finding that removes the instruction rather than its shouting is wrong, so no `Action` cell
-  may instruct removal — the directive survives byte-for-byte and only its volume changes.
+  may instruct removal — the directive survives verbatim and only its volume changes. The single
+  legitimate exception is **sentence-initial capitalization forced by dropping a leading wrapper**
+  (`…MUST resolve` → `Resolve`), which the official source's own worked example also makes
+  (`use` → `Use`). Any other wording change means the remediation overreached.
 - **`Tier`** is LOOKED UP from the rule's crosswalk row, then mapped to the consuming project's
   severity vocabulary when it defines one. **`Confidence`** is `high` on every emitted row: a
   deterministic detector fired.
