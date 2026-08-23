@@ -2,6 +2,13 @@
 
 ## Brief
 
+> **Revision 5 (2026-08-23).** The LSP research pass (`research-lsp-viability.md`) fired the Go
+> exclusion trigger: `gopls check -severity=hint` is a CLI dead-code detector that does not build
+> or execute project code, so Go joins the roster as a fourth lane. Claude Code's `LSP` tool is
+> model-callable but unreachable from a script and has no batch mode, so it is retained only as an
+> optional per-candidate assist inside the bounded adjudication pass. `DiagnosticTag.Unnecessary`
+> and pyright are measured and rejected. Rust and .NET remain excluded on the build limb.
+>
 > **Revision 4 (2026-08-23).** Three adversarial validation rounds (`/planning:audit-answers`,
 > three fresh-context validators each). Round 3 validators installed and ran both detectors
 > against purpose-built trap fixtures; revision 4 is written against those measurements, not
@@ -29,15 +36,20 @@ measurement, not argument.
 | knip class members | `--include classMembers` → `ERROR: Invalid issue type`. Absent from knip 6.32.2 entirely |
 | shell/grep lane | **4/4 true positives, 0 false positives, 3.1s** over 546 `.sh` / 177,793 lines using the portable `grep -w -F -f` floor; shellcheck found **0** of the same 4 |
 | `grep -w` precision | 8/12 probes. `$`, `-`, `.` are non-word characters → false-**alive**; `-F` is mandatory (without it `core.ts` matches `coreXts`) |
-| Binary resolution | `npm i -D knip` → **not on PATH**; `uv add --dev vulture` → **not on PATH**. Bare-name probing reports "missing" on correctly-configured repos |
+| Binary resolution | `npm i -D knip` → **not on PATH**; `uv add --dev vulture` → **not on PATH**. Bare-name probing reports "missing" on correctly-configured repos. `command -v rust-analyzer` **succeeds while invocation fails** (rustup shim) — a second independent instance of the presence-by-invocation rule |
+| **`gopls check -severity=hint`** (revision 5) | **A CLI dead-code detector for Go that does not build or execute project code.** Measured 2.1s; correctly found dead unexported func/type/var/const and correctly skipped exported ones. Official docs: gopls "does not run the actual compiler" — it runs `go list` plus its own front-end, and Go has no `build.rs` equivalent. Precondition: a resolvable module cache (same class as `node_modules`) |
+| gopls degradation shape | Unresolved dep → import error on **stdout**, hints suppressed, **exit 0**. Workspace-load failure → **empty stdout**, error on **stderr**, **exit 0**. Exit code useless as run health — same as knip, but it produces false **negatives** rather than knip's false positives |
+| Claude Code's `LSP` tool | Model-callable (`findReferences`, `documentSymbol`, `workspaceSymbol`, `incomingCalls`), read-only, permission-free — but **no bash script can call it**, so it is unreachable from `dead-code-scan.sh`. Inert unless the consumer separately installs a code-intelligence plugin and its binary. `includeDeclaration` is hard-coded `true`, so the dead threshold is `resultCount == 1`. Measured against `pyright-langserver`: dead function → 1, used → 2, used by a never-opened file → 3 — cross-file resolution is real. No batch mode: one symbol per call, one model turn each |
+| `DiagnosticTag.Unnecessary` | **Dead as a signal.** Wrong scope everywhere (file-local/private only), push-only delivery, and Claude Code's diagnostics normalizer **strips `tags`** entirely |
+| pyright as a Python detector | **Rejected.** Measured, it misses `dead_fn`, `DeadClass`, and `dead_method` — its unused checks fire only on `_`-prefixed file-local names. It would strictly *reduce* recall versus vulture |
 
 ### TLDR
 
 - New skill `code-tidying:audit-dead-code` — a whole-repo, cross-file dead-code hunter, the gap no existing skill covers.
-- Three lanes with **honestly unequal** confidence: knip (TS/JS, 60% precision), vulture (Python, high-recall/low-precision), and a portable grep lane (shell and other symbol languages, high-precision/low-recall).
+- Four lanes with **honestly unequal** confidence: knip (TS/JS, 60% precision), vulture (Python, high-recall/low-precision), gopls (Go, unexported-only), and a portable grep lane (shell and other symbol languages, high-precision/low-recall).
 - Report-only to the human; no findings file, no relay, no suppression record in V1.
 - Every candidate adjudicated against dynamic-usage evidence under a `--max` cap, oldest-untouched first.
-- The skill's headline is a **TS/JS dead-code skill with a high-recall Python lane and a high-precision shell lane** — stated that way in the skill body, not implied as parity.
+- The skill's headline is **four lanes of unequal strength, each labelled** — not four peer detectors.
 
 ### Goal
 
@@ -51,10 +63,13 @@ can act on rather than a raw analyzer dump the reader must re-verify.
 
 - **Report-only.** The skill never edits source and V1 writes no file. Findings are presented in-session.
 - **No detector that builds the project or executes its application or test code.** This excludes
-  Go, Rust, and .NET (measured: `cargo check` runs `build.rs`; `deadcode` needs a module graph and
-  a `main` root). **knip is admitted with a disclosed exception**: it evaluates the repository's own
-  config modules via `jiti`, and every run that loads a JS/TS config says so in the report. Denying
-  this would be false; the exception is narrower than a build and is stated rather than hidden.
+  Rust and .NET (measured: `cargo check` compiles `build.rs` and proc macros; the Roslyn server
+  signals "project needs to be restored"). It does **not** exclude Go: `gopls check` runs `go list`
+  plus its own front-end and, per official docs, "does not run the actual compiler" — and Go has no
+  `build.rs` equivalent, so there is no project code to execute. **knip is admitted with a disclosed
+  exception**: it evaluates the repository's own config modules via `jiti`, and every run that loads
+  a JS/TS config says so in the report. Denying this would be false; the exception is narrower than
+  a build and is stated rather than hidden.
 - **Never let a package runner fetch.** The rule is *never fetch*, not *never use a runner*:
   measured, `npx` on a locally-installed devDependency performs zero network I/O, while `npx` on an
   absent tool installs it. Detector invocation goes through the bundled script under one
@@ -88,10 +103,20 @@ can act on rather than a raw analyzer dump the reader must re-verify.
   `scripts/dead-code-scan.test.sh`, `scripts/lib/dead-code-shapes.sh`, `evals/evals.json`, and
   `evals/fixtures/`. `context/` spokes carry per-detector detail so `SKILL.md` stays near the
   200-line soft target.
-- Three lanes ship, each labelled with its measured confidence character in the skill body:
+- Four lanes ship, each labelled with its measured confidence character in the skill body:
   **knip** (TS/JS — unused files, exports, types, enum members; **not** class members, which knip 6
-  rejects), **vulture** (Python — symbol-level), and **grep** (shell and other symbol languages —
-  high precision, acknowledged low recall).
+  rejects), **vulture** (Python — symbol-level), **gopls** (Go — `gopls check -severity=hint`,
+  **unexported symbols only**, which is the lane's stated coverage limit, not a defect), and
+  **grep** (shell and other symbol languages — high precision, acknowledged low recall).
+- The Go lane's degradation is detected from its **stdout import-error lines and non-empty stderr**,
+  never its exit code (always 0), and its failure mode is recorded as producing false **negatives** —
+  the opposite of knip's, so the report must not describe them with one shared phrase.
+- **Optional LSP assist during adjudication only.** When Claude Code's `LSP` tool is available
+  (`isEnabled()` requires a consumer-installed code-intelligence plugin and its binary), the
+  adjudicating agent may call `findReferences` on a candidate as one more evidence source, with the
+  dead threshold `resultCount == 1` because `includeDeclaration` is hard-coded `true`. It is
+  availability-guarded, never required, never invoked from the script, and never a lane of its own.
+  Note that imports count as references, so a re-export still reads alive.
 - Orphaned-file coverage is stated as **TS/JS only**.
 - knip runs **per project root** (discovered via `package.json`), not once at the repo root; each
   root reports its own ran/skipped/degraded state.
@@ -146,7 +171,17 @@ can act on rather than a raw analyzer dump the reader must re-verify.
 
 ### Out-of-scope
 
-- Go, Rust, and .NET detection. **Trigger:** a detector that neither builds nor executes project code.
+- **Rust and .NET** detection. **Trigger:** a detector that neither builds nor executes project code.
+  Measured and still excluded: rust-analyzer's dead-code signal comes from `cargo check`, which
+  compiles `build.rs` and proc macros; the Roslyn server explicitly signals "project needs to be
+  restored"; clangd needs `compile_commands.json`; jdtls needs a built classpath.
+  **Go is no longer here — its trigger fired (see revision 5 below).**
+- **An LSP scanning lane.** Claude Code's `LSP` tool is model-callable only; no script can reach it,
+  and it has no batch mode, so "enumerate every symbol and query references" would cost one model
+  turn per symbol. Ruled out as a detector; retained only as an optional per-candidate check inside
+  the already-bounded adjudication pass.
+- **`DiagnosticTag.Unnecessary` as a cross-language signal**, and **pyright as a Python detector** —
+  both measured and rejected above. Recorded here so neither is re-proposed.
 - `--persist-findings`, the `review-findings` relay, and its crosswalk rows. **Trigger:** a fanout
   cleanup route that reads findings files — today it routes dead-code removal to `/simplify`, which
   "does NOT read the findings files".
