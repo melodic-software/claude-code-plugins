@@ -1,0 +1,84 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-probes-goimports-without-a-version-flag",
+      "prompt": "/go-format:setup check",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, the goimports binary, the go_format_enabled toggle, and hook registration — one remediation line per FAIL, nothing modified.",
+      "files": [],
+      "expectations": [
+        "Resolves goimports on PATH only, matching the hook — it does not look for a .venv-style per-repo convention",
+        "Reports the resolved path and, because goimports has no --version flag, the first line of `goimports -h` as the closest version signal rather than inventing a --version invocation",
+        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible once-per-session notice instead of formatting",
+        "Reports absent goimports as FAIL and states that the hook then emits a visible once-per-session skip notice instead of running"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-consumer-config-probe-is-by-design-not-a-gap",
+      "prompt": "/go-format:setup check\n\nEvery other formatter plugin here checks for a repo config first. Why doesn't this one report on one, and does that mean the hook is inert until I add one?",
+      "expected_output": "Answers that the hook runs unconditionally — there is no consumer-config opt-in gate, unlike sibling formatter plugins Ruff and typos — so the absent config probe is reported plainly as INFO by design, not as a coverage gap, and nothing needs adding to activate it.",
+      "files": [],
+      "expectations": [
+        "States that this hook runs unconditionally with no consumer-config opt-in gate, and names the contrast with the sibling plugins that do gate",
+        "Reports the missing probe as INFO by design, never as a gap or a defect to repair",
+        "Does not tell the user to add a repository config to activate the hook",
+        "Does not write any repository configuration"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "never-runs-go-install-on-the-users-behalf",
+      "prompt": "/go-format:setup apply\n\ngoimports is missing. Just install it.",
+      "expected_output": "Declines: there is no `apply install-goimports` write path. It prints `go install golang.org/x/tools/cmd/goimports@latest` for the consumer to run and explains the two reasons — the install writes to the machine-global $GOPATH/bin rather than being project-scoped, and @latest is not idempotent-pinned.",
+      "files": [],
+      "expectations": [
+        "Does not execute the go install command — it is printed as guidance for the consumer to run",
+        "Gives both reasons: the target $GOPATH/bin is machine-global rather than project-scoped, and @latest is not idempotent-pinned",
+        "Notes the Go toolchain prerequisite alongside the install command",
+        "Does not install system packages and does not write Claude Code user settings, pluginConfigs, or the plugin cache"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "verifies-after-the-consumer-installs",
+      "prompt": "/go-format:setup apply\n\nOK, I ran the go install — we're good now, right?",
+      "expected_output": "Does not accept the report as proof: re-runs the goimports check probe and reports its actual result, since a successful install command is not evidence the hook can resolve the binary.",
+      "files": [],
+      "expectations": [
+        "Re-runs the relevant check probe rather than claiming resolved on the consumer's say-so",
+        "Reports the probe's actual result, including the resolved path when found",
+        "Does not declare success without the re-verification",
+        "Runs the formatter on no file — editing a .go file is what exercises the hook end-to-end"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "headless-toggle-off-reruns-install-never-uninstalls",
+      "prompt": "/go-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
+      "expected_output": "Routes the headless change to a plain `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install … --config go_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
+        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
+        "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "repeat-apply-changes-nothing",
+      "prompt": "/go-format:setup apply\n\nEverything passed on the last run. Go again.",
+      "expected_output": "Re-runs check, finds no FAIL, reports \"already configured\", and makes no change.",
+      "files": [],
+      "expectations": [
+        "Runs check first even on the repeat invocation",
+        "Reports \"already configured\" and performs no write",
+        "Does not re-print install guidance for a prerequisite that now passes",
+        "Does not prompt interactively — the action was given in the invocation"
+      ]
+    }
+  ]
+}

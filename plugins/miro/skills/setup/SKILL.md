@@ -73,30 +73,19 @@ which also notes `claude plugin enable` auto-detects the scope when `-s` is omit
 explicitly keeps the sequence deterministic in CI). A bootstrap that stops after `install` looks
 successful and delivers no tools.
 
-**Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
-an already-installed `miro` does not update the stored token. To rotate or clear the token later,
-use `/plugin configure miro@<marketplace>` (interactive, any time), or headlessly:
+**Rotating or clearing the token:** `/plugin configure miro@<marketplace>` (interactive, any
+time) is the recommended rotation path regardless — it masks input, unlike anything passed on the
+command line (see the security note below).
 
-```shell
-claude plugin list                                  # read the CURRENT scope for miro
-claude plugin uninstall miro -s <scope>
-claude plugin install miro@<marketplace> -s <scope> --config miro_api_token=<new-token>
-claude plugin enable miro -s <scope>
-```
-
-Never re-run `install --config` against an existing install expecting it to take effect. Read the
-scope from `claude plugin list` and carry that SAME `-s <scope>` through all three commands —
-`uninstall` and `install` default to `user` and `enable` auto-detects, so omitting it against a
-`project`- or `local`-scope install removes a different record than the one that is loading and
-reinstalls at a scope that does not load, leaving the old token in use. For a `project`- or
-`local`-scope install, run every command from that project directory, since those scopes resolve
-against the current project.
-
-`-y` only skips `uninstall`'s `--prune` confirmation; this recipe never passes `--prune`, so `-y`
-has no effect here and should not be added. The reinstall needs its own `enable` for the same
-reason the initial bootstrap does: uninstalling can drop the `enabledPlugins` entry, and a fresh
-install of a `defaultEnabled: false` plugin lands disabled, so a rotation that ends at `install`
-completes with the new token stored and no tools available.
+The older claim here — that `--config` is ignored once the plugin is installed — was never
+version-stamped, and on Claude Code 2.1.240 a plain `claude plugin install … --config` was
+observed to write the value of an already-installed plugin for a **non-sensitive** option at
+`user` scope. Whether that holds for a `sensitive` option such as `miro_api_token` has not been
+verified, so do not rely on it for a credential. Do **not** uninstall to rotate either:
+uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting every option in
+the README's Options reference table to its manifest default, and it can drop the
+`enabledPlugins` entry as well — a `defaultEnabled: false` plugin reinstalls DISABLED, so a
+rotation that ends at `install` completes with no tools available.
 
 **Security note:** passing the token as a CLI argument records it in shell history
 (`.bash_history`, `.zsh_history`) and briefly exposes it in the process table

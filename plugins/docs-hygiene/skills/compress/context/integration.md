@@ -12,7 +12,7 @@ How `/docs-hygiene:compress` composes with sibling skills in this plugin and wit
 | `/docs-hygiene:audit-encapsulation` | parallel concern | No invocation either direction. `/docs-hygiene:audit-encapsulation` detects external citations into skill-private surfaces; `/docs-hygiene:compress` edits the markdown targets it is given. The two skills do not interact at runtime |
 | A pre-PR quality gate (if the consumer has one) | calls `/docs-hygiene:compress` | When a pre-PR check surfaces uncommitted `.md` files in the working tree, the user may invoke `/docs-hygiene:compress` (empty arg auto-detects) before PR prep. `/docs-hygiene:compress` does not auto-trigger from any gate; user-gated |
 
-Boundaries with the other bundled siblings — `/docs-hygiene:audit-noise` (noise classification, not flavor) and `/docs-hygiene:extract-ssot` (content relocation across 3+ files, not flavor) — are defined in `../SKILL.md` "What this skill is NOT".
+Boundaries with the other bundled siblings — `/docs-hygiene:audit-noise` (noise classification, not flavor) and `/docs-hygiene:extract-ssot` (content relocation at any multiplicity, not flavor — it rosters rule-of-one / -two / -three buckets; only extraction into a NEW artifact waits for 3+ files) — are defined in `../SKILL.md` "What this skill is NOT".
 
 ## Public-surface invocation forms
 
