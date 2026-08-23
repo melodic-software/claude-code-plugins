@@ -14,6 +14,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -38,6 +39,22 @@ assert_not_contains() {
   *"$3"*) fail "$1" "absent: $3" "present" ;;
   *) pass "$1" ;;
   esac
+}
+# skip_case <reason> — skip one optional case without exiting. Named to match the
+# house helper so scripts/check-discriminating-test-skips.sh can see these
+# branches; a bare `printf 'SKIP:'` is invisible to that gate. It must never
+# swallow the only discriminating coverage for a case group.
+skip_case() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP: %s\n' "$1" >&2
+}
+# fail_discriminating_skip <reason> — a skip that WOULD vacate the only
+# discriminating assertions in a case group. Counts as a failure, so a green
+# tally can never mean "every proving fixture was skipped".
+fail_discriminating_skip() {
+  CASE_NUM=$((CASE_NUM + 1))
+  FAILED=$((FAILED + 1))
+  printf 'DISCRIMINATING SKIP: [%d] %s\n' "$CASE_NUM" "$1" >&2
 }
 
 # --- Fixtures (built inline; no shipped fixture files) ---------------------------
@@ -410,6 +427,47 @@ assert_not_contains "fenced citation not flagged" "$fence_out" "inside a fence"
 assert_not_contains "fenced ghost-ref not flagged" "$fence_out" "foo-slice"
 assert_contains "post-fence citation still flagged" "$fence_out" "real prose"
 
+# A longer outer fence wrapping a standard inner fence must stay closed only
+# at the matching-or-longer closer. A naive 3+ toggle treats the inner close
+# as the outer close and then scans the remaining example as prose.
+NESTED_FENCE="$TEST_TMPDIR/nested-fence.md"
+cat >"$NESTED_FENCE" <<'EOF'
+# Nested fence fixture
+
+````markdown
+An example suppression record:
+
+```yaml
+reason: "Conflicts with org policy; exception requested, tracked in #482."
+```
+
+Empirically observed inside the outer fence after the inner close.
+.work/foo-slice/PLAN.md
+````
+
+After the outer fence Empirically observed in real prose.
+EOF
+nested_out="$(bash "$DETECT" "$NESTED_FENCE")"
+assert_not_contains "content after an inner fence close stays exempt" \
+  "$nested_out" "inside the outer fence"
+assert_not_contains "inner-fence ticket residue is not scanned" "$nested_out" "tracked in #482"
+assert_not_contains "nested-fence ghost-ref is not scanned" "$nested_out" "foo-slice"
+assert_contains "prose after the true outer close still flags" "$nested_out" "real prose"
+
+TILDE_FENCE="$TEST_TMPDIR/tilde-fence.md"
+cat >"$TILDE_FENCE" <<'EOF'
+# Tilde fence fixture
+
+~~~text
+Empirically observed inside a tilde fence.
+~~~
+
+After the tilde fence Empirically observed in real prose.
+EOF
+tilde_out="$(bash "$DETECT" "$TILDE_FENCE")"
+assert_not_contains "ordinary tilde fence body stays exempt" "$tilde_out" "inside a tilde fence"
+assert_contains "prose after a tilde fence still flags" "$tilde_out" "real prose"
+
 INLINE_FIXTURE="$TEST_TMPDIR/inline-code.md"
 cat >"$INLINE_FIXTURE" <<'EOF'
 # Inline fixture
@@ -557,6 +615,55 @@ assert_not_contains "document locators keep the antecedent unflagged" \
   "$ante_neg_out" "Finding shape: conversational-antecedent"
 assert_contains "antecedent exemptions file is clean" "$ante_neg_out" "| T1=0 T2=0 T3=0"
 
+# under / at / on used to exempt unconditionally, the same weakness `in` had
+# before the locator predicate. Conversational residue phrased with those
+# prepositions must flag; a real document locus after them must stay exempt.
+# High-traffic `on` idioms that are NOT this shape (based on, depends on, on
+# disk, on the other hand) are pinned so narrowing `on` cannot start matching
+# ordinary prose that never had an antecedent.
+ANTE_PREP="$TEST_TMPDIR/antecedent-prepositions.md"
+cat >"$ANTE_PREP" <<'EOF'
+# Antecedent preposition fixture
+
+As we agreed on Tuesday, the cap is 30s.
+As we decided at the standup, retry three times.
+As we agreed under time pressure, this is temporary.
+As we decided on the ADR's recommendation, the resolver reads the team file.
+The default is based on the measured timeout.
+Retry count depends on the shard width.
+Persist the snapshot on disk after the write.
+On the other hand, keep the current default.
+As we discussed above, the resolver reads the team-tracked file only.
+EOF
+ante_prep_out="$(bash "$DETECT" "$ANTE_PREP")"
+assert_contains "'on Tuesday' is conversational residue" "$ante_prep_out" "the cap is 30s"
+assert_contains "'at the standup' is conversational residue" "$ante_prep_out" "retry three times"
+assert_contains "'under time pressure' is conversational residue" "$ante_prep_out" "this is temporary"
+assert_not_contains "'on the ADR' is a document locator" "$ante_prep_out" "the resolver reads the team file"
+assert_not_contains "anaphoric 'above' is still a blanket exemption" \
+  "$ante_prep_out" "the resolver reads the team-tracked file only"
+assert_not_contains "'based on' is not an antecedent" "$ante_prep_out" "measured timeout"
+assert_not_contains "'depends on' is not an antecedent" "$ante_prep_out" "shard width"
+assert_not_contains "'on disk' is not an antecedent" "$ante_prep_out" "after the write"
+assert_not_contains "'on the other hand' is not an antecedent" "$ante_prep_out" "current default"
+assert_contains "three new preposition residues and nothing else" "$ante_prep_out" "| T1=3 T2=0 T3=0"
+
+# An inline-code locator the strip removes, followed by punctuation, must
+# still count as a document locus after the clause cut — otherwise `on` /
+# `at` / `under` newly flag a real path cite.
+ANTE_TICK="$TEST_TMPDIR/antecedent-inline-locator.md"
+cat >"$ANTE_TICK" <<'EOF'
+# Inline-code locator fixture
+
+As we discussed on `docs/design.md`, retain the fallback.
+As we decided at `§3`, keep the resolver.
+As we agreed under `the ADR`, ship the narrower form.
+EOF
+ante_tick_out="$(bash "$DETECT" "$ANTE_TICK")"
+assert_not_contains "an inline-code locator after on/at/under stays exempt" \
+  "$ante_tick_out" "Finding shape: conversational-antecedent"
+assert_contains "inline-code locator file is clean" "$ante_tick_out" "| T1=0 T2=0 T3=0"
+
 # --- 11f. Contracted first-person actors, straight and curly apostrophes -------------
 # A contraction is the same actor and the same shape; requiring a literal space
 # after the pronoun let it escape silently. Both apostrophe forms must work: `’`
@@ -642,7 +749,7 @@ bad_chunk_exit=0
 bash "$DETECT" --offset -1 "$CLEAN" >/dev/null 2>&1 || bad_chunk_exit=$?
 assert_exit "negative --offset exits 2" 2 "$bad_chunk_exit"
 
-# --- Porcelain discovery: tricky paths survive the parse (#3143) ----------------------
+# --- Porcelain discovery: tricky paths survive the parse (#3143 / #3164) --------------
 # A plain path passes either implementation, so each case below needs a path git
 # treats specially: one containing a literal " -> ", and one containing a backslash.
 
@@ -652,11 +759,37 @@ git -C "$PORC_REPO" init -q
 git -C "$PORC_REPO" config user.email fixture@example.invalid
 git -C "$PORC_REPO" config user.name fixture
 
-printf '# arrow\n\nEmpirically observed in the arrow file.\n' >"$PORC_REPO/notes -> draft.md"
+# Every case below needs a name the local filesystem may refuse, and a redirect to
+# such a name does not always fail: Windows substitutes a private-use codepoint for
+# '>' and drops a tab, reporting success, and the shell's own -f test then sees the
+# same substituted name and agrees the fixture is there. Only git's byte-exact view
+# of the worktree can confirm the intended name landed. Without this guard a case
+# fails — or worse, passes — for a reason that has nothing to do with the parse.
+# Caveats, since this gates whether a case runs at all: it is a substring match over
+# the whole status, not an exact record match; it requires the fixture to still be
+# DIRTY, so it returns false after the fixture is committed; and it reads the same
+# `-z` interface under test, so a `-z` regression would turn assertions into skips
+# rather than failures. The skip tally and the esc_discriminators guard below exist
+# so that degradation cannot pass silently.
+fixture_landed() { # <repo> <intended-name>
+  git -C "$1" status --porcelain -z 2>/dev/null | tr '\0' '\n' | grep -qF -- "$2"
+}
+
 printf '# plain\n\nEmpirically observed in the plain file.\n' >"$PORC_REPO/plain.md"
 
+printf '# arrow\n\nEmpirically observed in the arrow file.\n' >"$PORC_REPO/notes -> draft.md" 2>/dev/null || true
+if fixture_landed "$PORC_REPO" 'notes -> draft.md'; then
+  porc_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
+  assert_contains "untracked path containing ' -> ' is not split as a rename" "$porc_out" "notes -> draft.md"
+else
+  # discriminating-skip-ok: regression guard for #3171's arrow gate, not a #3164
+  # discriminator — the -z read matches no arrow at all, so nothing here proves
+  # the fix under test.
+  find "$PORC_REPO" -maxdepth 1 -name '*draft.md' -delete 2>/dev/null
+  skip_case "filesystem rejects an arrow in a filename"
+fi
+
 porc_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
-assert_contains "untracked path containing ' -> ' is not split as a rename" "$porc_out" "notes -> draft.md"
 assert_contains "ordinary untracked path still discovered" "$porc_out" "plain.md"
 
 # The gate must not cost us real renames: a genuine R record still yields the NEW path.
@@ -668,12 +801,16 @@ rename_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
 assert_contains "rename record resolves to the new path" "$rename_out" "after.md"
 assert_not_contains "rename record does not keep the old path" "$rename_out" "before.md"
 
-# git C-quotes a path containing a backslash, so \\ needs undoing as well as \".
-if printf '# backslash\n\nEmpirically observed in the backslash file.\n' >"$PORC_REPO/back\\-slash.md" 2>/dev/null; then
+# git C-quotes a path containing a backslash, so that escape must not survive either.
+printf '# backslash\n\nEmpirically observed in the backslash file.\n' >"$PORC_REPO/back\\-slash.md" 2>/dev/null || true
+if fixture_landed "$PORC_REPO" 'back\-slash.md'; then
   bs_out="$(cd "$PORC_REPO" && bash "$DETECT" 2>/dev/null)"
   assert_contains "backslash path is unescaped and discovered" "$bs_out" 'back\-slash.md'
 else
-  printf 'SKIP: filesystem rejects a backslash in a filename\n'
+  # discriminating-skip-ok: regression guard for #3171's `\\` unescape, not a
+  # #3164 discriminator — the -z read never unescapes anything.
+  find "$PORC_REPO" -maxdepth 1 -name '*slash.md' -delete 2>/dev/null
+  skip_case "filesystem rejects a backslash in a filename"
 fi
 
 # --- negation shape ------------------------------------------------------------------
@@ -970,7 +1107,16 @@ if [[ -f "$SKILL_MD" ]]; then
   skill_grep="$(sed -n 's/^Uncommitted \.md files: !`git status --porcelain 2>\/dev\/null | \(grep [^|]*\) | head.*/\1/p' "$SKILL_MD")"
   if [[ -n "$skill_grep" ]]; then
     skill_out="$(cd "$PORC_REPO" && eval "git status --porcelain 2>/dev/null | $skill_grep")"
-    assert_contains "SKILL.md preview keeps a quoted .md path" "$skill_out" 'notes -> draft.md'
+    # The quoted-path half needs the arrow fixture, which not every filesystem can
+    # hold — same hazard the porcelain cases above are gated on, so gate it the same
+    # way rather than let it fail for a reason unrelated to the preview.
+    if fixture_landed "$PORC_REPO" 'notes -> draft.md'; then
+      assert_contains "SKILL.md preview keeps a quoted .md path" "$skill_out" 'notes -> draft.md'
+    else
+      # discriminating-skip-ok: covers 0.20.1's preview grep, not this change; the
+      # ordinary-path assertion below still proves the grep was extracted and ran.
+      skip_case "filesystem rejects an arrow in a filename (SKILL.md preview parity)"
+    fi
     assert_contains "SKILL.md preview still keeps an ordinary .md path" "$skill_out" 'plain.md'
   else
     fail "SKILL.md preview grep is extractable" "a grep expression" "no match in $SKILL_MD"
@@ -979,11 +1125,121 @@ else
   fail "SKILL.md exists for the parity check" "$SKILL_MD" "missing"
 fi
 
+# --- Porcelain discovery: octal-escaped paths survive the parse (#3164) ---------------
+# v1 porcelain renders a non-ASCII or control byte as a C-style octal escape inside a
+# quoted path: the two UTF-8 bytes of the é in `café.md` arrive as the eight characters
+# `\303\251`, which no amount of quote-stripping resolves back to a real name. The -z
+# form emits those bytes verbatim, so the path reaches the audit.
+
+ESC_REPO="$TEST_TMPDIR/porcelain-escapes-repo"
+mkdir -p "$ESC_REPO"
+git -C "$ESC_REPO" init -q
+git -C "$ESC_REPO" config user.email fixture@example.invalid
+git -C "$ESC_REPO" config user.name fixture
+
+nonascii_name='café.md'
+printf '# non-ascii\n\nEmpirically observed in the non-ASCII file.\n' >"$ESC_REPO/$nonascii_name"
+printf '# spaced\n\nEmpirically observed in the spaced file.\n' >"$ESC_REPO/spaced name.md"
+
+# Both octal-escape fixtures below prove the same thing, and neither is creatable
+# everywhere, so track whether AT LEAST ONE ran. If none did, the group has proved
+# nothing and must say so loudly rather than tally green.
+esc_discriminators=0
+
+esc_out="$(cd "$ESC_REPO" && bash "$DETECT" 2>/dev/null)"
+if fixture_landed "$ESC_REPO" "$nonascii_name"; then
+  assert_contains "octal-escaped non-ASCII path is discovered" "$esc_out" "$nonascii_name"
+  esc_discriminators=$((esc_discriminators + 1))
+else
+  # discriminating-skip-ok: the control-byte case below proves the same escape
+  # class, and the guard after it fails outright if neither fixture landed.
+  find "$ESC_REPO" -maxdepth 1 -name '*.md' ! -name 'spaced name.md' -delete 2>/dev/null
+  skip_case "filesystem rejects a non-ASCII byte in a filename"
+fi
+assert_contains "quoted spaced path is still discovered" "$esc_out" "spaced name.md"
+
+# A control byte is escaped the same way (`\t`). Not every filesystem accepts one.
+tab_name="$(printf 'tab\there.md')"
+printf '# tab\n\nEmpirically observed in the tab file.\n' >"$ESC_REPO/$tab_name" 2>/dev/null || true
+if fixture_landed "$ESC_REPO" "$tab_name"; then
+  tab_out="$(cd "$ESC_REPO" && bash "$DETECT" 2>/dev/null)"
+  assert_contains "octal-escaped control-byte path is discovered" "$tab_out" "$tab_name"
+  esc_discriminators=$((esc_discriminators + 1))
+else
+  # discriminating-skip-ok: the non-ASCII case above proves the same escape
+  # class, and the guard below fails outright if neither fixture landed.
+  find "$ESC_REPO" -maxdepth 1 -name '*here.md' -delete 2>/dev/null
+  skip_case "filesystem rejects a tab in a filename"
+fi
+
+if [[ "$esc_discriminators" -eq 0 ]]; then
+  fail_discriminating_skip "no octal-escaped fixture landed — #3164's proving coverage did not run"
+fi
+
+# A rename whose NEW path is itself octal-escaped: v1 cannot name it, so this
+# discriminates the -z read the same way the untracked cases above do.
+printf '# origin\n\nEmpirically observed in the origin file.\n' >"$ESC_REPO/origin.md"
+git -C "$ESC_REPO" add origin.md
+git -C "$ESC_REPO" commit -qm 'seed escaped-rename fixture'
+git -C "$ESC_REPO" mv origin.md "$nonascii_name-renamed.md"
+if fixture_landed "$ESC_REPO" "$nonascii_name-renamed.md"; then
+  esc_rename_out="$(cd "$ESC_REPO" && bash "$DETECT" 2>/dev/null)"
+  assert_contains "escaped rename resolves to the new path" "$esc_rename_out" "$nonascii_name-renamed.md"
+else
+  # discriminating-skip-ok: same escape class as the untracked cases above, which
+  # the esc_discriminators guard already covers.
+  skip_case "filesystem rejects a non-ASCII byte in a renamed filename"
+fi
+
+# Under -z a rename emits the NEW path first and the ORIGINAL as a following record,
+# which must be consumed and discarded. The failure mode is NOT that the audit targets
+# a path that no longer exists: the leaked record still carries the `XY ` prefix, so
+# `${record:3}` chops three characters off the ORIGINAL path. Naming the origin so that
+# chopping three characters yields a REAL, CLEAN, COMMITTED file is what makes this
+# assertion discriminate at all — the audit then reports findings against a file the
+# user never touched and git never listed. Asserting on the bare origin name instead
+# would be VACUOUS: `${"origin.md":3}` is `gin.md`, a string the run never emits, so the
+# assertion could not fail however the loop behaved. `sort -u` dedupes, so the collided
+# name must not itself be a target either.
+RENAME_REPO="$TEST_TMPDIR/rename-origin-repo"
+mkdir -p "$RENAME_REPO"
+git -C "$RENAME_REPO" init -q
+git -C "$RENAME_REPO" config user.email fixture@example.invalid
+git -C "$RENAME_REPO" config user.name fixture
+printf '# secret\n\nEmpirically observed in the secret file.\n' >"$RENAME_REPO/secret.md"
+printf '# abc\n\nEmpirically observed in the abc file.\n' >"$RENAME_REPO/abcsecret.md"
+git -C "$RENAME_REPO" add secret.md abcsecret.md
+git -C "$RENAME_REPO" commit -qm 'seed rename-origin collision fixture'
+git -C "$RENAME_REPO" mv abcsecret.md moved.md
+rename_origin_out="$(cd "$RENAME_REPO" && bash "$DETECT" 2>/dev/null)"
+assert_contains "rename resolves to the new path" "$rename_origin_out" "Summary file: moved.md"
+assert_not_contains "rename origin is consumed, not sliced into a clean committed file" "$rename_origin_out" "Summary file: secret.md"
+
+# A newline in a filename is a control byte the -z read recovers intact. If
+# sort/dedup then serializes TARGETS with newline delimiters, mapfile splits
+# the name into two nonexistent targets and the file drops out again.
+NL_REPO="$TEST_TMPDIR/newline-name-repo"
+mkdir -p "$NL_REPO"
+git -C "$NL_REPO" init -q
+git -C "$NL_REPO" config user.email fixture@example.invalid
+git -C "$NL_REPO" config user.name fixture
+nl_name="$(printf 'new\nline.md')"
+printf '# newline\n\nEmpirically observed in the newline file.\n' >"$NL_REPO/$nl_name" 2>/dev/null || true
+if fixture_landed "$NL_REPO" "$nl_name"; then
+  nl_out="$(cd "$NL_REPO" && bash "$DETECT" 2>/dev/null)"
+  assert_contains "newline-bearing path survives sort/dedup" "$nl_out" "Empirically observed in the newline file"
+else
+  # discriminating-skip-ok: the tab and non-ASCII cases already prove the
+  # escape class; this pins the post-parse sort, which not every filesystem
+  # can hold a name for.
+  skip_case "filesystem rejects a newline in a filename"
+fi
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
+  printf '\nAll %d checks passed (%d skipped).\n' "$CASE_NUM" "$SKIPPED"
   exit 0
 fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
+printf '\n%d/%d checks failed (%d skipped).\n' "$FAILED" "$CASE_NUM" "$SKIPPED" >&2
 exit 1

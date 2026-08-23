@@ -114,35 +114,28 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       TARGETS+=("$(resolve_existing_path "$line")")
     done <"$PATHS_FILE"
   elif [[ -n "$repo_root" ]]; then
-    # Uncommitted .md files: modified/added/renamed/untracked. Parse porcelain
-    # without $NF so paths containing spaces survive (F10).
-    while IFS= read -r line; do
-      line="${line//$'\r'/}"
-      [[ -z "$line" ]] && continue
-      # XY + space + path; rename shows "old -> new" — take the new path.
-      # Gate the split on the status letter in either column, not on the path
-      # text: an ordinary path containing " -> " is not a rename record, and
-      # splitting it yields a name that resolves to nothing, so the file drops
-      # out of the audit silently.
-      local_path="${line:3}"
-      if [[ "${line:0:1}" == [RC] || "${line:1:1}" == [RC] ]]; then
-        local_path="${local_path##* -> }"
+    # Uncommitted .md files: modified/added/renamed/untracked. Read the
+    # NUL-delimited `-z` form, which git documents as performing no quoting and
+    # no backslash-escaping: every byte of the path arrives verbatim, so there
+    # is nothing left to unquote or decode. The v1 form C-quotes any path
+    # holding a space, a quote, a backslash, or a non-ASCII/control byte, and a
+    # parse that misses one of those escapes drops the file from the target list
+    # silently — a clean run over a dirty tree.
+    while IFS= read -r -d '' record; do
+      [[ -z "$record" ]] && continue
+      # XY + space + path. Under -z a rename/copy puts the NEW path in this
+      # record and the ORIGINAL in a following record — the reverse of v1's
+      # `old -> new` display order. Consume that second record and discard it,
+      # or the audit targets a path that no longer exists. The rename is decided
+      # by the status letter alone; no arrow ever appears under -z, so an
+      # ordinary path containing " -> " cannot be mistaken for one.
+      local_path="${record:3}"
+      if [[ "${record:0:1}" == [RC] || "${record:1:1}" == [RC] ]]; then
+        IFS= read -r -d '' _rename_origin || true
       fi
-      # Untracked / quoted paths: git may wrap as "path with spaces.md"
-      if [[ "$local_path" == \"*\" ]]; then
-        local_path="${local_path#\"}"
-        local_path="${local_path%\"}"
-        # git C-quotes both " and \, so both need undoing. \" first, then \\.
-        local_path="${local_path//\\\"/\"}"
-        local_path="${local_path//\\\\/\\}"
-      fi
-      # Residual: git's octal escapes (\NNN) for control and non-ASCII bytes are
-      # not decoded, so those paths still miss. Converging this parse on
-      # `git status --porcelain -z` would close the class outright — NUL-delimited
-      # and unquoted — at the cost of reading renames as two fields, not "old -> new".
       [[ "$local_path" == *.md ]] || continue
       TARGETS+=("$local_path")
-    done < <(git status --porcelain 2>/dev/null)
+    done < <(git status --porcelain -z 2>/dev/null)
   fi
 else
   RESOLVED=()
@@ -176,7 +169,10 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
   exit 0
 fi
 
-mapfile -t SORTED < <(printf '%s\n' "${TARGETS[@]}" | LC_ALL=C sort -u)
+# Keep NUL delimiters through sort/dedup so a path that itself contains a
+# newline (a control byte the -z read just recovered) is not split into two
+# nonexistent targets.
+mapfile -d '' -t SORTED < <(printf '%s\0' "${TARGETS[@]}" | LC_ALL=C sort -uz)
 
 # Chunk affordance: slice the sorted list so a parent can fan out without a
 # per-file shell loop (hook-bypass-safe single process per chunk).
@@ -221,8 +217,10 @@ audit_file() {
   local in_exempt=0 line_num=0
   local in_ignored_para=0 skip_next=0
   local in_frontmatter=0 in_fence=0
+  local fence_char="" fence_len=0
   local -a shapes=()
   local shape tier excerpt line heading_text
+  local fence_delim fence_dchar fence_dlen
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
@@ -241,11 +239,23 @@ audit_file() {
     fi
 
     # Fenced code blocks (``` or ~~~): never scan fence lines or their body.
-    if [[ "$line" =~ ^(\`\`\`|~~~) ]]; then
-      if [[ $in_fence -eq 1 ]]; then
-        in_fence=0
-      else
+    # CommonMark closes a fence only with the same character at a run length
+    # greater than or equal to the opener, so a four-backtick outer fence
+    # wrapping a three-backtick example stays open through the inner close.
+    # A bare toggle keyed on "line starts with 3+" treats the inner fence as
+    # the outer close and then scans the remaining example as prose.
+    if [[ "$line" =~ ^(\`{3,}|~{3,}) ]]; then
+      fence_delim="${BASH_REMATCH[1]}"
+      fence_dchar="${fence_delim:0:1}"
+      fence_dlen=${#fence_delim}
+      if [[ $in_fence -eq 0 ]]; then
         in_fence=1
+        fence_char="$fence_dchar"
+        fence_len=$fence_dlen
+      elif [[ "$fence_dchar" == "$fence_char" && $fence_dlen -ge $fence_len ]]; then
+        in_fence=0
+        fence_char=""
+        fence_len=0
       fi
       in_ignored_para=0
       continue

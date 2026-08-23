@@ -3,6 +3,14 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.1]
+
+### Changed
+
+- **`known-issues`: cross-references follow the `bug-report` → `bugs` plugin rename.** The
+  composition section and evals now name `/bugs:write` and "the `bugs` plugin". Wording only —
+  no behavior change.
+
 ## [0.37.0]
 
 ### Added

@@ -1,6 +1,6 @@
-# Findings report format — `/bug-report:scan`
+# Findings report format — `/bugs:scan`
 
-Loaded on demand by `/bug-report:scan` Step 4. Defines the emitted and persisted report: per-finding
+Loaded on demand by `/bugs:scan` Step 4. Defines the emitted and persisted report: per-finding
 fields, the refuted tail, and the cursor metadata block that the ladder's middle rung reads back.
 
 ## Frontmatter — and the one thing it must never declare
@@ -25,7 +25,7 @@ directory, and this line is how a reader tells them apart.
 
 ## Per-finding shape
 
-One `##` section per verified finding. The five fields are `/bug-report:write`'s — see
+One `##` section per verified finding. The five fields are `/bugs:write`'s — see
 [`${CLAUDE_PLUGIN_ROOT}/skills/write/context/template.md`](../../write/context/template.md) for the
 canonical shape and severity rubric; it is not restated here. Scan adds two lines: the evidence label
 and the lens id.
@@ -125,12 +125,12 @@ the zero-state date floor. `--dry-run` writes no report and therefore no cursor 
 
 Its `lane`, `lane-index`, and `rung` keys have no rotation meaning, and a later run reading it as a
 cursor would skip a lane. Rung 2 therefore searches backward for the newest report that *does* carry
-this block, skipping targeted-run reports and `/bug-report:write`'s reports — which share the
+this block, skipping targeted-run reports and `/bugs:write`'s reports — which share the
 directory and never carry one — rather than trusting the newest file blindly.
 
 ## Stdout form
 
-The same document minus the frontmatter, exactly as `/bug-report:write` emits to stdout without
+The same document minus the frontmatter, exactly as `/bugs:write` emits to stdout without
 `--file`. When a report was also persisted, print its absolute path on the last line.
 
 ## Zero-findings form

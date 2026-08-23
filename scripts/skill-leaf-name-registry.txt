@@ -164,9 +164,9 @@ update firecrawl,playbooks
 # (the noun namespace carries the artifact class, the leaf stays the verb).
 generate ai-briefing,wizard
 
-# Fixed verb meaning: produces an artifact. bug-report writes a report, testing
+# Fixed verb meaning: produces an artifact. bugs writes a report, testing
 # writes tests.
-write bug-report,testing
+write bugs,testing
 
 # Fixed verb meaning: consumes a sibling audit's findings artifact and drives the
 # human-gated realignment it recommends, never re-judging the surface itself.

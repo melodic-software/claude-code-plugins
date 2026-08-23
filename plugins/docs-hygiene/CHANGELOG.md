@@ -1,5 +1,82 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.5]
+
+### Fixed
+
+- **`audit-noise`'s `conversational-antecedent` shape now runs `under` / `at` /
+  `on` through the same document-locator predicate `in` already uses (#3192).**
+  Those three followers still carried the blanket exemption #3162 narrowed only
+  for `in`, so conversational residue phrased with them escaped: "as we agreed on
+  Tuesday", "as we decided at the standup", "as we agreed under time pressure".
+
+  The anaphoric-adverb followers (`above` / `below` / `earlier` / `later` /
+  `previously` / `elsewhere`) stay unconditional — they name a position a future
+  reader can still open. A real document locus after the narrowed prepositions
+  stays exempt (`as we decided on the ADR's recommendation`), including when
+  the locus is entirely inline code and the clause cut would otherwise leave
+  only the punctuation that followed it. High-traffic `on` idioms that are not
+  this shape (`based on`, `depends on`, `on disk`, `on the other hand`) never
+  matched the antecedent pattern and stay unflagged.
+
+## [0.21.4]
+
+### Fixed
+
+- **`audit-noise` now discovers uncommitted paths holding a non-ASCII or control
+  byte (#3164).** This closes the residual 0.19.1 recorded at its own parse site,
+  and it is the last of the class: `detect.sh` reads `git status --porcelain -z`
+  instead of the v1 form.
+
+  v1 renders such a path as a C-quoted record with C-style octal escapes: in
+  `café.md`, the two UTF-8 bytes of the é arrive as the eight characters
+  `\303\251`. 0.19.1 stripped the quotes and undid `\"` and `\\`, but nothing
+  decoded the octal form, so the target list carried an escape sequence that names
+  no file and the audit reported a clean tree over a dirty one. The `-z` form is
+  documented as performing no quoting and no backslash-escaping, so every byte
+  arrives verbatim and there is nothing left to decode.
+
+  Rename handling becomes structural rather than textual. Under `-z` a rename
+  emits the **new** path in the record and the **original** as a following record —
+  the reverse of v1's `old -> new` display order — so that second record is
+  consumed and discarded. No arrow is matched anywhere, which subsumes 0.19.1's
+  `[RC]` split gate rather than competing with it.
+
+  `--paths-file` and `--offset`/`--limit` pagination are untouched — the change is
+  confined to the porcelain branch. 0.20.1's `SKILL.md` preview fix is orthogonal
+  and untouched; that line still previews via `grep`, and a quoted record it now
+  keeps is still displayed octal-escaped.
+
+  Sort and dedup stay NUL-delimited (`sort -uz` into `mapfile -d ''`) so a
+  newline recovered by `-z` is not split into two nonexistent targets.
+
+  Regression cases cover a non-ASCII path, a control-byte (tab) path, a quoted
+  spaced path, a rename whose new path is octal-escaped, and a rename whose origin
+  record must be consumed. The rename-origin fixture renames `abcsecret.md`
+  alongside a clean committed `secret.md`, so a leaked origin record would audit a
+  file git never listed rather than asserting a string the run can never produce.
+
+## [0.21.3]
+
+### Fixed
+
+- **`audit-noise`'s fence tracker no longer treats a nested fence as closed at
+  the inner closer (#3190).** The scanner flipped a single `in_fence` boolean on
+  any line beginning with three or more backticks or tildes, without recording
+  the delimiter that opened the block. A four-backtick outer fence wrapping a
+  three-backtick example therefore closed at the inner ` ``` `, and everything
+  between the inner close and the true outer close was scanned as ordinary prose.
+
+  The tracker now records the opening delimiter character and run length, and
+  treats a later fence line as the matching close only when it uses the same
+  character at a run length greater than or equal to the opener — CommonMark's
+  close rule, which is what documentation uses to show a fenced example inside a
+  fenced example. Ordinary three-backtick and tilde fences are unchanged.
+
+  Shared pre-shape infrastructure: every finding shape inherits the corrected
+  exemption, including the `ticket-pr-residue` false positive on
+  `docs/conventions/finding-suppression/README.md` that surfaced the defect.
+
 ## [0.21.2]
 
 ### Fixed

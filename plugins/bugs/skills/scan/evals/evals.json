@@ -11,7 +11,7 @@
       "expectations": [
         "The hunt is scoped to src/billing/ only — no lane rotation and no cursor advance for a targeted run",
         "Candidates are produced by per-lens hunter subagents and then graded by a SEPARATE fresh-context verification subagent, not by the hunter that found them",
-        "Every reported finding carries the five bug-report fields plus an evidence label of exactly `reproduced` or `verified-by-reading` and a lens id",
+        "Every reported finding carries the five bugs fields plus an evidence label of exactly `reproduced` or `verified-by-reading` and a lens id",
         "Every reported finding cites a verbatim quote of the offending source with a path and line",
         "Refuted candidates are retained in a refuted-candidates section with a refuting argument rather than silently dropped",
         "No code is modified, no branch or PR is created, and no tracker item is filed"
@@ -35,14 +35,14 @@
     {
       "id": 3,
       "name": "track-flag-files-raw-intake",
-      "prompt": "Our .claude/bug-report.md declares `filing_posture: allowed`. Hunt the entrypoints lane and file whatever you verify: --lane entrypoints --track",
-      "expected_output": "The posture gate resolves first — the team layer declares `filing_posture: allowed`, so filing is permitted rather than skipped against the bundled manual-only default. After reporting, verified findings are filed through /work-items:track add: a duplicate search over --state all runs first, each item body carries the five fields plus the provenance line 'Filed by /bug-report:scan (lane: entrypoints)', and the needs-triage marker is applied on the correct axis resolved from the live label set — --priority needs-triage on the priority axis, or a status-axis label applied after creation. No labels are created. If work-items is absent or no tracker binding resolves, filing is skipped with a printed notice and the run degrades to report-only.",
+      "prompt": "Our .claude/bugs.md declares `filing_posture: allowed`. Hunt the entrypoints lane and file whatever you verify: --lane entrypoints --track",
+      "expected_output": "The posture gate resolves first — the team layer declares `filing_posture: allowed`, so filing is permitted rather than skipped against the bundled manual-only default. After reporting, verified findings are filed through /work-items:track add: a duplicate search over --state all runs first, each item body carries the five fields plus the provenance line 'Filed by /bugs:scan (lane: entrypoints)', and the needs-triage marker is applied on the correct axis resolved from the live label set — --priority needs-triage on the priority axis, or a status-axis label applied after creation. No labels are created. If work-items is absent or no tracker binding resolves, filing is skipped with a printed notice and the run degrades to report-only.",
       "files": [],
       "narration": true,
       "expectations": [
         "`filing_posture` is resolved from the config cascade BEFORE any filing, and filing proceeds only because the team layer declares `allowed` — the bundled default is manual-only",
         "A duplicate search over --state all runs BEFORE any item is created, and an open match is commented on rather than duplicated",
-        "Each filed item body contains the provenance line `Filed by /bug-report:scan (lane: entrypoints)`",
+        "Each filed item body contains the provenance line `Filed by /bugs:scan (lane: entrypoints)`",
         "The needs-triage marker is resolved from the live label set and applied on one axis only — `--priority needs-triage` replacing the filing floor, or a status-axis label applied after creation",
         "No new label is created under any circumstance",
         "Filing routes through /work-items:track add rather than reaching into another plugin's files or reimplementing the tracker seam",
@@ -74,7 +74,7 @@
         "The known-issue-registry request is routed to claude-ops:known-issues and explicitly distinguished from this skill's proactive hunt of resting code",
         "The pre-merge diff review is routed to the review lane rather than handled here",
         "No proactive lane hunt is started to satisfy either request",
-        "The response distinguishes this skill from bug-report:write, which handles a defect the user has already observed"
+        "The response distinguishes this skill from bugs:write, which handles a defect the user has already observed"
       ]
     },
     {

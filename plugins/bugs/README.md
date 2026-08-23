@@ -1,4 +1,4 @@
-# bug-report
+# bugs
 
 A Claude Code plugin for the front of the bug lifecycle — **read-only by default**.
 It finds defects and captures them in a structured, five-field report; it does not
@@ -6,11 +6,11 @@ fix them, open a PR, or file an issue on its own.
 
 | Skill | What it does |
 |---|---|
-| `/bug-report:write` | Turns an informal defect description — one you already observed — into the five-field report. |
-| `/bug-report:scan` | Hunts for defects **nobody has observed yet** in resting code, verifies each candidate adversarially, and reports what survives. |
-| `/bug-report:setup` | `check` inspects both configuration surfaces read-only; `apply` writes the tracked lane config `scan` reads. |
+| `/bugs:write` | Turns an informal defect description — one you already observed — into the five-field report. |
+| `/bugs:scan` | Hunts for defects **nobody has observed yet** in resting code, verifies each candidate adversarially, and reports what survives. |
+| `/bugs:setup` | `check` inspects both configuration surfaces read-only; `apply` writes the tracked lane config `scan` reads. |
 
-Invoke `/bug-report:write <description>` (or let Claude reach for it
+Invoke `/bugs:write <description>` (or let Claude reach for it
 when you describe a defect). The five fields are:
 
 1. **Title** — present tense, one line
@@ -31,10 +31,10 @@ when you describe a defect). The five fields are:
 - **Routes non-defects away.** Feature requests, investigations, and generic chores
   are recognized and pointed elsewhere rather than forced into the bug shape.
 
-## Usage — `/bug-report:write`
+## Usage — `/bugs:write`
 
 ```text
-/bug-report:write [--file] [--quick|--full] [--no-survey] <bug description>
+/bugs:write [--file] [--quick|--full] [--no-survey] <bug description>
 ```
 
 | Flag | Effect |
@@ -47,12 +47,12 @@ when you describe a defect). The five fields are:
 
 ## Hunting bugs nobody has reported yet
 
-`/bug-report:write` needs a defect you already noticed. `/bug-report:scan` needs nothing —
+`/bugs:write` needs a defect you already noticed. `/bugs:scan` needs nothing —
 no diff, no failing test, no stack trace, no comment marker. It reads resting code and
 looks for what is wrong in it.
 
 ```text
-/bug-report:scan [<path|feature|diff>] [--lane <name>] [--track] [--dry-run]
+/bugs:scan [<path|feature|diff>] [--lane <name>] [--track] [--dry-run]
 ```
 
 | Flag | Effect |
@@ -90,14 +90,14 @@ Two surfaces with two different owners.
 Claude Code owns this value: current releases ignore plugin `userConfig` values placed in
 project or local settings, and changes route through Claude Code's own configuration prompt.
 
-**Team — the tracked `.claude/bug-report.md`**, which `/bug-report:scan` reads for its lanes
+**Team — the tracked `.claude/bugs.md`**, which `/bugs:scan` reads for its lanes
 (`lanes`) and its filing policy (`filing_posture`). It is layered per the marketplace's
 config-cascade convention — a user-global file, this tracked team file, and a gitignored local
 overlay. All layers are optional: with no config at all, `scan` rotates over bundled generic
 default lanes. Keys, defaults, layer order, and per-key merge semantics live in
 [`reference/config.md`](reference/config.md), their single home.
 
-Run `/bug-report:setup` to work on either surface. `check` (the default) reports both read-only:
+Run `/bugs:setup` to work on either surface. `check` (the default) reports both read-only:
 the rendered `output_dir` and which layer supplied each lane config value. `apply` writes the
 tracked file and nothing else — it drafts lane candidates from your repository, confirms them one
 at a time, and never touches settings, `pluginConfigs`, the local overlay, or your `.gitignore`.
@@ -128,7 +128,7 @@ Otherwise the emitted report is the deliverable — copy it into your tracker.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install bug-report@<marketplace>
+/plugin install bugs@<marketplace>
 ```
 
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -148,12 +148,12 @@ reads it from.
 Three supported routes, in the order most people want them:
 
 1. **Interactively** — Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure bug-report@<marketplace>`.
+   plugin. To change them later: `/plugin configure bugs@<marketplace>`.
 2. **Headless** — repeat `--config` for each option. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install bug-report@<marketplace> -s <scope> --config output_dir=<value>
+   claude plugin install bugs@<marketplace> -s <scope> --config output_dir=<value>
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
@@ -177,7 +177,7 @@ Three supported routes, in the order most people want them:
    ```json
    {
      "pluginConfigs": {
-       "bug-report@<marketplace>": {
+       "bugs@<marketplace>": {
          "options": {
            "output_dir": <value>
          }
