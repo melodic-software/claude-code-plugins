@@ -214,11 +214,11 @@ here". When the plugin also has a user-scope install (Windows 2026-08-22, `cavem
 scope, not project. Use --scope user to uninstall.
 ```
 
-When the plugin has no user-scope record (Linux 2026-08-23, `markdown-format@melodic-software`):
+When the plugin has no user-scope record (Linux 2026-08-23, a project-scope-only install):
 
 ```text
-✘ Failed to uninstall plugin "markdown-format@melodic-software": Plugin
-"markdown-format@melodic-software" is not installed in project scope. Use --scope to specify
+✘ Failed to uninstall plugin "<id>@<marketplace>": Plugin
+"<id>@<marketplace>" is not installed in project scope. Use --scope to specify
 the correct scope.
 ```
 
