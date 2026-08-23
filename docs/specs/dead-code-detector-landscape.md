@@ -1,5 +1,15 @@
 # Dead-Code Detection Tool Landscape (2025–2026)
 
+> **Status:** durable measurement record, graduated from the `dead-code-detection-skill` contract
+> slice when `/code-tidying:audit-dead-code` shipped. It is the evidence base behind that skill's
+> lane roster and its exclusions — anything here that a later change contradicts needs new
+> measurement, not argument. Two rows were corrected after this survey by direct capture and the
+> corrections live in the skill's `context/lanes.md`: vulture's parse error goes to **stderr**
+> (exit 1, or 3 alongside findings), not stdout with exit 0; and `gopls check` emits **absolute,
+> cwd-independent paths** with no relative-path flag. `gopls check -severity=hint` was also
+> established later — see `dead-code-lsp-viability.md` — as a CLI dead-code detector that does not
+> build, which is why Go is a shipped lane despite this document predating that finding.
+
 Research input for a Claude Code skill that orchestrates per-ecosystem dead-code detectors
 ("tool-first, model-verified" auditing: run the best static tool, parse its machine-readable
 output, then have the model adjudicate each finding against dynamic-usage evidence).

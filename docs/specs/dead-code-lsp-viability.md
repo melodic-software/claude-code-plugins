@@ -1,5 +1,12 @@
 # LSP viability for `code-tidying:audit-dead-code`
 
+> **Graduated** from the `dead-code-detection-skill` contract slice when
+> `/code-tidying:audit-dead-code` shipped. Its decision-relevant outcomes, now reflected in the
+> shipped skill: the `LSP` tool is model-callable only and has no batch mode, so it is an optional
+> per-candidate assist inside the bounded adjudication pass and never a lane; `gopls check
+> -severity=hint` detects dead Go code **without building**, which is why Go ships as a lane;
+> `DiagnosticTag.Unnecessary` and pyright are rejected; Rust and .NET stay excluded.
+>
 > **Status:** research, 2026-08-23. Answers the priority question raised against `PLAN.md` revision 4:
 > *can Language Server Protocol servers supply dead-code detection, or at minimum semantic
 > "find all references", as a cross-language mechanism that replaces or augments the per-language
