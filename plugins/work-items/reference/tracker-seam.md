@@ -95,7 +95,11 @@ is nonetheless authoritative for `parent_id`, which is how a slice reaches its c
 the text of an item — a container's Brief, a slice's acceptance criteria — is therefore a
 **provider-mechanic** read (`gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub;
 the provider's REST equivalent otherwise), and a surface that shows a body read must label it as
-such rather than folding it into a seam snippet. Provider mechanics run unbound, so the read still
+such rather than folding it into a seam snippet. That GitHub form is GraphQL-backed and returns
+`HTTP 403` in a sandboxed session (Claude Code on the web, remote execution), which serves only a
+pinned set of GraphQL operations; the adapter's operations reference carries the REST substitute
+under "View item" (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`).
+Provider mechanics run unbound, so the read still
 works where no binding resolves; where the provider exposes no body concept at all
 (`local-markdown` stores the item text as the file itself), say so rather than implying parity.
 

@@ -3,6 +3,46 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.20]
+
+### Fixed
+
+- **GitHub adapter REST substitute keeps the general view's object arrays.** The
+  sandboxed-session replacement for `gh issue view --json number,title,body,labels,assignees,comments`
+  now returns `labels` and `assignees` as objects so `.labels[].name` / `.assignees[].login`
+  keep working. The flattened string projection stays as the claim-precheck form.
+
+- **GitHub adapter: the documented item read now carries its sandboxed-session substitute.**
+  "View item" showed only `gh issue view --json`, which routes through GraphQL — and sandboxed
+  sessions (Claude Code on the web, remote execution) serve only a pinned set of GraphQL
+  operations, refusing the rest with `HTTP 403`. The document already explained that restriction
+  under "Edit labels / assignees", where the lease protocol's assignee ops work around it, but a
+  reader who came for the item read had no reason to reach that far, and the 403 presents as an
+  expired token or a missing scope rather than as an unsupported operation. "View item" now
+  states the REST substitute next to the commands it replaces
+  (`gh api repos/{owner}/{repo}/issues/<N>`), notes that the projections transfer verbatim
+  because REST carries the same fields under the same names, and records the two things that do
+  not carry over: `gh api` has no `--repo` flag (`{owner}`/`{repo}` expand from the current
+  directory or `GH_REPO`), and REST returns `comments` as an integer count rather than the list
+  `--json comments` gives, so comments still come from the paginated "List item comments" recipe.
+- **"Resolve item ID" carries its own substitute.** It builds the qualified-ID prefix with
+  `gh repo view --json owner,name`, which posts to `/graphql` and 403s under the same
+  restriction — and `ship` routes through it *before* the body read above, so it was the first
+  step to fail on that lane. The REST form
+  (`gh api "repos/{owner}/{repo}" --jq '"github:" + .full_name'`) returns a byte-identical
+  prefix and now sits beside it.
+- **The boundary is stated rather than implied.** The list, search, and aggregate projections
+  run on `gh issue list --json`, which posts to `/graphql` as well and has no REST form here.
+  "View item" now says so outright instead of leaving a reader to infer that every recipe in the
+  document has a substitute.
+- **The seam reference and `ship` point at that substitute.** Both show the bare
+  `gh issue view --json body,title` form: `reference/tracker-seam.md` is where "Operation
+  routing" sends every body read (and so is what `work` and `decompose` reach through), and
+  `ship` reads a container's Brief with it directly. Neither reached the adapter's "View item"
+  note by any path a reader would follow on hitting the 403, so each now says the command is
+  GraphQL-backed and 403s in a sandboxed session, and names the adapter section carrying the
+  replacement.
+
 ## [0.39.19]
 
 ### Changed

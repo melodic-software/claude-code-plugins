@@ -35,6 +35,13 @@ PREFIX="$(gh repo view --json owner,name -q '"github:\(.owner.login)/\(.name)"' 
 ID="${PREFIX}#<N>"
 ```
 
+`gh repo view --json` is GraphQL-backed, so it 403s in a sandboxed session for the reason given
+under "View item" below. The REST form produces the same string:
+
+```bash
+PREFIX="$(gh api "repos/{owner}/{repo}" --jq '"github:" + .full_name' | tr -d '\r')"
+```
+
 ## List items
 
 Arbitrary filter projection (bare `gh`):
@@ -93,6 +100,44 @@ Assignee/label projection for claim pre-checks:
 gh issue view <N> --json assignees,labels \
   --jq '{assignees: [.assignees[].login], labels: [.labels[].name]}' | tr -d '\r'
 ```
+
+**Sandboxed sessions: read the item over REST.** `gh issue view --json` routes through GitHub's
+GraphQL API, so every `gh issue view --json` read in this document fails with `HTTP 403` wherever
+only a pinned set of GraphQL operations is served (Claude Code on the web and remote execution) —
+the same restriction the lease protocol's assignee ops work around under "Edit labels /
+assignees" below. That 403 reads like an expired token or a missing scope and is neither, so take
+it as a signal to switch APIs rather than to re-authenticate. The REST issues endpoint carries
+the same fields under the same names. Use the object-array form when substituting
+the general `gh issue view --json number,title,body,labels,assignees,comments`
+shape (`.labels[].name` / `.assignees[].login` keep working). REST `comments` is
+an integer count, not the comment list `--json comments` returns; take comments
+from the paginated "List item comments" recipe.
+
+```bash
+gh api "repos/{owner}/{repo}/issues/<N>" \
+  --jq '{number, title, body, labels, assignees}' \
+  | tr -d '\r'
+```
+
+The already-normalized claim-precheck projection is the same filter on REST:
+
+```bash
+gh api "repos/{owner}/{repo}/issues/<N>" \
+  --jq '{assignees: [.assignees[].login], labels: [.labels[].name]}' \
+  | tr -d '\r'
+```
+
+`gh api` has no `--repo` flag: `{owner}` and `{repo}` expand from the repository of the current
+directory, or from `GH_REPO`. Run it from the target clone, or prefix `GH_REPO=<owner>/<repo>`.
+
+`comments` is the one projected field that does not carry over — REST returns it as an integer
+count, not the list `--json comments` gives. Take comments from "List item comments" below, which
+is already REST and paginates for the reason documented there.
+
+**What this substitute does not cover.** The list, search, and aggregate projections below run on
+`gh issue list --json`, which posts to `/graphql` like the reads above and carries no REST form
+here. Under this restriction they are unavailable, as are the seam verbs named at the end of
+"Edit labels / assignees".
 
 ## List item comments
 
