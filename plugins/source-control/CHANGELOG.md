@@ -14,13 +14,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
   and one `%/` pass also strips only a single separator. A trailing `\` (the common
   Explorer/`dir`-pasted form on the platform the original measurement came from) or a doubled
   separator therefore still defeated the `test -L` symlink disqualifier this normalization
-  exists to protect. The snippet is now a loop that strips both separator styles until none
-  remain, `audit`'s "check it the way `cleanup` does" pointer carries the same snippet instead
-  of prose only, and `reap-project-plugin-records.test.sh` pins the expression for trailing
-  backslash and doubled separators as a pure string case that runs even where the symlink
-  fixture must skip ([#3163](https://github.com/melodic-software/claude-code-plugins/issues/3163);
-  the unshipped remainder of the final security-review finding on
-  [#3116](https://github.com/melodic-software/claude-code-plugins/pull/3116)).
+  exists to protect. The snippet is now a platform-gated loop: on Windows shells
+  (MINGW/MSYS/CYGWIN, where `\` is a separator) it strips both separator styles until none
+  remain; off Windows it strips forward slashes only, because there a trailing `\` is a legal
+  filename byte — the same gated rule `worktree-create.sh` applies to its root normalization —
+  and stripping it would re-point the qualifying tests, the reap, and the `rm -rf` at a
+  different sibling path. `audit`'s "check it the way `cleanup` does" pointer carries the same
+  snippet instead of prose only, and `reap-project-plugin-records.test.sh` pins the expression
+  per platform — doubled slashes always strip, a trailing backslash strips on Windows shells
+  and survives on POSIX — as a pure string case that runs even where the symlink fixture must
+  skip ([#3163](https://github.com/melodic-software/claude-code-plugins/issues/3163); the
+  unshipped remainder of the final security-review finding on
+  [#3116](https://github.com/melodic-software/claude-code-plugins/pull/3116), with the POSIX
+  filename-byte gate from Codex review on
+  [#3165](https://github.com/melodic-software/claude-code-plugins/pull/3165)).
 
 ## [0.55.1]
 

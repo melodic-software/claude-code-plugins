@@ -169,14 +169,21 @@ A candidate string carrying one trailing character therefore looks like an empty
 sails into `rm -rf`. Pinned by `scripts/reap-project-plugin-records.test.sh`.
 
 ```bash
-while [[ "$path" == */ || "$path" == *'\' ]]; do
-  path="${path%?}"      # one separator per pass, either style — loop until none remain
-done
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)   # Windows shells: `\` is a separator here, and only here
+    while [[ "$path" == */ || "$path" == *'\' ]]; do path="${path%?}"; done ;;
+  *)                      # POSIX: `\` is a legal filename byte — strip `/` only
+    while [[ "$path" == */ ]]; do path="${path%?}"; done ;;
+esac
 ```
 
 The loop is the rule rendered as code: `${path%/}` alone strips **one forward slash**, leaving a
 Windows-pasted trailing backslash — the common form on the platform the measurement above came
-from — or a doubled separator in place, and either survivor re-opens the bypass.
+from — or a doubled separator in place, and either survivor re-opens the bypass. The platform gate
+is load-bearing in the other direction: off Windows a trailing `\` is part of the directory's
+**name** (the same gated rule `scripts/worktree-create.sh` applies to its root normalization), so
+stripping it there would re-point every test below — and the reap plus `rm -rf` — at a different
+sibling path while leaving the actual candidate behind.
 
 **Four tests, ALL of which must hold**, against that normalized `<path>`. The first three are
 negatives and prove nothing on their own; the last is the only positive evidence available, and it is

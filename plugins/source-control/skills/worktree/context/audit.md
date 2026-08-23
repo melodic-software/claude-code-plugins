@@ -83,11 +83,15 @@ So before confirming a row, check it the way `cleanup` does — **strip every tr
 the path first**, then: not a symlink, no `.git` entry, empty. The normalization is load-bearing, not
 cosmetic: `test -L "<path>/"` resolves through the link and answers about its target, so one trailing
 character turns the symlink check into a silent pass ([cleanup.md](cleanup.md) Step 4b carries the
-measurement). Strip it the way `cleanup` does — both separator styles, every occurrence, never a
-single `${path%/}` pass:
+measurement). Strip it the way `cleanup` does — every trailing separator the platform recognizes,
+never a single `${path%/}` pass; off Windows a trailing `\` is a legal filename byte and must
+survive, or the checks and remedy point at a different sibling path:
 
 ```bash
-while [[ "$path" == */ || "$path" == *'\' ]]; do path="${path%?}"; done
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) while [[ "$path" == */ || "$path" == *'\' ]]; do path="${path%?}"; done ;;
+  *)                    while [[ "$path" == */ ]]; do path="${path%?}"; done ;;
+esac
 ```
 
 Require the user to confirm each path individually before anything is run.
