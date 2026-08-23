@@ -147,14 +147,26 @@ audit_noise_follower_is_document_locator() {
 # ordinary verb phrase "was requested" stay out without a second pattern.
 # Closing quotes are not clause breaks here on purpose — behind one the words
 # are a quoted voice, not the page's own address to its reader.
+# The pronoun admits a CONTRACTED auxiliary ("as we've discussed", "as you'd
+# requested"): the same actor and the same shape, so requiring a literal space
+# after the pronoun let the contraction escape silently. Only `'ve` and `'d`
+# are admitted, because the follower is a past participle and those are the
+# only auxiliaries that can precede one — `'re`/`'ll`/`'m` would add nothing
+# but ungrammatical alternatives, and admitting `'re` would newly match the
+# present-tense passive "do it as you're asked", which addresses the reader
+# generically rather than pointing at a prior exchange. Both apostrophe forms
+# are spelled as literal ALTERNATIVES rather than a bracket class: `’` (U+2019)
+# is multibyte, and a bracket class over it breaks under a C locale, where the
+# regex is byte-based. Same reasoning, and same spelling, as the I6_ERE in
+# plugins/claude-config/skills/audit-instructions/scripts/instruction-scan.sh.
 audit_noise_line_has_conversational_antecedent() {
   local line="$1" rest follower
   [[ "$line" =~ [Pp]er[[:space:]]+your[[:space:]]+request ]] && return 0
   [[ "$line" =~ [Pp]er[[:space:]]+our[[:space:]]+(conversation|discussion|chat) ]] && return 0
   [[ "$line" =~ [Ll]ike[[:space:]]+you[[:space:]]+said ]] && return 0
   [[ "$line" =~ (^|[^A-Za-z])[Aa]s[[:space:]]+requested[[:space:]]*([,;:.!?]|\)|$) ]] && return 0
-  if [[ "$line" =~ [Aa]s[[:space:]]+(you|we)[[:space:]]+(asked|requested|discussed|agreed|decided)(.*)$ ]]; then
-    rest="${BASH_REMATCH[3]}"
+  if [[ "$line" =~ [Aa]s[[:space:]]+(you|we)(\'ve|\'d|’ve|’d)?[[:space:]]+(asked|requested|discussed|agreed|decided)(.*)$ ]]; then
+    rest="${BASH_REMATCH[4]}"
     # A follower counts only as a whole word behind whitespace, so punctuation
     # ("as you asked, …") leaves the antecedent flagged.
     if [[ "$rest" =~ ^[[:space:]]+([A-Za-z]+)(.*)$ ]]; then
@@ -183,11 +195,21 @@ audit_noise_line_has_conversational_antecedent() {
 #                     agent-tooling corpus.
 # "in this PR" survives only with a first-person actor behind it, which is what
 # separates narration ("in this PR we switch the default") from a live referent
-# ("the files changed in this PR").
+# ("the files changed in this PR"). A CONTRACTED actor is still that actor, so
+# the pronoun admits one ("in this PR we've already switched the default"):
+# requiring a literal space after it let the same shape escape on a
+# contraction, and widening to the contraction adds no false-positive surface
+# because the discriminator is the pronoun, not the verb behind it. Unlike the
+# antecedent above — whose past-participle follower admits only `'ve`/`'d` —
+# any auxiliary can lead the present/future narration here, so all five are
+# admitted; the non-words the shared alternation also spells (`I're`, `we'm`)
+# cost nothing and keep this one group instead of two per-pronoun ones. Both
+# apostrophe forms are literal alternatives, never a bracket class, for the
+# C-locale reason recorded above.
 audit_noise_line_has_plan_reference() {
   local line="$1"
   [[ "$line" =~ [Rr]eplaces[[:space:]]+the[[:space:]]+old ]] && return 0
-  [[ "$line" =~ [Ii]n[[:space:]]+this[[:space:]]+(PR|MR|pull[[:space:]]+request|commit|changeset|refactor),?[[:space:]]+(we|I)[[:space:]] ]] && return 0
+  [[ "$line" =~ [Ii]n[[:space:]]+this[[:space:]]+(PR|MR|pull[[:space:]]+request|commit|changeset|refactor),?[[:space:]]+(we|I)(\'ve|\'re|\'ll|\'d|\'m|’ve|’re|’ll|’d|’m)?[[:space:]] ]] && return 0
   [[ "$line" =~ ([Tt]ask|[Pp]hase|[Ss]tep)[[:space:]]+#?[0-9]+[[:space:]]+(of|in)[[:space:]]+(the|this)[[:space:]]+plan ]] && return 0
   return 1
 }

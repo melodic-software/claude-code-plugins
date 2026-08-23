@@ -45,7 +45,11 @@
   deliberately absent from that set — a decision parked in an issue is provenance, which
   `ticket-pr-residue` owns and this shape must not launder — as are nouns for the conversation
   itself. Followers are compared case-insensitively, so a capitalised `Above` no longer falls
-  through.
+  through. Both first-person actor tests — this one and `plan-reference`'s `in this PR` — admit a
+  contracted pronoun in either the straight or the typographic (U+2019) apostrophe, so
+  "in this PR we've already switched the default" and "as we've discussed" no longer escape the
+  shape they are; `conversational-antecedent` admits only `'ve` and `'d`, the two auxiliaries its
+  past-participle follower can take, which keeps the present-tense passive "as you're asked" out.
 
   **The actor-less passive `As requested, …` is the same shape without the pronoun**, and it is
   matched only as a clause-final adverbial. That bound is what keeps the live attribution "as

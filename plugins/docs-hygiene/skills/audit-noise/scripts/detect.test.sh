@@ -553,6 +553,73 @@ assert_not_contains "document locators keep the antecedent unflagged" \
   "$ante_neg_out" "Finding shape: conversational-antecedent"
 assert_contains "antecedent exemptions file is clean" "$ante_neg_out" "| T1=0 T2=0 T3=0"
 
+# --- 11f. Contracted first-person actors, straight and curly apostrophes -------------
+# A contraction is the same actor and the same shape; requiring a literal space
+# after the pronoun let it escape silently. Both apostrophe forms must work: `’`
+# (U+2019) is what most editors produce, and matching only `'` would close half
+# the gap while looking fixed.
+
+CONTRACT_POS="$TEST_TMPDIR/contracted-positive.md"
+cat >"$CONTRACT_POS" <<'EOF'
+# Contracted actors fixture
+
+In this PR we've already switched the default to streaming.
+In this PR we’ve already switched the default to streaming.
+In this commit I'm switching the default to streaming.
+In this commit I’d already switched the default to streaming.
+In this PR we’ll switch the default to streaming.
+As we've discussed, the timeout is 30s.
+As we’ve discussed, the timeout is 30s.
+As we'd agreed, the timeout is 30s.
+As you’d requested, the timeout is 30s.
+EOF
+contract_pos_out="$(bash "$DETECT" "$CONTRACT_POS")"
+assert_contains "straight-apostrophe plan-reference flags" "$contract_pos_out" "Finding shape: plan-reference"
+assert_contains "curly-apostrophe plan-reference flags" "$contract_pos_out" "Finding line: 4"
+assert_contains "contracted 'I'm' plan-reference flags" "$contract_pos_out" "Finding line: 5"
+assert_contains "curly 'I’d' plan-reference flags" "$contract_pos_out" "Finding line: 6"
+assert_contains "curly 'we’ll' plan-reference flags" "$contract_pos_out" "Finding line: 7"
+assert_contains "contracted antecedent flags" "$contract_pos_out" "Finding shape: conversational-antecedent"
+assert_contains "curly-apostrophe antecedent flags" "$contract_pos_out" "Finding line: 9"
+assert_contains "'we'd agreed' antecedent flags" "$contract_pos_out" "Finding line: 10"
+assert_contains "curly 'you’d requested' antecedent flags" "$contract_pos_out" "Finding line: 11"
+assert_contains "every contracted actor line flags" "$contract_pos_out" "| T1=9 T2=0 T3=0"
+
+# The follower test still runs behind a contraction: widening the actor must not
+# smuggle past the document-locator and anaphoric-adverb stand-downs.
+CONTRACT_FOLLOWER="$TEST_TMPDIR/contracted-follower.md"
+cat >"$CONTRACT_FOLLOWER" <<'EOF'
+# Contracted follower fixture
+
+As we've discussed above, the resolver reads the team-tracked file only.
+As we’ve decided in §3, the resolver reads the team-tracked file only.
+As we'd agreed in the ADR, the resolver reads the team-tracked file only.
+EOF
+contract_fol_out="$(bash "$DETECT" "$CONTRACT_FOLLOWER")"
+assert_not_contains "anaphoric follower still stands a contracted antecedent down" \
+  "$contract_fol_out" "Finding shape: conversational-antecedent"
+assert_contains "contracted follower file is clean" "$contract_fol_out" "| T1=0 T2=0 T3=0"
+
+# Negatives: widening the actor must add no new false-positive surface. `'re` is
+# deliberately absent from the antecedent set — its follower is a past
+# participle, and "as you're asked" is a present-tense passive addressing the
+# reader generically, not a pointer at a prior exchange.
+CONTRACT_NEG="$TEST_TMPDIR/contracted-negative.md"
+cat >"$CONTRACT_NEG" <<'EOF'
+# Contracted negatives fixture
+
+Do it as you're asked to, then record the result.
+Do it as you’re asked to, then record the result.
+Scope the review to the files we've changed in this PR before reading further.
+The weave is the same as we'd expect from the sibling detector.
+EOF
+contract_neg_out="$(bash "$DETECT" "$CONTRACT_NEG")"
+assert_not_contains "\"as you're asked\" passive is not an antecedent" \
+  "$contract_neg_out" "Finding shape: conversational-antecedent"
+assert_not_contains "contracted actor after a live 'in this PR' referent is not a plan reference" \
+  "$contract_neg_out" "Finding shape: plan-reference"
+assert_contains "contracted negatives file is clean" "$contract_neg_out" "| T1=0 T2=0 T3=0"
+
 # --- Chunk affordance: --offset / --limit over the sorted target list ----------------
 
 CHUNK_A="$TEST_TMPDIR/chunk-a.md"
