@@ -7,10 +7,11 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — targets and modes arrive as
-`/disk-hygiene:clean` arguments, and the only tunable is the native `userConfig` toggle —
-so `apply` is pure guidance and writes nothing.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — targets
+and modes arrive as `/disk-hygiene:clean` arguments, and the only tunable is the native
+`userConfig` toggle — so `apply` is pure guidance and writes nothing.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 points at each remediation. Both are non-interactive — never prompt when the action is given.
@@ -18,14 +19,21 @@ points at each remediation. Both are non-interactive — never prompt when the a
 ## `check` (read-only)
 
 The clean skill and its bundled scripts (`${CLAUDE_PLUGIN_ROOT}/skills/clean/`) are the
-single source of truth for what the plugin requires per platform. **Read them first** —
-probe what they actually require, don't recite this file. Then run each probe via Bash and
-report a PASS/FAIL/INFO table with one remediation line per FAIL.
+single source of truth for what the plugin requires per platform.
 
-When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
-INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
-note that re-enabling restores the FAIL semantics. One exception: every step-1 and step-2 failure stays
-FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, every guard surface
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+
+The toggle is an audit-only kill switch, not a short-circuit: the guard registers
+unconditionally and still scans with the toggle off, so most prerequisite absences keep their
+FAIL semantics regardless of the toggle. Only the execution-tier tools the audit lane never
+invokes (step 4's `lsof`-class probes) downgrade from FAIL to INFO when the toggle is
+disabled — report those informationally and note that re-enabling restores the FAIL semantics.
+A missing `git` stays FAIL either way: the audit lane itself calls it, and its absence degrades
+the VCS-tracked-content evidence the plugin's fail-closed posture depends on.
+
+Every step-1 and step-2 failure likewise stays FAIL with the toggle disabled.
+Audit-only mode is *enforced by* the guard, every guard surface
 depends on a Python 3 interpreter resolving (every surface through
 `hooks/run-python-hook.sh`, which tries `python3`, then `python`, then `py -3`), and a
 guard that never runs can neither read nor enforce the configured `false` — so the fail-open

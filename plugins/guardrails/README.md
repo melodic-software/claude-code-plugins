@@ -217,9 +217,8 @@ install command:
 claude plugin install guardrails@<marketplace> --config hardcoded_path_check_enabled=false
 ```
 
-These options are user-scoped (stored in your user settings, not the
-project's). To turn guards off for a single repository, disable the whole
-plugin in that project's `enabledPlugins` instead.
+Option scoping (user vs project settings, and the per-repository escape hatch)
+per "How to set these" below.
 
 One further option tunes the hooks' shared plumbing rather than a single guard:
 

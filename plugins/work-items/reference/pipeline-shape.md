@@ -47,7 +47,8 @@ that stage (the Step 5 anchor) rather than dead-end.
 
 For the Verify lane specifically, where the result is high-stakes and correlated blind spots are the
 risk, prefer a cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor verifier as the
-fallback, never a route to a command that may not resolve.
+stated fallback, never a route to a command that may not resolve
+(per `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
 The **discipline slot** (`discipline:*`) is reserved: the discipline set is a periodic anchor across lane
 execution rather than a human-invoked extra. Its placement in the sequence is left for a later `#513`

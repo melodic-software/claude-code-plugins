@@ -67,6 +67,14 @@
   that already holds. An inline parenthetical (`… (tracked in #482)`) stays Tier 2 on purpose, so a
   reviewer rules on it rather than the scanner.
 
+## [0.19.2]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
 ## [0.19.1]
 
 ### Fixed

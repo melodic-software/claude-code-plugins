@@ -7,8 +7,10 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply` points at
-what it found. The warrant is criterion (b), external prerequisites — `git`, which every
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
+`apply` points at what it found. The warrant is criterion (b), external prerequisites — `git`,
+which every
 git-touching tier of `/repo-hygiene:clean` and the tracked-file safety guarantee depend on, and the
 optional `ghq` the fleet batch actions enumerate repositories from — neither of which a native
 configuration prompt can see, and each of which setup can only verify. The
@@ -21,10 +23,13 @@ each remediation. Both are non-interactive — never prompt when the action is g
 
 ## `check` (read-only)
 
-The clean skill and its bundled scripts (`${CLAUDE_PLUGIN_ROOT}/skills/clean/`) are the source of
-truth for what each tier requires — read them first and probe what they actually require rather
-than reciting this file. Then report a PASS/FAIL/INFO table with one remediation line per FAIL.
-Modify nothing; install nothing; run no mutating tier.
+The clean skill and its bundled scripts (`${CLAUDE_PLUGIN_ROOT}/skills/clean/`) are the single
+source of truth for what each tier requires.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+
+Install nothing, and run no mutating tier.
 
 1. **`git` on `PATH`** — `command -v git`, and report the resolved path and version. FAIL when
    absent, and state what is lost rather than a blanket "the plugin is broken":
@@ -90,4 +95,5 @@ nothing — re-running it after everything passes changes nothing and reports "a
 - Scan, clean, prune, or reset anything — those are `/repo-hygiene:clean`'s tiers, with their own
   dry-run-first and confirmation contract.
 - Install `git`, `ghq`, or any tool, during either `check` or `apply` — guidance only.
-- Write the plugin cache, Claude Code user settings, `pluginConfigs`, or any settings surface.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor any other Claude Code
+  settings surface.

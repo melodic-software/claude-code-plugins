@@ -15,9 +15,11 @@ the plugin is enabled, stores non-sensitive options in user settings, and ignore
 
 Official contract: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
 
-Check-centric per the uniform contract: `check` inspects and reports, `apply` resolves what
-`check` found, and the extraction-dependency provisioning is a distinct opt-in subaction. The
-`library_dir` option is Claude-Code-owned; this skill never writes it, only reports and routes.
+Check-centric per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves what `check` found, and the extraction-dependency provisioning is a
+distinct opt-in subaction. The `library_dir` option is Claude-Code-owned; this skill never
+writes it, only reports and routes.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then the
 `library_dir` guidance; `apply install-deps` additionally provisions the extraction dependencies
@@ -107,5 +109,5 @@ not this one — do not claim it this session.
 ## Boundaries
 
 - Do not run an ingestion pipeline — provisioning dependencies is not the same as running one.
-- Do not write Claude Code settings or `pluginConfigs`.
+- Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Do not invent organization-specific paths or environment-variable prefixes.

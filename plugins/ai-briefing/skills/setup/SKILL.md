@@ -17,10 +17,12 @@ requested, install the optional deterministic presentation build toolchain. The 
 repository- and organization-agnostic; consumers supply their own authorized sources,
 audience lens, and branding.
 
-Check-centric per the uniform contract: `check` inspects and reports, `apply` scaffolds the
-profile, and the build-toolchain install is a distinct opt-in subaction rather than fused
-behind a flag. Tracked profile configuration belongs in the consuming repository — never in
-`${CLAUDE_PLUGIN_DATA}`, which is reserved for machine-local state and generated artifacts.
+Check-centric per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` scaffolds the profile, and the build-toolchain install is a distinct
+opt-in subaction rather than fused behind a flag. Tracked profile configuration belongs in
+the consuming repository — never in `${CLAUDE_PLUGIN_DATA}`, which is reserved for
+machine-local state and generated artifacts.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 scaffolds; `apply install-build-deps` additionally authorizes the build-toolchain install

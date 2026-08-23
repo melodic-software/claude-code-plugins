@@ -92,8 +92,12 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
 
 ## Gotchas
 
-- **No `apply`.** The only thing an apply could write is `pluginConfigs`, which the
-  setup contract forbids a skill from touching. Reconfiguration is the native
+- **No `apply`.**
+  Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`,
+  per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+  "Setup is explicit and repeatable" in the marketplace repository). And
+  `pluginConfigs` is the only thing an apply here could write, so there is no
+  conforming apply to offer: reconfiguration is the native
   `/plugin configure discipline@<marketplace>` flow.
 - **Unexpanded token is not a value.** A surviving literal `${user_config.…}` means
   unset (the key's default applies) — parsing it as a corrector name or a depth value

@@ -19,14 +19,15 @@ implement it by reference, do not restate it.
 Idempotent: re-running reads the current state and offers an update rather than overwriting blind;
 a re-run against a conforming, current-version index proposes no changes.
 
-Action routing per the uniform contract: no argument or `check` runs the binding's state-reading
-procedure read-only and reports — index presence and resolved standards root, per-row path
-validation, and the DIRECTIONAL version delta — as a PASS/FAIL/INFO table with one remediation
-line per FAIL, writing nothing. `apply` runs `check` first, then the binding's bootstrap /
-reconfigure / migration flow below; after any write it re-runs the relevant probe and reports the
-actual result. Non-interactive when the state admits exactly one conforming action (the
-conforming-index short-circuit); the binding's explicit-confirmation gates (hand-authored README
-conversion, bootstrap writes) remain explicit user decisions, never silent.
+Action routing per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): no argument or `check` runs
+the binding's state-reading procedure read-only and reports — index presence and resolved
+standards root, per-row path validation, and the DIRECTIONAL version delta — as a PASS/FAIL/INFO
+table with one remediation line per FAIL, writing nothing. `apply` runs `check` first, then the
+binding's bootstrap / reconfigure / migration flow below; after any write it re-runs the relevant
+probe and reports the actual result. Non-interactive when the state admits exactly one conforming
+action (the conforming-index short-circuit); the binding's explicit-confirmation gates
+(hand-authored README conversion, bootstrap writes) remain explicit user decisions, never silent.
 
 ## `apply` task
 
@@ -58,6 +59,7 @@ reconfigure or migrate.
 
 - Run a review — that is `/review:quality-gate` and this plugin's reviewer agents; they resolve
   criteria through the index this setup bootstraps.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Edit the consumer's root `.gitignore` or any ignore file it did not itself create — the single
   setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.
 - Write anything into the plugin directory or the plugin data directory

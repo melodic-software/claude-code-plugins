@@ -31,7 +31,7 @@ SCRIPT="$SELF_DIR/check-shell-portability.sh"
 # failure. See #2914.
 stage_libs() {
   mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/token-scan.sh" "$1/lib/"
+  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/token-scan.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
 }
 REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
 . "$SELF_DIR/test-git-helpers.sh"
@@ -1530,6 +1530,23 @@ else
   fail "malformed active token should exit 2, not silently treat the file as clean"
 fi
 rm -f "$f" "$BAD_TOKENS"
+
+# --- a token list with NO active patterns fails closed (#3161) --------------
+#
+# This gate has refused an empty pattern set since #1513, but the guard moved
+# from the awk program into the shell when the list parsing was extracted, so it
+# is asserted here alongside the twin's — a regression in the shared path must
+# turn BOTH suites red, not just the one that was historically missing it.
+EMPTY_TOKENS="$(mktemp)"
+printf '# only comments\n#\n\n' >"$EMPTY_TOKENS"
+f="$(tmpsh 'grep -Eq foo bar')"
+SHELL_PORTABILITY_TOKENS="$EMPTY_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
+if [[ "$?" -eq 2 ]]; then
+  ok "a token list with no active patterns exits 2 (fail closed, gate never silently disabled)"
+else
+  fail "empty token list should exit 2, not silently treat every file as clean"
+fi
+rm -f "$f" "$EMPTY_TOKENS"
 
 f="$(tmpsh 'grep -Eq foo bar')"
 SHELL_PORTABILITY_TOKENS="/nonexistent/tokens.txt" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1

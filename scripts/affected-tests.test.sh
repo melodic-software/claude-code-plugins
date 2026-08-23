@@ -21,7 +21,7 @@ SCRIPT="$SELF_DIR/affected-tests.sh"
 # failure. See #2914.
 stage_libs() {
   mkdir -p "$1/lib"
-  cp "$SELF_DIR/lib/changed-files.sh" "$1/lib/"
+  cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/read-list.sh" "$1/lib/"
 }
 NO_SUITE="$SELF_DIR/affected-tests-no-suite.txt"
 # shellcheck source=test-git-helpers.sh

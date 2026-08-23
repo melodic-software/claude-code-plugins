@@ -7,11 +7,12 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
-resolves. This plugin owns no consumer-project configuration — the only tunables are the
-four native `userConfig` toggles (master + one per channel), and every remaining
-prerequisite is a system tool or an OS package. So `apply` is pure guidance-and-verify
-with **no write path**: it installs nothing and edits nothing.
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
+reports, `apply` resolves. This plugin owns no consumer-project configuration — the only
+tunables are the four native `userConfig` toggles (master + one per channel), and every
+remaining prerequisite is a system tool or an OS package. So `apply` is pure
+guidance-and-verify with **no write path**: it installs nothing and edits nothing.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers the resolution for each finding. Both are non-interactive — never prompt when the
@@ -19,11 +20,12 @@ action is given.
 
 ## `check` (read-only)
 
-The hook scripts are the single source of truth for what they require and how they degrade:
-`${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notification.sh` and the shared
-`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`. **Read them first** — probe what they actually
-do, don't recite this file. Then run each probe via Bash and report a PASS/FAIL/INFO table
-with one remediation line per FAIL. Do not modify anything.
+The hook script and the shared library it sources are the single source of truth for what this
+plugin requires and how it degrades: `${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notification.sh` and
+`${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — the hook exits through its enabled-gate before probing anything, so a deliberately
@@ -96,7 +98,7 @@ configured".
 
 ## What this skill does NOT do
 
-- Install `jq`, `libnotify`, or any system package, and never writes user settings or
-  `pluginConfigs` — `apply` is guidance-and-verify with no write path.
+- Install `jq`, `libnotify`, or any system package — `apply` is guidance-and-verify with no
+  write path.
 - Fire a notification — a `permission_prompt` or `idle_prompt` exercises the hook end-to-end.
-- Modify the plugin cache or the hook scripts.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor the hook scripts.
