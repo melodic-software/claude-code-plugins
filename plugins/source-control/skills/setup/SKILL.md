@@ -288,8 +288,8 @@ Skill-behavior failure patterns hit in real runs. Add to this section when new o
   at `REPO_ROOT` (`${CLAUDE_PROJECT_DIR}`, else `git rev-parse --show-toplevel`), a cwd-relative
   `.claude/source-control.md` read from a subdirectory misses the repo-root config and degrades
   without an error. Re-resolve in each self-contained Bash call.
-- **Linked worktrees hide the hooks directory.** Resolve it with `git rev-parse --git-path hooks`
- , in a linked worktree `.git` is a file, and `core.hooksPath` can move the directory anywhere.
+- **Linked worktrees hide the hooks directory.** Resolve it with `git rev-parse --git-path hooks`,
+  in a linked worktree `.git` is a file, and `core.hooksPath` can move the directory anywhere.
 - **History inference clocks: `--since` filters by committer date.** Render `%cd`, not `%ad`, a
   rebased or cherry-picked commit enters the window by committer date but would bucket by its old
   author date, skewing the recency split (review-caught during #1139). A shallow clone truncates

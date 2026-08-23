@@ -34,7 +34,7 @@ Owns HOW conflicts get resolved once an integration, merge, rebase, or cherry-pi
 
 **The two non-negotiable disciplines:**
 
-1. **Intent before edits.** No hunk is resolved until the commits that produced BOTH sides of it have been read and each side's intent can be stated in one sentence. Mechanically keeping "ours" or "theirs". `git checkout --ours/--theirs`, `-X ours/theirs`, or accepting one side because it looks newer or bigger. Is not resolution; it is silent deletion of someone's change.
+1. **Intent before edits.** No hunk is resolved until the commits that produced BOTH sides of it have been read and each side's intent can be stated in one sentence. Mechanically keeping "ours" or "theirs" using `git checkout --ours/--theirs` or `-X ours/theirs`, or accepting one side because it looks newer or bigger, is not resolution; it is silent deletion of someone's change.
 2. **`--abort` is not a resolution strategy.** A conflict is work, not an error. Abort only when the user explicitly decides to abandon the integration itself, never as an exit from a resolution that got hard, and never silently.
 
 ## Task

@@ -304,7 +304,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_advisory_fix_round_cap` | `${user_config.babysit_advisory_fix_round_cap}` | `--fix-round-cap` (snapshot, ledger) | `100` |
 | `babysit_worker_concurrency_cap` | `${user_config.babysit_worker_concurrency_cap}` | prose only. Fan-out bound | `10` |
 | `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
-| state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script) |. |
+| state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script) | n/a |
 
 Configure via the `/plugin` dialog, or headless at install time with `claude plugin install
 --config KEY=VALUE`; `/source-control:setup` documents both plus the environment probes.
@@ -324,17 +324,17 @@ merge-readiness at all: report it unchecked, never inferred from the classificat
 
 Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loop.md](reference/loop.md).
 
-- [ ] **Step 0. PR discovery:** open PRs in scope (tier-scoped author filter), oldest-first
+- [ ] **Step 0, PR discovery:** open PRs in scope (tier-scoped author filter), oldest-first
   FIFO (§5.0.2). Zero PRs → report and schedule the idle wake
 - [ ] **Step 0.1, Evidence-based fresh rescan:** fetch ALL comments via the bundled
   `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh` (derives owner/repo from the current directory; from a cwd that is not a checkout of the target repo, export `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` first, also unblocks the readiness gate's exit 4), filter own prior replies, classify
   addressed/unaddressed from GitHub evidence (§5.0.3). GitHub is the source of truth, not model
   memory
-- [ ] **Step 0.2. Branch checkout:** put this worktree's HEAD at the true PR head (`gh pr view --json headRefOid`). `gh pr checkout <N>`, or `--detach` when the branch is locked in a sibling worktree (never `git checkout` the locked branch);
+- [ ] **Step 0.2, Branch checkout:** put this worktree's HEAD at the true PR head (`gh pr view --json headRefOid`). `gh pr checkout <N>`, or `--detach` when the branch is locked in a sibling worktree (never `git checkout` the locked branch);
   assert HEAD == that head before any mutate, read-only on mismatch or dirty tree (§5.1.2)
 - [ ] **Step 0.3, Branch freshness:** fetch + `git merge-base --is-ancestor`; integrate
   merge-only (never rebase, rebasing a PR branch needs a forbidden force-push), graduated conflict handling (§5.1.2)
-- [ ] **Step 1. Event-delivery gate:** cloud poll / push channel / Monitor watch, re-armed
+- [ ] **Step 1, Event-delivery gate:** cloud poll / push channel / Monitor watch, re-armed
   per PR (§5.1.1)
 - [ ] **Steps A–F, Per-PR iteration checklist** (§5.1.3): terminal check, CI classification,
   fetch + extract findings, per-finding D1–D7.5 with verification gates

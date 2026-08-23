@@ -106,7 +106,7 @@ Autonomy is decomposed into seven dimensions; a **tier is a named preset** over 
 babysit-prs tier vocabulary (`safe`, `worker`, `autopilot`). What each tier grants per dimension is
 owned by babysit-prs's "Autonomy tiers (per action class)" table and is not restated here. The
 dimensions: 1, discovery scope (which PRs enter the queue); 2, fixing (branch-owned CI/review
-fixes); 3, thread resolution; 4, draft elevation; 5. Barrier handling (escalate vs
+fixes); 3, thread resolution; 4, draft elevation; 5, barrier handling (escalate vs
 attempt-with-research); 6, merge authority (the autonomy-ladder rung); 7, escalation posture.
 Each has a per-dimension override key on the layered seam; the key table, defaults, and precedence
 including the merge dimension's policy-floor exception, are owned by the config reference above.
@@ -188,8 +188,8 @@ Untrusted intake counts as human-gated for that exit even without a role label. 
    that item's recorded work-class classification **from its `work-class:` label only**, never
    from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
    from a surface whose write authority the provider enforces: labelling takes triage or write
-   permission on the base repository, the same permission surface the C5 trust test below keys on
-  , while a body is editable by its own author, who need hold none. A trailer supplying the class
+   permission on the base repository, the same permission surface the C5 trust test below keys on,
+   while a body is editable by its own author, who need hold none. A trailer supplying the class
    would make the item self-certifying, against the governing rule that "no repo-local
    (agent-writable) surface may supply any admission input. Rules, caps, or the work class used
    for admission"

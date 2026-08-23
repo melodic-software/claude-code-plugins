@@ -150,7 +150,7 @@ path. Unset `HOOK_TELEMETRY_SINK` → no-op.
 
 The MCP-surface sibling of `pr-body-linkage-gate`: a `PreToolUse` hook on the
 GitHub MCP server's `create_pull_request` / `update_pull_request` tools, which
-is how cloud/remote sessions, where the `gh` CLI doesn't exist. Open PRs.
+is how cloud/remote sessions, where the `gh` CLI doesn't exist, open PRs.
 Same contract, same authority (the consuming repository's own
 `.github/workflows/pr-issue-linkage.yml`), same block-with-the-fix-named
 behavior. The MCP payload hands over the body as a plain JSON field, so the
