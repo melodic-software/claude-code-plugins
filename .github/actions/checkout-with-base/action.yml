@@ -1,0 +1,43 @@
+name: Checkout with base
+description: >
+  Check out the repository with full history, fetch origin/$BASE_REF on
+  pull_request events, and export BASE_REF for later steps. Owns the
+  fetch-depth, explicit base fetch, and BASE_REF export that were previously
+  copied across CI jobs.
+
+inputs:
+  ref:
+    description: >
+      Git ref to check out. Empty uses actions/checkout's event default
+      (the PR merge commit, or the pushed SHA). Pass the PR head SHA when
+      the job must compute against the branch tip rather than the merge
+      commit.
+    required: false
+    default: ""
+  fetch-base:
+    description: >
+      When true (the default, and the safe one), fetch origin/$BASE_REF on
+      pull_request events and export BASE_REF into the job environment so
+      later steps can resolve origin/$BASE_REF with no extra fetch of their
+      own. Only the stale-base lane used to do this fetch explicitly.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Check out
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+        ref: ${{ inputs.ref }}
+
+    - name: Fetch base ref
+      if: inputs.fetch-base == 'true' && github.event_name == 'pull_request' && github.base_ref != ''
+      shell: bash
+      env:
+        BASE_REF: ${{ github.base_ref }}
+      run: |
+        git fetch --no-tags origin "$BASE_REF":"refs/remotes/origin/$BASE_REF"
+        echo "BASE_REF=$BASE_REF" >> "$GITHUB_ENV"
