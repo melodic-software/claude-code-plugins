@@ -244,6 +244,67 @@ worktree_rename_out="$(cd "$REPO12" && bash "$DETECT")"
 assert_not_contains "worktree-column rename is not reported as files=0" "$worktree_rename_out" "files=0"
 assert_contains "worktree-column rename resolves to the new path" "$worktree_rename_out" "Summary file: new.py"
 
+# --- 10. SKILL.md pre-computed-context parser stays at parity with detect.sh (#3126) ----
+# SKILL.md's `Uncommitted code files:` line re-implements the porcelain parse to preview
+# targets to the model. A divergence there is a false negative on the same surface, so the
+# program is EXTRACTED from SKILL.md and executed rather than being restated here — a copy
+# would pass while the real line rotted. Fixture names force C-quoting through an embedded
+# quote and backslash, not just a space, since quote-stripping alone passes a spaced name.
+
+SKILL_MD="$SCRIPT_DIR/../SKILL.md"
+if [[ ! -f "$SKILL_MD" ]]; then
+  fail "SKILL.md located for parity check" "file at $SKILL_MD" "missing"
+else
+  # Pull the awk program out of: ... | awk '<program>' | grep ...
+  skill_awk="$(sed -n "s/^Uncommitted code files:.*| awk '\(.*\)' | grep .*$/\1/p" "$SKILL_MD")"
+  if [[ -z "$skill_awk" ]]; then
+    fail "SKILL.md awk program extracted" "non-empty program" "no match — line shape changed"
+  else
+    pass "SKILL.md awk program extracted"
+
+    REPO13="$TEST_TMPDIR/repo13"
+    mkdir -p "$REPO13"
+    git -C "$REPO13" init -q
+    : >"$REPO13/quote\".py"
+    : >"$REPO13/back\\-slash.py"
+    : >"$REPO13/plain space.py"
+    cp "$ALL_SHAPES" "$REPO13/renamed-src.py"
+    git -C "$REPO13" add renamed-src.py
+    git -C "$REPO13" -c user.email=t@example.com -c user.name=t commit -qm init
+    mv "$REPO13/renamed-src.py" "$REPO13/renamed-dst.py"
+    git -C "$REPO13" add -N renamed-dst.py
+
+    skill_out="$(cd "$REPO13" && git status --porcelain | awk "$skill_awk")"
+
+    assert_contains "SKILL.md parser unescapes an embedded quote" "$skill_out" 'quote".py'
+    assert_contains "SKILL.md parser unescapes an embedded backslash" "$skill_out" 'back\-slash.py'
+    assert_contains "SKILL.md parser unwraps a spaced path" "$skill_out" 'plain space.py'
+    assert_contains "SKILL.md parser takes the worktree-rename new path" "$skill_out" 'renamed-dst.py'
+    assert_not_contains "SKILL.md parser leaves no rename arrow" "$skill_out" ' -> '
+    assert_not_contains "SKILL.md parser leaves no escaped quote" "$skill_out" '\"'
+
+    # Parity with detect.sh over the same tree: every code file detect.sh audits must also
+    # appear in the preview, or the model is shown a tree the audit does not agree with.
+    detect_out="$(cd "$REPO13" && bash "$DETECT")"
+    parity_ok=1
+    while IFS= read -r audited; do
+      [[ -z "$audited" ]] && continue
+      case "$skill_out" in
+      *"$audited"*) ;;
+      *)
+        parity_ok=0
+        printf '  detect.sh audited but preview missed: %s\n' "$audited" >&2
+        ;;
+      esac
+    done < <(printf '%s\n' "$detect_out" | sed -n 's/^Summary file: \(.*\) | T1=.*$/\1/p')
+    if [[ "$parity_ok" -eq 1 ]]; then
+      pass "SKILL.md preview covers every file detect.sh audits"
+    else
+      fail "SKILL.md preview covers every file detect.sh audits" "full coverage" "see above"
+    fi
+  fi
+fi
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

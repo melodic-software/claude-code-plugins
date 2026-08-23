@@ -20,10 +20,13 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   which records `R` in the worktree column — still resolves), and unwraps git's
   quoting.
   The skill's own `Uncommitted code files` pre-computed context carried the
-  identical `$NF` parse and is fixed the same way. Git's octal escapes for
-  control and non-ASCII bytes are still not decoded, so such a path continues
-  to miss; the limitation is now recorded at the parse site instead of being
-  silent.
+  identical `$NF` parse and is fixed to full parity — same column handling and
+  the same `\"`/`\\` unescaping — rather than only to the quote-stripping half.
+  The test suite now **extracts** that parser out of `SKILL.md` and executes it
+  against the same fixtures, so the two cannot silently diverge again. Git's
+  octal escapes for control and non-ASCII bytes are still not decoded by either,
+  so such a path continues to miss; the limitation is recorded at the parse site
+  instead of being silent.
 
 ## [0.13.2]
 
