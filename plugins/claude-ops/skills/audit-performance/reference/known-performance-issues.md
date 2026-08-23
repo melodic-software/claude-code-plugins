@@ -83,8 +83,8 @@ is worse than useless: it fails to match the symptom and discredits the report.
 Two invocation shapes cost extra process creations before the hook's own work begins, and both
 are detected by `invocation_shape`:
 
-- `Git\bin\bash.exe -c "bash script.sh"`. The `Git\bin\bash.exe` launcher re-execs
-  `Git\usr\bin\bash.exe`, so pointing at `usr\bin\bash.exe` directly removes one spawn per hook.
+- `Git/bin/bash.exe -c "bash script.sh"`. The `Git/bin/bash.exe` launcher re-execs
+  `Git/usr/bin/bash.exe`, so pointing at `usr/bin/bash.exe` directly removes one spawn per hook.
 - Any command line naming two shells. De-forking the hook chain on the audited machine moved the
   median from 10,850 ms to 2,777 ms, roughly 4x, measured back to back at the same load.
 

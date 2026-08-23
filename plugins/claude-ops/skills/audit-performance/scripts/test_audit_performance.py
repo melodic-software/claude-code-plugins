@@ -84,7 +84,7 @@ class TestInvocationShape(unittest.TestCase):
     def test_git_bin_bash_wrapper_is_flagged(self):
         entry = {
             "command": "C:/Program Files/Git/bin/bash.EXE",
-            "args": ["C:/Users/x/.claude/hooks/guard.sh"],
+            "args": ["C:/fixture/.claude/hooks/guard.sh"],
         }
         self.assertIn("git-bin-bash-wrapper-costs-an-extra-spawn", engine.invocation_shape(entry))
 
@@ -98,7 +98,7 @@ class TestInvocationShape(unittest.TestCase):
 
     def test_a_plain_script_invocation_is_not_a_nested_shell(self):
         """A token ending in `.sh` is a script, not a shell; a suffix match got this wrong."""
-        entry = {"command": 'bash "C:/Users/x/.claude/statusline/entrypoint.sh"', "args": []}
+        entry = {"command": 'bash "C:/fixture/.claude/statusline/entrypoint.sh"', "args": []}
         self.assertEqual(engine.invocation_shape(entry), [])
 
 
@@ -139,7 +139,7 @@ class TestHookInventoryOverATree(unittest.TestCase):
                 "enabledPlugins": {"noisy@market": True, "quiet@market": False},
                 "hooks": {
                     "UserPromptSubmit": [
-                        {"hooks": [{"type": "command", "command": "/home/hooks/prompt.sh"}]}
+                        {"hooks": [{"type": "command", "command": "/opt/hooks/prompt.sh"}]}
                     ]
                 },
             },
