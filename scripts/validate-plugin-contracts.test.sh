@@ -215,6 +215,36 @@ else
   fail "an unbacked userConfig-only claim should fail the gate: $out"
 fi
 
+# --- 4b. The same gap under the doctrine's own wording, not the one phrase. -
+reset_fixture
+make_plugin alpha ''
+write_setup_skill alpha check <<'BODY'
+## Purpose
+
+Check-only under the native `userConfig` surface: `check` reports readiness.
+BODY
+out="$(run_fixture)"
+if grep -q "$NO_USER_CONFIG" <<<"$out"; then
+  pass "doctrine wording that names userConfig without a manifest declaration fails the gate"
+else
+  fail "a native-userConfig-surface claim with no userConfig should fail: $out"
+fi
+
+# --- 4c. A check-only skill that names userConfig only to deny it. ----------
+reset_fixture
+make_plugin alpha ''
+write_setup_skill alpha check <<'BODY'
+## Purpose
+
+Check-only: this plugin has no `userConfig`. `check` reports external prerequisites.
+BODY
+out="$(run_fixture)"
+if grep -q "$NO_USER_CONFIG" <<<"$out"; then
+  fail "denying userConfig should not be read as claiming the surface: $out"
+else
+  pass "a check-only skill that says it has no userConfig is not an unbacked claim"
+fi
+
 # --- 5. Inverse: the narrow-write shape is untouched by the carve-out
 #        assertions, even for a registered tracked-config owner. -------------
 reset_fixture

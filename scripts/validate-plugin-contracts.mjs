@@ -158,6 +158,14 @@ function readTrackedConfigOwners() {
 
 const trackedConfigOwners = readTrackedConfigOwners();
 
+function claimsUserConfigSurface(body) {
+  const withoutNegation = body.replace(
+    /\b(?:no|not|without|never)\s+`?userConfig`?/gi,
+    "",
+  );
+  return /\buserConfig\b/.test(withoutNegation);
+}
+
 function declaresUserConfig(plugin) {
   const manifest = join(pluginRoot, plugin, ".claude-plugin", "plugin.json");
   if (!existsSync(manifest)) return false;
@@ -177,8 +185,12 @@ for (const path of setupSkills) {
   }
   // Uniform contract shape (PLUGIN-PHILOSOPHY "Setup is explicit and repeatable"):
   // check is the default read-only action; apply exists unless the skill declares the
-  // check-only carve-out the doctrine sanctions, whose three qualifying surfaces
-  // are checked below — native userConfig is one of them, not the whole set.
+  // check-only carve-out the doctrine sanctions. The registry check below is the
+  // writable-artifact exclusion (tracked consumer config). Native userConfig is
+  // the one carve-out surface with a manifest-side counterpart; the other two
+  // doctrine surfaces (settings this contract forbids setup to mutate; external
+  // prerequisites) have no such signal and are covered by the check-only
+  // declaration plus the registry exclusion, not by a second existence probe.
   if (!/^argument-hint:\s*"check(?:\s*\||\s*\[|")/m.test(frontmatter)) {
     fail(path, 'setup skills must declare check as the leading action in argument-hint ("check", "check | apply ...", or "check [<subaction>]")');
   }
@@ -207,10 +219,13 @@ for (const path of setupSkills) {
         "the check-only carve-out is unavailable here: this plugin owns the tracked consumer config surface registered in docs/conventions/config-cascade/README.md, and \"A plugin with even one writable owned artifact takes the narrow-write shape instead\"",
       );
     }
-    // The one carve-out surface with a manifest-side counterpart. Claiming it
-    // while declaring no userConfig names a surface the plugin does not have.
-    if (/userConfig-only carve-out/i.test(body) && !declaresUserConfig(plugin)) {
-      fail(path, "the userConfig-only carve-out requires the plugin manifest to declare userConfig, and this one declares none");
+    // The one carve-out surface with a manifest-side counterpart. Any claim
+    // that names that surface — the doctrine's "native userConfig surface"
+    // wording included — requires the manifest to declare it. Matching only
+    // the phrase "userConfig-only carve-out" would let a different spelling
+    // of the same claim pass.
+    if (claimsUserConfigSurface(body) && !declaresUserConfig(plugin)) {
+      fail(path, "a check-only skill that names the userConfig surface requires the plugin manifest to declare userConfig, and this one declares none");
     }
   }
 }
