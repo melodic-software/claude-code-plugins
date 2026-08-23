@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.1]
+
+### Fixed
+
+- **`plugins sync` now alphabetizes user-scope `enabledPlugins` after it installs anything.**
+  Claude Code's settings writer appends each new key at the end of the map, so every sync that
+  installed a catalog plugin left a visibly unsorted tail that never self-healed and churned
+  diffs for anyone whose `~/.claude/settings.json` is managed. There is no `claude plugin` verb
+  that reorders the map. After Step 4 installs at least one plugin, `sync` runs
+  `normalize-enabled-plugins.sh` against the user-scope file only: a strict key reorder (values
+  byte-identical), reported on the new `Normalized:` row, and refused loudly on permission
+  denial, unreadable JSON, or a semantic diff. Project-scope maps are inspected and reported,
+  never rewritten — `converge` remains the only action that may touch committed settings.
+
 ## [0.38.0]
 
 ### Added
