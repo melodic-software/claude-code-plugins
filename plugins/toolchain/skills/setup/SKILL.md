@@ -8,7 +8,8 @@ disable-model-invocation: true
 ## Purpose
 
 Inspect and configure the consuming repo's tracked ecosystem command surface per the uniform setup
-contract: `check` reports what is configured, `apply` writes it. The tracked files at
+contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace
+repository): `check` reports what is configured, `apply` writes it. The tracked files at
 `.claude/ecosystems/<ecosystem>.yaml` let `/toolchain:check` and `/toolchain:lint` resolve commands
 deterministically from rung 1 of the ladder
 ([`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md))
@@ -129,5 +130,6 @@ configuration and changes nothing.
 - Run build/test/lint — that is `/toolchain:check` and `/toolchain:lint`.
 - Write machine-local state — configuration lives in the consumer's tracked files, never in the plugin
   directory or the plugin data directory.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Ship or edit the bundled portable defaults — those are the plugin's rung-4 fallback, never written
   into a consumer repo except as the seed for a file this interview produces.

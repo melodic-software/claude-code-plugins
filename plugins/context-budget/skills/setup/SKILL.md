@@ -7,8 +7,10 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply` points at
-what it found. The warrant is criterion (b), external prerequisites — `node`, the Claude Code CLI
+Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
+"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
+`apply` points at what it found. The warrant is criterion (b), external prerequisites — `node`,
+the Claude Code CLI
 the engine pins and measures against, and the optional `@anthropic-ai/claude-agent-sdk` that
 enables exact mode — none of which a native configuration prompt can see, and each of which setup
 can only verify. The `settings_write_ask_enabled` option is a native `userConfig` toggle whose only
@@ -20,11 +22,14 @@ each remediation. Both are non-interactive — never prompt when the action is g
 
 ## `check` (read-only)
 
-The audit skill and its engine are the source of truth for what this plugin requires. Read
+The audit skill and its engine are the single source of truth for what this plugin requires:
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`](../audit/SKILL.md) § Prerequisites and the header of
-`${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs` first, and probe what they actually
-require rather than reciting this file. Then report a PASS/FAIL/INFO table with one remediation
-line per FAIL. Modify nothing; install nothing.
+`${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs`.
+
+**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+
+Install nothing.
 
 1. **`node` on `PATH`** — `command -v node`, and report the resolved path and version. This is the
    plugin's one hard prerequisite, and it carries *two* dependents. Report both:
@@ -94,4 +99,5 @@ nothing and installs nothing — re-running it after everything passes changes n
 
 - Run a measurement, attribution, or ledger operation — that is `/context-budget:audit`.
 - Install `node`, the CLI, or the Agent SDK, during either `check` or `apply` — guidance only.
-- Write the plugin cache, Claude Code user settings, `pluginConfigs`, or any settings surface.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor any other Claude Code
+  settings surface.

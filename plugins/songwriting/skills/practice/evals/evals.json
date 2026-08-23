@@ -1,0 +1,81 @@
+{
+  "skill_name": "practice",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-issues-daily-prompt-immediately",
+      "prompt": "/songwriting:practice",
+      "expected_output": "No action given, so the skill issues ONE daily craft prompt immediately — defaulting to a 90-second object-writing dive — instead of asking what the writer wants first. Loads the daily-practice material and the object-writing prompt template. States the seed, the timer, the stop-mid-word rule, the senses-only rule, and the mining step that follows the timer. A prompt-only run needs no response-filter pass.",
+      "files": [],
+      "expectations": [
+        "Issues a prompt immediately on the bare invocation — no clarifying question first",
+        "Defaults to a 90-second object-writing dive",
+        "Gives exactly one seed, not a menu",
+        "States the strict-timer discipline: stop when the buzzer fires, without finishing the word",
+        "States the senses-only rule (no judgments, comments, or quotes) for the timed write",
+        "Names the mining step that happens AFTER the timer, not during it",
+        "Does NOT run a response-filter pass — a prompt-only run needs none",
+        "Does not dump the full 56-day curriculum on a bare invocation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "numbered-exercise-in-pattison-wording",
+      "prompt": "/songwriting:practice exercise 4.6",
+      "expected_output": "Parses the first token as the exercise action and 4.6 as the argument. Loads the exercises index and returns exercise 4.6 — family rhymes for 'heart', finding related perfect rhymes first and then family rhymes by substituting for the final consonant — in Pattison's own instruction wording with his numbering, not a paraphrase or an invented drill. Names where the exercise routes afterward for the principles it tests, and does not preview the discussion before the writer has worked it.",
+      "files": [],
+      "expectations": [
+        "Routes to the `exercise` action with 4.6 as the argument",
+        "Returns the correct exercise: family rhymes for the target word 'heart'",
+        "Preserves Pattison's own instruction wording and his numbering rather than summarizing or inventing an exercise",
+        "Names the follow-on routing for the principles the exercise tests (the rhyme-types material)",
+        "Does not preview the answer key or discussion before the writer works the exercise",
+        "Does not run a response-filter pass on an assign-only run"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "sample-output-triggers-response-filter",
+      "prompt": "/songwriting:practice exercise 4.6 — and show me a few example family rhymes so I know what you mean",
+      "expected_output": "The run is no longer prompt-only: it will emit sample rhymes, so the applicable response-filter section runs first. Names the rhyme-filter boxes (and the line or image sections if lines or images are produced) with pass / fail / skip-with-reason before the samples appear, correcting anything that fails rather than emitting it. Keeps the samples as demonstration material for the exercise, not as a completed answer key that replaces the writer's own work.",
+      "files": [],
+      "expectations": [
+        "Recognizes that producing sample output changes the pre-flight requirement",
+        "Runs the applicable response-filter section (rhyme for rhymes, line for lines, image for images) BEFORE emitting samples",
+        "NAMES each box's pass / fail / skip-with-reason — skips are valid, silent skips are not",
+        "Corrects any failing candidate before emission rather than shipping it with a caveat",
+        "Keeps samples bounded as illustration; does not work the whole exercise on the writer's behalf"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "bounded-sequence-not-full-curriculum",
+      "prompt": "/songwriting:practice daily I want to build a real writing habit — set me up",
+      "expected_output": "Gives one usable prompt or a bounded opening sequence (for example the first stretch of object-writing days) rather than assigning the entire 56-day curriculum, which was not asked for. Explains the session shape — prompt, timer, write, mine — and names where the practice output is written so the habit accumulates, honoring a consuming project's own layout when it defines one.",
+      "files": [],
+      "expectations": [
+        "Gives one prompt or a bounded sequence, NOT the full 56-day curriculum unassigned",
+        "Explains the four-part session shape: prompt, timer, write, mine",
+        "Names the practice persistence convention (a dated file under the practice directory for the current year)",
+        "Defers to a consuming project's own songwriting layout when one is defined, instead of forcing the bundled paths",
+        "Checks for a project-level template override under the project songwriting templates directory BEFORE loading a bundled template",
+        "Offers to extend the sequence rather than front-loading every day at once"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "hands-coaching-to-craft-skills",
+      "prompt": "/songwriting:practice here's my 90-second dive from this morning — tell me which images are weak and rewrite the flat ones",
+      "expected_output": "Marks the usable material in the mining phase, then hands the in-the-moment coaching off rather than doing it here: this skill hands out prompts and curricula, and the craft skills coach the output. Routes image work and a one-off follow-up prompt to the object-writing skill, figurative pressure to the metaphor skill, and rhyme worksheets to the rhyme skill. Does not critique the write as though the timer were still running.",
+      "files": [],
+      "expectations": [
+        "Runs the mining pass — marks usable images, verbs, titles, metaphor seeds, body details",
+        "Does NOT deliver the line-by-line craft critique here — names the boundary that the craft skills coach the output",
+        "Routes a single in-session object-writing or metaphor prompt to `/songwriting:object-writing`",
+        "Routes rhyme worksheets specifically to `/songwriting:rhyme worksheet`",
+        "Does not critique during a timed write — diagnosis belongs to the mining phase",
+        "If any rewritten line or image is emitted anyway, the applicable response-filter section runs first with each box named"
+      ]
+    }
+  ]
+}
