@@ -3,6 +3,34 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`PostToolUse` index-drift hook (14 contract tests).** Index drift is silent by construction: a
+  rule added without regenerating the index is a rule no subagent can reach, and nothing about the
+  repository looks wrong until someone runs the gate. This shortens the feedback loop from "next CI
+  run" to "next tool call". Advisory and non-blocking — always exits 0, and
+  `/instruction-placement:check` remains the authoritative gate.
+
+  **The matcher is `Write|Edit`, which the fleet hook-budget convention counts as always-on**, so
+  the hot path was designed and then measured rather than assumed. After the kill switch, the first
+  thing the hook does is a substring test on the written path; every write outside a `.claude/rules`
+  tree returns before any subprocess, git call, or index render. Measured cost on that path: **~9 ms
+  per invocation including bash startup**, against a ≤1 s per-tool-call budget. The suite asserts a
+  generous ceiling so an accidental git or render call landing on the hot path fails a test.
+
+  It stays quiet where quiet is right: an in-sync index emits nothing, and a repository that never
+  adopted an index is never nagged into adopting one. Kill switch: `index_drift_hook_enabled`.
+
+### Fixed
+
+- **`hook::repo_root` was handed a file path instead of a directory** during development. It returns
+  the input unchanged with a non-zero status, which an `|| true` swallowed into a silent no-op — the
+  exact failure shape (`hook_non_blocking_error`, hook enforces nothing, nobody notices) that this
+  repository's hook conventions exist to prevent. Caught by the drift-detection tests failing while
+  every robustness test passed.
+
 ## [0.7.1]
 
 ### Changed
