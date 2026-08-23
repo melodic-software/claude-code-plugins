@@ -199,6 +199,32 @@
         "Uses backfill-capability-tier-labels.sh apply rather than re-triaging the items",
         "Reports how many items received the label"
       ]
+    },
+    {
+      "id": 16,
+      "name": "apply-stops-on-tracked-personal-overlay-rather-than-appending-a-duplicate-ignore-line",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root, is committed to the repository, and .gitignore already carries a .work-item-tracker.local.json line, so the file is tracked despite a matching rule.)",
+      "expected_output": "At the personal-overlay gitignore step, runs two independent probes rather than a bare git check-ignore: git check-ignore --no-index -v for whether a matching rule exists at all, and git ls-files for whether the path is in the index. Because bare git check-ignore consults the index first and exits 1 with no output for an already-tracked path, its silence cannot distinguish 'no rule exists' from 'a rule exists but the file was committed anyway', and those need opposite remediations. With ls-files reporting the path as tracked, setup STOPS and reports it as a finding: the overlay is in team history and may carry per-user auth identity, and the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential. It does NOT append another .work-item-tracker.local.json line to .gitignore, and does not announce a duplicate ignore line as the fix, since an ignore rule does not untrack an already-committed file.",
+      "files": [],
+      "expectations": [
+        "Uses git check-ignore --no-index -v (not a bare git check-ignore) to test whether an ignore rule exists, so the index cannot mask the answer",
+        "Runs a separate git ls-files index probe and treats ignored and untracked as two independent conditions",
+        "Stops and reports the tracked overlay as a finding, naming git rm --cached as the remediation",
+        "Does not append a .gitignore line, and never reports a duplicate ignore line as having fixed a tracked overlay"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "apply-still-appends-the-ignore-line-for-an-untracked-uncovered-overlay",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root, is NOT tracked, and no .gitignore rule matches it.)",
+      "expected_output": "The same two probes report no matching rule and no index entry, which is the ordinary uncovered case. Setup appends the .work-item-tracker.local.json line to the consumer's .gitignore and announces the edit as the ADR 0015 declared exception, touching nothing else in that file. It does not stage the overlay, and it does not raise the tracked-overlay stop condition, which applies only when git ls-files reports the path.",
+      "files": [],
+      "expectations": [
+        "Appends the .work-item-tracker.local.json line to .gitignore and announces the edit",
+        "Modifies no other line of .gitignore",
+        "Does not stage or commit the overlay",
+        "Does not raise the tracked-overlay stop condition when the index probe comes back empty"
+      ]
     }
   ]
 }

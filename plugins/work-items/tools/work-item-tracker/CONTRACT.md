@@ -87,7 +87,7 @@ user-global layer.
 {
   "schema_version": "1.0",
   "provider": "github",
-  "docs": "Work-item tracker binding — plugins/work-items/tools/work-item-tracker/CONTRACT.md (Setup)",
+  "docs": "Work-item tracker binding — see the work-items plugin's tools/work-item-tracker/CONTRACT.md (Setup)",
   "config": {
     "lease_ttl_hours": 24
   }
@@ -95,18 +95,27 @@ user-global layer.
 ```
 
 - Discovery: `.work-item-tracker.json` at the **repo root** — `${CLAUDE_PROJECT_DIR}` when
-  set, else `git rev-parse --show-toplevel`. That single anchor governs ALL of the seam's
-  repo-relative resolution (binding read, consumer-local adapter dirs, the github adapter's
-  bot-wrapper lookup), so a bare shell that finds the binding also finds consumer-local
-  adapters. Discovery is deliberately NOT a CWD-to-filesystem-root climb: a stray
+  set, else `git rev-parse --show-toplevel`. Whichever of the two resolves, that one value
+  governs ALL of the seam's repo-relative resolution (binding read, consumer-local adapter
+  dirs, the github adapter's bot-wrapper lookup), so a bare shell that finds the binding also
+  finds consumer-local adapters. The two are **not interchangeable**: inside a git worktree
+  the toplevel is the worktree's own directory while `${CLAUDE_PROJECT_DIR}` stays the
+  directory the session started in, so a caller that sets the var and a caller that does not
+  can anchor at different roots for the same checkout. Today that is latent — this seam ships
+  no hooks and the var is unset in a plain shell, so the toplevel branch is what runs — but a
+  consumer that installs a SessionStart hook while working in worktrees makes it live. Resolve
+  the anchor ONCE per invocation and pass it down; never re-resolve it by a different branch
+  partway through. Discovery is deliberately NOT a CWD-to-filesystem-root climb: a stray
   ancestor/home binding would silently capture every repo beneath it (#2941). Nested
   per-subdirectory bindings are unsupported until requested. Env override
   `WORK_ITEM_TRACKER_BINDING=<path>` (tests, conformance).
 - **Personal overlay** — an optional gitignored `.work-item-tracker.local.json` beside the
   team binding merges **per-key over an allowlist, deny-by-default**. Overlayable keys:
   `config.lease_ttl_hours`, `config.lease_ttl_minutes` (TTL travels inside each lease
-  record, so a per-user value is coherent), `config.jira.auth_email`,
-  `config.jira.auth_env` (auth identity is per-account), and the self-describing `docs`
+  record, so a per-user value is coherent), the auth-identity keys of every credentialed
+  adapter — `config.jira.auth_email`, `config.jira.auth_env`, `config.linear.auth_env`,
+  `config.gitea.auth_env` (auth identity is per-account, and each of those adapters reads its
+  credential from the merged view) — and the self-describing `docs`
   pointer. Everything else — `provider`, `config.role_labels`, `config.container_label`,
   `config.storage_dir`, `config.jira.site`/`project_keys` and the JQL-shaping keys — is
   shared coordination state and team-layer-only: an overlay value for any such key is a
@@ -216,8 +225,9 @@ Two independent resolutions, deliberately opposite:
   plugin's engine by default and a vendored copy still works.
 - **Adapters** (`adapters/<provider>/`): **consumer-local-first, plugin-bundled fallback; first match
   wins.** For the bound `<provider>`, the dispatcher searches
-  `<repo root>/tools/work-item-tracker/adapters/<provider>/` first — the repo root being the seam's
-  single anchor, `${CLAUDE_PROJECT_DIR}` when set, else the git toplevel ("Setup (binding file)") —
+  `<repo root>/tools/work-item-tracker/adapters/<provider>/` first — the repo root being the same
+  anchor the binding read resolved, `${CLAUDE_PROJECT_DIR}` when set, else the git toplevel, which
+  can differ inside a worktree ("Setup (binding file)") —
   then its own bundled `adapters/<provider>/`. A consuming repo can thus add a provider the plugin
   does not ship, or shadow a bundled adapter with a local copy it owns fully — without forking the
   plugin. `WIT_ADAPTERS_DIR` overrides the search with a single explicit adapter root (tests,

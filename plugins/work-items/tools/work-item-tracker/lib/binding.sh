@@ -47,7 +47,7 @@ wit_find_binding() {
 # such key is a configuration error, never a merge (deny-by-default; CONTRACT.md
 # "Setup (binding file)"). "docs" is the optional self-describing pointer either
 # layer may carry.
-readonly WIT_OVERLAY_ALLOWED_PATHS='[["config","lease_ttl_hours"],["config","lease_ttl_minutes"],["config","jira","auth_email"],["config","jira","auth_env"],["docs"]]'
+readonly WIT_OVERLAY_ALLOWED_PATHS='[["config","lease_ttl_hours"],["config","lease_ttl_minutes"],["config","jira","auth_email"],["config","jira","auth_env"],["config","linear","auth_env"],["config","gitea","auth_env"],["docs"]]'
 
 # wit_find_overlay <binding-path> — echo the overlay path beside the binding, or
 # fail when none exists. The overlay always lives beside whatever binding file
@@ -96,7 +96,7 @@ wit_effective_binding_json() {
                   and any($allowed[]; (length > ($p | length)) and (.[:($p | length)] == $p)))))
         | not))' "$overlay")"
   if [[ "$bad" != "[]" ]]; then
-    printf 'work-item-tracker: overlay %s sets non-overlayable key(s) %s — only lease TTL and jira auth identity may be personal; see CONTRACT.md "Setup (binding file)"\n' \
+    printf 'work-item-tracker: overlay %s sets non-overlayable key(s) %s — only lease TTL and per-provider auth identity (jira, linear, gitea) may be personal; see CONTRACT.md "Setup (binding file)"\n' \
       "$overlay" "$bad" >&2
     return 1
   fi

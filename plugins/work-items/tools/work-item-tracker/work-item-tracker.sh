@@ -112,7 +112,7 @@ main() {
   binding_path="$(wit_find_binding)" ||
     fail_config "no binding found (.work-item-tracker.json) — see CONTRACT.md Setup"
   wit_read_binding "$binding_path" ||
-    fail_config "invalid binding at $binding_path — see CONTRACT.md Setup"
+    fail_config "invalid binding at $binding_path — run /work-items:setup check for the itemized breakdown; see CONTRACT.md Setup"
 
   local adapter_dir manifest
   adapter_dir="$(wit_resolve_adapter_dir "$WIT_PROVIDER")"
