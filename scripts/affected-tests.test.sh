@@ -577,9 +577,33 @@ done
 # nothing about .github/*. That is not hypothetical — .github/workflows/ci.yml
 # is named by two suites and reaches exit 0 through R3, so it cannot serve as
 # this probe. Discovered by glob for the R3 reason given above.
-mapfile -t wf_yaml < <(cd "$REPO_ROOT" && git ls-files '.github/*.yaml' | head -1)
+#
+# The candidate is additionally FILTERED to one that no grepped-language file
+# names at all, rather than assuming the sole `.github/*.yaml` qualifies. That
+# assumption held until a suite acquired a real transitive claim on it:
+# .claude/cloud-bootstrap.sh's pin comment names .github/actionlint.yaml, and
+# scripts/check-plugin-catalog-enablement.sh reads cloud-bootstrap.sh, so the
+# walk now runs actionlint.yaml -> cloud-bootstrap.sh -> that gate's suite and
+# reaches exit 0 through R3 exactly the way ci.yml does. Both edges are real and
+# neither should be severed to keep a probe convenient, so the probe moves
+# instead — the same resolution the ci.yml sentence above records.
+#
+# The filter is an INDEPENDENT oracle (a direct git grep for the basename), not
+# a call to affected-tests.sh: picking the probe with the tool under test would
+# make the assertion below tautological. One incoming reference anywhere is
+# enough to disqualify a candidate, because R3's first level would then have
+# somewhere to go.
+mapfile -t wf_candidates < <(cd "$REPO_ROOT" && git ls-files '.github/*.yaml' '.github/*.yml')
+wf_yaml=()
+for c in ${wf_candidates[@]+"${wf_candidates[@]}"}; do
+  if ! (cd "$REPO_ROOT" && git grep -q -F -- "${c##*/}" \
+    -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1') 2>/dev/null; then
+    wf_yaml=("$c")
+    break
+  fi
+done
 if [[ ${#wf_yaml[@]} -eq 0 ]]; then
-  fail "no .github YAML found to probe — the case below would be vacuous"
+  fail "no unreferenced .github YAML found to probe — the case below would be vacuous"
 fi
 for y in ${wf_yaml[@]+"${wf_yaml[@]}"}; do
   out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$y" 2>/dev/null)"
