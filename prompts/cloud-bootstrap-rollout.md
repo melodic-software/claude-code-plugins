@@ -71,11 +71,18 @@ Report the diff summary and anything you could not verify from this session.
 For each claude.ai account, at [claude.ai/code](https://claude.ai/code) → environment selector →
 edit **Default** (one environment per account; see the rationale at the end):
 
-1. **Network access**: **Custom**, with **Also include default list of common package managers**
-   checked, plus these hosts: `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
-   `download.visualstudio.microsoft.com`. Not optional if the fleet keeps .NET in the
-   environment: under Trusted the .NET install *always* fails
-   ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 1).
+1. **Network access**: **All** (operator decision 2026-08-22, superseding the Custom +
+   four-.NET-host recipe). The access level is an exfiltration control whose Custom default
+   already opens publish-capable package registries; the GitHub proxy, MCP connector traffic and
+   the Anthropic API bypass the level at every setting; and a blocked host mid-session kills that
+   session until an environment edit plus a cache rebuild. **All** removes that failure class,
+   including the `dot.net` special case —
+   [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 1 is moot
+   under All. The one exception is an account that handles sensitive material: drop that account
+   back to **Custom** — and configure it in full, or the .NET SDK install is back in the failure
+   mode Blocker 1 found. In full means **Also include default list of common package managers**
+   checked, plus `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
+   `download.visualstudio.microsoft.com`.
 2. **Environment variables**: none (values are readable by every session; there is no secrets
    store).
 3. **Setup script**: paste the canonical stub below (same as
@@ -161,8 +168,9 @@ fix, and the verification results.
 Yes. Environments are account-scoped and repo-agnostic, the stub is generic (all real work is
 delegated to the standards component and the checked-out repo's own script), and with 10–20
 accounts every extra environment multiplies manual UI work. Edit **Default** in place — with the
-Custom network allowlist from Part 2, which every account needs anyway — rather than adding a
-named environment; add a second environment later only when a class of work needs isolation (a
-different domain allowlist, or an SDK heavy enough that its cache churn should be contained).
+network access from Part 2, which every account needs anyway — rather than adding a named
+environment; add a second environment later only when a class of work needs isolation (an account
+handling sensitive material that has to run narrower than All, or an SDK heavy enough that its
+cache churn should be contained).
 This supersedes the "add a *Melodic* environment so Default stays pristine" option in
 [docs/CLOUD-FLEET-SETUP.md](../docs/CLOUD-FLEET-SETUP.md) for the paste-once fleet play.
