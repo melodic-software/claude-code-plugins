@@ -73,8 +73,15 @@ written file's `Tier` cells per the contract's consumer-precedence rule).
 
 ## Surfaces, and when the file is written at all
 
-`## Surfaces` names `docs-hygiene:audit-noise` once and carries the declined counts per rule id.
-Omit `tier:`, `## By dimension`, and `## Unparsed` (one dimension; nothing unparsed).
+`## Surfaces` names `docs-hygiene:audit-noise` once and carries a declined count per rule id for
+the five shapes that have no crosswalk row. Omit `tier:`, `## By dimension`, and `## Unparsed`
+(one dimension; nothing unparsed).
+
+**The negation rule's OWN declined candidates are not tallied in v1, and the honest thing is to
+say so rather than to invent the number.** A candidate declined by the third-person `-s` test or
+by a section, fence, frontmatter or opt-out-marker exemption never becomes a detector record, so
+nothing downstream can see one to count it. State that limit; never write a count nothing
+computed, which is the fabricated-coverage failure the contract names.
 
 - Findings to emit → write.
 - Files scanned, zero findings → write anyway with the empty `## Findings` header: coverage is

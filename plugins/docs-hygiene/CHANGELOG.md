@@ -24,7 +24,8 @@
   reviewer rules, which is what Tier 2 means. The documented opt-out markers make a dismissal
   stick across runs.
 
-  **Calibrated against this repository's own 1136-file tracked-markdown corpus**, and two cue
+  **Calibrated against this repository's own 1140-file tracked-markdown corpus** (all tracked
+  `.md` minus `**/evals/fixtures/**` and `CHANGELOG.md`), and two cue
   classes were dropped after reading every finding rather than guessed at up front:
 
   - A THIRD-PERSON `-s` verb after `Never`/`Avoid` is a capability roster describing a component

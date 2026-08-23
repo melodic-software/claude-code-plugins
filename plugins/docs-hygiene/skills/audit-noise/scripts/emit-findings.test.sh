@@ -202,6 +202,15 @@ assert_contains "an untabled shape is COUNTED, not dropped" "$MOUT" \
 assert_contains "every untabled shape gets its own count" "$MOUT" \
   "Declined candidates: docs-hygiene/audit-noise/rule-ghost-ref count=1 reason=no-severity-crosswalk-row"
 
+# The emitting rule's own declines are NOT tallied, and the artifact says so
+# rather than carrying a number nothing computed — a candidate declined at
+# selection never becomes a detector record for the emitter to see. Asserting
+# the literal keeps a future "count=0" from silently asserting full coverage.
+assert_contains "the emitting rule's own declines are declared not-tallied" "$MOUT" \
+  "Declined candidates: docs-hygiene/audit-noise/rule-negation-without-positive count=not-tallied-v1 reason=declined-at-selection-before-any-record"
+assert_not_contains "no fabricated zero-count for the emitting rule" "$MOUT" \
+  "rule-negation-without-positive count=0"
+
 # --- 7. Coverage is the payload -------------------------------------------------------
 
 bash "$EMIT" --from "$TEST_TMPDIR/clean-out.txt" --out "$TEST_TMPDIR/f/clean.md" --branch test-branch >/dev/null 2>&1

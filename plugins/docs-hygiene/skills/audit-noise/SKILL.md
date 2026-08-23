@@ -63,7 +63,7 @@ Consumers with their own ephemeral-path or noise conventions can refine these de
 |---|---|---|
 | `<target>` (default, no action keyword) | empty → uncommitted `.md` files from git; file path → single-file; dir path → batch | run `${CLAUDE_SKILL_DIR}/scripts/detect.sh` on targets; map the emitted facts to the per-file tier table using the treatments above |
 | `audit [target]` | same target rules | explicit form of the default; same behavior |
-| `--persist-findings` (flag on either form) | — | after reporting, also emit a `type: review-findings` artifact for `review:fanout fix`, per [`context/persist-findings.md`](context/persist-findings.md). Opt-in: a bare invocation reports and stops |
+| `--persist-findings` (flag on either form) | — | after reporting, also emit a `type: review-findings` artifact for `review:fanout fix`, per [`context/persist-findings.md`](context/persist-findings.md). Opt-in: a bare invocation reports and stops. **STRIP the flag from the target list before invoking `detect.sh`** — that script rejects any unrecognized `-*` argument with exit 2, so passing it through fails the run instead of enabling the emit |
 
 Single action v1; `relocate` and `generalize` actions are deferred until real demand surfaces — author hand-edits driven by audit output cover the sweep workflow.
 

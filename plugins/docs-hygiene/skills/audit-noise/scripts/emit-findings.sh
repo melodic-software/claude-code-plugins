@@ -237,6 +237,13 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROO
       if (declined[order[i]] > 0)
         printf "Declined candidates: docs-hygiene/audit-noise/rule-%s count=%s reason=no-severity-crosswalk-row\n", \
           order[i], declined[order[i]]
+    # Declines belonging to the emitting rule itself are NOT tallied, and
+    # saying so beats a number nothing computed: a candidate declined at
+    # selection (third-person -s, or a section / fence / frontmatter /
+    # opt-out-marker exemption) never becomes a detector record, so nothing
+    # downstream can count one. Note for editors: this awk program is inside a
+    # single-quoted shell string, so an apostrophe here would end it.
+    print "Declined candidates: docs-hygiene/audit-noise/rule-negation-without-positive count=not-tallied-v1 reason=declined-at-selection-before-any-record"
   }
 ' "$FROM" >"$OUT"
 
