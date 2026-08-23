@@ -28,7 +28,7 @@ claude plugin install smoketest@<marketplace> --scope local \
   --config req_key=hello --config some_dir=./realdir --config some_file=./realfile.txt
 # then read ~/.claude/settings.json → pluginConfigs[smoketest@<marketplace>].options
 
-# 2) non-existent relative paths (uninstall first, or --config short-circuits as a no-op)
+# 2) non-existent relative paths (uninstall first so this run starts from a clean install)
 claude plugin uninstall smoketest@<marketplace> --scope local
 claude plugin install smoketest@<marketplace> --scope local \
   --config req_key=hello --config some_dir=./does_not_exist_dir --config some_file=./does_not_exist.txt
