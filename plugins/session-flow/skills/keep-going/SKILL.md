@@ -1,5 +1,5 @@
 ---
-description: "Recover and continue after an interruption — rate limit, crash, disconnect, or gap — or when live off-thread work looks stalled and you are asked to check on it. Inventory off-thread work, inspect its REAL output, act only on evidence (resume / rerun / kill-and-restart), then continue the main task where it stood. Use when: 'keep going', 'continue', 'pick up where you left off', 'resume', 'you got cut off', 'we got interrupted', 'carry on', 'what were you doing', 'check the monitor', 'stop staring at it', 'poke it', 'is it stuck', 'are you stuck'. Infers intent from the conversation; arguments optional. After a usage limit lifts it continues rather than summarizing-and-stalling; it gates killing or re-firing side-effectful work. To retire finished off-thread work and reconcile the task ledger rather than resume, use /session-flow:reconcile."
+description: "Recover and continue after an interruption, rate limit, crash, disconnect, or gap, or when live off-thread work looks stalled and you are asked to check on it. Inventory off-thread work, inspect its REAL output, act only on evidence (resume / rerun / kill-and-restart), then continue the main task where it stood. Use when: 'keep going', 'continue', 'pick up where you left off', 'resume', 'you got cut off', 'we got interrupted', 'carry on', 'what were you doing', 'check the monitor', 'stop staring at it', 'poke it', 'is it stuck', 'are you stuck'. Infers intent from the conversation; arguments optional. After a usage limit lifts it continues rather than summarizing-and-stalling; it gates killing or re-firing side-effectful work. To retire finished off-thread work and reconcile the task ledger rather than resume, use /session-flow:reconcile."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,8 +11,8 @@ metadata:
 
 ## Purpose
 
-After an interruption — a rate limit, a crash, a disconnect, or just a
-long gap — work started off the main thread may be paused, dead, or
+After an interruption, a rate limit, a crash, a disconnect, or just a
+long gap, work started off the main thread may be paused, dead, or
 silently finished, and the main task's position is easy to misremember.
 The same recovery also applies live, mid-session, when off-thread work
 *looks* stalled and someone asks you to check on it. This skill recovers
@@ -25,14 +25,14 @@ stalling** once a usage limit has lifted instead of continuing, and
 **killing live-but-slow work on a hunch** instead of on evidence.
 
 Where `/session-flow:handoff` deliberately pauses a session, keep-going is
-the resume counterpart — it picks the work back up after any pause, planned
+the resume counterpart. It picks the work back up after any pause, planned
 or not.
 
-## Two ways in — same flow
+## Two ways in, same flow
 
-1. **After an interruption** — a rate limit, crash, disconnect, or gap
+1. **After an interruption**, a rate limit, crash, disconnect, or gap
    left work in an unknown state.
-2. **A live-session poke** — nothing was necessarily interrupted, but
+2. **A live-session poke**. Nothing was necessarily interrupted, but
    off-thread work looks stalled and you are asked to check ("check the
    monitor", "poke it", "is it stuck", "stop staring at it"). Verify
    against real output *before* acting; it may be alive and progressing.
@@ -45,7 +45,7 @@ align on the recorded goal → act on evidence → continue.
 Infer *what* to resume or check from the conversation and the real
 off-thread state, not from an argument. Arguments only narrow the target;
 their absence never blocks. When the conversation makes the referent
-clear, do not stop to ask "what should I keep going on?" — that stall is
+clear, do not stop to ask "what should I keep going on?"; that stall is
 itself the thing this skill removes.
 
 ## Steps
@@ -53,23 +53,23 @@ itself the thing this skill removes.
 1. **Inventory off-thread work.** Enumerate everything running outside
    this thread, per the off-thread kinds in
    [`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
-   — an open-ended set (background tasks, shells, monitors, scheduled
+   an open-ended set (background tasks, shells, monitors, scheduled
    jobs, dynamic workflows, subagents), not a fixed catalogue.
-2. **Inspect real state — never assume.** Read each item's actual state
+2. **Inspect real state, never assume.** Read each item's actual state
    from the source of truth, per that doc's inspect-real-state invariant:
-   do not infer "it probably finished" or "it probably died" — only the
+   do not infer "it probably finished" or "it probably died". Only the
    artifact tells you which.
-3. **Goal alignment — before any recovery ACTION.** When the resume
+3. **Goal alignment, before any recovery ACTION.** When the resume
    follows a `/session-flow:handoff`, read that file rather than trusting
-   memory — and when the handoff's path was lost (a `/clear` without
+   memory, and when the handoff's path was lost (a `/clear` without
    copying the resume prompt), recover it first with
    `/session-flow:find-handoff`. Read its `Original goal` section, then
    test the planned next actions against it: **say in one sentence how
    the next action serves that goal.** If you cannot, that is drift, not
-   a wording problem — stop, and either re-derive an action that does
+   a wording problem. Stop, and either re-derive an action that does
    serve the goal or ask the user whether the goal changed. **A handoff
    carrying no `Original goal` is itself a defect:** do not infer the goal
-   from the process the file describes, which is the thing that drifted —
+   from the process the file describes, which is the thing that drifted,
    ask the user for it in their own words before continuing, and carry
    their answer into the next save-point.
 
@@ -79,7 +79,7 @@ itself the thing this skill removes.
    tested it. One sentence, not a new stage. Its cost is nothing and its
    absence is the only signal that many sessions of faithful execution
    were aimed at the wrong thing.
-4. **Recover per item — act on evidence.** Classify against the real
+4. **Recover per item. Act on evidence.** Classify against the real
    output and act:
    - **Progressing** (even if slow) → leave it; report it is alive and
      moving. Do not kill work that is making progress.
@@ -90,8 +90,8 @@ itself the thing this skill removes.
      policy below).
    - **Unrecoverable** → surface it plainly; do not fake a recovery.
 5. **Reconcile the main thread.** Restate where the primary task
-   actually stood — grounded in a fresh read of any plan / checklist /
-   task artifact backing it, not a prior turn's claim — and continue it.
+   actually stood, grounded in a fresh read of any plan / checklist /
+   task artifact backing it, not a prior turn's claim, and continue it.
 6. **Report.** One list: recovered, restarted, still-running, and lost /
    unrecoverable.
 
@@ -101,23 +101,23 @@ Step 5 continues the main task in **this** session, and that is only right
 when this session's context is still fit for the work. When the
 `context-guard` plugin is installed, resolve this session's zone word per
 its reader contract before continuing (the contract owns the snapshot
-path, staleness rule, and bands — read them there; this skill consumes
+path, staleness rule, and bands. Read them there; this skill consumes
 only the resulting word and inlines no band values). Never substitute
-your own estimate of the remaining window for the instrument's reading —
+your own estimate of the remaining window for the instrument's reading,
 a resumed session's sense of its own budget is exactly the guess the
 instrument exists to replace. Absent plugin, absent snapshot, or
 `unknown` → judge from response quality alone, conservatively. A degraded
-zone — or context-guard's evidence-degraded marker for this session — does
+zone, or context-guard's evidence-degraded marker for this session, does
 not stop the recovery (steps 1-4 are reads and evidence-gated actions
 either way); it changes where the *continuation* goes: prefer routing the
 remaining work through `/session-flow:handoff` over pushing a long or
 judgment-heavy task through a degraded window.
 
-## Active-verification protocol — evidence before action
+## Active-verification protocol. Evidence before action
 
 For any "is it stuck / check the monitor / poke it":
 
-- **Read the real output first** — monitor status, subagent
+- **Read the real output first**. Monitor status, subagent
   transcript/output, task output, shell logs. Judge from the artifact,
   never from "it has been a while."
 - **Progress-vs-elapsed is a suspicion-raiser only.** Slow relative to
@@ -127,23 +127,23 @@ For any "is it stuck / check the monitor / poke it":
   live-but-slow work that was actually progressing is the failure mode to
   guard against.
 
-## Autonomy policy — resume freely, gate side effects
+## Autonomy policy. Resume freely, gate side effects
 
 - **Auto-resume** safe, idempotent, read-only, or clearly incomplete
   work without asking. Recovery should not stall on confirmation for work
   that cannot double-fire.
-- **GATE** before RE-FIRING anything with external side effects — a push,
-  a PR comment, a sent message, a deploy, a mutation — **and** before
+- **GATE** before RE-FIRING anything with external side effects, a push,
+  a PR comment, a sent message, a deploy, a mutation, **and** before
   KILLING or RESTARTING off-thread work whose death you cannot prove from
   step 2. When the inspection cannot prove the action did NOT already
   land, or cannot prove the work is actually dead, stop and ask.
   Double-firing a side effect, or killing live work, is worse than
   pausing.
 
-## After a usage limit lifts — GO, don't summarize
+## After a usage limit lifts. GO, don't summarize
 
 - If you are executing again, the block is already over: **continue the
-  work**. Do not produce a summary and stop — summarize-and-stall is the
+  work**. Do not produce a summary and stop. Summarize-and-stall is the
   failure mode. Report only at the end or on a hard block.
 - The time-vs-reset check belongs to the **orchestration** case: when
   step 2 inspects a worker or subagent that is itself limited, compare the
@@ -155,8 +155,8 @@ For any "is it stuck / check the monitor / poke it":
   python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/check-usage-limit-reset.py" "<limit message text>"
   ```
 
-  Exit `0` means the reset has passed — treat the worker as resumable now.
-  Exit `1` means the limit still holds — hand back by invoking
+  Exit `0` means the reset has passed, treat the worker as resumable now.
+  Exit `1` means the limit still holds, hand back by invoking
   `/session-flow:handoff` via the Skill tool and stop. Exit `2` means the message carried no parseable reset clause; say
   so plainly and ask the operator rather than guessing. Exit `3` means the
   reset clause parsed but the IANA timezone could not be resolved (rare when
@@ -164,17 +164,17 @@ For any "is it stuck / check the monitor / poke it":
   failure rather than treating the message as unparsable. In a single
   interactive session, if you are running, the answer is already GO.
 - Reset information available in-session is the limit **message text**
-  only (e.g. `resets 3:45pm`) and the interactive `/usage` view — there is
+  only (e.g. `resets 3:45pm`) and the interactive `/usage` view. There is
   no environment variable, file, or API that exposes it. Read the reset
   from the message; never invent a window.
 
-## Still blocked (limit not yet reset) — hand back, don't busy-wait
+## Still blocked (limit not yet reset). Hand back, don't busy-wait
 
 While a limit still holds you cannot make progress in this session.
 Compose with `/session-flow:handoff` to drop a resume artifact so nothing
 is lost, then stop. Automatic wake-and-continue at the reset time is an
-external scheduler's job — a desktop scheduled task or a cloud routine
-launched to resume from that handoff — not this skill's; keep-going hands
+external scheduler's job, a desktop scheduled task or a cloud routine
+launched to resume from that handoff, not this skill's; keep-going hands
 back cleanly and stops.
 
 ## Nothing-off-thread case
@@ -182,7 +182,7 @@ back cleanly and stops.
 If the inventory finds no off-thread work, say so, run step 3's
 goal-alignment check when a handoff backs the resume, then go straight to
 step 5: reconcile the main thread from its real state and continue. The
-interruption may have hit mid-turn on the main thread alone — recovering
+interruption may have hit mid-turn on the main thread alone. Recovering
 that is still the job.
 
 ## What this skill does NOT do
@@ -190,10 +190,10 @@ that is still the job.
 - **Does not diagnose the interruption type.** A short limit, a weekly
   limit, or a crash all take the same recovery, so the cause is not
   classified. (Reading a stated reset time to gate a blocked worker is not
-  diagnosis — it does not change the recovery method.)
+  diagnosis. It does not change the recovery method.)
 - **Does not kill or restart live-but-slow work on a hunch.** Action
   follows real output, and kill/restart is gated like any side effect.
-- **Does not summarize-and-stall after a limit lifts** — it continues.
+- **Does not summarize-and-stall after a limit lifts**. It continues.
 - **Does not build or arm its own scheduler.** Still-blocked work is
   handed back by invoking `/session-flow:handoff` via the Skill tool, not parked on a self-armed
   wakeup.

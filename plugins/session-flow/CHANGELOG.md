@@ -1,5 +1,19 @@
 # Changelog — session-flow plugin
 
+## [0.32.6]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 2).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The generated options block is ignore-fenced because
+  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+  Protocol strings that producers emit or consumers match (`Re-arm <i> of <n> — <L> lines:`,
+  the fenced `ORCHESTRATION BRIEF` title, the workflow glance map) stay as written; the
+  detector declines fenced and inline-code spans.
+
 ## [0.32.5]
 
 ### Changed
