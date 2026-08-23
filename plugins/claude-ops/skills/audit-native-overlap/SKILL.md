@@ -68,6 +68,31 @@ would silently audit the wrong fleet.
 Seeded candidate pairs live beside this skill in `reference/canonical-pairs.json`. They are
 candidates, never verdicts: a pair there proposes a row for a human to rule on.
 
+## Run it
+
+The engine is `scripts/overlap.py` — Python 3.11+, standard library only, three subcommands:
+
+```bash
+# Candidates: merge the extraction, the repo tree, and the seeded pairs.
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" detect \
+  --inventory ./claude-inventory.json --out ./overlap-candidates.json
+
+# Registry: render the store into the generated view (--check diffs instead).
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" generate
+
+# Freshness: the deterministic gate.
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" self-check
+```
+
+`--repo`, `--store`, `--view`, and `--pairs` are flags with repo-relative defaults, so a consumer
+repository with a different layout points them wherever its files live.
+
+Every subcommand exits `0` ok, `1` broken, `3` degraded — the sibling extractor's contract, not the
+shell gates' `0/1/2`, so one lane can carry both; `2` stays argparse's usage error. A degraded exit
+is a passing run: it means the data is stale-but-honest or something was not locally decidable, and
+the run says which. The suite is `scripts/test_overlap.py`, wrapped by `scripts/overlap.test.sh`
+for the repo's test discovery.
+
 ## Detection posture — floor-honest
 
 Under-recall stated honestly beats confident completeness. Three rules:
