@@ -8,7 +8,6 @@
   fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
   SSOT wording, operable text kept inline with provenance-only citations (#2698).
 
-
 ## [0.19.0]
 
 ### Changed

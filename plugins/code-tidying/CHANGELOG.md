@@ -12,7 +12,6 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   canonical fleet wording, keeping the operable text inline with a provenance-only citation
   (whole-repo extract-ssot batch, #2698).
 
-
 ## [0.14.0]
 
 ### Added

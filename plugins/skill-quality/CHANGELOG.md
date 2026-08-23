@@ -12,7 +12,6 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   canonical fleet wording, keeping the operable text inline with a provenance-only citation
   (whole-repo extract-ssot batch, #2698).
 
-
 ## [0.19.0]
 
 ### Added

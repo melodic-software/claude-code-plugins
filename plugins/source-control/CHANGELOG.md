@@ -12,7 +12,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
   canonical fleet wording, keeping the operable text inline with a provenance-only citation
   (whole-repo extract-ssot batch, #2698).
 
-
 ## [0.55.2]
 
 ### Fixed
