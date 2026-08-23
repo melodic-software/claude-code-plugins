@@ -577,6 +577,23 @@
         "audit",
         "skill"
       ]
+    },
+    {
+      "name": "instruction-placement",
+      "source": "./plugins/instruction-placement",
+      "category": "claude-code",
+      "tags": [
+        "instruction-placement",
+        "claude-md",
+        "agents-md",
+        "claude-rules",
+        "path-scoped-rules",
+        "progressive-disclosure",
+        "context-economy",
+        "audit",
+        "realign",
+        "skill"
+      ]
     }
   ],
   "renames": {

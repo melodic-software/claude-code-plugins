@@ -1,0 +1,58 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "dead-glob-is-reported-with-its-fix",
+      "prompt": "/instruction-placement:check",
+      "expected_output": "Runs the glob validator over every rule in `.claude/rules/` and reports each failure with the rule file, the pattern, the status, and what to do about it. A zero-match glob is named as a rule that never fires — silently, with no warning from Claude Code — and the two plausible causes are given: the pattern is wrong, or the code it described was moved or deleted, in which case the rule is stale rather than misspelled. The three failure statuses get different remedies rather than a shared 'invalid' label, and the skill exits non-zero.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the rule file and pattern for each failure, not just a count",
+        "Distinguishes zero-match, bad-bracket, and over-budget with different remedies",
+        "States that these failures are silent in Claude Code",
+        "Exits non-zero when any rule glob is invalid"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "missing-index-is-a-recommendation-not-a-failure",
+      "prompt": "/instruction-placement:check — we have rules but we've never generated an index.",
+      "expected_output": "Treats the absent index as a recommendation rather than a gate failure: the index checker's exit 3 means 'nothing to compare', not 'broken'. It explains what the index buys — deferred surfaces are invisible inside subagents, and an always-loaded index is what makes them reachable by an ordinary Read — and names the skill that generates it. The gate's verdict is decided by the glob checks alone, so a repository with valid rules and no index yet passes while still being told what it is missing. A repository that HAS an index and let it drift is a different case and does fail.",
+      "files": [],
+      "expectations": [
+        "Does not fail the gate solely because no index block exists",
+        "Explains the subagent reachability the index provides",
+        "Distinguishes the missing-index case from the drifted-index case",
+        "Names which file it resolved as the index target"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "over-broad-warns-and-suggests-the-threshold",
+      "prompt": "/instruction-placement:check — it says one of our rules is over-broad but it's a docs repo, **/*.md really is most of it.",
+      "expected_output": "Confirms that over-broad is a warning rather than a failure, because breadth is a judgment about whether a demotion was worth making, not a statement that the rule is broken. It accepts the operator's context: in a documentation repository a glob covering most files may be entirely correct. It names the concrete lever — raise `--breadth-max` rather than live with a standing warning — and does not propose narrowing a glob that accurately describes its scope. The gate's exit code is unaffected by an over-broad result.",
+      "files": [],
+      "expectations": [
+        "States that over-broad does not fail the gate",
+        "Accepts the repository context instead of insisting on a narrower glob",
+        "Names the --breadth-max lever concretely",
+        "Confirms the exit code is unaffected"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-passes-on-an-unmeasurable-repository",
+      "prompt": "/instruction-placement:check — run it here (this directory is a plain folder, not a git checkout).",
+      "expected_output": "When the validator cannot run — the target is not a git repository, or required tooling is missing — the skill reports that plainly and exits non-zero rather than reporting a pass. A gate that reports success because it could not measure is worse than no gate: it converts an unknown into a false assurance that a reviewer will trust. It also does not consult the findings artifact as a substitute source of truth, because that is a snapshot of a past run and the repository may have broken since.",
+      "files": [],
+      "expectations": [
+        "Exits non-zero when it cannot measure, rather than passing",
+        "States plainly what prevented the measurement",
+        "Does not fall back to the findings artifact as evidence of health",
+        "Does not fabricate a verdict"
+      ]
+    }
+  ]
+}

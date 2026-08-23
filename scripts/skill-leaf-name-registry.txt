@@ -81,11 +81,28 @@ setup *
 # human gate. The obvious alternative leaf names are worse: `audit-enforcement`
 # repeats the namespace, and a retirement-flavored verb like `prune` would
 # promise mutation the verb table reserves for clean/tidy/fix.
-audit ai-slop,claude-config,claude-memory,codebase-health,context-budget,github,machine-health,mcp-tools,mutation-testing,overengineering,plugin-quality,repo-fleet-hygiene,testing
+#
+# instruction-placement joins on its own grounds. Its object is neither a
+# codebase nor a configuration surface but the PLACEMENT of agent-facing
+# instruction content: which surface carries each convention, and therefore
+# when it enters context. It holds the verb's contract exactly -- bare
+# invocation sweeps and reports, the only write is the findings artifact its
+# sibling `realign` consumes from the memory tier, and there is no --fix. The
+# nearest alternatives are worse: `audit-placement` repeats what the namespace
+# already says, and any migration-flavored verb would promise the mutation the
+# sibling owns behind a per-item gate.
+audit ai-slop,claude-config,claude-memory,codebase-health,context-budget,github,instruction-placement,machine-health,mcp-tools,mutation-testing,overengineering,plugin-quality,repo-fleet-hygiene,testing
 
 # Fixed verb meaning: deterministic pass/fail gate. skill-quality checks a
-# skill, toolchain checks a build.
-check skill-quality,toolchain
+# skill, toolchain checks a build. instruction-placement joins on its own
+# grounds rather than theirs: it gates a repository's path-scoped instruction
+# surfaces -- that every `.claude/rules/` glob still resolves against tracked
+# files and that the always-loaded index matches the rules on disk. Every one
+# of those failures is silent in Claude Code, so the gate is the only thing
+# that surfaces them, and the verb's contract fits exactly: no judgment layer,
+# no mutation, the exit code is the product. A topic qualifier would repeat the
+# namespace, which already supplies the object.
+check instruction-placement,skill-quality,toolchain
 
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.
@@ -150,3 +167,16 @@ generate ai-briefing,wizard
 # Fixed verb meaning: produces an artifact. bug-report writes a report, testing
 # writes tests.
 write bug-report,testing
+
+# Fixed verb meaning: consumes a sibling audit's findings artifact and drives the
+# human-gated realignment it recommends, never re-judging the surface itself.
+# Both members hold the verb's full contract -- per-item acceptance, no blanket
+# approve path, and a protected class the operator cannot talk them past.
+# overengineering realigns an enforcement surface (hooks, CI lanes, gates) toward
+# the simplest adequate mechanism; instruction-placement realigns an instruction
+# layer, moving agent-facing content onto the surface that loads it at the right
+# moment. Unrelated targets, and the namespace disambiguates. A topic qualifier
+# would repeat the namespace in both cases, and neither has a better leaf: the
+# verb table reserves clean/tidy/fix for unqualified mutation, which is exactly
+# what a per-item gate is not.
+realign instruction-placement,overengineering

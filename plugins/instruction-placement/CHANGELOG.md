@@ -1,0 +1,54 @@
+# Changelog
+
+All notable changes to the `instruction-placement` plugin are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+
+## [0.1.0]
+
+### Added
+
+- **`audit` — read-only placement sweep.** Two lanes over a two-tier corpus: **demote** (content in
+  an always-loaded `CLAUDE.md`/`AGENTS.md` or an unscoped rule whose real scope is one file kind or
+  one subtree) and **promote** (normative conventions stranded in ordinary markdown that Claude
+  loads never). Candidates are classified against a decision ladder, every path-scoped proposal
+  carries a machine-validated `paths:` glob, and every proposal is priced with its cost as well as
+  its saving. Emits a diffable findings artifact under a project-keyed plugin-data path; mutates
+  nothing in the repository.
+
+- **`realign` — per-item human-gated apply.** Consumes the audit's artifact and never re-judges the
+  surface. Five recipes (path-scoped rule, nested `AGENTS.md` plus shim, promote-by-move or
+  promote-by-pointer, re-scope in place, delete) each create before excising, so an interruption
+  leaves content duplicated rather than deleted. Every accepted move regenerates the always-loaded
+  index. No blanket-approve path exists, including on request.
+
+- **`check` — deterministic gate.** Verifies every `.claude/rules/` glob still resolves and that the
+  index matches the rules on disk. Read-only, CI-shaped, and deliberately blind to the findings
+  artifact so a stale audit can never make a broken repository look healthy.
+
+- **`scripts/glob-tools.sh` — glob validation engine (45 tests).** Validates `paths:` globs against
+  the repository's tracked files: zero-match, malformed bracket expression, and the documented
+  1,000-pattern / 4 MiB brace-expansion budget are all hard failures, over-broad is a warning. Brace
+  expansion is hand-rolled rather than delegated to shell `eval`, because the input is repository
+  content and a crafted rule file must not be able to run commands — covered by a test asserting
+  exactly that.
+
+- **`scripts/render-index.sh` — always-loaded index generator (47 tests).** Renders, checks, and
+  writes a marked block listing every instruction surface that loads on demand. Indexes only
+  surfaces that defer: an unscoped rule already loads every session, so indexing it would spend
+  always-loaded budget restating what is already present. Delimited by HTML comments, which Claude
+  Code strips from memory files before injection, so the markers cost no context.
+
+- **First-party loading measurements on Claude Code 2.1.238**, recorded in
+  `context/verified-mechanics.md` with the `InstructionsLoaded` payloads they came from. Four
+  findings shape the design: an `@import` inside a *nested* `CLAUDE.md` defers with its parent
+  (unlike one inside a path-scoped rule, which does not); a nested `AGENTS.md` with no `CLAUDE.md`
+  shim is never loaded; a subagent sees only the root instruction pair, inheriting none of its
+  parent's on-demand loads; and the index is therefore the only mechanism that reaches a subagent.
+
+- **Hard-deny classes.** Irreversible actions, secret handling, data integrity, external
+  publication, legal and compliance obligations, and bounds on the agent's own authority are
+  excluded from the candidate set entirely rather than surfaced as risky options. `audit` reports
+  what it held back; `realign` has no code path that can apply one. Two further structural denies
+  come from the mechanics rather than from consequence: creation-governing content cannot use a
+  path-scoped destination (the trigger is a read), and a candidate whose body is only an `@import`
+  is never routed to one (the import inlines at session start and defeats the scoping).

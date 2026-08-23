@@ -79,6 +79,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/debugging:debug`](../plugins/debugging/skills/debug/SKILL.md) | `debugging` | Diagnose broken behavior — reproduce, hypothesise, instrument, fix with regression test |
 | [`/implementation:implement`](../plugins/implementation/skills/implement/SKILL.md) | `implementation` | Execute approved plans with TDD, incremental validation, and green commits |
 | [`/implementation:implement-dispatch`](../plugins/implementation/skills/implement-dispatch/SKILL.md) | `implementation` | Orchestrate worker subagents to execute an approved plan |
+| [`/instruction-placement:realign`](../plugins/instruction-placement/skills/realign/SKILL.md) | `instruction-placement` | Apply accepted placement findings behind a per-item human gate |
 | [`/overengineering:realign`](../plugins/overengineering/skills/realign/SKILL.md) | `overengineering` | Execute accepted audit findings down the rollback ladder behind a per-item human gate |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 
@@ -193,6 +194,8 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/github:advise`](../plugins/github/skills/advise/SKILL.md) | `github` | Design and set up GitHub settings and admin areas grounded in live gh state |
 | [`/github:audit`](../plugins/github/skills/audit/SKILL.md) | `github` | Read-only audit of GitHub org and repo settings, drift, and cost signals |
 | [`/improvement:find`](../plugins/improvement/skills/find/SKILL.md) | `improvement` | Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline |
+| [`/instruction-placement:audit`](../plugins/instruction-placement/skills/audit/SKILL.md) | `instruction-placement` | Find instruction content on the wrong surface and propose validated destinations |
+| [`/instruction-placement:check`](../plugins/instruction-placement/skills/check/SKILL.md) | `instruction-placement` | Gate that every path-scoped rule glob resolves and the rules index is current |
 | [`/overengineering:audit`](../plugins/overengineering/skills/audit/SKILL.md) | `overengineering` | Audit the enforcement surface for mechanisms no longer earning their carry cost |
 | [`/overengineering:delta`](../plugins/overengineering/skills/delta/SKILL.md) | `overengineering` | Re-run the enforcement-surface audit and report only what moved since the last run |
 | [`/playbooks:boris`](../plugins/playbooks/skills/boris/SKILL.md) | `playbooks` | Boris Cherny's Claude Code workflow tips across 115 sections |
