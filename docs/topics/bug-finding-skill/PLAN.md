@@ -105,22 +105,22 @@ Create `plugins/bug-report/skills/scan/` and the shared config reference:
 
 **Sanity Check:** `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/bug-report/skills" bash plugins/skill-quality/scripts/check-skill.sh --require-evals setup` exits 0. `grep -q "bug-report" docs/conventions/config-cascade/README.md` exits 0 (Implementers table). `grep -q "nothing an apply could write" plugins/bug-report/skills/setup/SKILL.md` exits non-zero (phrase removed from description; verified present on current main pre-change). `grep -c "apply" plugins/bug-report/skills/setup/SKILL.md` ≥ 5.
 
-### Phase 3: plugin metadata + generated docs [TODO]
+### Phase 3: plugin metadata + generated docs [DONE]
 
 - `plugins/bug-report/.claude-plugin/plugin.json` — version 0.7.4 (current main) → 0.8.0; description/keywords updated only if scan changes the plugin's summary (default: keywords gain "scan"/"bug-hunting" if schema-permitted; marketplace.json untouched).
 - `plugins/bug-report/CHANGELOG.md` — 0.8.0 entry (new scan skill; setup check|apply; tracked config file) added ABOVE the preserved 0.7.2–0.7.4 headings (parity gate checks preservation + order).
 - `plugins/bug-report/README.md` — scan section + config-file documentation.
 - Regenerate `docs/CATALOG.md` + `docs/SKILL-CHEAT-SHEET.md` (`node scripts/generate-catalog.mjs && node scripts/generate-cheatsheet.mjs`).
 
-**Sanity Check:** `bash scripts/check-changelog-parity.sh` exits 0. `bash scripts/validate-plugins.sh` exits 0 (includes `--check` regen staleness). `grep -q '"version": "0.8.0"' plugins/bug-report/.claude-plugin/plugin.json`.
+**Sanity Check:** `bash scripts/check-changelog-parity.sh --check` (plus --check-bump/--check-preserved origin/main and --check-order) exits 0 — the bare form takes no default mode. `bash scripts/validate-plugins.sh` exits 0 (includes `--check` regen staleness). `grep -q '"version": "0.8.0"' plugins/bug-report/.claude-plugin/plugin.json`.
 
-### Phase 4: full local gate pass [TODO]
+### Phase 4: full local gate pass [DONE]
 
 Run every gate CI will run, fix findings: `bash scripts/check-changed-skills.sh origin/main`; `markdownlint-cli2` on changed .md; `typos`; `editorconfig-checker`; `bash scripts/check-contract-slice-prune.sh --check-diff origin/main` expectation check (slice still present pre-prune — gate failure EXPECTED here, resolved in Phase 5); re-run `bash scripts/validate-plugins.sh`.
 
 **Sanity Check:** each named command exits 0 (except the contract-slice-prune expectation, exit non-zero while the slice exists — recorded, resolved by Phase 5).
 
-### Phase 5: PR, CI, prune, merge [TODO]
+### Phase 5: PR, CI, prune, merge [DOING]
 
 1. Commit phases as they complete (conventional messages); push to `claude/bug-finding-skill-f2vst1`.
 2. Close-out step 1: open the PR to main with a **Conventional-Commits title** (repo is squash-only; squash subject = PR title, enforced by pr-title.yml); PR body carries `Closes #N` or the literal `No linked issue` line AND a non-empty `## Related` section (pr-issue-linkage.yml strips HTML comments — an unedited template fails), the approved PLAN.md in a `<details>` block, and the attribution footer. Subscribe to PR activity.
