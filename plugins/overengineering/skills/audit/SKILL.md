@@ -218,12 +218,22 @@ name. The sibling `delta` lane resolves identity the same way, on the same reaso
 
 When the branch identity does not resolve:
 
-- **Prefer a logical ref where the environment supplies one.** Some execution environments hand the
-  run the ref it was launched for even though the checkout is detached. Where such a value is present
-  and names a branch, use it as the branch identity for both the home key and the `branch:` field,
-  and name in the report where it came from. **No vendor's variables are named here or assumed** —
-  this plugin is consumer-agnostic, and hardcoding one CI system's environment would be a claim about
-  the consumer's toolchain that the rest of this plugin refuses to make.
+- **Prefer a logical ref where the environment supplies one**, only after it is a real
+  branch name. Some execution environments hand the run the ref it was launched for even
+  though the checkout is detached. **No vendor's variables are named here or assumed.**
+  Before that value may key a home or fill `branch:`:
+  1. **Normalize** it to the same short form `git symbolic-ref --short` would emit: strip a
+     leading `refs/heads/` (and only that prefix). `refs/heads/main` and `main` must produce
+     the same home key, or a later attached `realign` on `main` will miss the artifact.
+  2. **Validate** the result as a git branch name. Refuse it if it is empty, if any path
+     segment is `.` or `..`, or if `git check-ref-format --branch -- <value>` exits
+     non-zero. The topic-docs slug leaves `.` untouched, so an unvalidated `..` would
+     compose `.work/overengineering/../findings.md` and escape the home. An unvalidated
+     string is also the same cross-ref mutation this section closes for `HEAD`: it keys
+     one checkout's findings to another name.
+  A value that fails either step is treated as absent — fall through to the refusal
+  below. A value that passes is the branch identity for both the home key and `branch:`,
+  and the report names that it came from the environment.
 - **Otherwise, persist nothing and say why** — "detached checkout, no logical ref supplied; no branch
   identity, so no findings artifact is written". Do not fall back to `HEAD`, to the commit sha, or to
   whatever home the slug happens to produce. A home keyed by something every ref shares is a home the
@@ -234,10 +244,16 @@ When the branch identity does not resolve:
   `realign` must refuse anyway, so writing it only moves the failure later and leaves a file behind
   that the next run merges into.
 
-**The walk still runs, exactly as it otherwise would, and the inline summary is still emitted.** What
-is declined is the persisted write, not the pass — the report says so in place of the read-only
-opening line's resolved path, so the operator learns the run produced no artifact at the moment it
-would otherwise have been told where one lives.
+**Detached-in-a-repo vs no checkout are different stops.** The precompute sentinel covers both,
+but they are not the same case. **No checkout** (no project root, `git rev-parse --show-toplevel`
+fails) is the topic-docs "No project root" stop: there is no enforcement surface to audit, so
+the run does not walk an arbitrary working directory and report it as the repository. A
+**detached checkout inside a repository** is the case this section governs: the walk still runs
+and the inline summary is still emitted. What is declined is the persisted write, not the pass
+— the report says so in place of the read-only opening line's resolved path, so the operator
+learns the run produced no artifact at the moment it would otherwise have been told where one
+lives. When that summary is the only record, it lists **every** finding, not the capped "top
+findings" the template uses when an artifact will carry the rest.
 
 ## Gotchas
 

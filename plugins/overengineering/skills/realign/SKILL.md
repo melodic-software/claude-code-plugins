@@ -65,8 +65,10 @@ An acceptance given earlier is not an approval of the edit that later falls out 
    all, so where the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read
    its exit status rather than assuming an identity. **`HEAD` is never accepted as a branch
    identity**, and neither is the sentinel. Where the sentinel appears, prefer a logical ref
-   if the environment supplies one that names a branch (naming where it came from); **otherwise
-   stop** — see "An unresolved branch identity is its own refusal" below. With an identity in hand,
+   if the environment supplies one that names a branch, after the same normalize-then-validate
+   steps `audit` uses (strip a leading `refs/heads/`, then `git check-ref-format --branch`,
+   refuse `.` / `..` segments); name where it came from. **Otherwise stop** — see "An unresolved
+   branch identity is its own refusal" below. With an identity in hand,
    resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. A hardcoded path reads where the audit never
    wrote, and that failure is indistinguishable from the audit never having run.

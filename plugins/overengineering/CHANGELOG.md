@@ -7,6 +7,15 @@ All notable changes to the `overengineering` plugin are documented here. Format 
 
 ### Fixed
 
+- **Logical-ref fallback is now a git branch name, not an arbitrary string.** An environment
+  value used as the detached-checkout identity is normalized (`refs/heads/main` → `main`) and
+  refused unless `git check-ref-format --branch` accepts it, so `..` cannot slug into a
+  path-escape and a later attached `realign` on `main` finds the same home. No-checkout is a
+  walk-stop; detached-in-a-repo still walks and, when nothing is persisted, the inline summary
+  lists every finding rather than a capped top list.
+
+- **`audit` and `realign` gave a detached checkout a branch identity, collapsing every ref onto one
+
 - **`audit` and `realign` gave a detached checkout a branch identity, collapsing every ref onto one
   (#3149).** Both skills precomputed the branch with `git rev-parse --abbrev-ref HEAD`, which answers
   the literal string `HEAD` when HEAD is detached — the ordinary shape for a scheduled CI runner.

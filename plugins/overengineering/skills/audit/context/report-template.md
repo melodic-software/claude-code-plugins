@@ -59,7 +59,9 @@ it.
 3. **Counts**, per verdict class and per layer. A small table, not prose.
 4. **The top findings**, ranked — protected items flagged for a human first, then the strongest
    evidenced retirement-direction verdicts, then the carry-cost-ranked head of the UNPROVEN residue.
-   Cap the inline list; the artifact carries the rest.
+   Cap the inline list **only when the artifact was written**; the artifact carries the rest.
+   When no branch identity resolved and this summary is the only record, emit **every** finding
+   inline. A cap here would discard the tail of a scheduled detached run.
 5. **The proposed ablation batch**, when one was produced: its items, an owner and a re-check date
    each, and the observation window's end date.
 6. **Open checkpoints** — the intent questions awaiting an answer (attended), or the count of
