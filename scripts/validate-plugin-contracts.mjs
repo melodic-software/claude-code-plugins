@@ -7,6 +7,39 @@ import process from "node:process";
 const root = process.cwd();
 const failures = [];
 
+// Org-agnosticism tokens live in scripts/org-agnosticism-tokens.txt — one
+// data file, every site either reads it or is a documented extension (#3136).
+function loadOrgAgnosticismClass(cls) {
+  const path = join(root, "scripts", "org-agnosticism-tokens.txt");
+  if (!existsSync(path)) {
+    failures.push(`scripts/org-agnosticism-tokens.txt: missing (org-agnosticism SSOT)`);
+    return null;
+  }
+  const pats = [];
+  for (const raw of read(path).split(/\r?\n/)) {
+    if (!raw || raw.startsWith("#")) continue;
+    const match = raw.match(/^(\S+)\s+(\S+)\s*$/);
+    if (!match) {
+      failures.push(`scripts/org-agnosticism-tokens.txt: malformed line: ${raw}`);
+      continue;
+    }
+    if (match[1] === cls) pats.push(match[2]);
+  }
+  if (pats.length === 0) {
+    failures.push(`scripts/org-agnosticism-tokens.txt: no tokens for class ${cls}`);
+    return null;
+  }
+  return new RegExp(pats.join("|"), "i");
+}
+
+const orgTokens = {
+  fleetId: loadOrgAgnosticismClass("fleet-id"),
+  fleetKey: loadOrgAgnosticismClass("fleet-key"),
+  setup: loadOrgAgnosticismClass("setup"),
+  autonomy: loadOrgAgnosticismClass("autonomy"),
+  github: loadOrgAgnosticismClass("github"),
+};
+
 function filesUnder(directory) {
   if (!existsSync(directory)) return [];
   const files = [];
@@ -72,17 +105,17 @@ for (const path of setupContractFiles) {
   if (/pluginConfigs\s*\[\s*["'][^"']+@/i.test(content)) {
     fail(path, "must not write marketplace-qualified pluginConfigs keys");
   }
-  if (/@melodic-software\b/i.test(content)) {
+  if (orgTokens.setup && orgTokens.setup.test(content)) {
     fail(path, "must not bind setup behavior to a marketplace name");
   }
 }
 
 for (const path of pluginFiles.filter((path) => /[\\/]skills[\\/].*\.md$/.test(path))) {
   const content = read(path);
-  if (/@melodic-software\b|melodic-software\/github-iac/i.test(content)) {
+  if (orgTokens.fleetId && orgTokens.fleetId.test(content)) {
     fail(path, "reusable skill content must not require publisher-specific runtime identifiers");
   }
-  if (/\bMELODIC_[A-Z0-9_]+\b/.test(content)) {
+  if (orgTokens.fleetKey && orgTokens.fleetKey.test(content)) {
     fail(path, "reusable skill content must not introduce publisher-prefixed configuration");
   }
 }
@@ -244,7 +277,7 @@ if (existsSync(aiBriefingBrandOverlay)) {
 // replace them; tool-specific detail lives in SKILL.md/README.
 const autonomyRoot = join(pluginRoot, "autonomy");
 if (existsSync(autonomyRoot)) {
-  const fleetTokens = /melodic-software|ci-workflows|github-iac/i;
+  const fleetTokens = orgTokens.autonomy;
   const vendorTokens = /github|gitlab|bitbucket|slack|anthropic|claude|openai|copilot|cursor|devin/i;
   const autonomyReference = join(autonomyRoot, "reference") + sep;
   for (const path of filesIn(autonomyRoot)) {
@@ -255,7 +288,7 @@ if (existsSync(autonomyRoot)) {
       delete manifest.author;
       content = JSON.stringify(manifest);
     }
-    if (fleetTokens.test(content)) {
+    if (fleetTokens && fleetTokens.test(content)) {
       fail(path, "autonomy plugin must not name the org or fleet repos (binding-seam owns instances)");
     }
     if (path.startsWith(autonomyReference) && vendorTokens.test(content)) {
@@ -314,6 +347,26 @@ if (existsSync(marketplacePath)) {
       fail(
         marketplacePath,
         `archive entry "${entry.name ?? "(unnamed)"}" must pin its download with a 64-hex sha256`,
+      );
+    }
+  }
+}
+
+// github.test.sh's agnostic-conformance regex is a documented extension of
+// this file's `github` class — same tokens, plugin-local reach. Drift here
+// would recreate the two-set problem #3136 closed.
+if (orgTokens.github) {
+  const githubTest = join(pluginRoot, "github", "github.test.sh");
+  if (existsSync(githubTest)) {
+    const source = read(githubTest);
+    const found = source.match(/grep -riEn "([^"]+)" "\$PLUGIN_DIR" --include='\*\.md'/);
+    const expected = orgTokens.github.source;
+    if (!found) {
+      fail(githubTest, "agnostic-conformance grep not found; keep it aligned with scripts/org-agnosticism-tokens.txt class github");
+    } else if (found[1] !== expected) {
+      fail(
+        githubTest,
+        `agnostic-conformance regex drifted from scripts/org-agnosticism-tokens.txt class github (file has ${found[1]}; tokens file has ${expected})`,
       );
     }
   }

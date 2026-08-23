@@ -32,21 +32,25 @@ statement does not settle it; `plugins/architecture/reference/topic-docs.md` is 
 this rule entirely, being neither skill, agent, nor schema content — identifying the source is what
 the manifest is for.)
 
-Like the setup contract below, **this is a normative target, not a description of the fleet**, and
-enforcement reaches a strict subset of it.
-`scripts/validate-plugin-contracts.mjs` gates the
-marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys across every plugin's skill
-content, and holds the `autonomy` plugin to a stricter token set;
-`plugins/github/github.test.sh` sweeps a wider token set over a narrower scope — its own plugin's
-prose only — as its "agnostic conformance" check, a sibling of that file's D4 zero-vendored-knowledge
-checks, not one of them. The
-bare organization name in skill prose is gated nowhere *fleet-wide* — only inside `autonomy` and
-`github`, each by a sweep scoped to that one plugin — and agent content is gated nowhere at all, so
-shipped skills predating this statement are nonconforming until brought into conformance rather than
-absolved by a green build. A fleet-wide edit answers to two independent mechanisms, each running in
-its own step of the same `plugin-gate` CI job and neither aware of the other; consolidating them
-behind this statement, and
-settling that conformance gap deliberately, is tracked in issue #3136.
+Like the setup contract below, **this is a normative target, not a description of the fleet**.
+Enforcement is the token classes in `scripts/org-agnosticism-tokens.txt` — one data file, every
+site either reads it or is a documented narrowing/extension of it:
+
+- **fleet-id / fleet-key** — marketplace id, `melodic-software/github-iac`, and `MELODIC_*` keys,
+  across every plugin skill `.md` (`scripts/validate-plugin-contracts.mjs`).
+- **setup** — setup-skill files must not bind to a marketplace name (same validator).
+- **autonomy** — stricter extension: bare organization name and fleet repo names, scoped to the
+  `autonomy` plugin (`plugin.json` `author` remains exempt).
+- **github** — this plugin's markdown only, adding `melodic`, `medley`, and `pulumi`.
+  `plugins/github/github.test.sh`'s "agnostic conformance" check is that extension, a sibling of
+  that file's D4 zero-vendored-knowledge sweeps, not one of them. The validator fails if the
+  test's regex drifts from the `github` class.
+
+Agent content, schema files, and a fleet-wide bare organization name are **not gated**. That is a
+deliberate narrowing of enforcement to the classes above, not an accident a green build absolves.
+The independent `portability-lint` job stages a related publisher-token class in
+`scripts/skill-portability-tokens.txt`; if that class activates it must consume or align with
+`org-agnosticism-tokens.txt` rather than invent a third set.
 
 Keep plugins horizontally decoupled:
 

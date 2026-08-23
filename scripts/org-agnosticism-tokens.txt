@@ -1,0 +1,38 @@
+# Org-agnosticism token set — the single data file every enforcement site
+# reads or is a documented narrowing/extension of.
+#
+# Doctrine: docs/PLUGIN-PHILOSOPHY.md § "Design boundary".
+# Idiom: same as scripts/skill-portability-tokens.txt (data, not gate logic).
+#
+# Format: blank lines and lines beginning with `#` are ignored. Every other
+# line is `<class> <ERE>` (one space). Classes:
+#
+#   fleet-id   — marketplace id / publisher repo path, every plugin skill .md
+#   fleet-key  — publisher-prefixed configuration keys, every plugin skill .md
+#   setup      — setup-skill files must not bind to a marketplace name
+#   autonomy   — autonomy plugin (stricter extension: bare org + fleet repos)
+#   github     — github plugin prose (extension: this plugin's markdown).
+#                plugins/github/github.test.sh still carries the same regex
+#                as a plugin-local check; validate-plugin-contracts.mjs fails
+#                if that regex drifts from this class.
+#
+# Enforcement is deliberately these classes, not the full normative target
+# (agent content, schema files, and a fleet-wide bare organization name stay
+# ungated). Widening those is a separate decision; do not add a class here
+# without remediating the corpus it would fail.
+#
+# The independent portability-lint job stages a related publisher-token class
+# in scripts/skill-portability-tokens.txt. If that class activates, it must
+# consume or align with this file rather than invent a third set.
+
+fleet-id @melodic-software\b
+fleet-id melodic-software/github-iac
+fleet-key \bMELODIC_[A-Z0-9_]+\b
+setup @melodic-software\b
+autonomy melodic-software
+autonomy ci-workflows
+autonomy github-iac
+github melodic
+github medley
+github github-iac
+github pulumi
