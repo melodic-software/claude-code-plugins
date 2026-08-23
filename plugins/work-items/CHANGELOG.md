@@ -7,6 +7,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Fixed
 
+- **GitHub adapter REST substitute keeps the general view's object arrays.** The
+  sandboxed-session replacement for `gh issue view --json number,title,body,labels,assignees,comments`
+  now returns `labels` and `assignees` as objects so `.labels[].name` / `.assignees[].login`
+  keep working. The flattened string projection stays as the claim-precheck form.
+
 - **GitHub adapter: the documented item read now carries its sandboxed-session substitute.**
   "View item" showed only `gh issue view --json`, which routes through GraphQL — and sandboxed
   sessions (Claude Code on the web, remote execution) serve only a pinned set of GraphQL

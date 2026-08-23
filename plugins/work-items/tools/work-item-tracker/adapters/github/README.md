@@ -107,11 +107,23 @@ only a pinned set of GraphQL operations is served (Claude Code on the web and re
 the same restriction the lease protocol's assignee ops work around under "Edit labels /
 assignees" below. That 403 reads like an expired token or a missing scope and is neither, so take
 it as a signal to switch APIs rather than to re-authenticate. The REST issues endpoint carries
-the same fields under the same names, so the projections above transfer verbatim:
+the same fields under the same names. Use the object-array form when substituting
+the general `gh issue view --json number,title,body,labels,assignees,comments`
+shape (`.labels[].name` / `.assignees[].login` keep working). REST `comments` is
+an integer count, not the comment list `--json comments` returns; take comments
+from the paginated "List item comments" recipe.
 
 ```bash
 gh api "repos/{owner}/{repo}/issues/<N>" \
-  --jq '{number, title, body, labels: [.labels[].name], assignees: [.assignees[].login]}' \
+  --jq '{number, title, body, labels, assignees}' \
+  | tr -d '\r'
+```
+
+The already-normalized claim-precheck projection is the same filter on REST:
+
+```bash
+gh api "repos/{owner}/{repo}/issues/<N>" \
+  --jq '{assignees: [.assignees[].login], labels: [.labels[].name]}' \
   | tr -d '\r'
 ```
 
