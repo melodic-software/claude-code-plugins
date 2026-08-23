@@ -505,7 +505,7 @@ PR_NUMBER=$(basename "$PR_URL")
 **Sandboxed sessions: open the PR over REST.** `gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before it touches the pull-request API at all, so under the pinned-GraphQL restriction described in §2.4.0 it returns `HTTP 403` having created nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. Four differences matter:
 
 - **`base` is required.** `gh pr create` defaults it to the repository's default branch; REST does not. Resolve it over REST as well — §2.2's `gh repo view --json defaultBranchRef` reads the same GraphQL surface and 403s alongside the rest.
-- **`head` is bare `<branch>` only for a same-repo PR.** From a fork (the triangular flow §2.7's remote resolver allows), it must be `<fork-owner>:<branch>`.
+- **`head` is bare `<branch>` only for a same-repo PR.** From a fork (the triangular flow §2.7's remote resolver allows), it must be namespaced `<fork-owner>:<branch>` — and when both repositories belong to the same organization, REST additionally requires `head_repo=<fork-repo-name>`. `title` and `base` are required outright; `body`, `draft`, and `maintainer_can_modify` are optional.
 - **Send the body with `-f`, not `-F`.** `-f`/`--raw-field` sends the value as a string. `-F`/`--field` type-converts values that look like numbers, booleans, or `null`, and reads a leading `@` as a filename — useful when the body is already on disk (`-F body=@<file>`), wrong here, where §2.4.1 assembled it into a shell variable.
 - **The response carries the PR identity.** Read `.number` and `.html_url` from it rather than parsing the number back out of the URL.
 
