@@ -8,10 +8,11 @@
   an 85-file sample of this repo's own tracked markdown: **1053 findings, 12.4 per file, 99% of all
   findings the skill produced.** The eight older shapes produced 10 between them. At that rate the
   shape swamps the human report on every run and would flood the apply relay under
-  `--persist-findings`. Two scope gates bring it to **31** on the same files, with every other
+  `--persist-findings`. Two scope gates bring it to **69** on the same files, with every other
   shape's count byte-identical (3/2/2/1/1/1 before and after), so the whole delta is this shape:
 
-  - **Imperative only.** The cue must open the line, after list, blockquote and emphasis markers.
+  - **Imperative only.** The cue must open the **sentence**, after list, blockquote,
+    task-list-checkbox and emphasis markers.
     `docs-hygiene:write-for-agents` "Prompt the positive" is a rule about *instructions*, so
     descriptive prose ("Older versions do not support this flag", "the config never loads") was
     never in its scope. A mid-sentence cue is excluded by construction and that is correct — a
@@ -27,6 +28,15 @@
 
   **The cost is stated, not hidden:** a subject-led instruction ("The agent must not emit a bare
   summary") no longer selects. Pinned by an assertion so a future widening cannot pass silently.
+
+  **The remaining gap is stated too (#3204).** The imperative gate is applied per *sentence* rather
+  than per line, because a line-level gate admits the whole line on its first sentence and then lets
+  a later descriptive one be reported. That is correct, and it is also why the count is 69 rather
+  than the 31 a line-level gate produced: 38 genuine imperative prohibitions sit as a *later*
+  sentence on their line and were being withheld. Sampling those additions found both real findings
+  and a residual false-positive class — a positive alternative supplied as a bare imperative after a
+  separator ("Never confirm X — delegate to Y") is not recognised, because pairing is matched against
+  a fixed marker list. #3180 solves that with a closed function-word stoplist; adopting it is #3204.
 
 - **`emit-findings.sh`'s cell escaping is now idempotent.** A naive `gsub` double-escaped a pipe the
   source had already escaped — `a \| b` became `a \\| b`, which GFM reads as a literal backslash

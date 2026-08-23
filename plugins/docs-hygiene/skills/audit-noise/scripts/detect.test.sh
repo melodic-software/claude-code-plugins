@@ -911,6 +911,52 @@ EOF
 wrap_out="$(bash "$DETECT" "$NEG_WRAP")"
 assert_not_contains "a hard-wrapped continuation does not select" "$wrap_out" "Finding shape: negation"
 
+# The imperative gate is PER SENTENCE. A line-level gate admits the whole line
+# on its first sentence and then lets a later DESCRIPTIVE sentence be reported —
+# the exact prose the gate exists to exclude, re-entering behind a compliant
+# opener.
+NEG_SENTGATE="$TEST_TMPDIR/negation-sentence-gate.md"
+cat >"$NEG_SENTGATE" <<'EOF'
+# Per-sentence fixture
+
+Do not use markdown; instead use HTML. Older versions do not support SVG.
+EOF
+sentgate_out="$(bash "$DETECT" "$NEG_SENTGATE")"
+assert_not_contains "a descriptive later sentence cannot ride an imperative opener" \
+  "$sentgate_out" "Finding shape: negation"
+
+# ...but a genuinely imperative later sentence still selects, so the per-sentence
+# gate narrows without costing the multi-sentence case.
+NEG_TWO="$TEST_TMPDIR/negation-two-imperatives.md"
+cat >"$NEG_TWO" <<'EOF'
+# Two-imperative fixture
+
+Never commit a secret. Do not use markdown.
+EOF
+two_out="$(bash "$DETECT" "$NEG_TWO")"
+assert_contains "an imperative later sentence still selects" "$two_out" "Finding shape: negation"
+assert_contains "and reports its own marker" "$two_out" "Finding marker: do not"
+
+# Ordered-list items use either delimiter, and a task-list checkbox is an
+# ordinary way this repo writes a directive. Missing any of these withholds
+# silently, which is the direction this rule set exists to avoid.
+NEG_MARKERS="$TEST_TMPDIR/negation-markers.md"
+cat >"$NEG_MARKERS" <<'EOF'
+# Marker fixture
+
+1. Do not use markdown.
+
+2) Never call the tool directly.
+
+- [ ] Avoid restating the rule in the body.
+
+- [x] Do not emit a bare summary.
+EOF
+markers_out="$(bash "$DETECT" "$NEG_MARKERS")"
+markers_count="$(printf '%s\n' "$markers_out" | grep -c '^Finding shape: negation')"
+assert_contains "both ordered-list delimiters and both checkbox states reach the cue" \
+  "count=$markers_count" "count=4"
+
 # SKILL.md's `Uncommitted .md files:` line previews the same discovery with a grep rather
 # than with detect.sh's parse, so it shares the defect CLASS without sharing the code: git
 # C-quotes a path it treats specially, and a quoted record ends with the closing quote, not

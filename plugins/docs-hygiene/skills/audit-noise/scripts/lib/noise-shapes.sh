@@ -511,13 +511,22 @@ audit_noise_sentence_is_worked_example() {
 # Both narrowings are due to #3180, which established them against a 1140-file
 # corpus sweep; this is that work adopted after #3194 shipped the wider form.
 
-# Strip list, blockquote and leading emphasis markers so a cue that opens the
-# content of the line still reads as line-initial.
+# Strip list, blockquote, task-list-checkbox and leading emphasis markers so a
+# cue that opens the content still reads as initial. Ordered items are accepted
+# with either delimiter (`1.` and `1)`), and a task-list checkbox is stripped
+# after its bullet so `- [ ] Never …` reaches the cue test — both are ordinary
+# ways this repo writes a directive, and missing them would withhold silently.
+# `>` and `)` are written unescaped inside their bracket expressions: a
+# backslash-escaped `\>` is a GNU word-boundary operator elsewhere in the
+# toolchain, and the repo's portability lint rejects the form on sight.
 audit_noise_strip_line_lead() {
   local s="$1"
   local -n _audit_noise_lead_out="$2"
+  # Held in a variable: an unquoted `>` inside [[ =~ ]] reads as a redirection
+  # to the parser, and quoting the pattern inline would make it a literal.
+  local lead_re='^([-*+]|[0-9]+[.)]|>|\[[[:space:]xX]\])[[:space:]]*'
   s="${s#"${s%%[![:space:]]*}"}"
-  while [[ "$s" =~ ^([-*+]|[0-9]+\.|\>)[[:space:]]* ]]; do
+  while [[ "$s" =~ $lead_re ]]; do
     s="${s#"${BASH_REMATCH[0]}"}"
     s="${s#"${s%%[![:space:]]*}"}"
   done
@@ -527,9 +536,17 @@ audit_noise_strip_line_lead() {
   _audit_noise_lead_out="$s"
 }
 
-# True when the cue opens the line's content — an imperative prohibition rather
-# than a descriptive one.
-audit_noise_line_opens_with_prohibition() {
+# True when the cue opens THIS SENTENCE — an imperative prohibition rather than
+# a descriptive one.
+#
+# Applied per SENTENCE, not once per physical line. A line-level test admits the
+# whole line on its first sentence and then lets the loop flag a later
+# descriptive one: `Do not use markdown; instead use HTML. Older versions do not
+# support SVG.` opens imperatively, but its second sentence is exactly the
+# out-of-scope prose the gate exists to exclude. Testing each candidate keeps
+# the gate's meaning ("is this an instruction?") attached to the text actually
+# being reported.
+audit_noise_sentence_opens_with_prohibition() {
   local lead=""
   audit_noise_strip_line_lead "$1" lead
   local s="${lead,,}"
@@ -553,12 +570,14 @@ AUDIT_NOISE_FIRED_MARKER=""
 audit_noise_line_has_negation_without_positive() {
   local sentences=() s lower m
   AUDIT_NOISE_FIRED_MARKER=""
-  # Scope gates first — cheapest, and they decide whether the line is even the
-  # kind of text this rule is about (see "Scope narrowings" above).
-  audit_noise_line_opens_with_prohibition "$1" || return 1
+  # Line-level gate first — cheapest, and genuinely a property of the LINE: a
+  # continuation cannot be shown to lack a positive sitting on the next one.
   audit_noise_line_ends_sentence "$1" || return 1
   audit_noise_split_sentences_into sentences "$1"
   for s in "${sentences[@]}"; do
+    # The imperative gate is per SENTENCE, so a line that opens imperatively
+    # cannot carry a later descriptive sentence into a finding.
+    audit_noise_sentence_opens_with_prohibition "$s" || continue
     audit_noise_sentence_has_prohibition "$s" || continue
     audit_noise_sentence_has_positive_pairing "$s" && continue
     audit_noise_sentence_has_hard_guardrail "$s" && continue
