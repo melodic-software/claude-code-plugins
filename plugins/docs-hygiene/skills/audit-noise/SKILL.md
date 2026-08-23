@@ -3,7 +3,7 @@ description: "Classify tracked markdown for six noise shapes — historical cita
 argument-hint: "[audit] [target] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git branch:*)", "Bash(git rev-parse:*)", "Bash(git status:*)", "Bash(git check-ignore:*)", "Bash(date:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(echo:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime

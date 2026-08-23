@@ -11,8 +11,10 @@
   Official guidance names the technique directly — *"Do not use markdown in your response"* →
   *"Your response should be composed of smoothly flowing prose paragraphs."*
 
-  **Scope is the decidable core, and the two narrowings are the whole reason the rate is
-  survivable.** The cue must be LINE-INITIAL (after list, blockquote and emphasis markers), so
+  **Scope is the decidable core.** Four filters decide a line — two that bound what the shape
+  even looks at, and two that decide whether a candidate names an alternative. The two that do
+  the bounding, and the reason the rate is survivable at all: the cue must be LINE-INITIAL
+  (after list, blockquote and emphasis markers), so
   descriptive negations — "the script does not read the config" — never select; and the line
   must END its sentence, because this corpus hard-wraps prose and a continuation line cannot be
   shown to lack a positive that sits on the next line. A table row ends in `|` and is excluded by

@@ -48,9 +48,14 @@ the fleet's scripting discipline forbids, and the script owns the mechanical hal
 escaping, the tier lookup (a mirror of the crosswalk — the crosswalk row is authoritative), rank
 ordering, `Location` relativization, the non-overwrite suffix, and the `## Surfaces` counts. What
 stays with the model is everything before the script (rung-order resolution, the fetch-and-refuse
-gate, the self-ignore guard) and everything after it (reading the written file's head to confirm
-shape, and severity-vocabulary mapping when the consuming project defines its own — edit the
-written file's `Tier` cells per the contract's consumer-precedence rule).
+gate, the self-ignore guard) and reading the written file's head afterwards to confirm shape.
+
+**The consumer-precedence mapping is NOT performed in v1, and the honest thing is to say so.**
+Where the consuming project defines its own severity vocabulary, the contract asks a producer to
+map to it — but this skill holds no `Edit` or `Write` grant, and its hard rule permits emitting
+the artifact, not editing it afterwards. So the file carries the baseline vocabulary; report the
+mapping as owed rather than performing it, and never claim the row was mapped. (In this
+repository the point is moot: `REVIEW.md` resolves to the same three names.)
 
 ## What each cell says
 
@@ -67,9 +72,11 @@ written file's `Tier` cells per the contract's consumer-precedence rule).
 - **Cell-escape** `Finding` and `Action` per the shape's rule (`\|`, newlines to spaces). This
   detector reads DOCUMENTS, so excerpts carry markdown table pipes as a matter of course — the
   escape is load-bearing here, not defensive.
-- **`Tier`** is LOOKED UP from the rule's crosswalk row (`SUGGESTION`), then mapped to the
-  consuming project's severity vocabulary when it defines one. **`Confidence`** is `high` on
-  every emitted row: a deterministic detector fired.
+- **`Tier`** is LOOKED UP from the rule's crosswalk row (`SUGGESTION`). **`Confidence`** is
+  OMITTED on every row — an empty cell, never `high` and never `low`. The detector firing is
+  certain; what is uncertain is DEFECT-HOOD, because a prohibition is sometimes the correct
+  form, and the contract routes realness uncertainty to this field under the high-or-omitted
+  rule. `ai-slop/audit/rule-mock-only-oracle` is the worked precedent.
 
 ## Surfaces, and when the file is written at all
 

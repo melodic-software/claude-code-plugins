@@ -159,7 +159,17 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROO
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells, and
   # this detector reads DOCUMENTS — markdown tables in the audited corpus put
   # pipes into excerpts as a matter of course.
-  function esc(s) { gsub(/\|/, "\\|", s); return s }
+  # Mask an ALREADY-escaped pipe before escaping, or the backslash is escaped
+  # too and `\|` round-trips to `\\|` — which GFM reads as a literal backslash
+  # followed by a LIVE delimiter, splitting the cell. This corpus is documents,
+  # and this repo writes literal `\|` in its own tables, so the input is
+  # reachable rather than theoretical.
+  function esc(s) {
+    gsub(/\\\|/, "\001", s)
+    gsub(/\|/, "\\|", s)
+    gsub(/\001/, "\\|", s)
+    return s
+  }
 
   # The condition that fired, in the run own values: which cue selected the
   # line. Peeled the same way the detector peels it, so the reported cue is the
@@ -167,12 +177,19 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROO
   function fired_cue(x,   t) {
     t = x
     sub(/^[ \t]+/, "", t)
-    sub(/^(>|[-*+]|[0-9]+[.)])[ \t]+/, "", t)
+    # LOOP, because the detector loops: a nested marker (`> - Never ...`) fires
+    # there and would report cue="unknown" here if only one marker were peeled.
+    while (sub(/^(>|[-*+]|[0-9]+[.)])[ \t]+/, "", t))
+      ;
     sub(/^\*\*/, "", t)
+    sub(/^__/, "", t)
     sub(/^\*/, "", t)
+    sub(/^_/, "", t)
     if (t ~ /^Do not[ \t]/) return "Do not"
     if (t ~ /^Do NOT[ \t]/) return "Do NOT"
-    if (t ~ /^Don.t[ \t]/) return "Don\47t"
+    # Matches both apostrophes. Under LC_ALL=C a `.` is ONE BYTE, so `Don.t`
+    # cannot match the three-byte curly form the detector now accepts.
+    if (t ~ /^Don[^ \t]*t[ \t]/) return "Don\47t"
     if (t ~ /^Never[ \t]/) return "Never"
     if (t ~ /^Avoid[ \t]/) return "Avoid"
     return "unknown"
@@ -185,21 +202,48 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROO
       return substr(p, length(repo_root) + 2)
     if (repo_root_alt != "" && index(p, repo_root_alt "/") == 1)
       return substr(p, length(repo_root_alt) + 2)
+    # Outside the repo, the writer contract still binds: replace the home
+    # directory with a tilde rather than writing a machine path into a cell.
+    if (home != "" && index(p, home "/") == 1)
+      return "~/" substr(p, length(home) + 2)
     return p
   }
 
   function flush_record(   loc, cue, row) {
-    if (r_shape == "") return
-    seen[r_shape]++
+    # RESET even when there is no shape. Returning without it leaks an orphan
+    # fragment forward: its line and excerpt survive into the NEXT record and
+    # compose a row that is well-formed, plausible, and wrong — a Location the
+    # fix action would fence a remediation to that the excerpt never came from.
+    if (r_shape == "") {
+      reset_record()
+      return
+    }
     if (r_shape != "negation-without-positive") {
       # No crosswalk row, no relay. Counted, never silently dropped.
       declined[r_shape]++
       reset_record()
       return
     }
+    # A record missing its location is malformed input, not a finding: emitting
+    # it would write a Location the fix action cannot fence a remediation to.
+    if (r_file == "" || r_line == "") {
+      # Loud, not silent: detect.sh never emits such a record, so reaching here
+      # means the --from input is not what it claims to be.
+      printf "emit-findings.sh: skipping malformed record (shape=%s, file=%s, line=%s)\n", \
+        r_shape, r_file, r_line > "/dev/stderr"
+      reset_record()
+      return
+    }
     loc = relativize(r_file) ":" r_line
     cue = fired_cue(r_excerpt)
-    row = "| SUGGESTION | high | " loc " | docs-hygiene:audit-noise | " \
+    # Confidence is OMITTED, never `high`. What is uncertain here is
+    # DEFECT-HOOD — a prohibition is sometimes the correct form, which is why
+    # the skill tiers the shape "review needed" and why its treatment says a
+    # hard guardrail that cannot be phrased positively is not a finding. The
+    # contract routes realness uncertainty to this field (high-or-omitted), and
+    # ai-slop/audit/rule-mock-only-oracle is the worked precedent for exactly
+    # this shape of benign case surviving selection.
+    row = "| SUGGESTION |  | " loc " | docs-hygiene:audit-noise | " \
       esc("docs-hygiene/audit-noise/rule-negation-without-positive cue=\"" cue \
           "\", positive-clauses=0 -- " r_excerpt) \
       " | " esc("Rewrite to the positive target the prohibition implies. Keep the negation only where the positive form loses the constraint, and then pair the two in one sentence.") " |"
@@ -232,8 +276,10 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROO
     print ran
     # Deterministic order: the five shapes that carry no crosswalk row, in the
     # order the skill tables them.
-    split("citation ghost-ref preamble enum-list scope-meta", order, " ")
-    for (i = 1; i <= 5; i++)
+    # Count from split(), never a literal: a hardcoded bound silently drops a
+    # shape the day a seventh is added.
+    nshapes = split("citation ghost-ref preamble enum-list scope-meta", order, " ")
+    for (i = 1; i <= nshapes; i++)
       if (declined[order[i]] > 0)
         printf "Declined candidates: docs-hygiene/audit-noise/rule-%s count=%s reason=no-severity-crosswalk-row\n", \
           order[i], declined[order[i]]

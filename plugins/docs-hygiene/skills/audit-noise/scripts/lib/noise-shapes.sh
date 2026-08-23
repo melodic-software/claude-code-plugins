@@ -121,6 +121,12 @@ audit_noise_line_is_bare_negation() {
   audit_noise_strip_inline_code "$line" stripped
   stripped="${stripped//$'\r'/}"
   stripped="${stripped%"${stripped##*[![:space:]]}"}"
+  # TRAILING emphasis hides the terminator from the test below — a fully bolded
+  # directive (`**Never edit the generated file.**`) ends in `*`, not in `.`,
+  # and bolded directives are everywhere in this corpus. Peel before testing.
+  while [[ "$stripped" == *[\*_] ]]; do
+    stripped="${stripped%[\*_]}"
+  done
   [[ "$stripped" =~ [.!?]$ ]] || return 1
   body="${stripped#"${stripped%%[![:space:]]*}"}"
   # Peel list / blockquote markers, then leading emphasis runs.
@@ -131,25 +137,45 @@ audit_noise_line_is_bare_negation() {
   body="${body#\*}"
   body="${body#__}"
   body="${body#_}"
-  [[ "$body" =~ ^(Do[[:space:]]not|Do[[:space:]]NOT|Don\'t|Never|Avoid)[[:space:]]+([^[:space:]]+) ]] || return 1
-  # `Never`/`Avoid` also open THIRD-PERSON prose ("Never audits a target that
-  # is not a git repository"), which is a capability roster describing what a
+  # Both apostrophes: a curly one is what a chat-interface paste leaves behind,
+  # and it is already present in this corpus.
+  # Spelled as two alternatives, not a bracket expression: a multibyte curly
+  # apostrophe inside `[...]` is matched byte-wise and never fires.
+  [[ "$body" =~ ^(Do[[:space:]]not|Do[[:space:]]NOT|Don\'t|Don’t|Never|Avoid)[[:space:]]+([^[:space:]]+) ]] || return 1
+  # `Never` also opens THIRD-PERSON prose ("Never audits a target that is not
+  # a git repository"), which is a capability roster describing what a
   # component does — not an instruction to anyone. An imperative never takes
   # the third-person `-s`, so a following verb in that form declines the line.
   # Imperatives ending in a doubled or vowel-led `s` (process, discuss, focus,
   # bypass, bias) are excluded from the test rather than caught by it.
-  local nextword="${BASH_REMATCH[2]}"
-  nextword="${nextword%%[!A-Za-z-]*}"
-  case "$nextword" in
-  *[!suioa]s) return 1 ;;
+  #
+  # Scoped to `Never` ON PURPOSE. Applied to `Avoid`, the same test reads a
+  # PLURAL NOUN as a third-person verb and drops real imperatives — measured on
+  # this repo: `Avoid conditions the transcript cannot show.` and `Avoid
+  # identities and marked cliches unless the line renews them.` Every capability
+  # roster this shape must decline opens with `Never`, so narrowing loses
+  # nothing, and the admission test wants an unresolved case to EMIT.
+  local cue="${BASH_REMATCH[1]}" nextword="${BASH_REMATCH[2]}"
+  if [[ "$cue" == "Never" ]]; then
+    nextword="${nextword%%[!A-Za-z-]*}"
+    case "$nextword" in
+    *[!suioa]s) return 1 ;;
+    *) ;;
+    esac
+  fi
+  # A positive target riding the same sentence keeps the negation, and the three
+  # explicit contrast words are the unambiguous half of that test.
+  #
+  # WORD-ANCHORED. An unanchored substring test declines every sentence carrying
+  # "preferred", "preference" or "gathered" although no contrast word is present
+  # — withholding a finding on evidence the rule never had. Matched lowercased
+  # through a `case` glob rather than a leading-character-class regex, which the
+  # repo's typos gate reads as a misspelling.
+  local lower=" ${body,,} "
+  case "$lower" in
+  *[!a-z]instead[!a-z]* | *[!a-z]rather[!a-z]* | *[!a-z]prefer[!a-z]*) return 1 ;;
   *) ;;
   esac
-  # A positive target riding the same sentence keeps the negation, and the two
-  # explicit contrast words are the unambiguous half of that test.
-  # Spelled as whole alternatives, not as the leading-character-class idiom the
-  # other shapes use: the repo's typos gate reads the remainder a class-split
-  # leaves behind as a misspelled word.
-  [[ "$body" =~ (instead|Instead|rather|Rather|prefer|Prefer) ]] && return 1
   audit_noise_clause_names_alternative "$body" && return 1
   return 0
 }
@@ -193,8 +219,20 @@ audit_noise_clause_names_alternative() {
       firstseg=0
       continue
     fi
-    seg="${seg#"${seg%%[![:space:]]*}"}"
-    seg="${seg#\*}"
+    # Peel leading whitespace and the emphasis / link-open characters a clause
+    # can start with. Without this the segment keeps a non-letter lead, its
+    # first word reads as empty, the clause is dropped, and the line FIRES
+    # although it named an alternative — `_Read it_ from the environment.` and
+    # `[Read the guide](docs/guide.md) for the shape.` are both real forms.
+    while :; do
+      seg="${seg#"${seg%%[![:space:]]*}"}"
+      case "$seg" in
+      \**) seg="${seg#\*}" ;;
+      _*) seg="${seg#_}" ;;
+      \[*) seg="${seg#\[}" ;;
+      *) break ;;
+      esac
+    done
     while :; do
       first="${seg%%[!A-Za-z\']*}"
       [[ -n "$first" ]] || break
@@ -203,6 +241,9 @@ audit_noise_clause_names_alternative() {
       # looking through to a next word that does not exist.
       if [[ "$AUDIT_NOISE_CLAUSE_TRANSPARENT" == *" $first "* && "$seg" == *[[:space:]]* ]]; then
         seg="${seg#*[[:space:]]}"
+        # Re-strip: the peel removes ONE whitespace character, so a
+        # double-spaced clause would keep a leading space and be dropped.
+        seg="${seg#"${seg%%[![:space:]]*}"}"
         continue
       fi
       break
@@ -219,6 +260,12 @@ audit_noise_clause_names_alternative() {
 
 # Append matching shape names into the nameref array (avoids a per-line
 # command-substitution subshell in the detect hot loop).
+#
+# RESERVED OUT-NAMES: pass an out-array named anything but `line`, `unwrapped`
+# or `stripped`. Bash binds a nameref to the nearest declaration in dynamic
+# scope, so an out-variable sharing a name with one of this function's locals
+# is shadowed by it and the caller silently receives nothing. No in-tree caller
+# does this; the constraint is recorded because the failure is silent.
 # Ghost-ref scans an unwrap (ticks removed, content kept); other shapes scan a
 # strip (inline-code spans removed) so schema examples do not self-match.
 audit_noise_detect_shapes_into() {

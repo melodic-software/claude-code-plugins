@@ -508,9 +508,37 @@ Do not hand-edit the generated block. Regenerate it instead.
 Don't diagnose yet. Just mark.
 
 The script does not read the config file.
+EOF
+
+# A capability roster is a SEPARATE claim from pairing — it declines on the
+# third-person `-s` test, not because it names an alternative. Keeping it in
+# the paired fixture above would have credited 12a with a line it does not
+# carry.
+NEG_ROSTER="$TEST_TMPDIR/neg-roster.md"
+cat >"$NEG_ROSTER" <<'EOF'
+# Third-person prose describes; it does not instruct
 
 - Never audits a target that is not a git repository. It refuses.
+- Never mutates without presenting the change set.
+- Never edits managed policy or a user-scope file, in any mode.
 EOF
+neg_roster_out="$(bash "$DETECT" "$NEG_ROSTER")"
+assert_not_contains "a third-person capability roster is not an instruction" \
+  "$neg_roster_out" "Finding shape: negation-without-positive"
+assert_contains "capability-roster file is clean" "$neg_roster_out" "| T1=0 T2=0 T3=0"
+
+# The `-s` test is scoped to `Never`: applied to `Avoid` it reads a PLURAL NOUN
+# as a third-person verb and drops real imperatives.
+NEG_PLURAL="$TEST_TMPDIR/neg-plural.md"
+cat >"$NEG_PLURAL" <<'EOF'
+# Avoid takes a noun object
+
+Avoid conditions the transcript cannot show.
+
+Avoid abbreviations.
+EOF
+neg_plural_out="$(bash "$DETECT" "$NEG_PLURAL")"
+assert_contains "Avoid + plural noun is still an imperative" "$neg_plural_out" "| T1=0 T2=2 T3=0"
 neg_paired_out="$(bash "$DETECT" "$NEG_PAIRED")"
 assert_not_contains "a paired negation is not reported" "$neg_paired_out" "Finding shape: negation-without-positive"
 assert_contains "paired-negation file is clean" "$neg_paired_out" "| T1=0 T2=0 T3=0"
@@ -523,12 +551,25 @@ cat >"$NEG_GUARD" <<'EOF'
 Never force-push to a shared branch.
 
 <!-- markdown-discipline-ignore -->
-Never commit a credential to tracked source. Never weaken this rule for a
-one-off, and never route around it with a second remote.
+Never commit a credential to tracked source.
 EOF
 neg_guard_out="$(bash "$DETECT" "$NEG_GUARD")"
 assert_not_contains "a marked hard guardrail is not reported" "$neg_guard_out" "Finding shape: negation-without-positive"
 assert_contains "hard-guardrail file is clean" "$neg_guard_out" "| T1=0 T2=0 T3=0"
+
+# Control: BOTH marked lines fire without their markers, so the clean result
+# above is the markers doing work rather than two lines that never qualified.
+# Without this the paragraph-marker half of 12b passes vacuously.
+NEG_GUARD_CTL="$TEST_TMPDIR/neg-guardrail-control.md"
+cat >"$NEG_GUARD_CTL" <<'EOF'
+# A hard guardrail the positive form cannot carry
+
+Never force-push to a shared branch.
+
+Never commit a credential to tracked source.
+EOF
+neg_guard_ctl_out="$(bash "$DETECT" "$NEG_GUARD_CTL")"
+assert_contains "both guardrail lines fire when unmarked" "$neg_guard_ctl_out" "| T1=0 T2=2 T3=0"
 
 # --- 12c. A transparent adverb only suppresses when something FOLLOWS it -------------
 #
@@ -572,11 +613,20 @@ assert_contains "adverb-led-imperative file is clean" "$neg_adv_ok_out" "| T1=0 
 # every quoted trigger phrase live. Asserted against a frontmatter carrying all
 # three, each a bare negation that would otherwise fire.
 
+# The fixture values must be LINE-INITIAL, or the assertion is vacuous: after
+# `description: "` the cue is mid-line and would not fire even as body prose,
+# so the test would pass with detect.sh's frontmatter skip deleted outright.
+# YAML block scalars put each value on its own line, which is the form that
+# actually exercises the skip — verified by mutation (comment out the skip and
+# these assertions fail).
 NEG_FM="$TEST_TMPDIR/neg-frontmatter.md"
 cat >"$NEG_FM" <<'EOF'
 ---
-description: "Do not use markdown. Use when: 'never force-push', 'avoid deep nesting'."
-when_to_use: "Never run this on a dirty tree."
+description: |
+  Do not use markdown in your response.
+  Use when: 'never force-push', 'avoid deep nesting'.
+when_to_use: |
+  Never run this on a dirty tree.
 ---
 
 # Body
@@ -587,6 +637,19 @@ neg_fm_out="$(bash "$DETECT" "$NEG_FM")"
 assert_not_contains "no finding lands in frontmatter (description/when_to_use/triggers)" \
   "$neg_fm_out" "Finding shape: negation-without-positive"
 assert_contains "frontmatter-only negations leave the file clean" "$neg_fm_out" "| T1=0 T2=0 T3=0"
+
+# Control proving the fixture is not vacuous: the SAME two lines outside
+# frontmatter DO fire, so the clean result above is the skip doing work.
+NEG_FM_CTL="$TEST_TMPDIR/neg-frontmatter-control.md"
+cat >"$NEG_FM_CTL" <<'EOF'
+# Body
+
+Do not use markdown in your response.
+
+Never run this on a dirty tree.
+EOF
+neg_fm_ctl_out="$(bash "$DETECT" "$NEG_FM_CTL")"
+assert_contains "the same lines outside frontmatter DO fire" "$neg_fm_ctl_out" "| T1=0 T2=2 T3=0"
 
 # --- Final report --------------------------------------------------------------------
 

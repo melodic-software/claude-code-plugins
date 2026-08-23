@@ -152,8 +152,9 @@ assert_contains "Finding leads with the qualified rule id" "$FOUT" \
 assert_contains "Finding carries the fired condition in the run's own values" "$FOUT" \
   'cue="Do not", positive-clauses=0'
 assert_contains "the other cue is reported as itself" "$FOUT" 'cue="Never", positive-clauses=0'
-assert_contains "Tier is the crosswalk's SUGGESTION" "$FOUT" "| SUGGESTION | high |"
+assert_contains "Tier is the crosswalk's SUGGESTION, Confidence OMITTED" "$FOUT" "| SUGGESTION |  |"
 assert_not_contains "Confidence is never low" "$FOUT" "| low |"
+assert_not_contains "Confidence is not claimed high (defect-hood is uncertain)" "$FOUT" "| SUGGESTION | high |"
 assert_contains "Surface(s) names this producer" "$FOUT" "docs-hygiene:audit-noise"
 
 # --- 6. Roster agreement: only tabled rules reach the relay ---------------------------
@@ -196,7 +197,12 @@ fi
 bash "$EMIT" --from "$TEST_TMPDIR/mixed-out.txt" --out "$TEST_TMPDIR/f/mixed.md" --branch test-branch >/dev/null 2>&1
 MOUT="$(cat "$TEST_TMPDIR/f/mixed.md")"
 assert_contains "the tabled rule is emitted as a row" "$MOUT" "rule-negation-without-positive"
-assert_not_contains "an untabled shape emits no row" "$MOUT" "| SUGGESTION | high | $MIXED:4"
+# The needle must be a location an untabled shape ACTUALLY occupies, or the
+# assertion passes with the emitter's guard deleted. citation is at line 3 and
+# ghost-ref at line 5 of the fixture; line 4 is blank and can never match.
+assert_not_contains "the citation location emits no row" "$MOUT" "| $MIXED:3 |"
+assert_not_contains "the ghost-ref location emits no row" "$MOUT" "| $MIXED:5 |"
+assert_contains "the tabled shape's own location DOES emit a row" "$MOUT" "| $MIXED:7 |"
 assert_contains "an untabled shape is COUNTED, not dropped" "$MOUT" \
   "Declined candidates: docs-hygiene/audit-noise/rule-citation count=1 reason=no-severity-crosswalk-row"
 assert_contains "every untabled shape gets its own count" "$MOUT" \
