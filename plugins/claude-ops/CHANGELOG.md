@@ -14,7 +14,6 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **README:** deduplicated the hand-written option-scoping preamble against the
   generated options block, which already states both facts (#2698).
 
-
 ## [0.36.0]
 
 Remediates the `claude-ops:plugins` post-use audit of the `sync` action (#3112). Every claim about
