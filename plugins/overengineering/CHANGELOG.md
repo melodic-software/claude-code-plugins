@@ -3,6 +3,46 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2]
+
+### Added
+
+- **Product-code lane specification (#2897).** `context/product-code-lane.md` supplies the four
+  things `scrutiny-method.md` asks a lane for, for code-level overengineering in product code:
+  the item inventory (the abstraction, never the file), an eight-layer vocabulary with discovery
+  probes (`single-implementation`, `extension-points`, `configuration`, `generality`, `layering`,
+  `speculative-api`, `dead-branches`, `premature-async`), the evidence sources mapped onto the §2
+  tiers, and protected-class defaults extending §7 (published API surface, serialization and wire
+  formats, concurrency primitives, error-containment boundaries, testability seams). It names the
+  lane's signature tier-2 probe, whether the second implementation ever arrived, which is what makes
+  speculative generality checkable as a falsified prediction rather than a matter of taste, and
+  documents the boundary against `/simplify`, `code-tidying`, and `architecture:improve` as three
+  operational handoffs. The document is a specification ahead of its skill; no skill or behavior
+  changes in this release.
+
+### Changed
+
+- **`scrutiny-method.md` points at the second lane.** Its "Lane binding" section previously
+  forward-referenced "a future product-code lane" with nowhere to go; it now links the specification
+  and the ADR recording the lane's shipping shape.
+
+## [0.2.1]
+
+### Fixed
+
+- **The findings artifact's `date:` field was justified by a property it cannot have.**
+  `context/findings-artifact.md` argued the field as "Colon-free UTC, **Windows-safe**, lexically
+  sortable". Windows-safety is a *filename* property — a colon is illegal in a Windows path
+  component — and is meaningless for a field written *inside* a file; this contract fixes one
+  stable filename per home (`findings.md`) and deliberately rejects a timestamped one, so there is
+  no filename here for the claim to attach to either. The row now argues the format on what is
+  actually true of it: compact, unambiguous about its zone, and lexically sortable, so string order
+  is chronological order. **The format is unchanged.** ISO-basic `YYYYMMDDTHHMMSSZ` is valid
+  ISO-8601 and this artifact is not a detector-findings adopter — its only consumer is
+  `/overengineering:realign` — so nothing obliges it to match any neighbor's extended form, and a
+  wrong rationale is not grounds to move a contract that works. Documentation only; no consumer
+  reads the rationale cell.
+
 ## [0.2.0]
 
 ### Added

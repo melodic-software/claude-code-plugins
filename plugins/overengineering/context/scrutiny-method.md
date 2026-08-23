@@ -20,8 +20,12 @@ Sections 1–12 are lane-independent. A lane supplies four things and inherits e
 
 V1 ships one lane: the enforcement surface (agent hooks and standing instructions, repository and
 version-control hooks, CI lanes and gate scripts, branch protections, forge apps and automations,
-declared external integrations). A future product-code lane supplies its own four and reuses §§1–12
-verbatim.
+declared external integrations).
+
+The second lane, product code, supplies its own four in
+[`product-code-lane.md`](product-code-lane.md) and reuses §§1–12 verbatim. That document is a
+specification ahead of its skill; the shipping shape is
+[ADR 0017](../../../docs/adr/0017-ship-the-product-code-lane-as-its-own-skill.md).
 
 ## 1. The economic frame: carry cost, never build cost
 
