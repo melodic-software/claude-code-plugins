@@ -293,6 +293,7 @@ run_stub_default() {
     cd "$UNRELATED" || return 1
     printf '{"session_id":"stub-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
       env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES \
+        -u CLAUDE_PLUGIN_ROOT \
         PATH="$STUB_BIN:$PATH" \
         CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true "$@" bash "$HOOK"
   )

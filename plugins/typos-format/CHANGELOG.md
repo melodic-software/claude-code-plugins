@@ -12,7 +12,9 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   PATH, which the plugin-gate job does not install, so that case kept
   skipping on every PR. The stub suite now records argv and asserts the hook
   injects `-c <plugin>/config/default-typos.toml` whenever `CLAUDE_PLUGIN_ROOT`
-  is set — and does not inject it when the variable is unset
+  is set — and does not inject it when the variable is unset. The stub helper
+  unsets `CLAUDE_PLUGIN_ROOT` so an ambient host value cannot flip the
+  negative case
   ([#3133](https://github.com/melodic-software/claude-code-plugins/issues/3133)).
 
 ## [0.6.25]
