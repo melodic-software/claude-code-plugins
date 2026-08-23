@@ -15,8 +15,10 @@ protected-class defaults.
 A second lane covering code-level overengineering in product code (speculative abstraction, unearned
 indirection, premature generality) was judged valuable during the `overengineering-detection-skill`
 interview and deferred to #2897, which left three questions open: the lane's walker and evidence
-sources, its boundary against existing owners, and whether it ships as a third skill or as an
-argument-selected lane of `overengineering:audit`.
+sources, its boundary against existing owners, and whether it ships as its own skill or as an
+argument-selected lane of `overengineering:audit`. (#2897 phrased that as "a third skill", written
+when the plugin had two; `delta` has since taken that slot, so the lane in question is the fourth
+skill and the third lane.)
 
 The first two are answered in `plugins/overengineering/context/product-code-lane.md`. This ADR
 records the third.
@@ -25,6 +27,11 @@ records the third.
 
 **The product-code lane ships as its own skill.** `overengineering:audit` stays bound to the
 enforcement surface, and its `argument-hint` layer vocabulary is not extended to cover product code.
+
+This is also now the plugin's established pattern rather than a new one. The `delta` lane (#2898,
+plugin `0.2.0`) shipped while this decision was being written, and it shipped the same way: a third
+skill composing `audit` rather than an argument selecting a mode inside it. Two lanes, two skills,
+and this makes three.
 
 Four reasons, in the order they carry weight:
 
