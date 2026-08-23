@@ -93,5 +93,6 @@ configured".
 
 - Install `firecrawl-cli`, write `FIRECRAWL_API_KEY` or any environment variable, or print the
   key's value — `apply` is guidance-and-verify with no write path.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Perform scrapes, searches, or any Firecrawl API call — that is `/firecrawl:firecrawl`.
 - Run the maintainer update flow (`/firecrawl:update`) — a separate, gated skill.

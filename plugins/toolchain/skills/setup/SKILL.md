@@ -130,5 +130,6 @@ configuration and changes nothing.
 - Run build/test/lint — that is `/toolchain:check` and `/toolchain:lint`.
 - Write machine-local state — configuration lives in the consumer's tracked files, never in the plugin
   directory or the plugin data directory.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Ship or edit the bundled portable defaults — those are the plugin's rung-4 fallback, never written
   into a consumer repo except as the seed for a file this interview produces.

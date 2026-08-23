@@ -85,6 +85,7 @@ with no scaffold/remove argument changes nothing and reports the current invento
 - Run a craft skill — that is `/songwriting:workflow` and the concern skills it routes to.
 - Write machine-local state — overrides live in the consumer's tracked repo, never in the plugin
   directory or the plugin data directory.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Edit the consumer's `CLAUDE.md` or rules — the artifact-layout convention is the consumer's own
   instruction surface; setup reads and reports it, it does not author it.
 - Scaffold templates the consumer did not name — a bundled default left in place keeps receiving plugin

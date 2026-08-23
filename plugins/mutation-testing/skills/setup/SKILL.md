@@ -148,6 +148,7 @@ re-run this setup to reconfigure.
 - Run a mutation analysis — that is `/mutation-testing:audit`. `check` runs the *unmutated* suite
   once to establish the baseline, and nothing more.
 - Install anything without asking.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Write machine-local state — configuration lives in the consumer's tracked files, never in the
   plugin directory or the plugin data directory.
 - Set a score threshold. The config template deliberately has no such field; see the `principles`

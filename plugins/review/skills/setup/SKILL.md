@@ -59,6 +59,7 @@ reconfigure or migrate.
 
 - Run a review — that is `/review:quality-gate` and this plugin's reviewer agents; they resolve
   criteria through the index this setup bootstraps.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Edit the consumer's root `.gitignore` or any ignore file it did not itself create — the single
   setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.
 - Write anything into the plugin directory or the plugin data directory

@@ -456,10 +456,12 @@ must not write into the installed plugin cache, mutate Claude Code user settings
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
 configuration surface.
 
-**How a setup skill states what it will not write.** That prohibition is stated inline in every
+**How a setup skill states what it will not write.** That prohibition is stated inline in each
 `setup` skill rather than cited in place of the words, for the reason the routing line above gives:
-an installed plugin has no path to this file. One fixed sentence carries it, in whatever boundaries
-list the skill already keeps, naming the three surfaces in this order and no other:
+an installed plugin has no path to this file. Setup skills not yet carrying the fixed sentence are
+tracked by the fleet conformance audit, the same way the sibling blocks track their stragglers. One
+fixed sentence carries it, in whatever boundaries list the skill already keeps, naming the three
+surfaces in this order and no other:
 
 ```text
 Write the plugin cache, Claude Code user settings, or `pluginConfigs`.

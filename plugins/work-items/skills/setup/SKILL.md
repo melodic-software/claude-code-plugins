@@ -477,6 +477,7 @@ PASS/FAIL/INFO table and its remediation lines, mutating nothing.
 - Run tracker operations, no item is created, claimed, or closed here. Filing and coordination are
   `/work-items:track` (`add`, `due`, `recheck`), `/work-items:work`, and `/work-items:triage`. `check`
   only inspects config; `apply` seeds the binding, schedule, and optional role→label remap.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Duplicate the per-item `add --recurring` path, that path stays for filing a single recurring item;
   setup is the bulk path that seeds or reshapes the whole schedule, opt-in on a first-time bind.
 - Author or vendor a provider adapter, the seam ships the `github`, `local-markdown`, and `jira`

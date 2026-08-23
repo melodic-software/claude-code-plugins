@@ -143,6 +143,7 @@ to add or retune lanes.
 ## What this skill does NOT do
 
 - Run a tidy sweep — that is `/code-tidying:tidy`. `check` only inspects config.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Ship its own template copies — lane files scaffold from `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/`;
   duplicating those into this skill would drift from the source.
 - Write machine-local state — lane configuration lives in the consumer's tracked `.claude/tidy-lanes/`,
