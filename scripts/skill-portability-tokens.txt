@@ -136,6 +136,11 @@ origin/(main|master)
 # Residue at c7b0af78 — 1 hit / 1 file. Also near-green.
 # \*\*/\*\.cs([^a-zA-Z0-9_]|$)
 
+# Publisher-org tokens (marketplace id, org name, fleet repo names, MELODIC_*
+# keys) are NOT this file's job. They live in scripts/org-agnosticism-tokens.txt
+# and are enforced by plugin-gate (#3136). If a publisher-token class is ever
+# enabled here, consume or align with that file — do not invent a third set.
+#
 # Forge/marketplace-internal hardcode: a hardcoded raw GitHub content URL where a
 # portable fetch or a declared scope belongs (#432). Enable when the forge-lock
 # members land (e.g. #441 declares source-control's inherent GitHub scope).

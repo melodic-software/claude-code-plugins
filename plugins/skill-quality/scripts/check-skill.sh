@@ -13,7 +13,9 @@
 #   bash check-skill.sh --help
 #
 # --require-evals (or CHECK_SKILL_REQUIRE_EVALS=1) FAILs when evals/evals.json
-# is absent for any skill shape. Without it, check 14 WARNs only on
+# is absent for any skill shape, unless the skill has a recorded skip in
+# scripts/evals-warrant-exemptions.txt (walked up from the repo root; absent
+# file = no skips). Without --require-evals, check 14 WARNs only on
 # action-router-shaped skills — the legacy fleet posture.
 #
 # Skills root resolution (first hit wins):
@@ -67,7 +69,8 @@
 #  12. description carries "Use when" trigger phrasing, single-quoted (WARN)
 #  13. No committed cache/build artifacts (__pycache__, *.pyc, node_modules) (FAIL)
 #  14. evals/evals.json presence (WARN for action-router shape; FAIL with
-#      --require-evals / CHECK_SKILL_REQUIRE_EVALS=1 for any shape)
+#      --require-evals / CHECK_SKILL_REQUIRE_EVALS=1 for any shape, unless a
+#      recorded skip exists in scripts/evals-warrant-exemptions.txt)
 #  15. Companion spoke dirs referenced from SKILL.md (WARN; orphan-spoke direction)
 #  16. metadata.category present (INFO only)
 #  17. Vendor-backed: metadata.synced not older than 180 days (WARN)
@@ -727,11 +730,44 @@ fi
 # --- Check 14: evals/evals.json presence -------------------------------------
 # Legacy fleet: action-router shape without evals WARNs (evals warranted, not
 # mandatory). Changed-skill CI passes --require-evals so any touched SKILL.md
-# must ship evals/evals.json regardless of shape.
+# must ship evals/evals.json unless a recorded skip exists (#3135).
+
+evals_warrant_exemptions_file() {
+  local d="${1:-}"
+  while [[ -n "$d" && "$d" != "/" ]]; do
+    if [[ -f "$d/scripts/evals-warrant-exemptions.txt" ]]; then
+      printf '%s\n' "$d/scripts/evals-warrant-exemptions.txt"
+      return 0
+    fi
+    d="$(dirname "$d")"
+  done
+  return 1
+}
+
+evals_warrant_skip() {
+  local skill_rel="$1" file raw
+  file="$(evals_warrant_exemptions_file "${REPO_ROOT:-$SKILL_DIR}")" || return 1
+  while IFS= read -r raw || [[ -n "$raw" ]]; do
+    raw="${raw%%#*}"
+    raw="${raw#"${raw%%[![:space:]]*}"}"
+    raw="${raw%"${raw##*[![:space:]]}"}"
+    [[ "$raw" == "$skill_rel" ]] && return 0
+  done <"$file"
+  return 1
+}
+
+evals_skill_rel=""
+if [[ "$SKILLS_ROOT" =~ /plugins/([^/]+)/skills$ ]]; then
+  evals_skill_rel="plugins/${BASH_REMATCH[1]}/skills/${SKILL_NAME}"
+fi
 
 if [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
   if [[ "$REQUIRE_EVALS" == "1" ]]; then
-    err "skill ships no evals/evals.json — required when the skill is new or its SKILL.md changed"
+    if [[ -n "$evals_skill_rel" ]] && evals_warrant_skip "$evals_skill_rel"; then
+      note "evals skip recorded in scripts/evals-warrant-exemptions.txt for $evals_skill_rel"
+    else
+      err "skill ships no evals/evals.json — required when the skill is new or its SKILL.md changed"
+    fi
   elif grep -qE '^##+[[:space:]]+Actions?([^[:alnum:]_]|$)' "$SKILL_MD"; then
     warn "action-router-shaped skill with no evals/evals.json — check whether the skill warrants triggering evals"
   fi
@@ -1302,32 +1338,45 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
   ' "$fe_file")
 done
 
-# --- Check 22: metadata.summary length cap -----------------------------------
-# The key is the generated skill cheat sheet's row source; the cap keeps rows
-# scannable. Length is Unicode CODEPOINTS, not bytes, counted
-# locale-independently: UTF-8 -> UTF-32BE via iconv makes every codepoint
-# exactly 4 bytes, so byte-count/4 is the codepoint count on any host — a
-# locale-pinned ${#var} silently degrades to byte counting where the pinned
-# locale does not exist, tightening the cap for multi-byte summaries. Hosts
-# without iconv fall back to the UTF-8-locale form. The value is read via
-# metadata_field (trailing-comment strip) + strip_quotes, matching how the
-# sheet generator reads it.
+# --- Check 22: metadata.summary contract -------------------------------------
+# The key is the generated skill cheat sheet's row source. This check enforces
+# the SAME contract as the cheat-sheet generator's shared guard
+# (scripts/cheatsheet-config.mjs, summaryError) rather than a laxer subset of
+# it. That guard is not reachable from here: it is repo-internal JavaScript and
+# this script ships inside an installable plugin that runs with no Node and no
+# repository scripts beside it. So the rule set is restated in bash and the two
+# statements are held together by a shared case table
+# (summary-contract-cases.json) that both readers are run against.
+#
+# The contract is a FIXED POINT: the literal text after `summary:` must be what
+# every reader recovers, whether it reads with a real YAML parser or a regex.
+# Claude Code documents that malformed frontmatter loads a skill with empty
+# metadata, so a value a parser rejects costs the skill its whole frontmatter.
+# Requiring a plain, unquoted, colon-free scalar is the largest subset a regex
+# reader can recover exactly, which is why it is stricter than YAML alone.
+#
+# The value is read RAW: no quote stripping (a quoted scalar is a rejection, not
+# a value to unwrap) and no trailing-comment stripping (the generator treats a
+# trailing comment as an error, so stripping it would hide a real divergence).
+#
+# Length is Unicode CODEPOINTS, not bytes, counted locale-independently: UTF-8
+# -> UTF-32BE via iconv makes every codepoint exactly 4 bytes, so byte-count/4
+# is the codepoint count on any host — a locale-pinned ${#var} silently degrades
+# to byte counting where the pinned locale does not exist, tightening the cap
+# for multi-byte summaries. Hosts without iconv fall back to the UTF-8-locale
+# form.
+#
+# Deliberately NOT enumerated here: values a YAML resolver reads as a non-string
+# (`true`, `017`, `12:34`, `2026-08-23`). A denylist of resolver spellings only
+# holds the ones someone was already burned by; the parity test's YAML oracle
+# catches that whole class mechanically instead.
 
-SUMMARY_CP_CAP=100
-CUR_SUMMARY="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field summary <<<"$FRONTMATTER")")"
-if [[ -n "$CUR_SUMMARY" ]]; then
-  if command -v iconv >/dev/null 2>&1; then
-    SUMMARY_CP_LEN=$(($(printf '%s' "$CUR_SUMMARY" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
+CUR_SUMMARY="$(skill_frontmatter::metadata_field summary --raw <<<"$FRONTMATTER")"
+if skill_frontmatter::has_metadata_field summary <<<"$FRONTMATTER"; then
+  if SUMMARY_ERR="$(skill_frontmatter::summary_error "$CUR_SUMMARY")"; then
+    note "summary passes the shared contract"
   else
-    SUMMARY_CP_LEN="$(
-      LC_ALL=C.UTF-8
-      printf '%s' "${#CUR_SUMMARY}"
-    )"
-  fi
-  if ((SUMMARY_CP_LEN > SUMMARY_CP_CAP)); then
-    err "metadata.summary is $SUMMARY_CP_LEN codepoints (cap $SUMMARY_CP_CAP — the cheat sheet row it generates must stay scannable)"
-  else
-    note "summary $SUMMARY_CP_LEN/$SUMMARY_CP_CAP codepoints"
+    err "metadata.$SUMMARY_ERR"
   fi
 fi
 

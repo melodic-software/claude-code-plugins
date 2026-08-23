@@ -17,11 +17,11 @@
       "id": 2,
       "name": "scope-boundary-routes-out",
       "prompt": "/claude-config:audit-instructions is my CLAUDE.md too long, and can you prune the always-loaded hygiene lines out of it?",
-      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I28 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
+      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I29 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
       "files": [],
       "expectations": [
         "Routes memory-layer hygiene (line budget, 'CLAUDE.md too long', pruning) to the claude-memory plugin's audit skill when installed",
-        "On memory-layer surfaces runs only the model-era checks I6-I28 (I16, I19, and I22 only under --opinion), not the I1-I5 hygiene checks",
+        "On memory-layer surfaces runs only the model-era checks I6-I29 (I16, I19, and I22 only under --opinion), not the I1-I5 hygiene checks",
         "Falls back to the official CLAUDE.md include/exclude guidance pointer when claude-memory is not installed instead of silently skipping"
       ]
     },
@@ -219,6 +219,30 @@
         "When claude-memory is installed, routes to C6 / does NOT emit a graded I15 conflict finding for the pair",
         "When claude-memory is NOT installed, emits the I15 fallback finding rather than dropping the only coverage",
         "Does not treat nested CLAUDE.md or auto-memory pairs as if they followed the same route — those stay with I15"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "description-restatement-flagged-body-only",
+      "prompt": "Audit evals/fixtures/description-restatement.md relative to the skill directory and persist the findings for the review fix relay.",
+      "expected_output": "Flags the ## Purpose section under I29-a (description-restatement) because its body is wholly recoverable from the file's own description. Does not flag ## Usage, which adds unique content. The persisted findings file proposes cutting the body restatement and never proposes editing the description, when_to_use, or a quoted trigger phrase.",
+      "files": ["evals/fixtures/description-restatement.md"],
+      "expectations": [
+        "Flags the Purpose section as I29-a description-restatement",
+        "Does not flag the Usage section that adds unique content",
+        "The persisted Action cuts the body restatement and does not edit the description or any trigger phrase"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "sibling-restatement-and-partial-overlap-spared",
+      "prompt": "Audit evals/fixtures/sibling-restatement.md and evals/fixtures/partial-overlap.md relative to the skill directory.",
+      "expected_output": "Flags sibling-restatement.md's ## What this skill does NOT do under I29-b because it is wholly recoverable from ## Cross-references, and does not flag Cross-references itself. Does not flag partial-overlap.md's ## Purpose, which echoes the description and then names three concrete failure modes.",
+      "files": ["evals/fixtures/sibling-restatement.md", "evals/fixtures/partial-overlap.md"],
+      "expectations": [
+        "Flags the NOT-do section as I29-b sibling-section-restatement",
+        "Does not flag the Cross-references section that is the source",
+        "Does not flag the partial-overlap Purpose that adds load-bearing content after the echo"
       ]
     }
   ]

@@ -22,16 +22,8 @@ stage_libs() {
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # A stub checker shared by every scenario: records each invocation (skill name +
 # forwarded env) to $CHECK_LOG, and FAILs iff the skill is named "bad".
@@ -338,7 +330,37 @@ else
 fi
 rm -rf "$r"
 
+# --- recorded warrant skip is not passed --require-evals (#3135) -----------
+r="$(mk_repo)"
+add_skill "$r" p1 skipme
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 skipme SKILL.md
+printf '%s\n' 'plugins/p1/skills/skipme  # test skip' >"$r/scripts/evals-warrant-exemptions.txt"
+run "$r" "$b" >/dev/null 2>&1
+if grep -q "args=skipme " "$r/checklog" 2>/dev/null &&
+  ! grep -q "args=--require-evals skipme" "$r/checklog" 2>/dev/null; then
+  ok "recorded warrant skip is not passed --require-evals"
+else
+  fail "exempted skill should not receive --require-evals, got: $(cat "$r/checklog" 2>/dev/null)"
+fi
+rm -rf "$r"
+
+# --- stale exemption (skill now ships evals) fails -------------------------
+r="$(mk_repo)"
+add_skill "$r" p1 skipme
+mkdir -p "$r/plugins/p1/skills/skipme/evals"
+printf '{}\n' >"$r/plugins/p1/skills/skipme/evals/evals.json"
+printf '%s\n' 'plugins/p1/skills/skipme  # stale' >"$r/scripts/evals-warrant-exemptions.txt"
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 skipme SKILL.md
+if run "$r" "$b" >/dev/null 2>&1; then
+  fail "stale evals exemption (skill ships evals) should fail"
+else
+  ok "stale evals exemption (skill ships evals) fails"
+fi
+rm -rf "$r"
+
 rm -f "$STUB"
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+test_harness::report

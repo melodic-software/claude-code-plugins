@@ -1,0 +1,251 @@
+{
+  "$comment": [
+    "Shared contract cases for metadata.summary, exercised against every reader",
+    "that judges the key. See scripts/check-summary-reader-parity.test.sh (repo)",
+    "and check-skill.test.sh (this plugin).",
+    "",
+    "The contract is a FIXED POINT: the literal text after `summary:` must be the",
+    "value every reader recovers, whether it reads with a real YAML parser or a",
+    "regex. `valid` is the verdict BOTH guards must return. `yaml` records what a",
+    "real parser does with the value, so a rule cannot be kept without evidence it",
+    "earns its place: `roundtrip` means the parser yields the identical string,",
+    "`reject` means the parse fails outright (which costs a skill ALL of its",
+    "frontmatter), `shift` means the parser yields a different value or type.",
+    "",
+    "Cases marked reject-but-valid cannot exist: anything a parser rejects must be",
+    "invalid to both guards. That is the safety direction this table protects."
+  ],
+  "cases": [
+    {
+      "id": "plain-prose",
+      "value": "Classify markdown noise and emit findings",
+      "valid": true,
+      "yaml": "roundtrip",
+      "why": "the ordinary shape a summary should take"
+    },
+    {
+      "id": "regression-3162-unquoted-colon",
+      "value": "Classify markdown noise: citations, ghost refs, preamble",
+      "valid": false,
+      "yaml": "reject",
+      "why": "the value that reached CI in #3162; a block mapping value cannot contain ': '"
+    },
+    {
+      "id": "regression-3162-quoted-fix",
+      "value": "\"Classify markdown noise: citations, ghost refs, preamble\"",
+      "valid": false,
+      "yaml": "shift",
+      "why": "the quoted remedy that reached CI a second time; the parser unwraps the quotes so the regex readers and the parser no longer agree on the text"
+    },
+    {
+      "id": "colon-no-space",
+      "value": "Read key:value pairs from the manifest",
+      "valid": true,
+      "yaml": "roundtrip",
+      "why": "a colon not followed by a space is ordinary plain-scalar content"
+    },
+    {
+      "id": "trailing-colon",
+      "value": "Ends with a colon:",
+      "valid": false,
+      "yaml": "reject",
+      "why": "a trailing colon makes the line a mapping key"
+    },
+    {
+      "id": "comment-start",
+      "value": "Truncated by a trailing # comment",
+      "valid": false,
+      "yaml": "shift",
+      "why": "the parser drops everything from ' #', so the rendered row would silently lose its tail"
+    },
+    {
+      "id": "hash-inside-word",
+      "value": "Cross-reference issue#1416 in the report",
+      "valid": true,
+      "yaml": "roundtrip",
+      "why": "a '#' without a preceding space is content, not a comment"
+    },
+    {
+      "id": "lead-dash",
+      "value": "- leading dash reads as a list item",
+      "valid": false,
+      "yaml": "reject",
+      "why": "a leading '- ' opens a block sequence"
+    },
+    {
+      "id": "lead-comma",
+      "value": ", leading comma",
+      "valid": false,
+      "yaml": "reject",
+      "why": "ParserError; ',' was missing from the unsafe-lead set until #3189"
+    },
+    {
+      "id": "lead-question",
+      "value": "? leading question mark",
+      "valid": false,
+      "yaml": "reject",
+      "why": "ScannerError, mapping keys are not allowed here; '?' was missing from the unsafe-lead set until #3189"
+    },
+    {
+      "id": "lead-double-quote",
+      "value": "\"quoted summaries are rejected\"",
+      "valid": false,
+      "yaml": "shift",
+      "why": "the parser unwraps the quotes; the regex readers would keep them"
+    },
+    {
+      "id": "lead-single-quote",
+      "value": "'quoted summaries are rejected'",
+      "valid": false,
+      "yaml": "shift",
+      "why": "same unwrapping divergence as the double-quoted form"
+    },
+    {
+      "id": "lead-brace",
+      "value": "{flow mapping lead}",
+      "valid": false,
+      "yaml": "shift",
+      "why": "reads as a flow mapping, not a string"
+    },
+    {
+      "id": "lead-bracket",
+      "value": "[flow sequence lead]",
+      "valid": false,
+      "yaml": "shift",
+      "why": "reads as a flow sequence, not a string"
+    },
+    {
+      "id": "lead-pipe",
+      "value": "| block scalar lead",
+      "valid": false,
+      "yaml": "reject",
+      "why": "opens a literal block scalar header"
+    },
+    {
+      "id": "lead-gt",
+      "value": "> folded scalar lead",
+      "valid": false,
+      "yaml": "reject",
+      "why": "opens a folded block scalar header"
+    },
+    {
+      "id": "lead-ampersand",
+      "value": "&anchor lead",
+      "valid": false,
+      "yaml": "shift",
+      "why": "the leading token is consumed as an anchor name, so the parser yields only the remaining text"
+    },
+    {
+      "id": "lead-asterisk",
+      "value": "*alias lead",
+      "valid": false,
+      "yaml": "reject",
+      "why": "reads as an alias reference"
+    },
+    {
+      "id": "lead-bang",
+      "value": "!tag lead",
+      "valid": false,
+      "yaml": "reject",
+      "why": "reads as a tag handle"
+    },
+    {
+      "id": "lead-percent",
+      "value": "%directive lead",
+      "valid": false,
+      "yaml": "reject",
+      "why": "a leading % is a directive indicator and the parse fails outright"
+    },
+    {
+      "id": "lead-backtick",
+      "value": "`reserved indicator lead",
+      "valid": false,
+      "yaml": "reject",
+      "why": "'`' is a reserved YAML indicator"
+    },
+    {
+      "id": "lead-at",
+      "value": "@reserved indicator lead",
+      "valid": false,
+      "yaml": "reject",
+      "why": "'@' is a reserved YAML indicator"
+    },
+    {
+      "id": "value-key-special",
+      "value": "=",
+      "valid": false,
+      "yaml": "reject",
+      "why": "a lone = in this position fails the parse; it is the tag:yaml.org,2002:value special"
+    },
+    {
+      "id": "indicators-not-leading",
+      "value": "Render a | b and a > b at 50% done, alpha, beta",
+      "valid": true,
+      "yaml": "roundtrip",
+      "why": "flow indicators are ordinary content once they are not the first character"
+    },
+    {
+      "id": "apostrophe-inside",
+      "value": "Do not strip an author's apostrophe",
+      "valid": true,
+      "yaml": "roundtrip",
+      "why": "a quote inside the value is content"
+    },
+    {
+      "id": "tab-inside",
+      "value": "Has a\ttab inside",
+      "valid": false,
+      "yaml": "reject",
+      "why": "a tab is invisible in a diff and a real YAML reader rejects it here outright"
+    },
+    {
+      "id": "c1-control",
+      "value": "beforeafter",
+      "valid": false,
+      "yaml": "reject",
+      "why": "ReaderError, unacceptable character; C1 controls were unguarded until #3189"
+    },
+    {
+      "id": "nel-line-break",
+      "value": "beforeafter",
+      "valid": false,
+      "yaml": "reject",
+      "why": "NEL is consumed as a line break and breaks the document structure"
+    },
+    {
+      "id": "line-separator",
+      "value": "before after",
+      "valid": false,
+      "yaml": "reject",
+      "why": "U+2028 is consumed as a line break by a YAML 1.1 reader"
+    },
+    {
+      "id": "paragraph-separator",
+      "value": "before after",
+      "valid": false,
+      "yaml": "reject",
+      "why": "U+2029 is consumed as a line break by a YAML 1.1 reader"
+    },
+    {
+      "id": "cap-boundary-100",
+      "value": "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789",
+      "valid": true,
+      "yaml": "roundtrip",
+      "why": "exactly at the 100-codepoint cap"
+    },
+    {
+      "id": "cap-over-101",
+      "value": "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890",
+      "valid": false,
+      "yaml": "roundtrip",
+      "why": "one codepoint over the cap"
+    },
+    {
+      "id": "cap-multibyte-100",
+      "value": "Ünïcödé súmmáry with áccènts and éms that counts codepoints not bytes across the whole hundred ✓✓✓",
+      "valid": true,
+      "yaml": "roundtrip",
+      "why": "under the cap in codepoints while over it in bytes"
+    }
+  ]
+}

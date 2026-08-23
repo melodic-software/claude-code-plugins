@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.7]
+
+- **A branch name beginning with a YAML indicator silently dropped every finding it emitted.**
+  `emit-findings.sh` interpolated the branch into its findings frontmatter as a bare plain scalar,
+  and `git check-ref-format --branch` accepts `@foo`, `!foo`, `#foo` and `&foo`. Emitted bare,
+  `#foo` and `&foo` parse to null and `@foo`/`!foo` are outright YAML parse errors, so the
+  `branch:` value a consumer reads is not the branch name. The consumer admits a findings file
+  only when that value matches the current branch exactly, so the whole file went unmatched — with
+  no error, and nothing distinguishing it from "no findings". Frontmatter now goes through a
+  `yaml_scalar()` helper that quotes only when the plain form would misparse, so an ordinary branch
+  name stays a byte-identical unquoted scalar and the wire format for the common path does not
+  move. The predicate is deliberately identical to the one `claude-config`'s and `testing`'s
+  emitters use: three producers answer one frontmatter contract, and a consumer must not see three
+  shapes. Implicit YAML types (`true`, `null`, `123`, `yes`, dates) are quoted the same way, because
+  a bare scalar would type-coerce and the consumer's exact branch match would still drop the file.
+
 ## [0.3.6]
 
 - **`emit-findings.sh` double-escaped a pipe the source already escaped, and left Location

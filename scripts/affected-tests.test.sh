@@ -48,16 +48,8 @@ NO_SUITE="$SELF_DIR/affected-tests-no-suite.txt"
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # A stand-in suite that is cheap to run and records that it ran.
 # shellcheck disable=SC2016 # deliberate: the emitted file must expand these, not this shell
@@ -819,5 +811,4 @@ else
   fail "crossing budget was spent by an incidental hit (rc=$RC): $OUT"
 fi
 
-printf '\nPASS=%d FAIL=%d\n' "$PASS" "$FAIL"
-((FAIL == 0))
+test_harness::report

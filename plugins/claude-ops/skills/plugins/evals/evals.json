@@ -5,7 +5,7 @@
       "id": 1,
       "name": "bare-invocation-routes-to-sync",
       "prompt": "/claude-ops:plugins",
-      "expected_output": "Bare invocation (no action argument) routes to the default action, sync, against the dynamically-resolved default marketplace. The response calls fleet-state.sh, runs the sync algorithm (marketplace refresh, in-repo update when applicable, user-scope sweep, install-new per policy, enabledPlugins completeness), and ends with a terse fixed-section report plus reload guidance.",
+      "expected_output": "Bare invocation (no action argument) routes to the default action, sync, against the dynamically-resolved default marketplace. The response calls fleet-state.sh, runs the sync algorithm (marketplace refresh, in-repo update when applicable, user-scope sweep, install-new per policy, user-scope enabledPlugins key-order normalize after any install, enabledPlugins completeness), and ends with a terse fixed-section report plus reload guidance.",
       "files": [],
       "expectations": [
         "The response treats the bare invocation as the sync action, not audit or converge",
@@ -17,12 +17,13 @@
       "id": 2,
       "name": "audit-issues-zero-mutating-calls",
       "prompt": "/claude-ops:plugins audit",
-      "expected_output": "audit runs the same algorithm as sync but every mutating step becomes a prediction — no `claude plugin install|update|uninstall|marketplace update` command is ever run. The response calls fleet-state.sh (read-only) and reports what sync/converge would do without doing it.",
+      "expected_output": "audit runs the same algorithm as sync but every mutating step becomes a prediction — no `claude plugin install|update|uninstall|marketplace update` command is ever run, and normalize-enabled-plugins.sh is invoked with --check rather than written. The response calls fleet-state.sh (read-only) and reports what sync/converge would do without doing it.",
       "files": [],
       "expectations": [
         "The response issues zero `claude plugin install|update|uninstall` or `claude plugin marketplace update` invocations",
         "The response still calls the read-only fleet-state.sh script to compute state",
-        "The response frames its output as a prediction of what `sync` (and, where relevant, `converge`) would do, not as work already performed"
+        "The response frames its output as a prediction of what `sync` (and, where relevant, `converge`) would do, not as work already performed",
+        "If the response mentions enabledPlugins key order, it uses normalize-enabled-plugins.sh --check (or equivalent prediction) and never writes ~/.claude/settings.json or a committed project settings file"
       ]
     },
     {

@@ -544,6 +544,109 @@ else
   fi
 fi
 
+# --- emit: branch names that are YAML indicators ---------------------------------
+#
+# git accepts branch names beginning with a YAML indicator: `git check-ref-format
+# --branch` calls "@foo", "!foo", "#foo" and "&foo" all valid. Emitted as a bare
+# plain scalar, "#foo" and "&foo" parse to null and "@foo"/"!foo"/"*foo" are
+# parse errors. The consumer (review/fanout fix-pass-mode.md "Step 1") admits a
+# findings file only when its `branch:` value equals the current branch EXACTLY,
+# so a misparse silently drops every finding for that branch — no error, and
+# nothing distinguishing it from "no findings".
+#
+# Both directions are asserted. Quoting is CONDITIONAL, so an ordinary branch
+# name must stay a byte-identical plain scalar: a helper that quoted
+# unconditionally would pass a quoted-only assertion while moving the wire
+# format for every ordinary branch. `*foo` is not a legal git branch name, but
+# --branch takes an arbitrary string, so the predicate is still asserted on it.
+emit_branch_line() {
+  # emit_branch_line <branch> -> the emitted `branch:` frontmatter line
+  local b="$1" out="$TEST_TMPDIR/findings/ybranch.md"
+  # Non-overwrite naming would divert a leftover sibling to ybranch-2.md.
+  rm -f "$TEST_TMPDIR/findings/ybranch"*.md
+  # Stdin closed: a missing-file grep that fell through to stdin would hang
+  # the suite (the Windows Git Bash failure mode that blocked the first
+  # widening of this loop). The emitter itself does not read stdin.
+  bash "$EMIT" --from "$DETOUT" --out "$out" --branch "$b" </dev/null >/dev/null 2>&1 || true
+  [[ -f "$out" ]] || {
+    printf 'MISSING\n'
+    return 0
+  }
+  LC_ALL=C grep -m1 '^branch:' "$out" </dev/null || true
+}
+
+# EVERY character in the predicate's indicator class is asserted, not a sample.
+# A five-name sample stayed green after `|`, `>`, `%`, backtick, `"` and `'`
+# were dropped from a sibling — the drift acceptance criterion 3 forbids.
+# `-foo` is omitted: git rejects it, and --branch treats a leading `-` as a
+# missing option value (exit 2), so no caller can reach the predicate with it.
+for b in '?foo' ':foo' ',foo' '[foo' ']foo' '{foo' '}foo' '#foo' \
+  '&foo' '*foo' '!foo' '|foo' '>foo' '%foo' '@foo' '`foo' "'foo"; do
+  got="$(emit_branch_line "$b")"
+  want="branch: \"$b\""
+  if [[ "$got" == "$want" ]]; then
+    pass "emit: indicator branch '$b' is emitted as a quoted scalar"
+  else
+    fail "emit: indicator branch '$b' is emitted as a quoted scalar" "$want" "$got"
+  fi
+done
+
+# The double-quote indicator, whose expected form carries an escape.
+got="$(emit_branch_line '"foo')"
+if [[ "$got" == 'branch: "\"foo"' ]]; then
+  pass 'emit: indicator branch (leading double quote) is quoted and escaped'
+else
+  fail 'emit: indicator branch (leading double quote) is quoted and escaped' 'branch: "\"foo"' "$got"
+fi
+
+# Non-leading `: ` and ` #` also force quoting: both end a plain scalar early.
+for b in 'has: colon' 'has #hash'; do
+  got="$(emit_branch_line "$b")"
+  want="branch: \"$b\""
+  if [[ "$got" == "$want" ]]; then
+    pass "emit: branch '$b' is quoted (plain scalar would end early)"
+  else
+    fail "emit: branch '$b' is quoted (plain scalar would end early)" "$want" "$got"
+  fi
+done
+
+for b in 'main' 'feat/3179-slug' 'release-1.2_x'; do
+  got="$(emit_branch_line "$b")"
+  want="branch: $b"
+  if [[ "$got" == "$want" ]]; then
+    pass "emit: ordinary branch '$b' stays an unquoted plain scalar"
+  else
+    fail "emit: ordinary branch '$b' stays an unquoted plain scalar" "$want" "$got"
+  fi
+done
+
+# YAML implicit types: git accepts these as branch names, but a bare scalar
+# becomes a boolean, null, or number and the consumer's exact-match drops
+# every finding.
+for b in true null 123 yes FALSE '~'; do
+  got="$(emit_branch_line "$b")"
+  want="branch: \"$b\""
+  if [[ "$got" == "$want" ]]; then
+    pass "emit: implicit-type branch '$b' is quoted"
+  else
+    fail "emit: implicit-type branch '$b' is quoted" "$want" "$got"
+  fi
+done
+
+# The quoting must survive a branch name carrying the quote character itself —
+# otherwise the emitted scalar is quoted but unparsable, trading a silent drop
+# for a hard consumer failure. A BACKSLASH is deliberately not asserted: git
+# rejects it in a branch name (`git check-ref-format --branch 'a\b'` fails), and
+# awk consumes it as an escape at the -v assignment boundary before the helper
+# ever runs, so an assertion here would pin an awk -v artifact on an input that
+# cannot occur rather than this producer's quoting.
+got="$(emit_branch_line '@with"quote')"
+if [[ "$got" == 'branch: "@with\"quote"' ]]; then
+  pass "emit: a quote character inside an indicator branch is escaped"
+else
+  fail "emit: a quote character inside an indicator branch is escaped" 'branch: "@with\"quote"' "$got"
+fi
+
 # --- Roster agreement: every rule's tier is asserted -----------------------------
 #
 # emit-findings.sh's rule_tier() declares itself a MIRROR of the severity

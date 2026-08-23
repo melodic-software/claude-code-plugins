@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff, so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog, covering the checks I1–I28, their evidence tier, authority tag, severity,
+The check catalog, covering the checks I1–I29, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -61,7 +61,7 @@ concerns its siblings already cover, so route rather than re-answer:
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, and `rules/` under the
 user root Phase A resolves),
-this skill runs only the model-era checks I6–I28. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I29. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces;
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -142,9 +142,10 @@ Two flags govern the `OPINION` tier, whose enablement policy the catalog defines
   It is on by default because it withholds findings rather than emitting them, so turning it off
   makes both trimming checks more aggressive, not the audit more conservative.
 
-`--persist-findings` also writes the run's I28 findings as a `type: review-findings` file for
-`review:fanout`'s `fix` action (off by default; only I28 is eligible, body-scoped; a proposal for a
-human-gated relay, not an applied edit; see [context/persist-findings.md](context/persist-findings.md)).
+`--persist-findings` also writes the run's I28 and I29 findings as a `type: review-findings` file
+for `review:fanout`'s `fix` action (off by default; only I28 and I29 are eligible, body-scoped; a
+proposal for a human-gated relay, not an applied edit; see
+[context/persist-findings.md](context/persist-findings.md)).
 
 ## Phase A: Inventory
 
@@ -327,7 +328,9 @@ patternable, and it waits only on an attested instance to calibrate the interval
 verb it licenses, which routinely sits in a different sentence), I25 (retired sampling parameters),
 I27 (effort-for-brevity: an effort-lowering directive paired with a brevity token on one line), and
 the I28 families (`I28-a` forced-compliance emphasis, case-sensitive; `I28-b` blanket tool
-defaults); `--count` prints the row count.
+defaults). Concatenate `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/restatement-scan.py`
+over the same files for the I29 families (`I29-a` description-restatement; `I29-b`
+sibling-section-restatement); `--count` prints the row count.
 Advisory: a grep cannot judge whether a rationale is genuinely present, whether a restraint clause
 is a reporting gate, whether a budget mention is a directive or the counter-steer against one, or
 which model a row targets, so the lane refines every candidate against the catalog's fences and the
@@ -446,7 +449,7 @@ Open the Sources line with the two official pages the paths and doctrine derive 
 (code.claude.com memory + `.claude`-directory docs; the prompting pages cited per check in the
 catalog).
 
-**With `--persist-findings`**, also emit the run's I28 findings for the apply relay per
+**With `--persist-findings`**, also emit the run's I28 and I29 findings for the apply relay per
 [context/persist-findings.md](context/persist-findings.md), which owns every mechanic and the
 carve-out drop preceding the write. Report the path and the emitted/declined counts, and say
 plainly that nothing has been applied.

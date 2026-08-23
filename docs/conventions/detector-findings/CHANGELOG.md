@@ -4,6 +4,24 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.6.0 — 2026-08-23
+
+**Minor under this contract's own rule** — two new rows on an existing adopter; no
+producer-owned field's rule moves, no coexistence obligation changes, and no
+enforceability verdict changes.
+
+- **`claude-config/audit-instructions` gains I29 (#3186)**, the D4 restatement
+  shape. Two rows, both **IMPORTANT**, argued from `severity.md`'s
+  degradation-with-a-named-trigger limb (the next session that pays the listing
+  `description` *and* the body copy for the same fact):
+  - `rule-description-restatement` — an H2 section wholly recoverable from the
+    file's own `description`.
+  - `rule-sibling-restatement` — an H2 section wholly recoverable from a sibling
+    H2 section. Footer headings are sources, never findings.
+  Both are body-scoped: the remediation is a cut of the body restatement, never
+  an edit to `description`, `when_to_use`, or a quoted trigger phrase.
+  `Auto-applicable: No`.
+
 ## 2.5.1 — 2026-08-23
 
 **Patch** — docs-only clarification of one adopter row's selection text. No producer-owned field's

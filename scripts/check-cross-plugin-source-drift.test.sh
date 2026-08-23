@@ -11,16 +11,8 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-cross-plugin-source-drift.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # new_fixture → prints the path to a fresh <tmp>/scripts + <tmp>/plugins tree
 # with the script copied in, ready for callers to populate.
@@ -179,6 +171,4 @@ else
   fi
 fi
 
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+test_harness::report

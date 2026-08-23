@@ -2225,7 +2225,7 @@ None known.
 "
 out="$(run cap-pass 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'summary 100/100 codepoints' <<<"$out"; then
+if [[ $rc -eq 0 ]] && grep -q 'summary passes the shared contract' <<<"$out"; then
   pass "summary at exactly 100 codepoints passes (check 22)"
 else
   fail "100-codepoint summary should pass at the boundary (rc=$rc): $out"
@@ -2250,7 +2250,7 @@ None known.
 "
 out="$(run cap-fail 2>&1)"
 rc=$?
-if [[ $rc -eq 1 ]] && grep -q 'metadata.summary is 101 codepoints' <<<"$out"; then
+if [[ $rc -eq 1 ]] && grep -q 'metadata.summary is 101 codepoints (cap 100)' <<<"$out"; then
   pass "summary at 101 codepoints fails (check 22)"
 else
   fail "101-codepoint summary should FAIL (rc=$rc): $out"
@@ -2277,10 +2277,94 @@ None known.
 "
 out="$(run cap-multibyte 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'summary 100/100 codepoints' <<<"$out"; then
+if [[ $rc -eq 0 ]] && grep -q 'summary passes the shared contract' <<<"$out"; then
   pass "a 100-codepoint summary with a multi-byte em-dash passes (codepoints, not bytes)"
 else
   fail "multi-byte 100-codepoint summary should pass (rc=$rc): $out"
+fi
+
+# 38d. Check 22: the #3162 regression. An unquoted summary carrying ": " passed
+#      this gate while failing CI, because the gate enforced only the cap. It is
+#      a YAML mapping indicator: the frontmatter does not parse, and a skill
+#      whose frontmatter does not parse loads with EMPTY metadata.
+make_skill summary-colon "---
+name: summary-colon
+description: \"Summary colon fixture. Use when: 'colon fixture'.\"
+metadata:
+  summary: Classify markdown noise: citations, ghost refs, preamble
+---
+
+## Purpose
+
+Fixture whose summary carries a YAML mapping indicator.
+
+## Gotchas
+
+None known.
+"
+out="$(run summary-colon 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'contains ": "' <<<"$out"; then
+  pass "an unquoted summary containing \": \" fails locally (check 22, #3189)"
+else
+  fail "summary with a mapping indicator should FAIL (rc=$rc): $out"
+fi
+
+# 38e. Check 22: the other half of the #3162 regression. Quoting the scalar is
+#      the remedy an author reaches for first; it made the YAML parse but failed
+#      a different CI gate. The gate must reject it HERE, and its message must
+#      point at rewording rather than at quoting.
+make_skill summary-quoted "---
+name: summary-quoted
+description: \"Summary quoting fixture. Use when: 'quoted fixture'.\"
+metadata:
+  summary: \"Classify markdown noise: citations, ghost refs\"
+---
+
+## Purpose
+
+Fixture whose summary was quoted to survive the YAML parse.
+
+## Gotchas
+
+None known.
+"
+out="$(run summary-quoted 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'reword to a plain unquoted scalar' <<<"$out"; then
+  pass "a quoted summary fails and the message names rewording, not quoting (check 22, #3189)"
+else
+  fail "quoted summary should FAIL with a rewording remedy (rc=$rc): $out"
+fi
+
+# 38f. Check 22 reads the metadata BLOCK, not the first indented `summary:` line
+#      anywhere in the frontmatter. An indented line inside a `description:`
+#      block scalar used to be read as the summary while the cheat-sheet
+#      generator read the real one: two readers disagreeing about WHICH value
+#      they are reading. The decoy here would fail the contract if read.
+make_skill summary-decoy '---
+name: summary-decoy
+description: |
+  Block scalar body. Use when: '"'"'decoy fixture'"'"'.
+  summary: "decoy: not the real value"
+metadata:
+  summary: The real summary sits in the metadata block
+---
+
+## Purpose
+
+Fixture with a decoy summary line inside a block scalar.
+
+## Gotchas
+
+None known.
+'
+out="$(run summary-decoy 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'summary passes the shared contract' <<<"$out"; then
+  pass "the metadata block is read, not a decoy inside a block scalar (check 22, #3189)"
+else
+  fail "decoy summary inside a block scalar should not be read (rc=$rc): $out"
 fi
 
 # 33. An omitted `name` passes: the field is optional and defaults to the
@@ -3399,6 +3483,57 @@ if [[ $rc -eq 0 ]] && ! grep -q 'description alone is' <<<"$out"; then
   pass "check 2b counts codepoints, not bytes (600 multibyte chars stay silent under LC_ALL=C)"
 else
   fail "check 2b must count codepoints: 600 'é' is 600 chars, not 1200 bytes (rc=$rc): $out"
+fi
+
+# 47. --require-evals honors a recorded warrant skip (#3135).
+mkdir -p "$TMP/plugins/p1/skills/skipme" "$TMP/scripts"
+cat >"$TMP/plugins/p1/skills/skipme/SKILL.md" <<'EOF'
+---
+description: "A pure-reference fixture. Use when: 'testing warrant skips'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Pure-reference skip fixture.
+
+## Gotchas
+
+None known.
+EOF
+printf '%s\n' 'plugins/p1/skills/skipme  # test skip' >"$TMP/scripts/evals-warrant-exemptions.txt"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals skipme 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'evals skip recorded' <<<"$out"; then
+  pass "--require-evals honors a recorded warrant skip"
+else
+  fail "--require-evals should pass a recorded skip (rc=$rc): $out"
+fi
+
+# 48. --require-evals still FAILs an unlisted sibling in the same plugins/ tree.
+mkdir -p "$TMP/plugins/p1/skills/listed"
+cat >"$TMP/plugins/p1/skills/listed/SKILL.md" <<'EOF'
+---
+description: "An unlisted fixture. Use when: 'testing warrant unlisted'."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Unlisted sibling of the skip fixture.
+
+## Gotchas
+
+None known.
+EOF
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "--require-evals still fails an unlisted skill"
+else
+  fail "unlisted skill should still fail --require-evals (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

@@ -11,16 +11,8 @@ SCRIPT="$SELF_DIR/check-hook-exec-form.sh"
 READER="$SELF_DIR/check-hook-exec-form-frontmatter.py"
 REQUIREMENTS="$SELF_DIR/../.github/requirements-ci.txt"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 new_fixture() {
   local dir
@@ -968,6 +960,4 @@ else
 fi
 rm -rf "$f"
 
-echo
-echo "passed: $PASS, failed: $FAIL"
-((FAIL == 0)) || exit 1
+test_harness::report

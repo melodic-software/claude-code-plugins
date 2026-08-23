@@ -1,12 +1,12 @@
 ---
-description: "Read-only audit of a Claude Code INSTALLATION directory — the machine-scope `~/.claude` tree plus `~/.claude.json` — inventorying every file, separating what the product's own retention sweep already manages from what nothing manages, resolving what each number in a filename actually means before any process-liveness check, and detecting a deliberate or mid-experiment state before classifying anything as stale. Reports; never deletes. When the bundled doctor skill resolves in your session, prefer it for the quick native health-and-fix pass; this skill for the deep read-only inventory. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Not for: a repo's project-scope .claude config (use /claude-config:audit), or deleting anything (use /disk-hygiene:clean)."
-argument-hint: "[root] — root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
+description: "Read-only audit of a Claude Code INSTALLATION directory, the machine-scope `~/.claude` tree plus `~/.claude.json`. Inventorying every file, separating what the product's own retention sweep already manages from what nothing manages, resolving what each number in a filename actually means before any process-liveness check, and detecting a deliberate or mid-experiment state before classifying anything as stale. Reports; never deletes. When the bundled doctor skill resolves in your session, prefer it for the quick native health-and-fix pass; this skill for the deep read-only inventory. Use when: 'audit my .claude folder', 'what is in my ~/.claude', 'why is my Claude Code install so big', 'is anything stale in my Claude directory', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Not for: a repo's project-scope .claude config (use /claude-config:audit), or deleting anything (use /disk-hygiene:clean)."
+argument-hint: "[root]. Root defaults to $CLAUDE_CONFIG_DIR or ~/.claude; always pass --csv"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: operator
-  summary: Audit a Claude Code install directory — what is there, what the product manages, what is stale
+  summary: Audit a Claude Code install directory. What is there, what the product manages, what is stale
   cadence: weekly
 ---
 
@@ -18,12 +18,12 @@ Answers four questions about a Claude Code installation, and refuses to answer a
    tree, so a ~100k-file tree does not drown a ~150-file answer. Per-file rows live in the CSV.
 2. **What does the product already manage?** Claude Code runs its own retention sweep. Recommending
    a manual prune of a path it owns generates churn, not space.
-3. **For each number in a filename — what IS that number?** A liveness lookup against a TCP port or a
+3. **For each number in a filename. What IS that number?** A liveness lookup against a TCP port or a
    shell `$$` returns a clean, confident, wrong "dead."
 4. **Is this tree in a deliberate or experimental state?** If it is, "looks like decay" is the wrong
    reading of almost everything.
 
-The fifth question — *so what should I delete?* — is deliberately not answered. This skill is
+The fifth question, *so what should I delete?*, is deliberately not answered. This skill is
 report-only and never writes to the target tree. Deletion belongs to `/disk-hygiene:clean`, and
 shedding project state belongs to `claude project purge`.
 
@@ -40,30 +40,30 @@ shedding project state belongs to `claude project purge`.
 Full rationale for every scope decision, and where each finding hands off:
 [reference/scope-and-handoffs.md](reference/scope-and-handoffs.md).
 
-## Boundary — the bundled `doctor` skill
+## Boundary, the bundled `doctor` skill
 
 One native Claude Code surface asks a question that sounds like this skill's, and the two are
 routinely conflated:
 
-- **`doctor` (bundled skill, alias `checkup`)** — ships with Claude Code rather than as a
+- **`doctor` (bundled skill, alias `checkup`)**. Ships with Claude Code rather than as a
   marketplace plugin. It health-checks an installation and **offers to fix** what it finds:
   installation problems, unused extensions, duplicated or bloated memory files, slow hooks,
   updates, permissions. It also estimates what the skill listing costs in context. It is the one
   bundled skill `disableBundledSkills` does not remove; `DISABLE_DOCTOR_COMMAND=1` or a
   `skillOverrides` entry hides it instead.
-- **This skill (marketplace plugin)** — the deep read-only inventory of the install tree: every
+- **This skill (marketplace plugin)**, the deep read-only inventory of the install tree: every
   file classified, product-managed retention separated from genuinely unmanaged state, filename
   schemes resolved before any liveness check, and a deliberate-or-experimental state detected
   before anything is called stale.
 
 **Routing.** When `doctor` resolves in your session, prefer it for the quick health pass and for
 anything you want fixed in place. Prefer this skill when the question is *what is actually in this
-tree, and what does nothing manage* — the classification, the evidence tags, and the per-file CSV
+tree, and what does nothing manage*, the classification, the evidence tags, and the per-file CSV
 have no native counterpart. Its sibling `/claude-ops:audit-performance` owns the timed
 slowness-capture lane against the same native surface; that description is not repeated here.
 
 **Mutation gate.** `doctor` mutates: fixing is its point. This skill's contract is report-only, so
-never chain into a `doctor` fix on this skill's behalf — surface the finding, and let the user
+never chain into a `doctor` fix on this skill's behalf. Surface the finding, and let the user
 invoke the fix themselves.
 
 **Availability is never assumed.** Bundled surfaces are gated on settings and environment, plan,
@@ -74,13 +74,13 @@ its own.
 ## Never read
 
 `.credentials.json`, `daemon/control.key`, `daemon/pipe.key`, `ide/*.lock` (its body carries an
-`authToken`), and the values inside `~/.claude.json`. These are inventory line-items — name, size,
-mtime — and nothing more. **This rule is inherited by every subagent this skill dispatches; say so
+`authToken`), and the values inside `~/.claude.json`. These are inventory line-items. Name, size,
+mtime, and nothing more. **This rule is inherited by every subagent this skill dispatches; say so
 explicitly in any prompt you fan out.**
 
 The engine enforces it in its reader rather than at each call site, and its entire content-read
 allowlist is three files: `settings.json`, `.last-cleanup`, `plugins/.last_inuse_sweep`. Everything
-else in the tree — including every file a sibling plugin deposited — is stat-only.
+else in the tree, including every file a sibling plugin deposited, is stat-only.
 
 ## Run it
 
@@ -104,9 +104,9 @@ versus `listing: "rolled-up"`; it embeds no per-file rows either way and never s
 
 Useful flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--samples N` (default
 2; use 3+ on a busy machine) · `--authored-threshold N` (default 200). Python 3.11+ is the only
-requirement — no PowerShell, no third-party packages.
+requirement. No PowerShell, no third-party packages.
 
-## Phase 1 — read the deliberate-state result FIRST
+## Phase 1. Read the deliberate-state result FIRST
 
 Before reading any other part of the report, read `deliberate_state` and `deny_roots`.
 
@@ -115,11 +115,11 @@ a `manifest.json` / baseline shallow under `plugins/data/`) was found. Its direc
 deny-listed and every entry under it reports `deny-listed` instead of a staleness verdict.
 
 Treat a deny-listed subtree as the possible **sole copy** of somebody's revert path. Do not propose
-anything for it. Check the ledger's `age_days` — live versus abandoned changes everything — and
+anything for it. Check the ledger's `age_days`, live versus abandoned changes everything, and
 **diff against the stored baseline rather than believing the ledger's own summary**; one such file
 claimed "all 68 keys set false" when the truth was 70 keys with one still true.
 
-## Phase 2 — retention, before any staleness claim
+## Phase 2. Retention, before any staleness claim
 
 Read `retention`. Report `effective_days` together with its `effective_evidence`: `measured` when a
 file supplied it, `documented-default` when nothing did and upstream's 30-day default applies.
@@ -130,9 +130,9 @@ the retention sweep**, so nothing is being cleaned until it is fixed. If
 treat every staleness reading below as suspect.
 
 `.last-cleanup` advancing is direct evidence the sweep ran. If it advanced *during* your scan, say
-so — the tree was not quiesced.
+so, the tree was not quiesced.
 
-## Phase 3 — read the entries
+## Phase 3. Read the entries
 
 Each entry carries `surface`, a `reading` with its own `evidence`, and `file_count_sampled` as
 `{min, max, n}`.
@@ -140,7 +140,7 @@ Each entry carries `surface`, a `reading` with its own `evidence`, and `file_cou
 | Reading | What it means |
 |---|---|
 | `product-managed-healthy` | Every file is inside the retention window. Do not hand-prune |
-| `age-exceeds-window` | `evidence: inferred`. Some mtimes exceed the window — a measurement, not proof the sweep is failing. Read the `why`, which names the sweep's documented unit for that path |
+| `age-exceeds-window` | `evidence: inferred`. Some mtimes exceed the window, a measurement, not proof the sweep is failing. Read the `why`, which names the sweep's documented unit for that path |
 | `keep` | Documented as retained, authored by you, session-scoped, or secret-bearing |
 | `unclassified-report-only` | `evidence: no-upstream-row`. No documentation covers it, so no retention claim is available in either direction |
 | `deny-listed` | A revert ledger is in this subtree. Nothing here is a candidate |
@@ -151,38 +151,38 @@ out with their parent transcript; `session-env/`, `tasks/` and `debug/` are per-
 on those paths are the documented behaviour.
 See [reference/surfaces.md](reference/surfaces.md).
 
-## Phase 4 — numeric names and liveness
+## Phase 4. Numeric names and liveness
 
 `numeric_names` carries counts by `(meaning, liveness)`, every PID-typed row, and a sample of names
 whose scheme is unrecognised.
 
-Everything that is not `pid` reads `not_applicable` **by construction** — not because a lookup
+Everything that is not `pid` reads `not_applicable` **by construction**, not because a lookup
 missed. That distinction is the whole point:
 
-- `ide/<n>.lock` — the number is a **listening TCP port**. The real PID is in the body, which is not
+- `ide/<n>.lock`, the number is a **listening TCP port**. The real PID is in the body, which is not
   opened. One audit came within a step of deleting a live VS Code integration on this exact error.
-- `rate-limit-guard/*.tmp.<n>` — MSYS2 `$$`, not an OS PID. Judge by age and zero length.
-- `shell-snapshots/...`, `backups/...` — epoch milliseconds. No PID anywhere in the name.
-- unrecognised — reported as `unknown`. A scheme the table has never seen fails closed.
+- `rate-limit-guard/*.tmp.<n>`. MSYS2 `$$`, not an OS PID. Judge by age and zero length.
+- `shell-snapshots/...`, `backups/...`. Epoch milliseconds. No PID anywhere in the name.
+- unrecognised. Reported as `unknown`. A scheme the table has never seen fails closed.
 
 `alive` is a measurement about *a* process with that id; PIDs get reused, so "therefore this file is
 in use" is a further inference. A probe that could not run reports `unverified`, **never** `dead`.
 See [reference/name-schemes.md](reference/name-schemes.md).
 
-## Phase 5 — home-root state
+## Phase 5. Home-root state
 
 `~/.claude.json` lives in the home directory, not under `~/.claude`, and **no value of
 `cleanupPeriodDays` touches it**. Report its size and mtime; never its values (MCP server configs can
-carry tokens). The supported remedy for its growth is `claude project purge <path>` — it prints the
+carry tokens). The supported remedy for its growth is `claude project purge <path>`. It prints the
 full plan and confirms before removing anything, and `--dry-run` previews it.
 
 `.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants whose number *looks* like a
 PID and has never been verified, so the engine marks it `unknown` and attempts no lookup.
 
-## Phase 6 — report
+## Phase 6. Report
 
 Reproduce every claim with the `evidence` tag the engine attached. Do not paraphrase a tagged claim
-into an untagged sentence — that is precisely the step that turns an inference into an apparent
+into an untagged sentence. That is precisely the step that turns an inference into an apparent
 observation for the next reader.
 
 Two output rules that are not negotiable:
@@ -206,7 +206,7 @@ See [reference/evidence-discipline.md](reference/evidence-discipline.md).
 
 ## Verifying an upstream claim
 
-Any claim about what Claude Code itself does must come from the raw markdown endpoint — `curl -sSL`
+Any claim about what Claude Code itself does must come from the raw markdown endpoint. `curl -sSL`
 `https://code.claude.com/docs/en/claude-directory.md` to a file, then read the file. A summarizing
 fetch returns a small model's answer *about* the page, so **absence from it is not evidence of
 absence**, and no destructive conclusion may rest on one.
@@ -226,7 +226,7 @@ See [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.
   variable, not decay. Phase 1 exists for this.
 - **`commands/`, `todos/`, `statsig/`, `logs/` being absent is good news.** It is positive evidence
   the sweep completed, including its remove-the-empty-directory step.
-- **The "safe, no judgment required" tier is the one most in need of an independent check** — the one
+- **The "safe, no judgment required" tier is the one most in need of an independent check**, the one
   operation a prior audit called mechanically provable was wrong, because a case-insensitive
   comparer collapsed three distinct deny rules. This skill's deny matching is case-sensitive and
   tested; it encodes no dedupe or subsumption logic at all.

@@ -7,16 +7,8 @@ set -uo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-fleet-audit-doc-grammar.sh"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
 
 # Minimal stub collector: classifies the bare-positional probe and the no-scope
 # probe from argv / emptiness without touching git or the network.
@@ -285,5 +277,4 @@ else
   fail "repository skill+parser fails --check"
 fi
 
-echo "PASS=$PASS FAIL=$FAIL"
-[[ "$FAIL" -eq 0 ]]
+test_harness::report
