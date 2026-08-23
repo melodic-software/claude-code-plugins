@@ -1,5 +1,13 @@
 # Changelog — docs-hygiene plugin
 
+## [0.18.4]
+
+### Changed
+
+- Normalized fleet-wide framing this plugin restates (cross-vendor advisor
+  fallback, untrusted-content posture, attribution/idiom prose — as touched) to the canonical
+  SSOT wording, operable text kept inline with provenance-only citations (#2698).
+
 ## [0.18.3]
 
 ### Changed

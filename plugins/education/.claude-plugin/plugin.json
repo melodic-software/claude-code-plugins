@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "education",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, a one-shot plain-language explainer that drops anything to genuinely plain words, and a post-work comprehension check that quizzes the human on a completed change.",
   "author": {
     "name": "Melodic Software",
@@ -27,7 +27,7 @@
     "quiz_policy": {
       "type": "string",
       "title": "Quiz offer policy",
-      "description": "When quiz-me offers a post-work comprehension quiz. One of: off (never offers), on-request (only when asked), always (after each completed change), above-threshold (when the change is large). Governs offer cadence only \u2014 a report is never generated without your confirmation. Unknown values are treated as on-request.",
+      "description": "When quiz-me offers a post-work comprehension quiz. One of: off (never offers), on-request (only when asked), always (after each completed change), above-threshold (when the change is large). Governs offer cadence only — a report is never generated without your confirmation. Unknown values are treated as on-request.",
       "default": "on-request"
     },
     "report_library_dir": {
