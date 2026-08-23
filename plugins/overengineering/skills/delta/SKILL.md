@@ -12,7 +12,11 @@ metadata:
 ## Pre-computed context
 
 - Branch: !`git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown (no checkout)"`
-- Now (UTC): !`date -u +%Y%m%dT%H%M%SZ 2>/dev/null || echo "unknown (no date command)"`
+
+Deliberately one line. A precompute block carrying a git command **and** more than one injection line
+is refused outright in a worktree-isolated agent, which is exactly the dispatched context a scheduled
+run of this lane arrives in. The baseline's UTC stamps are read with an ordinary `date -u
++%Y%m%dT%H%M%SZ` call at the moment they are written, where they are accurate anyway.
 
 ## Purpose
 
@@ -100,33 +104,11 @@ contract rather than left as an implementation detail.
 
 ## The spine baseline
 
-One file, beside the findings artifact in the same resolved home, named `spine-baseline.md`.
-
-```yaml
----
-type: overengineering-spine-baseline
-schema: 1
-captured: <ISO-basic UTC, colon-free>
-source-date: <the artifact's own `date` frontmatter at capture>
-source-scope: <the artifact's own `scope` at capture>
-branch: <branch at capture>
-compared: <ISO-basic UTC, written when the comparison completes; absent until then>
----
-```
-
-Its body carries, and carries nothing else:
-
-- Every finding's spine block verbatim as the artifact wrote it — the `### <finding-id>` heading and
-  its four spine lines, in the artifact's own order. No prose field, ever.
-- Each aggregating container's `**Members (<n>):**` lines, verbatim — the contract makes member lines
-  comparable within a finding, matched by member id.
-- The per-tier tokens from the artifact's `## Evidence availability` section (present / partial /
-  unavailable), one line per tier, without their probes or prose.
-
-**Its `type` is deliberately neither `overengineering-findings` nor `review-findings`.** It is not a
-findings file, carries no verdict of its own, is never read by `overengineering:realign`, and is
-never merged into. It is a snapshot of one moment of the artifact, and the artifact remains the
-single source of truth.
+`spine-baseline.md`, beside the findings artifact in the same resolved home. Its frontmatter, what
+its body may and may not carry, its deliberately-not-`overengineering-findings` type, and why it is a
+snapshot rather than a second record are owned by
+`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` under "The spine-capture obligation". **This
+skill does not restate them.** One rule binds the run directly:
 
 **Capture never overwrites an unconsumed baseline.** A baseline whose `compared:` stamp is absent
 belongs to a cycle that captured and then died before comparing. Keep it, compare against it, and say
@@ -230,8 +212,7 @@ them** — a second derivation is a second answer that can disagree with the fir
 
 **Two spine fields can never move under a stable id, so they are never a delta class.** `layer` feeds
 the id's `check` constituent and `artifact` feeds its `sites`, so changing either changes the id: the
-old finding closes and a new one opens. A lane reporting "layer changed" would have mis-derived an
-id.
+old finding closes and a new one opens. A lane reporting "layer changed" has derived an id wrongly.
 
 **Evidence-only change is out of scope, by construction — not by choice.** Evidence, liveness,
 intent, rediscovery, cost, and owner are prose, recomputed fresh every run, and deliberately excluded

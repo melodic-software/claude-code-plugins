@@ -213,10 +213,23 @@ second; a consumer that reverses those two steps does not fail loudly, it report
 cycle forever.
 
 **The capture is a sibling file in the same resolved home, not a second artifact.** `spine-baseline.md`
-beside `findings.md`, memory tier, branch-keyed, and ephemeral on exactly the same terms. It carries
-only material already fixed by this contract — each finding's `### <finding-id>` heading and its four
-spine lines verbatim, each container's `**Members (<n>):**` lines verbatim, and the per-tier tokens
-from `## Evidence availability` — and no prose field, ever.
+beside `findings.md`, memory tier, branch-keyed, and ephemeral on exactly the same terms:
+
+```yaml
+---
+type: overengineering-spine-baseline
+schema: 1
+captured: <ISO-basic UTC, colon-free>
+source-date: <the artifact's own `date` frontmatter at capture>
+source-scope: <the artifact's own `scope` at capture>
+branch: <branch at capture>
+compared: <ISO-basic UTC, written when the comparison completes; absent until then>
+---
+```
+
+Its body carries only material already fixed by this contract — each finding's `### <finding-id>`
+heading and its four spine lines verbatim, each container's `**Members (<n>):**` lines verbatim, and
+the per-tier tokens from `## Evidence availability` — and no prose field, ever.
 
 Three properties keep it from becoming a second record of findings:
 
