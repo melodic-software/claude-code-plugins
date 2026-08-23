@@ -155,9 +155,10 @@ snapshot rather than a second record are owned by
 skill does not restate them.** Two rules bind the run directly:
 
 **A capture never replaces a baseline this cycle did not consume.** The end-of-cycle capture is
-earned by having completed the comparison, and nothing else earns it. Where the cycle stopped short. 
-the audit was never invoked, it failed, the schema was unrecognized, the homes disagreed, the branch
-identity was unresolved, the stored baseline stays exactly as it is and this run writes none.
+earned by having completed the comparison, and nothing else earns it. If the cycle stopped short
+for any of these reasons, the stored baseline stays exactly as it is and this run writes none:
+the audit was never invoked, the audit failed, the schema was unrecognized, the homes disagreed,
+or the branch identity was unresolved.
 Overwriting it would move the comparison's origin silently forward past a cycle nobody ever compared,
 and whatever moved in between would then be reported by no cycle at all.
 
