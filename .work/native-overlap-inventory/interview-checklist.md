@@ -48,3 +48,42 @@ open after, a Brief deferred question.
 
 User: "Lets go with all your recommended" — Q1–Q6 resolved to the recommended answers, then
 requested /planning:audit-answers to validate the auto-accepted set.
+
+## Audit-answers validation (2026-08-23)
+
+Three fresh-context validators, full answer set each, rationale withheld. Merged verdicts:
+
+- D1 (Q1 baking shape) — CHALLENGED (B, C): SKILL.md body lines never reach the model's routing
+  decision (descriptions are the always-in-context surface; official skills doc + repo's own
+  description-routing idiom); registry rows lack per-row recheck triggers required by
+  docs/conventions/upstream-drift; cross-boundary citation of docs/NATIVE-SURFACES.md from shipped
+  plugins is a broken ref (check-skill.sh resolves only within plugin root); no parity mechanism.
+- D2 (Q2 packaging) — CONFIRMED (A, B, C): claude-ops co-location structurally forced (inventory.py
+  is the only extractor; cross-plugin file imports forbidden); audit verb contract matches; no
+  existing skill owns overlap verdicts (scope boundaries checked). Obligation: skill must be
+  repo-generic (claude-ops ships to consumers).
+- D3 (Q3 verdict authority) — human gate CONFIRMED (all); detection half CHALLENGED (B): live run
+  showed bundled-skill list is a floor (34/424 registrations resolved), evidence is one-line
+  menuDescription only, no cloud extractor — auto-detection under-recalls.
+- D4 (Q4 verdict enum) — CHALLENGED (C, narrow): no uncertainty state; every in-repo verdict
+  vocabulary has one (Adopt/Defer/Decline, Wait, ok/degraded/broken). Add defer/undetermined.
+- D5 (Q5 scope) — CHALLENGED (B): session/environment skills unenumerable from outside a session;
+  static local/cloud/both tag untruthful (bundled skills runtime-gated: commit, pr, loop, claude-api
+  gated:True). C: agents coherent as registry-rows-only targets, no agent-file edits.
+- D6 (Q6 refresh) — CHALLENGED (A, B, C unanimous): changelog trigger blind to server-side cloud
+  drift; aspirational (zero "address Claude Code v" commits — the pipeline never completed a run);
+  repo's proven pattern is self-announcing drift (--self-check exit codes in CI/lane), not dates.
+
+Blind spots recorded: cloud-lane capture protocol undefined; native-reference phrasing convention
+needs an owner doc (seam-phrasing covers cross-plugin only); no enforcement owner for baked-line
+truthfulness (needs mechanical parity/freshness check); disableBundledSkills + plan/host gating
+means lines must be read-time presence gates; description listing budget (1,536-char cap, 1%
+context budget with silent drops) constrains description-side references.
+
+## Open-question register (round 2 — audit confirm round)
+
+- Q7 | open | round 2 | Where does routing-effective "prefer native" text live (descriptions vs body vs both), and what fixes the registry row shape? |
+- Q8 | open | round 2 | Add a fifth defer/undetermined verdict to the enum? |
+- Q9 | open | round 2 | Demote cloud/session skills to observation-only (no verdicts, no baked lines) for V1; env tag as observation record; agents registry-rows-only? |
+- Q10 | open | round 2 | Replace changelog-as-trigger with a shipped registry self-check (CI/lane wired) + per-row triggers; changelog kept as on-demand diff aid? |
+- Q11 | open | round 2 | Accept floor-honest detection (inventory output + seeded canonical pairs + human-added candidates, integrity status carried) for V1? |
