@@ -1,5 +1,22 @@
 # Changelog — discovery plugin
 
+## [0.16.5]
+
+### Fixed
+
+- **De-slop review repairs.** Restored sentence structure where em-dash removal
+  left a lowercase continuation, a mid-parenthetical period, and comma-stacked
+  appositives.
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 7).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. Fenced report and protocol templates keep their original
+  punctuation.
+
 ## [0.16.4]
 
 ### Changed
