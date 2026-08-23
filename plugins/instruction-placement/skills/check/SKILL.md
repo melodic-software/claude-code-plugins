@@ -46,6 +46,12 @@ Wire it into CI beside the linters. It is fast, deterministic, and has no judgme
 | Brace budget respected | same | The pattern is used unexpanded; its braces match nothing |
 | Glob not over-broad | same | Advisory — the rule loads so often it saves nothing |
 | Index in sync | `render-index.sh check` | Deferred surfaces are unreachable from subagents |
+| Index target loaded at all | `render-index.sh reachable` | The index exists and Claude Code never reads it |
+
+The last one is the newest and the least obvious. Claude Code reads `CLAUDE.md`, not `AGENTS.md`. A
+repository carrying both with no import between them gets a perfectly-generated, perfectly-in-sync
+index that never enters context — the entire subagent-gap mitigation doing nothing while every other
+check reports green. Sync and reachability are independent questions; ask both.
 
 Over-broad is the one **warning** rather than a failure: breadth is a judgment about whether a
 demotion was worth making, not a statement that the rule is broken. Everything else is a hard fail.
@@ -55,6 +61,7 @@ demotion was worth making, not a statement that the rule is broken. Everything e
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh" rules
 "${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" check --file <index-file>
+"${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" reachable --file <index-file>
 ```
 
 `<index-file>` is a precedence order, not a procedure — take the first that exists:
@@ -126,3 +133,11 @@ do about it** — the three failure statuses have different fixes and saying "in
 - **Passing because nothing could be measured is the worst outcome.** Outside a git repository, or
   with tooling missing, the scripts cannot answer. Exit non-zero and say why; a green gate that
   measured nothing is a false assurance a reviewer will act on.
+- **An in-sync index can still be inert.** `check` and `reachable` answer different questions, and a
+  repository can pass the first while failing the second. Reporting "index in sync" without the
+  reachability verdict is the exact false assurance the previous point warns about.
+- **Rules discovery follows symlinks and does not require git.** A symlinked rule points outside the
+  repository by design — that is the documented way to share one rule set across projects — so it is
+  never tracked. Nested instruction files are the opposite: tracked-only, because an untracked or
+  vendored `AGENTS.md` must never reach the consuming repository's always-loaded surface. If a rule
+  seems missing from a report, check which of the two rules applies before assuming a bug.

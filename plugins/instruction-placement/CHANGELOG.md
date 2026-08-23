@@ -3,6 +3,47 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0]
+
+### Fixed
+
+Four discovery-layer bugs, all found by probing 0.1.0 rather than by its own test suite. The suite
+covered glob *semantics* exhaustively and file *discovery* barely — every bug lived in one
+open-coded `find .claude/rules` line, which is why discovery is now a shared `lib/discover.sh` with
+its own fixtures and 24 tests of its own.
+
+- **Nested `.claude/rules/` trees were invisible.** Only the root tree was scanned, so a monorepo's
+  per-package rules passed `check` while being entirely unverified, and never reached the index.
+- **Symlinked rules were invisible.** `find -type f` never matches a symlinked file and does not
+  traverse a symlinked directory. Since symlinking is the *documented* way to share one rule set
+  across projects, a team using it got zero coverage and zero index entries, silently.
+- **Untracked and gitignored files were indexed.** `corpus.md` promises neither is swept, but both
+  reached the generated index — including vendored third-party `AGENTS.md` files, which put someone
+  else's instructions into the consuming repository's always-loaded surface.
+- **The index could be written where Claude Code never reads it.** Claude Code reads `CLAUDE.md`,
+  not `AGENTS.md`. A repository carrying both with no import between them got a correct, in-sync
+  index that never entered context — the entire subagent-gap mitigation inert while every gate
+  reported green.
+
+### Added
+
+- **`render-index.sh reachable`** — answers whether Claude Code would load a given index target at
+  all, by walking the import graph from each root memory file (depth-bounded at the documented four
+  hops, skipping fenced blocks and inline code spans, and honoring the `CLAUDE.md`-symlinked-to-
+  `AGENTS.md` form). `write` now warns on stderr when it writes into an unreachable target rather
+  than leaving it for a later gate, and the `check` skill gates on it. Sync and reachability are
+  independent questions and a repository can pass one while failing the other.
+- **`lib/discover.sh`** — the shared discovery layer, with the two asymmetries documented in
+  `corpus.md`: rules follow symlinks and do not require tracked status; nested instruction files
+  require tracked status and skip vendored trees.
+
+### Changed
+
+- **Two previously-inferred claims are now measured** on 2.1.238 and recorded in
+  `verified-mechanics.md`: an undocumented `description:` key in rule frontmatter is harmless, and
+  block-level HTML comments are stripped from an `AGENTS.md` reached by `@import` — which is what
+  makes the index markers genuinely free.
+
 ## [0.1.0]
 
 ### Added

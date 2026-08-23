@@ -281,6 +281,41 @@ assert_contains "content after the block survives" "$content" "Footer line."
 assert_not_contains "stale block content is replaced" "$content" "stale generated content"
 
 # --------------------------------------------------------------------------
+# reachable — an index nothing loads is the whole point silently not working
+# --------------------------------------------------------------------------
+unwired="$(mktemp -d)"
+git -C "$unwired" init -q .
+printf '# Claude instructions\n\nNo import here.\n' >"$unwired/CLAUDE.md"
+printf '# Shared\n' >"$unwired/AGENTS.md"
+git -C "$unwired" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
+git -C "$unwired" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+
+out="$(run reachable --file "$unwired/AGENTS.md" --root "$unwired")"
+assert_contains "reachable reports an unimported AGENTS.md as UNREACHABLE" "$out" "UNREACHABLE"
+run reachable --file "$unwired/AGENTS.md" --root "$unwired" >/dev/null 2>&1
+assert_eq "an unreachable target exits 1" "1" "$?"
+
+# Writing into an unreachable target still writes, but must say so on stderr:
+# the operator may be about to add the import, and silence would hide the fact
+# that the index currently does nothing.
+# `run` folds stderr into stdout, so the warning needs a direct call that keeps
+# the two streams apart.
+warn_only() { { bash "$SCRIPT" "$@" >/dev/null; } 2>&1; }
+
+warn="$(warn_only write --file "$unwired/AGENTS.md" --root "$unwired")"
+assert_contains "write warns when the index target is unreachable" "$warn" "not imported"
+assert_contains "the block is still written" "$(cat "$unwired/AGENTS.md")" "BEGIN GENERATED"
+
+printf '@AGENTS.md\n\n# Claude instructions\n' >"$unwired/CLAUDE.md"
+out="$(run reachable --file "$unwired/AGENTS.md" --root "$unwired")"
+assert_contains "adding the import makes it reachable" "$out" "LOADED"
+warn="$(warn_only write --file "$unwired/AGENTS.md" --root "$unwired")"
+assert_eq "no warning once the target is reachable" "" "$warn"
+
+out="$(run reachable --file "$unwired/CLAUDE.md" --root "$unwired")"
+assert_contains "a root CLAUDE.md target is always reachable" "$out" "LOADED"
+
+# --------------------------------------------------------------------------
 rm -rf "$repo" "$empty"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"

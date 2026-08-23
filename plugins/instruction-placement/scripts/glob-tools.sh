@@ -44,6 +44,10 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/discover.sh
+. "$SCRIPT_DIR/lib/discover.sh"
+
 MAX_EXPANDED=1000
 MAX_BYTES=4194304
 
@@ -413,7 +417,7 @@ else
       SOURCES+=("$rule")
       PATTERNS+=("$pat")
     done < <(extract_paths "$rule")
-  done < <(find .claude/rules -type f -name '*.md' 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort)
+  done < <(ip_discover_rules .)
 fi
 
 INVALID=0

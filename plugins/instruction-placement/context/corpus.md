@@ -20,6 +20,19 @@ in full, every run.
 Rules already carrying `paths:` are still swept — a rule can be correctly located and wrongly
 scoped, and an over-broad glob is a finding in its own right.
 
+**Two discovery asymmetries, both deliberate.** Getting either backwards silently drops content or
+silently pollutes the always-loaded surface, so `lib/discover.sh` fixes them once and both engines
+inherit them:
+
+| | Rules (`.claude/rules/**`) | Nested instruction files |
+|---|---|---|
+| Symlinks | **Followed** — the documented way to share one rule set across projects | Not followed |
+| Tracked status | **Not required** — a shared rule points outside the repo and is never tracked | **Required** |
+| Depth | Every `.claude/rules` tree at any depth, not only the root one | Any depth below the root |
+
+The tracked-status requirement on nested files is what keeps a vendored third-party `AGENTS.md` out
+of the consuming repository's own always-loaded index.
+
 **User-scope surfaces (`~/.claude/CLAUDE.md`, `~/.claude/rules/`) are read-only context, never
 candidates.** They load in every project on the machine and belong to the operator personally, not
 to the repository being audited. They are read for one purpose: detecting that a repo-scoped

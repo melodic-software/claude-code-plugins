@@ -78,6 +78,19 @@ Four findings follow, each load-bearing somewhere in the rubric:
    surfaces, a general-purpose subagent reported exactly `ROOT_CLAUDE_CANARY, ROOT_AGENTS_CANARY`.
    It inherited none of the parent's on-demand loads and re-triggered none of them.
 
+## Two claims this plugin makes, now measured
+
+Both were asserted in 0.1.0 on documentation and inference. Both were re-run first-party on
+**2.1.238** with the same canary method and now stand as *(measured)*.
+
+- **An undocumented `description:` key in rule frontmatter is harmless.** A rule carrying both
+  `description:` and `paths:` still loaded on a matching read. The index generator prefers that key
+  over the H1, and this is why doing so is safe rather than merely likely-safe.
+- **Block-level HTML comments are stripped from an `AGENTS.md` reached by `@import`.** The
+  documentation states the stripping for CLAUDE.md files; this confirms it survives the import hop,
+  which is what lets the generated index use HTML comment markers at zero context cost. A canary
+  inside a comment was absent while the surrounding body was present.
+
 ## The three gaps that constrain the rubric
 
 Each gap is a place where a naive migration silently loses coverage. The rubric's hard rules exist

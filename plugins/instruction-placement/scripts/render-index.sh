@@ -21,22 +21,33 @@
 # visible on disk to this script.
 #
 # Subcommands:
-#   render          print the block to stdout
-#   check --file F  compare F's block against a fresh render
-#   write --file F  replace F's block in place (creates it at end of file if absent)
+#   render              print the block to stdout
+#   check --file F      compare F's block against a fresh render
+#   write --file F      replace F's block in place (creates it at end if absent)
+#   reachable --file F  would Claude Code actually load F?
+#
+# `reachable` exists because Claude Code reads CLAUDE.md, not AGENTS.md. A
+# repository carrying both with no import between them gets an index nothing
+# ever reads, while every other gate reports green — the entire subagent-gap
+# mitigation silently doing nothing.
 #
 # Usage:
 #   render-index.sh render [--root <dir>]
 #   render-index.sh check --file <path> [--root <dir>]
 #   render-index.sh write --file <path> [--root <dir>]
+#   render-index.sh reachable --file <path> [--root <dir>]
 #   render-index.sh --help
 #
-# Exit: 0 success / in sync
-#       1 check found drift, or write failed
+# Exit: 0 success / in sync / reachable
+#       1 check found drift, write failed, or target unreachable
 #       2 usage error or unusable path
 #       3 check found no index block in the file
 
 set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/discover.sh
+. "$SCRIPT_DIR/lib/discover.sh"
 
 BEGIN_MARKER="<!-- BEGIN GENERATED: instruction-placement rules index -->"
 END_MARKER="<!-- END GENERATED: instruction-placement rules index -->"
@@ -49,11 +60,14 @@ Usage:
   render-index.sh render [--root <dir>]
   render-index.sh check --file <path> [--root <dir>]
   render-index.sh write --file <path> [--root <dir>]
+  render-index.sh reachable --file <path> [--root <dir>]
   render-index.sh --help
 
-render  print the generated block to stdout
-check   compare the block inside <path> against a fresh render
-write   replace the block inside <path> in place, appending it if absent
+render     print the generated block to stdout
+check      compare the block inside <path> against a fresh render
+write      replace the block inside <path> in place, appending it if absent
+reachable  report whether Claude Code would load <path> at all (it reads
+           CLAUDE.md, not AGENTS.md, so an unimported AGENTS.md is inert)
 
 Indexes only surfaces that load on demand: path-scoped rules (`paths:`
 frontmatter) and nested CLAUDE.md / AGENTS.md files below the repository root.
@@ -164,15 +178,15 @@ render_block() {
     title="$(rule_title "$rule")"
     # shellcheck disable=SC2016 # backticks here are markdown code spans, not command substitution
     rows+=("$(printf '| `%s` | `%s` | %s |' "$rule" "$globs" "$title")")
-  done < <(find .claude/rules -type f -name '*.md' 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort)
+  done < <(ip_discover_rules .)
 
-  # Nested instruction files. Root-level ones already load at session start.
+  # Nested instruction files. Discovery owns the root-level, tracked-status, and
+  # vendored-tree filters — an untracked or vendored file must never reach the
+  # consuming repository's always-loaded surface.
   local nested dir label
   while IFS= read -r nested; do
     [[ -z "$nested" ]] && continue
     dir="$(dirname "$nested")"
-    [[ "$dir" == "." ]] && continue
-    [[ "$nested" == .claude/* ]] && continue
     # Skip a pure shim — a CLAUDE.md whose whole body is `@import` lines carries
     # no content of its own, and the file it imports is indexed on its own row.
     # The index is always-loaded, so a row that says nothing is a real cost.
@@ -183,12 +197,7 @@ render_block() {
     [[ -z "$label" ]] && label="Conventions for this subtree"
     # shellcheck disable=SC2016 # backticks here are markdown code spans, not command substitution
     rows+=("$(printf '| `%s` | `%s/**` | %s |' "$nested" "$dir" "${label//|/\\|}")")
-  done < <(
-    {
-      find . -type f \( -name 'CLAUDE.md' -o -name 'AGENTS.md' \) \
-        -not -path './.git/*' -not -path './node_modules/*' 2>/dev/null
-    } | sed 's|^\./||' | LC_ALL=C sort
-  )
+  done < <(ip_discover_nested_instructions .)
 
   printf '%s\n' "$BEGIN_MARKER"
   if ((${#rows[@]} == 0)); then
@@ -226,11 +235,11 @@ case "${1:-}" in
   usage
   exit 0
   ;;
-render | check | write)
+render | check | write | reachable)
   SUBCOMMAND="$1"
   shift
   ;;
-*) die "unknown subcommand: $1 (expected render, check, or write)" ;;
+*) die "unknown subcommand: $1 (expected render, check, write, or reachable)" ;;
 esac
 
 ROOT="$PWD"
@@ -268,6 +277,14 @@ if [[ -n "$TARGET" && "$TARGET" != /* ]]; then
 fi
 
 cd "$ROOT" || die "cannot enter --root: $ROOT"
+
+# `reachable` answers a question about wiring, not about content, so it runs
+# before the (comparatively expensive) block render.
+if [[ "$SUBCOMMAND" == "reachable" ]]; then
+  rel_target="${TARGET#"$PWD"/}"
+  ip_index_target_loaded "." "$rel_target"
+  exit $?
+fi
 
 BLOCK="$(render_block)"
 
@@ -336,6 +353,12 @@ write)
   if cat "$tmp" >"$TARGET"; then
     rm -f "$tmp"
     printf 'WROTE\t%s\n' "$TARGET"
+    # An index Claude Code never loads is the whole point silently not working,
+    # so say so at the moment of writing rather than leaving it for a later gate.
+    rel_written="${TARGET#"$PWD"/}"
+    if ! reach="$(ip_index_target_loaded "." "$rel_written")"; then
+      printf 'WARNING\t%s\n' "${reach#*$'\t'}" >&2
+    fi
     exit 0
   fi
   rm -f "$tmp"
