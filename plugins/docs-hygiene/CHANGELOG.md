@@ -1,5 +1,100 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.0]
+
+### Added
+
+- **`audit-noise`: a ninth shape, `negation`, wired to the apply relay (#3123).** A prohibition with
+  no positive alternative stated in the same sentence. This is the audit-side completion of a
+  doctrine the fleet already adopted on the write side — `docs-hygiene:write-for-agents` "Prompt the
+  positive" — and official guidance names the technique directly (*"Do not use markdown"* →
+  *"Your response should be composed of smoothly flowing prose paragraphs"*). Tier 2: the treatment
+  includes an edit, so it cannot be Tier 3.
+- **`audit-noise` is now a conforming `detector-findings` producer** — the first in this plugin.
+  `--persist-findings` writes the run's `negation` findings as a `type: review-findings` file that
+  `review:fanout`'s `fix` action consumes, via the new `scripts/emit-findings.sh`, reusing the
+  producer pattern #3120 established in `claude-config:audit-instructions`. Off by default; a bare
+  invocation reports and stops.
+- **Eval fixtures for the shape and its fences** — `negation-shapes.md` (flags, paired positives,
+  hard guardrails, worked example) and `negation-trigger-fence.md` (a real negation that also quotes
+  a trigger phrase from its own `description`).
+
+### Changed
+
+- **`audit-noise`'s read-only hard rule now distinguishes target mutation from artifact emission.**
+  The rule read "No `Edit`, no `Write`, no mutating `Bash` ops", which as written forbade the
+  producer contract this release adds — shipping a detector that quietly violated its own skill's
+  stated hard rule was not acceptable. The rule now states the distinction in its own text rather
+  than leaving it implied: **read-only binds every audited target unconditionally**, while the
+  findings artifact is a NEW file in the gitignored memory tier, written only under
+  `--persist-findings`, and is a proposal for a human-gated relay rather than an applied edit. The
+  rule widens exactly that far — no audited file becomes writable, and a bare invocation still
+  writes nothing.
+- **`negation` carries one crosswalk rule id**, `rule-negation-without-positive`, at `IMPORTANT`,
+  argued from `severity.md`'s **stated-rule** limb rather than the degradation limb the sibling
+  `audit-instructions` rules use: "Prompt the positive" is a rule this fleet already adopted in
+  writing, so a bare prohibition violates a stated rule rather than being one working phrasing among
+  several. `Auto-applicable: No`, matching both sibling rules — the repair is contained to
+  `Location`, but recovering the positive target is a rewrite judgment.
+- **All three negation carve-outs are evidence-gated, so an unresolved candidate is EMITTED.** A
+  paired positive, a hard guardrail whose constraint a positive form cannot carry, and a worked
+  example each require their evidence present on the sentence; absence selects the finding. The
+  contract's admission test 2 is checked on **every** withholding boundary rather than only the one
+  easiest to argue. The carve-out lives in the shared scanner, so the human report and the relay
+  file give one candidate one disposition — the contract's "fall-through takes effect before the
+  producer's FIRST output" for a producer with two output surfaces.
+- **The negation shape reads the backtick-UNWRAPPED line, not the inline-code strip** the five older
+  shapes read. A hard-guardrail marker is routinely the code span itself (`--force`, `rm -rf`), and
+  stripping it would erase the very evidence the carve-out needs — turning a guardrail into a false
+  finding rather than a withheld one. Found by testing the backticked case, not by inspection.
+- **The negation predicates match a lowercased sentence** rather than using leading either-case
+  character classes. The class form leaves a truncated word behind it that the repo's `typos` linter
+  reads as a misspelling and FAILs the file on; found by running the linter.
+
+### Fixed
+
+Eight review findings on the shape as first written, all reproduced before being fixed:
+
+- **The sentence splitter collapsed a whole line when it met an embedded abbreviation.** The
+  left-anchored form could not skip a period not followed by whitespace (`e.g.`), so the match failed
+  on the first iteration and the entire line became one "sentence". On
+  `See e.g. the credential rotation policy. Never call the tool directly.` the guardrail word in the
+  first clause then suppressed the real prohibition in the second — **silent finding loss**, the one
+  outcome the carve-outs exist to make impossible, reached through the splitter rather than through a
+  marker. Sentences are now peeled right-to-left with a greedy leading `.*`, which splits at every
+  terminator that IS followed by whitespace; an abbreviation merely over-splits, and over-splitting
+  only narrows the window a suppressing marker can act from. The header comment had claimed the
+  opposite behaviour ("over-split … the fail-safe direction") and was wrong.
+
+- **Every marker is fenced to a whole word.** The withholding predicates matched bare substrings, so
+  `secretary` satisfied the `secret` guardrail and `preferentially` satisfied the `prefer` pairing —
+  each **silently dropping a real finding**, which is the one direction this rule set is built to
+  make impossible. Inflections of `prefer` are enumerated so the verb still pairs; `vulnerab` stays
+  deliberately stemmed but is now bounded on the left.
+- **The contraction pattern is an apostrophe class, not `.`.** `don.t` matched `donut`, emitting
+  ordinary prose as a Tier 2 finding.
+- **The fired marker comes from the sentence that triggered.** On `Never commit a secret. Do not use
+  markdown.` the first sentence is carved out, but the emitted row reported `prohibition="never"` and
+  pointed review at the guardrail. `detect.sh` now carries a `Finding marker:` field, which keeps ONE
+  implementation of the sentence walk instead of a second copy in the writer free to drift.
+- **The out-of-repo fence fails closed on a traversing path.** The prefix test is lexical, so
+  `<repo>/../outside.md` passed it while resolving outside the repository. A `..` segment now
+  declines. Residual recorded at the site: a symlink inside the repo pointing out still resolves past
+  a lexical test.
+- **`branch:` is quoted when YAML would implicitly type it.** Git accepts `true`, `null`, `no`, `123`
+  and `2026-08-23` as branch names; left plain, a consumer reads back a boolean, null, number or date
+  and the relay's exact-string admission never matches the file. (The sibling
+  `claude-config:audit-instructions` producer shares this gap in its own copy of `yaml_scalar` — out
+  of scope here, worth a follow-up.)
+- **`allowed-tools` no longer grants unscoped `Bash(git:*)`.** The scripts need exactly
+  `git branch --show-current` and `git rev-parse --show-toplevel`; the blanket grant also authorized
+  `git reset --hard`, `git clean -fd` and `git push --force` — mutating operations the read-only hard
+  rule added in this same release disclaims, enforced in prose only. Narrowed to the two subcommands.
+- **Deferred, and filed rather than dropped (#3195):** `negation` is scoped to one physical line, so
+  a sentence markdown soft-wraps is judged in pieces and a positive alternative on the next line does
+  not suppress the finding. The direction is a false positive, never a silent withhold. Recorded as a
+  known limitation in `SKILL.md` "Hard rules" until #3195 lands.
+
 ## [0.20.1]
 
 ### Fixed

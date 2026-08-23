@@ -4,6 +4,35 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.5.0 — 2026-08-23
+
+**Minor under this contract's own rule** — a new adopter's rows are added; no producer-owned field's
+rule moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **`docs-hygiene/audit-noise` joins the crosswalk (#3123)**, the third producer and the second to
+  reach the relay from a read-only audit skill. Two rows:
+  - `rule-negation-without-positive` — **IMPORTANT**, argued from `severity.md`'s **stated-rule**
+    limb rather than the degradation limb both `audit-instructions` rows walk. The fleet's own
+    `docs-hygiene:write-for-agents` "Prompt the positive" is the stated rule a bare prohibition
+    violates, so the argument does not have to reach for a nameable degradation trigger.
+    `Auto-applicable: No` — contained to `Location`, but recovering the positive target is a rewrite
+    judgment.
+  - `rule-negation-hard-guardrail` — **non-emitting**, and its row states which ground it uses, as
+    the admission test requires: the **Boundary**'s "findings that never reach a relay", never a
+    tier test. The claim is that the candidate is not a defect at all — the write-side rule itself
+    preserves a negation "when the positive form genuinely loses the constraint" — and a tier test
+    can only ever return a tier.
+- **The adopter is a worked instance of admission test 2 checked on EVERY withholding boundary.**
+  This producer has three (paired positive, hard guardrail, worked example) and each requires its
+  evidence PRESENT on the sentence, so absence of that evidence selects the emitting rule. That is
+  the failure 2.4.0's own pilot recorded — a criterion satisfied on the boundary easiest to argue
+  while the second stayed open — met here by construction rather than by re-argument.
+- **It is also the first adopter whose fall-through placement is forced by having two output
+  surfaces.** The carve-out sits in the shared scanner, before either the human report or the
+  findings file is composed, so one candidate carries one disposition on both. The contract binds
+  the outcome and not a structure, and this is a second shape that satisfies it — the pilot placed
+  its bar at classification for the same reason, from a different starting point.
+
 ## 2.4.1 — 2026-08-21
 
 Two clarifications to prose this contract already had. **Patch under its own rule**: no

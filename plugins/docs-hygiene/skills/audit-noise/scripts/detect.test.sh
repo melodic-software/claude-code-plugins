@@ -676,6 +676,179 @@ else
   printf 'SKIP: filesystem rejects a backslash in a filename\n'
 fi
 
+# --- negation shape ------------------------------------------------------------------
+
+NEG="$TEST_TMPDIR/negation.md"
+cat >"$NEG" <<'EOF'
+# Negation fixture
+
+Do not use markdown in your response.
+
+Never call the tool directly.
+
+Avoid restating the rule in the body.
+
+The agent must not emit a bare summary.
+EOF
+neg_out="$(bash "$DETECT" "$NEG")"
+assert_contains "bare prohibition is a negation finding" "$neg_out" "Finding shape: negation"
+assert_contains "negation is Tier 2 (its treatment includes an edit)" "$neg_out" "Finding tier: 2"
+neg_count="$(printf '%s\n' "$neg_out" | grep -c '^Finding shape: negation')"
+assert_contains "all four bare prohibitions flag" "count=$neg_count" "count=4"
+
+# A paired positive in the same sentence is evidence the rule is satisfied.
+PAIRED="$TEST_TMPDIR/negation-paired.md"
+cat >"$PAIRED" <<'EOF'
+# Paired fixture
+
+Do not use markdown; instead compose smoothly flowing prose paragraphs.
+
+Never hardcode the roster — prefer a category citation.
+
+Use a durable pointer in place of a slice path.
+
+Report the cause rather than the symptom.
+EOF
+paired_out="$(bash "$DETECT" "$PAIRED")"
+assert_not_contains "a paired positive suppresses the finding" "$paired_out" "Finding shape: negation"
+
+# NO-FLAG TEST: a hard guardrail that cannot be phrased positively is not a
+# finding. The prohibition IS the correct form for these.
+GUARD="$TEST_TMPDIR/negation-guardrail.md"
+cat >"$GUARD" <<'EOF'
+# Guardrail fixture
+
+Never commit a secret to the repository.
+
+Do not force-push to a shared branch.
+
+Never run rm -rf against a production checkout.
+
+Do not rewrite history on someone else's branch.
+
+Never log a credential or an api key.
+EOF
+guard_out="$(bash "$DETECT" "$GUARD")"
+assert_not_contains "hard guardrails are never flagged" "$guard_out" "Finding shape: negation"
+
+# The guardrail marker is frequently the inline-code span itself, so the shape
+# must read the UNWRAPPED line — stripping the span would erase the evidence
+# and turn a guardrail into a false finding.
+GUARD_TICKS="$TEST_TMPDIR/negation-guardrail-ticks.md"
+cat >"$GUARD_TICKS" <<'EOF'
+# Guardrail-in-backticks fixture
+
+Never pass `--force` to that command.
+EOF
+gt_out="$(bash "$DETECT" "$GUARD_TICKS")"
+assert_not_contains "a backticked guardrail marker still carves out" "$gt_out" "Finding shape: negation"
+
+# A before/after demonstration is a worked example, not an instruction.
+EXAMPLE="$TEST_TMPDIR/negation-example.md"
+cat >"$EXAMPLE" <<'EOF'
+# Worked-example fixture
+
+Do not use markdown -> compose flowing prose paragraphs.
+EOF
+ex_out="$(bash "$DETECT" "$EXAMPLE")"
+assert_not_contains "a worked example is not a finding" "$ex_out" "Finding shape: negation"
+
+# Frontmatter is body-scoped out: no candidate may point at a description.
+NEG_FM="$TEST_TMPDIR/negation-frontmatter.md"
+cat >"$NEG_FM" <<'EOF'
+---
+description: "Do not use markdown. Never call the tool directly."
+---
+
+# Frontmatter fixture
+
+Body prose with no prohibition at all.
+EOF
+fm_out="$(bash "$DETECT" "$NEG_FM")"
+assert_not_contains "frontmatter prohibitions never flag" "$fm_out" "Finding shape: negation"
+
+# SUBSTRING COLLISIONS ON THE WITHHOLDING BOUNDARIES. Both carve-outs suppress a
+# candidate, so an unfenced alternative that matches inside a longer word loses a
+# real finding SILENTLY — the direction this rule set exists to avoid. Each
+# alternative is fenced by non-alphanumeric boundaries; these are the cases that
+# regress if a future edit drops one.
+NEG_SUBSTR="$TEST_TMPDIR/negation-substrings.md"
+cat >"$NEG_SUBSTR" <<'EOF'
+# Substring-collision fixture
+
+Do not preferentially select the first item.
+
+Do not send it to the secretary.
+
+Never tokenize the payload by hand.
+EOF
+substr_out="$(bash "$DETECT" "$NEG_SUBSTR")"
+substr_count="$(printf '%s\n' "$substr_out" | grep -c '^Finding shape: negation')"
+assert_contains "a longer word never satisfies a withholding marker" "count=$substr_count" "count=3"
+
+# The contraction wildcard must be an apostrophe CLASS: a bare `.` matches
+# `donut`, emitting ordinary prose as a Tier 2 finding.
+NEG_DONUT="$TEST_TMPDIR/negation-donut.md"
+cat >"$NEG_DONUT" <<'EOF'
+# Contraction fixture
+
+Choose a donut for breakfast.
+
+The shouldnt token is not a contraction either.
+EOF
+donut_out="$(bash "$DETECT" "$NEG_DONUT")"
+assert_not_contains "a word containing the contraction letters is not a prohibition" "$donut_out" "Finding shape: negation"
+
+APOS="$TEST_TMPDIR/negation-apostrophe.md"
+cat >"$APOS" <<'EOF'
+# Apostrophe fixture
+
+Don't add a preamble.
+EOF
+apos_out="$(bash "$DETECT" "$APOS")"
+assert_contains "a real contraction still flags" "$apos_out" "Finding shape: negation"
+
+# The reported marker comes from the sentence that TRIGGERED, not the first
+# prohibition on the line — otherwise a carved-out leading sentence points
+# review at the guardrail instead of the finding.
+NEG_MARKER="$TEST_TMPDIR/negation-marker.md"
+cat >"$NEG_MARKER" <<'EOF'
+# Marker fixture
+
+Never commit a secret. Do not use markdown.
+EOF
+marker_out="$(bash "$DETECT" "$NEG_MARKER")"
+assert_contains "marker comes from the triggering sentence" "$marker_out" "Finding marker: do not"
+assert_not_contains "marker is not the carved-out sentence's" "$marker_out" "Finding marker: never"
+
+# SENTENCE SPLITTING AROUND AN EMBEDDED ABBREVIATION. A left-anchored splitter
+# cannot skip a period that is not followed by whitespace, so the whole line
+# collapses into one "sentence" and a carve-out word in an EARLIER clause
+# suppresses a real prohibition in a later one — a silent withhold. The
+# right-to-left peel makes an abbreviation over-split instead, which only
+# narrows the window a suppressing marker acts from.
+NEG_ABBREV="$TEST_TMPDIR/negation-abbrev.md"
+cat >"$NEG_ABBREV" <<'EOF'
+# Abbreviation fixture
+
+See e.g. the credential rotation policy. Never call the tool directly.
+EOF
+abbrev_out="$(bash "$DETECT" "$NEG_ABBREV")"
+assert_contains "a guardrail word in an earlier clause cannot suppress a later prohibition" \
+  "$abbrev_out" "Finding shape: negation"
+assert_contains "and the marker is the later sentence's" "$abbrev_out" "Finding marker: never"
+
+# The carve-out must still hold when the guardrail really is in the SAME
+# sentence — the split fix must not turn every guardrail into a finding.
+NEG_SAME="$TEST_TMPDIR/negation-same-sentence.md"
+cat >"$NEG_SAME" <<'EOF'
+# Same-sentence guardrail fixture
+
+Never commit a credential to the repository.
+EOF
+same_out="$(bash "$DETECT" "$NEG_SAME")"
+assert_not_contains "a same-sentence guardrail still carves out" "$same_out" "Finding shape: negation"
+
 # SKILL.md's `Uncommitted .md files:` line previews the same discovery with a grep rather
 # than with detect.sh's parse, so it shares the defect CLASS without sharing the code: git
 # C-quotes a path it treats specially, and a quoted record ends with the closing quote, not
