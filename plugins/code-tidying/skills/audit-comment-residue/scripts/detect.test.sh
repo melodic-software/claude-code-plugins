@@ -177,6 +177,55 @@ printf '%s\n' "rel.py" >"$SUBDIR/rel-paths.txt"
 relpf_out="$(cd "$SUBDIR" && bash "$DETECT" --paths-file rel-paths.txt)"
 assert_contains "relative --paths-file target audited from subdir cwd" "$relpf_out" "Finding shape: history-narration"
 
+# --- 9. Default-target discovery parses porcelain, not whitespace fields (#3126) --------
+# With no arguments the audit discovers targets from `git status --porcelain`. A path
+# containing a space arrives C-quoted ("my helper.sh"); splitting on whitespace kept the
+# closing quote and dropped everything before the space, so the file resolved to nothing and
+# vanished from the run — reported as a reassuring files=0 rather than as an error. A plain
+# path passes either implementation, so the fixture name must contain a space.
+
+# The two arms live in separate repos on purpose: sharing one would let a correctly-parsed
+# file keep the run's files= count above zero and mask the other arm's disappearance.
+
+# 9a. Spaced path is the whole tree — the broken parse reports the misleading files=0.
+REPO9="$TEST_TMPDIR/repo9"
+mkdir -p "$REPO9"
+git -C "$REPO9" init -q
+cp "$ALL_SHAPES" "$REPO9/my helper.py"
+
+spaced_out="$(cd "$REPO9" && bash "$DETECT")"
+assert_not_contains "spaced default target is not reported as files=0" "$spaced_out" "files=0"
+assert_not_contains "spaced default target does not claim a clean tree" "$spaced_out" "no code targets"
+assert_contains "spaced default target audited" "$spaced_out" "Summary file: my helper.py"
+assert_contains "spaced default target finds shapes" "$spaced_out" "Finding shape: history-narration"
+
+# 9b. Rename arm: porcelain emits "old -> new"; the new path is the one to audit.
+REPO10="$TEST_TMPDIR/repo10"
+mkdir -p "$REPO10"
+git -C "$REPO10" init -q
+cp "$ALL_SHAPES" "$REPO10/original.py"
+git -C "$REPO10" add original.py
+git -C "$REPO10" -c user.email=t@example.com -c user.name=t commit -qm init
+git -C "$REPO10" mv original.py renamed.py
+
+rename_out="$(cd "$REPO10" && bash "$DETECT")"
+assert_contains "renamed default target resolves to the new path" "$rename_out" "Summary file: renamed.py"
+assert_not_contains "renamed default target does not audit the old path" "$rename_out" "Summary file: original.py"
+
+# 9c. A spaced path that is ALSO renamed exercises quote-stripping and the " -> " split
+# together — the combination the two arms above each cover only half of.
+REPO11="$TEST_TMPDIR/repo11"
+mkdir -p "$REPO11"
+git -C "$REPO11" init -q
+cp "$ALL_SHAPES" "$REPO11/old name.py"
+git -C "$REPO11" add "old name.py"
+git -C "$REPO11" -c user.email=t@example.com -c user.name=t commit -qm init
+git -C "$REPO11" mv "old name.py" "new name.py"
+
+spaced_rename_out="$(cd "$REPO11" && bash "$DETECT")"
+assert_not_contains "spaced rename is not reported as files=0" "$spaced_rename_out" "files=0"
+assert_contains "spaced rename resolves to the new path" "$spaced_rename_out" "Summary file: new name.py"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

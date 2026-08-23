@@ -3,6 +3,25 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3]
+
+### Fixed
+
+- **`audit-comment-residue` no longer silently skips paths containing spaces
+  (#3126).** The default-target router parsed `git status --porcelain` with
+  `awk '{print $NF}'`, which split a spaced path on its space and kept git's
+  closing quote, so the file resolved to nothing and dropped out of the run.
+  The audit then reported `files=0` plus `no code targets` — a false negative
+  that reads as a clean tree, ending the investigation rather than prompting a
+  retry. `detect.sh` now slices the path out of the porcelain record, takes the
+  right-hand side of a rename (gated on the `R`/`C` status letter, so an
+  ordinary path containing `" -> "` is left intact), and unwraps git's quoting.
+  The skill's own `Uncommitted code files` pre-computed context carried the
+  identical `$NF` parse and is fixed the same way. Git's octal escapes for
+  control and non-ASCII bytes are still not decoded, so such a path continues
+  to miss; the limitation is now recorded at the parse site instead of being
+  silent.
+
 ## [0.13.2]
 
 ### Changed

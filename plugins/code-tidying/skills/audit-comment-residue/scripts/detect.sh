@@ -97,12 +97,31 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       TARGETS+=("$(cr_anchor_path "$line")")
     done <"$PATHS_FILE"
   elif [[ -n "$repo_root" ]]; then
-    # Uncommitted files: modified/added/renamed/untracked, per git status.
+    # Uncommitted files: modified/added/renamed/untracked, per git status. Parse porcelain
+    # by slicing, not by splitting on whitespace, so paths containing spaces survive (#3126);
+    # $NF dropped everything before the last space and kept git's closing quote, so a spaced
+    # path resolved to a nonexistent file and vanished from the audit with no signal.
     while IFS= read -r line; do
       line="${line//$'\r'/}"
       [[ -z "$line" ]] && continue
-      TARGETS+=("$line")
-    done < <(git status --porcelain 2>/dev/null | awk '{print $NF}')
+      # XY + space + path.
+      status_path="${line:3}"
+      # Rename/copy entries read "old -> new" — audit the new path. Gated on the index
+      # status letter so an ordinary path that happens to contain " -> " is left intact.
+      if [[ "${line:0:1}" == [RC] ]]; then
+        status_path="${status_path##* -> }"
+      fi
+      # Paths with spaces or other special characters arrive C-quoted: "my helper.sh".
+      # Unwrap and unescape. Backslash-escaped quotes and backslashes are handled; git's
+      # octal escapes for control and non-ASCII bytes are not, so such a path still misses.
+      if [[ "$status_path" == \"*\" ]]; then
+        status_path="${status_path#\"}"
+        status_path="${status_path%\"}"
+        status_path="${status_path//\\\"/\"}"
+        status_path="${status_path//\\\\/\\}"
+      fi
+      TARGETS+=("$status_path")
+    done < <(git status --porcelain 2>/dev/null)
   fi
 fi
 
