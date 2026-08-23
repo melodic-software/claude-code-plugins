@@ -54,7 +54,7 @@ requires, so it queues verdict changes instead of acting on them.
 
 Everything that changes the repo happens through `/overengineering:realign`, which is invoked
 deliberately, consumes the findings artifact rather than scanning on its own, and stops at a per-item
-acceptance gate before every remediation. Its execution order is the method's rollback ladder. 
+acceptance gate before every remediation. Its execution order is the method's rollback ladder:
 **config-disable first, observe for a window, only then delete with a recorded rationale**. Nothing
 in that ladder is autonomous.
 
@@ -173,15 +173,15 @@ The method's reasoning is grounded in primary sources, cited in full with their 
 
 - [Martin Fowler, "Yagni"](https://martinfowler.com/bliki/Yagni.html). The four costs, the
   carry-cost frame, and the explicit scope boundary around quality-enabling practices
-- [Kohavi et al., controlled-experiment case studies](https://ai.stanford.edu/~ronnyk/ExP_DMCaseStudies.pdf)
-, the base rate behind the default-skeptical posture
-- [John Ousterhout, *A Philosophy of Software Design*](https://milkov.tech/assets/psd.pdf). 
-  incremental accumulation, and why a single removal reads as no improvement
+- [Kohavi et al., controlled-experiment case studies](https://ai.stanford.edu/~ronnyk/ExP_DMCaseStudies.pdf).
+  The base rate behind the default-skeptical posture
+- [John Ousterhout, *A Philosophy of Software Design*](https://milkov.tech/assets/psd.pdf).
+  Incremental accumulation, and why a single removal reads as no improvement
 - [Rob Ewaschuk, "My Philosophy on Alerting"](https://gist.github.com/msgodf/86a3fc7fcd3ce663ff37)
-  and the [Google SRE book, ch. 6](https://sre.google/sre-book/monitoring-distributed-systems/). 
-  the removal default and the qualitative bar that transfers more safely than any number
-- [LaunchDarkly flag-hygiene documentation](https://launchdarkly.com/docs/guides/flags/technical-debt)
-, evidence-gated decommissioning and the two-stage removal order
+  and the [Google SRE book, ch. 6](https://sre.google/sre-book/monitoring-distributed-systems/).
+  The removal default and the qualitative bar that transfers more safely than any number
+- [LaunchDarkly flag-hygiene documentation](https://launchdarkly.com/docs/guides/flags/technical-debt).
+  Evidence-gated decommissioning and the two-stage removal order
 - [Uber's Piranha (ICSE-SEIP 2020)](https://manu.sridharan.net/files/ICSE20-SEIP-Piranha.pdf). The
   one industrial-scale precedent for batched, owner-routed retirement, its human-review requirement,
   and the intentionally-dormant finding

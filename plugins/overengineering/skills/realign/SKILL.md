@@ -157,11 +157,11 @@ judgment recorded; skipping it wordlessly is not.
 at rung 1 with it re-enabled and the finding closed as KEEP, carrying the evidence the window
 produced. Say so when proposing the ladder, it is what makes rung 1 cheap to accept.
 
-**When rung 1 is inapplicable**. Nothing registered or wired to disable: a copy nothing reads, a
-claim in a document, a lane nothing requires, the presentation records *"rung 1 inapplicable. 
+**When rung 1 is inapplicable.** Nothing registered or wired to disable: a copy nothing reads, a
+claim in a document, a lane nothing requires. The presentation records *"rung 1 inapplicable:
 `<reason>`"* rather than inventing a disable, and says why rung 2 is uninformative too (disabling
-what never fires produces no signal). A **reversible non-rung remediation**. Correcting a false
-claim, registering the copy that should have been wired, is then a valid proposal, recorded as one
+what never fires produces no signal). A **reversible non-rung remediation**, correcting a false
+claim or registering the copy that should have been wired, is then a valid proposal, recorded as one
 under its own item acceptance. And where the only remaining act is **deletion**, the acceptance must
 name the deletion explicitly: the ladder's cheap first rung is not there to soften it (see the gotcha
 below, an accepted finding is not an accepted deletion).
@@ -177,8 +177,8 @@ An UNPROVEN verdict is not an authorization to disable. Route it to §8's track:
 carry-cost ranking the audit recorded, propose **one bounded batch** an operator can actually attend
 to, name an owner per item (§12, ownerless is not a terminal state), set one window with its end
 date, and record a durable pointer so the batch survives the artifact. Each item still passes the
-per-item gate individually. Items below the batch keep their ranking and wait for the next window. 
-dozens of concurrent windows destroy attribution and re-check nothing, and protected and
+per-item gate individually. Items below the batch keep their ranking and wait for the next window.
+Dozens of concurrent windows destroy attribution and re-check nothing, and protected and
 intentionally-dormant items (§7) never enter a batch at all.
 
 ## Protected findings

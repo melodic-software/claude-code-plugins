@@ -77,7 +77,7 @@ artifact.
 Three writes are sanctioned, and only these:
 
 1. **The spine baseline**, at the memory-tier home resolved below, written **at the end of the
-   cycle** from this run's post-audit spine. Memory tier, self-ignored, branch-keyed, ephemeral. 
+   cycle** from this run's post-audit spine. Memory tier, self-ignored, branch-keyed, ephemeral:
    the same tier and the same disclosure rule as the findings artifact. Two cases write it earlier or
    not at all: a **bootstrap** cycle captures pre-audit because it has nothing else to compare
    against, and a cycle whose branch identity is unresolved writes **no** baseline at all.
@@ -463,7 +463,7 @@ documented, never adopted.
   a capture taken at the start of this one, that baseline already holds whatever status realign
   wrote in between, so the status-change class could never fire. The one exception is the bootstrap
   cycle, which is named as such and cannot see a status change. See the section above.
-- **`HEAD` is not a branch name.** A detached checkout, the normal shape for a scheduled runner. 
+- **`HEAD` is not a branch name.** A detached checkout, the normal shape for a scheduled runner,
   makes `rev-parse --abbrev-ref` answer `HEAD`, which keys every ref to one home and compares equal
   to itself, so a cross-ref spine would sail through the branch-match check. Resolve a logical ref
   where the environment supplies one; otherwise decline to compare and decline to capture.

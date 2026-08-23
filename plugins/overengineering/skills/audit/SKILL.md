@@ -49,8 +49,8 @@ The one write it performs is the **findings artifact**, at the memory-tier home 
 is a machine-local, self-ignored scratch root outside the repository's tracked content, writing
 there is not a mutation of the repo. State this rather than leaving it to be inferred:
 *"Read-only pass; the only file written is the findings artifact at `<resolved path>`."* That path
-exists only once the home is resolved, so the line is emitted **immediately after that resolution**. 
-step 1 of "Before the walk", and before any layer is walked.
+exists only once the home is resolved, so the line is emitted **immediately after that resolution**,
+which is step 1 of "Before the walk", and before any layer is walked.
 
 **A run with no branch identity writes nothing at all**, and says that instead of naming a path:
 *"Read-only pass; no branch identity resolved, so no findings artifact is written."* See "A detached
@@ -60,8 +60,8 @@ none.
 **Writing the artifact from a delegated run.** Some harnesses refuse a report-shaped filename from a
 delegated or dispatched executor, the `unattended` caller below is exactly that. The sanctioned
 route is the file-write tool: write the full content to a neutral filename in the artifact's own
-directory, then rename it to the contract's filename. **A shell content-write is never acceptable**. 
-it routes the deliverable around the write path the harness governs, and quoting, expansion, and
+directory, then rename it to the contract's filename. **A shell content-write is never acceptable.**
+It routes the deliverable around the write path the harness governs, and quoting, expansion, and
 encoding silently transform what it carries. Where neither route is available, say so and stop.
 
 **Two auxiliary writes are sanctioned, and only these.** (a) The topic-docs **self-ignore guard**:
@@ -194,7 +194,7 @@ harness. Layers are the ten forge-neutral names in the artifact's vocabulary, an
 probe in the walk resolves what a consumer actually declares.
 
 **Custody is detected, never assumed.** A managed, vendored, or synced file, a copy whose upstream
-is another repository, a shared workflow this repo only references, an organization-level policy. 
+is another repository, a shared workflow this repo only references, or an organization-level policy,
 is identified from the consumer's *own* declarations: a sync manifest, a code-owners entry, a header
 the consumer maintains, a documented upstream. Where custody is upstream, remediation is a delegation
 (§12), not an in-repo edit, and patching a managed copy locally creates drift the next sync reverts.
@@ -249,15 +249,15 @@ but they are not the same case. **No checkout** (no project root, `git rev-parse
 fails) is the topic-docs "No project root" stop: there is no enforcement surface to audit, so
 the run does not walk an arbitrary working directory and report it as the repository. A
 **detached checkout inside a repository** is the case this section governs: the walk still runs
-and the inline summary is still emitted. What is declined is the persisted write, not the pass
-, the report says so in place of the read-only opening line's resolved path, so the operator
+and the inline summary is still emitted. What is declined is the persisted write, not the pass.
+The report says so in place of the read-only opening line's resolved path, so the operator
 learns the run produced no artifact at the moment it would otherwise have been told where one
 lives. When that summary is the only record, it lists **every** finding, not the capped "top
 findings" the template uses when an artifact will carry the rest.
 
 ## Gotchas
 
-- **`HEAD` is not a branch name.** A detached checkout, the normal shape for a scheduled runner. 
+- **`HEAD` is not a branch name.** A detached checkout, the normal shape for a scheduled runner,
   makes `rev-parse --abbrev-ref` answer `HEAD`, which keys every ref to one home and compares equal
   to itself. Resolve a logical ref where the environment supplies one; otherwise decline to persist.
 - **A layer-scoped pass is not a retirement of what it did not look at.** Findings in unwalked layers
