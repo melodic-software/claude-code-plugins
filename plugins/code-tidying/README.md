@@ -80,8 +80,8 @@ personal variation is limited to lane names the team does not track — an uncom
 
 - Self-contained: taxonomy, scope-budget research, exclusion lists, lane
   templates, and the throttle script all ship inside the plugin under
-  `${CLAUDE_PLUGIN_ROOT}`. The bundled scripts require **Bash 4+** (they use
-  `mapfile` and case-conversion expansions) — on native Windows, install
+  `${CLAUDE_PLUGIN_ROOT}`. The bundled scripts require **Bash 4.3+** (they use
+  `mapfile`, case-conversion expansions, and namerefs) — on native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
   so they run under Git Bash; the scripts already handle CRLF and
   drive-letter paths.

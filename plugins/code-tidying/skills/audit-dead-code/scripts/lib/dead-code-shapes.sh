@@ -79,6 +79,28 @@ dc_dir_nonempty() {
   return 1
 }
 
+# Walk start_dir → repo_root and return the first nonempty node_modules.
+# Nested workspace packages commonly have no local install when the package
+# manager hoisted dependencies to an ancestor; requiring node_modules at the
+# package root would mark those restored workspaces degraded before the
+# binary locator's identical walk could find knip.
+dc_find_nonempty_node_modules() {
+  local start_dir="$1" repo_root="$2"
+  local dir parent
+  dir="$start_dir"
+  while [[ -n "$dir" ]]; do
+    if dc_dir_nonempty "$dir/node_modules"; then
+      printf '%s' "$dir/node_modules"
+      return 0
+    fi
+    [[ "$dir" == "$repo_root" ]] && break
+    parent="$(dirname -- "$dir")"
+    [[ "$parent" == "$dir" ]] && break
+    dir="$parent"
+  done
+  return 1
+}
+
 # ---------------------------------------------------------------------------
 # Binary resolution — locate, then PROVE by invocation
 # ---------------------------------------------------------------------------

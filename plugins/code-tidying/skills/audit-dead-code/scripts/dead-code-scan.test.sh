@@ -101,8 +101,12 @@ fi
 if [[ -n "$knip_capture" && -f "$knip_capture" ]]; then
   cat "$knip_capture"
 fi
-if [[ -n "${FAKE_KNIP_ERR:-}" && -f "${FAKE_KNIP_ERR:-}" ]]; then
-  cat "$FAKE_KNIP_ERR" >&2
+knip_err="${FAKE_KNIP_ERR:-}"
+if [[ -n "$knip_err" && -f "$knip_err.$(basename -- "$PWD")" ]]; then
+  knip_err="$knip_err.$(basename -- "$PWD")"
+fi
+if [[ -n "$knip_err" && -f "$knip_err" ]]; then
+  cat "$knip_err" >&2
 fi
 exit "${FAKE_KNIP_EXIT:-0}"
 REPLAYER_EOF
@@ -228,6 +232,18 @@ assert_not_contains "used-export control file not reported" "$knip_out" "File: t
 assert_not_contains "used-export control symbol not reported" "$knip_out" "formatBytes"
 assert_not_contains "statically imported export not reported" "$knip_out" "mountPanel"
 
+# --- 1b. knip findings are restricted to the requested target ----------------------
+# knip still walks the project root (no per-file input mode), but candidate
+# scope is the given targets. A one-file target must not emit the other files'
+# unused exports from the same capture.
+tgt_out="$(cd "$TS_REPO" && FAKE_KNIP_OUT="$FIXTURES/knip-report.json" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip ts-orphan.ts 2>/dev/null)"
+assert_contains "narrow target counts only the requested file" "$tgt_out" "Lane: knip | root=. | state=ran | files=1"
+assert_contains "narrow target still reports the requested orphan" "$tgt_out" "File: ts-orphan.ts"
+assert_not_contains "narrow target drops the other file's unused exports" "$tgt_out" "File: dead-and-dynamic.ts"
+assert_not_contains "narrow target drops formatLegacyRow" "$tgt_out" "formatLegacyRow"
+assert_not_contains "narrow target drops renderPanel" "$tgt_out" "renderPanel"
+assert_contains "narrow target totals only the orphan" "$tgt_out" "Summary total: files=1 T1=0 T2=1 T3=0"
+
 # --- 2. knip degradation (evals/fixtures/knip-degraded.stderr.txt) -----------------
 # The degraded run's STDOUT is a healthy-looking blob — measured. Health comes
 # from stderr, and a degraded lane must WITHHOLD every record it would otherwise
@@ -263,7 +279,9 @@ mkdir -p "$MULTI_DEG/node_modules" "$MULTI_DEG/packages/inner"
 printf 'restored\n' >"$MULTI_DEG/node_modules/marker"
 printf '%s\n' '{"name":"outer","version":"0.0.0","private":true}' >"$MULTI_DEG/package.json"
 cp "$FIXTURES/dead-and-dynamic.ts" "$FIXTURES/ts-used.ts" "$FIXTURES/ts-entry.ts" "$MULTI_DEG/"
-# The nested root gets NO node_modules — the measured `degraded` trigger.
+# The nested root has no local node_modules (hoisted ancestor install). It
+# is still degraded here via a per-root stderr capture — restore is no longer
+# the trigger; an ERROR: line is.
 printf '%s\n' '{"name":"inner","version":"0.0.0","private":true}' >"$MULTI_DEG/packages/inner/package.json"
 cp "$FIXTURES/ts-orphan.ts" "$FIXTURES/ts-entry.ts" "$MULTI_DEG/packages/inner/"
 stage_repo "$MULTI_DEG"
@@ -272,9 +290,11 @@ stage_repo "$MULTI_DEG"
 # workspace. Everything else stays owned by the outer root.
 MULTI_DEG_KNIP="$TEST_TMPDIR/knip-report-nested.json"
 sed 's|"ts-orphan.ts"|"packages/inner/ts-orphan.ts"|g' "$FIXTURES/knip-report.json" >"$MULTI_DEG_KNIP"
+MULTI_DEG_ERR="$TEST_TMPDIR/knip-err"
+cp "$FIXTURES/knip-degraded.stderr.txt" "$MULTI_DEG_ERR.inner"
 
 md_exit=0
-md_out="$(cd "$MULTI_DEG" && FAKE_KNIP_OUT="$MULTI_DEG_KNIP" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)" || md_exit=$?
+md_out="$(cd "$MULTI_DEG" && FAKE_KNIP_OUT="$MULTI_DEG_KNIP" FAKE_KNIP_ERR="$MULTI_DEG_ERR" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)" || md_exit=$?
 assert_exit "multi-root scan exits 0" 0 "$md_exit"
 assert_contains "the nested root is its own lane line, degraded" "$md_out" "Lane: knip | root=packages/inner | state=degraded | files=2"
 # `files=3`: the outer root counts only what it OWNS — the nested root's two
@@ -292,6 +312,14 @@ assert_contains "the healthy outer root still reports its own export" "$md_out" 
 assert_contains "and the second one" "$md_out" "Finding excerpt: renderPanel"
 assert_contains "totals count only the owned findings" "$md_out" "Summary total: files=1 T1=0 T2=2 T3=0"
 assert_contains "the lane roster carries both roots' states" "$md_out" "Summary lanes: ran=1 skipped=0 degraded=1 scanned-zero-files=0"
+
+# --- 2b2. Hoisted ancestor node_modules restores a nested workspace ---------------
+# Same tree as MULTI_DEG (inner has no local node_modules) but no ERROR: on the
+# inner run. The ancestor-walk restore probe must treat the hoisted install as
+# restored so the strongest lane actually runs.
+hoist_out="$(cd "$MULTI_DEG" && FAKE_KNIP_OUT="$MULTI_DEG_KNIP" FAKE_KNIP_EXIT=1 bash "$SCAN" --lane knip 2>/dev/null)"
+assert_contains "hoisted nested root is restored and ran" "$hoist_out" "Lane: knip | root=packages/inner | state=ran | files=2"
+assert_not_contains "hoisted nested root is not degraded for missing local node_modules" "$hoist_out" "root=packages/inner | state=degraded"
 
 # --- 2c. Per-root OWNERSHIP holds when BOTH roots are healthy ----------------------
 # Ownership is not a degradation special case: a nested root's file is reported by

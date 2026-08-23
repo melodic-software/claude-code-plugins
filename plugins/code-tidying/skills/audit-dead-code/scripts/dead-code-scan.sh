@@ -295,6 +295,15 @@ owns_path() {
   return 0
 }
 
+# 0 when repo-relative path is in the caller's TS/JS candidate set.
+in_ts_files() {
+  local p="$1" f
+  for f in ${TS_FILES[@]+"${TS_FILES[@]}"}; do
+    [[ "$f" == "$p" ]] && return 0
+  done
+  return 1
+}
+
 count_owned() {
   local root="$1" nest_name="$2" arr_name="$3"
   local -n _dc_own_src="$arr_name"
@@ -377,9 +386,9 @@ lane_knip() {
       continue
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
-    if ! dc_dir_nonempty "$root_abs/node_modules"; then
+    if ! dc_find_nonempty_node_modules "$root_abs" "$REPO_ROOT" >/dev/null; then
       lane_line knip "$root_rel" degraded "$nfiles" \
-        'node_modules absent or empty by direct probe — an unrestored knip run MANUFACTURES false unused-file findings, so this root emits no records'
+        'node_modules absent or empty by direct ancestor-walk probe — an unrestored knip run MANUFACTURES false unused-file findings, so this root emits no records'
       continue
     fi
     if ! bin="$(dc_locate_binary knip "$root_abs" "$REPO_ROOT")"; then
@@ -416,6 +425,14 @@ lane_knip() {
         # DROPPED here: it is the nested root's to report, and only when that
         # root's own run is healthy.
         if ! owns_path "$root_rel" root_nested "$k_path"; then
+          foreign=$((foreign + 1))
+          continue
+        fi
+        # knip has no per-file input mode that preserves cross-file usage, so
+        # the invocation still walks the whole root. Candidate scope is the
+        # caller's targets (TS_FILES); a finding for an owned file outside
+        # that set is not a candidate.
+        if ! in_ts_files "$k_path"; then
           foreign=$((foreign + 1))
           continue
         fi

@@ -33,6 +33,20 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   now points at `audit-dead-code` for finding candidates repo-wide, and the new skill
   points back at `tidy` for applying the deletion.
 
+### Fixed
+
+- **knip findings honor the requested target.** The lane still invokes knip at the
+  project root (no per-file input mode preserves cross-file usage) but now drops
+  any finding whose path is outside the scoped `TS_FILES` set, so
+  `--lane knip src/one-file.ts` no longer emits every owned file's unused
+  exports.
+- **Hoisted workspace installs are restored.** The knip restore probe walks
+  ancestors for a nonempty `node_modules` the same way the binary locator does,
+  so a nested package with no local cache is not marked degraded when the
+  hoisted ancestor install is present.
+- **Documented Bash floor matches namerefs.** `audit-dead-code` uses `local -n`
+  (Bash 4.3+). The plugin README now states **Bash 4.3+** instead of "Bash 4+".
+
 ## [0.14.3]
 
 ### Fixed

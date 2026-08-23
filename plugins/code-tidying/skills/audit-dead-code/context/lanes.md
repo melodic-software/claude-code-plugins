@@ -15,20 +15,27 @@ measurement, not an argument.
   one root per `package.json`. Never one run for the whole repository: a monorepo's workspaces have
   their own installs, their own configs, and their own restore state, and one broken workspace must
   not condemn the others.
-- **Findings are filtered to what the root OWNS** — paths under that root and under no nested root,
-  and never a path excluded from candidate scope (`node_modules`, `dist`, `build`, `vendor`,
-  `**/evals/fixtures/**`). Invoking knip at a root does not restrict what it *reports*: it walks the
-  whole subtree, nested workspaces included. Measured on this marketplace before the filter existed,
-  the repo-root run emitted **213 of its 288 candidates** for files owned by roots the same scan had
-  already declared `degraded` — the withheld false positives came back in through the outer root.
+- **Findings are filtered to what the root OWNS and what the caller asked for** — paths under that
+  root and under no nested root, never a path excluded from candidate scope (`node_modules`, `dist`,
+  `build`, `vendor`, `**/evals/fixtures/**`), and never a file outside the scoped `TS_FILES` set.
+  Invoking knip at a root does not restrict what it *reports*: it walks the whole subtree, nested
+  workspaces included, and has no per-file input mode that preserves cross-file usage. Measured on
+  this marketplace before the ownership filter existed, the repo-root run emitted **213 of its 288
+  candidates** for files owned by roots the same scan had already declared `degraded` — the
+  withheld false positives came back in through the outer root. A narrow target such as
+  `src/one-file.ts` still invokes knip at the project root (so usage across files is visible) and
+  then drops every finding whose path is not in that target set.
 - **Binary resolution:** the repo-local `node_modules/.bin` walk first (upward from the project
   root, symlinks followed with a hop cap, physical target required to stay inside the repository),
   then PATH. A pinned devDependency is the version that matches the project it is judging.
   Measured: `npm i -D knip` leaves knip **off PATH**, so a bare-name probe reports "missing" on a
   correctly configured repo.
-- **Restore probe is DIRECT.** `node_modules` present and non-empty at the resolved root. It is
-  never inferred from knip's `unresolved` / `unlisted` output: measured, restored and unrestored
-  JSON were **byte-identical**: those keys report source defects, not restore state.
+- **Restore probe is DIRECT and walks ancestors.** `node_modules` present and non-empty at the
+  resolved root *or an ancestor up to the repo root* — the same walk `dc_locate_binary` uses for a
+  hoisted workspace install. It is never inferred from knip's `unresolved` / `unlisted` output:
+  measured, restored and unrestored JSON were **byte-identical**: those keys report source defects,
+  not restore state. A nested package with no local `node_modules` is therefore restored when the
+  hoisted ancestor install is present, and degraded only when no ancestor has a nonempty cache.
 - **Degradation is read from stderr.** Any `ERROR:` line makes the run degraded. Measured, a failed
   `vitest.config.ts` load produced **2 phantom "unused files"** while the `ERROR:` line went to
   stderr — which `--reporter json` discards. The stdout blob of a degraded run looks perfectly
