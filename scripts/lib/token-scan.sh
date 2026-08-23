@@ -48,13 +48,17 @@ token_scan::awk_operand() {
 # verbatim when the file is missing -- a token list that is absent must fail the
 # gate closed, for the same reason one that is silently unopened must: a scan
 # with no patterns is not a clean scan.
+# Every local here carries the `_ts_` prefix for the same correctness reason
+# scripts/lib/changed-files.sh spells out: a nameref resolves in the scope where
+# it is used, so an unprefixed local sharing the caller's chosen out-var name
+# would shadow that caller's variable and swallow the result with no diagnostic.
 token_scan::require_token_file() {
   local -n _ts_tokens_out="$1"
-  local path="$2"
-  if [[ ! -f "$path" ]]; then
-    printf 'Error: token list not found: %s\n' "$path" >&2
+  local _ts_path="$2"
+  if [[ ! -f "$_ts_path" ]]; then
+    printf 'Error: token list not found: %s\n' "$_ts_path" >&2
     return 1
   fi
-  _ts_tokens_out="$(token_scan::awk_operand "$path")"
+  _ts_tokens_out="$(token_scan::awk_operand "$_ts_path")"
   return 0
 }

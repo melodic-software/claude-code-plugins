@@ -56,13 +56,25 @@ changed_files::verify_base() {
   git rev-parse --verify --quiet "${1}^{commit}" >/dev/null 2>&1
 }
 
+# EVERY local in the two nameref-taking functions below carries the `_cf_`
+# prefix, and that is a correctness requirement rather than a naming style. A
+# nameref resolves its target in the scope where it is USED, so a local declared
+# after the binding and sharing the caller's chosen out-var name shadows that
+# caller's variable for the rest of the function. Measured on the unprefixed
+# version, with three distinct broken outcomes and no diagnostic pointing at the
+# caller: an out-var named `base` aborted under `set -u` citing an internal
+# variable, one named `filter` came back holding the option array, and ones
+# named `tmp` or `path` came back SILENTLY EMPTY -- the empty-change-set
+# fail-open this file exists to remove. Prefixing every internal name puts the
+# collision out of a caller's reach; do not introduce an unprefixed local here.
+
 # changed_files::resolve_base <out-var>
 changed_files::resolve_base() {
   local -n _cf_base_out="$1"
-  local candidate
-  for candidate in origin/main origin/master main master; do
-    if changed_files::verify_base "$candidate"; then
-      _cf_base_out="$candidate"
+  local _cf_candidate
+  for _cf_candidate in origin/main origin/master main master; do
+    if changed_files::verify_base "$_cf_candidate"; then
+      _cf_base_out="$_cf_candidate"
       return 0
     fi
   done
@@ -72,14 +84,14 @@ changed_files::resolve_base() {
 # changed_files::into <out-array> <base> [--include-deleted] [-- <pathspec>...]
 changed_files::into() {
   local -n _cf_paths_out="$1"
-  local base="$2"
+  local _cf_base="$2"
   shift 2
 
-  local -a filter=(--diff-filter=d)
+  local -a _cf_filter=(--diff-filter=d)
   while (($# > 0)); do
     case "$1" in
     --include-deleted)
-      filter=()
+      _cf_filter=()
       shift
       ;;
     --)
@@ -101,8 +113,8 @@ changed_files::into() {
   # a failed diff is to give git a destination whose status is checked in this
   # shell -- and then feed the loop from a PLAIN redirect, which (unlike a
   # process substitution) also keeps the array assignment out of a subshell.
-  local tmp
-  tmp="$(mktemp)" || {
+  local _cf_tmp
+  _cf_tmp="$(mktemp)" || {
     printf 'changed-files: mktemp failed\n' >&2
     return 1
   }
@@ -112,21 +124,21 @@ changed_files::into() {
   # verbatim. A quoted `"plugins/..."` misses every suffix and prefix test the
   # callers apply and is silently dropped, the exact silent exclusion the gates
   # forbid.
-  if ! git diff --name-only ${filter[@]+"${filter[@]}"} -z "$base" -- "$@" >"$tmp"; then
-    rm -f "$tmp"
-    printf 'changed-files: git diff against %s failed; refusing to report an empty change set\n' "$base" >&2
+  if ! git diff --name-only ${_cf_filter[@]+"${_cf_filter[@]}"} -z "$_cf_base" -- "$@" >"$_cf_tmp"; then
+    rm -f "$_cf_tmp"
+    printf 'changed-files: git diff against %s failed; refusing to report an empty change set\n' "$_cf_base" >&2
     return 1
   fi
-  if ! sort -z -u "$tmp" -o "$tmp"; then
-    rm -f "$tmp"
-    printf 'changed-files: sorting the change set for %s failed\n' "$base" >&2
+  if ! sort -z -u "$_cf_tmp" -o "$_cf_tmp"; then
+    rm -f "$_cf_tmp"
+    printf 'changed-files: sorting the change set for %s failed\n' "$_cf_base" >&2
     return 1
   fi
 
-  local path
-  while IFS= read -r -d '' path; do
-    _cf_paths_out+=("$path")
-  done <"$tmp"
-  rm -f "$tmp"
+  local _cf_path
+  while IFS= read -r -d '' _cf_path; do
+    _cf_paths_out+=("$_cf_path")
+  done <"$_cf_tmp"
+  rm -f "$_cf_tmp"
   return 0
 }

@@ -220,6 +220,40 @@ else
 fi
 rm -rf "$repo"
 
+# --- into: the caller may name its out-array anything ---------------------
+#
+# A nameref resolves its target in the scope where it is USED, so any local
+# declared inside the function that shares the caller's chosen out-var name
+# shadows the caller's variable for the rest of the call. Measured on the
+# unprefixed version of this library, with three distinct broken outcomes and no
+# diagnostic naming the caller: `base` aborted under `set -u` citing an internal
+# variable, `filter` came back holding the option array, and `tmp` and `path`
+# came back SILENTLY EMPTY -- the empty-change-set fail-open this library exists
+# to remove. The names below are exactly those four.
+
+repo="$(mk_repo)"
+base_sha="$(git -C "$repo" rev-parse HEAD)"
+printf 'changed\n' >"$repo/docs/README.md"
+git_test_config "$repo" add -A >/dev/null
+git_test_config "$repo" commit -qm change >/dev/null
+
+for victim in base filter tmp path; do
+  if (
+    cd "$repo" || exit 1
+    unset -v "$victim"
+    declare -a "$victim"
+    changed_files::into "$victim" "$base_sha" -- >/dev/null 2>&1 || exit 1
+    count=0
+    eval "count=\${#${victim}[@]}"
+    [[ "$count" == "1" ]]
+  ); then
+    ok "an out-array named '$victim' receives the change set"
+  else
+    fail "an out-array named '$victim' did not receive the change set (internal local shadows it)"
+  fi
+done
+rm -rf "$repo"
+
 # --- into: failure is loud, never an empty change set ---------------------
 
 repo="$(mk_repo)"
