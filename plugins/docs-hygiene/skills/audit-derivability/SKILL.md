@@ -147,7 +147,7 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 ## What this skill is NOT
 
 - **Not `/docs-hygiene:audit-noise`.** That classifies line-level noise *inside* a document worth keeping. This decides whether the whole document is worth keeping. A doc can pass audit-derivability (`keep-owns-facts`) and still have noise lines for audit-noise to trim.
-- **Not `/docs-hygiene:extract-ssot`.** That deduplicates a unit repeated across 3+ files into one home. Derivability is re-derivation from CODE/config/structure, not from another markdown file. A doc that duplicates *another doc* is extract-ssot's; a doc that restates *the code* is this skill's.
+- **Not `/docs-hygiene:extract-ssot`.** That deduplicates a unit repeated across files into one home, at any multiplicity (a new home is created only at 3+). Derivability is re-derivation from CODE/config/structure, not from another markdown file. A doc that duplicates *another doc* is extract-ssot's; a doc that restates *the code* is this skill's.
 - **Not `/docs-hygiene:compress`.** That trims prose flavor within a doc that stays. This deletes or repoints whole docs.
 - **Not a doc-drift / staleness detector.** Those ask "does this doc still match the code?" This asks "should this doc exist even when it is perfectly accurate?" — a currently-correct doc can still be dead weight because it is trivially re-derivable and carries drift risk.
 - **Not a doc generator or an Edit operation.** It recommends; the author acts.

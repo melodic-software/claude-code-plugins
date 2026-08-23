@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.2]
+## [0.55.3]
 
 ### Changed
 
@@ -11,6 +11,33 @@ All notable changes to the `source-control` plugin are documented here. Format f
   opening, never-writes boundary, and/or headless-reconfigure recipe as present) to the
   canonical fleet wording, keeping the operable text inline with a provenance-only citation
   (whole-repo extract-ssot batch, #2698).
+
+
+## [0.55.2]
+
+### Fixed
+
+- **`worktree` skill:** the orphaned-directory normalization in `cleanup` Step 4b now shows the
+  rule as executable code instead of half of it as a comment. The snippet was
+  `path="${path%/}"` plus a comment saying to run it "again for a Windows-style trailing
+  backslash" — but Step 4b is prose an agent executes literally, so the backslash half never ran,
+  and one `%/` pass also strips only a single separator. A trailing `\` (the common
+  Explorer/`dir`-pasted form on the platform the original measurement came from) or a doubled
+  separator therefore still defeated the `test -L` symlink disqualifier this normalization
+  exists to protect. The snippet is now a platform-gated loop: on Windows shells
+  (MINGW/MSYS/CYGWIN, where `\` is a separator) it strips both separator styles until none
+  remain; off Windows it strips forward slashes only, because there a trailing `\` is a legal
+  filename byte — the same gated rule `worktree-create.sh` applies to its root normalization —
+  and stripping it would re-point the qualifying tests, the reap, and the `rm -rf` at a
+  different sibling path. `audit`'s "check it the way `cleanup` does" pointer carries the same
+  snippet instead of prose only, and `reap-project-plugin-records.test.sh` pins the expression
+  per platform — doubled slashes always strip, a trailing backslash strips on Windows shells
+  and survives on POSIX — as a pure string case that runs even where the symlink fixture must
+  skip ([#3163](https://github.com/melodic-software/claude-code-plugins/issues/3163); the
+  unshipped remainder of the final security-review finding on
+  [#3116](https://github.com/melodic-software/claude-code-plugins/pull/3116), with the POSIX
+  filename-byte gate from Codex review on
+  [#3165](https://github.com/melodic-software/claude-code-plugins/pull/3165)).
 
 ## [0.55.1]
 

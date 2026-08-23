@@ -73,7 +73,7 @@ branch: <branch at audit time>
 |---|---|---|
 | `type` | yes | Exactly `overengineering-findings`. The selector realign matches on. |
 | `schema` | yes | Integer contract version, currently `1`. A consumer reading an unrecognized value **stops with a visible message** rather than guessing at the shape. |
-| `date` | yes | Colon-free UTC, Windows-safe, lexically sortable. The only record of when the audit actually ran. |
+| `date` | yes | ISO-basic UTC (`YYYYMMDDTHHMMSSZ`): compact, unambiguous about its zone, and lexically sortable — string order is chronological order. The only record of when the audit actually ran. (Colon-freedom buys nothing *inside* a file; it is a **filename** property, and this contract fixes one stable filename per home rather than a timestamped one.) |
 | `scope` | yes | The layers walked, from the layer vocabulary below. A layer-scoped pass says so here; **a layer absent from `scope` was not walked, and is not the same as a layer walked and found empty.** The merge rules depend on this distinction. |
 | `branch` | yes | The branch at audit time. Realign refuses an artifact whose `branch:` does not match the current branch, naming the mismatch. |
 

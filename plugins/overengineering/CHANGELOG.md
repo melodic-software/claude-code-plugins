@@ -3,6 +3,23 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Fixed
+
+- **The findings artifact's `date:` field was justified by a property it cannot have.**
+  `context/findings-artifact.md` argued the field as "Colon-free UTC, **Windows-safe**, lexically
+  sortable". Windows-safety is a *filename* property — a colon is illegal in a Windows path
+  component — and is meaningless for a field written *inside* a file; this contract fixes one
+  stable filename per home (`findings.md`) and deliberately rejects a timestamped one, so there is
+  no filename here for the claim to attach to either. The row now argues the format on what is
+  actually true of it: compact, unambiguous about its zone, and lexically sortable, so string order
+  is chronological order. **The format is unchanged.** ISO-basic `YYYYMMDDTHHMMSSZ` is valid
+  ISO-8601 and this artifact is not a detector-findings adopter — its only consumer is
+  `/overengineering:realign` — so nothing obliges it to match any neighbor's extended form, and a
+  wrong rationale is not grounds to move a contract that works. Documentation only; no consumer
+  reads the rationale cell.
+
 ## [0.2.0]
 
 ### Added
