@@ -10,11 +10,11 @@ hooks:
         # Shell form, matching hooks/hooks.json (#2568). Exec form resolves
         # `command` on PATH with no shell, and the bare `python3` this used to
         # name is the zero-length WindowsApps App Execution Alias stub on stock
-        # Windows — the hook cannot launch, and a failed launch is non-blocking,
+        # Windows, the hook cannot launch, and a failed launch is non-blocking,
         # so the belt silently enforces nothing. `hooks/run-python-hook.sh`
         # rejects that stub and falls through to `python`, then `py -3`.
         # `${CLAUDE_PLUGIN_ROOT}` is the ONLY substitution a skill-frontmatter
-        # hook receives (#1014) — never ${CLAUDE_PLUGIN_DATA} or
+        # hook receives (#1014). Never ${CLAUDE_PLUGIN_DATA} or
         # ${user_config.*}, either of which makes Claude Code refuse the launch.
         # The single-quoted YAML scalar is the same value hooks.json spells with
         # \" escapes; every path placeholder must stay double-quoted, because the
@@ -43,22 +43,22 @@ Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, op
 engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, `--plan`,
 `--report`, `--confirm-tier`, `--approval-token`, `--paths`, and `--vcs-evidence` on the other
 subcommands) are supplied by this skill's command templates, not typed by the user.
-`--execute` means "deletion may be offered" on every platform — the gated engine lane where the
+`--execute` means "deletion may be offered" on every platform, the gated engine lane where the
 platform supports it, the manual handoff elsewhere; it is not approval. (Deliberate semantic
 unification, not a restatement: the flag previously read as engine-lane-only, which left the
-manual lane's gate ambiguous — consumer sessions read it both ways.) `--max-depth <N>` bounds a
+manual lane's gate ambiguous, consumer sessions read it both ways.) `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
 full walk after the human clears the [confirmation gate](#confirmation-gate)'s scan-scope row.
 `--root-children` is the only way to address an OS-managed volume root (for example `C:\` or `/`):
 it never walks that root recursively. Without `--root-child` names the engine returns
 `root-children-selection-required` listing admitted immediate directories (OS-owned, hidden,
 system, reparse, mount, protected-shell-folder, and non-directory entries are withheld). With one
-or more explicit `--root-child <name>` flags — after the human clears the confirmation gate's
-root-children row — it audits only those admitted children into one snapshot. A general "clean
+or more explicit `--root-child <name>` flags, after the human clears the confirmation gate's
+root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection. With no target, ask once. Reject an
 OS-managed root (unless `--root-children`), a non-root mount target, a protected shell-folder root
 or descendant, a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
-is not OS-managed (a Windows Dev Drive) is no longer rejected outright — it is a valid target, but
+is not OS-managed (a Windows Dev Drive) is no longer rejected outright, it is a valid target, but
 as a known-large root it is gated like a home target (see step 1): the scan returns
 `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
 `--confirmed-large-scan`. `--root-children` is invalid on a non-OS volume root or a non-volume
@@ -67,7 +67,7 @@ target; scan those without the flag.
 - Invoke `/repo-hygiene:clean` via the Skill tool for one repository's caches, build output, Git metadata, or tree reset.
 - For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off by invoking
   `/source-control:worktree status`/`cleanup` via the Skill tool (if installed), run from the checkout's own main
-  repository — those actions manage the current repository's worktrees and take no target path. The
+  repository, those actions manage the current repository's worktrees and take no target path. The
   engine already protects tracked content and `.git` metadata, but owns no worktree lifecycle.
   A standalone checkout is likewise protected by default; the narrow evidence mode in §6 is the
   only exception, and it never applies to linked worktrees whose common Git directory is outside the
@@ -79,12 +79,12 @@ target; scan those without the flag.
   retention mechanism. Report `needs-elevation` or `handle-state-unverified` and stop that tier.
 - If the `disk_hygiene_enabled` userConfig option is `false` (its value here is
   `${user_config.disk_hygiene_enabled}`), audit only and explain why execution is disabled. A
-  literal unexpanded token is not evidence the toggle is unset — resolve it deterministically by
+  literal unexpanded token is not evidence the toggle is unset, resolve it deterministically by
   running the bundled probe (the guard allows exactly this argument-free shape):
   `"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/kill_switch_probe.py"` and honor
   the `effective` value it reports; on `degraded: true` proceed as enabled but say the configured
   value could not be read. The guard enforces the same toggle independently and denies both mutation
-  lanes in audit-only mode (`reference/safety-model.md`), so run the probe anyway — to state the
+  lanes in audit-only mode (`reference/safety-model.md`), so run the probe anyway, to state the
   configured value accurately and stop before proposing work the guard would deny. The guard is the
   backstop, not the sole enforcer. It reports its absolute Python interpreter and the authorized
   `--data-root` value in denial guidance; use that exact interpreter path as `<hook-python>` for
@@ -99,33 +99,33 @@ target; scan those without the flag.
 
 ## Confirmation gate
 
-Every question this skill asks passes this gate — the no-target prompt above, the large-scan
+Every question this skill asks passes this gate, the no-target prompt above, the large-scan
 confirmation in §1, the root-children selection for an OS-managed volume root, the removal approval
 in §5, and the unsupported-platform handoff in §6. One surface rule and one floor cover all five.
 What a valid answer must *name* is per question, because a target prompt has no tier or path list to
 name and cannot be held to a bar built for one.
 
 **Question surface.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be
-fabricated. It is not always usable, in two distinct ways — a bare-name `permissions.deny` rule or a
+fabricated. It is not always usable, in two distinct ways, a bare-name `permissions.deny` rule or a
 `disallowed-tools` entry removes it from context entirely, while permission mode `dontAsk` denies it
 even when an allow rule names it, leaving it visible and every call failing. Fall back to the same
 question asked inline as a numbered choice whenever the tool is absent, denied, **or otherwise
-unusable** — including a denial discovered only by calling it; a denied call is an unanswered
+unusable**. Including a denial discovered only by calling it; a denied call is an unanswered
 question, never an answer. Then wait for the reply.
 
-**The floor — every question.** Take the user's own answer, given in this interactive session. Never
+**The floor, every question.** Take the user's own answer, given in this interactive session. Never
 supply, infer, or fabricate it: a prior general request, `--execute`, "clean everything", approval of
 another tier, or silence is not an answer. On rejection, stop.
 
-**What the answer must name — per question.** Where a row requires the answer to name something the
-skill itself produced — the resolved target, the tier, the path list — show it in the question; a bar
+**What the answer must name, per question.** Where a row requires the answer to name something the
+skill itself produced, the resolved target, the tier, the path list, show it in the question; a bar
 naming what the question never presented cannot be met.
 
 | Question | Accept only an answer naming |
 |---|---|
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
-| Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed — never "everything" or the volume root itself |
+| Root-children selection (`--root-children`, §1) | one or more admitted immediate child directory names just listed, never "everything" or the volume root itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
 ## 1. Create a read-only snapshot
@@ -142,26 +142,26 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 ```
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
-the call outright when it cannot recognize the install layout — so a run reporting that denial is a
+the call outright when it cannot recognize the install layout, so a run reporting that denial is a
 coverage gap, not a clean result. (Derivation and its fail-closed rationale: `reference/safety-model.md`.)
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry cap),
 start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and immediate children,
 then fan out deeper scans per subtree that the evidence justifies. The engine backs this with a
 deterministic gate: a scan whose target resolves to the user home directory or a non-OS volume root (a
-Windows Dev Drive — an OS-managed root still cannot be walked as a whole, and reaches the engine only via
+Windows Dev Drive, an OS-managed root still cannot be walked as a whole, and reaches the engine only via
 `--root-children`) and carries neither `--max-depth` nor `--confirmed-large-scan` returns
 `large-target-confirmation-required` (after a cheap top-level probe, not a full walk) instead of the
 unbounded traversal, so a forgotten bound never becomes an accidental whole-volume scan. `--max-depth` is
 the preferred bounded response. When the target is an OS-managed volume root, first run with
 `--root-children` alone, present the `admitted_children` list through the [confirmation
 gate](#confirmation-gate)'s root-children row, then re-run with the same flag plus each chosen `--root-child
-<name>` — one run directory, one snapshot, one report covers every selected subtree. Never invent the
-selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — pass the
+<name>`. One run directory, one snapshot, one report covers every selected subtree. Never invent the
+selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed, pass the
 [confirmation gate](#confirmation-gate)'s scan-scope row first, the same standing before an expensive step
 that the apply lane demands before a destructive one; a general "clean my home directory" is not that
-confirmation. Every directory whose descendants were not walked — cut off by `--max-depth`, a protected
-root, or a VCS boundary — is recorded in `truncated_paths`; report them as coverage gaps, never as clean,
+confirmation. Every directory whose descendants were not walked, cut off by `--max-depth`, a protected
+root, or a VCS boundary, is recorded in `truncated_paths`; report them as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
 fan-out worker receives a bounded subtree and returns evidence only. The parent owns classification, the
@@ -184,7 +184,7 @@ rule below.
 
 A hint annotation is not the only trigger for triage: at a user-home target, treat any loose
 root-level entry whose `protected_reasons` is empty and that does not belong to a recognizable
-app/config convention as suspicious too — the snapshot already carries it (every walked entry is
+app/config convention as suspicious too, the snapshot already carries it (every walked entry is
 recorded with a possibly-empty `hints` list), so nothing further needs discovering, only judging.
 Read the entry's own `protected_reasons`, never one policy field: protection also comes from name
 patterns and from live filesystem state, and an entry that names a single field as its filter will
@@ -205,7 +205,7 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
 
 ## 3. Classify and report
 
-Safe tidiness leads; reclaimed space follows. Confidence is report priority, not permission — and
+Safe tidiness leads; reclaimed space follows. Confidence is report priority, not permission, and
 byte size is never a ranking key:
 
 | Tier | Minimum evidence | Default outcome |
@@ -214,14 +214,14 @@ byte size is never a ranking key:
 | Medium | Likely disposable, but one ownership/provenance fact is indirect | Review, then optionally offer its own approval |
 | Low | Name/age-only, conflicting signals, resumable or user-content possibility | Keep unless the human separately reviews and approves exact paths |
 
-Report every finding with these fields, in this order — size last:
+Report every finding with these fields, in this order, size last:
 
-1. **Provenance** — where it came from, resolved from evidence (a manifest, a config's own
+1. **Provenance**. Where it came from, resolved from evidence (a manifest, a config's own
    contents, an owning repository's source, a documented naming contract), never guessed from the
    name alone.
-2. **What it is** — intent / role of the entry (`reason` in engine plans).
-3. **Why removable** — why it is not work product, plus owner / native-GC result.
-4. **Risk** — what could go wrong if it is removed (and why that risk is acceptable at this tier).
+2. **What it is**. Intent / role of the entry (`reason` in engine plans).
+3. **Why removable**. Why it is not work product, plus owner / native-GC result.
+4. **Risk**. What could go wrong if it is removed (and why that risk is acceptable at this tier).
 5. Path, tier, evidence, disposition.
 6. Logical / reclaimable bytes as a **secondary** signal only.
 
@@ -237,16 +237,16 @@ fold the first into a byte-centric roll-up that drops it, and never read it as t
 
 **Lead the frontier with `children_rollup`.** The snapshot carries one row per immediate child the run covered, whatever
 that child's coverage, and `walked` is the single discriminator: `true` means every aggregate is exact; `false` means
-they are all `null` with `unwalked_reasons` naming the cause — never `0`, never a partial subtree sum. Rank on
+they are all `null` with `unwalked_reasons` naming the cause, never `0`, never a partial subtree sum. Rank on
 `reclaimable_local_bytes`, never on `logical_bytes`, a logical total that `size_qualifiers` flags as inflated by cloud
 placeholders, hard links, or sparse extents. The block opens no directory the walk did not, so a `--max-depth 1` pass
 returns `depth-cut`/`null` for every NON-EMPTY child: the frontier is complete, but a recursive total is bought only by
-fanning a deeper scan out over that subtree — report those rows as coverage gaps, never as small or clean.
-`scan-complete` also carries `unhinted_entries` — `entries` minus `hinted_entries`, every inventoried entry no hint
-judged — so quote hint coverage as a rate: 7 hinted of 40,247 is 0.017 %, nothing like "7 findings". Fields, reasons
+fanning a deeper scan out over that subtree, report those rows as coverage gaps, never as small or clean.
+`scan-complete` also carries `unhinted_entries`, `entries` minus `hinted_entries`, every inventoried entry no hint
+judged. So quote hint coverage as a rate: 7 hinted of 40,247 is 0.017 %, nothing like "7 findings". Fields, reasons
 and the measurement: [the safety model](reference/safety-model.md).
 
-**Relocation is out of scope.** This skill offers exactly two outcomes per finding — keep it, or approve its
+**Relocation is out of scope.** This skill offers exactly two outcomes per finding, keep it, or approve its
 exact path for deletion. There is no relocation lane and no move primitive in the engine, by design: a move
 is not a containment-checkable, revalidatable, token-bound operation the way a delete is. So when the right
 answer for a misplaced entry is "this belongs somewhere else", say so and report it as **keep**; the
@@ -255,12 +255,12 @@ keep-or-delete choice is the complete set of dispositions, and never stage a mov
 handoff.
 
 An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty. Exclude every qualified
-entry from any reclaimable-bytes total and state the qualified bytes separately with their reasons — a
+entry from any reclaimable-bytes total and state the qualified bytes separately with their reasons, a
 `cloud-placeholder` carries its REMOTE size while occupying roughly nothing locally; a `hardlinked` name shares one
 object with other names; a `sparse` file's logical size overstates local allocation; and `not-walked` means the subtree
-was never inventoried, so `logical_size` is `null` rather than `0` — except on the target's own record, which keeps its
+was never inventoried, so `logical_size` is `null` rather than `0`, except on the target's own record, which keeps its
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's
-`target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself —
+`target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself. 
 folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
 low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar.
 
@@ -308,8 +308,8 @@ blocker means no approval prompt and no deletion. Fix nothing behind the gate; r
 
 When status is `ready-for-explicit-approval`, show a table naming every path with provenance, what
 it is, why removable, risk, whether it is an empty directory, the single tier, and only then logical
-/ reclaimable bytes, plus the preview's approval token — then pass the
-[confirmation gate](#confirmation-gate) — the approval must name **exactly that tier and list**.
+/ reclaimable bytes, plus the preview's approval token, then pass the
+[confirmation gate](#confirmation-gate). The approval must name **exactly that tier and list**.
 Process another tier only with a new plan, preview, and question.
 
 ## 6. Apply only the confirmed preview
@@ -333,10 +333,10 @@ token.
 
 Preview reports `execution-platform-unsupported` as a per-candidate blocker on these platforms, so
 the engine never deletes there. The default outcome is the report. The manual lane is gated by
-`--execute` exactly as the engine lane is — without it, no deletion lane may be offered on any
-platform. If — and only if — `--execute` was requested and the human reviews the report and approves
+`--execute` exactly as the engine lane is, without it, no deletion lane may be offered on any
+platform. If, and only if,`--execute` was requested and the human reviews the report and approves
 an exact path list drawn from one tier in this interactive session (the §3 report spans every tier, so
-narrow it to a single tier and show that tier's paths before asking — the
+narrow it to a single tier and show that tier's paths before asking, the
 [confirmation gate](#confirmation-gate)'s removal row is the same exact-tier-and-list bar the engine
 lane clears; a general "clean it up" is still not approval), removal is a manual handoff, not an
 engine plan:
@@ -353,11 +353,11 @@ engine plan:
    ```
 
    It reruns the engine's identity/reparse/protection/descendant/VCS/handle checks per path
-   against live state and emits one verdict each — `clear`, `drifted` (identity or descendant
+   against live state and emits one verdict each, `clear`, `drifted` (identity or descendant
    set changed since the snapshot), `gone` (no longer present), or `contested` (protection,
-   VCS state, a live handle, elevation, or unverifiable state) — and never deletes anything.
+   VCS state, a live handle, elevation, or unverifiable state). And never deletes anything.
    Act only on verdict-`clear` paths. Additionally confirm any owner process named in the audit
-   evidence is still absent — that evidence is report-level, outside the engine's checks.
+   evidence is still absent, that evidence is report-level, outside the engine's checks.
 
    A standalone Git checkout can reach `clear` only through an additional, explicit evidence file.
    Never use this for a linked worktree, a tracked subdirectory, or non-Git VCS. After the operator
@@ -409,31 +409,31 @@ engine plan:
 
    **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
    path's check ages while every later path is still being walked and probed, so its `clear`
-   is already stale at emission — and staler after each intervening deletion. Pair each
+   is already stale at emission, and staler after each intervening deletion. Pair each
    deletion with its own fresh single-path handoff-verify run (verify one → delete that one →
    next); reserve the multi-path form for reporting. A clear verdict is valid only at emission
    time: delete immediately, and re-run handoff-verify after any delay or interruption.
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
-   permanent — disclose when a target's volume or policy may turn "reversible" removal permanent.
+   permanent, disclose when a target's volume or policy may turn "reversible" removal permanent.
 
-   **Path length is a different failure — not a silent downgrade but a hard stop.** Those three
+   **Path length is a different failure, not a silent downgrade but a hard stop.** Those three
    caveats all describe a reversible operation quietly turning permanent. A path longer than the
    classic Windows `MAX_PATH` (260 characters) cannot reach the Recycle Bin *at all*: the shell
-   APIs behind it reject the path, so the operation fails outright. Deep tool residue — nested
-   dependency or build trees — routinely exceeds it. The only remaining way to remove such a path
+   APIs behind it reject the path, so the operation fails outright. Deep tool residue, nested
+   dependency or build trees, routinely exceeds it. The only remaining way to remove such a path
    is a **permanent** delete through a `\\?\` long-path API, which no bin can undo.
 
    That fallback is its own irreversible action and does **not** inherit the approval given for a
    reversible removal. Stop, tell the operator this exact path cannot be recycled and why, and
    re-ask through the [confirmation gate](#confirmation-gate) for permanent deletion of that exact
-   path, named as irreversible — an approval that said "recycle these" never authorized it. If the
+   path, named as irreversible, an approval that said "recycle these" never authorized it. If the
    operator declines, skip and report the path; shortening or moving the tree to get under the
    limit is a relocation, out of scope (§3) and the operator's own action. Record such removals as
    permanent in the §6 summary, distinct from the reversible ones.
 3. Container-wide deletion commands (`Clear-RecycleBin`, emptying the Trash, or any "delete
-   everything in this container" spelling) are forbidden in the manual lane — they execute
+   everything in this container" spelling) are forbidden in the manual lane, they execute
    against the live container, so items arriving between approval (or even re-enumeration) and
    execution die under an approval that never saw them. Satisfy "empty the container" by
    enumerating the container and deleting per item under steps 1, 2, and 4; items that arrive
@@ -447,7 +447,7 @@ bar as the engine apply prompt); confirm that prompt only when the command match
 approved list. Engine invocations from PowerShell stay hard-denied.
 
 **That belt outlives this cleanup.** Claude Code registers a skill's frontmatter hooks when the
-skill is invoked and keeps them registered for the **rest of the session** — there is no
+skill is invoked and keeps them registered for the **rest of the session**. There is no
 harness-level "while the skill is active" window for hooks (#2618). So once `/disk-hygiene:clean`
 has run, the deny-by-default Bash lane and the PowerShell deletion prompts keep applying to
 unrelated later work in the same session, not only to this cleanup. Say so when a later,
@@ -464,7 +464,7 @@ activity, sparse files, hard links, compression, and delayed allocation affect i
 
 ## Gotchas
 
-Harness mechanics are not restated here — one copy only, because two is how a stale claim survived
+Harness mechanics are not restated here, one copy only, because two is how a stale claim survived
 a fix to the reference (#2618). Load [the safety model](reference/safety-model.md) when you need
 them: how the guard registers on two surfaces, how the kill switch is delivered and scoped, and
 what the PowerShell lane flags → "Kill-switch enforcement"; how the hooks launch, what that bounds,
@@ -492,7 +492,7 @@ and the residual fail-open → "Hook launch form".
   splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a final human permission prompt. It is a
-  raised bar, not a fail-closed lane — its flagged set is enumerated, so an unflagged mutation
+  raised bar, not a fail-closed lane, its flagged set is enumerated, so an unflagged mutation
   spelling passes it. The engine's own containment and the Bash lane remain the deletion authority.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures

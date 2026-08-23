@@ -58,27 +58,27 @@ at preview. Backups remain the recovery boundary for user data.
   `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
   there, so treat the number printed here as a convenience copy). Guarded engine calls must use the
   same absolute interpreter reported by the skill-scoped guard, so Bash aliases and functions cannot
-  replace it. **All three** hook registrations — both wired hooks and the skill-scoped belt — use
+  replace it. **All three** hook registrations, both wired hooks and the skill-scoped belt, use
   **shell form**: the `command` string names `hooks/run-python-hook.sh` directly with
   `"shell": "bash"` and no `args`, so Claude Code routes them through Git Bash itself instead of
   resolving the command on `PATH`. Exec form is the regression this plugin hit twice: as
   `"command": "bash"` in the wired hooks (#1416) and as `"command": "python3"` in the belt (#2568).
   On Windows that bare `PATH` lookup finds the WSL relay `System32\bash.exe` before Git Bash, or the
   zero-length `WindowsApps\python3.exe` App Execution Alias stub; the launch fails, and a failed
-  hook launch is non-blocking — so the guard silently enforces nothing. The launcher then resolves
+  hook launch is non-blocking, so the guard silently enforces nothing. The launcher then resolves
   Python (#1504). The guard
   registers on two surfaces: a
   plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
-  engine — deferring everything else instantly — and enforces the kill switch and data-root
+  engine, deferring everything else instantly, and enforces the kill switch and data-root
   authority; and the skill-scoped **belt** inside the `clean` skill's context, which adds the
   deny-by-default Bash and deletion-spelling PowerShell discipline during active cleanup work. Both
   surfaces resolve the kill switch by reading `disk_hygiene_enabled` from user-scope `pluginConfigs`
   in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only from user/managed/`--settings`
   scope since Claude Code 2.1.207, so a repo cannot forge it), register unconditionally, and fail
-  closed to enabled — the earlier bare-`${user_config.*}` argument that dropped the engine gate on a
+  closed to enabled, the earlier bare-`${user_config.*}` argument that dropped the engine gate on a
   default install is gone (since 0.9.0). Hook-lifetime caveat: docs
   scope a skill hook to the component's lifetime, but session-long firing of the belt has been
-  observed on at least one Claude Code build (producer-reported; see issue #1105) — if unrelated
+  observed on at least one Claude Code build (producer-reported; see issue #1105). If unrelated
   commands are denied after a clean run ends, start a new session and see that issue. PreToolUse
   hooks also fire inside subagents, so fanned-out workers run under the same guards. The plugin
   never downloads a runtime.
@@ -86,13 +86,13 @@ at preview. Backups remain the recovery boundary for user data.
   detector (`skills/clean/scripts/guard_launch_monitor.py`, a second hook entry in `hooks/hooks.json`,
   independent of the engine-gate guard itself) scans the session transcript for
   `hook_non_blocking_error` records naming the engine gate's own command string and warns once per
-  session with the failure count and the most recent failure's exit code, duration, and stderr — so a
+  session with the failure count and the most recent failure's exit code, duration, and stderr, so a
   guard that never ran or died mid-run no longer looks identical to a guard that ran and approved.
   This covers only the `destructive_guard.py` command string in the current session's transcript: it
   does not cover repo-hygiene's own guard (a separate plugin, verified working independently), and it
   never retroactively scans a prior session's transcript. Every hook registration routes through
-  `hooks/run-python-hook.sh` — a bash launcher that resolves Python independently of bare
-  `python3` on PATH — so when `python3` is the WindowsApps alias stub or otherwise unresolvable,
+  `hooks/run-python-hook.sh`, a bash launcher that resolves Python independently of bare
+  `python3` on PATH, so when `python3` is the WindowsApps alias stub or otherwise unresolvable,
   the detector still emits a `systemMessage` even though the guard cannot run (#1504).
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
@@ -104,27 +104,27 @@ at preview. Backups remain the recovery boundary for user data.
   `execution-platform-unsupported` as a per-candidate blocker, and removal is a manual, per-path
   Recycle-Bin handoff offered only when `--execute` was requested and after explicit approval
   (the flag gates every deletion lane, manual included). The Recycle-Bin / Trash naming is a model-layer
-  distinction only — the engine treats Windows and macOS identically (execution unsupported); which
+  distinction only, the engine treats Windows and macOS identically (execution unsupported); which
   reversible-removal container the manual lane prefers is the model's instruction, not engine
   behavior.
-- **Windows `python3` gotcha — the Store alias stub fails the guard open.** Every hook resolves
+- **Windows `python3` gotcha, the Store alias stub fails the guard open.** Every hook resolves
   Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe`
   App Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard.
   Since 0.17.9 that includes the skill-scoped belt, which previously named `python3` directly as its
   exec-form `command` and so could not start at all against the stub. When no interpreter resolves
   anywhere on the ladder, the guard still
-  fails open — a PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny`
+  fails open, a PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny`
   decision ([Hooks](https://code.claude.com/docs/en/hooks)); a guard that never runs emits neither,
-  and Claude Code treats the non-blocking result as approval — the destructive Bash/PowerShell
+  and Claude Code treats the non-blocking result as approval, the destructive Bash/PowerShell
   command proceeds ungated (the same fail-open shape as the 0.6.3 launch-failure fix, via a
   different vector). The Stop detector emits a `systemMessage` in that case so the blind spot is
   visible. `/disk-hygiene:setup check` resolves the launcher's whole ladder and FAILs only when it
   is exhausted or the interpreter it selects is below the floor. A stubbed `python3` alongside a
-  working `python` or `py -3` is a **WARN**, not a FAIL — every guard launches there, and the
+  working `python` or `py -3` is a **WARN**, not a FAIL, every guard launches there, and the
   residual is only that a bare `python3` typed by hand still opens the Store. To clear it: disable
   the `python3` App execution alias (Settings > Apps > Advanced app settings > App execution
   aliases) or install real Python ahead of WindowsApps on `PATH`. A bare `command -v python3` /
-  `where python3` success is not proof the interpreter is real — the stub answers to the name too.
+  `where python3` success is not proof the interpreter is real, the stub answers to the name too.
 - Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
   the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
@@ -183,7 +183,7 @@ hand-cleaning the zone.
 - Use `/repo-hygiene:clean` for deterministic caches, build outputs, Git metadata, or a fresh-pull reset
   inside one repository. `disk-hygiene` does not duplicate those mechanisms.
 - Use `/source-control:worktree status`/`cleanup` (if installed) for git worktree checkouts such as a
-  `.worktrees/` tree — run those actions from the checkout's own main repository, as they manage the
+  `.worktrees/` tree, run those actions from the checkout's own main repository, as they manage the
   current repository's worktrees and take no target. `disk-hygiene` protects tracked content and `.git`
   metadata but does not manage worktree lifecycle. For a redundant standalone checkout, the manual
   handoff's optional VCS evidence mode can return `clear` only after all four proof gates in the
@@ -204,7 +204,7 @@ hand-cleaning the zone.
   quoted CLI arguments.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
 - **Configuration:** one non-sensitive `userConfig` boolean (`disk_hygiene_enabled`, default
-  `true`) gating the execution tiers — setting it `false` puts `/disk-hygiene:clean` in audit-only
+  `true`) gating the execution tiers, setting it `false` puts `/disk-hygiene:clean` in audit-only
   mode. Both guard surfaces resolve the toggle by reading `disk_hygiene_enabled` from user-scope
   `pluginConfigs` in `settings.json` (not the process environment). A configured `false` denies Bash
   engine invocations outright on the always-on engine gate (whether or not the clean skill is active);
@@ -219,7 +219,7 @@ hand-cleaning the zone.
   defense-in-depth honoring layer over the guard.
 - **Trust-surface record (0.7.0; updated 0.17.8):** the plugin-level `hooks/hooks.json` PreToolUse
   registration is a NEW trust surface (a hook that launches in every consumer session), added
-  deliberately for guard-enforced audit-only mode and data-root authority (#1106 decision, Option E —
+  deliberately for guard-enforced audit-only mode and data-root authority (#1106 decision, Option E. 
   split registration). Its blast radius is bounded by design: a fixed launch string authored in the
   plugin's own `hooks.json` (see the 0.17.8 delta for exactly what that bounds now that the string
   reaches a shell), bundled standard-library scripts only, instant no-output deferral for any command
@@ -228,7 +228,7 @@ hand-cleaning the zone.
   [hook-budget convention](../../docs/conventions/hook-budget/README.md)'s method (`EPOCHREALTIME`
   wall-clock around direct hook invocation with a benign representative payload; Windows 11 +
   Git Bash dev host, 2026-08-16): the engine-gate hook costs **≈ 190–300 ms per Bash/PowerShell
-  tool call** across batches (92 single runs) — ≈ 19–30% of the convention's ≤ 1 s typical
+  tool call** across batches (92 single runs). ≈ 19–30% of the convention's ≤ 1 s typical
   per-tool-call ceiling. While the `clean` skill is loaded, its frontmatter registration is a
   second matching hook that the harness launches in parallel; the pair measured concurrently
   (`&` + `wait`, 60 pairs) walls at **≈ 320–410 ms**, ≈ 1.3–1.5× the same-batch single-hook wall
@@ -237,35 +237,35 @@ hand-cleaning the zone.
   `hooks/run-python-hook.test.sh`) accounts for ≈ 24 ms, **≈ 13% of the hook's cost** in the batch
   it was measured against; the prior two-full-pass form measured ≈ 38 ms (≈ 19% of a ≈ 205 ms hook).
   On a machine where no Python 3 interpreter resolves at all the gate fails
-  open on every call — the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
+  open on every call, the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
   visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
   argument (which, unset, dropped the whole hook and left the gate inert on a default install); it now
   registers unconditionally and resolves the kill switch by **reading** the user `settings.json` and the
-  platform managed-settings.json. The added trust surface is that settings-file *read* — bounded to a
+  platform managed-settings.json. The added trust surface is that settings-file *read*, bounded to a
   single `pluginConfigs` value, from the user file (located from `${CLAUDE_PLUGIN_ROOT}`) and the
   root-owned managed file at its fixed system path, no write. Both are the plugin's own documented CC
   config, sanctioned by the acceptance review's operator-home carve-out (criterion 4). This entry is the
   plugin-acceptance review delta for the change. **0.17.8 delta (launch form):** both wired hooks now
-  register in **shell form** — the `command` string names `hooks/run-python-hook.sh` with
-  `"shell": "bash"` and no `args` — because exec form's bare `PATH` lookup for `bash` resolved to the
+  register in **shell form**. The `command` string names `hooks/run-python-hook.sh` with
+  `"shell": "bash"` and no `args`, because exec form's bare `PATH` lookup for `bash` resolved to the
   WSL relay on Windows and the guard silently never launched (#1416). Stated plainly: a shell now
   parses the launch string, so "no shell involved" is no longer what bounds this surface. What bounds
   it instead is that the string is a **fixed literal** in the plugin's own `hooks.json` with no model-,
   repo-, or session-supplied text interpolated into it; the only values substituted are Claude Code's
   own `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`, and each is double-quoted, so the shell's
-  re-tokenization reproduces the exec-form argument vector byte-for-byte — verified for both hooks
+  re-tokenization reproduces the exec-form argument vector byte-for-byte, verified for both hooks
   against roots containing spaces and backslashes. The limits of that quoting belong in the record
   too: Claude Code substitutes those placeholders *textually* before bash parses the result, so the
   double quotes bound whitespace and backslashes but would not neutralize a `$` or a backtick inside a
   substituted value (both placeholders resolve under Claude Code's own install and data roots). The
-  invariant is therefore **maintained by test**, not structural — `hooks/run-python-hook.test.sh`
+  invariant is therefore **maintained by test**, not structural, `hooks/run-python-hook.test.sh`
   asserts the launcher is named in `command`, `args` is absent, `shell: bash` is declared, and every
   placeholder is double-quoted, and `test_hygiene.py`'s hook helpers are form-agnostic so a shell-form
   entry can never make an assertion vacuously green. Interpolating anything beyond those two
   placeholders into the command string would open a live injection surface; a repo-wide CI gate for
   this defect class is proposed in #2569. **0.17.9 delta (launch form, skill surface):** the
   skill-scoped belt in `skills/clean/SKILL.md` frontmatter moves to the same shell form, for the same
-  reason one rung down — its exec-form `command` was the literal `python3`, which on stock Windows is
+  reason one rung down, its exec-form `command` was the literal `python3`, which on stock Windows is
   the zero-length `WindowsApps` App Execution Alias stub, so the belt could not launch there at all
   (#2568). The trust analysis above carries over with a **narrower** substitution set: a
   skill-frontmatter hook receives only `${CLAUDE_PLUGIN_ROOT}` (#1014), never `${CLAUDE_PLUGIN_DATA}`
@@ -274,7 +274,7 @@ hand-cleaning the zone.
   wherever `python3` resolved to a real interpreter, the conversion was held to argv equivalence: the
   vector `destructive_guard.py` receives is byte-identical before and after, asserted against roots
   containing spaces and backslashes; only argv[0] changes, from an interpreter name to the launcher
-  path. What this does **not** change is the guard's no-interpreter behaviour — the launcher still
+  path. What this does **not** change is the guard's no-interpreter behaviour, the launcher still
   exits 0 silently in guard mode when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
@@ -301,32 +301,33 @@ credential, dependency, or MCP surface reopens this review.
 Verified 2026-07-16 against current primary documentation:
 
 - [Create plugins](https://code.claude.com/docs/en/plugins) and
-  [plugins reference](https://code.claude.com/docs/en/plugins-reference) — plugin structure, cache
+  [plugins reference](https://code.claude.com/docs/en/plugins-reference). Plugin structure, cache
   isolation, manifests, versions, and local `--plugin-dir` testing.
-- [Skills](https://code.claude.com/docs/en/skills) — side-effecting skills should be manual-only;
+- [Skills](https://code.claude.com/docs/en/skills). Side-effecting skills should be manual-only;
   supporting files, arguments, and skill-scoped hooks.
-- [Hooks](https://code.claude.com/docs/en/hooks) — current `PreToolUse` decision output.
-- [Create a marketplace](https://code.claude.com/docs/en/plugin-marketplaces) — relative plugin sources.
+- [Hooks](https://code.claude.com/docs/en/hooks). Current `PreToolUse` decision output.
+- [Create a marketplace](https://code.claude.com/docs/en/plugin-marketplaces). Relative plugin sources.
 - [GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html)
-  — expansion order and the brace, tilde, parameter, command, arithmetic, process, splitting, and
+. Expansion order and the brace, tilde, parameter, command, arithmetic, process, splitting, and
   filename-expansion families rejected by the literal-command guard.
 - [Python 3.11 filesystem APIs](https://docs.python.org/3.11/library/os.html) and
-  [path APIs](https://docs.python.org/3.11/library/os.path.html) — non-following metadata, junction, and
+  [path APIs](https://docs.python.org/3.11/library/os.path.html). Non-following metadata, junction, and
   mount detection.
 - [Windows reparse-point operations](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-point-operations)
   and [`GetLogicalDrives`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrives)
-  — the reparse attribute and available-volume enumeration.
-- [Linux `mountinfo`](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html) — current mount
+, the reparse attribute and available-volume enumeration.
+- [Linux `mountinfo`](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html). Current mount
   namespace and bind-mount targets, which `os.path.ismount` cannot reliably identify.
-- [Git `ls-files`](https://git-scm.com/docs/git-ls-files) — the index/tracked-file authority.
+- [Git `ls-files`](https://git-scm.com/docs/git-ls-files). The index/tracked-file authority.
 - [Windows `CreateFile`](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew)
-  — sharing conflicts and directory handles via `FILE_FLAG_BACKUP_SEMANTICS`.
-- [`lsof` maintained documentation](https://lsof.readthedocs.io/en/stable/) — open-file lookup; the
+, sharing conflicts and directory handles via `FILE_FLAG_BACKUP_SEMANTICS`.
+- [`lsof` maintained documentation](https://lsof.readthedocs.io/en/stable/). Open-file lookup; the
   recursive `+D` authority limitation is why diagnostics fail closed.
 - [POSIX `unlink`](https://pubs.opengroup.org/onlinepubs/9799919799/functions/unlink.html) and
-  [Linux `unlink(2)`](https://man7.org/linux/man-pages/man2/unlink.2.html) — open-file unlink semantics
+  [Linux `unlink(2)`](https://man7.org/linux/man-pages/man2/unlink.2.html). Open-file unlink semantics
   motivate an explicit preflight rather than relying on deletion failure.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -399,6 +400,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
