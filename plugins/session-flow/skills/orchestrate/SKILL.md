@@ -13,13 +13,13 @@ metadata:
 Invoking this skill **arms the current session** for an orchestration-heavy task: it loads the
 expanded seven-imperative operational form into active working context, and it declares deliberate
 intent to orchestrate the work about to start, so the triggers get evaluated actively rather than
-sitting passively in background rules. That is the default — no paste, no rails, just preloaded
+sitting passively in background rules. That is the default: no paste, no rails, just preloaded
 context.
 
 The same imperatives also **export** as a self-contained, paste-ready brief for targets that LEAVE
 the session and therefore inherit none of its context: a spawned subagent/teammate, a fresh session
 you will `/clear` into, or a non-Claude-Code tool. Export is model- and tool-agnostic by
-construction — nothing in the pasted text depends on a specific model, env var, or repo file.
+construction. Nothing in the pasted text depends on a specific model, env var, or repo file.
 
 Sources and quotes behind each imperative: `context/sources.md`; observed failure modes:
 `context/gotchas.md`. Read gotchas before authoring a nested tree or trusting a worker's return.
@@ -28,96 +28,96 @@ Sources and quotes behind each imperative: `context/sources.md`; observed failur
 
 | Action | What it does |
 |---|---|
-| *(default — optional `<task>`)* | **Prime THIS session.** The standing instructions below are now active for the upcoming task; respond with a terse acknowledgment and, if `<task>` is given, one line orienting to it. Do NOT re-emit the imperatives — loading them IS the priming. |
+| *(default. Optional `<task>`)* | **Prime THIS session.** The standing instructions below are now active for the upcoming task; respond with a terse acknowledgment and, if `<task>` is given, one line orienting to it. Do NOT re-emit the imperatives. Loading them IS the priming. |
 | `handoff [compact]` | **Export** the imperatives as a paste-ready dashed-rail brief framed for a fresh session. `compact` = headlines only. |
 | `worker [compact]` | **Export** framed for a spawned worker (prepends the did-not-inherit-context line). `compact` = headlines only. |
 
-## Orchestration imperatives — standing instructions
+## Orchestration imperatives. Standing instructions
 
 At each decision boundary in this task, evaluate these and ACT on a match without waiting to be
 told:
 
-1. DELEGATE / FAN OUT — start with one agent (a single agent goes further than you expect);
+1. DELEGATE / FAN OUT. Start with one agent (a single agent goes further than you expect);
    delegate only when work would flood context, fans across genuinely independent paths, or needs a
    tool-restricted specialist. Decompose by what CONTEXT each piece needs, not by head-count or
-   work-type — sequential or shared-context steps stay in one agent. Coding parallelizes less than
+   work-type. Sequential or shared-context steps stay in one agent. Coding parallelizes less than
    research: never split one feature across agents. Multi-agent costs 3–10× the tokens (returns
    cost context too), so spend it on value + parallelism, not convenience. "Would flood context"
    is a measurement, not a hunch, when the instrument exists: with the `context-guard` plugin
    installed, resolve this session's zone word per its reader contract before a fan-out decision
-   (the contract owns the snapshot path, staleness rule, and bands — read them there; this
-   imperative consumes only the word, no band values). Never estimate your own remaining window —
+   (the contract owns the snapshot path, staleness rule, and bands. Read them there; this
+   imperative consumes only the word, no band values). Never estimate your own remaining window,
    that guess is the failure the seam replaces. A degraded or `unknown` zone shifts the balance
    toward delegating context-heavy legs and shrinking what returns; a healthy zone is license to
    keep sequential, shared-context work inline.
-2. SPEC EVERY SPAWN — give each worker an objective, the REASON it is being asked (the larger task
+2. SPEC EVERY SPAWN. Give each worker an objective, the REASON it is being asked (the larger task
    it feeds, who the output is for, what it enables), an output format, the tools/sources to use,
    explicit task boundaries, and a deliberately chosen model tier. Vague delegation makes workers
    duplicate each other, leave gaps, or wander; absent a consumer-level subagent-model override,
-   an unspecified model silently inherits the parent session's — often its most expensive — model.
+   an unspecified model silently inherits the parent session's, often its most expensive, model.
    Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
    than the outcome you wanted, and returns something well-formed and wrong.
-3. FRESH-CONTEXT VERIFY — after an edit batch or a finding set, hand it to a SEPARATE verifier;
+3. FRESH-CONTEXT VERIFY, after an edit batch or a finding set, hand it to a SEPARATE verifier;
    never self-audit in the context that produced it. Give the verifier concrete pass/fail criteria
    ("run the full suite, report all failures"), scope it to correctness/requirements (not style),
-   and judge the final STATE, not the process — an uncriteriaed verifier just rubber-stamps. When
+   and judge the final STATE, not the process, an uncriteriaed verifier just rubber-stamps. When
    the verdict is high-stakes, prefer a different-vendor advisor when one is set up and able to
-   judge this artifact — its blind spots are uncorrelated with yours — with the fresh-context
+   judge this artifact, its blind spots are uncorrelated with yours, with the fresh-context
    same-vendor verifier as the fallback. Scope it to what ships: a process record about the work
    (ledger, checklist, status log) is not the work and stays at self-check, however many of them a
-   batch touched, and a record OF a verification is never itself verified — that loop feeds itself.
-4. RUN WORKERS WELL — prefer non-blocking dispatch: keep working while independent workers run.
+   batch touched, and a record OF a verification is never itself verified, that loop feeds itself.
+4. RUN WORKERS WELL, prefer non-blocking dispatch: keep working while independent workers run.
    Reuse a long-lived worker across subtasks when your runtime supports it (saves cost via cache).
    Watch running workers and intervene the moment one drifts or is missing context.
-5. NESTED SUBAGENTS — a worker may spawn its own workers when a delegated task itself subdivides
-   AND the depth is non-load-bearing. This is a shipped feature, not experimental — but reliability
+5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
+   AND the depth is non-load-bearing. This is a shipped feature, not experimental, but reliability
    degrades with depth and platforms cap it, so never author a tree that needs a specific or deep
    nesting level.
-6. SURFACE DRIFT — the moment you notice a stale reference, broken citation, or convention
+6. SURFACE DRIFT, the moment you notice a stale reference, broken citation, or convention
    conflict adjacent to your task, flag it in one line; don't fix it silently, don't deep-dive.
-7. CALIBRATE TO CONDITIONS — size the whole orchestration (whether to delegate at all, fan-out
+7. CALIBRATE TO CONDITIONS. Size the whole orchestration (whether to delegate at all, fan-out
    width, nesting depth) to the conditions in play, never a fixed recipe: the active model's
    capability (a stronger model reaches further single-agent; a weaker one needs more decomposition
    and tighter specs), whether a capable advisor/verifier is on hand, current context pressure
    (delegate to protect a filling window; stay inline when it is roomy), and concurrent-session load
    / rate-limit headroom (thin headroom caps how many workers you run at once). **When rate-limit
-   headroom is unobservable** — the `rate-limit-guard` tee is absent, stale, or missing
+   headroom is unobservable**, the `rate-limit-guard` tee is absent, stale, or missing
    `rate_limits`, which is the expected state in cloud / remote sessions with no statusline
-   producer (see rate-limit-guard's reader-contract, "Cloud / remote sessions") — treat
+   producer (see rate-limit-guard's reader-contract, "Cloud / remote sessions"). Treat
    headroom as **thin by default**: pick a small conservative concurrent-worker cap, prefer short
    waves over a wide tree, and do not invent window percentages. Scale further down on this
    session's own rate-limit errors or on live sibling-automation 429s already visible to the
    session (for example review-lane infra comments classifying `api_error_status: 429`); scale
    back up only after those reactive signals stop, never on a guessed recovery. Sizing is
-   small/medium/large — a small ask stays single-agent, a medium one fans out a few, only a large
+   small/medium/large, a small ask stays single-agent, a medium one fans out a few, only a large
    genuinely-independent surface earns a wide or nested tree. Single-agent is the floor, not the
    fallback. Per-worker tier is part of sizing and scales with fan-out width: past a wide fan-out
-   the cheaper tier becomes the DEFAULT the whole fleet inherits — volume multiplies every notch
-   of over-provisioning — and the standing exception is an explicitly hard stage (verify,
+   the cheaper tier becomes the DEFAULT the whole fleet inherits, volume multiplies every notch
+   of over-provisioning, and the standing exception is an explicitly hard stage (verify,
    judge/adjudicate, judgment-heavy synthesis), which keeps the parent tier. Tier is not only the
-   model: match the reasoning depth (effort) to the subtask too, not the parent session —
+   model: match the reasoning depth (effort) to the subtask too, not the parent session,
    high-volume mechanical work (search, extraction, per-item transforms, formatting) runs cheaper
    on both. A premium fan-out outside the hard stages is a per-stage decision to justify
    explicitly, never a default to inherit.
 
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
-parallelism, not convenience). Treat every worker's return as unverified synthesis — verify
+parallelism, not convenience). Treat every worker's return as unverified synthesis. Verify
 load-bearing claims against a primary source before acting. Cite sources you actually fetched;
 never label a claim "known" / "from memory" / "obvious".
 
-**Priming addendum (current session only).** As the main session — not a spawned non-fork worker —
+**Priming addendum (current session only).** As the main session, not a spawned non-fork worker,
 you may also reach orchestration surfaces a non-fork worker cannot: agent teams (driven from the
 lead session; the docs do not state whether a fork of the lead can drive one) and dynamic workflows
-(withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}` — if that value reads as a literal
+(withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`, if that value reads as a literal
 placeholder, this body was read directly rather than skill-loaded, so the substitution never ran:
 resolve the session's effort yourself before using it. Feed the value
 into imperative 7's tier calibration: it is the level a spawn inherits when neither the call nor
 the agent definition sets one (a definition's own `effort` overrides the session), so its gap from
 what a subtask needs IS the over-provisioning imperative 7 exists to stop. (`ultracode` reports as
-`xhigh`, so it cannot reveal script-held orchestration.) Export modes omit this addendum — a
+`xhigh`, so it cannot reveal script-held orchestration.) Export modes omit this addendum, a
 pasted target reaches none of those surfaces, and the substitution would travel as dead text.
 
-## Tiered delegation — the shape of a deep tree
+## Tiered delegation, the shape of a deep tree
 
 Imperative 5 says a worker may spawn workers and imperative 7 says size the tree to conditions.
 This section is the shape those two imply once a task is large enough to need more than one layer.
@@ -125,14 +125,14 @@ It is guidance for the main session; the export brief omits it, because a pasted
 a tree rather than authoring one.
 
 **A rough anchor for small/medium/large.** Imperative 7's sizing is non-numeric, which leaves it
-rationalizable either way. Not thresholds to enforce — the judgment still runs on context
-boundaries, not head-count — but the platform's own numbers anchor it: the workflow size guideline
+rationalizable either way. Not thresholds to enforce, the judgment still runs on context
+boundaries, not head-count, but the platform's own numbers anchor it: the workflow size guideline
 aims at fewer than 5 agents for `small`, 15 for `medium`, 50 for `large`, and flags a run above 25
 as `Large workflow` ([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-08-10). So
 fewer than 5 is small, 5–14 medium, and anything tripping that warning is a size to justify out
-loud — and an order-of-magnitude disagreement with this anchor is one to name, not skip.
+loud, and an order-of-magnitude disagreement with this anchor is one to name, not skip.
 
-**The top of the tree owns the loop, not the work.** Its context is the scarcest in the run —
+**The top of the tree owns the loop, not the work.** Its context is the scarcest in the run,
 everything that enters it stays for the rest of the session. So it holds the objective, the
 stopping condition, and the decision about what to spawn next, and it delegates the rest. A top
 tier that reads findings, weighs them, and asks a follow-up question has converted a fan-out into a
@@ -146,14 +146,14 @@ verdict rather than its reasoning.
 **Spec what crosses a boundary, not just what to do.** Every spawn already needs an objective and
 an output format (imperative 2). In a multi-tier tree the output format IS the context-economy
 lever: name the identifiers, the verdict, and where the bulky payload was parked, so the tier above
-can act without re-reading the work. A return that narrates cannot be summarized after the fact —
+can act without re-reading the work. A return that narrates cannot be summarized after the fact,
 it has already been paid for.
 
 **Workers are ephemeral, and the deeper the tier the shorter the life.** A worker that finishes and
-stays alive keeps costing the tier above — notifications, status, re-acknowledgement — for zero
+stays alive keeps costing the tier above, notifications, status, re-acknowledgement, for zero
 additional output. Retire on completion. When the next grouping needs doing, spawn fresh rather than
 reusing a worker whose context now carries the last job. (The exception is imperative 4's long-lived
-worker across *related* subtasks, where cache reuse is the point — that is a deliberate trade, not
+worker across *related* subtasks, where cache reuse is the point; that is a deliberate trade, not
 the default.)
 
 **Treat a clean return as unverified, especially a suspiciously clean one.** An under-specified
@@ -163,26 +163,26 @@ brief missing a resource they needed. Ten located it themselves and closed the g
 audited a different, similar artifact and returned a confident, well-formed, entirely
 wrong-target result. Nothing in its return distinguished it from the ten. This is why imperative 3's
 fresh-context verify is not optional at depth, and why a return payload benefits from naming its
-sources — provenance is the field that makes a wrong-target answer detectable from above.
+sources. Provenance is the field that makes a wrong-target answer detectable from above.
 
 **Never author a tree that needs a specific depth.** The platform ceiling is configurable and has
-moved repeatedly — a fixed five layers (v2.1.172), then nesting off by default (v2.1.217), then a
+moved repeatedly, a fixed five layers (v2.1.172), then nesting off by default (v2.1.217), then a
 configurable default of three (v2.1.219), all inside seven weeks
 ([changelog](https://code.claude.com/docs/en/changelog)). A **different** cap disappeared entirely
-after that list was written — the per-session spawn total, removed in v2.1.220–v2.1.224
+after that list was written, the per-session spawn total, removed in v2.1.220–v2.1.224
 ([2026-w32](https://code.claude.com/docs/en/whats-new/2026-w32), verified 2026-08-10). The depth
 ceiling itself is still where v2.1.219 left it; what the removal changes is how many caps there are.
 Two remain, each separately capped and separately overridable
-(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`) — but those two
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`), but those two
 govern Agent-tool subagents only: workflow agents and agent-team teammates follow their own limits
 instead ([sub-agents](https://code.claude.com/docs/en/sub-agents), fetched 2026-08-15), and the
 workflow runtime's concurrency limit is CPU-dependent with no env-var override
-([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-08-15) — so "read the current
+([workflows](https://code.claude.com/docs/en/workflows), fetched 2026-08-15), so "read the current
 values" must include the workflows page whenever the run will use the Workflow tool. Read the
 current values rather than assuming them, and
 design the tree so it degrades to a shallower one instead of failing. One shape constraint that is
 not a tunable: a fork inherits its parent's conversation but cannot spawn a further fork
-([sub-agents](https://code.claude.com/docs/en/sub-agents), fetched 2026-08-15 — the docs state only
+([sub-agents](https://code.claude.com/docs/en/sub-agents), fetched 2026-08-15, the docs state only
 that narrow claim; whether a below-limit fork can parent non-fork children is implied but not
 stated, so do not treat a fork as a forbidden intermediate tier on this sentence alone).
 
@@ -195,14 +195,14 @@ nested spawn and report the outcome. The gate is definition-specific, so another
 nothing, and holding `Agent` is necessary but not sufficient. Read a refusal: a depth rejection
 names depth; a permission refusal (classified pre-launch) does not. Quotes: `context/sources.md`.
 
-## Export modes (handoff / worker) — paste-ready brief
+## Export modes (handoff / worker). Paste-ready brief
 
 Only for a target that LEAVES the session. Emit the seven imperatives above between two full-width
-`─` (U+2500) dashed rails — top rail, brief, bottom rail, nothing else between them; the
+`─` (U+2500) dashed rails. Top rail, brief, bottom rail, nothing else between them; the
 `/clear`/paste instruction or any commentary sits above the top rail or below the bottom rail,
-never between (NOT a code fence — the user copies the text between the rails, not fence markers).
+never between (NOT a code fence, the user copies the text between the rails, not fence markers).
 
-Live shape: bare `─` rails, no fence — shown inside a fence here for display only.
+Live shape: bare `─` rails, no fence. Shown inside a fence here for display only.
 
 ```text
 ──────────────────────────────────────────────────────────
@@ -215,21 +215,21 @@ Discipline: [the Discipline line above, verbatim]
 ──────────────────────────────────────────────────────────
 ```
 
-- `handoff` — the opening line above already fits a fresh session; emit as-is.
-- `worker` — insert as the FIRST line between the rails: `You are a spawned worker and did NOT
-  inherit the parent session's context or the repo's conditional rules — these instructions are
+- `handoff`, the opening line above already fits a fresh session; emit as-is.
+- `worker`, insert as the FIRST line between the rails: `You are a spawned worker and did NOT
+  inherit the parent session's context or the repo's conditional rules, these instructions are
   your only copy.`
-- `compact` — emit only the seven numbered HEADLINES (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
+- `compact`. Emit only the seven numbered HEADLINES (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
   SPAWN`, …) plus the closing Discipline line; drop every sub-clause.
 
 ## What this skill does NOT do
 
-- **Default does not emit paste-text.** Priming the current session is a terse acknowledgment —
+- **Default does not emit paste-text.** Priming the current session is a terse acknowledgment,
   the work happens because the imperatives loaded into context, not because anything was printed.
   Use `handoff` / `worker` only when the target LEAVES the session.
 - **Not a surface-selection guide.** Which parallel-execution surface to pick (subagents vs nested
   vs teams vs workflows) is a judgment the main session makes against current official docs; the
   export brief deliberately omits agent teams + dynamic workflows because a pasted target cannot
   reach either.
-- **Does not delegate, verify, nest, or spawn anything itself** — it arms the session or emits
+- **Does not delegate, verify, nest, or spawn anything itself**. It arms the session or emits
   instruction text.
