@@ -1,12 +1,12 @@
 ---
-description: "Prints the operator's read-only morning view for the current GitHub repo in one pass — open counts per queue label (needs-triage / ready / needs-decision / needs-human), the gh-native merge-ready PR list, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness (last-cycle age + flags). Use when: 'morning brief', 'morning view', 'ops dashboard', 'what needs attention', 'daily standup view', 'operator morning pass', 'queues and merge-ready'. Read-only and gh-based — never mutates issues, PRs, labels, or comments."
-argument-hint: "[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] — read-only; omit to view the current repo"
+description: "Prints the operator's read-only morning view for the current GitHub repo in one pass. Open counts per queue label (needs-triage / ready / needs-decision / needs-human), the gh-native merge-ready PR list, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness (last-cycle age + flags). Use when: 'morning brief', 'morning view', 'ops dashboard', 'what needs attention', 'daily standup view', 'operator morning pass', 'queues and merge-ready'. Read-only and gh-based, never mutates issues, PRs, labels, or comments."
+argument-hint: "[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N]. Read-only; omit to view the current repo"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: operator
-  summary: Print the operator's read-only morning view — queues, merge-ready PRs, parked decisions
+  summary: Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions
   cadence: daily
 ---
 
@@ -36,7 +36,7 @@ hardcoded), so it is reusable across repos.
 bash "${CLAUDE_PLUGIN_ROOT}/skills/morning-brief/scripts/morning-brief.sh" $ARGUMENTS
 ```
 
-Print the script's output verbatim — it is already the deliverable. Do not
+Print the script's output verbatim. It is already the deliverable. Do not
 re-query the sections by hand.
 
 ## What each section reports
@@ -45,14 +45,14 @@ re-query the sections by hand.
 |---|---|---|
 | Queues | `gh issue list --label <queue>` counts | Defaults to melodic-software queue labels; live runs filter to labels that exist in the repo (pass `--queue-labels` to pin a custom set) |
 | Merge-ready PRs | `gh pr list` filtered to non-draft + `mergeStateStatus=CLEAN` | A light glance signal; `reviewDecision` shown but not required (repos without required review leave it empty) |
-| Parked decisions | open issues with the decision label (default `status: needs-decision`) | Surfaces each one's RECOMMENDED line — the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
+| Parked decisions | open issues with the decision label (default `status: needs-decision`) | Surfaces each one's RECOMMENDED line, the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
 | Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count; window is `--stranded-days`, default 3 |
 
 A review that lands after a merge has nowhere to go: the ruleset's
 `required_review_thread_resolution` is a merge-time predicate that already passed, the babysit lane
 works *open* PRs, and nothing on a merged PR surfaces its open threads. This section is the only
-place they appear (#1777). The comment-vs-merge timestamp comparison is the discriminator — a thread
+place they appear (#1777). The comment-vs-merge timestamp comparison is the discriminator, a thread
 that predates the merge was visible to the gate and is an ordinary unresolved thread, not this
 failure mode.
 
@@ -69,15 +69,15 @@ label. When none of the configured queue labels exist, the Queues section report
 
 ## Cross-references
 
-- `/source-control:babysit-prs` — the **authoritative** PR merge gate and readiness
+- `/source-control:babysit-prs`, the **authoritative** PR merge gate and readiness
   classification. The merge-ready list here is a fast gh-native glance, not a
   substitute for that skill's per-PR gate.
-- `/claude-ops:observability` — reads locally captured telemetry (OTEL store, hook-event JSONL,
+- `/claude-ops:observability`. Reads locally captured telemetry (OTEL store, hook-event JSONL,
   ccusage). This skill instead reads GitHub-side queue and PR state.
 
 ## What this skill does NOT do
 
-- **Does not mutate anything** — no label, comment, merge, or close writes.
-- **Does not classify PR merge-readiness authoritatively** — invoke `/source-control:babysit-prs`
+- **Does not mutate anything**. No label, comment, merge, or close writes.
+- **Does not classify PR merge-readiness authoritatively**. Invoke `/source-control:babysit-prs`
   via the Skill tool.
-- **Does not read local telemetry stores** — invoke `/claude-ops:observability` via the Skill tool.
+- **Does not read local telemetry stores**. Invoke `/claude-ops:observability` via the Skill tool.

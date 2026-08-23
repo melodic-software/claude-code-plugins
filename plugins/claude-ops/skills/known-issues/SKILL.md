@@ -1,6 +1,6 @@
 ---
-description: "Looks up and tracks known Claude product issues — searches known GitHub bugs, checks service health and model quality, and maintains a persistent registry of tracked issues. Use when: 'is this broken', 'known CC bugs', 'troubleshoot Claude Code', 'any workarounds', 'feature behaves unexpectedly', 'scan repo for issues', 'file a bug' — actions: status (default), search <feature>, check-all, scan, list, quality, create."
-argument-hint: "<action> [args] — actions: status (default), search, check-all, scan, list, quality, create. e.g., 'search Stop hook', 'check-all', 'create bug \"title\"'"
+description: "Looks up and tracks known Claude product issues. Searches known GitHub bugs, checks service health and model quality, and maintains a persistent registry of tracked issues. Use when: 'is this broken', 'known CC bugs', 'troubleshoot Claude Code', 'any workarounds', 'feature behaves unexpectedly', 'scan repo for issues', 'file a bug'. Actions: status (default), search <feature>, check-all, scan, list, quality, create."
+argument-hint: "<action> [args]. Actions: status (default), search, check-all, scan, list, quality, create. e.g., 'search Stop hook', 'check-all', 'create bug \"title\"'"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -21,18 +21,18 @@ Arguments: `$ARGUMENTS`
 
 Claude Code ships frequently. Features that worked last week may have new bugs today. This skill serves three purposes:
 
-1. **Quick health check** — snapshot of registry health and model quality (no args needed)
-2. **Proactive search** — find known bugs BEFORE you build on top of a feature
-3. **Issue registry** — maintain single source of truth for the Claude product GitHub issues you track, record what they block, and create follow-up work items when bugs are fixed
+1. **Quick health check**. Snapshot of registry health and model quality (no args needed)
+2. **Proactive search**. Find known bugs BEFORE you build on top of a feature
+3. **Issue registry**. Maintain single source of truth for the Claude product GitHub issues you track, record what they block, and create follow-up work items when bugs are fixed
 
 ## Data Files
 
 The issue registry (`registry.json`) persists in the **registry directory**. By default this is the
 plugin's per-machine data directory (`${CLAUDE_PLUGIN_DATA}`, survives plugin updates). A consumer can
-instead keep the registry inside their repository — git-tracked and team-shared — by setting the
+instead keep the registry inside their repository, git-tracked and team-shared, by setting the
 `registry_dir` plugin option (personal user configuration).
 
-**Registry location — apply to EVERY `registry_manager.py` invocation:** the configured value is
+**Registry location. Apply to EVERY `registry_manager.py` invocation:** the configured value is
 `${user_config.registry_dir}`; the project root is `${CLAUDE_PROJECT_DIR}`.
 
 - If `${user_config.registry_dir}` is a non-empty path → first require a contained
@@ -46,7 +46,7 @@ instead keep the registry inside their repository — git-tracked and team-share
 
 | File | Purpose | Who edits |
 | --- | --- | --- |
-| `<registry-dir>/registry.json` | All tracked Claude product GitHub issues with status, category, affected files, and what's blocked | Skill (on search/`scan --add`/check-all), via `scripts/registry_manager.py` — see the registry-location rule above |
+| `<registry-dir>/registry.json` | All tracked Claude product GitHub issues with status, category, affected files, and what's blocked | Skill (on search/`scan --add`/check-all), via `scripts/registry_manager.py`. See the registry-location rule above |
 
 Read `context/registry-schema.md` for the full `registry.json` schema and field enums.
 
@@ -56,12 +56,12 @@ Parse `$ARGUMENTS` to extract action (first token) and remaining arguments.
 
 | Action | Description |
 | --- | --- |
-| `status` | Quick health summary — registry stats + quality snapshot (DEFAULT when no args) |
+| `status` | Quick health summary. Registry stats + quality snapshot (DEFAULT when no args) |
 | `search` | Search GitHub Issues for bugs on a specific feature (default when args look like a feature name) |
-| `check-all` | Check ALL tracked registry issues — find newly resolved ones, create follow-up TODOs |
+| `check-all` | Check ALL tracked registry issues. Find newly resolved ones, create follow-up TODOs |
 | `scan` | Grep the current repo for GitHub issue references and report untracked ones (read-only); `scan --add` also registers them |
 | `list` | Show all tracked issues grouped by status and category |
-| `quality` | Full quality check — benchmarks + status page + recent GitHub degradation reports |
+| `quality` | Full quality check. Benchmarks + status page + recent GitHub degradation reports |
 | `create` | Draft and file GitHub issue on anthropics/claude-code using their template format |
 
 **Smart routing:**
@@ -118,7 +118,7 @@ Read `context/action-create.md` for full issue creation process, mandatory gates
 
 | Product | Repo | When to search |
 |---------|------|----------------|
-| Claude Code | `anthropics/claude-code` | Default — hooks, skills, settings, plugins, tools |
+| Claude Code | `anthropics/claude-code` | Default. Hooks, skills, settings, plugins, tools |
 | Python SDK | `anthropics/anthropic-sdk-python` | Python API client issues |
 | TypeScript SDK | `anthropics/anthropic-sdk-typescript` | Node.js API client issues |
 | C# SDK | `anthropics/anthropic-sdk-csharp` | .NET API client issues |
@@ -130,7 +130,7 @@ Read `context/action-create.md` for full issue creation process, mandatory gates
 ### With your work-item tracker
 
 - `check-all` proposes follow-up work items for resolved issues (file them with whatever
-  tracker the consumer project uses — e.g. `gh issue create` — after user confirmation)
+  tracker the consumer project uses, e.g. `gh issue create`, after user confirmation)
 - `search` suggests monitoring items for open issues worth watching
 
 ### With the consumer project's workarounds docs
@@ -143,7 +143,7 @@ now-obsolete workaround. Skip silently when no such doc exists.
 ### With plan review
 
 When stress-testing a plan that builds on a Claude Code mechanism, run `search` for that
-mechanism first — known bugs reshape plans cheaply before implementation.
+mechanism first. Known bugs reshape plans cheaply before implementation.
 
 ### With `/bugs:write` (if installed)
 
@@ -152,8 +152,8 @@ without it, write up the defect manually. This skill covers Claude product issue
 
 ## What This Skill Does NOT Do
 
-- **Does not read local telemetry** — OTEL store, collector, hooks, ccusage → invoke `/claude-ops:observability` via the Skill tool
-- **Does not fix bugs** — reports and tracks them
-- **Does not test features** — searches for KNOWN issues
-- **Issue creation requires explicit confirmation** — `create` action always shows draft first, never auto-files
-- **Does not monitor continuously** — re-run `check-all` periodically (e.g. from a recurring work item or schedule)
+- **Does not read local telemetry**. OTEL store, collector, hooks, ccusage → invoke `/claude-ops:observability` via the Skill tool
+- **Does not fix bugs**. Reports and tracks them
+- **Does not test features**. Searches for KNOWN issues
+- **Issue creation requires explicit confirmation**. `create` action always shows draft first, never auto-files
+- **Does not monitor continuously**. Re-run `check-all` periodically (e.g. from a recurring work item or schedule)

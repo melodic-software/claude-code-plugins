@@ -96,7 +96,8 @@ the hook exits `0` and reports a once-per-session notice to both Claude
 (`additionalContext`) and you (`systemMessage`). Only the notice latches —
 the binary probe re-runs on every Markdown edit and recovers mid-session when
 the tool becomes resolvable. A missing-`markdownlint-cli2` notice includes a
-`PATH probed:` line naming the PATH the hook process actually searched. When
+`PATH probed:` line naming the plausible directories the hook process actually
+searched (Claude Code plugin-bin entries collapse to a count). When
 the edited file is outside a repository the notice names a durable user-scope
 directory already on that PATH instead of recommending a repo-local
 `npm i -D`. The hook never falls back to `npx`, installs a package, or

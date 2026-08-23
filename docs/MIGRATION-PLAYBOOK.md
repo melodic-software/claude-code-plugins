@@ -321,18 +321,13 @@ This section is the policy; current coverage is verified on demand — a live gl
 `plugins/*/skills/*/evals/evals.json` against the tree, read against the warrant rule above — never a
 checked-in snapshot that decays the moment a skill lands.
 
-**The gate is operative, and it is broader than this policy.** `scripts/check-changed-skills.sh`
-passes `--require-evals` for every skill whose `SKILL.md` is new or modified, and
-`plugins/skill-quality/scripts/check-skill.sh` then hard-FAILs on a missing `evals/evals.json` for
-any skill shape — with no allowlist, frontmatter opt-out, or plugin-type awareness in either, and no
-way for the one CI caller to override it. So a "skip" verdict recorded here holds only until someone
-touches that `SKILL.md`, at which point CI requires evals and gets them. Read this policy as
-governing what a skill ships *absent a touch*, and expect the gate to decide otherwise the moment
-the file changes. That is a real disagreement rather than a nuance, and the pure-reference skip is
-where it still bites: the standing resolution — either the gate learns a recorded-skip mechanism
-(the repo's idiom is an exemptions file carrying the verdict, as
-`scripts/skill-count-claim-exemptions.txt` does) or this policy drops "skip" and evals become
-mandatory — is tracked in issue #3135 and is not settled here.
+**The gate honors a recorded skip.** `scripts/check-changed-skills.sh` passes `--require-evals` for
+every skill whose `SKILL.md` is new or modified, and `plugins/skill-quality/scripts/check-skill.sh`
+then hard-FAILs on a missing `evals/evals.json` — unless that skill is listed in
+`scripts/evals-warrant-exemptions.txt`. A skip becomes a reviewed, diffable line rather than an
+implicit absence; anything unlisted still fails closed. The file is stale-guarded: a row whose
+skill is gone, or that now ships `evals/evals.json`, fails the gate so the list can only shrink.
+This is the Exit A decision from #3135 — the warrant rule above and the CI gate now agree.
 
 **Rich form.** Each case carries `id`, a kebab-case `name`, a `prompt`, an `expected_output`
 description, optional `files` fixtures, and an `expectations` array of objectively-verifiable checks

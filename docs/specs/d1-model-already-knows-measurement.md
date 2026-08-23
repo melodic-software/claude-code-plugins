@@ -4,7 +4,9 @@ Measurement record for [#3121](https://github.com/melodic-software/claude-code-p
 the investigation deciding whether cut class D1 — *content the model already knows* — is a scanner
 shape, a judgment shape, or a routing finding. D1 is one of three detectors specced by
 [#3118](https://github.com/melodic-software/claude-code-plugins/issues/3118); the detector it
-governs is [#3124](https://github.com/melodic-software/claude-code-plugins/issues/3124).
+governs is [#3124](https://github.com/melodic-software/claude-code-plugins/issues/3124). The
+close-out register that maps D1–D3 to what actually shipped is
+[`agent-doc-register-detectors.md`](agent-doc-register-detectors.md).
 
 This document exists because #3124's acceptance criteria bind an implementation to a number
 measured here (*"Measured false-positive rate on the #3121 sample is at or below what that

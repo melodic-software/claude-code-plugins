@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # PostToolUse hook: spell-check via typos-cli (crate-ci/typos), REPORT-ONLY by
-# default. Triggered on Write|Edit of ANY file for the read-only scan — typos
-# is language-agnostic, unlike the sibling ruff-format/markdown-format hooks,
-# which are extension-scoped. Write mode (`typos_format_write_changes`) is a
-# different story: --write-changes is gated on an explicit extension allowlist
-# (#2650), so an unknown/fixture/binary-adjacent extension stays report-only
-# even when the opt-in is set.
+# default. Triggered on Write|Edit|NotebookEdit of ANY file for the read-only
+# scan — typos is language-agnostic, unlike the sibling
+# ruff-format/markdown-format hooks, which are extension-scoped. Write mode
+# (`typos_format_write_changes`) is a different story: --write-changes is gated
+# on an explicit extension allowlist (#2650), so an unknown/fixture/
+# binary-adjacent extension stays report-only even when the opt-in is set —
+# `.ipynb` is not on that allowlist, so a notebook is scanned and reported on,
+# never rewritten.
 #
 # ADVISORY: always exits 0. Findings surface via additionalContext but never
 # block the edit. A commit hook or CI is the hard gate.
@@ -96,15 +98,44 @@ emit_tel() {
 
 INPUT=$(hook::buffer_stdin) || exit 0
 
+# NotebookEdit carries its target as tool_input.notebook_path, NOT file_path
+# (verified against the tool's own input schema), so every path-reading step
+# below — the jq-free pre-filter and hook::read_file_path alike — sees nothing
+# for a notebook edit and the hook silently no-ops. Adding NotebookEdit to the
+# matcher alone would therefore fire the hook and change nothing.
+#
+# The key is normalized HERE rather than in hook::read_file_path because
+# hooks/hook-utils.sh is a registered byte-identical cross-plugin cluster
+# (scripts/cross-plugin-source-registry.txt, CI job hook-utils-sync): teaching
+# the shared reader about notebooks is a nine-plugin change and belongs in its
+# own pass. Normalizing the payload keeps the shared reader — and its
+# project-membership and temp-tree scoping, which is the load-bearing part —
+# the single place a path is admitted.
+
 # jq-free applicability pre-filter: never emit the jq notice when there is no
-# file_path at all (e.g. a tool_input shape this hook cannot act on regardless).
+# target path at all (e.g. a tool_input shape this hook cannot act on
+# regardless). Mirrors hook::raw_file_path's escaped-string match for the
+# notebook key, so a NotebookEdit payload reaches the jq gate like any other.
+raw_notebook_path() {
+  [[ "$1" =~ \"notebook_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]] || return 1
+  [[ -n "${BASH_REMATCH[1]}" ]] || return 1
+  printf '%s' "${BASH_REMATCH[1]}"
+}
 # shellcheck disable=SC2034  # existence-only check; scan has no extension filter
 # (typos is language-agnostic). Write mode applies its own allowlist later (#2650).
-RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
+RAW_FILE=$(hook::raw_file_path "$INPUT") || RAW_FILE=$(raw_notebook_path "$INPUT") || exit 0
 
 # jq is load-bearing for input parsing; absent → visible once-per-session skip
 # notice instead of a silent no-op (dim-9 doctrine).
 hook::require_jq PostToolUse typos-format "$INPUT"
+
+# Copy notebook_path onto file_path when only the former is present. An
+# explicit file_path always wins, so a payload carrying both is untouched; a
+# jq failure leaves $INPUT exactly as it arrived rather than emptying it.
+NORMALIZED_INPUT=$(printf '%s' "$INPUT" | jq -c '
+  if ((.tool_input.file_path // "") == "") and ((.tool_input.notebook_path // "") != "")
+  then .tool_input.file_path = .tool_input.notebook_path
+  else . end' 2>/dev/null) && [[ -n "$NORMALIZED_INPUT" ]] && INPUT="$NORMALIZED_INPUT"
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 
@@ -606,20 +637,29 @@ fi
 # Trim the trailing newline the same way hook::ctx_flush does.
 CTX="${CTX%"${CTX##*[![:space:]]}"}"
 
-# Hard character ceiling, belt to the per-entry elision's braces. systemMessage
-# is documented at a 10,000-character cap
-# (docs/conventions/hook-observability/README.md, from the hooks reference), and
-# a disclosure that overruns it can be truncated or rejected by the channel
-# AFTER the file has already been rewritten — the one outcome this whole path
-# exists to prevent. The budget leaves headroom for JSON escaping, which can
-# expand a string well past its character count.
+# Hard character ceiling, belt to the per-entry elision's braces. The hooks
+# reference caps hook output strings — additionalContext, systemMessage and
+# plain stdout alike — at 10,000 characters, and saves anything past that to a
+# file, replacing it with a preview and a path. The disclosure is not lost, but
+# it stops being the inline account this hook just promised — and in write mode
+# the file has ALREADY been rewritten by then, which is the outcome this whole
+# path exists to prevent. Both budgets sit UNDER that documented cap, so THIS
+# hook's own truncation — which keeps the counts and says that it truncated —
+# is the one that fires, with headroom left for JSON escaping, which can expand
+# a string well past its character count: 4,000 for systemMessage (the
+# person-facing summary, deliberately the tighter of the two) and 8,000 for
+# additionalContext — a 20% margin under the cap, the agent channel carrying
+# the fuller finding list. The agent budget was previously 12,000 — 2,000
+# characters ABOVE the very cap this ceiling exists to respect, so it could
+# never fire first.
 #
 # DEFENCE IN DEPTH, not the working bound: at MAX_REPORT=10 entries × 60-char
 # elided tokens the message tops out near 1,100 characters, so this ceiling does
 # not fire today and its branch is exercised only if one of those numbers moves.
 # It is kept because both of them are tunable and the documented channel cap is
 # not — raise MAX_REPORT or the elision width far enough and this is the only
-# thing standing between a rewrite and a rejected disclosure. Cutting on bytes
+# thing standing between a rewrite and a disclosure the channel offloads to a
+# file the agent has to go and read. Cutting on bytes
 # rather than characters is deliberate: it can split a multi-byte sequence, and
 # a mangled tail character is a strictly better failure than an over-long
 # message the channel drops whole.
@@ -632,7 +672,7 @@ truncate_to() {
   fi
 }
 SYSMSG=$(truncate_to "$SYSMSG" 4000)
-CTX=$(truncate_to "$CTX" 12000)
+CTX=$(truncate_to "$CTX" 8000)
 
 hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 
