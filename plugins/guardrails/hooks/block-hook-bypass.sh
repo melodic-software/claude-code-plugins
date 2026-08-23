@@ -54,11 +54,6 @@ block_hook_bypass_on_exit() {
 }
 trap block_hook_bypass_on_exit EXIT
 
-# Test injection: trip the crash path without depending on a real script error.
-if [[ "${BLOCK_HOOK_BYPASS_TEST_CRASH:-}" == "1" ]]; then
-  exit 99
-fi
-
 # Strict-and-loud enable (#3130 F7). hook::check_enabled treats any value other
 # than exact "true" as off, so a typo would silently disable a blocking safety
 # control. Only true/false (unset → true) are accepted; anything else keeps the
@@ -1193,18 +1188,20 @@ seen."
 
 block_bypass() {
   local form="$1" reason="$2"
+  # Operator levers live on stderr. systemMessage is an exit-0 JSON field
+  # (docs/conventions/hook-observability); Claude Code discards it on exit 2.
+  # Keep the same text on systemMessage for any host that does parse it.
+  local operator_msg="guardrails block-hook-bypass blocked a shell file-write. The blocked agent cannot toggle this guard (the switch is not actionable by the blocked agent). Narrower levers, in order: (1) block_hook_bypass_scratch_roots for a target-scoped scratch exemption; (2) session-scoped claude --settings; (3) user-global block_hook_bypass_enabled via /plugin configure — that option is user-scoped and persists in every repository where guardrails is enabled. Re-enable it when the bypass is no longer needed."
   echo "BLOCKED: $reason" >&2
   echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
   echo "If Write or Edit is refused for a path in the main checkout (isolated session / worktree), write under a directory listed in block_hook_bypass_scratch_roots, or ask the operator for a session-scoped disable via claude --settings. The user-global block_hook_bypass_enabled switch is last resort — it persists across every repository." >&2
+  echo "$operator_msg" >&2
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     echo "$_BYPASS_SCOPE_NOTE_PWSH" >&2
   else
     echo "$_BYPASS_SCOPE_NOTE_BASH" >&2
   fi
-  # Operator-facing levers go on systemMessage (human channel). The blocked
-  # agent cannot toggle this guard (#3130 F2/F3).
-  hook::emit_channels PreToolUse "" \
-    "guardrails block-hook-bypass blocked a shell file-write. The blocked agent cannot toggle this guard (the switch is not actionable by the blocked agent). Narrower levers, in order: (1) block_hook_bypass_scratch_roots for a target-scoped scratch exemption; (2) session-scoped claude --settings; (3) user-global block_hook_bypass_enabled via /plugin configure — that option is user-scoped and persists in every repository where guardrails is enabled. Re-enable it when the bypass is no longer needed."
+  hook::emit_channels PreToolUse "" "$operator_msg"
   emit_tel "blocked" "$form"
   exit 2
 }

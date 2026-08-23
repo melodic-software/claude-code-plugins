@@ -138,7 +138,9 @@ out of scope until such a signal exists.
   `block_hook_bypass_scratch_roots` directory, or ask the operator for a
   session-scoped disable via `claude --settings`. The user-global
   `block_hook_bypass_enabled` switch is last resort — it persists across every
-  repository where guardrails is enabled.
+  repository where guardrails is enabled. Those levers are printed on stderr
+  (Claude Code surfaces an exit-2 stderr reason; `systemMessage` is an exit-0
+  field and is discarded on a block).
 - **`block-hook-bypass` fails open on its own crash.** An internal script error
   exits 0 so a defect on this hottest-path hook cannot freeze the session, and
   emits a dual-channel "guard did not run" notice so the allow is not silent.
