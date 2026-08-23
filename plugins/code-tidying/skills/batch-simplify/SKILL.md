@@ -53,7 +53,7 @@ Trigger: the remaining argument, lowercased and whitespace-normalized, **equals*
 
 Any scope accepts one or more trailing paths: `48h plugins/knowledge`, `branch src/`, `repo plugins/code-tidying`. Narrowing is orthogonal to scope because the two answer different questions, the scope decides *which universe* (changed recently, changed on this branch, everything), the path decides *which region of it*. Binding paths to one mode would assert that only that universe may be narrowed, which nothing supports.
 
-Apply the path as a native pathspec on that mode's own discovery command (`-- <path>`), never as a filter over the results: the pathspec is what makes the mode's own semantics. Merge-base for branch, `--since` for a window. Hold over the narrowed set.
+Apply the path as a native pathspec on that mode's own discovery command (`-- <path>`), never as a filter over the results: the pathspec is what makes the mode's own semantics hold over the narrowed set. That means merge-base for branch and `--since` for a window.
 
 Resolve each path against the **invocation directory**, then express it **repo-root-relative** before handing it to a root-anchored command. Repo mode runs `git -C <repo-root>`, and `-C` changes directory before the pathspec is applied: a bare `code-tidying` typed from inside `plugins/` resolves locally but would be read at the root as a top-level `code-tidying`, sweeping the wrong set or nothing at all while reporting a clean run.
 

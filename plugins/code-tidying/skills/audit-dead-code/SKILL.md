@@ -145,7 +145,7 @@ Summary candidates: total=370 emitted=15 dropped-by-cap=355 cap=15
 Summary total: files=15 T1=0 T2=15 T3=0
 ```
 
-Present per file: verdict, shape, line, the evidence checked, and. For `alive`. What saved it.
+Present per file: verdict, shape, line, the evidence checked, and for `alive` what saved it.
 Close with the lane roster, the candidate count against the cap, and `n dropped by cap`.
 
 ## Convergence loop
