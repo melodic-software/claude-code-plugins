@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "note": "Seeded overlap CANDIDATES only. A pair here is a starting point for detection, never a verdict: verdicts live in the committed store (docs/native-surfaces/records.json by default) and are human-gated. Adding a pair here proposes a row; it does not create one.",
+  "pairs": [
+    {
+      "native": { "name": "code-review", "class": "bundled-skill" },
+      "component": { "plugin": "review", "skill": "code-review", "kind": "skill" },
+      "why": "Both review a diff or a PR for correctness findings; the names collide outright."
+    },
+    {
+      "native": { "name": "simplify", "class": "bundled-skill" },
+      "component": { "plugin": "code-tidying", "skill": "tidy", "kind": "skill" },
+      "why": "Both clean up changed code without changing behavior."
+    },
+    {
+      "native": { "name": "simplify", "class": "bundled-skill" },
+      "component": { "plugin": "code-tidying", "skill": "batch-simplify", "kind": "skill" },
+      "why": "Same cleanup job at batch scale across many files."
+    },
+    {
+      "native": { "name": "security-review", "class": "plugin-backed-builtin" },
+      "component": { "plugin": "review", "skill": "security-review", "kind": "skill" },
+      "why": "Both produce a security-focused review of a change; the extraction reports the native side under plugin_backed, not builtin_commands."
+    },
+    {
+      "native": { "name": "run", "class": "bundled-skill" },
+      "component": { "plugin": "testing", "skill": "run-e2e", "kind": "skill" },
+      "why": "Both launch the project's app to see a change actually working."
+    },
+    {
+      "native": { "name": "doctor", "class": "bundled-skill" },
+      "component": { "plugin": "claude-ops", "skill": "audit-install-state", "kind": "skill" },
+      "why": "Both look at the health of a Claude Code installation."
+    },
+    {
+      "native": { "name": "doctor", "class": "bundled-skill" },
+      "component": { "plugin": "claude-ops", "skill": "audit-performance", "kind": "skill" },
+      "why": "Both diagnose a slow or unhealthy install; doctor also offers to fix."
+    },
+    {
+      "native": { "name": "morning", "class": "session-skill" },
+      "component": { "plugin": "claude-ops", "skill": "morning-brief", "kind": "skill" },
+      "why": "Both assemble an operator morning view. Session-provided, so it is observation-only: absent from the vendored binary's bundled set."
+    }
+  ]
+}
