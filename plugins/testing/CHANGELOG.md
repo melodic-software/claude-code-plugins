@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.5]
+
+### Fixed
+
+- **A branch name beginning with a YAML indicator silently dropped every finding `audit`
+  emitted.** `cant-fail-scan.sh --findings` interpolated the checked-out branch into its findings
+  frontmatter as a bare plain scalar, and `git check-ref-format --branch` accepts `@foo`, `!foo`,
+  `#foo` and `&foo`. Emitted bare, `#foo` and `&foo` parse to null and `@foo`/`!foo` are outright
+  YAML parse errors, so the `branch:` value a consumer reads is not the branch name. The consumer
+  admits a findings file only when that value matches the current branch exactly, so the whole
+  file went unmatched — with no error, and nothing distinguishing it from "no findings". That is
+  the hidden-findings failure mode this scanner exists to prevent, reached through the frontmatter
+  rather than through the scan. Frontmatter now goes through a `yaml_scalar()` helper that quotes
+  only when the plain form would misparse, so an ordinary branch name stays a byte-identical
+  unquoted scalar and the wire format for the common path does not move. The predicate is
+  deliberately identical to the one `claude-config`'s and `ai-slop`'s emitters use: three
+  producers answer one frontmatter contract, and a consumer must not see three shapes.
+
 ## [0.7.4]
 
 ### Fixed

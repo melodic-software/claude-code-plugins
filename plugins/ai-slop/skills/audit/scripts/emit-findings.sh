@@ -142,6 +142,28 @@ fi
 
 LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" \
   -v repo_root="$REPO_ROOT" -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" '
+  # Quote a frontmatter value only when the plain form would misparse. git
+  # accepts branch names starting with a YAML indicator ("@foo", "!foo",
+  # "#foo"); emitted bare, "#foo" reads as a comment and the rest as
+  # indicators, so the value the consumer compares is not the branch name.
+  function yaml_implicit_typed(s,   l) {
+    l = tolower(s)
+    if (l ~ /^(true|false|yes|no|on|off|null|~)$/) return 1
+    if (s ~ /^[+-]?[0-9]+$/) return 1
+    if (s ~ /^[+-]?[0-9]*\.[0-9]+([eE][+-]?[0-9]+)?$/) return 1
+    if (s ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}/) return 1
+    if (s ~ /^0[xXoObB][0-9a-fA-F_]+$/) return 1
+    return 0
+  }
+  function yaml_scalar(s) {
+    if (s ~ /^[-?:,\[\]{}#&*!|>%@`"\x27]/ || s ~ /: / || s ~ / #/ || s ~ /^$/ || s ~ /[ \t]$/ || yaml_implicit_typed(s)) {
+      gsub(/\\/, "\\\\", s)
+      gsub(/"/, "\\\"", s)
+      return "\"" s "\""
+    }
+    return s
+  }
+
   # Tier/Action mirror of the severity crosswalk (see header comment).
   function rule_tier(slug) {
     if (slug == "rule-knowledge-cutoff-disclaimer" || slug == "rule-llm-citation-artifacts" ||
@@ -254,7 +276,7 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" \
     next
   }
   END {
-    printf "---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n", date_utc, branch
+    printf "---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n", date_utc, yaml_scalar(branch)
     print "## Findings"
     print ""
     print "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |"

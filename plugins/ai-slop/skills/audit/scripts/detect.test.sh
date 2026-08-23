@@ -544,6 +544,63 @@ else
   fi
 fi
 
+# --- emit: branch names that are YAML indicators ---------------------------------
+#
+# git accepts branch names beginning with a YAML indicator: `git check-ref-format
+# --branch` calls "@foo", "!foo", "#foo" and "&foo" all valid. Emitted as a bare
+# plain scalar, "#foo" and "&foo" parse to null and "@foo"/"!foo"/"*foo" are
+# parse errors. The consumer (review/fanout fix-pass-mode.md "Step 1") admits a
+# findings file only when its `branch:` value equals the current branch EXACTLY,
+# so a misparse silently drops every finding for that branch — no error, and
+# nothing distinguishing it from "no findings".
+#
+# Both directions are asserted. Quoting is CONDITIONAL, so an ordinary branch
+# name must stay a byte-identical plain scalar: a helper that quoted
+# unconditionally would pass a quoted-only assertion while moving the wire
+# format for every ordinary branch. `*foo` is not a legal git branch name, but
+# --branch takes an arbitrary string, so the predicate is still asserted on it.
+emit_branch_line() {
+  # emit_branch_line <branch> -> the emitted `branch:` frontmatter line
+  local b="$1" out="$TEST_TMPDIR/findings/ybranch.md"
+  rm -f "$out"
+  bash "$EMIT" --from "$DETOUT" --out "$out" --branch "$b" >/dev/null 2>&1
+  LC_ALL=C grep -m1 '^branch:' "$out"
+}
+
+for b in '@foo' '!foo' '#foo' '*foo' '&foo'; do
+  got="$(emit_branch_line "$b")"
+  want="branch: \"$b\""
+  if [[ "$got" == "$want" ]]; then
+    pass "emit: indicator branch '$b' is emitted as a quoted scalar"
+  else
+    fail "emit: indicator branch '$b' is emitted as a quoted scalar" "$want" "$got"
+  fi
+done
+
+for b in 'main' 'feat/3179-slug' 'release-1.2_x'; do
+  got="$(emit_branch_line "$b")"
+  want="branch: $b"
+  if [[ "$got" == "$want" ]]; then
+    pass "emit: ordinary branch '$b' stays an unquoted plain scalar"
+  else
+    fail "emit: ordinary branch '$b' stays an unquoted plain scalar" "$want" "$got"
+  fi
+done
+
+# The quoting must survive a branch name carrying the quote character itself —
+# otherwise the emitted scalar is quoted but unparseable, trading a silent drop
+# for a hard consumer failure. A BACKSLASH is deliberately not asserted: git
+# rejects it in a branch name (`git check-ref-format --branch 'a\b'` fails), and
+# awk consumes it as an escape at the -v assignment boundary before the helper
+# ever runs, so an assertion here would pin an awk -v artifact on an input that
+# cannot occur rather than this producer's quoting.
+got="$(emit_branch_line '@with"quote')"
+if [[ "$got" == 'branch: "@with\"quote"' ]]; then
+  pass "emit: a quote character inside an indicator branch is escaped"
+else
+  fail "emit: a quote character inside an indicator branch is escaped" 'branch: "@with\"quote"' "$got"
+fi
+
 # --- Roster agreement: every rule's tier is asserted -----------------------------
 #
 # emit-findings.sh's rule_tier() declares itself a MIRROR of the severity

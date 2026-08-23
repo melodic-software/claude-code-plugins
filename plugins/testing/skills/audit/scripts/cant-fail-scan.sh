@@ -325,6 +325,54 @@ esc_cell() {
   printf '%s' "$s"
 }
 
+yaml_scalar() {
+  # Quote a frontmatter value only when the plain form would misparse. git
+  # accepts branch names starting with a YAML indicator ("@foo", "!foo",
+  # "#foo"); emitted bare, "#foo" reads as a comment and the rest as
+  # indicators, so the value the consumer compares is not the branch name.
+  # The consumer (review/fanout fix-pass-mode.md "Step 1") admits a findings
+  # file only on an EXACT branch match, so a misparse silently drops every
+  # finding for that branch — the hidden-findings shape reached through the
+  # frontmatter rather than through the scan.
+  #
+  # Conditional, not unconditional: an ordinary name stays a byte-identical
+  # plain scalar, so the wire format for the common path does not move.
+  # Predicate deliberately IDENTICAL to the two sibling awk producers
+  # (claude-config/audit-instructions/scripts/emit-findings.sh and
+  # ai-slop/audit/scripts/emit-findings.sh) — three producers answering one
+  # frontmatter contract must agree, or a consumer sees three shapes. The
+  # indicator set below is the same 19 characters as their awk character
+  # class, and the ": " / " #" / empty / trailing-blank tests mirror theirs.
+  # Space and tab only in the trailing test (NOT [:space:]), matching awk's
+  # /[ \t]$/.
+  local s="$1" needs_quote=0
+  case "${s:0:1}" in
+    '-' | '?' | ':' | ',' | '[' | ']' | '{' | '}' | '#' | '&' | '*' | '!' | '|' | '>' | '%' | '@' | '`' | '"' | "'")
+      needs_quote=1
+      ;;
+    *) ;;
+  esac
+  case "$s" in
+    *': '* | *' #'*) needs_quote=1 ;;
+    *) ;;
+  esac
+  if [[ -z "$s" || "$s" == *[$' \t'] ]]; then needs_quote=1; fi
+  lc=$(printf '%s' "$s" | tr '[:upper:]' '[:lower:]')
+  case "$lc" in
+    true | false | yes | no | on | off | null | '~') needs_quote=1 ;;
+  esac
+  if [[ "$s" =~ ^[+-]?[0-9]+$ || "$s" =~ ^0[xXoObB][0-9a-fA-F_]+$ ]]; then
+    needs_quote=1
+  fi
+  if ((needs_quote)); then
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    printf '"%s"' "$s"
+  else
+    printf '%s' "$s"
+  fi
+}
+
 emit_findings_file() {
   local branch ts i rank conf
   branch="$(git -C "$ROOT" branch --show-current 2>/dev/null | tr -d '\r')"
@@ -345,7 +393,7 @@ emit_findings_file() {
     exit 2
   fi
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf -- '---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n## Findings\n\n' "$ts" "$branch"
+  printf -- '---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n## Findings\n\n' "$ts" "$(yaml_scalar "$branch")"
   printf '| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n'
   printf '|------|------|------------|----------|------------|---------|--------|\n'
   rank=0
