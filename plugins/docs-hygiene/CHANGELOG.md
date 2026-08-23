@@ -1,5 +1,33 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.1]
+
+### Fixed
+
+- **`audit-noise`'s `negation` shape was unusably broad as shipped in 0.21.0 (#3201).** Measured on
+  an 85-file sample of this repo's own tracked markdown: **1053 findings, 12.4 per file, 99% of all
+  findings the skill produced.** The eight older shapes produced 10 between them. At that rate the
+  shape swamps the human report on every run and would flood the apply relay under
+  `--persist-findings`. Two scope gates bring it to **31** on the same files, with every other
+  shape's count byte-identical (3/2/2/1/1/1 before and after), so the whole delta is this shape:
+
+  - **Imperative only.** The cue must open the line, after list, blockquote and emphasis markers.
+    `docs-hygiene:write-for-agents` "Prompt the positive" is a rule about *instructions*, so
+    descriptive prose ("Older versions do not support this flag", "the config never loads") was
+    never in its scope. A mid-sentence cue is excluded by construction and that is correct — a
+    correctly paired sentence puts the cue *after* its positive ("Prefer X; never Y"), so the test
+    declines exactly what is already compliant.
+  - **The line must close its own sentence.** This repo hard-wraps prose and the pairing rule is per
+    sentence, so a continuation line cannot be shown to lack a positive that sits on the next line.
+    The same test excludes a table row, which ends in `|`.
+
+  **Both narrowings are #3180's**, established there against a 1140-file corpus sweep. That PR was
+  open against the same issue while #3194 was built and merged over it; this adopts the calibration
+  work rather than discarding it.
+
+  **The cost is stated, not hidden:** a subject-led instruction ("The agent must not emit a bare
+  summary") no longer selects. Pinned by an assertion so a future widening cannot pass silently.
+
 ## [0.21.0]
 
 ### Added

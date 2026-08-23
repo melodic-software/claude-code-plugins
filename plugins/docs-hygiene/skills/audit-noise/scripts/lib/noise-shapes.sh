@@ -491,6 +491,59 @@ audit_noise_sentence_is_worked_example() {
   [[ "$1" == *'→'* || "$1" == *'->'* ]]
 }
 
+# --- Scope narrowings: what SELECTS at all ----------------------------------
+# Measured, not argued. Without these two tests the shape fired 1053 times on an
+# 85-file sample of this repo (12.4 per file, 99% of all findings); with them,
+# 31. The rule is only usable inside this scope.
+#
+# 1. IMPERATIVE ONLY — the cue must be line-initial, after list, blockquote and
+#    emphasis markers. "Prompt the positive" is a rule about INSTRUCTIONS, so a
+#    descriptive negation ("Older versions do not support this flag", "the
+#    config never loads") is not in its scope at all and must not select. A
+#    mid-sentence prohibition is excluded by construction, and that is correct:
+#    correctly paired prose puts the cue AFTER its positive ("Prefer X; never
+#    Y"), so a line-initial test already declines what is already compliant.
+# 2. THE LINE MUST END ITS SENTENCE — this repo hard-wraps prose, and the
+#    pairing rule is per SENTENCE, so a continuation line cannot be shown to
+#    lack a positive that sits on the next line. The same test excludes a table
+#    row, which ends in `|`.
+#
+# Both narrowings are due to #3180, which established them against a 1140-file
+# corpus sweep; this is that work adopted after #3194 shipped the wider form.
+
+# Strip list, blockquote and leading emphasis markers so a cue that opens the
+# content of the line still reads as line-initial.
+audit_noise_strip_line_lead() {
+  local s="$1"
+  local -n _audit_noise_lead_out="$2"
+  s="${s#"${s%%[![:space:]]*}"}"
+  while [[ "$s" =~ ^([-*+]|[0-9]+\.|\>)[[:space:]]* ]]; do
+    s="${s#"${BASH_REMATCH[0]}"}"
+    s="${s#"${s%%[![:space:]]*}"}"
+  done
+  while [[ "$s" =~ ^(\*\*\*|\*\*|\*|___|__|_) ]]; do
+    s="${s#"${BASH_REMATCH[0]}"}"
+  done
+  _audit_noise_lead_out="$s"
+}
+
+# True when the cue opens the line's content — an imperative prohibition rather
+# than a descriptive one.
+audit_noise_line_opens_with_prohibition() {
+  local lead=""
+  audit_noise_strip_line_lead "$1" lead
+  local s="${lead,,}"
+  [[ "$s" =~ ^(never|do[[:space:]]+not|don${AUDIT_NOISE_APOS}t|avoid|must[[:space:]]+not|should[[:space:]]+not|shouldn${AUDIT_NOISE_APOS}t)([^[:alnum:]]|$) ]]
+}
+
+# True when the line closes its sentence, allowing a trailing emphasis run.
+# A hard-wrapped continuation and a table row (ending `|`) both fail this.
+audit_noise_line_ends_sentence() {
+  local s="$1"
+  s="${s%"${s##*[![:space:]]}"}"
+  [[ "$s" =~ [.!?](\*\*\*|\*\*|\*|___|__|_|\)|\"|\'|’)*$ ]]
+}
+
 # Which prohibition fired, in the run's own values. Reported from the sentence
 # that ACTUALLY triggered: a line whose first sentence is carved out
 # ("Never commit a secret. Do not use markdown.") would otherwise report the
@@ -500,6 +553,10 @@ AUDIT_NOISE_FIRED_MARKER=""
 audit_noise_line_has_negation_without_positive() {
   local sentences=() s lower m
   AUDIT_NOISE_FIRED_MARKER=""
+  # Scope gates first — cheapest, and they decide whether the line is even the
+  # kind of text this rule is about (see "Scope narrowings" above).
+  audit_noise_line_opens_with_prohibition "$1" || return 1
+  audit_noise_line_ends_sentence "$1" || return 1
   audit_noise_split_sentences_into sentences "$1"
   for s in "${sentences[@]}"; do
     audit_noise_sentence_has_prohibition "$s" || continue
