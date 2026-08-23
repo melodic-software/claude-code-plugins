@@ -104,8 +104,24 @@ fi
 # Keys in declaration order (for the sort check) and the plugin names they
 # carry for this marketplace (for the set comparisons).
 declared_keys="$(jq -r '.enabledPlugins // {} | keys_unsorted[]' "$SETTINGS" | tr -d '\r')"
-enabled="$(printf '%s\n' "$declared_keys" |
-  sed -n "s/@${MARKET}\$//p" | sort -u)"
+
+# Suffix stripping is a LITERAL parameter expansion, never a `sed` expression
+# interpolating $MARKET. A marketplace name is free-form text from a settings
+# file, so a regex metacharacter in it would change what the pattern matches
+# rather than what it says: a name like 'melodic.software' would make the '.'
+# match any character, silently accepting 'alpha@melodicXsoftware' as this
+# marketplace's key and reporting the real plugin as unenabled. A gate whose
+# whole purpose is to catch silent drift must not have a silent-wrongness path
+# of its own. Flagged as informational (not a finding) by the security review
+# on #3235, on the grounds that the value is repo-controlled and crosses no
+# trust boundary -- true, and beside the point for correctness.
+enabled="$(
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    [[ "$key" == *"@$MARKET" ]] || continue
+    printf '%s\n' "${key%"@$MARKET"}"
+  done <<<"$declared_keys" | sort -u
+)"
 
 errors=0
 

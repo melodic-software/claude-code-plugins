@@ -163,6 +163,33 @@ else
   fail "foreign-marketplace key should not fail the gate (rc=$rc): $out"
 fi
 
+# --- 6b. A regex metacharacter in the marketplace name stays literal. -------
+# Suffix stripping must be a literal match, not a pattern. Under the original
+# `sed -n "s/@$MARKET\$//p"` the '.' in 'melodic.software' matched any
+# character, so 'alpha@melodicXsoftware' was accepted as this marketplace's
+# key and the genuine 'alpha@melodic.software' entry went unnoticed -- the
+# gate reporting drift that did not exist while missing the shape it exists
+# to catch. Raised as informational by the security review on #3235.
+write_marketplace alpha
+{
+  echo '{'
+  echo '  "enabledPlugins": {'
+  echo '    "alpha@melodic.software": true,'
+  echo '    "beta@melodicXsoftware": true'
+  echo '  },'
+  echo '  "extraKnownMarketplaces": {'
+  echo '    "melodic.software": {"source": {"source": "directory", "path": "./"}}'
+  echo '  }'
+  echo '}'
+} >"$SETTINGS"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 0 ]]; then
+  pass "a regex metacharacter in the marketplace name is matched literally"
+else
+  fail "'.' in the marketplace name must not match any character (rc=$rc): $out"
+fi
+
 # --- 7. Ambiguous input is fatal, not a guess. ------------------------------
 write_marketplace alpha
 {
