@@ -3324,7 +3324,7 @@ field maximum, while the assembled listing entry stays well under 1536.
 "
 out="$(run field-cap-over 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'description alone is 1025 chars' <<<"$out"; then
+if [[ $rc -eq 0 ]] && grep -q 'description alone is 1025 codepoints' <<<"$out"; then
   pass "check 2b warns at 1025 chars without failing the run"
 else
   fail "check 2b should WARN (not FAIL) at 1025/1024 (rc=$rc): $out"
@@ -3370,11 +3370,35 @@ the description field alone is 1100 (breaches check 2b).
 out="$(run field-cap-independent 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] &&
-  grep -q 'description alone is 1100 chars' <<<"$out" &&
+  grep -q 'description alone is 1100 codepoints' <<<"$out" &&
   ! grep -q 'description+when_to_use is .* chars (cap 1536' <<<"$out"; then
   pass "check 2b fires on a field breach that check 2's listing cap does not see"
 else
   fail "check 2b should catch desc 1100 while check 2 passes the 1143 entry (rc=$rc): $out"
+fi
+
+# 2b-iv. Codepoints, not bytes. 600 'é' is 600 characters and 1200 UTF-8 bytes;
+#        the spec's limit is "Maximum 1024 characters", so this must stay silent.
+#        Run under LC_ALL=C, where `${#var}` degrades to byte counting and would
+#        report 1200 — so the assertion fails on the byte-counting form rather
+#        than passing incidentally on a UTF-8 host.
+desc_600_multibyte="$(printf 'é%.0s' $(seq 1 600))"
+make_skill field-cap-multibyte "---
+name: field-cap-multibyte
+description: \"$desc_600_multibyte\"
+---
+
+## Purpose
+
+Multibyte fixture: 600 codepoints, 1200 UTF-8 bytes. Legal against a 1024
+character cap; a byte count would report 1200 and warn.
+"
+out="$(LC_ALL=C run field-cap-multibyte 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'description alone is' <<<"$out"; then
+  pass "check 2b counts codepoints, not bytes (600 multibyte chars stay silent under LC_ALL=C)"
+else
+  fail "check 2b must count codepoints: 600 'é' is 600 chars, not 1200 bytes (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

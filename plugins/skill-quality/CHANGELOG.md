@@ -21,6 +21,14 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 
   Check 2b reports the field breach separately from check 2, with its own message.
 
+  Counted in **codepoints**, not bytes — the spec says "Maximum 1024 characters",
+  and `${#var}` degrades to byte counting under a byte-oriented locale, so 600
+  `é` characters report as 1200 under `LC_ALL=C` and a valid multilingual
+  description would false-warn. Uses the same UTF-8 → UTF-32BE `iconv` form as
+  check 22, with the same UTF-8-locale fallback where `iconv` is absent.
+  `DESC_LEN` stays a byte count for check 2, whose 1536 listing cap is a separate
+  measure. Caught in review by the Codex reviewer on this PR.
+
   **WARN, not FAIL, on measured evidence.** No local validator enforces the field
   maximum: `claude plugin validate --strict` (Claude Code 2.1.241) passes a
   1248-char description clean — verified against a throwaway fixture plugin on
