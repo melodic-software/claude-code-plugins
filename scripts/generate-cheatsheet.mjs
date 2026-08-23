@@ -14,9 +14,13 @@
 // must name existing plugins/skills; stage and cadence values must be in the
 // config enums; `cadence` is required with `workflow-stage:
 // operator` and forbidden otherwise; summaries must pass the shared guard
-// (plain YAML scalar, <=100 codepoints). Swept values are plain scalars —
-// this reader strips trailing `#`-comments exactly as skill-quality's
-// skill_frontmatter::metadata_field does, so both consumers see one value.
+// (plain YAML scalar, <=100 codepoints). Swept values are plain scalars, and
+// this reader takes the literal text after the key: it strips a trailing
+// `#`-comment but never strips quotes, because a quoted value is a rejection
+// here rather than a value to unwrap. skill-quality's
+// skill_frontmatter::metadata_field reads the same way, and
+// scripts/check-summary-reader-parity.test.sh holds the two readers to one
+// value on a shared case table and on every SKILL.md in the tree (#3189).
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

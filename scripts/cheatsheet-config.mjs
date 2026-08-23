@@ -61,20 +61,43 @@ export const EXCLUDED_SKILLS = new Map([
 ]);
 
 // Characters that make a plain YAML scalar unsafe at value start (flow/block
-// indicators, anchors, tags, comments, quotes, list dash). Held as a Set of
-// single characters, not a regex, so no escaping layer can distort it.
+// indicators, anchors, tags, comments, quotes, list dash, flow entry separator,
+// complex-mapping-key indicator). Held as a Set of single characters, not a
+// regex, so no escaping layer can distort it.
+//
+// `,` and `?` were added after a parser sweep found them clearing every rule
+// here while failing a real YAML parse outright (#3189): a leading `,` raises a
+// ParserError and a leading `? ` a ScannerError. They belong to the same
+// c-indicator class as the rest of this set and were simply missing from it.
 const YAML_UNSAFE_LEAD = new Set([
   "[", "]", "{", "}", ">", "|", "*", "&", "!", "%", "@", "`", '"', "'", "#", "-",
+  ",", "?",
 ]);
 
 // Shared `summary` guard, enforced identically by the sweep's
-// apply script and the generator. The value must survive as a plain YAML
-// scalar: an invalid frontmatter value makes Claude Code load the skill with
-// ALL frontmatter silently dropped, so anything YAML could reinterpret is
-// rejected outright. Rejecting " #" also means no trailing-comment stripping
-// ambiguity between YAML parsers and the regex readers (skill-quality's
-// skill_frontmatter::metadata_field). Length is counted in Unicode
-// codepoints, not bytes.
+// apply script and the generator.
+//
+// The rule this guard approximates is a FIXED POINT: the literal text after
+// `summary:` must be what every reader of this repo recovers, whether it reads
+// with a real YAML parser or with a regex. Claude Code documents that malformed
+// frontmatter loads the skill with empty metadata, so a value the parser
+// rejects costs the skill its whole frontmatter; a value the parser accepts but
+// reinterprets (a quoted scalar it unescapes, a bare `true` it reads as a
+// boolean) makes the parsed value and the regex-read value disagree. Requiring
+// a plain, unquoted, colon-free scalar is the largest subset a dependency-light
+// regex reader can recover exactly, which is why the constraint is stricter
+// than YAML alone requires. Rejecting " #" likewise removes any
+// trailing-comment stripping ambiguity between the readers.
+//
+// This function is the fast approximation, not the definition. The definition
+// is executable and lives in scripts/check-summary-reader-parity.test.sh:
+// a real YAML parse of the frontmatter must yield a string identical to the
+// regex-read text. That oracle catches the value-reinterpreting cases this
+// character-level guard deliberately does not enumerate, because a denylist of
+// resolver spellings (`true`, `017`, `12:34`, `2026-08-23`) only ever holds the
+// spellings someone was already burned by.
+//
+// Length is counted in Unicode codepoints, not bytes.
 export function summaryError(summary) {
   if (typeof summary !== "string" || summary.length === 0) return "empty summary";
   if ([...summary].length > SUMMARY_MAX_CODEPOINTS) {
@@ -83,8 +106,18 @@ export function summaryError(summary) {
   for (const ch of summary) {
     const cp = ch.codePointAt(0);
     if (cp < 0x20 || cp === 0x7f) return "summary contains a tab or control character";
+    // C1 controls and the Unicode line separators are rejected by a real YAML
+    // reader outright (C1) or consumed as line breaks (NEL/LS/PS), which breaks
+    // the document structure. Neither is visible in an editor, so nothing about
+    // the source line explains the CI failure they cause (#3189).
+    if ((cp >= 0x80 && cp <= 0x9f) || cp === 0x2028 || cp === 0x2029) {
+      return "summary contains a C1 control or Unicode line separator";
+    }
   }
   if (YAML_UNSAFE_LEAD.has(summary[0])) return "summary starts with a YAML-special character";
+  // `=` alone is YAML's `tag:yaml.org,2002:value` special and does not load as
+  // the string "=". Only the whole-value form is special.
+  if (summary === "=") return "summary is the YAML value-key special `=`";
   if (summary.includes(": ")) return 'summary contains ": " (YAML mapping indicator)';
   if (summary.includes(" #")) return 'summary contains " #" (YAML comment start)';
   if (summary.endsWith(":") || summary.endsWith(" ")) {

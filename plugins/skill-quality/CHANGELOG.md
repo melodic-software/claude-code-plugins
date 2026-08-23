@@ -3,6 +3,47 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Changed
+
+- **`check`: Check 22 enforces the whole `metadata.summary` contract, not just the
+  length cap (#3189).** The check previously read the value, stripped its quotes, and
+  measured it, so a value that could not survive as a plain YAML scalar passed locally
+  and failed in CI. It now enforces the same rule set the cheat-sheet generator's guard
+  enforces: at most 100 codepoints, no leading YAML-special character, no `": "`, no
+  `" #"`, no trailing colon, and no control character. A malformed frontmatter value
+  costs a skill ALL of its frontmatter, because Claude Code loads a skill whose
+  frontmatter does not parse with empty metadata, so the check that was supposed to
+  prevent that outcome no longer reports green on it.
+- **`check`: Check 22 reads the value raw.** Quote stripping is gone. A quoted summary
+  is now a rejection rather than a value to unwrap, and the rejection message names
+  rewording as the remedy, because quoting is what an author reaches for first and it
+  fails a different gate one CI round later.
+
+### Added
+
+- **Shared summary contract cases (`scripts/summary-contract-cases.json`).** The bash
+  reader and the repository's JavaScript guard are separate statements of one contract
+  by necessity: the guard is repo-internal JavaScript and this plugin ships with no
+  Node beside it. The case table holds the two statements together, and the repository
+  gate `scripts/check-summary-reader-parity.test.sh` runs both readers and a real YAML
+  parser against it, so a divergence fails a test instead of surfacing as a CI surprise.
+- **`skill_frontmatter::summary_error`.** The contract as one sourceable function, so a
+  test can exercise the rule set directly instead of driving the whole checker.
+- **`skill_frontmatter::has_metadata_field`.** Distinguishes an absent key from one
+  present with an empty value; the two have different verdicts.
+
+### Fixed
+
+- **`skill_frontmatter::metadata_field` reads the `metadata:` block.** It matched the
+  first indented `key:` line anywhere in the frontmatter, so an indented line inside a
+  `description: |` block scalar was read as metadata while the cheat-sheet generator
+  read the real value. Two readers disagreeing about which value they are even reading
+  is a sharper failure than disagreeing about whether it is valid.
+- **A false comment on Check 22.** It claimed the value was read "matching how the sheet
+  generator reads it" while stripping quotes the generator never strips.
+
 ## [0.19.2]
 
 ### Changed
