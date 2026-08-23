@@ -309,5 +309,31 @@ else
   skip_case "no real symlink on this platform — the trailing-separator rule is unpinned here"
 fi
 
+# The documented normalization must strip EVERY trailing separator the
+# platform recognizes — and nothing more. `${path%/}` alone strips one forward
+# slash, leaving a doubled separator (or, on Windows shells, a pasted trailing
+# backslash) in place, and either survivor re-opens the symlink bypass above.
+# Off Windows, `\` is a legal filename byte (the same gated rule
+# worktree-create.sh applies to its root normalization), so a candidate
+# literally named `link\` must survive untouched — stripping it would point
+# every qualifying test and the reap at a different sibling path. Pure string
+# manipulation, so it is pinned even where the symlink fixture must skip.
+normalize_candidate() {
+  local path="$1"
+  case "$(uname -s 2>/dev/null)" in
+  MINGW* | MSYS* | CYGWIN*) while [[ "$path" == */ || "$path" == *\\ ]]; do path="${path%?}"; done ;;
+  *) while [[ "$path" == */ ]]; do path="${path%?}"; done ;;
+  esac
+  printf '%s' "$path"
+}
+assert_eq "normalization strips every trailing forward slash" "x/link" "$(normalize_candidate "x/link//")"
+if [[ "$(uname -s 2>/dev/null)" == MINGW* || "$(uname -s 2>/dev/null)" == MSYS* || "$(uname -s 2>/dev/null)" == CYGWIN* ]]; then
+  assert_eq "windows shell: a trailing backslash is a separator and strips" "x/link" "$(normalize_candidate "x/link\\")"
+  assert_eq "windows shell: mixed trailing separators all strip" "x/link" "$(normalize_candidate "x/link/\\")"
+else
+  assert_eq "posix: a trailing backslash is a filename byte and survives" "x/link\\" "$(normalize_candidate "x/link\\")"
+  assert_eq "posix: only the forward slash strips from a mixed tail" "x/link\\" "$(normalize_candidate "x/link\\/")"
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1
 printf '\nAll %d cases passed.\n' "$CASE_NUM"
