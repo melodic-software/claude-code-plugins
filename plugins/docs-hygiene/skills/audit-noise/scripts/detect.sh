@@ -221,8 +221,10 @@ audit_file() {
   local in_exempt=0 line_num=0
   local in_ignored_para=0 skip_next=0
   local in_frontmatter=0 in_fence=0
+  local fence_char="" fence_len=0
   local -a shapes=()
   local shape tier excerpt line heading_text
+  local fence_delim fence_dchar fence_dlen
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
@@ -241,11 +243,23 @@ audit_file() {
     fi
 
     # Fenced code blocks (``` or ~~~): never scan fence lines or their body.
-    if [[ "$line" =~ ^(\`\`\`|~~~) ]]; then
-      if [[ $in_fence -eq 1 ]]; then
-        in_fence=0
-      else
+    # CommonMark closes a fence only with the same character at a run length
+    # greater than or equal to the opener, so a four-backtick outer fence
+    # wrapping a three-backtick example stays open through the inner close.
+    # A bare toggle keyed on "line starts with 3+" treats the inner fence as
+    # the outer close and then scans the remaining example as prose.
+    if [[ "$line" =~ ^(\`{3,}|~{3,}) ]]; then
+      fence_delim="${BASH_REMATCH[1]}"
+      fence_dchar="${fence_delim:0:1}"
+      fence_dlen=${#fence_delim}
+      if [[ $in_fence -eq 0 ]]; then
         in_fence=1
+        fence_char="$fence_dchar"
+        fence_len=$fence_dlen
+      elif [[ "$fence_dchar" == "$fence_char" && $fence_dlen -ge $fence_len ]]; then
+        in_fence=0
+        fence_char=""
+        fence_len=0
       fi
       in_ignored_para=0
       continue

@@ -410,6 +410,47 @@ assert_not_contains "fenced citation not flagged" "$fence_out" "inside a fence"
 assert_not_contains "fenced ghost-ref not flagged" "$fence_out" "foo-slice"
 assert_contains "post-fence citation still flagged" "$fence_out" "real prose"
 
+# A longer outer fence wrapping a standard inner fence must stay closed only
+# at the matching-or-longer closer. A naive 3+ toggle treats the inner close
+# as the outer close and then scans the remaining example as prose.
+NESTED_FENCE="$TEST_TMPDIR/nested-fence.md"
+cat >"$NESTED_FENCE" <<'EOF'
+# Nested fence fixture
+
+````markdown
+An example suppression record:
+
+```yaml
+reason: "Conflicts with org policy; exception requested, tracked in #482."
+```
+
+Empirically observed inside the outer fence after the inner close.
+.work/foo-slice/PLAN.md
+````
+
+After the outer fence Empirically observed in real prose.
+EOF
+nested_out="$(bash "$DETECT" "$NESTED_FENCE")"
+assert_not_contains "content after an inner fence close stays exempt" \
+  "$nested_out" "inside the outer fence"
+assert_not_contains "inner-fence ticket residue is not scanned" "$nested_out" "tracked in #482"
+assert_not_contains "nested-fence ghost-ref is not scanned" "$nested_out" "foo-slice"
+assert_contains "prose after the true outer close still flags" "$nested_out" "real prose"
+
+TILDE_FENCE="$TEST_TMPDIR/tilde-fence.md"
+cat >"$TILDE_FENCE" <<'EOF'
+# Tilde fence fixture
+
+~~~text
+Empirically observed inside a tilde fence.
+~~~
+
+After the tilde fence Empirically observed in real prose.
+EOF
+tilde_out="$(bash "$DETECT" "$TILDE_FENCE")"
+assert_not_contains "ordinary tilde fence body stays exempt" "$tilde_out" "inside a tilde fence"
+assert_contains "prose after a tilde fence still flags" "$tilde_out" "real prose"
+
 INLINE_FIXTURE="$TEST_TMPDIR/inline-code.md"
 cat >"$INLINE_FIXTURE" <<'EOF'
 # Inline fixture

@@ -1,5 +1,26 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.3]
+
+### Fixed
+
+- **`audit-noise`'s fence tracker no longer treats a nested fence as closed at
+  the inner closer (#3190).** The scanner flipped a single `in_fence` boolean on
+  any line beginning with three or more backticks or tildes, without recording
+  the delimiter that opened the block. A four-backtick outer fence wrapping a
+  three-backtick example therefore closed at the inner ` ``` `, and everything
+  between the inner close and the true outer close was scanned as ordinary prose.
+
+  The tracker now records the opening delimiter character and run length, and
+  treats a later fence line as the matching close only when it uses the same
+  character at a run length greater than or equal to the opener — CommonMark's
+  close rule, which is what documentation uses to show a fenced example inside a
+  fenced example. Ordinary three-backtick and tilde fences are unchanged.
+
+  Shared pre-shape infrastructure: every finding shape inherits the corrected
+  exemption, including the `ticket-pr-residue` false positive on
+  `docs/conventions/finding-suppression/README.md` that surfaced the defect.
+
 ## [0.21.2]
 
 ### Fixed
