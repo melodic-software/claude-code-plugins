@@ -491,6 +491,76 @@ audit_noise_sentence_is_worked_example() {
   [[ "$1" == *'→'* || "$1" == *'->'* ]]
 }
 
+# --- Scope narrowings: what SELECTS at all ----------------------------------
+# Measured, not argued. Without these two tests the shape fired 1053 times on an
+# 85-file sample of this repo (12.4 per file, 99% of all findings); with them,
+# 31. The rule is only usable inside this scope.
+#
+# 1. IMPERATIVE ONLY — the cue must be line-initial, after list, blockquote and
+#    emphasis markers. "Prompt the positive" is a rule about INSTRUCTIONS, so a
+#    descriptive negation ("Older versions do not support this flag", "the
+#    config never loads") is not in its scope at all and must not select. A
+#    mid-sentence prohibition is excluded by construction, and that is correct:
+#    correctly paired prose puts the cue AFTER its positive ("Prefer X; never
+#    Y"), so a line-initial test already declines what is already compliant.
+# 2. THE LINE MUST END ITS SENTENCE — this repo hard-wraps prose, and the
+#    pairing rule is per SENTENCE, so a continuation line cannot be shown to
+#    lack a positive that sits on the next line. The same test excludes a table
+#    row, which ends in `|`.
+#
+# Both narrowings are due to #3180, which established them against a 1140-file
+# corpus sweep; this is that work adopted after #3194 shipped the wider form.
+
+# Strip list, blockquote, task-list-checkbox and leading emphasis markers so a
+# cue that opens the content still reads as initial. Ordered items are accepted
+# with either delimiter (`1.` and `1)`), and a task-list checkbox is stripped
+# after its bullet so `- [ ] Never …` reaches the cue test — both are ordinary
+# ways this repo writes a directive, and missing them would withhold silently.
+# `>` and `)` are written unescaped inside their bracket expressions: a
+# backslash-escaped `\>` is a GNU word-boundary operator elsewhere in the
+# toolchain, and the repo's portability lint rejects the form on sight.
+audit_noise_strip_line_lead() {
+  local s="$1"
+  local -n _audit_noise_lead_out="$2"
+  # Held in a variable: an unquoted `>` inside [[ =~ ]] reads as a redirection
+  # to the parser, and quoting the pattern inline would make it a literal.
+  local lead_re='^([-*+]|[0-9]+[.)]|>|\[[[:space:]xX]\])[[:space:]]*'
+  s="${s#"${s%%[![:space:]]*}"}"
+  while [[ "$s" =~ $lead_re ]]; do
+    s="${s#"${BASH_REMATCH[0]}"}"
+    s="${s#"${s%%[![:space:]]*}"}"
+  done
+  while [[ "$s" =~ ^(\*\*\*|\*\*|\*|___|__|_) ]]; do
+    s="${s#"${BASH_REMATCH[0]}"}"
+  done
+  _audit_noise_lead_out="$s"
+}
+
+# True when the cue opens THIS SENTENCE — an imperative prohibition rather than
+# a descriptive one.
+#
+# Applied per SENTENCE, not once per physical line. A line-level test admits the
+# whole line on its first sentence and then lets the loop flag a later
+# descriptive one: `Do not use markdown; instead use HTML. Older versions do not
+# support SVG.` opens imperatively, but its second sentence is exactly the
+# out-of-scope prose the gate exists to exclude. Testing each candidate keeps
+# the gate's meaning ("is this an instruction?") attached to the text actually
+# being reported.
+audit_noise_sentence_opens_with_prohibition() {
+  local lead=""
+  audit_noise_strip_line_lead "$1" lead
+  local s="${lead,,}"
+  [[ "$s" =~ ^(never|do[[:space:]]+not|don${AUDIT_NOISE_APOS}t|avoid|must[[:space:]]+not|should[[:space:]]+not|shouldn${AUDIT_NOISE_APOS}t)([^[:alnum:]]|$) ]]
+}
+
+# True when the line closes its sentence, allowing a trailing emphasis run.
+# A hard-wrapped continuation and a table row (ending `|`) both fail this.
+audit_noise_line_ends_sentence() {
+  local s="$1"
+  s="${s%"${s##*[![:space:]]}"}"
+  [[ "$s" =~ [.!?](\*\*\*|\*\*|\*|___|__|_|\)|\"|\'|’)*$ ]]
+}
+
 # Which prohibition fired, in the run's own values. Reported from the sentence
 # that ACTUALLY triggered: a line whose first sentence is carved out
 # ("Never commit a secret. Do not use markdown.") would otherwise report the
@@ -500,8 +570,14 @@ AUDIT_NOISE_FIRED_MARKER=""
 audit_noise_line_has_negation_without_positive() {
   local sentences=() s lower m
   AUDIT_NOISE_FIRED_MARKER=""
+  # Line-level gate first — cheapest, and genuinely a property of the LINE: a
+  # continuation cannot be shown to lack a positive sitting on the next one.
+  audit_noise_line_ends_sentence "$1" || return 1
   audit_noise_split_sentences_into sentences "$1"
   for s in "${sentences[@]}"; do
+    # The imperative gate is per SENTENCE, so a line that opens imperatively
+    # cannot carry a later descriptive sentence into a finding.
+    audit_noise_sentence_opens_with_prohibition "$s" || continue
     audit_noise_sentence_has_prohibition "$s" || continue
     audit_noise_sentence_has_positive_pairing "$s" && continue
     audit_noise_sentence_has_hard_guardrail "$s" && continue
