@@ -75,8 +75,8 @@ renamed or removed plugin automatically) does not apply, install the plugins you
 /plugin install verification@melodic-software   # verify-changes, verify-improvement
 ```
 
-`/implementation:implement` and `/implementation:implement-dispatch` still run without them. 
-build/test falls back to the project's own command and outcome verification falls back to
+`/implementation:implement` and `/implementation:implement-dispatch` still run without them.
+Build/test falls back to the project's own command and outcome verification falls back to
 self-verification, but installing the companion plugins restores the full former surface.
 
 ## Configuration

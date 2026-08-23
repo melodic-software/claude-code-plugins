@@ -50,7 +50,7 @@ Because the orchestrator stays on the default branch, **every source-touching op
    frontier routing, dispatches at the frontier tier's current alias, and a run that cannot
    resolve that alias STOPs (autonomously: escalates) rather than dispatching lower, and a session
    whose own model resolves above the binding may pass that model. Never pass a `model` that
-   undercuts the frontmatter binding for source-editing work. (Model resolution order. 
+   undercuts the frontmatter binding for source-editing work. (Model resolution order:
    `CLAUDE_CODE_SUBAGENT_MODEL` when set to anything but `inherit`, then the per-invocation `model`
    parameter, then the definition's `model` frontmatter, then the main conversation's model, per
    <https://code.claude.com/docs/en/sub-agents>, verified 2026-08-10.)
