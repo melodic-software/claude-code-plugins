@@ -100,7 +100,7 @@ single registry that announces its own staleness instead of decaying silently.
 2. The verdict/record store exists with at least the seeded canonical pairs at **skill-level
    target granularity with a source-class field** (bundled skill `code-review` vs
    `review:code-review`; bundled skill `simplify` vs `code-tidying:tidy` and
-   `code-tidying:batch-simplify`; built-in command `security-review` vs
+   `code-tidying:batch-simplify`; plugin-backed built-in `security-review` vs
    `review:security-review`; bundled skill `run` vs `testing:run-e2e`; plus peers found during
    detection), every row carrying a verdict from the 5-value enum, evidence, a class-tagged
    observation record, and a per-row recheck trigger + verified date — the **initial verdict
@@ -201,22 +201,33 @@ table (one-owner rule).
 Create `plugins/claude-ops/skills/audit-native-overlap/`:
 
 - `SKILL.md` — frontmatter description ≤1,536 chars (audit verb contract: bare = read-only
-  report; apply behind explicit argument), argument-hint, user-invocable; body <500 lines covering
-  purpose, scope boundary vs siblings (inventory/audit-install-state/plugins/changelog), the
-  two detection substrates, the report structure (overlap candidates + budget-exposure section
-  composing `check-listing-budget.sh` + integrity floors carried), verdict enum + human gate,
-  apply step contract, foreign-repo degraded posture, and the store/view/self-check anatomy.
-  Read `plugins/skill-quality/skills/check/reference/fresh-eyes-declarations.md` before authoring
+  report; apply behind explicit argument), argument-hint, user-invocable, and a `metadata:` block
+  with `workflow-stage: operator` + `cadence` (the cheat-sheet gate hard-fails a new in-scope
+  skill without it); body <500 lines covering purpose, scope boundary vs siblings
+  (inventory/audit-install-state/plugins/changelog), the two detection substrates, the report
+  structure (overlap candidates + budget-exposure section + integrity floors carried), the
+  budget-exposure seam as a presence-gated cross-plugin capability (invoke the skill-quality
+  listing-budget check by its namespaced capability when that plugin is installed, per
+  seam-phrasing; degraded fallback = "budget exposure unavailable" — never a hardcoded sibling
+  path), verdict enum + human gate, apply step contract, **the AC6 sweep execution contract**
+  (per-plugin unit: apply → verify → PR → close, unit closed only on green merge), foreign-repo
+  degraded posture, and the store/view/self-check anatomy. Read
+  `plugins/skill-quality/skills/check/reference/fresh-eyes-declarations.md` before authoring
   judgment steps (adopted OQ5 default).
 - `reference/canonical-pairs.json` — seeded candidates at skill-level granularity with class
-  fields: bundled `code-review`→`review:code-review`; bundled `simplify`→`code-tidying:tidy`,
-  `code-tidying:batch-simplify`; builtin-command `security-review`→`review:security-review`;
-  bundled `run`→`testing:run-e2e`; bundled `morning`→`claude-ops:morning-brief`.
+  fields (`bundled-skill` / `builtin-command` / `plugin-backed-builtin` / `session-skill`):
+  bundled `code-review`→`review:code-review`; bundled `simplify`→`code-tidying:tidy`,
+  `code-tidying:batch-simplify`; **plugin-backed-builtin** `security-review`→
+  `review:security-review` (the extraction reports it under `plugin_backed`, not
+  `builtin_commands`); bundled `run`→`testing:run-e2e`; bundled `doctor`→
+  `claude-ops:audit-install-state`, `claude-ops:audit-performance`; **session-skill**
+  `morning`→`claude-ops:morning-brief` (cloud-provided, observation-only lane — not in the
+  vendored binary's bundled set).
 - `evals/evals.json` — per the skill-quality evals schema (`--require-evals` fires on new
   SKILL.md).
 
-**Sanity Check:** `bash plugins/skill-quality/scripts/check-skill.sh
-plugins/claude-ops/skills/audit-native-overlap/SKILL.md --require-evals` exits 0;
+**Sanity Check:** `CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/claude-ops/skills" bash
+plugins/skill-quality/scripts/check-skill.sh --require-evals audit-native-overlap` exits 0;
 `python3 -c "import json;json.load(open('plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json'))"`
 exits 0.
 
@@ -227,63 +238,81 @@ stdlib-only), subcommands:
 
 - `detect` — consume an inventory JSON (path arg; the skill body documents producing it via the
   sibling `${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py`), assert `schema == 1` +
-  presence-check consumed keys (missing → broken); repo-tree scan for targets
+  presence-check consumed keys — `builtin_commands`, `bundled_skills`, `plugin_backed`,
+  `integrity` (missing → broken); repo-tree scan for targets
   (`plugins/*/skills/*/SKILL.md`, `plugins/*/agents/*.md`); merge with `canonical-pairs.json`;
   emit candidate rows (evidence + integrity floors carried; never auto-verdicts).
 - `generate` — render `docs/NATIVE-SURFACES.md` from `records.json` (marker-fenced, per-lane
   sections); `generate --check` regenerates and diffs (CATALOG.md pattern).
 - `self-check` — exit 0/1/3 over the deterministic scope (store parse/schema, trigger presence,
   record well-formedness incl. observation class tags, store↔view drift, baked-line parity
-  direction-sensitively via grep of components named in `baked` rows, locally-decidable
-  comparisons). 2 reserved for argparse.
-- Sibling tests: `test_overlap.py` (pytest-style, like `test_inventory.py`) + `overlap.test.sh`
-  wrapper so `run-plugin-tests.sh` discovers it. Store/pairs paths configurable via flags with
-  repo-relative defaults (portability; foreign-repo degraded mode = report-only when paths
-  absent).
+  direction-sensitively via grep of components named in `baked` rows, and the cli_version
+  comparison sourced from cheap `claude --version` output when available — explicit degraded
+  semantics, never a fresh 323MB binary extraction per gate run). 2 reserved for argparse.
+- Sibling tests: `test_overlap.py` (`unittest`-based, like `test_inventory.py` — pytest is not
+  provisioned) + `overlap.test.sh` wrapper so `run-plugin-tests.sh` discovers it (note as PR-body
+  follow-up: `test_inventory.py` itself ships no wrapper and never runs in CI). Store/pairs paths
+  configurable via flags with repo-relative defaults (portability; foreign-repo degraded mode =
+  report-only when paths absent).
 
-**Sanity Check:** `python3 plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py
-self-check --store docs/native-surfaces/records.json --view docs/NATIVE-SURFACES.md` exits 0;
+**Sanity Check:** `overlap.py self-check` against the `test_overlap.py` fixture store exits 0
+(the real store does not exist until Phase 4);
 `bash plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.test.sh` exits 0;
-`bash scripts/check-skill-portability.sh` exits 0.
+`bash scripts/check-skill-portability.sh --paths <the new skill's files>` exits 0.
 
 ### Phase 4: Store seed + generated registry [TODO]
 
 Create `docs/native-surfaces/records.json` with the seeded rows: every row carries a
 recommended verdict + reason (initial verdict session — recommendations surfaced for the human
-gate in the PR; `morning`→`morning-brief` and the four canonical pairs at minimum, plus
-`detect`-surfaced peers), class-tagged observation records (extraction-evidence from the vendored
-binary run), per-row recheck triggers keyed on the drift-fast list (RESEARCH-recency-drift), and
-`baked` flags all false except the Phase 5 demo row. Generate `docs/NATIVE-SURFACES.md`.
+gate in the PR; the canonical pairs plus `detect`-surfaced peers), class-tagged observation
+records (extraction-evidence from the vendored binary run for bundled/builtin/plugin-backed
+lanes; the `morning`→`morning-brief` row is **session-skill lane: live-roster observation,
+verdict `defer`, observation-only, never baked** — it is absent from the vendored binary's
+bundled set), per-row recheck triggers keyed on the drift-fast list (RESEARCH-recency-drift),
+and `baked` flags all false except the Phase 5 demo row. Generate `docs/NATIVE-SURFACES.md`.
 
 **Sanity Check:** `overlap.py self-check …` exits 0 (no trigger-less rows, view in sync);
 `overlap.py generate --check` exits 0.
 
 ### Phase 5: Apply demo on claude-ops-internal component [TODO]
 
-Run the apply step for one approved-recommended row: bundled `morning` skill vs
-`claude-ops:morning-brief` (verdict: complementary — the bundled skill is a generic morning
-digest; morning-brief is the repo-operator queue/PR/lane view). Bake the presence-gated
-description phrase into `morning-brief`'s frontmatter description (within cap) and a Boundary
-section into its body, per the Phase 1 convention. claude-ops is already bumping in this change
-set, so no foreign plugin is touched (Q14 untouched). Set the row's `baked` flags true.
+Run the apply step for one approved-recommended row: bundled `doctor` skill vs
+`claude-ops:audit-install-state` (verdict: complementary — bundled `/doctor` is the quick native
+health/diagnostic pass; audit-install-state is the deep read-only install-tree inventory; the
+sibling `audit-performance` row gets the same verdict, registry-row-only). `doctor` is verifiably
+in the vendored binary's bundled set (extraction-evidence — unlike `morning`, which is
+cloud-provided and stays unbaked per locked decision 7). Bake the presence-gated description
+phrase into `audit-install-state`'s frontmatter description (within cap) and a Boundary section
+into its body, per the Phase 1 convention. claude-ops is already bumping in this change set, so
+no foreign plugin is touched (Q14 untouched). Set the row's `baked` flags true.
 
 **Sanity Check:** `overlap.py self-check` exits 0 (parity: baked ⊆ store);
-`grep -c "morning" plugins/claude-ops/skills/morning-brief/SKILL.md` shows the boundary section;
-description length ≤1,536 (`check-skill.sh` exits 0 on morning-brief).
+`grep -c '^## Boundary' plugins/claude-ops/skills/audit-install-state/SKILL.md` = 1 and the
+description contains the presence-gate token ("resolves in your session");
+`CHECK_SKILL_SKILLS_ROOT="$PWD/plugins/claude-ops/skills" bash
+plugins/skill-quality/scripts/check-skill.sh audit-install-state` exits 0.
 
 ### Phase 6: CI wiring + plugin bump + coupled edits [TODO]
 
 - Wire `overlap.py self-check` + `generate --check` into `scripts/validate-plugins.sh`
   (fail on exit 1; on exit 3 print summary and pass — Q15 policy, with a comment stating it).
+  Resolve the Python interpreter via the repo's candidate-loop pattern (`python3` then `python`,
+  skipping the zero-length WindowsApps stub, exit 2 with a named env error when none works —
+  precedent: `check-contract-clause-coverage.test.sh`); never a bare `python3` call.
 - Bump claude-ops `plugin.json` 0.32.6 → 0.33.0; add `## [0.33.0]` CHANGELOG entry; rewrite the
-  "Ten skills: …" description to eleven; regenerate `docs/CATALOG.md`.
+  "Ten skills: …" description to eleven; regenerate `docs/CATALOG.md` **and
+  `docs/SKILL-CHEAT-SHEET.md`** (the cheat-sheet gate in validate-plugins.sh drifts otherwise).
+- Update the inertness-proof comment in `scripts/docs-only-paths.txt` (plugin-gate now also reads
+  `docs/native-surfaces/**` + `docs/NATIVE-SURFACES.md`; the allowlist entries themselves are
+  unchanged).
 - Add `docs/native-surfaces/records.json` + generated view to the repo (Phase 4 files land here
   if not already committed).
 
 **Sanity Check:** `bash scripts/validate-plugins.sh` exits 0; `bash
-scripts/check-changelog-parity.sh --check-bump plugins/claude-ops` (or the repo's exact
-invocation) exits 0; `node scripts/generate-catalog.mjs --check` exits 0; `grep -c "Eleven
-skills" plugins/claude-ops/.claude-plugin/plugin.json` = 1.
+scripts/check-changelog-parity.sh --check-bump origin/main` exits 0 and `bash
+scripts/check-changelog-parity.sh --check` exits 0; `node scripts/generate-catalog.mjs --check`
+exits 0; `node scripts/generate-cheatsheet.mjs --check` exits 0; `grep -c "Eleven skills"
+plugins/claude-ops/.claude-plugin/plugin.json` = 1.
 
 ## Blast radius
 

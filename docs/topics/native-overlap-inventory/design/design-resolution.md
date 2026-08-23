@@ -20,7 +20,8 @@ SSOT. Shape:
   "schema": 1,
   "rows": [
     {
-      "native": {"name": "code-review", "class": "bundled-skill|builtin-command|session-skill",
+      "native": {"name": "code-review",
+                  "class": "bundled-skill|builtin-command|plugin-backed-builtin|session-skill",
                   "markers": ["hidden"|"gated"]},
       "component": {"plugin": "review", "skill": "code-review", "kind": "skill|agent"},
       "verdict": "prefer-native|prefer-ours|complementary|superseded|defer",
@@ -48,6 +49,7 @@ record well-formedness, store↔view drift (regenerate + diff), store↔baked-li
 (direction-sensitive: baked ⊆ store), locally-decidable comparisons.
 
 **Detection substrates** — native side: `inventory.py --out` JSON (consumer asserts `schema == 1`
-and presence-checks `builtin_commands`, `bundled_skills`, `integrity`; missing key → broken).
+and presence-checks `builtin_commands`, `bundled_skills`, `plugin_backed`, `integrity`; missing
+key → broken).
 Target side: the skill's own repo-tree scan of `plugins/*/skills/*/SKILL.md` +
 `plugins/*/agents/*.md` frontmatter.
