@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.20]
+
+### Fixed
+
+- **GitHub adapter: the documented item read now carries its sandboxed-session substitute.**
+  "View item" showed only `gh issue view --json`, which routes through GraphQL — and sandboxed
+  sessions (Claude Code on the web, remote execution) serve only a pinned set of GraphQL
+  operations, refusing the rest with `HTTP 403`. The document already explained that restriction
+  under "Edit labels / assignees", where the lease protocol's assignee ops work around it, but a
+  reader who came for the item read had no reason to reach that far, and the 403 presents as an
+  expired token or a missing scope rather than as an unsupported operation. "View item" now
+  states the REST substitute next to the commands it replaces
+  (`gh api repos/{owner}/{repo}/issues/<N>`), notes that the projections transfer verbatim
+  because REST carries the same fields under the same names, and records the two things that do
+  not carry over: `gh api` has no `--repo` flag (`{owner}`/`{repo}` expand from the current
+  directory or `GH_REPO`), and REST returns `comments` as an integer count rather than the list
+  `--json comments` gives, so comments still come from the paginated "List item comments" recipe.
+- **`ship` points at that substitute.** Its spec-text read is a bare `gh issue view --json
+  body,title` block, the one item-read site that did not already route the reader through the
+  adapter's operations reference. It now says the command 403s in a sandboxed session and links
+  the adapter section that carries the replacement.
+
 ## [0.39.19]
 
 ### Changed

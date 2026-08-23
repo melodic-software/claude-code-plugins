@@ -94,6 +94,27 @@ gh issue view <N> --json assignees,labels \
   --jq '{assignees: [.assignees[].login], labels: [.labels[].name]}' | tr -d '\r'
 ```
 
+**Sandboxed sessions: read the item over REST.** `gh issue view --json` routes through GitHub's
+GraphQL API, so every `gh issue view --json` read in this document fails with `HTTP 403` wherever
+only a pinned set of GraphQL operations is served (Claude Code on the web and remote execution) —
+the same restriction the lease protocol's assignee ops work around under "Edit labels /
+assignees" below. That 403 reads like an expired token or a missing scope and is neither, so take
+it as a signal to switch APIs rather than to re-authenticate. The REST issues endpoint carries
+the same fields under the same names, so the projections above transfer verbatim:
+
+```bash
+gh api "repos/{owner}/{repo}/issues/<N>" \
+  --jq '{number, title, body, labels: [.labels[].name], assignees: [.assignees[].login]}' \
+  | tr -d '\r'
+```
+
+`gh api` has no `--repo` flag: `{owner}` and `{repo}` expand from the repository of the current
+directory, or from `GH_REPO`. Run it from the target clone, or prefix `GH_REPO=<owner>/<repo>`.
+
+`comments` is the one projected field that does not carry over — REST returns it as an integer
+count, not the list `--json comments` gives. Take comments from "List item comments" below, which
+is already REST and paginates for the reason documented there.
+
 ## List item comments
 
 List an item's comments (bare `gh`):

@@ -3,6 +3,39 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.7]
+
+### Fixed
+
+- **`pull-request create`: the two GraphQL-backed steps on the create path now carry REST
+  substitutes.** Sandboxed sessions (Claude Code on the web, remote execution) serve only a
+  pinned set of GraphQL operations and refuse the rest with `HTTP 403`, which takes out both
+  `gh issue view --json` and `gh pr create`. The §2.4.0 linkage check was the more dangerous of
+  the two because it fails *quietly*: its `2>/dev/null || true` swallows the 403, leaving
+  `ISSUE_STATE` empty, so a live open issue is reported as "missing or not open" and the
+  `Closes #N` line §2.4.2.1 gates on is dropped — the branch then fails the repository's
+  `pr-issue-linkage` check for a reason nothing on the create path names. §2.4.0 now gives the
+  REST form and flags that REST reports `state` in lower case, so a comparison against `OPEN`
+  silently never matches.
+- **§2.4.3 states the REST PR-open form.** `gh pr create` sends a `RepositoryInfo` GraphQL
+  preamble before it touches the pull-request API, so it 403s having created nothing. The
+  section now documents `POST /repos/{owner}/{repo}/pulls` with the four differences that make
+  the swap non-mechanical: REST requires `base` (which §2.2's own `gh repo view --json
+  defaultBranchRef` cannot supply, being the same GraphQL surface), `head` needs the
+  `<fork-owner>:<branch>` form on a triangular flow, the body goes through `-f` rather than `-F`
+  to avoid `--field`'s type conversion and `@`-filename handling, and the response carries
+  `.number` and `.html_url` directly instead of requiring the URL to be parsed back apart.
+- **§2.7 anchors the substitute.** `gh api`'s `{owner}`/`{repo}` placeholders expand from the
+  current directory, which under the out-of-tree orchestrated entry is not the target
+  repository — so the REST calls are shown in the same `( cd "$WT" && … )` form the section
+  already uses for `resolve-remote.sh`, including a `$BASE` resolution of its own, since §2.7
+  skips the §2.2 step that would otherwise have set one.
+- **The REST path's missing hook backstop is recorded.** `pr-body-linkage-gate.sh` matches
+  `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately
+  does not see. Within the skill this costs nothing — §2.4.2's gates run against the body first
+  — but §2.4.3 now says so plainly, because a REST PR opened outside the skill has no second
+  check before CI.
+
 ## [0.55.6]
 
 ### Fixed

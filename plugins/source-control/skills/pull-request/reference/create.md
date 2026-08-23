@@ -169,6 +169,15 @@ fi
 
 **Single-issue branch:** parser returns `N` from `<type>/<N>-<slug>` (and `chore/routine-issue-<N>-<slug>` for cloud routines). When `gh issue view` confirms the issue exists and its state is `OPEN`, `${CLOSES_LINE}` becomes `Closes #N`. If the issue is missing, closed, or otherwise not open, the flow falls through to the orphan-PR prompt — never ship a stale or unverified keyword.
 
+**Sandboxed sessions: run this check over REST.** `gh issue view --json` routes through GitHub's GraphQL API, and sandboxed sessions (Claude Code on the web and remote execution) serve only a pinned set of GraphQL operations, refusing the rest with `HTTP 403`. The `2>/dev/null || true` above swallows that 403 and leaves `ISSUE_STATE` empty, so the flow reports a live, open issue as "missing or not open" and drops the very `Closes #N` line §2.4.2.1 then gates on. Substitute the REST issues endpoint, which reports `state` in lower case:
+
+```bash
+ISSUE_STATE=$(gh api "repos/{owner}/{repo}/issues/${ISSUE_NUM}" --jq '.state' 2>/dev/null || true)
+if [[ "$ISSUE_STATE" == "open" ]]; then   # REST returns `open`/`closed`, not `OPEN`/`CLOSED`
+```
+
+`gh api` has no `--repo` flag — `{owner}` and `{repo}` expand from the repository of the **current directory**, or from `GH_REPO`. That is safe on the normal `create` path, whose cwd is the branch's own clone, but not under §2.7, where the invoking orchestrator sits out-of-tree: there, run the call from `$WT` (`( cd "$WT" && gh api … )`, the form §2.7 already uses for `resolve-remote.sh`) or prefix `GH_REPO=<owner>/<repo>`. The same rule governs the REST PR-create fallback in §2.4.3.
+
 **Multi-issue PR (same branch closes 2+ issues):** after primary line is set, ask user inline:
 
 > *"This PR closes #N. Any other issues to close on merge? List them one per line (`Closes #X`), use `Refs #Y` to link without closing, or `no` to skip."*
@@ -493,6 +502,28 @@ PR_URL=$(gh pr create --head "$BRANCH" --title "<type>: <description>" --body "$
 PR_NUMBER=$(basename "$PR_URL")
 ```
 
+**Sandboxed sessions: open the PR over REST.** `gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before it touches the pull-request API at all, so under the pinned-GraphQL restriction described in §2.4.0 it returns `HTTP 403` having created nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. Four differences matter:
+
+- **`base` is required.** `gh pr create` defaults it to the repository's default branch; REST does not. Resolve it over REST as well — §2.2's `gh repo view --json defaultBranchRef` reads the same GraphQL surface and 403s alongside the rest.
+- **`head` is bare `<branch>` only for a same-repo PR.** From a fork (the triangular flow §2.7's remote resolver allows), it must be `<fork-owner>:<branch>`.
+- **Send the body with `-f`, not `-F`.** `-f`/`--raw-field` sends the value as a string. `-F`/`--field` type-converts values that look like numbers, booleans, or `null`, and reads a leading `@` as a filename — useful when the body is already on disk (`-F body=@<file>`), wrong here, where §2.4.1 assembled it into a shell variable.
+- **The response carries the PR identity.** Read `.number` and `.html_url` from it rather than parsing the number back out of the URL.
+
+```bash
+BASE=$(gh api "repos/{owner}/{repo}" --jq '.default_branch')
+PR_JSON=$(gh api --method POST "repos/{owner}/{repo}/pulls" \
+  -f title="<type>: <description>" \
+  -f head="$BRANCH" \
+  -f base="$BASE" \
+  -f body="$BODY")
+PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.html_url')
+PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
+```
+
+`--method POST` and `-X POST` are the same flag. Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both calls above.
+
+**The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing — §2.4.2's gates already ran against `$BODY`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own `pr-issue-linkage` workflow is then the first thing that notices a missing closing keyword or an empty required section.
+
 PR identity (number + URL) is queried live from `gh pr view --json number,url` whenever a later phase needs it. We do not persist it to a state file — `gh` is authoritative source.
 
 **All subsequent phases MUST use `<pr_number>` explicitly** — never bare `gh pr view` / `gh pr checks` / `gh pr merge` without PR number argument.
@@ -553,6 +584,15 @@ BRANCH=$(git -C "$WT" branch --show-current)
   ```bash
   PR_URL=$(gh pr create --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
   ```
+
+  In a sandboxed session that 403s, substitute §2.4.3's REST form — and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section already uses for `resolve-remote.sh`:
+
+  ```bash
+  PR_JSON=$( cd "$WT" && gh api --method POST "repos/{owner}/{repo}/pulls" \
+    -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -f body="$BODY" )
+  ```
+
+  `$BASE` needs its own resolution here: §2.2 is skipped in this mode, so nothing has set a default branch. Resolve it the same anchored way — `BASE=$( cd "$WT" && gh api "repos/{owner}/{repo}" --jq '.default_branch' )`.
 
 - **§2.5 / §2.6:** unchanged — record expected workflows, report the PR URL + number, and stop.
 
