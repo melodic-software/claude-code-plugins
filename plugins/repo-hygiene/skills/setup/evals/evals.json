@@ -1,0 +1,85 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-runs-read-only-check",
+      "prompt": "/repo-hygiene:setup",
+      "expected_output": "Runs the read-only check action (the default), reports a PASS/FAIL/INFO table with one remediation line per FAIL, and runs no mutating tier.",
+      "files": [],
+      "expectations": [
+        "Defaults to check when no action argument is given, and never prompts for one",
+        "Reads the clean skill and its bundled scripts as the source of truth for what each tier requires, rather than reciting the setup SKILL.md list",
+        "Runs no tier of /repo-hygiene:clean — not even a dry run — while checking",
+        "Modifies nothing and installs nothing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "git-absent-fails-every-tier-not-just-git-named-ones",
+      "prompt": "/repo-hygiene:setup check on a machine with no `git` on PATH. I only ever use the caches and build tiers, so that should still be fine, right?",
+      "expected_output": "FAILs for EVERY tier, not only the git-named ones: the shared clean-common.sh library gates selective deletion with `git ls-files --error-unmatch`, so the any-git-tracked-file-is-off-limits guarantee is unenforceable without git and no tier is safe to run.",
+      "files": [],
+      "expectations": [
+        "Rejects the premise that caches and build are usable without git",
+        "Names `git ls-files --error-unmatch` in the shared clean-common.sh library as the enforcement point the tracked-file guarantee rests on",
+        "States explicitly that no tier is safe to run without git, caches and build included",
+        "Also names restoring a tracked file deleted by reparse-point traversal during a tree clean as a git-dependent path",
+        "States what is lost per tier rather than a blanket \"the plugin is broken\""
+      ]
+    },
+    {
+      "id": 3,
+      "name": "ghq-absent-is-info-not-an-empty-repo-list-bug",
+      "prompt": "/repo-hygiene:setup check — a fleet batch action found no repositories on this machine and I do not have ghq installed. Is the batch action broken?",
+      "expected_output": "Reports ghq's absence as INFO, not a defect, and names the enumeration inputs the batch actions still accept, so an empty repo list is legible as expected rather than as a bug.",
+      "files": [],
+      "expectations": [
+        "Classifies ghq as optional and reports its absence as INFO, never FAIL",
+        "Names --repo (repeatable, glob-expanded) and --repos-from FILE|- as the remaining enumeration inputs",
+        "States that only the ghq-derived enumeration is unavailable, so the empty list is expected behavior",
+        "Does not invoke a batch action to reproduce the empty list — it runs no mutating tier while diagnosing"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "session-scoped-guard-unarmed-session-is-not-a-defect",
+      "prompt": "/repo-hygiene:setup check — I opened a fresh session and the destructive guard does not appear to be armed. Is the hook broken?",
+      "expected_output": "Reports the unarmed fresh session as expected: this plugin ships no plugin-level hooks manifest at all, and the guard registers from the clean skill's frontmatter hooks block, so Claude Code arms it only once /repo-hygiene:clean is invoked and then keeps it armed for the rest of that session.",
+      "files": [],
+      "expectations": [
+        "States that the plugin ships no plugin-level hooks manifest, and that the guard registers from the clean skill's frontmatter hooks block",
+        "Explains that this is precisely why the guard is session-scoped: armed on first invocation of /repo-hygiene:clean, then armed for the rest of that session",
+        "Reports the unarmed session as INFO and expected, not a defect",
+        "Does not prescribe a reinstall, a settings edit, or a hooks-manifest fix"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "per-repository-disable-is-enabledplugins-not-project-config",
+      "prompt": "/repo-hygiene:setup apply — I want the destructive guard on everywhere except one repository. Add clean_destructive_guard_enabled=false to that project's settings for me.",
+      "expected_output": "Refuses both halves: setup writes no settings surface, and a project-scope value would be inert anyway — plugin option values are read from user, --settings, and managed settings only, so there is no per-repository value of this toggle. Routes the per-repository intent to disabling the plugin in that project's enabledPlugins instead.",
+      "files": [],
+      "expectations": [
+        "Refuses to write the project's settings file, pluginConfigs, or any settings surface",
+        "States that plugin option values are read only from user, --settings, and managed settings — never from a project's .claude/settings.json — so a project-scope pluginConfigs entry for this option is inert",
+        "Routes the per-repository intent to enabling or disabling the plugin in that project's enabledPlugins",
+        "Does not offer a project-scope --config write as a working alternative"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "headless-toggle-change-reruns-install-never-uninstalls",
+      "prompt": "/repo-hygiene:setup apply — turn clean_destructive_guard_enabled back on headlessly. I cannot use the interactive configure prompt from this session.",
+      "expected_output": "Routes the headless option change to a plain `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, stamps the claim with the CLI version it was verified against, and closes by rerunning check in a fresh session to report the observed toggle value.",
+      "files": [],
+      "expectations": [
+        "Prescribes a plain `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true` rerun, and states that against an already-installed plugin it prints `already installed` and still writes the value",
+        "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README Options reference table to its manifest default",
+        "Stamps the --config claim with the CLI version it was verified against — Claude Code 2.1.240, a non-sensitive option at user scope — and flags a sensitive option and project/local scope as not covered",
+        "Tells the operator to pass the scope `claude plugin list` reports for this plugin instead of relying on the -s default of user, and to run from that project's directory for a project or local scope or the write lands at a scope that does not load",
+        "Ends by rerunning check in a FRESH session, because the rendered user_config token is injected at skill load, and reports the OBSERVED effective toggle value rather than asserting an unobserved change"
+      ]
+    }
+  ]
+}

@@ -13,16 +13,19 @@ conformingly write:
 - **A system tool** (`jq`) — `check` probes it; installing it is the operator's.
 - **One native `userConfig` toggle** (`rate_limit_guard_enabled`), whose only stored home is the
   `pluginConfigs` setup must never write. Reconfiguration routes through Claude Code's native flow:
-  `/plugin configure rate-limit-guard@<marketplace>` interactively, any time. Headless, `claude plugin install
-  ... --config rate_limit_guard_enabled=false` seeds the value on a *fresh install only* and is
-  ignored once installed, so a headless reconfigure is `claude plugin uninstall rate-limit-guard -s
-  <scope>` then `claude plugin install rate-limit-guard@<marketplace> -s <scope> --config
-  rate_limit_guard_enabled=<value>`. Both commands default to `-s user`, so pass the scope the
-  plugin is *actually* installed at — `claude plugin list` reports it per plugin — and run from that
-  project's directory when the scope is `project` or `local`; defaulting removes a separate user
-  record while the effective install stays in place. `-y` only skips `uninstall`'s `--prune`
-  confirmation; this recipe never passes `--prune`, so `-y` has no effect here and should not be
-  added.
+  `/plugin configure rate-limit-guard@<marketplace>` interactively, any time. Headless, rerun the
+  install with the new value — `claude plugin install rate-limit-guard@<marketplace> -s <scope>
+  --config rate_limit_guard_enabled=<value>`. Against an already-installed plugin it prints
+  `already installed` **and still writes the value** — verified on Claude Code 2.1.240 (a
+  non-sensitive option at `user` scope: a non-default value written to an installed plugin, then
+  restored). The short-circuit is about the install, not the config write. Re-verify before relying
+  on it outside those conditions — a `sensitive` option, or `project`/`local` scope, were not
+  covered. Do **not** uninstall to reconfigure: uninstalling drops this plugin's entire stored
+  `pluginConfigs` entry, resetting every option in the README's Options reference table to its
+  manifest default. `-s` defaults to `user`, so pass the scope the plugin is *actually* installed
+  at — `claude plugin list` reports it per plugin — and run from that project's directory when the
+  scope is `project` or `local`, or the write lands at a scope that does not load. Afterwards rerun
+  `check` and report the observed effective value — never claim an unobserved change.
 - **The statusline wiring**, which lives in the **user's own** `settings.json` — neither
   `userConfig` nor tracked project config, and a Claude Code settings surface setup must never
   mutate.

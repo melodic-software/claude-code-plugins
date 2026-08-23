@@ -96,14 +96,19 @@ only points:
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
 - toggle off: direct to `/plugin configure ruff-format` (interactive, any
-  time). Headless: `--config` only applies on a fresh install (ignored once installed), so
-  reconfigure via `claude plugin uninstall ruff-format -s <scope>` then
-  `claude plugin install ruff-format@<marketplace> -s <scope> --config ruff_format_enabled=true`;
-  this skill never writes user settings or `pluginConfigs`. Both commands default to `-s user` —
-  pass the scope `claude plugin list` reports for this plugin, and run from that project's
-  directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
-  record while the effective install stays in place, so the reinstall lands at a scope that
-  does not load.
+  time). Headless: rerun the install with the new value —
+  `claude plugin install ruff-format@<marketplace> -s <scope> --config ruff_format_enabled=true`
+  (repeatable per key). Against an already-installed plugin it prints `already installed` **and
+  still writes the value** — verified on Claude Code 2.1.240 (a non-sensitive option at `user`
+  scope: a non-default value written to an installed plugin, then restored). The short-circuit is
+  about the install, not the config write. Re-verify before relying on it outside those
+  conditions — a `sensitive` option, or `project`/`local` scope, were not covered. Do **not**
+  uninstall to reconfigure: uninstalling drops this plugin's entire stored `pluginConfigs` entry,
+  resetting every option in the README's Options reference table to its manifest default. `-s`
+  defaults to `user`, so pass the scope `claude plugin list` reports for this plugin, and run from
+  that project's directory for a `project`/`local` scope, or the write lands at a scope that does
+  not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun `check` and
+  report the observed effective value — never claim an unobserved change.
 - no Ruff config: offer to create a minimal Ruff config in the repository root only when
   explicitly asked — the plugin imposes no rules of its own.
 

@@ -3,6 +3,24 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1]
+
+### Fixed
+
+- **`setup` skill:** the headless reconfiguration route no longer prescribes
+  `claude plugin uninstall` + reinstall. That instruction rested on an unversioned claim
+  that `claude plugin install --config` is ignored once a plugin is installed, and
+  following it dropped the plugin's whole stored `pluginConfigs` entry, resetting every
+  declared option to its manifest default. On Claude Code 2.1.240 a plain
+  `claude plugin install … --config` against an already-installed plugin prints
+  `already installed` and still writes the value, so that is now the documented route —
+  stamped with the CLI version it was verified against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). `apply` now also reads
+  the effective value back and reports it, rather than asserting an unobserved change.
+- **Docs:** the generated options block's headless route no longer implies `--config`
+  applies only at install time, and now carries the CLI version its claim was verified
+  against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream links that pointed at empty backward-compatibility
+  anchors on the settings page were repointed at the headings that hold the content.
+
 ## [0.11.0]
 
 ### Added

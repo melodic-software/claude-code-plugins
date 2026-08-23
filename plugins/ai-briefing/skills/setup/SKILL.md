@@ -51,17 +51,21 @@ anything.
    reject reserved Windows device names. Report the resolved profile path, which of the three
    sources supplied it, and — when the resolved value came from `${user_config.active_profile}` or
    the configured value is wrong for this repository — the reconfiguration route:
-   - **Interactive, any time:** `/plugin configure ai-briefing@<marketplace>`. This is the only surface that
-     changes the stored value; this skill never writes `pluginConfigs`.
-   - **Headless:** `claude plugin install ... --config active_profile=<name>` seeds the value on a
-     *fresh install only* and is ignored once the plugin is installed, so reconfiguring headlessly
-     means `claude plugin uninstall ai-briefing -s <scope>` then `claude plugin install
-     ai-briefing@<marketplace> -s <scope> --config active_profile=<name>`. Both commands default
-     to `-s user` — pass the scope `claude plugin list` reports for this plugin, and run from that
-     project's directory for a `project`/`local` scope. Defaulting instead uninstalls a separate
-     user-scope record while the effective install stays in place, so the reinstall lands at a
-     scope that does not load. `active_profile` is this plugin's only `userConfig` key, so the
-     reinstall has nothing else to re-supply.
+   - **Interactive, any time:** `/plugin configure ai-briefing@<marketplace>`. The recommended
+     route; this skill never writes `pluginConfigs`.
+   - **Headless:** rerun the install with the new value — `claude plugin install
+     ai-briefing@<marketplace> -s <scope> --config active_profile=<name>` (repeatable per key).
+     Against an already-installed plugin it prints `already installed` **and still writes the
+     value** — verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a
+     non-default value written to an installed plugin, then restored). The short-circuit is about
+     the install, not the config write. Re-verify before relying on it outside those conditions —
+     a `sensitive` option, or `project`/`local` scope, were not covered. Do **not** uninstall to
+     reconfigure: uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting
+     every option in the README's Options reference table to its manifest default. `-s` defaults
+     to `user`, so pass the scope `claude plugin list` reports for this plugin, and run from that
+     project's directory for a `project`/`local` scope, or the write lands at a scope that does
+     not load. Afterwards rerun `check` and report the OBSERVED effective profile — never claim
+     an unobserved change.
    - **Neither, for a one-off:** a per-run `--profile <name>` selects a different profile without
      touching stored config.
 2. **`sources.md`** — FAIL if the resolved profile has no `sources.md`: `/ai-briefing:generate`

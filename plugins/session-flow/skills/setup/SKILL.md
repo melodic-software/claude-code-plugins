@@ -58,28 +58,29 @@ No write path. Run `check`, then for each FAIL offer the remediation: install th
 observer reconfiguration through Claude Code's native flow. Never write `pluginConfigs`, mutate user
 settings, or edit the installed plugin cache.
 
-Reconfiguring the observer's `userConfig` keys has exactly two routes, and only the first works on an
+Reconfiguring the observer's `userConfig` keys has exactly two routes, and both work on an already
 installed plugin:
 
 - **Interactive, any time:** `/plugin configure session-flow@<marketplace>`.
-- **Headless:** `claude plugin install ... --config observer_enabled=true` seeds a value on a *fresh
-  install only* — re-running it against an already-installed plugin does not update the stored value.
-  So a headless reconfigure is `claude plugin uninstall session-flow -s <scope>` then `claude
-  plugin install session-flow@<marketplace> -s <scope> --config <key>=<value> ...`, supplying
-  **every key whose value should be non-default — not only the keys being changed**.
+- **Headless:** rerun the install with the new value —
+  `claude plugin install session-flow@<marketplace> -s <scope> --config <key>=<value>` (repeatable
+  per key). Against an already-installed plugin it prints `already installed` **and still writes the
+  value** — verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default
+  value written to an installed plugin, then restored). The short-circuit is about the install, not
+  the config write. Re-verify before relying on it outside those conditions — a `sensitive` option,
+  or `project`/`local` scope, were not covered.
 
-  Both commands default to `-s user`. Pass the scope the plugin is *actually* installed at —
+  `-s` defaults to `user`. Pass the scope the plugin is *actually* installed at —
   `claude plugin list` reports it per plugin — and run from that project's directory when the scope
-  is `project` or `local`. Defaulting instead removes a separate user record while the effective
-  project or local install stays in place, so the reinstall lands at a scope that does not load.
-  `-y` only skips `uninstall`'s `--prune` confirmation; this recipe never passes `--prune`, so `-y`
-  has no effect here and should not be added.
+  is `project` or `local`, or the write lands at a scope that does not load.
 
-  Uninstalling drops the stored `pluginConfigs` entry, so any key omitted from the reinstall
-  silently falls back to the manifest default: reinstalling purely to enable the observer resets a
-  customized `observer_analysis_model`, `observer_idle_seconds`, `observer_analysis_bare`, and
-  `observer_max_seconds`. Run `check` first and record the current values, because after the
-  uninstall there is nothing left to read them from.
+  Do **not** uninstall to reconfigure. Uninstalling drops the stored `pluginConfigs` entry outright,
+  so every option in the README's Options reference table falls back to its manifest default —
+  a customized `observer_analysis_model`, `observer_idle_seconds`, `observer_analysis_bare`, or
+  `observer_max_seconds` is simply gone, with nothing left to read the old values from.
+
+After any reconfiguration, rerun `check` and report the observed effective value — never claim an
+unobserved change.
 
 ## Gotchas
 

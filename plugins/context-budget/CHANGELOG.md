@@ -5,6 +5,22 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.4]
+
+### Fixed
+
+- **Docs:** the generated options block's headless route no longer implies `--config`
+  applies only at install time, and now carries the CLI version its claim was verified
+  against ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)). Two upstream links that pointed at empty backward-compatibility
+  anchors on the settings page were repointed at the headings that hold the content.
+
+### Added
+
+- **`/context-budget:setup`** — the plugin declared `userConfig` but shipped no setup skill.
+  Adds the fleet's uniform check/apply contract: `check` verifies what the native
+  configuration prompt cannot, `apply` routes a reconfiguration and then reads the
+  effective value back before reporting it ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)).
+
 ## [0.6.3]
 
 ### Fixed
