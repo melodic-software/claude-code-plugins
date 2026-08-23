@@ -8,10 +8,10 @@ Branch: `claude/cli-skill-inventory-v7hi82`. Mode: `me` (relentless), engineerin
 
 - [x] Step 1: Survey before you ask — read claude-ops:inventory SKILL.md, AGENTS.md, docs/topics/shadowed-skill-renames PLAN.md (cross-plugin reference rules), plugin listing
 - [x] Step 1.5: Auto-detect — SKIPPED (user forced `me` mode)
-- [ ] Step 2: Drive the frontier-rounds loop
-- [ ] Step 3: Stop condition — register gate + user confirmation
-- [ ] Step 4: Persist the contract — PLAN.md Brief at docs/topics/native-overlap-inventory/
-- [ ] Step 5: Hand off — /discovery:explore, /discovery:research, /planning:brainstorm as user requested
+- [x] Step 2: Drive the frontier-rounds loop (round 1 + audit-answers round 2)
+- [x] Step 3: Stop condition — register gate clean; user confirmed ("Lets go with all recommendations")
+- [x] Step 4: Persist the contract — PLAN.md Brief at docs/topics/native-overlap-inventory/
+- [ ] Step 5: Hand off — explore → research → audit-answers → plan → implement → PR → merge (user mandate)
 
 ## Session-shorthand glossary
 
@@ -82,8 +82,16 @@ context budget with silent drops) constrains description-side references.
 
 ## Open-question register (round 2 — audit confirm round)
 
-- Q7 | open | round 2 | Where does routing-effective "prefer native" text live (descriptions vs body vs both), and what fixes the registry row shape? |
-- Q8 | open | round 2 | Add a fifth defer/undetermined verdict to the enum? |
-- Q9 | open | round 2 | Demote cloud/session skills to observation-only (no verdicts, no baked lines) for V1; env tag as observation record; agents registry-rows-only? |
-- Q10 | open | round 2 | Replace changelog-as-trigger with a shipped registry self-check (CI/lane wired) + per-row triggers; changelog kept as on-demand diff aid? |
-- Q11 | open | round 2 | Accept floor-honest detection (inventory output + seeded canonical pairs + human-added candidates, integrity status carried) for V1? |
+- Q7 | answered | round 2 | Where does routing-effective "prefer native" text live, and what fixes the registry row shape? | Descriptions carry a presence-gated routing phrase (within listing budget); body gets a Boundary section where warranted (review-plugin model); registry rows adopt four-part upstream-drift record (recheck trigger, not date-only); baked text self-contained (no cross-boundary registry citations); registry↔line parity check script; native-reference phrasing codified in an owner convention doc (accepted recommendation)
+- Q8 | answered | round 2 | Fifth verdict? | Yes — enum is prefer-native / prefer-ours(reason) / complementary / superseded / defer (accepted recommendation)
+- Q9 | answered | round 2 | Cloud/session skills + agents handling? | Cloud/session skills observation-only rows for V1 (no verdicts beyond defer, no baked lines); env tag is an observation record ("observed in <env> on <date>"), never a static availability assertion; agents are registry-rows-only targets — no agent-file edits, actionable lines live at the dispatching skill (accepted recommendation)
+- Q10 | answered | round 2 | Refresh mechanism? | Deterministic registry self-check script (exit 0/1/3) shipped as a skill deliverable and wired into CI or a loop lane; per-row recheck triggers give it keys; /claude-ops:changelog demoted to on-demand semantic diff aid (accepted recommendation)
+- Q11 | answered | round 2 | Detection posture? | Floor-honest: consume inventory.py output with integrity status carried into the report, seed from hand-curated canonical-pairs list, human can add candidates; honest under-recall over confident completeness (accepted recommendation)
+
+## Resolved (round 2, 2026-08-23)
+
+User: "Lets go with all recommendations" — Q7–Q11 locked to revised recommendations. Portability
+resolved by evidence (claude-ops ships to consumers → skill must be repo-generic; house doctrine).
+User mandate for the remainder (unattended authorization): /discovery:explore + /discovery:research,
+then /planning:audit-answers picking recommended, then /planning:plan, then /implementation:implement,
+then PR and MERGE (explicit merge authorization given).
