@@ -258,6 +258,19 @@ sanctioned paths:
   `claude plugin list` reports for this plugin, and run from that project's directory for a
   `project`/`local` scope, or the write lands at a scope that does not load.
 
+When an uninstall is warranted for a reason other than reconfiguring (troubleshooting, changing
+scopes, reinstalling a version), pass `--keep-data`. Uninstalling from the **last remaining scope**
+otherwise deletes this plugin's `${CLAUDE_PLUGIN_DATA}` directory (Rule 4 of the marketplace's
+`plugin-data-report-keying` convention). That directory holds
+`${CLAUDE_PLUGIN_DATA}/state/babysit-prs`: the babysit-prs queue state, the worker leases, and the
+feedback ledger, which no `userConfig` key relocates. It is also the **last** resolution rung for
+both worktree roots. `babysit_worktree_root` falls back to `${CLAUDE_PLUGIN_DATA}/worktrees`
+whenever it is unset, while `/source-control:worktree create` reaches that same directory only when
+neither the target repository's `melodic.worktreeroot` git config nor `worktree_root` resolves. So
+check where the roots actually resolve before assuming the directory is disposable: babysit's own
+worktrees are ephemeral scratch that rebuild from GitHub, but the state directory and any
+`/source-control:worktree` tree still holding uncommitted work do not.
+
 Reconfiguring `userConfig` does not reach the already-running session, after either path, the new
 values become visible only in a fresh session. Do not re-run the babysit `check` in the same session
 expecting the change and report a false failure; instead report "reconfigured; verify with `check` in
