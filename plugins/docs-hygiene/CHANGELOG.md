@@ -1,5 +1,26 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.6]
+
+### Fixed
+
+- **`audit-noise`'s `negation` pairing now recognises a positive supplied as a
+  bare imperative after a separator (#3204).** Pairing was a fixed marker list
+  (`instead`, `rather than`, `prefer`, `in place of`, `in favour of`), so a
+  correctly paired sentence such as "Never confirm a load-bearing deletion —
+  delegate to a fresh subagent" was reported as a finding.
+
+  The closed function-word stoplist from #3180 now sits beside the marker list:
+  a clause after an em-dash, semicolon, or colon that opens with a content word
+  is an alternative. Leading adverbs (`just`, `simply`, …) are looked through
+  rather than treated as the clause head, so "Never emit a bare summary — just
+  mark the row" pairs too. A function-word or consequence clause (`because`,
+  `the`, `and`) is not an alternative, and a transparent adverb with nothing
+  after it (`Never emit a bare summary, just.`) still flags.
+
+  The existing carve-outs — hard guardrail, worked example, and marker-list
+  pairing — are unchanged.
+
 ## [0.21.5]
 
 ### Fixed

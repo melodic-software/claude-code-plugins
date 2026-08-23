@@ -482,6 +482,81 @@ audit_noise_sentence_has_positive_pairing() {
   [[ "$s" =~ (^|[^[:alnum:]])(instead|rather[[:space:]]+than|prefer(s|red|ring)?|in[[:space:]]+place[[:space:]]+of|in[[:space:]]+favou?r[[:space:]]+of)([^[:alnum:]]|$) ]]
 }
 
+# Function words that open a CONTINUATION or a CONSEQUENCE rather than a
+# positive alternative. The list is closed and short on purpose: testing what a
+# following clause is NOT generalizes, where an allow-list of imperative verbs
+# only ever covers the verbs its author happened to think of.
+AUDIT_NOISE_CLAUSE_STOPWORDS=" the a an and or but nor so yet if unless until when while where which who whose that this these those it its they their them we our us you your he she his her i is are was were be been being as at by for from in into of on onto to with without not no never nor don't do does did doing ever even because since though although however therefore thus hence per via plus minus other others such same both all any each every more most less least than there here what how why "
+
+# Adverbs that lead an imperative without being one ("Just mark.", "Simply
+# re-run it."). The word after them decides the clause, so the test looks
+# THROUGH these rather than stopping on them — treating them as stopwords
+# reported a positive alternative as if it were absent.
+AUDIT_NOISE_CLAUSE_TRANSPARENT=" just simply always then also still only first next now again finally "
+
+# True when a clause after a separator opens with a content word — the signal
+# that the sentence names something to DO alongside the thing it forbids.
+# Applied per already-split sentence, so a later sentence on the same line is
+# not treated as this sentence's alternative (the per-sentence imperative gate
+# owns that boundary). Separators are the intra-sentence ones: semicolon,
+# colon, comma, em/en dash, and `--`.
+audit_noise_clause_names_alternative() {
+  local body="$1" seg first
+  body="${body//\*\*/}"
+  body="${body//__/}"
+  # The separator is a GLOB here, so `?` must be escaped — unescaped it matches
+  # any single character and shreds the clause into two-letter fragments.
+  body="${body//; /$'\n'}"
+  body="${body//: /$'\n'}"
+  body="${body//, /$'\n'}"
+  body="${body//—/$'\n'}"
+  body="${body//–/$'\n'}"
+  body="${body// -- /$'\n'}"
+  local firstseg=1
+  while IFS= read -r seg; do
+    if ((firstseg)); then
+      firstseg=0
+      continue
+    fi
+    # Peel leading whitespace and the emphasis / link-open characters a clause
+    # can start with. Without this the segment keeps a non-letter lead, its
+    # first word reads as empty, the clause is dropped, and the line FIRES
+    # although it named an alternative — `_Read it_ from the environment.` and
+    # `[Read the guide](docs/guide.md) for the shape.` are both real forms.
+    while :; do
+      seg="${seg#"${seg%%[![:space:]]*}"}"
+      case "$seg" in
+      \**) seg="${seg#\*}" ;;
+      _*) seg="${seg#_}" ;;
+      \[*) seg="${seg#\[}" ;;
+      *) break ;;
+      esac
+    done
+    while :; do
+      first="${seg%%[!A-Za-z\']*}"
+      [[ -n "$first" ]] || break
+      first="${first,,}"
+      # A transparent adverb with nothing after it ends the clause rather than
+      # looking through to a next word that does not exist.
+      if [[ "$AUDIT_NOISE_CLAUSE_TRANSPARENT" == *" $first "* && "$seg" == *[[:space:]]* ]]; then
+        seg="${seg#*[[:space:]]}"
+        # Re-strip: the peel removes ONE whitespace character, so a
+        # double-spaced clause would keep a leading space and be dropped.
+        seg="${seg#"${seg%%[![:space:]]*}"}"
+        continue
+      fi
+      break
+    done
+    [[ -n "$first" ]] || continue
+    # A transparent adverb the loop could not look THROUGH (nothing follows it)
+    # names no alternative either — "Never do X, just." must still report.
+    [[ "$AUDIT_NOISE_CLAUSE_TRANSPARENT" == *" $first "* ]] && continue
+    [[ "$AUDIT_NOISE_CLAUSE_STOPWORDS" == *" $first "* ]] && continue
+    return 0
+  done <<<"$body"
+  return 1
+}
+
 # Hard guardrails a positive form cannot carry: the prohibition IS the correct
 # shape. Kept deliberately TIGHT to safety-critical markers — a generic verb
 # ("delete", "merge", "force") would withhold ordinary prose and turn a
@@ -588,6 +663,7 @@ audit_noise_line_has_negation_without_positive() {
     audit_noise_sentence_opens_with_prohibition "$s" || continue
     audit_noise_sentence_has_prohibition "$s" || continue
     audit_noise_sentence_has_positive_pairing "$s" && continue
+    audit_noise_clause_names_alternative "$s" && continue
     audit_noise_sentence_has_hard_guardrail "$s" && continue
     audit_noise_sentence_is_worked_example "$s" && continue
     lower="${s,,}"

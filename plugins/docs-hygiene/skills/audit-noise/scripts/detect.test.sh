@@ -855,6 +855,43 @@ EOF
 paired_out="$(bash "$DETECT" "$PAIRED")"
 assert_not_contains "a paired positive suppresses the finding" "$paired_out" "Finding shape: negation"
 
+# A positive supplied as a bare imperative after a separator carries none of
+# the marker words, so a marker-list pairing miss-reports it. The closed
+# function-word stoplist recognises the clause by what it is NOT. A leading
+# adverb is looked through rather than treated as the clause head.
+BARE_IMP="$TEST_TMPDIR/negation-bare-imperative.md"
+cat >"$BARE_IMP" <<'EOF'
+# Bare-imperative pairing fixture
+
+Never confirm a load-bearing deletion from this context — delegate to a fresh, non-fork subagent that has not seen the doc.
+
+Never emit a bare summary — just mark the row.
+
+Do not use markdown; compose flowing prose.
+
+Never confirm the deletion: ask a fresh subagent.
+EOF
+bare_imp_out="$(bash "$DETECT" "$BARE_IMP")"
+assert_not_contains "a bare imperative after an em-dash suppresses the finding" \
+  "$bare_imp_out" "Finding shape: negation"
+
+# Consequence / function-word clauses are not alternatives, and a transparent
+# adverb with nothing after it names no alternative either.
+BARE_IMP_NEG="$TEST_TMPDIR/negation-bare-imperative-neg.md"
+cat >"$BARE_IMP_NEG" <<'EOF'
+# Bare-imperative still-a-finding fixture
+
+Never confirm a load-bearing deletion from this context.
+
+Never emit a bare summary — because the log is huge.
+
+Never emit a bare summary, just.
+EOF
+bare_imp_neg_out="$(bash "$DETECT" "$BARE_IMP_NEG")"
+bare_imp_neg_count="$(printf '%s\n' "$bare_imp_neg_out" | grep -c '^Finding shape: negation')"
+assert_contains "unpaired and function-word clauses still flag" \
+  "count=$bare_imp_neg_count" "count=3"
+
 # NO-FLAG TEST: a hard guardrail that cannot be phrased positively is not a
 # finding. The prohibition IS the correct form for these.
 GUARD="$TEST_TMPDIR/negation-guardrail.md"
