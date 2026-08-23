@@ -231,4 +231,125 @@ mkdir -p "$PROJECT/deep"
 OUT="$(cd "$PROJECT/deep" && env -u CLAUDE_PROJECT_DIR WORK_ITEM_TRACKER_BINDING="$ACME_BINDING" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "bare shell resolves consumer-local via git toplevel" "acme-local" "$(jq -r '.provider' <<<"$OUT")"
 
+# --- gh version gate is scoped to the native sub-issue/dependency surface ---
+# gh >= 2.94 buys `--parent` / `--blocked-by` / `--add-blocked-by` and the
+# blockedBy / parent / subIssues --json fields, and nothing else. Verbs that
+# never read that surface must dispatch on an older gh: the lease trio (claim,
+# renew-lease, reclaim) and capabilities, which invokes no gh at all. A blanket
+# dispatcher gate cost an older-gh session race-safe claiming for a prerequisite
+# it never used.
+#
+# Provider is "github" so the gate applies, while WIT_ADAPTERS_DIR points at
+# stub verb scripts — the gate keys on the bound provider, not on adapter
+# content, so this stays offline and never invokes real gh.
+GH_ADAPTERS="$TEST_TMPDIR/gh-adapters"
+mkdir -p "$GH_ADAPTERS/github"
+printf '%s\n' '{"schema_version":"1.0","provider":"github","verbs":{"create-item":true,"get-item":true,"claim":true,"renew-lease":true,"reclaim":true,"link-blocks":true,"add-sub-item":true,"list-items":true,"list-sub-items":true,"capabilities":true}}' \
+  >"$GH_ADAPTERS/github/capabilities.json"
+for v in capabilities claim renew-lease reclaim get-item list-items list-sub-items link-blocks add-sub-item create-item; do
+  cat >"$GH_ADAPTERS/github/$v.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '{"schema_version":"1.0","items":[]}\n'
+EOF
+done
+GH_BINDING="$TEST_TMPDIR/github.json"
+printf '%s\n' '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}' >"$GH_BINDING"
+
+# Stub gh reporting a version BELOW the 2.94 minimum, first on PATH.
+STUB_BIN="$TEST_TMPDIR/stub-bin"
+mkdir -p "$STUB_BIN"
+cat >"$STUB_BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh version 2.45.0 (2025-07-18)\n'
+EOF
+chmod +x "$STUB_BIN/gh"
+
+run_gh_verb() {
+  PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+    WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" "$@" >/dev/null 2>&1
+  printf '%s\n' "$?"
+}
+
+# Verbs that never touch the native surface dispatch on gh 2.45.
+for v in capabilities claim renew-lease reclaim; do
+  assert_eq "old gh: $v dispatches (not gated)" "0" "$(run_gh_verb "$v" "github:o/r#1")"
+done
+
+# Verbs that DO touch it still fail closed with the config exit and its message.
+for v in get-item create-item list-sub-items link-blocks add-sub-item; do
+  assert_eq "old gh: $v still gated → exit 3" "3" "$(run_gh_verb "$v" "github:o/r#1")"
+done
+
+# list-frontier gates through whichever list verb it resolves to — including the
+# --parent form, which dispatches list-sub-items rather than carrying its own entry.
+assert_eq "old gh: list-frontier gated via list-items" "3" "$(run_gh_verb list-frontier)"
+assert_eq "old gh: list-frontier --parent gated via list-sub-items" \
+  "3" "$(run_gh_verb list-frontier --parent "github:o/r#9")"
+
+ERR="$(PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+  WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" get-item "github:o/r#1" 2>&1 >/dev/null)"
+assert_contains "old gh: gate names the minimum" "$ERR" "2.94"
+
+# A conforming gh lifts the gate for every verb.
+cat >"$STUB_BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh version 2.94.0 (2026-01-01)\n'
+EOF
+for v in get-item create-item add-sub-item; do
+  assert_eq "gh 2.94: $v dispatches" "0" "$(run_gh_verb "$v" "github:o/r#1")"
+done
+
+# A non-github provider is never version-gated, whatever gh reports.
+cat >"$STUB_BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'gh version 1.0.0 (2020-01-01)\n'
+EOF
+RC="$(
+  PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$BINDING" \
+    WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bash "$DISPATCHER" get-item "fake:o/r#1" >/dev/null 2>&1
+  printf '%s\n' "$?"
+)"
+assert_eq "non-github provider is not version-gated" "0" "$RC"
+
+# --- gh ABSENT stays a clean exit 3 (CONTRACT.md "Degradation without gh") ---
+# Narrowing the VERSION floor must not let a gh-less session dispatch a verb that
+# shells out and die on `gh: command not found` inside the adapter. Presence is
+# still required for every github verb that invokes gh; only capabilities, which
+# reads the manifest and never shells out, answers without the binary.
+# A PATH that genuinely lacks gh: symlink every system binary EXCEPT gh into one
+# dir. Shadowing gh with a non-executable stub would not work — `command -v`
+# skips it and keeps searching — and dropping the system dirs outright would take
+# jq and git with it, so the dispatcher would fail for the wrong reason.
+NOGH_BIN="$TEST_TMPDIR/nogh-bin"
+mkdir -p "$NOGH_BIN"
+for _d in /usr/bin /bin /usr/local/bin; do
+  [[ -d "$_d" ]] || continue
+  for _f in "$_d"/*; do
+    _b="${_f##*/}"
+    [[ "$_b" == "gh" ]] && continue
+    [[ -e "$NOGH_BIN/$_b" ]] || ln -s "$_f" "$NOGH_BIN/$_b" 2>/dev/null || true
+  done
+done
+# Guard only on what these cases actually need: that gh does not resolve inside
+# NOGH_BIN. Requiring an ambient gh as well would skip the whole block on a
+# runner that has none — the exact environment the cases exist to cover.
+[[ -z "$(PATH="$NOGH_BIN" command -v gh 2>/dev/null)" ]] ||
+  skip_suite "could not build a gh-free PATH for the presence-gate cases"
+
+run_gh_verb_no_gh() {
+  PATH="$NOGH_BIN" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+    WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" "$@" >/dev/null 2>&1
+  printf '%s\n' "$?"
+}
+
+for v in claim renew-lease reclaim get-item add-sub-item; do
+  assert_eq "no gh: $v → exit 3" "3" "$(run_gh_verb_no_gh "$v" "github:o/r#1")"
+done
+assert_eq "no gh: capabilities still answers" "0" "$(run_gh_verb_no_gh capabilities)"
+
+ERR="$(PATH="$NOGH_BIN" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+  WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" claim "github:o/r#1" 2>&1 >/dev/null)"
+assert_contains "no gh: message names the missing binary" "$ERR" "prerequisite missing: gh"
+assert_not_contains "no gh: presence error quotes no version floor" "$ERR" "2.94"
+
 [[ $FAILED -eq 0 ]] || exit 1
