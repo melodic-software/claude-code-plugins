@@ -16,7 +16,7 @@ Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "cl
 
 ## Purpose
 
-The failure half of testing: understand WHY a test fails, then prove the fix. Never dismiss a failure, never retry blindly. "probably a timing issue" is not a diagnosis; even intermittent failures have deterministic root causes. Repo-specific shared-state workarounds and framework traps live in the consuming project's testing conventions. Consult them before diagnosing.
+The failure half of testing: understand WHY a test fails, then prove the fix. Never dismiss a failure, never retry blindly. "Probably a timing issue" is not a diagnosis; even intermittent failures have deterministic root causes. Repo-specific shared-state workarounds and framework traps live in the consuming project's testing conventions. Consult them before diagnosing.
 
 ## Redact
 

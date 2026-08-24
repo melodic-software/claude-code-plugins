@@ -11,8 +11,7 @@ metadata:
 ## Purpose
 
 A test that cannot fail is a false coverage claim: it reports green whatever the code does. This
-skill runs a **deterministic script detector** over the suite. No test execution, no judgment in
-membership, and reports every test the rules v1 catch, with a coverage denominator so "no findings"
+skill runs a **deterministic script detector** over the suite. It does not execute tests or judge membership, but reports every test the rules v1 catch, with a coverage denominator so "no findings"
 is never confused with "scanned nothing".
 
 Boundaries, each an incumbent this skill deliberately does not duplicate:
@@ -24,7 +23,7 @@ Boundaries, each an incumbent this skill deliberately does not duplicate:
   can't-fail shape, a skip vacating the only discriminating assertion of a case group, for bash
   `*.test.sh`. That rule is deliberately absent here; bash test files are out of scope v1.
 - The **repair queue** is out of scope this cycle: findings propose an assertion (repair, not
-  pruning. Deleting a useless test removes the false claim and the coverage together); applying
+  pruning: deleting a useless test removes the false claim and the coverage together); applying
   repairs belongs to the remediation lanes.
 
 ## Rules v1
