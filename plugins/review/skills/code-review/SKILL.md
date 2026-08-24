@@ -1,5 +1,5 @@
 ---
-description: "CI code-review lane for a GitHub pull request — high-signal correctness and maintainability findings only, scoped out of security when a security lane exists. Use when: 'CI code review', 'claude-review lane', '/review:code-review', or a reusable workflow invokes the org code-review plugin command."
+description: "CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists. Use when: 'CI code review', 'claude-review lane', '/review:code-review', or a reusable workflow invokes the org code-review plugin command."
 argument-hint: ""
 user-invocable: true
 disable-model-invocation: false
@@ -27,7 +27,7 @@ skill owns **what to look for**; the wrapper owns **how to post**.
 - Do not invent a 0–100 confidence-score gate. Prefer adversarial validation
   (producer ≠ verifier) when spawning subagents.
 - Scope security findings **out** of this lane wherever the consumer carries a
-  `claude-security-review` workflow file — leave those to `/review:security-review`.
+  `claude-security-review` workflow file. Leave those to `/review:security-review`.
 
 ## Skip gate (cheap)
 
@@ -44,9 +44,9 @@ post nothing else):
 This is the CODE-REVIEW lane. Review the pull request for correctness and
 alignment with the project's `CLAUDE.md` guidelines (and `REVIEW.md` criteria
 when present). Focus on architecture decisions, error handling, test coverage,
-and maintainability. Where `REVIEW.md` splits review scope across lanes — it
+and maintainability. Where `REVIEW.md` splits review scope across lanes. It
 scopes security review to the dedicated security lane wherever a
-`claude-security-review` workflow exists — follow that split.
+`claude-security-review` workflow exists. Follow that split.
 
 Scope the review to files changed in this PR. Use `gh pr diff` to identify what
 changed, then review those files. Do not explore unrelated parts of the

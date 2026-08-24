@@ -7,22 +7,21 @@ disable-model-invocation: true
 
 ## Purpose
 
-Settle where the consumer's **standards** live — the adopted conventions and criteria this
-plugin's review modes resolve through — by implementing the normative "Setup and migration"
+Settle where the consumer's **standards** live, the adopted conventions and criteria this
+plugin's review modes resolve through. By implementing the normative "Setup and migration"
 section of the plugin's contract binding
 [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md).
 The procedure (state reading via the index presence test, the conforming-index short-circuit, the
 hand-authored-README confirmation gate, interview, skeleton write, row-path validation,
-DIRECTIONAL version-delta detection with guided migration, idempotent re-run) lives there —
-implement it by reference, do not restate it.
+DIRECTIONAL version-delta detection with guided migration, idempotent re-run) lives there. Implement it by reference; do not restate it.
 
 Idempotent: re-running reads the current state and offers an update rather than overwriting blind;
 a re-run against a conforming, current-version index proposes no changes.
 
 Action routing per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
 "Setup is explicit and repeatable" in the marketplace repository): no argument or `check` runs
-the binding's state-reading procedure read-only and reports — index presence and resolved
-standards root, per-row path validation, and the DIRECTIONAL version delta — as a PASS/FAIL/INFO
+the binding's state-reading procedure read-only and reports. Index presence and resolved
+standards root, per-row path validation, and the DIRECTIONAL version delta, as a PASS/FAIL/INFO
 table with one remediation line per FAIL, writing nothing. `apply` runs `check` first, then the
 binding's bootstrap / reconfigure / migration flow below; after any write it re-runs the relevant
 probe and reports the actual result. Non-interactive when the state admits exactly one conforming
@@ -37,8 +36,8 @@ Plugin-side notes on top of the binding's procedure:
    `<standards_dir>/README.md` → inference sources (existing review docs such as a repo-root
    `REVIEW.md` or `docs/review*` directory, other docs directories, ecosystem configs, ambient
    `CLAUDE.md` content). Pre-existing review documentation is an inference source for proposing
-   index rows — converting it requires the binding's explicit-confirmation gate.
-2. **Bootstrap writes** (interactive, user-accepted — no silent writes): the skeleton index with
+   index rows. Converting it requires the binding's explicit-confirmation gate.
+2. **Bootstrap writes** (interactive, user-accepted. No silent writes): the skeleton index with
    its `standards-contract` frontmatter at the binding's version, and the setup-owned
    `<standards_dir>/.gitignore` containing `*.local.md` (the personal-overlay ignore). Write
    `.claude/standards.yaml` only when the user relocates the root from the documented default.
@@ -46,7 +45,7 @@ Plugin-side notes on top of the binding's procedure:
    rows with an offered fix.
 4. **Optional offers, never demands:** reorganizing mixed or spread standards content toward the
    SRP + index shape.
-5. **Migration is this skill re-run** — no separate action; direction and messaging per the
+5. **Migration is this skill re-run**. No separate action; direction and messaging per the
    binding.
 
 ## Output
@@ -57,10 +56,10 @@ reconfigure or migrate.
 
 ## What this skill does NOT do
 
-- Run a review — that is `/review:quality-gate` and this plugin's reviewer agents; they resolve
+- Run a review. That is `/review:quality-gate` and this plugin's reviewer agents; they resolve
   criteria through the index this setup bootstraps.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-- Edit the consumer's root `.gitignore` or any ignore file it did not itself create — the single
+- Edit the consumer's root `.gitignore` or any ignore file it did not itself create, the single
   setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.
 - Write anything into the plugin directory or the plugin data directory
   (`${CLAUDE_PLUGIN_DATA}` is for caches and generated state only).

@@ -1,5 +1,5 @@
 ---
-description: "CI security-review lane for a GitHub pull request — logic, trust-boundary, and Actions security findings static analysis misses. Use when: 'CI security review', 'claude-security-review lane', '/review:security-review', or a reusable workflow invokes the org security-review plugin command."
+description: "CI security-review lane for a GitHub pull request. Logic, trust-boundary, and Actions security findings static analysis misses. Use when: 'CI security review', 'claude-security-review lane', '/review:security-review', or a reusable workflow invokes the org security-review plugin command."
 argument-hint: ""
 user-invocable: true
 disable-model-invocation: false
@@ -13,18 +13,17 @@ metadata:
 
 Org-owned security review logic for the `claude-security-review` reusable
 workflow (ci-workflows#258). Built-in `/security-review` is unusable in CI
-(origin/HEAD unresolvable under the Actions checkout action; cannot post) —
-this org-authored skill is the CI path. The lane wrapper supplies `REPO` /
+(origin/HEAD unresolvable under the Actions checkout action; cannot post). This org-authored skill is the CI path. The lane wrapper supplies `REPO` /
 `PR NUMBER` / `HEAD SHA` and installs the inline-comment MCP server via
 `claude_args`; this skill owns **what to hunt for**.
 
 ## Gotchas
 
-- Skill frontmatter cannot install the inline-comment MCP server — only the
+- Skill frontmatter cannot install the inline-comment MCP server. Only the
   action's `claude_args` can. Rely on the wrapper grant.
 - Do not use a stale 0–100 confidence-score tuning line. Prefer adversarial
   validation (producer ≠ verifier) for candidate findings.
-- Report **security issues only** — no style, naming, test-coverage, or general
+- Report **security issues only**. No style, naming, test-coverage, or general
   code-quality commentary (that is `/review:code-review`).
 
 ## Skip gate (cheap)
@@ -45,14 +44,14 @@ audit unrelated parts of the codebase.
 Hunt for vulnerabilities that static analysis misses: logic flaws, authorization
 and access-control gaps, injection surfaces (command, SQL, path, template),
 unsafe handling of tokens / secrets / credentials, and dangerous GitHub Actions
-patterns — `pull_request_target` or `workflow_run` used with secrets over
+patterns. `pull_request_target` or `workflow_run` used with secrets over
 untrusted code, script injection through the `github` context inside `run:`
 blocks, permission-widening changes to a workflow's `permissions:` or to
 settings / config, and supply-chain risk from loosened or unpinned action /
 dependency pins.
 
 Tag each finding with a severity (CRITICAL / IMPORTANT / SUGGESTION). Defer to
-zizmor's advisory lane for what it already covers statically — supply-chain /
+zizmor's advisory lane for what it already covers statically. Supply-chain /
 unpinned-action risk, dangerous trigger patterns, excessive permissions, and
 template injection: do not re-report those findings here. This lane's value is
 the logic, architecture, data-flow, and trust-boundary security reasoning static
