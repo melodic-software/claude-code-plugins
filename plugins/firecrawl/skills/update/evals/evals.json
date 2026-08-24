@@ -5,11 +5,12 @@
       "id": 1,
       "name": "check-flag-is-read-only-drift-report",
       "prompt": "/firecrawl:update --check",
-      "expected_output": "Runs the default read-only drift report: fetches npm metadata and the upstream SKILL.md, compares them against UPSTREAM.md, and reports whether the CLI or upstream skill drifted. It writes nothing, runs no npm install, and does not rewrite the wrapper skill.",
+      "expected_output": "Runs the default read-only drift report: fetches npm metadata and the upstream SKILL.md, compares the installed CLI against the registry latest (logging the UPSTREAM.md recorded version without treating record-only staleness as CLI drift), and compares the fetched upstream SKILL.md SHA against UPSTREAM.md. It writes nothing, runs no npm install, and does not rewrite the wrapper skill.",
       "files": [],
       "expectations": [
         "Treats --check as the read-only default and performs no mutations",
-        "Compares live npm metadata and the fetched upstream SKILL.md against UPSTREAM.md",
+        "Compares installed CLI versus registry latest, and fetched upstream SKILL.md SHA versus UPSTREAM.md",
+        "Does not treat a stale UPSTREAM.md CLI version as CLI drift when installed already equals latest",
         "Does not run npm install -g or rewrite plugins/firecrawl/skills/firecrawl/SKILL.md"
       ]
     },
@@ -17,12 +18,12 @@
       "id": 2,
       "name": "bare-update-keeps-two-approval-gates",
       "prompt": "/firecrawl:update",
-      "expected_output": "Enters the full update pipeline only behind two explicit approval gates: Gate 1 before any npm install -g of firecrawl-cli, and Gate 2 before any wrapper-skill content rewrite. A No at either gate exits cleanly with no mutation.",
+      "expected_output": "Enters the full update pipeline only behind two explicit approval gates: Gate 1 before any npm install -g of firecrawl-cli, and Gate 2 before any wrapper-skill content rewrite. A No at Gate 1 exits with no mutation. A No at Gate 2 after Gate 1 already approved leaves the completed CLI upgrade in place and only skips the wrapper-skill rewrite.",
       "files": [],
       "expectations": [
         "Does not run npm install -g until Gate 1 is an explicit yes",
         "Does not rewrite the wrapper SKILL.md until Gate 2 is an explicit yes",
-        "Exits cleanly with no mutation when either gate is No"
+        "A No at Gate 1 exits with no mutation; a No at Gate 2 after Gate 1 approved leaves the completed CLI upgrade in place"
       ]
     },
     {
