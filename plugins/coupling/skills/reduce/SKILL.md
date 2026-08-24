@@ -23,24 +23,24 @@ Arguments: `$ARGUMENTS`
 
 Answer one question, repeatedly: **which dependency in this repository transmits the most
 unnecessary change, and what is the smallest mechanism that stops the transmission?** Each
-invocation is one pass — scan, verify, reduce what is safely reducible within a scope budget,
+invocation is one pass. Scan, verify, reduce what is safely reducible within a scope budget,
 surface what is not, and record everything in a durable ledger so the next invocation resumes
 instead of restarting. Coupling goes down monotonically across runs; no single run tries to
 finish the job.
 
 Two lanes, split by the nature of the finding, never by convenience:
 
-- **Apply lane** — mechanical, contained, behavior-preserving reductions (weaken a
+- **Apply lane.** Mechanical, contained, behavior-preserving reductions (weaken a
   connascence form, de-duplicate a stated fact into a pointer, inject a hard-wired volatile
   collaborator, name a magic value). Applied this run, verified, shipped as one
   structure-only change set.
-- **Route lane** — cross-file remediation and architectural judgment (move a boundary,
+- **Route lane.** Cross-file remediation and architectural judgment (move a boundary,
   introduce a seam, split a shared database, merge two repos' duplicated logic). Coupling
-  findings of this shape exist to inform a human: they are surfaced, ranked, and routed —
+  findings of this shape exist to inform a human: they are surfaced, ranked, and routed,
   never auto-applied.
 
 This is not a diff reviewer, not a designer of one chosen boundary, and not a general tidy
-pass — see "What this skill does NOT do".
+pass. See "What this skill does NOT do".
 
 ## Actions
 
@@ -56,13 +56,13 @@ pass — see "What this skill does NOT do".
 
 Hub-and-spoke; read the spoke before the phase that needs it:
 
-- [`reference/coupling-model.md`](reference/coupling-model.md) — what counts as coupling, the
+- [`reference/coupling-model.md`](reference/coupling-model.md). What counts as coupling, the
   strength ladder, connascence axes, volatility weighting, per-altitude mechanisms, and the
   not-a-finding list. Read before scanning; findings are typed against it.
-- [`reference/remediations.md`](reference/remediations.md) — mechanism per finding kind, each
+- [`reference/remediations.md`](reference/remediations.md). Mechanism per finding kind, each
   with its over-abstraction counterweight and the sequencing rule (smallest mechanism first).
   Read before applying or routing anything.
-- [`reference/ledger.md`](reference/ledger.md) — ledger entry schema, status lifecycle, and
+- [`reference/ledger.md`](reference/ledger.md). Ledger entry schema, status lifecycle, and
   re-run semantics. Read at phase A and phase H.
 
 ## Workflow
@@ -71,8 +71,8 @@ Phases run in order; each gate is hard. `dry-run` stops after D (ledger write in
 
 **A. Orient.** Resolve scope from the argument, else infer from the conversation, else pick
 the hottest area by commit frequency. Resolve the ledger path per this plugin's topic-docs
-[binding](../../reference/topic-docs.md) — memory tier, constant slug, default
-`.work/coupling/coupling-ledger.md`, one ledger per repo regardless of scope — and create or
+[binding](../../reference/topic-docs.md): memory tier, constant slug, default
+`.work/coupling/coupling-ledger.md`, one ledger per repo regardless of scope. Create or
 resume it. Discover the consuming repo's
 own review/engineering conventions (a review-criteria file such as `REVIEW.md`, a
 `docs/conventions/` or standards directory, CLAUDE.md rules) and align finding vocabulary and
@@ -87,29 +87,29 @@ are coupled through a channel the import graph cannot see, and they outrank most
 visible findings.
 
 **C. Verify (hard gate).** Scan agents have a demonstrated error rate. Reproduce every
-finding against the actual artifacts before it reaches the ledger or the user — confirm the
+finding against the actual artifacts before it reaches the ledger or the user. Confirm the
 edge exists, the mechanism is what the scan claims, and the depended-on side actually changes
 (volatility from history, not vibes). Drop or downgrade what does not reproduce, and record
 that the ledger reflects verified state, not raw scan output.
 
 **D. Partition and rank.** Every verified finding gets a lane. Apply lane requires ALL of:
 mechanical, contained in scope, behavior-preserving, and reversible by revert. Anything
-cross-file in remediation or architectural in judgment is route lane — when in doubt, route.
+cross-file in remediation or architectural in judgment is route lane. When in doubt, route.
 Rank by `strength × degree × distance × volatility`; a weak-but-everywhere coupling on a hot
 path outranks a strong-but-local one in cold code. Write the full ranked set to the ledger.
 
 **E. Apply (apply lane only, scope-budgeted).** Work on a short-lived branch created from
-the repository's default branch — resolve that branch (remote HEAD or the repo's own
+the repository's default branch. Resolve that branch (remote HEAD or the repo's own
 convention), never assume its name, and never base the batch on whatever feature branch the
 session happens to be on: inherited unrelated commits would break the structure-only
 invariant. Never commit directly on the default branch. Before editing any target, require
 it clean in `git status --porcelain`; a target carrying pre-existing local modifications
-defers its finding with the reason recorded — foreign edits are never mixed into the batch.
+defers its finding with the reason recorded. Foreign edits are never mixed into the batch.
 Budget per run: target ≤200 changed lines across ≤8 files, hard cap 400/15; overflow stays
 `proposed` in the ledger for the next run. Use the Edit tool; one atomic commit per logical
 reduction; stage listed paths only and inspect the staged diff before each commit. Never
 touch CI workflow files, hook or settings surfaces, lint configs, database migrations, or
-any published contract surface (API shapes, message schemas, tool schemas) — those are route
+any published contract surface (API shapes, message schemas, tool schemas). Those are route
 lane by definition.
 
 **F. Verify the batch.** Invoke `/toolchain:check` via the Skill tool for the affected
@@ -121,11 +121,11 @@ and continue. Never ship red.
 **G. Ship.** Present the verified diff, or when the session should open a pull request,
 invoke `/source-control:pull-request create` via the Skill tool when that plugin is installed; otherwise use the
 repo's own PR convention with a body listing each reduction as `edge → mechanism → why safe`.
-One coupling pass per PR; structure-only, no behavioral riders. A human merges — this skill
+One coupling pass per PR; structure-only, no behavioral riders. A human merges. This skill
 never auto-merges.
 
 **H. Ledger update and report.** Update statuses (`applied`, `deferred`, `routed`,
-`rejected` — schema in [`reference/ledger.md`](reference/ledger.md)). For route-lane
+`rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). For route-lane
 candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is installed), for
 design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool when that plugin is
 installed, else the repo's own tracker, else present the list to the user. Close by reporting
@@ -134,24 +134,24 @@ the ledger path, what was applied, what was routed where, and the recommended ne
 ## Fresh-eyes note
 
 Phase B/C findings are judged against artifacts this session did not author, and phase F's
-verdict is a deterministic build/test/lint pass — the fresh-context scan agents plus the
+verdict is a deterministic build/test/lint pass. The fresh-context scan agents plus the
 objective gate carry the independence; a separate fresh-context reviewer is owed only if this
 skill is ever extended to judge work its own session produced outside those gates.
 
 ## What this skill does NOT do
 
-- **Does not review a diff** — pre-merge review is a review tool's job; this hunts standing
+- **Does not review a diff.** Pre-merge review is a review tool's job; this hunts standing
   coupling in existing artifacts.
-- **Does not deep-design one boundary** — a route-lane candidate needing interface
+- **Does not deep-design one boundary.** A route-lane candidate needing interface
   exploration goes to `/architecture:improve` (when installed) or a design session.
-- **Does not apply general tidyings** — rename/inline/extract without a coupling edge is
+- **Does not apply general tidyings.** Rename/inline/extract without a coupling edge is
   `/code-tidying:tidy` territory.
-- **Does not chase decoupling for its own sake** — a dependency on something stable and owned
+- **Does not chase decoupling for its own sake.** A dependency on something stable and owned
   is not a finding; see the not-a-finding list in the model.
 
 ## Composition
 
-Graceful degradation — where a named collaborator is not installed, inline the equivalent
+Graceful degradation: where a named collaborator is not installed, inline the equivalent
 work or present the handoff manually; never skip silently. Every skill named in the `Then` column
 is invoked via the Skill tool.
 
@@ -169,7 +169,7 @@ Observed failure history and the counterweights this skill exists to hold. Add h
 new one surfaces.
 
 - **Over-abstraction is decoupling's own disease.** An interface with one implementation, an
-  event bus for a one-to-one call, a config knob nothing varies — each adds indirection while
+  event bus for a one-to-one call, a config knob nothing varies. Each adds indirection while
   the coupling remains. Every remediation entry carries a *not when*; honor it. The deletion
   test: if removing the new seam tomorrow would change nothing but line count, it earned
   nothing.
@@ -177,7 +177,7 @@ new one surfaces.
   inform a human; surfacing them ranked is the success state, not a failure to finish.
 - **Identical text encoding different knowledge is coincidence, not duplication.** Two
   documents (or functions) that happen to read the same but would change for different
-  reasons must not be consolidated — consolidation actively harms. Test what changes
+  reasons must not be consolidated. Consolidation actively harms. Test what changes
   together, not what looks alike.
 - **Unverified scan claims do not ship.** A scan agent once reported a service "registered
   but never composed" that one search disproved. Phase C exists because the report lends
@@ -185,5 +185,5 @@ new one surfaces.
 - **A reduction that breaks a test was secretly behavioral.** Revert it and reclassify;
   never patch the test to keep the reduction.
 - **The ledger records what a re-scan currently finds; it never replays.** Re-emitting stale
-  findings re-injects problems that may already be fixed — statuses advance, evidence gets
+  findings re-injects problems that may already be fixed. Statuses advance, evidence gets
   re-checked, and a finding that no longer reproduces is closed, not repeated.
