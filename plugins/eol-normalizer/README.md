@@ -4,9 +4,9 @@ A Claude Code plugin that normalizes a file's working-tree line endings the
 moment you edit it. On every `Write` or `Edit` it resolves the file's
 `.gitattributes` `eol=` value via
 [`git check-attr`](https://git-scm.com/docs/git-check-attr) and rewrites the
-file's line endings to match — symmetric CRLF↔LF, idempotent, best-effort.
+file's line endings to match. Symmetric CRLF↔LF, idempotent, best-effort.
 
-It uses **your repository's own `.gitattributes`** — it ships no policy and
+It uses **your repository's own `.gitattributes`**. It ships no policy and
 imposes no rules of its own.
 
 ## Behavior
@@ -14,16 +14,16 @@ imposes no rules of its own.
 - **LF arm (every OS).** A file resolving to `eol=lf` is normalized CRLF→LF.
 - **CRLF arm (every OS).** A file resolving to `eol=crlf` is normalized
   LF→CRLF. The hook compensates for tool writes that bypass git's checkout
-  smudge, and such writes happen on any platform — an LF write to an
+  smudge, and such writes happen on any platform. An LF write to an
   `eol=crlf` path violates the repo's policy on Linux/macOS just as much as on
   Windows.
 - **Binary guard.** `eol` alone is not proof of text: under a broad
   `* text=auto eol=lf` rule, the `eol` attribute resolves to `lf` for binaries
-  too. The hook mirrors gitattributes semantics — explicit `text` is trusted,
+  too. The hook mirrors gitattributes semantics. Explicit `text` is trusted,
   `-text` skips, and `text=auto` content-sniffs (NUL scan of the first 8000
-  bytes, git's own detection window) — so binary files are never rewritten.
+  bytes, git's own detection window), so binary files are never rewritten.
 - **Unspecified → no-op.** A path with no `eol=` attribute is left untouched.
-  There is no hardcoded extension list — resolution is entirely
+  There is no hardcoded extension list. Resolution is entirely
   `.gitattributes`-driven, so narrow rules (a single `eol=lf` path) correctly
   win over broad ones (`*.txt eol=crlf`).
 - **Advisory, never blocking.** The hook always exits `0`. Make a commit hook or
@@ -31,14 +31,14 @@ imposes no rules of its own.
 
 ## Requirements
 
-- **Bash** — the hook is a Bash script. On native Windows, install
+- **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible once-per-session notice. [Install jq](https://jqlang.org/download/).
-- **git** on `PATH` — the attribute resolution (`git check-attr`) and repo-root
+- **git** on `PATH`. The attribute resolution (`git check-attr`) and repo-root
   detection depend on it. Without a git repository the hook is a quiet no-op
-  (nothing to normalize against — not a missing prerequisite).
+  (nothing to normalize against, not a missing prerequisite).
 
 Rewriting uses `perl` when present, falling back to `tr`/`awk` otherwise, so no
 extra tooling is required.
@@ -59,7 +59,7 @@ Then verify prerequisites with `/eol-normalizer:setup check`.
 ## Configuration
 
 The normalization policy itself is your repository's `.gitattributes`, which the
-hook reads automatically — to change which files normalize to which endings,
+hook reads automatically. To change which files normalize to which endings,
 edit your `.gitattributes`. One `userConfig` option tunes the hook's own
 behavior:
 
@@ -74,6 +74,7 @@ the install command:
 claude plugin install eol-normalizer@<marketplace> --config eol_normalizer_enabled=false
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -146,6 +147,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
