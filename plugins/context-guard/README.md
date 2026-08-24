@@ -24,7 +24,7 @@ tool that needs it, so long-running workflows can route heavy work away from a d
 - **Zone-crossing hooks** (`hooks/`), the first shipped consumer. Once per transition into a
   worse zone, a PostToolBatch/UserPromptSubmit hook reports the crossing (advisory; silent on
   unchanged, improving, or `unknown` zones), **splitting the report by audience**: the
-  continuation menu. Continue, `/clear`, handoff-then-`/clear`, `/compact`. Renders to the
+  continuation menu (continue, `/clear`, handoff-then-`/clear`, `/compact`) renders to the
   operator on `systemMessage`, because choosing among them is the human's call; the model's
   channel carries the zone determination plus the counter-steer that a zone word is a measurement
   and not a decay signal, and never an exit menu. An exit menu injected into model context
@@ -47,8 +47,8 @@ tool that needs it, so long-running workflows can route heavy work away from a d
 
 ## Behavior
 
-- **Transparent by contract.** No tee outcome. Missing `jq`, unwritable path, a rename blocked by
-  a concurrent reader. Ever changes the wrapped statusline's output or exit code. Missing `jq` is
+- **Transparent by contract.** No tee outcome (missing `jq`, unwritable path, or a rename blocked
+  by a concurrent reader) ever changes the wrapped statusline's output or exit code. Missing `jq` is
   surfaced as a visible one-line notice, never a silent skip.
 - **Per-session, atomic snapshots.** One file per session id (no cross-session last-writer-wins);
   readers never see torn JSON (temp file + rename, with a brief retry for the Windows
