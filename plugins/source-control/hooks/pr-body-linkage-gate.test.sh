@@ -162,6 +162,15 @@ if ((elapsed < 5)); then
 else
   fail "crafted unmatched-tick line took ${elapsed}s (must stay under 5s here)"
 fi
+# Nested differing-length runs: `` closes #5 `x` `` is one CommonMark
+# inline span. Pairing that records the inner span first orphans the
+# outer span and leaks "closes #5" into the unanchored keyword scan.
+printf '%s\n' $'See the format: `` closes #5 `x` `` for reference.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/nested-ticks.md"
+assert_block "a decoy closing keyword inside nested backticks is not linkage" "$GATED" \
+  "gh pr create -t T --body-file nested-ticks.md"
+printf '%s\n' $'Closes #5\n\nSee the format: `` closes #9 `x` `` for reference.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/nested-ticks-plus-real.md"
+assert_allow "a real closing keyword is not hidden by nested backtick decoys" "$GATED" \
+  "gh pr create -t T --body-file nested-ticks-plus-real.md"
 
 run "$GATED" "$(gh_body "$ISSUE_3205")"
 if [[ "$ERR" == *'Missing a "## Fix" section.'* && "$ERR" == *"## Summary"* && "$ERR" == *"## Fix"* && "$ERR" == *"## Verification"* && "$ERR" == *"## Related"* && "$ERR" == *"Closes #<issue>"* ]]; then

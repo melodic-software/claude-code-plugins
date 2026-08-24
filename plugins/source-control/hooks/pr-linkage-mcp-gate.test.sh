@@ -92,7 +92,9 @@ run 2 "empty Related blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "
 run 2 "missing keyword blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_KEYWORD")"
 run 2 "#3205 body (no ## Fix) is blocked" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$ISSUE_3205")"
 FENCED_FIX=$'Closes #12\n\n## Summary\n\nx\n\n```\n## Fix\ntemplate only\n```\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
+NESTED_TICKS=$'See the format: `` closes #5 `x` `` for reference.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
 run 2 "a ## Fix that exists only inside a fenced sample is blocked" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$FENCED_FIX")"
+run 2 "a decoy closing keyword inside nested backticks is not linkage" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NESTED_TICKS")"
 run 0 "No linked issue opt-out passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT")"
 run 0 "No related issue alias passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT_ALIAS")"
 run 0 "past-tense keyword (Fixed #N) passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$PAST_TENSE")"

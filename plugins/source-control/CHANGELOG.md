@@ -30,7 +30,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   ([#3206](https://github.com/melodic-software/claude-code-plugins/issues/3206)).
   Inline-code masking pairs backtick runs after one collect pass so a crafted
   line of unmatched run lengths cannot push the 15s PreToolUse timeout and
-  fail the gate open.
+  fail the gate open. Completed pairs are then sorted by start and reduced to
+  outermost spans so a nested differing-length run (`` `code` ``) cannot
+  orphan the outer span and leak a decoy closing keyword into the scan.
 
 ## [0.55.10]
 

@@ -152,7 +152,9 @@ section_content() {
 # heading-level section bounds — stays intact.
 mask_markdown_code() {
   local body="$1" line rest rendered fence_char="" fence_len=0 in_fence=0
-  local marker_run marker_rest i ticks len j run found out=""
+  local marker_run marker_rest i ticks len k o sidx nspans a b key last_end out=""
+  local -a runs_pos runs_len spans_start spans_end order kept_start kept_end
+  local -A pending
   while IFS= read -r line || [[ -n "$line" ]]; do
     rest="${line%$'\r'}"
     if ((in_fence)); then
@@ -202,7 +204,7 @@ mask_markdown_code() {
         ((i++))
       fi
     done
-    declare -A pending=()
+    pending=()
     spans_start=()
     spans_end=()
     for ((k = 0; k < ${#runs_pos[@]}; k++)); do
@@ -216,6 +218,38 @@ mask_markdown_code() {
         pending[$ticks]=$k
       fi
     done
+    # Pairing completes in closer-first order. Nested differing-length
+    # runs (`` `x` ``) therefore land the inner span first; a monotonic
+    # render walk then orphans the outer span and leaks its gap text
+    # (including a decoy "closes #N") into has_linkage(). Sort by start
+    # and keep outermost only so the walk matches CommonMark: the first
+    # opener consumes through its closer, and inner runs stay content.
+    nspans=${#spans_start[@]}
+    if ((nspans > 1)); then
+      order=()
+      for ((k = 0; k < nspans; k++)); do order+=("$k"); done
+      for ((a = 1; a < nspans; a++)); do
+        key=${order[a]}
+        b=$((a - 1))
+        while ((b >= 0 && spans_start[order[b]] > spans_start[key])); do
+          order[b + 1]=${order[b]}
+          ((b--))
+        done
+        order[b + 1]=$key
+      done
+      kept_start=()
+      kept_end=()
+      last_end=-1
+      for k in "${order[@]}"; do
+        if ((spans_start[k] >= last_end)); then
+          kept_start+=("${spans_start[k]}")
+          kept_end+=("${spans_end[k]}")
+          last_end=${spans_end[k]}
+        fi
+      done
+      spans_start=("${kept_start[@]}")
+      spans_end=("${kept_end[@]}")
+    fi
     rendered=""
     i=0
     sidx=0
