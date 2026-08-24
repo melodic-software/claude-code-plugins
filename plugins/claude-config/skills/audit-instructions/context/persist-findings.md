@@ -94,6 +94,12 @@ fix pass either edit a file outside the working tree or consume the finding with
 and where the surface is upstream-owned, to its owning repository per the skill body's routing
 rule.
 
+A row whose path is not absolute is not one of them. `instruction-scan.sh` echoes the path it was
+handed, so naming a repo-owned file relatively is the ordinary invocation; such a path is resolved
+against the directory the scan is run from, which is the directory the writer reads the file from,
+and then meets the same fence. A path holding a `..` segment is refused whatever its form: the
+fence test is lexical, so a traversing path can prefix-match the root while resolving outside it.
+
 ## What each cell says
 
 - **`branch:`** is `git branch --show-current` verbatim.

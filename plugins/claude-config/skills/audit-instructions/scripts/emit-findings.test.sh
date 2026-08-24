@@ -438,6 +438,84 @@ assert_contains "a pwd-spelled in-repo path is emitted, not declined" "$SPELL_OU
 assert_not_contains "and is not counted as out-of-repo" "$SPELL_OUT" "reason=outside-repo-root"
 assert_not_contains "Location carries no absolute prefix" "$SPELL_OUT" "$SPELL_LINK/doc.md"
 
+# --- Case 13d: a repo-relative scan-row path is admitted; traversal is not ---
+# instruction-scan.sh echoes the caller's own path form, so naming a repo-owned
+# file relatively — the ordinary invocation, and the form SKILL.md documents —
+# puts a relative path on the row. Declining those rows drops real findings from
+# the relay while the run still reads as clean, which is the worst failure shape
+# an audit tool has.
+RELREPO="$TEST_TMPDIR/rel-repo"
+mkdir -p "$RELREPO/sub"
+git -C "$RELREPO" init -q
+printf -- '# Body\n\nCRITICAL: You MUST always do this.\n' >"$RELREPO/doc.md"
+printf -- '# Body\n\nCRITICAL: You MUST always do this.\n' >"$RELREPO/sub/nested.md"
+printf -- '# Body\n\nCRITICAL: You MUST always do this.\n' >"$TEST_TMPDIR/outside-doc.md"
+
+(cd "$RELREPO" && bash "$SCAN" --body-only doc.md) >"$TEST_TMPDIR/rel.txt"
+assert_eq "the scanner emits the caller's relative path verbatim" \
+  "doc.md:3:I28-a" "$(cat "$TEST_TMPDIR/rel.txt")"
+(cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/rel.txt" \
+  --out "$TEST_TMPDIR/rel-find.md" --branch testbranch >/dev/null 2>&1)
+REL_OUT=$(cat "$TEST_TMPDIR/rel-find.md")
+assert_contains "a relative scan-row path is emitted, not declined" "$REL_OUT" "| doc.md:3 |"
+assert_not_contains "and is not counted as out-of-repo" "$REL_OUT" "reason=outside-repo-root"
+assert_contains "every scan row read survives to the report" \
+  "$REL_OUT" "Scan rows read: 1. Emitted: 1."
+
+# Resolved against the CALLER's directory — the same directory the emitter read
+# the file from. A Location anchored anywhere else would name a different file
+# than the one whose excerpt the row quotes, trading a silent drop for a silent
+# corruption.
+(cd "$RELREPO/sub" && bash "$SCAN" --body-only nested.md) >"$TEST_TMPDIR/relsub.txt"
+(cd "$RELREPO/sub" && bash "$EMIT" --from "$TEST_TMPDIR/relsub.txt" \
+  --out "$TEST_TMPDIR/relsub-find.md" --branch testbranch >/dev/null 2>&1)
+RELSUB_OUT=$(cat "$TEST_TMPDIR/relsub-find.md")
+assert_contains "a subdirectory-relative row carries its path from the repo root" \
+  "$RELSUB_OUT" "| sub/nested.md:3 |"
+assert_not_contains "and is not declined" "$RELSUB_OUT" "reason=outside-repo-root"
+
+# A `./` prefix is the same file, and must not reach the Location cell.
+(cd "$RELREPO" && bash "$SCAN" --body-only ./doc.md) >"$TEST_TMPDIR/reldot.txt"
+(cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/reldot.txt" \
+  --out "$TEST_TMPDIR/reldot-find.md" --branch testbranch >/dev/null 2>&1)
+assert_contains "a ./-prefixed row normalizes to a bare repo-relative Location" \
+  "$(cat "$TEST_TMPDIR/reldot-find.md")" "| doc.md:3 |"
+
+# Admitting relative paths is what makes traversal expressible, so it is refused
+# in the same fence. A relative `..` escapes the working tree outright.
+(cd "$RELREPO" && bash "$SCAN" --body-only ../outside-doc.md) >"$TEST_TMPDIR/reltrav.txt"
+(cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/reltrav.txt" \
+  --out "$TEST_TMPDIR/reltrav-find.md" --branch testbranch >/dev/null 2>&1)
+TRAV_OUT=$(cat "$TEST_TMPDIR/reltrav-find.md")
+TRAV_ROWS=$(printf '%s\n' "$TRAV_OUT" | grep -c '^| [0-9]')
+assert_eq "a traversing relative row emits nothing" "0" "$TRAV_ROWS"
+assert_contains "and the refusal is counted, never silent" "$TRAV_OUT" "reason=outside-repo-root"
+
+# The anchor test is LEXICAL, so `<root>/../outside.md` prefix-matches the root
+# while resolving outside it — it would relativize to `../outside.md` and send
+# the fix pass out of the working tree.
+printf '%s\n' "$RELREPO/../outside-doc.md:3:I28-a" >"$TEST_TMPDIR/abstrav.txt"
+(cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/abstrav.txt" \
+  --out "$TEST_TMPDIR/abstrav-find.md" --branch testbranch >/dev/null 2>&1)
+ABSTRAV_OUT=$(cat "$TEST_TMPDIR/abstrav-find.md")
+ABSTRAV_ROWS=$(printf '%s\n' "$ABSTRAV_OUT" | grep -c '^| [0-9]')
+assert_eq "an anchored path holding a .. segment emits nothing" "0" "$ABSTRAV_ROWS"
+assert_not_contains "and no traversing Location reaches the report" \
+  "$ABSTRAV_OUT" "../outside-doc.md"
+assert_contains "the traversal refusal is counted" "$ABSTRAV_OUT" "reason=outside-repo-root"
+
+# Regression guard for the absoluteness test itself: git's own toplevel spelling
+# is the drive-letter form under Git Bash, and misreading it as relative would
+# decline a row that relativizes correctly today.
+RELTOP="$(git -C "$RELREPO" rev-parse --show-toplevel)"
+printf '%s\n' "$RELTOP/doc.md:3:I28-a" >"$TEST_TMPDIR/reltop.txt"
+(cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/reltop.txt" \
+  --out "$TEST_TMPDIR/reltop-find.md" --branch testbranch >/dev/null 2>&1)
+RELTOP_OUT=$(cat "$TEST_TMPDIR/reltop-find.md")
+assert_contains "a git-toplevel-spelled absolute path still emits" "$RELTOP_OUT" "| doc.md:3 |"
+assert_not_contains "and is not re-anchored as a relative path" \
+  "$RELTOP_OUT" "reason=outside-repo-root"
+
 # --- Case 14: I29 description-restatement emits, sibling emits, fences hold --
 RESTATE="$TEST_TMPDIR/restate-repo"
 mkdir -p "$RESTATE"
