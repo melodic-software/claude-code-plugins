@@ -20,8 +20,8 @@
 - **`reference/observer.md`: corrected the SendMessage gating claim.** The findings-return channel
   previously said reaching a still-running session is "gated behind experimental agent-teams",
   which conflated two surfaces: cross-session messaging is its own feature (v2.1.224+, native
-  Windows v2.1.234+, on by default where its gates are met), and only structured team-protocol
-  messages require agent teams. The bullet now quotes and stamps the availability sentence
+  Windows v2.1.234+; per the page, once a session meets the requirements it is "on with nothing
+  to enable"), and only structured team-protocol messages require agent teams. The bullet now quotes and stamps the availability sentence
   (verified 2026-08-24) and keeps the design decision unchanged on its surviving grounds: consent,
   next-tool-round delivery latency, and the durable ledger as the crash-safe primary.
 

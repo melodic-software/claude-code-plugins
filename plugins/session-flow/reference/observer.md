@@ -125,7 +125,8 @@ config overrides — stop the live observer to re-arm with new settings.
 - **`SendMessage`** — reserved for the case where findings must reach a still-running session.
   Reaching another session is cross-session messaging, not an agent-teams surface: "Cross-session
   messaging requires Claude Code v2.1.224 or later on macOS, Linux, and WSL 2, and v2.1.234 or
-  later on native Windows", on by default where those gates are met (verified 2026-08-24 against
+  later on native Windows", and "When a session meets the requirements, messaging is on with
+  nothing to enable" (both verbatim, verified 2026-08-24 against
   <https://code.claude.com/docs/en/cross-session-messaging>; recheck trigger: a Claude Code
   changelog entry touching cross-session messaging or its availability). It stays non-default
   here on the original grounds that survive the correction: the observer cannot grant consent on
