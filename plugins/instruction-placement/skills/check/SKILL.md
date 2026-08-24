@@ -123,8 +123,8 @@ do about it**. The three failure statuses have different fixes and saying "inval
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash`. Fixing a broken glob is the sibling
   `realign` skill's job, or the operator's.
 - **Never fabricate a verdict.** If a script cannot run, because this is not a git repository or
-  tooling is missing, report that plainly and exit non-zero. A gate that passes because it could not measure is worse
-  than no gate.
+  tooling is missing, report that plainly and exit non-zero. A gate that passes because it could
+  not measure is worse than no gate.
 - **Never consult the findings artifact.** This skill verifies the repository's actual state. An
   audit artifact is a snapshot of a past run, and a gate that trusted one could report health for a
   repository that has since broken.

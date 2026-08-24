@@ -118,7 +118,7 @@ validate it. An unvalidated hint is not a proposal.
    Re-derive, or drop the candidate to the subtree destination, or leave it where it is. Record the
    validation facts, match count and breadth, in the finding, because that is the evidence the
    operator gates on. An `over-broad` result is proposable but must be surfaced as such.
-6. **Price each proposal**. What leaves the always-loaded budget, subagent invisibility, and
+6. **Price each proposal**: what leaves the always-loaded budget, subagent invisibility, and
    post-compaction behavior for that specific destination.
 7. **Rank**, highest value first: always-loaded lines released × confidence, with promote-lane
    findings ranked on value alone since they carry no downside.

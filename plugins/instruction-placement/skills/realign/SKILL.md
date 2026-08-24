@@ -135,8 +135,8 @@ accepted proposal.
 - **Never rewrite content while moving it.** The move is a relocation. Tightening prose during a
   relocation makes the diff unreviewable and smuggles an unapproved edit past the gate.
 - **The shim is mandatory.** A nested `AGENTS.md` without a `CLAUDE.md` beside it importing it is
-  never loaded by Claude Code, measured, not inferred. Writing one without the other produces
-  content that silently reaches nothing.
+  never loaded by Claude Code. That is measured, not inferred. Writing one without the other
+  produces content that silently reaches nothing.
 - **Never leave the index stale.** Regenerating it is part of the move, not a follow-up. An
   un-indexed demotion is exactly the subagent gap this plugin exists to close.
 - **Stop on a failed verification.** Report what failed and leave the finding `blocked`. Do not
