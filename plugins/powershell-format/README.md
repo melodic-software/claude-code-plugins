@@ -14,13 +14,13 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
 - **Opt-in on a settings file.** PSScriptAnalyzer runs **only when a
   `PSScriptAnalyzerSettings.psd1` governs the edited file**, found by walking up
   from the file to the repository root and stopping at the closest one. Unlike
-  some formatters, PSScriptAnalyzer does not auto-discover its settings —
-  `Invoke-Formatter` and `Invoke-ScriptAnalyzer` take an explicit settings path —
+  some formatters, PSScriptAnalyzer does not auto-discover its settings.
+  `Invoke-Formatter` and `Invoke-ScriptAnalyzer` take an explicit settings path,
   so the hook both gates on that file and passes it through. A repo without a
   settings file is left untouched rather than formatted and linted with
   PSScriptAnalyzer's built-in defaults, so the plugin never imposes a style you
   did not choose. A settings file that declares `CustomRulePath` is additionally
-  gated on explicit approval — see [Trust model](#trust-model).
+  gated on explicit approval. See [Trust model](#trust-model).
 - **Format on edit.** `Invoke-Formatter` applies your settings' formatting rules
   (indentation, alias expansion, brace placement, and so on) in place.
 - **Findings are advisory.** Semantic diagnostics your settings enable (for
@@ -29,8 +29,8 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
   your hard gate.
 - **Graceful degrade.** If PowerShell (`pwsh`) is not installed, or the
-  PSScriptAnalyzer module is not available, the hook is a clean silent no-op —
-  no error spam. `pwsh` is resolved from `PATH` and is never downloaded.
+  PSScriptAnalyzer module is not available, the hook is a clean silent no-op.
+  No error spam. `pwsh` is resolved from `PATH` and is never downloaded.
 
 ## Trust model
 
@@ -43,16 +43,16 @@ analyzer under such a settings file without an explicit approval: it skips the
 format/lint run and reports a visible trust-gate notice (once per session, on
 both the agent and user channels) naming the settings file and the approval
 marker to create. To approve, review the settings file and every rule module it
-references — treat them with the same trust you give your build and CI
-configuration — then create the marker directory using the exact `mkdir -p`
+references. Treat them with the same trust you give your build and CI
+configuration, then create the marker directory using the exact `mkdir -p`
 command the notice carries. The marker lives under
 `${CLAUDE_PLUGIN_DATA}/trust-approvals` and is content-addressed over the
 repository, the settings file, every file reachable under each declared
 `CustomRulePath` entry (recursively for directories), and every repository
 file those files reference by string literal (transitively, bounded), so a
 change to the settings, to any referenced rule module, or to a file a rule
-module loads — including a branch switch that swaps module bytes under an
-unchanged settings file — revokes the approval and re-gates the run. Detection uses PowerShell's restricted data-file parser,
+module loads, including a branch switch that swaps module bytes under an
+unchanged settings file, revokes the approval and re-gates the run. Detection uses PowerShell's restricted data-file parser,
 not a textual scan; a settings file that parser cannot read is treated as
 code-loading and stays gated, a `CustomRulePath` entry that does not resolve
 to hashable content leaves the state unverifiable with no approval route, and
@@ -65,19 +65,19 @@ directory outside the project.
 
 ## Requirements
 
-- **Bash** — the hook is a Bash script. On native Windows, install
+- **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible once-per-session notice. [Install jq](https://jqlang.org/download/).
-- **PowerShell 7+** (`pwsh`) on `PATH` — the hook probes `pwsh` only; legacy
+- **PowerShell 7+** (`pwsh`) on `PATH`. The hook probes `pwsh` only; legacy
   Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent, the hook
   stays quiet by design: a machine without PowerShell is treated as
   not-applicable, not as a missing prerequisite.
 - The **PSScriptAnalyzer** module installed
   (`Install-Module PSScriptAnalyzer`). If absent, the hook stays quiet (same
   not-applicable classification).
-- A **`PSScriptAnalyzerSettings.psd1`** in your repo — the opt-in.
+- A **`PSScriptAnalyzerSettings.psd1`** in your repo. That file is the opt-in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while formatting and
@@ -111,6 +111,7 @@ on the install command:
 claude plugin install powershell-format@<marketplace> --config powershell_format_enabled=false
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -183,6 +184,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
