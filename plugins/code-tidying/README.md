@@ -7,23 +7,23 @@ budget (≤200 LOC / ≤8 files target; ≤400 / ≤15 hard cap).
 
 Six skills, one capability:
 
-- **`/code-tidying:dissolve-comments`** — enforces self-describing, expressive
+- **`/code-tidying:dissolve-comments`**. Enforces self-describing, expressive
   code over a diff or target (a clean tree widens to the branch diff, then to
   the whole repository with confirmation): deletes zero-information comments, dissolves
   code-expressible comments into names and structure via behavior-preserving
   refactoring (then deletes them), and keeps only terse, load-bearing comments
   code cannot express. Refactors apply only behind a discovered test net;
   `safe` mode restricts applied edits to removals.
-- **`/code-tidying:audit-comment-residue`** — read-only classifier for
+- **`/code-tidying:audit-comment-residue`**. Read-only classifier for
   out-of-context comment residue (history narration, plan/session references,
   conversational antecedents, ticket/PR back-references); flags Tier 1/Tier 2
   findings for author-applied deletion, edits nothing.
-- **`/code-tidying:tidy`** — proactively hunts a rotated, glob-scoped *lane* of
+- **`/code-tidying:tidy`**. Proactively hunts a rotated, glob-scoped *lane* of
   the codebase for safe structural improvements (Beck's 15 tidyings + a Fowler
   subset + prose tidyings), applies scope-budgeted edits, and ships one tight
   structure-only PR. Overflow is filed as deferred work items, never silently
   dropped.
-- **`/code-tidying:batch-simplify`** — sweeps files through grouped,
+- **`/code-tidying:batch-simplify`**. Sweeps files through grouped,
   dependency-ordered simplification waves in one of three scope modes:
   a time window (`48h` default, `7d`, ...), the current branch, or `repo`.
   Per-group verification and a never-drop deferred-items contract throughout.
@@ -31,14 +31,14 @@ Six skills, one capability:
   inventory, runs a mandatory per-group refutation verifier, and delivers one
   independently mergeable PR per wave. Use it when you forgot to run
   `/simplify` after each task, or to sweep a repository that never had one.
-- **`/code-tidying:audit-dead-code`** — a read-only, whole-repo hunt for code
+- **`/code-tidying:audit-dead-code`**, a read-only, whole-repo hunt for code
   nothing reaches any more, across four labelled lanes of deliberately unequal
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
   symbols, and a portable grep lane for shell and other symbol languages). Every
   candidate is adjudicated against the dynamic-usage evidence static analyzers
   are blind to and lands as `dead`, `uncertain`, or `alive`. Reports in-session;
   writes nothing and deletes nothing.
-- **`/code-tidying:setup`** — `check` inspects the tracked
+- **`/code-tidying:setup`**. `check` inspects the tracked
   `.claude/tidy-lanes/<lane>.md` project lanes read-only (presence, required
   sections, leftover placeholders, tracked-not-ignored); `apply` interviews the
   repo and scaffolds those lane files from the bundled templates, so `tidy`
@@ -49,7 +49,7 @@ Neither `tidy` nor `batch-simplify` is `/simplify` itself: `/simplify` refines t
 wrote; `batch-simplify` catches up on a window of them; `tidy` hunts drift no
 one has filed yet.
 
-## Lanes — the extension surface
+## Lanes, the extension surface
 
 `tidy` operates on lanes. Bundled lanes cover surfaces that look the same in
 most repos (`shell-tooling`, `docs-prose`); your project defines its own lanes
@@ -58,15 +58,15 @@ precedence over bundled lanes of the same name. Copy the closest scaffold from
 the plugin's `skills/tidy/templates/` (dependency-root, host-wiring, apps,
 polyglot-services patterns) and fill in your scope globs, watch-for patterns,
 exclusions, and verification commands. This surface does not resolve user-global
-or `*.local.*` overlay layers — the bundled lane is the portable baseline, and
-personal variation is limited to lane names the team does not track — an uncommitted
+or `*.local.*` overlay layers, the bundled lane is the portable baseline, and
+personal variation is limited to lane names the team does not track, an uncommitted
 `.claude/tidy-lanes/<lane>.md` never added to the index (see `setup` and the
 [config-cascade contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/config-cascade/README.md)).
 
 ## Safety model
 
 - **Structure-only, always.** A "tidying" that breaks a test was secretly
-  behavioral — it gets backed out, not shipped.
+  behavioral. It gets backed out, not shipped.
 - **Hard/soft exclusions** gate every run: agent and CI configuration, hook
   chains, and lint configs are never touched; unverifiable areas (browser UI,
   auth flows, DB migrations) are deferred, not edited. Your project's own
@@ -81,7 +81,7 @@ personal variation is limited to lane names the team does not track — an uncom
 - Self-contained: taxonomy, scope-budget research, exclusion lists, lane
   templates, and the throttle script all ship inside the plugin under
   `${CLAUDE_PLUGIN_ROOT}`. The bundled scripts require **Bash 4.3+** (they use
-  `mapfile`, case-conversion expansions, and namerefs) — on native Windows, install
+  `mapfile`, case-conversion expansions, and namerefs). On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
   so they run under Git Bash; the scripts already handle CRLF and
   drive-letter paths.
@@ -107,7 +107,7 @@ No `userConfig`. Project-specific behavior routes through
 `.claude/tidy-lanes/` lane files and your project's own `CLAUDE.md` /
 `.claude/rules` (protected paths, verification commands). Run
 **`/code-tidying:setup apply`** to interview your repo and scaffold those lane files
-from the bundled templates (or `check` to inspect existing lanes read-only) — it is
+from the bundled templates (or `check` to inspect existing lanes read-only). It is
 idempotent and safe to re-run to add or retune lanes.
 
 ## License

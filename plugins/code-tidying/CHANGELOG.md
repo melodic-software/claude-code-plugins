@@ -3,6 +3,17 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.5]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, shard 11).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. Fenced report templates and quoted deferral-contract
+  shapes keep their original punctuation.
+
 ## [0.14.4]
 
 ### Added
