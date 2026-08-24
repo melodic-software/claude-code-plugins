@@ -1,5 +1,5 @@
 ---
-description: "Analyze code changes and produce a test plan — classify changed files by required test type, identify coverage gaps, and prioritize by regression risk. Use when: 'test plan', 'what needs testing', 'where are the coverage gaps', 'what should I test here', after /implementation:implement completes, or for PR-prep coverage verification; for writing the tests use /testing:write, for running them /toolchain:check."
+description: "Analyze code changes and produce a test plan. Classify changed files by required test type, identify coverage gaps, and prioritize by regression risk. Use when: 'test plan', 'what needs testing', 'where are the coverage gaps', 'what should I test here', after /implementation:implement completes, or for PR-prep coverage verification; for writing the tests use /testing:write, for running them /toolchain:check."
 argument-hint: "[range or scope] (e.g., /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module)"
 user-invocable: true
 disable-model-invocation: false
@@ -21,7 +21,7 @@ Coverage-gap analysis: what needs testing, at what level, and in what priority. 
 
 ## Arguments
 
-`$ARGUMENTS` — optional diff range or scope description. Default: uncommitted changes plus the current branch's commits vs the default branch.
+`$ARGUMENTS`, optional diff range or scope description. Default: uncommitted changes plus the current branch's commits vs the default branch.
 
 ## Process
 
@@ -48,7 +48,7 @@ Classify each changed file:
 
 ### 2. Generate the test plan
 
-For each change area, produce (test-name forms follow the project's documented pattern; when undocumented, mirror the ecosystem's idiom — the PascalCase placeholders below are illustrative (.NET/xUnit)):
+For each change area, produce (test-name forms follow the project's documented pattern; when undocumented, mirror the ecosystem's idiom, the PascalCase placeholders below are illustrative (.NET/xUnit)):
 
 ```markdown
 ## Test Plan for [branch/PR description]
@@ -87,10 +87,10 @@ Check existing tests against the plan:
 
 Not all gaps are equal. Prioritize by:
 
-1. **Regression risk** — changes to existing behavior that could break silently
-2. **Business criticality** — core domain logic > utility helpers
-3. **Complexity** — conditional logic, state machines, error paths
-4. **Integration points** — boundaries where components meet
+1. **Regression risk**. Changes to existing behavior that could break silently
+2. **Business criticality**. Core domain logic > utility helpers
+3. **Complexity**. Conditional logic, state machines, error paths
+4. **Integration points**. Boundaries where components meet
 
 ## Output
 
@@ -102,12 +102,12 @@ Present the test plan to the user. Then suggest:
 
 ## What this skill does NOT do
 
-- **Does not write tests** — `/testing:write`
-- **Does not run tests** — `/toolchain:check` (SSOT for CLI invocation)
+- **Does not write tests**. `/testing:write`
+- **Does not run tests**. `/toolchain:check` (SSOT for CLI invocation)
 
 ## Marketplace plugin skills (invoke only when installed)
 
-These enrichment skills are ecosystem-specific — the `dotnet-test` skill applies when your stack is .NET; `document-skills:webapp-testing` is stack-agnostic:
+These enrichment skills are ecosystem-specific, the `dotnet-test` skill applies when your stack is .NET; `document-skills:webapp-testing` is stack-agnostic:
 
-- **`dotnet-test:code-testing-agent`** — multi-agent pipeline for comprehensive gap analysis and structured test generation. Use when the test plan reveals significant coverage gaps requiring many new tests
-- **`document-skills:webapp-testing`** — Playwright patterns for E2E test planning. Use when the test plan includes UI or API verification scenarios that need end-to-end coverage
+- **`dotnet-test:code-testing-agent`**. Multi-agent pipeline for comprehensive gap analysis and structured test generation. Use when the test plan reveals significant coverage gaps requiring many new tests
+- **`document-skills:webapp-testing`**. Playwright patterns for E2E test planning. Use when the test plan includes UI or API verification scenarios that need end-to-end coverage

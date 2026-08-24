@@ -93,8 +93,8 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/mutation-testing:principles`](../plugins/mutation-testing/skills/principles/SKILL.md) | `mutation-testing` | Answer mutation-testing questions from the primary literature |
 | [`/playwright:playwright`](../plugins/playwright/skills/playwright/SKILL.md) | `playwright` | Live E2E browser automation with disk-written artifacts |
 | [`/tdd:principles`](../plugins/tdd/skills/principles/SKILL.md) | `tdd` | Answer test design questions from authoritative TDD sources |
-| [`/testing:audit`](../plugins/testing/skills/audit/SKILL.md) | `testing` | Detect tests that cannot fail — report, gate, or persist |
-| [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests — never retry blindly |
+| [`/testing:audit`](../plugins/testing/skills/audit/SKILL.md) | `testing` | Detect tests that cannot fail. Report, gate, or persist |
+| [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests, never retry blindly |
 | [`/testing:plan`](../plugins/testing/skills/plan/SKILL.md) | `testing` | Classify changes by required test type and coverage gaps |
 | [`/testing:run-e2e`](../plugins/testing/skills/run-e2e/SKILL.md) | `testing` | Start the app, drive real flows, capture evidence |
 | [`/testing:write`](../plugins/testing/skills/write/SKILL.md) | `testing` | Write and place tests with TDD cadence across ecosystems |
