@@ -12,7 +12,8 @@ All notable changes to the `computer-use` plugin are documented here. Format fol
   `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
   parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
   and the sentence break change.
-  One quoted remediation protocol string keeps its em dash.
+  One quoted remediation protocol string keeps its em dash. The setup skill now
+  ships warranted `evals/evals.json` because a SKILL.md edit requires it.
 
 ## [0.1.0]
 
