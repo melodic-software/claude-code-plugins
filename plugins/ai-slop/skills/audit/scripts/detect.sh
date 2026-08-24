@@ -276,9 +276,13 @@ fi
 # so `<dir>` is the only anchor and cannot disagree with itself.
 #
 # The branch is chosen up front from `--is-inside-work-tree`, never from an
-# empty pipeline, so a walk is only ever the answer for a directory that is
-# genuinely outside a checkout. Inside one, a listing that fails says so on
-# stderr rather than degrading into a different set of files.
+# empty pipeline. A silent walk is only the answer when git is present and
+# reports the directory is genuinely outside a checkout. If git is missing,
+# or git cannot confirm a work tree (safe.directory refusal, unreadable
+# .git, nonzero rev-parse), the walk still runs because tracked-files-only
+# is not achievable, and that fallback is reported on stderr. Inside a
+# confirmed checkout, a listing that fails says so on stderr rather than
+# degrading into a different set of files.
 #
 # Strip one trailing slash, except when that would turn a Windows drive root
 # (`C:/`) into a drive-relative path (`C:`). Windows then treats the target as
@@ -298,7 +302,19 @@ expand_dir_target() {
   local dir inside listing status
   dir="$(normalize_dir_target "$1")"
 
-  inside="$(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null || true)"
+  if ! command -v git >/dev/null 2>&1; then
+    echo "detect.sh: git is not on PATH; directory $dir expanded via filesystem walk (tracked-files-only is not achievable)" >&2
+    find "$dir" -name '*.md' -type f 2>/dev/null
+    return 0
+  fi
+
+  inside="$(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null)"
+  status=$?
+  if [[ "$status" -ne 0 ]]; then
+    echo "detect.sh: git could not confirm a work tree under $dir (exit $status); expanding via filesystem walk" >&2
+    find "$dir" -name '*.md' -type f 2>/dev/null
+    return 0
+  fi
   if [[ "$inside" != "true" ]]; then
     find "$dir" -name '*.md' -type f 2>/dev/null
     return 0

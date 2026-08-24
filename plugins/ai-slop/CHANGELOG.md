@@ -2,19 +2,19 @@
 
 ## [0.3.9]
 
-- **A tracked markdown file whose name held a non-ASCII byte was dropped
-  without a trace.** `git ls-files` C-quotes such a path unless told
-  otherwise, so a name such as `café.md` arrived as an octal-escaped
-  quoted literal, the joined path failed the scan loop's existence test,
-  and the file produced neither a finding nor a declined row. The sharpest
-  case for this plugin is a filename containing an em dash, which the
-  em-dash detector would otherwise never open. The directory-target
-  listing now sets `core.quotePath=false`. The listing stays
-  newline-delimited rather than moving to `-z`, because the report format
-  is one line per finding, so a filename holding a newline cannot be
-  represented downstream whichever way the listing is read, and the
-  newline form keeps the listing's exit status observable. Drive-root
-  slash preservation from 0.3.8 is unchanged.
+- **Three directory-expansion defects survived 0.3.8.** A tracked file
+  whose name held a non-ASCII byte was dropped with no trace, because
+  `git ls-files` C-quotes those paths unless told otherwise; the listing
+  now sets `core.quotePath=false` and stays newline-delimited. A
+  filesystem walk still ran when git was missing or could not confirm a
+  work tree, while the comment claimed that case was gone; the walk
+  remains the fallback when tracked-files-only is not achievable, and
+  that fallback is now reported on stderr (`git is not on PATH`, or
+  `git could not confirm a work tree`). The new dir-target tests now
+  assert the emitted `file=` path, not only the scan count, so rebuilding
+  paths from `git rev-parse --show-toplevel` fails the suite; they also
+  pin subtree restriction and a non-ASCII filename. Drive-root slash
+  preservation from 0.3.8 is unchanged.
 
 ## [0.3.8]
 

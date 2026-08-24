@@ -403,9 +403,14 @@ cat >"$GITDIR/docs/untracked.md" <<EOF
 An untracked em dash ${EM} here.
 EOF
 git -C "$GITDIR" add docs/tracked.md
+cat >"$GITDIR/sibling.md" <<EOF
+A sibling em dash ${EM} here.
+EOF
+git -C "$GITDIR" add sibling.md
 out="$(bash "$DETECT" "$GITDIR/docs" 2>&1)"
-assert_contains "dir target in git repo: tracked file scanned via ls-files" "$out" "tracked.md"
+assert_contains "dir target in git repo: tracked file scanned via ls-files" "$out" "file=$GITDIR/docs/tracked.md"
 assert_contains "dir target in git repo: only the tracked file counts" "$out" "1 files scanned"
+assert_not_contains "dir target in git repo: sibling outside the subtree is not scanned" "$out" "sibling.md"
 
 # Path agreement. One directory has several SPELLINGS on Git Bash: git answers
 # the Windows form of the same checkout a shell reaches as "/tmp/...". An
@@ -420,15 +425,19 @@ GITSPELL="$(git -C "$GITDIR/docs" rev-parse --show-toplevel)/docs"
 PWDSPELL="$(cd "$GITDIR/docs" && pwd)"
 
 out="$(bash "$DETECT" "$GITSPELL" 2>&1)"
+assert_contains "dir target, git spelling: the emitted path keeps that spelling" "$out" "file=$GITSPELL/tracked.md"
 assert_contains "dir target, git spelling: only the tracked file counts" "$out" "1 files scanned"
 
 out="$(bash "$DETECT" "$PWDSPELL" 2>&1)"
+assert_contains "dir target, shell spelling: the emitted path keeps that spelling" "$out" "file=$PWDSPELL/tracked.md"
 assert_contains "dir target, shell spelling: only the tracked file counts" "$out" "1 files scanned"
 
 # A trailing slash is the same directory and must expand identically; the
 # expansion builds paths by concatenation, so an unnormalized target would emit
 # a doubled separator and scan nothing.
 out="$(bash "$DETECT" "$GITDIR/docs/" 2>&1)"
+assert_contains "dir target with a trailing slash: the emitted path is not doubled" "$out" "file=$GITDIR/docs/tracked.md"
+assert_not_contains "dir target with a trailing slash: no doubled separator" "$out" "file=$GITDIR/docs//tracked.md"
 assert_contains "dir target with a trailing slash: only the tracked file counts" "$out" "1 files scanned"
 
 # Drive-root slash preservation is a string contract, not a host contract: the
@@ -463,8 +472,20 @@ mkdir -p "$GITDIR/unicode"
 printf 'A tracked em dash %s here.\n' "$EM" >"$GITDIR/unicode/dash${EM}name.md"
 git -C "$GITDIR" add "unicode/dash${EM}name.md"
 out="$(bash "$DETECT" "$GITDIR/unicode" 2>&1)"
-assert_contains "dir target, non-ASCII filename: the raw path is scanned" "$out" "dash${EM}name.md"
+assert_contains "dir target, non-ASCII filename: the raw path is scanned" "$out" "file=$GITDIR/unicode/dash${EM}name.md"
 assert_contains "dir target, non-ASCII filename: the file is not dropped" "$out" "1 files scanned"
+
+# git absent: tracked-files-only is not achievable, so the walk still runs,
+# but the fallback must be reported rather than silent.
+NOGIT_BIN="$TEST_TMPDIR/bin-nogit"
+mkdir -p "$NOGIT_BIN"
+for name in bash find sort awk sed cat printf mkdir uname env dirname basename head tail wc tr; do
+  src="$(command -v "$name" 2>/dev/null)" || continue
+  ln -s "$src" "$NOGIT_BIN/$name"
+done
+out="$(PATH="$NOGIT_BIN" bash "$DETECT" "$GITDIR/docs" 2>&1)"
+assert_contains "dir target, git absent: reports the walk" "$out" "git is not on PATH"
+assert_contains "dir target, git absent: walk scans tracked and untracked markdown" "$out" "2 files scanned"
 
 # --- Excerpt truncation at the byte boundary --------------------------------------
 
