@@ -7,13 +7,13 @@ dated markdown report per run. Fail-safe posture throughout: surface issues over
 them, and every finding carries reproduction commands.
 
 Windows is fully implemented (18 checks, PowerShell 7.x). macOS and Linux are scaffolded as
-honest `NOT_IMPLEMENTED` stubs — on those hosts the skill reports UNKNOWN and stops rather than
+honest `NOT_IMPLEMENTED` stubs. On those hosts the skill reports UNKNOWN and stops rather than
 pretending coverage.
 
 | Skill | What it does |
 |---|---|
-| `/machine-health:audit` | Runs the audit — load catalog + machine overlay, dispatch checks under per-check timeouts, apply trend-aware severity, run approved remediations (non-dry runs), render the dated report, append history. |
-| `/machine-health:setup` | Configures this machine. `check` (read-only, default) reports the effective catalog overlay, remediation approvals, and pending proposals against the shipped catalog; `apply` writes the machine-local overlay (disable/deprecate/demote checks, register custom ones) and seeds remediation approvals — interactively, or non-interactively with `disable=`/`deprecate=`/`demote=`/`approve=` arguments. |
+| `/machine-health:audit` | Runs the audit. Load catalog + machine overlay, dispatch checks under per-check timeouts, apply trend-aware severity, run approved remediations (non-dry runs), render the dated report, append history. |
+| `/machine-health:setup` | Configures this machine. `check` (read-only, default) reports the effective catalog overlay, remediation approvals, and pending proposals against the shipped catalog; `apply` writes the machine-local overlay (disable/deprecate/demote checks, register custom ones) and seeds remediation approvals, interactively, or non-interactively with `disable=`/`deprecate=`/`demote=`/`approve=` arguments. |
 
 ## The audit
 
@@ -21,7 +21,7 @@ Each run dispatches the enabled catalog checks (90s per-check timeout, 15m total
 schema-validated JSON results, adjusts severity against the last 8 weeks of history, correlates
 related findings, and renders `reports/health-<UTC-timestamp>.md` with CRIT/WARN/INFO/OK/UNKNOWN
 sections, reproduction commands, and trend deltas. State is append-only (`history.jsonl`);
-elevation is never prompted for — admin-gated checks return UNKNOWN with a `needs_admin` marker.
+elevation is never prompted for. Admin-gated checks return UNKNOWN with a `needs_admin` marker.
 
 Remediations are deliberately narrow (restart a stopped Automatic service, clear aged temp files),
 default to **not approved**, and only run when explicitly approved in the machine's
@@ -56,32 +56,33 @@ run log. No telemetry, no other network calls, no `Invoke-Expression` on externa
 If you previously ran machine-health as an in-repo skill with reports, state, and logs under one
 output base (default `Documents\MachineHealth`):
 
-1. Reports can stay put — set the `report_dir` option to the same folder (or leave unset for the
+1. Reports can stay put. Set the `report_dir` option to the same folder (or leave unset for the
    default, which is that folder).
 2. Move machine state into the plugin data directory so trend history and approvals carry over:
    `<old output base>\state\` → `${CLAUDE_PLUGIN_DATA}\state\` (`history.jsonl`, `latest.json`,
    `approvals.json`). Old logs may stay behind or move to `${CLAUDE_PLUGIN_DATA}\logs\`.
 3. `${CLAUDE_PLUGIN_DATA}` resolves under `~/.claude/plugins/data/`, in a directory named for the
    plugin's install identity (`machine-health-<marketplace>`, or `machine-health-inline` for a
-   `--plugin-dir` session) — not `machine-health`. Run `/machine-health:setup check` to have the
+   `--plugin-dir` session), not `machine-health`. Run `/machine-health:setup check` to have the
    resolved path printed rather than guessing it; a state root guessed wrong splits the overlay from
    the state and logs.
 
 ## Configuration
 
-One plugin option: `report_dir` (directory) — where dated reports land; unset means
+One plugin option: `report_dir` (directory), where dated reports land; unset means
 `Documents\MachineHealth` under the user profile. Everything else is machine-local state managed
 by `/machine-health:setup`. No hooks, no MCP servers.
 
 ## Tests
 
-A Pester 5.7+ suite ships with the plugin (`skills/audit/tests/`). Windows-only — it
+A Pester 5.7+ suite ships with the plugin (`skills/audit/tests/`). Windows-only. It
 mocks Win32/MSFT CIM types that resolve only there:
 
 ```powershell
 pwsh -NoProfile -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -154,6 +155,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
