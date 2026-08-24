@@ -64,13 +64,13 @@ reports "already configured".
 1. **Resolve the values.** With complete `<key>=<value>` arguments, use them directly (non-interactive).
    Otherwise interview one question at a time, recommendation first: present the inferred or documented
    defaults (`memory_dir: .work`, `contract_dir: docs/topics`, `contract_tier: branch`,
-   `vault_backend: docs`. RECOMMENDED) and let the user accept or edit. `contract_tier: local` is the
+   `vault_backend: docs`, the recommended combination) and let the user accept or edit. `contract_tier: local` is the
    solo/offline mode (contract kinds join the memory tier); a non-`docs` `vault_backend` names a
    consumer-documented knowledge-vault backend. Offer every schema key and preserve every key an
    existing file carries, a re-run never drops one; do not invent options beyond the schema. `gitbook`
    is reserved but not enabled as a `vault_backend` value. Git remains the storage layer because
    GitBook offers no concurrency-safe, lossless write path. When offering or preserving it, report
-   that it is deferred and non-writable. Durable writes still target `docs`, and never configure or
+   that it is deferred and non-writable. Durable writes still target `docs`. Never configure or
    test a GitBook API, MCP, or Git Sync writer; offer to replace the key with `docs` only if the user
    chooses that change.
 2. **Guard, then persist.** Re-run the committed-tier guard from `check` for the chosen tier; if a
