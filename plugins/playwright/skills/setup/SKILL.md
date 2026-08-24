@@ -1,5 +1,5 @@
 ---
-description: "Verify the playwright plugin's runtime prerequisites — the playwright-cli binary and a resolvable browser — for this machine. Use when: 'set up playwright', 'configure playwright', 'is playwright working', 'install playwright-cli', a browser flow reports the CLI is missing, or before a first E2E run. Actions: check (read-only verification, default) | apply (resolve what check found; apply install-cli performs the global CLI install). Re-runnable and safe."
+description: "Verify the playwright plugin's runtime prerequisites: the playwright-cli binary and a resolvable browser for this machine. Use when: 'set up playwright', 'configure playwright', 'is playwright working', 'install playwright-cli', a browser flow reports the CLI is missing, or before a first E2E run. Actions: check (read-only verification, default) | apply (resolve what check found; apply install-cli performs the global CLI install). Re-runnable and safe."
 argument-hint: "check | apply [install-cli]"
 user-invocable: true
 disable-model-invocation: true
@@ -10,14 +10,14 @@ disable-model-invocation: true
 Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. This plugin owns no consumer-project configuration and no
-`userConfig` — it recommends `@playwright/cli`'s own defaults — so the only tunable
+`userConfig`. It recommends `@playwright/cli`'s own defaults, so the only tunable
 prerequisite is the CLI binary itself. `apply` is guidance-and-verify with exactly one
 write path: the explicitly invoked `apply install-cli` global npm install described
 below.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers the resolution for each finding; `apply install-cli` additionally authorizes the global
-CLI install. All are non-interactive — never prompt when the action is given.
+CLI install. All are non-interactive. Never prompt when the action is given.
 
 ## `check` (read-only)
 
@@ -25,46 +25,46 @@ The main skill and its reference files are the single source of truth for what t
 requires: `${CLAUDE_PLUGIN_ROOT}/skills/playwright/SKILL.md` (Prerequisite + quick start) and
 `${CLAUDE_PLUGIN_ROOT}/skills/playwright/reference/` (`commands.md`, `windows-quirks.md`).
 
-**Read it first** — probe what it actually does, don't recite this file. Then run each probe via
+**Read it first**. Probe what it actually does, don't recite this file. Then run each probe via
 Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
-1. **`playwright-cli` binary** — `command -v playwright-cli` (the binary name the skill drives;
-   the npm package is `@playwright/cli`). FAIL if absent — remediation is `apply install-cli`
+1. **`playwright-cli` binary**. `command -v playwright-cli` (the binary name the skill drives;
+   the npm package is `@playwright/cli`). FAIL if absent. Remediation is `apply install-cli`
    below. When present, report the version (`playwright-cli --version`).
-2. **Browser availability** — the CLI needs a browser beyond its own install. Per the plugin's
+2. **Browser availability**. The CLI needs a browser beyond its own install. Per the plugin's
    own `skills/playwright/reference/windows-quirks.md`, local sessions on Windows/macOS/Linux auto-detect system
    Chrome, while a sandboxed/cloud session must run `playwright-cli install-browser` and that
    download can be egress-blocked. INFO: state whether a system browser is resolvable on this
    host and, when it is not, surface the `playwright-cli install-browser` step and the
-   sandbox-egress caveat from that reference — do not assert a browser requirement the shipped
+   sandbox-egress caveat from that reference. Do not assert a browser requirement the shipped
    docs do not; read them and report what they say.
-3. **Artifact directory** — INFO: artifacts land in `.playwright-cli/` relative to the working
+3. **Artifact directory**. INFO: artifacts land in `.playwright-cli/` relative to the working
    directory; note whether it is gitignored in the current project (the skill recommends
-   adding it). No write — reporting only.
+   adding it). No write. Reporting only.
 
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL offer the resolution. `apply install-cli` is the one write
-path — state the change before running it:
+path. State the change before running it:
 
-- **CLI absent** — `apply install-cli` runs `npm install -g @playwright/cli`. This is a
+- **CLI absent**. `apply install-cli` runs `npm install -g @playwright/cli`. This is a
   **global install that mutates the user's machine** (the global npm prefix), stated before it
   runs; without the `install-cli` argument, `apply` only prints this command for the user to
-  run. After the install, re-run `command -v playwright-cli` and report the actual result —
-  never claim success on npm's exit code alone.
-- **browser not resolvable** — point at `playwright-cli install-browser` per the plugin's
-  reference, and note the sandbox-egress caveat when relevant. Guidance only — this skill does
+  run. After the install, re-run `command -v playwright-cli` and report the actual result.
+  Never claim success on npm's exit code alone.
+- **browser not resolvable**. Point at `playwright-cli install-browser` per the plugin's
+  reference, and note the sandbox-egress caveat when relevant. Guidance only. This skill does
   not provision browsers.
-- **`.playwright-cli/` not gitignored** — suggest adding it to the project `.gitignore`;
+- **`.playwright-cli/` not gitignored**. Suggest adding it to the project `.gitignore`;
   guidance only, no edit.
 
 The vendored-baseline update flow (`/playwright:playwright update`) is **not** this skill's
-job — point at it, do not wrap it. Re-running `apply` when everything already passes changes
+job. Point at it, do not wrap it. Re-running `apply` when everything already passes changes
 nothing and reports "already configured".
 
 ## What this skill does NOT do
 
-- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor project files — the
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor project files. The
   one explicitly invoked `apply install-cli` global npm install is the only write it performs.
-- Provision browsers, run E2E flows, or take screenshots — that is `/playwright:playwright`.
+- Provision browsers, run E2E flows, or take screenshots. That is `/playwright:playwright`.
 - Run or wrap the maintainer update flow (`/playwright:playwright update`).
