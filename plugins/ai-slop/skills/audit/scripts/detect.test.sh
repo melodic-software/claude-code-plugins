@@ -404,6 +404,41 @@ out="$(bash "$DETECT" "$GITDIR/docs" 2>&1)"
 assert_contains "dir target in git repo: tracked file scanned via ls-files" "$out" "tracked.md"
 assert_contains "dir target in git repo: only the tracked file counts" "$out" "1 files scanned"
 
+# Path agreement. One directory has several SPELLINGS on Git Bash: git answers
+# the Windows form of the same checkout a shell reaches as "/tmp/...". An
+# expansion that derives its prefix from one source and its filter from another
+# drops every candidate wherever the two disagree, and the walk that backs it up
+# returns untracked markdown in place of the tracked listing (issue 3266). The
+# assertion is that the SPELLING of the target cannot change the answer. On a
+# host where the two forms already agree these two cases restate the one above,
+# which is the point: the invariant holds everywhere, and it is only observable
+# here.
+GITSPELL="$(git -C "$GITDIR/docs" rev-parse --show-toplevel)/docs"
+PWDSPELL="$(cd "$GITDIR/docs" && pwd)"
+
+out="$(bash "$DETECT" "$GITSPELL" 2>&1)"
+assert_contains "dir target, git spelling: only the tracked file counts" "$out" "1 files scanned"
+
+out="$(bash "$DETECT" "$PWDSPELL" 2>&1)"
+assert_contains "dir target, shell spelling: only the tracked file counts" "$out" "1 files scanned"
+
+# A trailing slash is the same directory and must expand identically; the
+# expansion builds paths by concatenation, so an unnormalized target would emit
+# a doubled separator and scan nothing.
+out="$(bash "$DETECT" "$GITDIR/docs/" 2>&1)"
+assert_contains "dir target with a trailing slash: only the tracked file counts" "$out" "1 files scanned"
+
+# The walk is reserved for a directory genuinely outside a checkout. A directory
+# INSIDE one that holds only untracked markdown expands to nothing rather than
+# falling through to a filesystem walk, which is what the documented
+# tracked-files-only contract means.
+mkdir -p "$GITDIR/untrackedonly"
+cat >"$GITDIR/untrackedonly/loose.md" <<EOF
+A loose em dash ${EM} here.
+EOF
+out="$(bash "$DETECT" "$GITDIR/untrackedonly" 2>&1)"
+assert_contains "dir target in git repo, no tracked markdown: expands to nothing" "$out" "0 files scanned"
+
 # --- Excerpt truncation at the byte boundary --------------------------------------
 
 # 79 ASCII bytes then an em dash: a byte cut at 80 would keep only the first

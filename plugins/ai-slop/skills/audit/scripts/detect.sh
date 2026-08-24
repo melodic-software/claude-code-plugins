@@ -259,17 +259,49 @@ fi
 # Directory targets expand to the markdown beneath them (tracked files when the
 # directory is inside a git checkout, a filesystem walk otherwise). Without
 # this a directory fails the scan loop's -f test and is skipped silently.
+#
+# ONE anchor, the caller's own spelling of the directory. A directory has
+# several spellings on Git Bash: git answers `C:/Users/...` for the same
+# checkout a shell reaches as `/tmp/...`. The earlier expansion built its
+# prefix from `git rev-parse --show-toplevel` and its filter from `pwd`, so on
+# any host where those disagree no candidate survived the filter and the walk
+# below silently replaced the tracked-files listing it was meant to back up
+# (issue 3266). Running `ls-files` with `-C <dir>` needs neither: it is already
+# restricted to that directory's subtree and answers in paths relative to it,
+# so `<dir>` is the only anchor and cannot disagree with itself.
+#
+# The branch is chosen up front from `--is-inside-work-tree`, never from an
+# empty pipeline, so a walk is only ever the answer for a directory that is
+# genuinely outside a checkout. Inside one, a listing that fails says so on
+# stderr rather than degrading into a different set of files.
+expand_dir_target() {
+  local dir="${1%/}" inside listing status
+  [[ -n "$dir" ]] || dir="$1"
+
+  inside="$(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null || true)"
+  if [[ "$inside" != "true" ]]; then
+    find "$dir" -name '*.md' -type f 2>/dev/null
+    return 0
+  fi
+
+  listing="$(git -C "$dir" ls-files '*.md')"
+  status=$?
+  if [[ "$status" -ne 0 ]]; then
+    echo "detect.sh: git ls-files failed under $dir (exit $status); that directory expanded to nothing" >&2
+    return 0
+  fi
+
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] && printf '%s/%s\n' "$dir" "$rel"
+  done <<<"$listing"
+}
+
 EXPANDED=()
 for t in ${TARGETS[@]+"${TARGETS[@]}"}; do
   if [[ -d "$t" ]]; then
     while IFS= read -r line; do
       [[ -n "$line" ]] && EXPANDED+=("$line")
-    done < <(
-      git -C "$t" ls-files --full-name '*.md' 2>/dev/null |
-        sed "s|^|$(git -C "$t" rev-parse --show-toplevel 2>/dev/null)/|" |
-        grep -F "$(cd "$t" && pwd)/" ||
-        find "$t" -name '*.md' -type f 2>/dev/null
-    )
+    done < <(expand_dir_target "$t")
   else
     EXPANDED+=("$t")
   fi
