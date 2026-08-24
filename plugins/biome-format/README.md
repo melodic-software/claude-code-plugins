@@ -3,8 +3,8 @@
 A Claude Code plugin that formats and lints JavaScript, TypeScript, JSX, and
 JSON the moment you edit them. On every `Write` or `Edit` of a `.ts`, `.tsx`,
 `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`, `.json`, or `.jsonc` file it runs
-[Biome](https://biomejs.dev/)'s `check --write` — applying safe fixes,
-formatting, and import sorting — then surfaces any residual findings back to
+[Biome](https://biomejs.dev/)'s `check --write`, applying safe fixes,
+formatting, and import sorting, then surfaces any residual findings back to
 Claude as advisory context.
 
 It uses **your repository's own `biome.json`**. It ships no rules of its own and
@@ -21,9 +21,9 @@ runs only when your repo has opted into Biome.
   onward, so honoring them here would risk reformatting with built-in defaults on
   an older Biome. Use a canonical `biome.json` / `biome.jsonc`.)
 - **Format + lint on edit.** `biome check --write` applies safe fixes,
-  formatting, and import sorting in place. Residual diagnostics — errors and,
-  because the hook passes `--error-on-warnings`, warnings — are reported but not
-  auto-applied (unsafe fixes are never forced).
+  formatting, and import sorting in place. Residual diagnostics are reported
+  but not auto-applied. That includes errors and, because the hook passes
+  `--error-on-warnings`, warnings. Unsafe fixes are never forced.
 - **Respects your ignores.** Biome honors your config's `files.includes` ignore
   rules even for the single edited file. A path your config excludes (for
   generated or vendored code) is left untouched, with no advisory noise.
@@ -37,12 +37,12 @@ runs only when your repo has opted into Biome.
 
 ## Requirements
 
-- **Bash** — the hook is a Bash script. On native Windows, install
+- **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible once-per-session notice. [Install jq](https://jqlang.org/download/).
-- **Biome** available to the repo — installed in the repo's `node_modules`
+- **Biome** available to the repo. Installed in the repo's `node_modules`
   (the hook runs `node_modules/.bin/biome`) or on `PATH`. Biome is never
   downloaded on the fly; if it is not present while a Biome config governs the
   repo, the hook skips with a visible once-per-session notice.
@@ -50,7 +50,7 @@ runs only when your repo has opted into Biome.
   `check --write --error-on-warnings --reporter=github`, and on much older
   releases those flags may be absent, in which case the run is reported as a
   tool break rather than a finding.
-- A **`biome.json`** or **`biome.jsonc`** in the repo — the opt-in.
+- A **`biome.json`** or **`biome.jsonc`** in the repo, the opt-in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while formatting and
@@ -83,6 +83,7 @@ install command:
 claude plugin install biome-format@<marketplace> --config biome_format_enabled=false
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -155,6 +156,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
