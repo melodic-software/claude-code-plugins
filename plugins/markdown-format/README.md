@@ -6,7 +6,7 @@ On every `Write` or `Edit` of a `.md` or `.mdc` file it runs
 the file's repository root, applying every auto-fixable rule and surfacing the
 residual (unfixable) findings back to Claude as advisory context.
 
-It uses **your repository's own markdownlint configuration** — it ships none and
+It uses **your repository's own markdownlint configuration**. It ships none and
 imposes no rules of its own. A repository with no discoverable markdownlint
 config has chosen no Markdown style, so the hook does not run there at all
 (#1809): carrying a config **is** the opt-in.
@@ -16,21 +16,21 @@ config has chosen no Markdown style, so the hook does not run there at all
 - **Markdown paths only at launch.** `hooks.json` registers the handler on
   `Write|Edit` but each copy carries `if: Edit(*.md)` or `if: Edit(*.mdc)`.
   `Edit(path)` is the permission-rule form that covers Write; a `Write(path)`
-  rule is never matched. A `.txt` Write therefore never starts the process —
-  it does not reach the script's in-script extension skip, and it cannot
+  rule is never matched. A `.txt` Write therefore never starts the process.
+  It does not reach the script's in-script extension skip, and it cannot
   produce a `hook_non_blocking_error` for work this hook does not do (#2867).
   The script still checks the extension itself, because an `if` filter is one
   rule per handler and fails open on an unparsable payload.
 - **Config opt-in.** The hook runs only when a markdownlint config file that
   `markdownlint-cli2` would discover automatically (`.markdownlint-cli2.jsonc`,
-  `.markdownlint.json`, … — any of the ten documented names) exists between the
+  `.markdownlint.json`, …, any of the ten documented names) exists between the
   edited file's directory and the repository root. Without one, neither `--fix`
-  rewrites nor default-rule findings are imposed — the same doctrine as
+  rewrites nor default-rule findings are imposed, the same doctrine as
   `bash-format`'s shfmt gate. A `package.json` `markdownlint-cli2` property
   does not open the gate: markdownlint-cli2 honors it only under an explicit
   `--config` flag, not by discovery.
-- **Gitignored paths are out of scope.** A file git excludes — a scratch tier
-  such as `.work/**`, build output, a vendored tree — is neither rewritten nor
+- **Gitignored paths are out of scope.** A file git excludes, a scratch tier
+  such as `.work/**`, build output, or a vendored tree, is neither rewritten nor
   reported on. Your ignore rules already say which paths are not part of the
   reviewable artifact, so the hook reads them rather than asking for a second
   declaration. The verdict comes from `git check-ignore`, so it is git's full
@@ -42,11 +42,11 @@ config has chosen no Markdown style, so the hook does not run there at all
   markdownlint-cli2 applies its own `ignores` / `gitignore` config downstream, so
   a path your markdownlint config also excludes stays untouched even with the
   option on. When the verdict cannot be determined (no `git` on
-  `PATH`, no working tree, `git check-ignore` erroring), the hook lints — a
+  `PATH`, no working tree, `git check-ignore` erroring), the hook lints. A
   scope check that failed closed would disable the plugin invisibly.
 - **Auto-fix on edit.** Fixable violations (final newline, list-marker style,
   trailing spaces, …) are corrected in place, and the count of fixes written is
-  reported to Claude and to you — a run that changed your file never passes
+  reported to Claude and to you. A run that changed your file never passes
   unannounced. `markdownlint-cli2` reports no per-fix detail, so neither can
   this hook; the count is what there is.
 - **Advisory, never blocking.** The hook always exits `0`. Unfixable findings are
@@ -60,10 +60,10 @@ config has chosen no Markdown style, so the hook does not run there at all
   that rule once in your markdownlint config, not to re-read it on every edit.
 - **Config from the consumer.** `markdownlint-cli2` discovers config
   (`.markdownlint-cli2.jsonc`, `.markdownlint.json`, …) per edited file, from
-  the file's directory up through its parents — so a nested config governs its
+  the file's directory up through its parents, so a nested config governs its
   subtree. The hook `cd`s to the repository root before linting so that
   discovery caps at the root regardless of the session's working directory.
-  A configuration that can execute code is gated on explicit approval — see
+  A configuration that can execute code is gated on explicit approval. See
   [Configuration trust boundary](#configuration-trust-boundary).
 
 ## Known limitation
@@ -93,8 +93,8 @@ The hook requires the following tools:
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
 the hook exits `0` and reports a once-per-session notice to both Claude
-(`additionalContext`) and you (`systemMessage`). Only the notice latches —
-the binary probe re-runs on every Markdown edit and recovers mid-session when
+(`additionalContext`) and you (`systemMessage`). Only the notice latches.
+The binary probe re-runs on every Markdown edit and recovers mid-session when
 the tool becomes resolvable. A missing-`markdownlint-cli2` notice includes a
 `PATH probed:` line naming the plausible directories the hook process actually
 searched (Claude Code plugin-bin entries collapse to a count). When
@@ -117,7 +117,7 @@ unchanged finding set is reported in full each time.
 ### Configuration trust boundary
 
 `markdownlint-cli2` supports executable `.cjs`/`.mjs` configuration and can
-load custom rules, Markdown-it plugins, and output formatters — running it
+load custom rules, Markdown-it plugins, and output formatters. Running it
 under such configuration executes code the repository supplies. The hook
 therefore never runs the linter under a code-loading configuration without an
 explicit approval: it skips the lint run and reports a visible trust-gate
@@ -128,14 +128,14 @@ exact `mkdir -p` command the notice carries. The marker lives under
 `${CLAUDE_PLUGIN_DATA}/trust-approvals` and is content-addressed over the
 repository, its risky configuration files, and every repository file those
 files' string literals resolve to (transitively, bounded), so a change to the
-configuration or to a referenced repository module — including a branch switch
-that swaps module bytes under an unchanged config — revokes the approval and
+configuration or to a referenced repository module, including a branch switch
+that swaps module bytes under an unchanged config, revokes the approval and
 re-gates the run. When `CLAUDE_PLUGIN_DATA` is unavailable, the module scan
 overflows its bound, or the configuration contains constructs that defeat
 textual verification (string escapes or tags able to hide a module-loading
 key), the gate fails closed and the lint run stays skipped. Declarative
-rule-only JSONC/YAML configuration is unaffected and lints immediately —
-prefer it when executable configuration is unnecessary.
+rule-only JSONC/YAML configuration is unaffected and lints immediately.
+Prefer it when executable configuration is unnecessary.
 
 ## Install
 
@@ -152,15 +152,15 @@ repository's own package manager.
 
 ## Configuration
 
-The rules themselves are never configured here — the plugin's only rule source is
+The rules themselves are never configured here. The plugin's only rule source is
 the markdownlint config already in your repository, which it reads automatically.
 To change the rules, edit your repo's markdownlint config.
 
 Which paths are in scope is also not configured here: the hook asks
-`git check-ignore` and leaves the paths git excludes alone — that means your
+`git check-ignore` and leaves the paths git excludes alone. That means your
 `.gitignore` files, `$GIT_DIR/info/exclude`, and your global `core.excludesFile`
 together. To exempt a path that git tracks, use `markdownlint-cli2`'s own
-`ignores` (or `gitignore`) key in a `.markdownlint-cli2.*` config — the hook
+`ignores` (or `gitignore`) key in a `.markdownlint-cli2.*` config. The hook
 passes the edited file to
 `markdownlint-cli2`, which applies those itself (verified against
 markdownlint-cli2 v0.23.2; the tool's documentation does not state the behavior
@@ -181,6 +181,7 @@ the install command:
 claude plugin install markdown-format@<marketplace> --config markdown_format_enabled=false
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -255,6 +256,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
