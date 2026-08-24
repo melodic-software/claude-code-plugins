@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.9]
+
+- **Three directory-expansion defects survived 0.3.8.** A tracked file
+  whose name held a non-ASCII byte was dropped with no trace, because
+  `git ls-files` C-quotes those paths unless told otherwise; the listing
+  now sets `core.quotePath=false` and stays newline-delimited. A
+  filesystem walk still ran when git was missing or could not confirm a
+  work tree, while the comment claimed that case was gone; the walk
+  remains the fallback when tracked-files-only is not achievable, and
+  that fallback is now reported on stderr (`git is not on PATH`, or
+  `git could not confirm a work tree`). The new dir-target tests now
+  assert the emitted `file=` path, not only the scan count, so rebuilding
+  paths from `git rev-parse --show-toplevel` fails the suite; they also
+  pin subtree restriction and a non-ASCII filename. Drive-root slash
+  preservation from 0.3.8 is unchanged.
+
 ## [0.3.8]
 
 - **Directory targets silently fell back to an untracked-inclusive filesystem
