@@ -55,6 +55,10 @@ const CATALOGUE_VERIFY_SCHEMA = 'context-budget.catalogue-verify/1';
 const DEFAULT_CATALOGUE = join(
   dirname(fileURLToPath(import.meta.url)), '..', 'reference', 'levers.json',
 );
+const INTERACTIVE_ONLY_LISTING = join(
+  dirname(fileURLToPath(import.meta.url)), '..', 'reference', 'interactive-only-tools.json',
+);
+const INTERACTIVE_ONLY_SCHEMA = 'context-budget.interactive-only/1';
 
 // Settings keys and env names the catalogue cites. Env vars are the CLAUDE_CODE_
 // / ENABLE_ / DISABLE_ family; settings keys are camelCase identifiers in the
@@ -614,6 +618,28 @@ function vanishedReason(vanished) {
     + 'snapshot, so its delta is unmeasured, not zero';
 }
 
+function loadInteractiveOnly() {
+  let data;
+  try {
+    data = JSON.parse(readFileSync(INTERACTIVE_ONLY_LISTING, 'utf8'));
+  } catch (e) {
+    usageError(`interactive-only listing unreadable: ${e.message}`);
+  }
+  if (data.schema !== INTERACTIVE_ONLY_SCHEMA) {
+    usageError(`interactive-only listing expects ${INTERACTIVE_ONLY_SCHEMA}; got ${JSON.stringify(data.schema)}`);
+  }
+  return data;
+}
+
+function knownUncoveredRecord(candidates, listing) {
+  const seen = new Set(candidates);
+  return {
+    reason: 'interactive-only — structurally unreachable from a headless candidate list',
+    tools: (listing.tools || []).filter((t) => !seen.has(t)),
+    notes: listing.notes || [],
+  };
+}
+
 async function runAttribute(args) {
   if (!args.tools) usageError('attribute needs --tools <T1,T2,...|from-baseline>');
   const baseline = await takeSnapshot({ ...args, deny: undefined, label: 'baseline' });
@@ -690,6 +716,10 @@ async function runAttribute(args) {
     skillListingSignature: baseline.skillListing.signature,
     perTool,
     additivity,
+    knownUncovered: knownUncoveredRecord(
+      [...tools, ...(baseline.tools || [])],
+      loadInteractiveOnly(),
+    ),
     caveats: baseline.caveats,
   };
 }

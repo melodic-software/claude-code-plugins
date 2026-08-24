@@ -5,6 +5,17 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.8]
+
+### Added
+
+- **Engine / report:** a full sweep no longer silently omits interactive-only tools. The
+  attribution record carries `knownUncovered` from a maintained product-level list (Artifact,
+  AskUserQuestion, SendUserFile, EnterPlanMode, ExitPlanMode) plus a class note for
+  interactive-only MCP servers. A name that was a candidate this run is dropped from that
+  list. The report contract documents known-uncovered alongside unmeasured-but-candidate
+  ([#3199](https://github.com/melodic-software/claude-code-plugins/issues/3199)).
+
 ## [0.6.7]
 
 ### Changed

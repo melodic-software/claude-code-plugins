@@ -1,0 +1,15 @@
+{
+  "schema": "context-budget.interactive-only/1",
+  "purpose": "Product-level tools and capabilities that exist in some session mode but are structurally never candidates in a headless sweep. The report lists each as known-uncovered — distinct from unmeasured-but-candidate. Third-party interactive-only MCP servers are a class, not a name list.",
+  "tools": [
+    "Artifact",
+    "AskUserQuestion",
+    "SendUserFile",
+    "EnterPlanMode",
+    "ExitPlanMode"
+  ],
+  "notes": [
+    "Interactive-only MCP servers are known-uncovered as a class; third-party names are not enumerated.",
+    "Plan-mode tools are listed by the product names EnterPlanMode and ExitPlanMode; a future rename is a listing edit, not a silent omission."
+  ]
+}

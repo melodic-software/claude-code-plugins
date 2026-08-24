@@ -65,7 +65,10 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
 - `context-budget.attribution/1` — `baseline` (summary), ranked `perTool[]` rows
   `{tool, prefixDelta, deferredDelta, savedTokens, comparable, reasons}`, optional `additivity`
   (`--verify-additivity`: one combined-deny run checked against the sum of parts, with its own
-  `comparable`/`reasons`), plus the binary stamp and `skillListingSignature`. A deny can empty a
+  `comparable`/`reasons`), `knownUncovered` (interactive-only product tools from
+  [`interactive-only-tools.json`](interactive-only-tools.json) that were not candidates this
+  run — structurally unreachable from a headless inventory, not silent zeros), plus the binary
+  stamp and `skillListingSignature`. A deny can empty a
   summed bucket out of the snapshot entirely; the bucket's delta is then null and the row (or
   additivity record) reports `savedTokens`/`combinedSaved` as `null` with `comparable: false` and
   the reason — a missing measurement, never a coerced zero. That vanish path fires in

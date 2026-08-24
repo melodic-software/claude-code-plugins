@@ -326,8 +326,30 @@ if (cd "$WORK" && FAKE_MODE=control node "$ENGINE" attribute --tools AlphaTool,B
     "normal additivity case still verifies additive" "control additive wrong"
   assert_eq "$(jsonget "$actl" 'j.additivity.comparable')" "true" \
     "normal additivity case stays comparable" "control comparable wrong"
+  assert_eq "$(jsonget "$actl" 'j.knownUncovered.tools.includes("Artifact")')" "true" \
+    "full-sweep-shaped attribute lists Artifact as known-uncovered" "Artifact omitted from knownUncovered"
+  assert_eq "$(jsonget "$actl" 'j.knownUncovered.tools.includes("AskUserQuestion")')" "true" \
+    "AskUserQuestion is known-uncovered, not silent" "AskUserQuestion omitted from knownUncovered"
+  assert_eq "$(jsonget "$actl" 'j.knownUncovered.tools.includes("SendUserFile")')" "true" \
+    "SendUserFile is known-uncovered, not silent" "SendUserFile omitted from knownUncovered"
+  assert_eq "$(jsonget "$actl" 'j.knownUncovered.tools.includes("EnterPlanMode")')" "true" \
+    "plan-mode EnterPlanMode is known-uncovered" "EnterPlanMode omitted from knownUncovered"
+  assert_eq "$(jsonget "$actl" 'JSON.stringify(j.knownUncovered.notes).includes("MCP")')" "true" \
+    "interactive-only MCP servers are noted as a class" "MCP class note missing"
 else
   fail "attribute --verify-additivity (control scenario) exited nonzero"
+fi
+
+# A product interactive-only name that WAS a candidate this run is not
+# repeated as known-uncovered — it is measured (or unmeasured-but-candidate).
+aart="$WORK/attr-artifact-candidate.json"
+if (cd "$WORK" && FAKE_MODE=control node "$ENGINE" attribute --tools Artifact --binary "$FAKE" --out "$aart" >/dev/null); then
+  assert_eq "$(jsonget "$aart" 'j.knownUncovered.tools.includes("Artifact")')" "false" \
+    "a candidate Artifact is not also listed as known-uncovered" "Artifact listed as both candidate and known-uncovered"
+  assert_eq "$(jsonget "$aart" 'j.perTool.some((t)=>t.tool==="Artifact")')" "true" \
+    "explicit Artifact stays a per-tool candidate" "explicit Artifact missing from perTool"
+else
+  fail "attribute --tools Artifact exited nonzero"
 fi
 
 # A single deny that empties a bucket poisons that per-tool row the same way.
