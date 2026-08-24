@@ -94,8 +94,8 @@ whenever a step needs ids; never hand-write a `jq` extraction over the JSON, whi
 trailing `\r` on Windows and silently corrupts every id but the last (see
 [context/gotchas.md](context/gotchas.md)).
 
-After Step 4 installs anything, reorder user-scope `enabledPlugins` with the bundled writer — never
-hand-edit `~/.claude/settings.json`:
+After Step 4 installs anything, reorder user-scope `enabledPlugins` with the bundled writer.
+Never hand-edit `~/.claude/settings.json`:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh
