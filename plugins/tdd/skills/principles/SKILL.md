@@ -44,7 +44,7 @@ Load the most relevant file first. Load a second only if the first doesn't fully
 - "Is this code testable?" → Check the 2x2 matrix. High complexity + many collaborators = split it (Humble Object)
 - "Should I introduce an interface?" → Only for unmanaged deps you need to mock. Concrete classes for managed deps. Never for in-process deps
 - "Should I test this precondition?" → Yes if it has domain significance (e.g., non-negative employees). No if it's purely technical (array length check)
-- "Should I test this read operation?" → Higher threshold than writes. Writes corrupt data — always test. Reads: only the most complex/important ones
+- "Should I test this read operation?" → Higher threshold than writes. Writes corrupt data, so always test. Reads: only the most complex/important ones
 - "Domain event or direct call?" → Use domain events when the domain model needs to trigger external notifications without depending on out-of-process deps
 - "Why is my test brittle?" → It's probably coupled to implementation details. Check: are you asserting on observable behavior or internal structure?
 
@@ -52,14 +52,14 @@ Load the most relevant file first. Load a second only if the first doesn't fully
 
 - **Beck**: Kent Beck, *Test-Driven Development: By Example* (2003)
 - **Khorikov**: Vladimir Khorikov, *Unit Testing: Principles, Practices, and Patterns* (2020)
-- **Ousterhout** (secondary, cross-referenced only): John Ousterhout, *A Philosophy of Software Design* — cited in one editorial-synthesis section of [test-doubles.md](reference/test-doubles.md)
-- **Mutation-testing literature** (secondary, cross-referenced only): the primary sources on mutation testing — cited in one clearly-labeled editorial note in each of [code-coverage-khorikov.md](reference/code-coverage-khorikov.md) and [four-pillars-khorikov.md](reference/four-pillars-khorikov.md), where a claim of Khorikov's has a measurable partial exception he does not cover. Both notes are marked as outside his text and leave his claim standing. The material itself is owned by `/mutation-testing:principles` when the `mutation-testing` plugin is installed; without it, each note carries its own one-line fallback.
+- **Ousterhout** (secondary, cross-referenced only): John Ousterhout, *A Philosophy of Software Design*, cited in one editorial-synthesis section of [test-doubles.md](reference/test-doubles.md)
+- **Mutation-testing literature** (secondary, cross-referenced only): the primary sources on mutation testing, cited in one clearly-labeled editorial note in each of [code-coverage-khorikov.md](reference/code-coverage-khorikov.md) and [four-pillars-khorikov.md](reference/four-pillars-khorikov.md), where a claim of Khorikov's has a measurable partial exception he does not cover. Both notes are marked as outside his text and leave his claim standing. The material itself is owned by `/mutation-testing:principles` when the `mutation-testing` plugin is installed; without it, each note carries its own one-line fallback.
 
 ## Naming convention
 
-- `{concept}.md` — shared across authors, with attributed sections inside
-- `{concept}-{author}.md` — only one author covers it substantively
+- `{concept}.md` is shared across authors, with attributed sections inside
+- `{concept}-{author}.md` is used when only one author covers it substantively
 
 ## Scope boundary
 
-This skill is **knowledge** (WHY behind testing decisions), not **workflow** (HOW to run tests). For running, filtering, or scaffolding tests, use your project's own test tooling, conventions, and workflow skills — this skill informs the design decisions those workflows execute.
+This skill is **knowledge** (WHY behind testing decisions), not **workflow** (HOW to run tests). For running, filtering, or scaffolding tests, use your project's own test tooling, conventions, and workflow skills. This skill informs the design decisions those workflows execute.

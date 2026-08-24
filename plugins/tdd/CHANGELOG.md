@@ -3,6 +3,16 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, tdd cluster).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop leftover body-prose em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. YAML frontmatter is unchanged so the cheatsheet stays valid.
+
 ## [0.4.2]
 
 ### Changed
