@@ -1,7 +1,7 @@
 # context7
 
 A Claude Code plugin for looking up **current library documentation, API
-references, and code examples** via [Context7](https://context7.com) — so
+references, and code examples** via [Context7](https://context7.com), so
 answers about libraries, frameworks, SDKs, and cloud services come from live
 docs instead of stale training data.
 
@@ -16,7 +16,7 @@ a question names a library); configure the environment with `/context7:setup`:
 
 ## Skills
 
-- **`/context7:lookup <library> <query>`** (default) — the two-step Context7
+- **`/context7:lookup <library> <query>`** (default). The two-step Context7
   workflow: resolve the library name to a `/org/project` ID, then query its
   docs. Works through the `ctx7` CLI, or through the Context7 MCP server when
   the consuming project has one configured (same backend, ~1.8× more content
@@ -25,7 +25,7 @@ a question names a library); configure the environment with `/context7:setup`:
   latest npm release (`--fix` upgrades it) and diffs Upstash's upstream
   reference skills against the plugin's bundled `vendor/` baselines, reporting
   anything new for manual review. It never auto-rewrites the skill.
-- **`/context7:setup`** — idempotent verification and configuration. `check`
+- **`/context7:setup`**. Idempotent verification and configuration. `check`
   (default) reports the `ctx7` CLI, `CONTEXT7_API_KEY` auth, and Context7 MCP
   server state read-only; `apply` resolves what it found (auth and MCP guidance);
   `apply install-cli` installs/upgrades the `ctx7` CLI. Also covers the Windows
@@ -33,10 +33,10 @@ a question names a library); configure the environment with `/context7:setup`:
 
 ## Requirements
 
-- **`ctx7` CLI** (`npm install -g ctx7@latest`) for the CLI path — or a
+- **`ctx7` CLI** (`npm install -g ctx7@latest`) for the CLI path, or a
   Context7 MCP server configured in the consuming project for the MCP path.
   Either alone is enough; the skill picks whichever is available.
-- **`CONTEXT7_API_KEY`** (optional) — anonymous usage works at low rates; an
+- **`CONTEXT7_API_KEY`** (optional). Anonymous usage works at low rates; an
   API key raises limits. Set it as an environment variable; never commit it.
 
 ## Install
@@ -48,25 +48,25 @@ a question names a library); configure the environment with `/context7:setup`:
 
 ## Configuration
 
-This plugin has no `userConfig` and ships **no MCP server** — it never opens a
+This plugin has no `userConfig` and ships **no MCP server**. It never opens a
 network surface by itself beyond the lookups you ask for. Two optional
 consumer-side settings:
 
-- `CONTEXT7_API_KEY` environment variable — higher rate limits for both CLI
+- `CONTEXT7_API_KEY` environment variable. Higher rate limits for both CLI
   and MCP paths.
-- A `context7` entry in your own MCP configuration if you want the MCP path —
-  the skill documents the exact snippet and degrades cleanly to the CLI when
+- A `context7` entry in your own MCP configuration if you want the MCP path.
+  The skill documents the exact snippet and degrades cleanly to the CLI when
   it is absent.
 
 ## Data egress note
 
 Lookup queries (your library question text) are sent to the Context7 backend
 (`context7.com` / `mcp.context7.com`). Don't put secrets in queries. The
-`ctx7` CLI also sends anonymous usage telemetry by default — set
+`ctx7` CLI also sends anonymous usage telemetry by default. Set
 `CTX7_TELEMETRY_DISABLED=1` to opt out. The `update` action additionally
 fetches two public files from `raw.githubusercontent.com` (Upstash's
-reference skills) and reads the npm registry for the latest `ctx7` version —
-read-only, nothing uploaded.
+reference skills) and reads the npm registry for the latest `ctx7` version.
+Read-only, nothing uploaded.
 
 ## License
 

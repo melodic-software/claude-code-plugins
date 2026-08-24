@@ -1,6 +1,6 @@
 ---
-description: "Look up current library documentation, API references, and code examples via Context7 (ctx7 CLI or the Context7 MCP server — same backend). Use when: 'look up the docs for X', 'what's the API for X', 'how do I configure X', 'latest docs for X', 'check context7 for X', 'how do I migrate to X v2', or whenever a question names a library, framework, SDK, CLI tool, or cloud service — including API syntax, configuration, setup, and version-migration questions. Actions: lookup <library> <query> (default) | update (CLI upgrade + upstream drift check). For CLI/MCP setup, auth, and Windows gotchas, run /context7:setup."
-argument-hint: "[lookup <library> <query> | update] (default: lookup — e.g., /context7:lookup react \"useEffect cleanup\")"
+description: "Look up current library documentation, API references, and code examples via Context7 (ctx7 CLI or the Context7 MCP server, same backend). Use when: 'look up the docs for X', 'what's the API for X', 'how do I configure X', 'latest docs for X', 'check context7 for X', 'how do I migrate to X v2', or whenever a question names a library, framework, SDK, CLI tool, or cloud service, including API syntax, configuration, setup, and version-migration questions. Actions: lookup <library> <query> (default) | update (CLI upgrade + upstream drift check). For CLI/MCP setup, auth, and Windows gotchas, run /context7:setup."
+argument-hint: "[lookup <library> <query> | update] (default: lookup, e.g., /context7:lookup react \"useEffect cleanup\")"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -17,13 +17,13 @@ shell: bash
 
 Installed CLI version: !`ctx7 --version 2>/dev/null || echo "not installed (run: npm install -g ctx7@latest)"`
 
-MCP availability: check your own tool list — if `mcp__context7__resolve-library-id` / `mcp__context7__query-docs` are present, the MCP path is configured.
+MCP availability: check your own tool list. If `mcp__context7__resolve-library-id` / `mcp__context7__query-docs` are present, the MCP path is configured.
 
 ## Purpose
 
 A primary source of up-to-date library documentation. Two equivalent interfaces: CLI (`ctx7`) via npm, and the Context7 HTTP MCP server (`mcp__context7__*`) when the consuming project has it configured. Both read the same backend. Pick by workflow (see [When to use CLI vs MCP](#when-to-use-cli-vs-mcp)).
 
-**Philosophy**: training data is stale by the time you use it. Library APIs, framework defaults, best practices change. Before claiming how a library works, verify against Context7 — even for libraries you "know."
+**Philosophy**: training data is stale by the time you use it. Library APIs, framework defaults, best practices change. Before claiming how a library works, verify against Context7, even for libraries you "know."
 
 ## Actions
 
@@ -34,7 +34,7 @@ A primary source of up-to-date library documentation. Two equivalent interfaces:
 
 If the argument is bare (no action keyword), treat as `lookup`.
 
-First-time setup — CLI install, `CONTEXT7_API_KEY` auth, optional MCP server wiring, and the Windows Git Bash gotcha — lives in its own skill: run `/context7:setup`.
+First-time setup covers CLI install, `CONTEXT7_API_KEY` auth, optional MCP server wiring, and the Windows Git Bash gotcha. It lives in its own skill: run `/context7:setup`.
 
 ## Lookup (happy path)
 
@@ -54,15 +54,15 @@ mcp__context7__resolve-library-id(libraryName: "...", query: "...")
 mcp__context7__query-docs(libraryId: "/org/project", query: "...")
 ```
 
-You MUST call `library` / `resolve-library-id` first to get a valid ID, UNLESS the user provides one in `/org/project` format. One concept per query — when a question spans several independent topics, run a separate lookup per topic. Do not run more than 3 lookup commands per topic — if you cannot find what you need, fall back to training knowledge and tell the user Context7 didn't cover it.
+You MUST call `library` / `resolve-library-id` first to get a valid ID, UNLESS the user provides one in `/org/project` format. One concept per query. When a question spans several independent topics, run a separate lookup per topic. Do not run more than 3 lookup commands per topic. If you cannot find what you need, fall back to training knowledge and tell the user Context7 didn't cover it.
 
-**Do not include sensitive information** (API keys, passwords, credentials) in queries — sent to the Context7 backend.
+**Do not include sensitive information** (API keys, passwords, credentials) in queries. Sent to the Context7 backend.
 
 Details: query-writing, result selection, version-specific IDs, common mistakes → [context/lookup.md](context/lookup.md)
 
 ## When to use CLI vs MCP
 
-Both read the same backend — results equivalent in substance. Pick by workflow.
+Both read the same backend. Results equivalent in substance. Pick by workflow.
 
 | Use the CLI (`ctx7`) when | Use the MCP (`mcp__context7__*`) when |
 |---|---|
@@ -85,20 +85,20 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/lookup/scripts/update.sh"        # check only
 bash "${CLAUDE_PLUGIN_ROOT}/skills/lookup/scripts/update.sh" --fix  # apply CLI upgrade
 ```
 
-Script (a) reports installed vs latest `ctx7` version, (b) fetches latest upstream `find-docs/SKILL.md` and `context7-cli/SKILL.md` from `upstash/context7`, (c) diffs against the `vendor/` baselines, (d) if different, reports NEW upstream guidance for manual integration into this skill. The script does NOT auto-overwrite this `SKILL.md` — customizations (Windows gotcha, CLI-vs-MCP guidance, action dispatch) must be preserved.
+Script (a) reports installed vs latest `ctx7` version, (b) fetches latest upstream `find-docs/SKILL.md` and `context7-cli/SKILL.md` from `upstash/context7`, (c) diffs against the `vendor/` baselines, (d) if different, reports NEW upstream guidance for manual integration into this skill. The script does NOT auto-overwrite this `SKILL.md`. Customizations (Windows gotcha, CLI-vs-MCP guidance, action dispatch) must be preserved.
 
 Full protocol (merge strategy, what to preserve, maintainer-only baseline refresh) → [context/update.md](context/update.md)
 
 ## What this skill does NOT do
 
-- **Does not replace multi-source research** — use your research workflow for architecture decisions or anything needing cross-referenced sources. This skill is library-doc retrieval only
-- **Does not refactor code** — retrieves docs. User's question shapes what comes back
-- **Does not cache content locally** — docs fetched fresh each call. `vendor/` baseline is verbatim upstream for skill-content drift detection only, not doc retrieval (do NOT read `vendor/` for normal lookup invocations; only when running the `update` action)
-- **Does not auto-overwrite on update** — `update` is advisory. User approves any merge before changes land
+- **Does not replace multi-source research**. Use your research workflow for architecture decisions or anything needing cross-referenced sources. This skill is library-doc retrieval only
+- **Does not refactor code**. Retrieves docs. User's question shapes what comes back
+- **Does not cache content locally**. Docs fetched fresh each call. `vendor/` baseline is verbatim upstream for skill-content drift detection only, not doc retrieval (do NOT read `vendor/` for normal lookup invocations; only when running the `update` action)
+- **Does not auto-overwrite on update**. `update` is advisory. User approves any merge before changes land
 
 ## Gotchas
 
 - **Windows Git Bash**: `ctx7 docs /org/project "..."` gets path-mangled to `C:/Program Files/Git/org/project`. Always prefix with `MSYS_NO_PATHCONV=1`. `ctx7 library` is unaffected. Full detail: [context/cli.md](context/cli.md)
-- **Prefer the `CONTEXT7_API_KEY` env var over `ctx7 login`**: `ctx7 login` triggers browser OAuth and writes a token to `~/.ctx7/` — the env var is simpler and portable across machines. See [context/cli.md](context/cli.md)
+- **Prefer the `CONTEXT7_API_KEY` env var over `ctx7 login`**: `ctx7 login` triggers browser OAuth and writes a token to `~/.ctx7/`. The env var is simpler and portable across machines. See [context/cli.md](context/cli.md)
 - **No content tuning**: CLI has no `--tokens` / `--limit` flag. Default depth is server-controlled. For more content per call, prefer MCP (returns ~1.8× more by default)
 - **Don't run `ctx7 skills install` into `.claude/skills/`**: this plugin owns the Context7 lookup surface. Installing Upstash's `find-docs` skill alongside creates a parallel surface that fragments lookups and drifts independently
