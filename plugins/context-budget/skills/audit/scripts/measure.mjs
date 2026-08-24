@@ -17,11 +17,12 @@
 //              number.
 //
 // Subcommands:
-//   snapshot      one measured snapshot (optionally under --deny)
-//   attribute     baseline + one deny run per tool -> ranked per-tool deltas
-//   compare       offline: two snapshot files -> one ledger row
-//   ledger        append a row / list rows under a caller-derived data dir
-//   parse-context offline: parse a captured /context markdown file
+//   snapshot          one measured snapshot (optionally under --deny)
+//   attribute         baseline + one deny run per tool -> ranked per-tool deltas
+//   compare           offline: two snapshot files -> one ledger row
+//   ledger            append a row / list rows under a caller-derived data dir
+//   parse-context     offline: parse a captured /context markdown file
+//   verify-catalogue  grep the stamped binary for each catalogue key/env name
 //
 // Exit codes: 0 success; 2 usage error; 3 measurement unavailable or
 // unparsable (the degradation path — stdout carries a context-budget.error/1
@@ -42,12 +43,53 @@ import {
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SNAPSHOT_SCHEMA = 'context-budget.snapshot/1';
 const ATTRIBUTION_SCHEMA = 'context-budget.attribution/1';
 const LEDGER_SCHEMA = 'context-budget.ledger/1';
 const ERROR_SCHEMA = 'context-budget.error/1';
+const CATALOGUE_SCHEMA = 'context-budget.levers/1';
+const CATALOGUE_VERIFY_SCHEMA = 'context-budget.catalogue-verify/1';
+
+const DEFAULT_CATALOGUE = join(
+  dirname(fileURLToPath(import.meta.url)), '..', 'reference', 'levers.json',
+);
+
+// Settings keys and env names the catalogue cites. Env vars are the CLAUDE_CODE_
+// / ENABLE_ / DISABLE_ family; settings keys are camelCase identifiers in the
+// row's prose fields. A row may override with `binaryTokens`.
+const ENV_TOKEN_RE = /\b(?:CLAUDE_CODE|ENABLE|DISABLE)_[A-Z0-9_]+\b/g;
+
+// Linear camelCase scan — no nested quantifiers. The previous
+// /\b[a-z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]*)+\b/g shape is ReDoS-vulnerable
+// on a long same-case run that then fails \b (e.g. "a" + "A"*n + "_").
+function extractCamelKeys(text) {
+  const out = [];
+  const s = String(text);
+  let i = 0;
+  while (i < s.length) {
+    const c = s.charCodeAt(i);
+    if (c >= 97 && c <= 122) {
+      const start = i;
+      i += 1;
+      let sawUpper = false;
+      while (i < s.length) {
+        const k = s.charCodeAt(i);
+        const isLower = k >= 97 && k <= 122;
+        const isUpper = k >= 65 && k <= 90;
+        const isDigit = k >= 48 && k <= 57;
+        if (!isLower && !isUpper && !isDigit) break;
+        if (isUpper) sawUpper = true;
+        i += 1;
+      }
+      if (sawUpper) out.push(s.slice(start, i));
+      continue;
+    }
+    i += 1;
+  }
+  return out;
+}
 
 const SPAWN_TIMEOUT_MS = 180000;
 
@@ -109,6 +151,7 @@ Usage:
                        [--emitted-config <text>]
   measure.mjs ledger (--append <row-file>|--list) --dir <data-dir>
   measure.mjs parse-context --file <captured-context.md>
+  measure.mjs verify-catalogue [--binary <path>] [--catalogue <file>] [--out <file>]
 
 Exit: 0 success; 2 usage error; 3 measurement unavailable/unparsable
       (stdout then carries a ${ERROR_SCHEMA} record with a remediation).
@@ -699,6 +742,125 @@ function ledgerList(dir) {
 // main
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// verify-catalogue — binary-strings existence check (no network).
+// Docs fetch remains the authority on semantics; this is the authority on
+// whether each catalogue key/env name exists in the measured binary.
+// ---------------------------------------------------------------------------
+
+function catalogueTokens(lever) {
+  if (Array.isArray(lever.binaryTokens) && lever.binaryTokens.length) {
+    return [...new Set(lever.binaryTokens.filter((t) => typeof t === 'string' && t.length))];
+  }
+  const tokens = new Set();
+  const texts = [lever.title, lever.mechanism, lever.emittedConfig, lever.scope, lever.detection]
+    .filter((t) => typeof t === 'string')
+    .join('\n');
+  for (const m of texts.matchAll(ENV_TOKEN_RE)) tokens.add(m[0]);
+  for (const key of extractCamelKeys(texts)) tokens.add(key);
+  if (typeof lever.emittedConfig === 'string') {
+    try {
+      const obj = JSON.parse(lever.emittedConfig);
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+        for (const k of Object.keys(obj)) {
+          if (extractCamelKeys(k).includes(k)) tokens.add(k);
+        }
+      }
+    } catch { /* emittedConfig is not JSON — prose fields still contribute */ }
+  }
+  return [...tokens];
+}
+
+// Prefer a sibling .exe over a Windows command shim so the scan reads the
+// payload the consumer actually runs, not the wrapper script.
+function binaryScanPath(bin) {
+  if (!/\.(cmd|bat)$/i.test(bin)) return { path: bin, viaShim: false };
+  const exe = bin.replace(/\.(cmd|bat)$/i, '.exe');
+  if (existsSync(exe)) return { path: realpathSync(exe), viaShim: true };
+  return { path: bin, viaShim: true };
+}
+
+function countTokenHits(buf, token) {
+  const needle = Buffer.from(token, 'utf8');
+  let count = 0;
+  let idx = 0;
+  while ((idx = buf.indexOf(needle, idx)) !== -1) {
+    count += 1;
+    idx += needle.length;
+  }
+  return count;
+}
+
+function runVerifyCatalogue(args) {
+  const cataloguePath = args.catalogue || DEFAULT_CATALOGUE;
+  let cat;
+  try {
+    cat = JSON.parse(readFileSync(cataloguePath, 'utf8'));
+  } catch (e) {
+    usageError(`--catalogue unreadable JSON: ${e.message}`);
+  }
+  if (cat.schema !== CATALOGUE_SCHEMA) {
+    usageError(`--catalogue expects ${CATALOGUE_SCHEMA}; got ${JSON.stringify(cat.schema)}`);
+  }
+
+  const bin = resolveBinary(args.binary);
+  if (!bin) {
+    degrade('no-binary', 'no `claude` executable found on PATH and no --binary given',
+      'Pass --binary <path> naming the Claude Code executable whose strings to grep.');
+  }
+  const scanned = binaryScanPath(bin);
+  let buf;
+  try {
+    buf = readFileSync(scanned.path);
+  } catch (e) {
+    degrade('binary-unreadable', `could not read binary ${scanned.path}: ${e.message}`,
+      'Pass --binary with a readable Claude Code executable.');
+  }
+
+  const rows = [];
+  const absent = [];
+  for (const lever of cat.levers ?? []) {
+    const names = catalogueTokens(lever);
+    const tokens = names.map((name) => {
+      const hits = countTokenHits(buf, name);
+      const present = hits > 0;
+      if (!present) absent.push({ id: lever.id, name });
+      return { name, present, hits };
+    });
+    rows.push({
+      id: lever.id,
+      tokens,
+      skipped: tokens.length === 0,
+    });
+  }
+
+  const caveats = [
+    'binary scan is the authority on existence of each key/env name at this binary version',
+    'docs fetch remains the authority on semantics',
+  ];
+  if (scanned.viaShim && scanned.path === bin) {
+    caveats.push('scanned a Windows command shim; a sibling .exe was not found, so absence findings may be the wrapper rather than the payload');
+  } else if (scanned.viaShim) {
+    caveats.push(`resolved Windows command shim ${bin} to sibling ${scanned.path}`);
+  }
+
+  return {
+    schema: CATALOGUE_VERIFY_SCHEMA,
+    timestampUtc: nowUtc(),
+    method: 'binary-scan',
+    binary: { path: scanned.path, version: binaryVersion(bin), resolvedFrom: bin },
+    catalogue: {
+      path: cataloguePath,
+      verifiedAgainst: cat.meta?.verifiedAgainst ?? null,
+    },
+    rows,
+    checked: rows.reduce((n, r) => n + r.tokens.length, 0),
+    missing: absent.length,
+    absent,
+    caveats,
+  };
+}
+
 function emit(record, outFile) {
   const text = `${JSON.stringify(record, null, 2)}\n`;
   if (outFile) {
@@ -748,6 +910,10 @@ async function main() {
       if (args.append) ledgerAppend(args.dir, args.append);
       else if (args.list) ledgerList(args.dir);
       else usageError('ledger needs --append <row-file> or --list');
+      break;
+    }
+    case 'verify-catalogue': {
+      emit(runVerifyCatalogue(args), args.out);
       break;
     }
     case 'parse-context': {
