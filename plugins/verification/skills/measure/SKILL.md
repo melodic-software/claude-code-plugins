@@ -1,5 +1,5 @@
 ---
-description: "Verify a measurable-improvement claim against a baseline captured BEFORE the change — two metric families (`performance`: wall time, memory, allocations, throughput, latency; `metrics`: complexity, coverage, coupling), each with a `baseline` phase at planning time and a `compare` phase after the change. Never claims improvement without a baseline (no baseline → honest 'cannot quantify'). Use when: 'is it faster', 'before/after', 'prove the improvement', 'did that actually speed it up', 'how much faster is it', 'measure this', 'capture a baseline', 'benchmark before and after', 'did complexity go down'; intent/outcome confirmation stays with /verification:confirm."
+description: "Verify a measurable-improvement claim against a baseline captured BEFORE the change. Two metric families (`performance`: wall time, memory, allocations, throughput, latency; `metrics`: complexity, coverage, coupling), each with a `baseline` phase at planning time and a `compare` phase after the change. Never claims improvement without a baseline (no baseline → honest 'cannot quantify'). Use when: 'is it faster', 'before/after', 'prove the improvement', 'did that actually speed it up', 'how much faster is it', 'measure this', 'capture a baseline', 'benchmark before and after', 'did complexity go down'; intent/outcome confirmation stays with /verification:confirm."
 user-invocable: true
 argument-hint: "[performance|metrics] [baseline|compare] (e.g., /verification:measure performance, /verification:measure metrics baseline)"
 disable-model-invocation: false
@@ -10,9 +10,9 @@ metadata:
 
 ## Purpose
 
-`/verification:measure` answers **"did the claimed improvement actually happen, by how much?"** — it MEASURES a delta (before → after) against a baseline captured before the change. It is the measurable-delta twin of `/verification:confirm` (which confirms intent/outcome) and is distinct from a review gate (which reviews design quality for ship-readiness on an absolute axis).
+`/verification:measure` answers **"did the claimed improvement actually happen, by how much?"**. It MEASURES a delta (before → after) against a baseline captured before the change. It is the measurable-delta twin of `/verification:confirm` (which confirms intent/outcome) and is distinct from a review gate (which reviews design quality for ship-readiness on an absolute axis).
 
-Core rule: **never claim improvement without a baseline captured before the change.** If no baseline exists, report honestly — "Baseline not captured. Current measurement: X. Cannot quantify improvement." — and never fabricate a delta.
+Core rule: **never claim improvement without a baseline captured before the change.** If no baseline exists, report honestly, "Baseline not captured. Current measurement: X. Cannot quantify improvement.", and never fabricate a delta.
 
 ## Two-phase model
 
@@ -23,9 +23,9 @@ The measurement mechanism is SSOT here; the planning stage *routes* to it when a
 | `baseline` | planning time (plan states a measurable goal) | `/verification:measure <family> baseline` | Capture pre-change measurements → store under the topic's memory-tier `baselines/` + record baseline + target in the plan |
 | `compare` | after the change (default phase) | `/verification:measure <family>` | Re-measure under the same conditions → compare to the stored baseline → verify the claim |
 
-Baseline storage: the topic's memory tier — `<memory_dir>/<slug>/baselines/` (default `.work/`), resolved per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Baselines are machine-bound measurements and are **never committed**; the plan artifact is contract-tier at `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`) and no longer sits beside them. The plan records the baseline values + target; the comparison summary surfaces in the plan and the PR body.
+Baseline storage: the topic's memory tier. `<memory_dir>/<slug>/baselines/` (default `.work/`), resolved per the topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). Baselines are machine-bound measurements and are **never committed**; the plan artifact is contract-tier at `<contract_dir>/<slug>/PLAN.md` (default `docs/topics/`) and no longer sits beside them. The plan records the baseline values + target; the comparison summary surfaces in the plan and the PR body.
 
-**Measurement tooling:** use whatever harness the consuming project wires (BenchmarkDotNet, pytest-benchmark, a metrics collector); when none exists, run both phases manually per the context-file discipline — do not add a harness speculatively.
+**Measurement tooling:** use whatever harness the consuming project wires (BenchmarkDotNet, pytest-benchmark, a metrics collector); when none exists, run both phases manually per the context-file discipline. Do not add a harness speculatively.
 
 ## Mode dispatch
 
@@ -40,28 +40,28 @@ No family argument → infer from the claim: runtime-resource claims → `perfor
 
 Each context file owns its family's full discipline: claim-to-metric mapping, measurement methodology, report template, verdict vocabulary, and pitfalls.
 
-## Prerequisite — green mechanical state (both phases)
+## Prerequisite. Green mechanical state (both phases)
 
-Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before EITHER phase — `baseline` capture or `compare` — confirm the mechanical pass is green: reuse a `/toolchain:check` or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:check` via the Skill tool when the `toolchain` plugin is installed, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
+Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before EITHER phase. `baseline` capture or `compare`. Confirm the mechanical pass is green: reuse a `/toolchain:check` or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:check` via the Skill tool when the `toolchain` plugin is installed, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
 
 ## Integration
 
 | Condition | Action |
 |-----------|--------|
 | An approved plan states a measurable goal | Run the `baseline` phase BEFORE implementation |
-| Improvement claimed without data (in `/verification:confirm`, review, or conversation) | Redirect here — `performance` or `metrics` per the claim |
-| Verdict is DEGRADED or NOT CONFIRMED | Surface immediately; the claim does not hold — fix or withdraw it |
+| Improvement claimed without data (in `/verification:confirm`, review, or conversation) | Redirect here. `performance` or `metrics` per the claim |
+| Verdict is DEGRADED or NOT CONFIRMED | Surface immediately; the claim does not hold. Fix or withdraw it |
 | Measurement complete | Feed the comparison table into the `/verification:confirm` outcome report; surface the summary in the plan artifact / PR body |
 
 ## What this skill does NOT do
 
-- **Does not confirm intent/outcome** — "did we build the right thing" is `/verification:confirm` (`outcome` / `fix` / `refactor` criteria).
-- **Does not review for ship-readiness** — that's the project's review gate; the measure-delta vs review-for-ship boundary is stated in "Purpose" above.
-- **Does not capture baselines after the fact** — a post-change "baseline" is not a baseline. Missing baseline → honest "cannot quantify", plus a current-state measurement for the record.
-- **Does not run the mechanical pass** — `/toolchain:check` owns build+test+lint; this skill only requires its result to be green.
+- **Does not confirm intent/outcome**. "did we build the right thing" is `/verification:confirm` (`outcome` / `fix` / `refactor` criteria).
+- **Does not review for ship-readiness**. That's the project's review gate; the measure-delta vs review-for-ship boundary is stated in "Purpose" above.
+- **Does not capture baselines after the fact**, a post-change "baseline" is not a baseline. Missing baseline → honest "cannot quantify", plus a current-state measurement for the record.
+- **Does not run the mechanical pass**. `/toolchain:check` owns build+test+lint; this skill only requires its result to be green.
 
 ## Gotchas
 
-- **Baseline BEFORE the change, compared under the SAME conditions after.** Condition drift invalidates the comparison — the run/warm-up/conditions methodology is owned by [context/performance.md](context/performance.md).
-- **Noise floor first.** If the projected saving sits within run-to-run variance, the change is unmeasurable — surface that before the work, not after (detail: [context/performance.md](context/performance.md)).
+- **Baseline BEFORE the change, compared under the SAME conditions after.** Condition drift invalidates the comparison, the run/warm-up/conditions methodology is owned by [context/performance.md](context/performance.md).
+- **Noise floor first.** If the projected saving sits within run-to-run variance, the change is unmeasurable. Surface that before the work, not after (detail: [context/performance.md](context/performance.md)).
 - **Never fabricate numbers.** No baseline, high variance, or differing conditions → INCONCLUSIVE / NOT CONFIRMED, stated plainly.
