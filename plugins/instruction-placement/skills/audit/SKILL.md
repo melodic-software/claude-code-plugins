@@ -1,6 +1,6 @@
 ---
-description: "Read-only sweep for instruction content on the wrong surface — conventions in an always-loaded CLAUDE.md/AGENTS.md really scoped to one file type or subtree (demote), and normative conventions stranded in ordinary docs Claude never loads (promote). Proposes a destination per candidate: a path-scoped `.claude/rules/` file whose `paths:` glob is machine-checked first, a nested AGENTS.md plus its CLAUDE.md shim, a skill, a linter, or deletion. Safety rails — irreversible actions, secrets, data, publication, compliance, agent authority — are hard-denied from demotion and held back. Every proposal is priced: deferred content is invisible to subagents and absent after compaction until re-triggered. Use when: 'my CLAUDE.md is too long', 'convert this to rules', 'what should be a path-scoped rule', 'move conventions to .claude/rules', 'find conventions in our docs', 'nested CLAUDE.md candidates', 'audit instruction placement'. Emits a findings artifact; the sibling realign skill applies what you accept."
-argument-hint: "[core|expanded] [path ...] — default: core+expanded over the whole repository"
+description: "Read-only sweep for instruction content on the wrong surface. Conventions in an always-loaded CLAUDE.md/AGENTS.md really scoped to one file type or subtree (demote), and normative conventions stranded in ordinary docs Claude never loads (promote). Proposes a destination per candidate: a path-scoped `.claude/rules/` file whose `paths:` glob is machine-checked first, a nested AGENTS.md plus its CLAUDE.md shim, a skill, a linter, or deletion. Safety rails covering irreversible actions, secrets, data, publication, compliance, and agent authority are hard-denied from demotion and held back. Every proposal is priced: deferred content is invisible to subagents and absent after compaction until re-triggered. Use when: 'my CLAUDE.md is too long', 'convert this to rules', 'what should be a path-scoped rule', 'move conventions to .claude/rules', 'find conventions in our docs', 'nested CLAUDE.md candidates', 'audit instruction placement'. Emits a findings artifact; the sibling realign skill applies what you accept."
+argument-hint: "[core|expanded] [path ...]. Default: core+expanded over the whole repository"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
@@ -37,7 +37,7 @@ cause Claude to ignore the instructions inside them, but this plugin measured th
 and did not reproduce it: 32 trials at two bloat levels, up to 1,927 lines, found 100% compliance
 whether the convention was always-loaded or path-scoped
 ([`../../evals/adherence-results.md`](../../evals/adherence-results.md)). So propose moves on
-context cost and on reaching content Claude never loads — never by promising the operator their
+context cost and on reaching content Claude never loads, never by promising the operator their
 instructions will be followed better afterwards.
 
 This skill finds content whose scope is narrower than the surface carrying it, and content whose
@@ -62,11 +62,11 @@ what it cost before.
 
 ## The two lanes
 
-**Demote** — content already in the instruction layer, sitting higher than its scope warrants. The
+**Demote**. Content already in the instruction layer, sitting higher than its scope warrants. The
 saving is real but so is the trade: what defers is invisible to subagents and absent after
 compaction until re-triggered. Price it, every time.
 
-**Promote** — normative content in ordinary documentation that Claude loads *never*. There is no
+**Promote**. Normative content in ordinary documentation that Claude loads *never*. There is no
 presence to lose, so the gaps do not apply and any working destination is a strict improvement. The
 live risk here is duplication, not context: resolve single-source-of-truth per candidate using the
 rubric's table rather than reflexively copying.
@@ -96,7 +96,7 @@ correspond to a `SECTION` record, say so rather than inventing a boundary.
 
 **A `HINT` is raw material, not a decision.** The detector reports what the text literally says; it
 does not know whether `.ts` is the candidate's real scope. Derive the glob from the hints, then
-validate it — an unvalidated hint is not a proposal.
+validate it. An unvalidated hint is not a proposal.
 
 ## Workflow
 
@@ -116,9 +116,9 @@ validate it — an unvalidated hint is not a proposal.
 
    A glob that comes back `zero-match`, `bad-bracket`, or `over-budget` **must not be proposed**.
    Re-derive, or drop the candidate to the subtree destination, or leave it where it is. Record the
-   validation facts — match count and breadth — in the finding, because that is the evidence the
+   validation facts, match count and breadth, in the finding, because that is the evidence the
    operator gates on. An `over-broad` result is proposable but must be surfaced as such.
-6. **Price each proposal** — what leaves the always-loaded budget, subagent invisibility, and
+6. **Price each proposal**. What leaves the always-loaded budget, subagent invisibility, and
    post-compaction behavior for that specific destination.
 7. **Rank**, highest value first: always-loaded lines released × confidence, with promote-lane
    findings ranked on value alone since they carry no downside.
@@ -127,7 +127,7 @@ validate it — an unvalidated hint is not a proposal.
 
 ## Where the artifact goes
 
-Resolve the project key and write under it — `findings-artifact.md` owns the full path shape:
+Resolve the project key and write under it. `findings-artifact.md` owns the full path shape:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
@@ -136,11 +136,11 @@ Resolve the project key and write under it — `findings-artifact.md` owns the f
 The plugin data directory is keyed to the plugin identifier and nothing else, so an unkeyed filename
 is one file per **machine**: a later run in a different repository would read this one's findings as
 its own. Never skip the key. If a prior artifact exists for this key, merge per the contract's
-re-run semantics rather than overwriting — an operator's `declined` decision must survive a re-audit.
+re-run semantics rather than overwriting. An operator's `declined` decision must survive a re-audit.
 
 ## Routing out
 
-A candidate can raise a question placement does not answer — whether the model still needs the
+A candidate can raise a question placement does not answer: whether the model still needs the
 instruction, whether it is duplicated, whether the whole file should exist. Those belong to sibling
 plugins, and each route is presence-gated with a documented fallback.
 
@@ -149,7 +149,7 @@ table and the two rules that keep routing from becoming silent dropping.
 
 ## Reporting honestly
 
-- **Say what was not swept.** The detector's `SKIP` records and `SUMMARY` are the source — report
+- **Say what was not swept.** The detector's `SKIP` records and `SUMMARY` are the source. Report
   them rather than recounting by hand. A run that covered 200 of 2,000 files while reading like a
   full audit is the failure this rule exists to prevent.
 - **Show the held-back list.** An operator who cannot see what the hard-deny gate excluded cannot
@@ -161,7 +161,7 @@ table and the two rules that keep routing from becoming silent dropping.
 ## Hard rules
 
 - **Read-only.** The only file this skill writes is its own findings artifact, outside the
-  repository. No edit to any instruction file, ever — not even an obviously correct one.
+  repository. No edit to any instruction file, ever, not even an obviously correct one.
 - **Never propose a glob that failed validation.** The check is mechanical and cheap; a guessed glob
   produces a rule that silently never fires, which is strictly worse than leaving the content alone.
 - **Never propose demoting a hard-deny candidate**, under any argument, including an operator
