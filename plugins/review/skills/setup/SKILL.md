@@ -20,8 +20,8 @@ a re-run against a conforming, current-version index proposes no changes.
 
 Action routing per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
 "Setup is explicit and repeatable" in the marketplace repository): no argument or `check` runs
-the binding's state-reading procedure read-only and reports. Index presence and resolved
-standards root, per-row path validation, and the DIRECTIONAL version delta, as a PASS/FAIL/INFO
+the binding's state-reading procedure read-only and reports index presence and resolved
+standards root, per-row path validation, and the DIRECTIONAL version delta as a PASS/FAIL/INFO
 table with one remediation line per FAIL, writing nothing. `apply` runs `check` first, then the
 binding's bootstrap / reconfigure / migration flow below; after any write it re-runs the relevant
 probe and reports the actual result. Non-interactive when the state admits exactly one conforming
