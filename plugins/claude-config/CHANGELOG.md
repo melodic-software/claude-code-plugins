@@ -3,6 +3,23 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.2]
+
+### Fixed
+
+- **`audit-instructions` `emit-findings.sh` dropped `--from` lines that missed the intake
+  pattern, without counting them (#3279).** `nrows++` lived inside
+  `/^.+:[0-9]+:I[0-9]+(-[a-c])?$/`, so a well-formed row whose only defect was a suffix
+  outside `[a-c]` (`I28-d`), a prose line, or a blank incremented nothing and reached no
+  decline bucket. The report could not distinguish "this input had 2 rows" from "this
+  input had 5 rows and 3 were unreadable." The writer now counts first and classifies
+  second: every considered line increments `Scan rows read`, and an unmatched line lands
+  in `reason=unparsable-row`. Intake also strips a trailing `\r` before the pattern
+  match — the same strip `descr()` and `source_line()` already do — so a mixed CRLF file
+  no longer silently drops the CR-terminated rows. The scanner-output gate does the same
+  strip, so an all-CRLF file with a matching row is parsed rather than refused as
+  non-scanner input.
+
 ## [0.40.1]
 
 ### Fixed

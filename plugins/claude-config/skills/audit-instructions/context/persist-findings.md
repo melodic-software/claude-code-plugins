@@ -85,6 +85,13 @@ section would report fewer candidates examined than were actually looked at. Pas
 through: `--declined-carveout <n>`, which records it as its own counted line. Zero dropped → omit
 the flag.
 
+The same rule binds the writer's own intake. A `--from` line that is not a scan row — a
+well-formed `path:line:I<n>` whose suffix sits outside `[a-c]`, a prose line, a blank — still
+increments `Scan rows read` and is counted as `reason=unparsable-row`. It is never omitted from
+both the row count and every decline line. Intake strips a trailing CR before the pattern match
+(the same strip `descr()` and `source_line()` already do), so a mixed CRLF file is parsed rather
+than silently dropping the CR-terminated rows.
+
 **Surfaces outside the repository never reach the relay.** Phase A inventories user-level surfaces
 under `${CLAUDE_CONFIG_DIR:-~/.claude}` as well as repo-owned ones, but `Location` is contractually
 repo-relative and the fix action fences each remediation to it — an absolute path would have the

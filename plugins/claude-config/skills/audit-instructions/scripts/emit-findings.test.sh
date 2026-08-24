@@ -210,6 +210,57 @@ assert_contains "the unreadable-source decline is counted, never silent" \
   "$EOF_OUT" "reason=source-line-unreadable"
 assert_not_contains "no row is emitted with an empty excerpt" "$EOF_OUT" "frontmatter-emphasis.md:9999"
 
+# --- Case 8c: unmatched --from lines are counted, never silent (#3279) ------
+# nrows++ used to live inside the intake pattern, so I28-d (well-formed except
+# suffix outside [a-c]), prose, and a blank incremented nothing and reached no
+# decline bucket. Count first, classify second: those lines increment Scan
+# rows read and land in reason=unparsable-row. I100-a still matches and
+# declines as no-severity-crosswalk-row; I28-a still emits.
+UNPARSABLE="$TEST_TMPDIR/unparsable.txt"
+{
+  printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-a"
+  printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-d"
+  printf '%s\n' "this is not a scan row"
+  printf '\n'
+  printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I100-a"
+} >"$UNPARSABLE"
+UNP_OUT=$(emit "$UNPARSABLE" "$TEST_TMPDIR/unparsable.md")
+UNP_ROWS=$(printf '%s\n' "$UNP_OUT" | grep -c '^| [0-9]')
+assert_eq "I28-a still emits from a mixed unparsable input" "1" "$UNP_ROWS"
+assert_contains "I28-a is the emitted Location" "$UNP_OUT" "quoted-trigger.md:8"
+assert_contains "Scan rows read counts every considered line, including unparsable" \
+  "$UNP_OUT" "Scan rows read: 5. Emitted: 1."
+assert_contains "I28-d is a counted decline, not dropped" \
+  "$UNP_OUT" "Declined candidates: I28-d count=1 reason=unparsable-row"
+assert_contains "prose and blank lines share the unparsable-row bucket" \
+  "$UNP_OUT" "Declined candidates: (unparsable) count=2 reason=unparsable-row"
+assert_contains "I100-a still declines as no-severity-crosswalk-row" \
+  "$UNP_OUT" "Declined candidates: I100-a count=1 reason=no-severity-crosswalk-row"
+
+# A CRLF-terminated matching row is parsed, not dropped. The intake pattern
+# used to anchor on $ without stripping CR, so a CR-terminated I28-a vanished.
+CRLF_ROW="$TEST_TMPDIR/crlf-row.txt"
+printf '%s\r\n' "$FIXTURES/quoted-trigger.md:8:I28-a" >"$CRLF_ROW"
+CRLF_ROW_OUT=$(emit "$CRLF_ROW" "$TEST_TMPDIR/crlf-row.md")
+assert_contains "a CRLF-terminated matching row is parsed, not dropped" \
+  "$CRLF_ROW_OUT" "quoted-trigger.md:8"
+assert_contains "and the CRLF row is counted as read and emitted" \
+  "$CRLF_ROW_OUT" "Scan rows read: 1. Emitted: 1."
+assert_not_contains "a matching CRLF row is not declined as unparsable" \
+  "$CRLF_ROW_OUT" "reason=unparsable-row"
+
+# Mixed LF + CRLF: the CR row must not vanish from the count.
+MIXCRLF="$TEST_TMPDIR/mix-crlf.txt"
+{
+  printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-a"
+  printf '%s\r\n' "$FIXTURES/quoted-trigger.md:8:I28-d"
+} >"$MIXCRLF"
+MIXCRLF_OUT=$(emit "$MIXCRLF" "$TEST_TMPDIR/mix-crlf.md")
+assert_contains "a mixed CRLF file counts both lines" \
+  "$MIXCRLF_OUT" "Scan rows read: 2. Emitted: 1."
+assert_contains "the CRLF I28-d row is a counted decline" \
+  "$MIXCRLF_OUT" "Declined candidates: I28-d count=1 reason=unparsable-row"
+
 # --- Case 9: DOWNGRADE contract in the Action cell ---------------------------
 # The remediation is a downgrade, never a deletion: the directive survives and
 # only its volume changes. The byte-for-byte survival of a specific directive is
