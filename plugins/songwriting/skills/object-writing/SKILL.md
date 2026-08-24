@@ -1,26 +1,26 @@
 ---
-description: "Generate raw sensory material with Pat Pattison's methods — object writing (sense-bound, timed dives, the pivot chain, the seven-channel sense inventory, Rusty's-collar/Kami-kazi), an agent that performs the write itself, cliche taxonomy + redemption, and point of view (camera distance, pronoun consistency). Use when: 'object writing', 'you do the object writing', 'make this less abstract', 'show don't tell', '90-second writing prompt', 'this line sounds cliched', 'who is speaking in this lyric'. For metaphor use /songwriting:metaphor; for rhyme use /songwriting:rhyme; for daily curriculum use /songwriting:practice."
-argument-hint: "[action] [args] (e.g., /songwriting:object-writing, /songwriting:object-writing generate rain) — full actions in body"
+description: "Generate raw sensory material with Pat Pattison's methods. Object writing (sense-bound, timed dives, the pivot chain, the seven-channel sense inventory, Rusty's-collar/Kami-kazi), an agent that performs the write itself, cliche taxonomy + redemption, and point of view (camera distance, pronoun consistency). Use when: 'object writing', 'you do the object writing', 'make this less abstract', 'show don't tell', '90-second writing prompt', 'this line sounds cliched', 'who is speaking in this lyric'. For metaphor use /songwriting:metaphor; for rhyme use /songwriting:rhyme; for daily curriculum use /songwriting:practice."
+argument-hint: "[action] [args] (e.g., /songwriting:object-writing, /songwriting:object-writing generate rain). Full actions in body"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-## Mandatory pre-flight — Response Filter
+## Mandatory pre-flight. Response Filter
 
 Before emitting any image, metaphor, sensory prompt, or rewrite, run **§7 Image filter (object
 writing + metaphor)** of [response-filter](../../context/pat-pattison/research/response-filter.md)
 (add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason
-(aloud or in reasoning); correct before emission. Skips are valid; silent skips are not — abstract
+(aloud or in reasoning); correct before emission. Skips are valid; silent skips are not. Abstract
 telling and cliche imagery are the defaults this filter catches.
 
 ## Purpose
 
 Sense-bound raw material: object writing, cliche repair, and point of view. This is the "showing,
-not telling" engine — the source of concrete detail the other skills shape. Metaphor is its own
+not telling" engine, the source of concrete detail the other skills shape. Metaphor is its own
 discipline and its own skill (`/songwriting:metaphor`); this skill feeds it.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
-author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+author's method plugs in at `context/<author>/` without changing this skill, the author seam per
 the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
@@ -31,7 +31,7 @@ No action → issue one usable timed object-writing prompt immediately (do not a
 | Action | Use when the user asks for | Load |
 | --- | --- | --- |
 | `object-writing` (default) | sensory writing, showing instead of telling, raw material | [object-writing](../../context/pat-pattison/research/object-writing.md), [templates/object-writing-prompt](../../context/pat-pattison/templates/object-writing-prompt.md) |
-| `generate` | **YOU** do the object writing — "you write it", "do the object writing", "I don't want to write it", or any request for raw sensory material the writer is not going to produce | dispatch the `object-writer` agent — see below |
+| `generate` | **YOU** do the object writing. "you write it", "do the object writing", "I don't want to write it", or any request for raw sensory material the writer is not going to produce | dispatch the `object-writer` agent. See below |
 | `cliche` | cliche phrase, cliche image, stale metaphor, cliche rhyme | [cliche](../../context/pat-pattison/research/cliche.md), [worksheets](../../context/pat-pattison/research/worksheets.md), [metaphor](../../context/pat-pattison/research/metaphor.md) |
 | `pov` | first/second/third person, direct address, dialogue, pronoun consistency, camera distance | [point-of-view](../../context/pat-pattison/research/point-of-view.md) |
 | `worksheet` | broader sense-bound worksheets (not rhyme worksheets) | [worksheets](../../context/pat-pattison/research/worksheets.md) |
@@ -40,13 +40,13 @@ No action → issue one usable timed object-writing prompt immediately (do not a
 
 - **Pre-flight ALWAYS:** run response-filter §7 (+ §2 when producing lines) before output.
 - If the user asks for a prompt, generate one usable timed exercise immediately (default
-  90 seconds). Do not assign the full curriculum unless asked — that is `/songwriting:practice`.
+  90 seconds). Do not assign the full curriculum unless asked. That is `/songwriting:practice`.
 - Keep object-writing sense-bound and personal; its job is to reveal specific, sensory detail, not
   to produce finished lines.
 - A metaphor request routes to `/songwriting:metaphor`, invoked via the Skill tool. Sensory material mined here is that skill's
-  input — hand over the material, do not generate the metaphor here.
+  input. Hand over the material, do not generate the metaphor here.
 
-## `generate` — dispatch, never write it inline
+## `generate`. Dispatch, never write it inline
 
 **Who writes matters more than what is loaded.** Reading this skill's files and then writing a
 dive in the main thread reliably produces a static scene description, because the discipline was
@@ -56,7 +56,7 @@ discipline.
 Dispatch rules:
 
 1. **One agent per seed**, all in a single message so they run concurrently. Two agents on the same
-   seed is a valid and useful play — same board, different dives.
+   seed is a valid and useful play. Same board, different dives.
 2. **Give each agent nothing but the seed, the timer, the category, and its own output path.** Not
    the song, not the title, not the draft, not the diagnosis, not the other agents' seeds. The
    isolation is the mechanism; briefing an agent on the song destroys the divergence it exists to
@@ -65,21 +65,21 @@ Dispatch rules:
    [artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)). It returns
    only three things: the path, the seven channels each graded `strong` / `thin` / `absent`, and
    one sentence on where the pivot chain landed. The write itself and the phrase-quoting sense
-   inventory live in the file — never ask an agent to return either in a message.
+   inventory live in the file, never ask an agent to return either in a message.
 4. **Grade coverage on return**, then mine. Read each file, honor thin-channel reports rather than
    overruling them, and pull individual images forward. Mining stays here because you hold the song
    context the writers deliberately lack.
 5. **For rounds:** name what made the strongest write of a round work, then carry that as the
    standard into the next round's dispatch. The bar escalates; rounds are not independent repeats.
-6. **Set the model explicitly on every agent call — never let the fleet inherit the session's.** The
+6. **Set the model explicitly on every agent call, never let the fleet inherit the session's.** The
    `object-writer` agent's frontmatter is `model: inherit`, so a dispatch that leaves the model unset
-   runs the whole fleet on whatever the session happens to run on — a tier picked for the
+   runs the whole fleet on whatever the session happens to run on, a tier picked for the
    orchestrator's work, not the writers'. Unset is not a default; it is the bug. A global
    `CLAUDE_CODE_SUBAGENT_MODEL` override outranks every per-call `model` argument and agent
-   frontmatter when set to anything but `inherit` — keep it unset for fleet dispatches, and stop to
+   frontmatter when set to anything but `inherit`. Keep it unset for fleet dispatches, and stop to
    ask if the consumer's settings export a tier above the fleet default before spawning.
 
-   **The fleet default is the tier whose writing has cleared the writer's bar** — not a fixed model
+   **The fleet default is the tier whose writing has cleared the writer's bar**, not a fixed model
    name, which goes stale at the next release. Today that tier is Opus: the directive recorded in the
    consuming workspace's `research/plugin-gaps.md` (2026-08-12) is *"creative fan-out fleets run on
    Opus (`opts.model: 'opus'` per agent call), reserving the expensive model for the judge stage at
@@ -100,19 +100,18 @@ Dispatch rules:
    agent spawn takes a model and has no effort parameter, so a fan-out that needs the effort lever
    belongs in a workflow, whose per-agent call takes both.
 
-   **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs —
-   rhyme-field enumeration, word-pool merge, syllable counting, dedup — are reading-heavy and
+   **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs, meaning rhyme-field enumeration, word-pool merge, syllable counting, and dedup, are reading-heavy and
    low-reasoning, and a cheaper tier is correct there. Object-writing is neither. Dropping the
    writing fleet's own tier to save cost is the writer's call, not the plugin's: ask, and never
    record the answer as his without a source that says so.
 
-   Model tier is not what makes the fleet diverge — rule 2 above names isolation as that mechanism.
+   Model tier is not what makes the fleet diverge. Rule 2 above names isolation as that mechanism.
    Any creative fan-out this plugin adds later inherits this rule.
 
 **Never transcribe a write into lines.** The whole page is ore. Pat's discipline is to pull one
-image out of it — moving a dive wholesale into a section is the failure this action exists to
+image out of it. Moving a dive wholesale into a section is the failure this action exists to
 prevent, not its purpose. What replaces transcription is the three-step gate in
-`/songwriting:co-write` — mine → adapt → say it aloud: the mined image is rewritten in plain sung
+`/songwriting:co-write`. Mine → adapt → say it aloud: the mined image is rewritten in plain sung
 English before it enters a slot, and then said out loud. Rule 4's "then mine" ends at the mining;
 the adapting and the saying belong to the emitting skill.
 
@@ -125,9 +124,9 @@ Write generated files to the paths in
 [artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md), and honor a
 consuming project's own songwriting layout when it defines one. Before loading any bundled
 `templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
-first — a project-level override wins over the bundled default.
+first, a project-level override wins over the bundled default.
 
-## Boundary — what this skill must NOT emit
+## Boundary. What this skill must NOT emit
 
 This skill produces raw sensory material and figurative language. It does **not** produce finished
 lyric lines, and being mid-conversation about a song does not authorize it to.

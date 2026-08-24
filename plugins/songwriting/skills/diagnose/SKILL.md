@@ -1,17 +1,17 @@
 ---
-description: "Review, audit, and rewrite a lyric with Pat Pattison's methods — demo review at any completion stage, full-draft diagnosis against the five compositional elements and stable/unstable analysis, the pre-lock line/section audit checklist (tools, not gates), labeled variations across six axes, and critique-driven rewrite. Use when: 'what's wrong with my song', 'review my draft', 'is this any good', 'review this demo', 'audit this line before I lock it', 'give me 5 versions of line 3', 'rewrite this using Pat's checklist'. For blank-page starts use /songwriting:workflow."
-argument-hint: "[action] [args] (e.g., /songwriting:diagnose, /songwriting:diagnose audit \"...\", /songwriting:diagnose variations \"...\") — full actions in body"
+description: "Review, audit, and rewrite a lyric with Pat Pattison's methods. Demo review at any completion stage, full-draft diagnosis against the five compositional elements and stable/unstable analysis, the pre-lock line/section audit checklist (tools, not gates), labeled variations across six axes, and critique-driven rewrite. Use when: 'what's wrong with my song', 'review my draft', 'is this any good', 'review this demo', 'audit this line before I lock it', 'give me 5 versions of line 3', 'rewrite this using Pat's checklist'. For blank-page starts use /songwriting:workflow."
+argument-hint: "[action] [args] (e.g., /songwriting:diagnose, /songwriting:diagnose audit \"...\", /songwriting:diagnose variations \"...\"). Full actions in body"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-## Mandatory pre-flight — Response Filter
+## Mandatory pre-flight. Response Filter
 
 Before emitting a critique, diagnosis, audit verdict, variation set, or rewrite, run **§3 Critique
 filter** and **§8 Pre-lock filter** of
 [response-filter](../../context/pat-pattison/research/response-filter.md) (add **§2 Line-writing**
 when producing rewritten lines). NAME each box's pass / fail / skip-with-reason (aloud or in
-reasoning); correct before emission. Skips are valid; silent skips are not — list-and-leave
+reasoning); correct before emission. Skips are valid; silent skips are not. List-and-leave
 critique is the default this filter catches.
 
 `variations` and `rewrite` EMIT lines, and §2 has not been run until the files on its own
@@ -19,11 +19,11 @@ critique is the default this filter catches.
 [phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate is written,
 plus [metaphor](../../context/pat-pattison/research/metaphor.md) when the fix calls for an image or
 a figure. The Action Router's `Load` column below is a routing hint; this is a precondition of
-emission — a candidate table written before those files were opened has run on model priors, which
+emission, a candidate table written before those files were opened has run on model priors, which
 is the failure §2 exists to catch, and naming the §2 boxes does not undo it. On top of that, §2's
 boxes are cycled inside
 [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md): run the full cycle per
-candidate before it is shown. Auditing a line the writer already HAS is the other direction — that
+candidate before it is shown. Auditing a line the writer already HAS is the other direction. That
 stays [audit-checklist](../../context/pat-pattison/research/audit-checklist.md) (pre-lock). Line
 emission is `/songwriting:co-write`'s, and its input gate travels with the lines: same gate,
 checked here. *(Plugin-authored, writer-derived from the Sofía sessions, 2026-08-12.)*
@@ -35,7 +35,7 @@ checklist as deliberate choice points, and generate labeled alternates. Diagnosi
 it does not silently rewrite the whole song.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
-author's method plugs in at `context/<author>/` without changing this skill — the author seam per
+author's method plugs in at `context/<author>/` without changing this skill, the author seam per
 the plugin-root `../../README.md` "Method content and the author seam".
 
 ## Action Router
@@ -55,23 +55,23 @@ No action → route on completion stage (partway draft → `demo`; near-complete
 
 - **Pre-flight ALWAYS:** run response-filter §3 + §8 (+ §2 when rewriting) before output.
 - Name the dominant problem; offer one focused revision. Do not list every issue.
-- Audit boxes are tools, not gates: present each as a deliberate choice point, pass/fail/skip — a
+- Audit boxes are tools, not gates: present each as a deliberate choice point, pass/fail/skip. A
   writer may skip any box, but a skip names a reason; silent skips are not OK.
-- Unlike the audit boxes above, the rubric's passes are **not** skippable — they are the AI's
+- Unlike the audit boxes above, the rubric's passes are **not** skippable. They are the AI's
   self-check, not choice points offered to the writer. Rewrites and variation sets are line
   emission: cycle [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) in
   full on every candidate, pass 1 clean, and DROP any candidate a pass flagged rather than
-  presenting it flagged. Two rejected executions in one slot ends generation for that slot — hand
+  presenting it flagged. Two rejected executions in one slot ends generation for that slot. Hand
   the concept back per `/songwriting:co-write` Handlers.
-- `variations` output reaches the writer as full section blocks IN CONTEXT — changed lines marked
+- `variations` output reaches the writer as full section blocks IN CONTEXT. Changed lines marked
   `►`, one labeled block per variation, 3-4 per chat menu; scansion maps and per-candidate craft
   notes go to the `variations/` file. Never a bare one-line candidate in a table. Writer-requested,
-  2026-08-12 — see [variations](../../context/pat-pattison/research/variations.md) "Presenting the
-  candidates — chat vs file".
+  2026-08-12. See [variations](../../context/pat-pattison/research/variations.md) "Presenting the
+  candidates. Chat vs file".
 - `variations` and `audit` judge candidates against the WRITER's register, not genre and not
-  taste — load [voiceprint](../../context/pat-pattison/research/voiceprint.md); if none exists,
+  taste. Load [voiceprint](../../context/pat-pattison/research/voiceprint.md); if none exists,
   name that as a skipped gate instead of ruling on register anyway.
-- If the user pastes an incomplete fragment/idea/half-song, this is the wrong skill — route to
+- If the user pastes an incomplete fragment/idea/half-song, this is the wrong skill. Route to
   `/songwriting:workflow` (`fragment` / `idea`) by invoking it via the Skill tool, not `diagnose`.
 
 ## Persistence and template overrides
@@ -80,7 +80,7 @@ Write generated files to the paths in
 [artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md), and honor a
 consuming project's own songwriting layout when it defines one. Before loading any bundled
 `templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
-first — a project-level override wins over the bundled default.
+first, a project-level override wins over the bundled default.
 
 ## Related skills
 

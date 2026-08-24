@@ -1,6 +1,6 @@
 ---
-description: "Generate and refine Suno AI music prompts (v5.5) — style prompts, tagged lyrics, genre templates, troubleshooting, tips, features, and genre research via an action router. Use when: 'suno prompt', 'write suno lyrics', 'style prompt for suno', 'BPM prompting', 'vocal tags', 'fix garbled lyrics', 'voice cloning suno', 'suno genre', 'suno studio', or any Suno prompt-craft request."
-argument-hint: "[action] [args] (e.g., /suno prompt, /suno lyrics, /suno genre <name>) — full action list in body; default: menu"
+description: "Generate and refine Suno AI music prompts (v5.5). Style prompts, tagged lyrics, genre templates, troubleshooting, tips, features, and genre research via an action router. Use when: 'suno prompt', 'write suno lyrics', 'style prompt for suno', 'BPM prompting', 'vocal tags', 'fix garbled lyrics', 'voice cloning suno', 'suno genre', 'suno studio', or any Suno prompt-craft request."
+argument-hint: "[action] [args] (e.g., /suno prompt, /suno lyrics, /suno genre <name>). Full action list in body; default: menu"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -11,7 +11,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Suno is an AI music platform; the prompt is the instrument. This skill helps the user **generate, refine, and debug Suno prompts** — both the **style/genre** and **lyrics** fields — using v5.5-era best practices, the documented tag taxonomy, and community-validated performance tricks.
+Suno is an AI music platform; the prompt is the instrument. This skill helps the user **generate, refine, and debug Suno prompts**, both the **style/genre** and **lyrics** fields, using v5.5-era best practices, the documented tag taxonomy, and community-validated performance tricks.
 
 The skill is a **prompt-craft assistant**, not an audio generator. Suno produces audio; this skill makes sure the prompt going INTO Suno is sharp, on-format, free of common pitfalls.
 
@@ -32,33 +32,33 @@ context exists.
 | `lyrics <intent>` | Generate or refine lyrics with section tags, vocal tags, **per-section style overrides**, performance cues | [context/lyrics.md](context/lyrics.md) |
 | `style <intent>` | Generate a style prompt using the 6-layer formula | [context/style.md](context/style.md) |
 | `clean <text>` | Review user's existing prompt, flag pitfalls, propose rewrite | [context/troubleshoot.md](context/troubleshoot.md) + [context/style.md](context/style.md) |
-| `research <topic>` | **On-the-fly external research** — artist sonic profiles, current trends, niche genres, specific reference songs (BPM/key/instrumentation). Translates findings into Suno descriptors. | [context/research-recipes.md](context/research-recipes.md) |
+| `research <topic>` | **On-the-fly external research**. Artist sonic profiles, current trends, niche genres, specific reference songs (BPM/key/instrumentation). Translates findings into Suno descriptors. | [context/research-recipes.md](context/research-recipes.md) |
 | `tags` | Show the full tag taxonomy (structural, vocal, instrument, mood, ending) | [context/lyrics.md](context/lyrics.md) |
-| `genre <name>` | Genre handler — 4 modes: load template (12 built-ins), research a niche genre, suggest genres for a vibe, or show a genre family tree | [templates/<name>.md](templates/) + [context/genre-taxonomy.md](context/genre-taxonomy.md) |
+| `genre <name>` | Genre handler. 4 modes: load template (12 built-ins), research a niche genre, suggest genres for a vibe, or show a genre family tree | [templates/<name>.md](templates/) + [context/genre-taxonomy.md](context/genre-taxonomy.md) |
 | `troubleshoot <symptom>` | Diagnose a specific failure (hallucinated lyrics, BPM ignored, vocal artifacts, exclusions failing, a section absorbed / missing, choppy over-paused delivery) | [context/troubleshoot.md](context/troubleshoot.md) |
-| `tips` | Community-validated lyric-side performance tricks (caps, vowel stretch, ellipses, parentheticals) — MEDIUM confidence | [context/tips.md](context/tips.md) |
-| `power-tips` | Power-user techniques (tag order, genre fusion anchor/accent, stem-loop refinement, two-pass vocal isolation, persona-as-draft, punctuation cadence, describe-this-song, Custom Model tricks) — **confidence is per section, not per file**: genre fusion anchor/accent sits between LOW-MEDIUM and MEDIUM (three guides, one corroborating Reddit post — corroboration, not consensus); tag-order front-loading is LOW-MEDIUM on one Reddit post, **for terse comma-separated prompts only** and unverified for the v5.5 conversational style this skill targets; middle-tag softening and bare-position weighting stay unsourced | [context/power-tips.md](context/power-tips.md) |
-| `features` | v5.5 feature index — Voices, Custom Models, Personas, Cover, Extend, Replace, Stems, Studio, Sliders, Duration | [context/v55-features.md](context/v55-features.md) + [context/advanced.md](context/advanced.md) |
-| `voices` | Voice cloning deep dive — recording, verification, conflict rules with style prompt | [context/voices.md](context/voices.md) |
-| `studio` | Suno Studio (GAW) — what's possible, clip ops, Take Lanes, Warp Markers, MIDI, stems | [context/studio.md](context/studio.md) |
-| `workflow <recipe>` | Demo upload, edit/rearrange, add instruments, vocal comping, multi-genre cover chain — 8 recipes | [context/workflow-recipes.md](context/workflow-recipes.md) |
+| `tips` | Community-validated lyric-side performance tricks (caps, vowel stretch, ellipses, parentheticals). MEDIUM confidence | [context/tips.md](context/tips.md) |
+| `power-tips` | Power-user techniques (tag order, genre fusion anchor/accent, stem-loop refinement, two-pass vocal isolation, persona-as-draft, punctuation cadence, describe-this-song, Custom Model tricks). **Confidence is per section, not per file**: genre fusion anchor/accent sits between LOW-MEDIUM and MEDIUM (three guides, one corroborating Reddit post. Corroboration, not consensus); tag-order front-loading is LOW-MEDIUM on one Reddit post, **for terse comma-separated prompts only** and unverified for the v5.5 conversational style this skill targets; middle-tag softening and bare-position weighting stay unsourced | [context/power-tips.md](context/power-tips.md) |
+| `features` | v5.5 feature index. Voices, Custom Models, Personas, Cover, Extend, Replace, Stems, Studio, Sliders, Duration | [context/v55-features.md](context/v55-features.md) + [context/advanced.md](context/advanced.md) |
+| `voices` | Voice cloning deep dive. Recording, verification, conflict rules with style prompt | [context/voices.md](context/voices.md) |
+| `studio` | Suno Studio (GAW). What's possible, clip ops, Take Lanes, Warp Markers, MIDI, stems | [context/studio.md](context/studio.md) |
+| `workflow <recipe>` | Demo upload, edit/rearrange, add instruments, vocal comping, multi-genre cover chain. 8 recipes | [context/workflow-recipes.md](context/workflow-recipes.md) |
 
 If the action is unknown, show this table and ask what the user wants.
 
 ---
 
-## Load-bearing fundamentals (inline — every action assumes these)
+## Load-bearing fundamentals (inline. Every action assumes these)
 
 ### The 6-layer formula (style prompt ordering)
 
-Order matters — early tags carry more weight. Front-load genre.
+Order matters. Early tags carry more weight. Front-load genre.
 
-1. **Genre / subgenre** — specific, not "pop" → `synth-pop, 80s-inspired`
-2. **Mood** — 2-3 words → `nostalgic, hopeful` (not 9 conflicting moods)
-3. **Instrumentation** — specific → `fingerpicked acoustic guitar` (not just "guitar")
-4. **Vocal direction** — acoustic descriptors → `breathy, intimate, slight rasp` (not "amazing")
-5. **BPM** — numeric → `128 BPM` (not "fast")
-6. **Production** — `polished mix`, `lo-fi tape hiss`, `compressed and aggressive`
+1. **Genre / subgenre**. Specific, not "pop" → `synth-pop, 80s-inspired`
+2. **Mood**. 2-3 words → `nostalgic, hopeful` (not 9 conflicting moods)
+3. **Instrumentation**. Specific → `fingerpicked acoustic guitar` (not just "guitar")
+4. **Vocal direction**. Acoustic descriptors → `breathy, intimate, slight rasp` (not "amazing")
+5. **BPM**. Numeric → `128 BPM` (not "fast")
+6. **Production**. `polished mix`, `lo-fi tape hiss`, `compressed and aggressive`
 
 Sweet spot: **5–8 distinct tags**. Fewer than 4 → generic. More than 10 → conflicting signals.
 
@@ -67,15 +67,15 @@ Sweet spot: **5–8 distinct tags**. Fewer than 4 → generic. More than 10 → 
 | Field | Limit | Notes |
 |-------|-------|-------|
 | Style prompt (v5/v5.5) | **~1,000 chars** | Up from ~200 in v4. Late-prompt attention may decay; silent truncation is unverified. Front-load critical content. |
-| Lyrics | **5,000-char hard cap** (v4.5/v5/v5.5) | 3,000 was the v4-era cap. Quality sweet spot stays **~3,000** (~40-60 lines / 200-300 words) — past that Suno rushes, skips sections, or cuts output short. |
+| Lyrics | **5,000-char hard cap** (v4.5/v5/v5.5) | 3,000 was the v4-era cap. Quality sweet spot stays **~3,000** (~40-60 lines / 200-300 words). Past that Suno rushes, skips sections, or cuts output short. |
 | Title | **~100 chars** | Up from ~80 in v4. Minimal or no known effect on musical output; community reports differ |
 | Exclude field | Free-text in Advanced Options (Custom mode) | Same vocabulary as inline negatives |
 
-**Verified 2026-07-18** — no official Suno page states field limits; figures are third-party tester consensus ([hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits)).
+**Verified 2026-07-18**. No official Suno page states field limits; figures are third-party tester consensus ([hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits)).
 
 ### The lyrics field is a SECOND style channel
 
-Power users treat the lyrics field as more than words to sing. **Per-section style overrides** in lyrics control instrumentation, dynamics, and production section-by-section — something the global style prompt can't do.
+Power users treat the lyrics field as more than words to sing. **Per-section style overrides** in lyrics control instrumentation, dynamics, and production section-by-section. Something the global style prompt can't do.
 
 ```
 [Verse: piano only, no drums, intimate]
@@ -97,14 +97,14 @@ Most vulnerable moment...
 THE HOOK
 ```
 
-Two separator syntaxes work — both on the same `[Tag]` line:
+Two separator syntaxes work. Both on the same `[Tag]` line:
 
-- `[Verse: descriptor, descriptor]` — colon + comma list
-- `[Bridge | dark | introspective | sparse]` — pipe-separated
+- `[Verse: descriptor, descriptor]`. Colon + comma list
+- `[Bridge | dark | introspective | sparse]`. Pipe-separated
 
-Keep modifiers short (2-4 words each). Match section to tone — "explosive drop" only makes sense on `[Drop]`, not `[Intro]`.
+Keep modifiers short (2-4 words each). Match section to tone. "explosive drop" only makes sense on `[Drop]`, not `[Intro]`.
 
-This solves the **dynamics problem** — without it, every section sounds the same density. With it, you can build verse-chorus contrast, strip the bridge, blow up the final chorus.
+This solves the **dynamics problem**, without it, every section sounds the same density. With it, you can build verse-chorus contrast, strip the bridge, blow up the final chorus.
 
 ### Worked example (synth-pop)
 
@@ -154,7 +154,7 @@ The `no X` syntax works for negative prompts: `no autotune, no reverb wash`. Gro
 | 5+ stacked genres | Muddy mix, incoherent style | Pick 1-2 max, or use a clear hybrid (`nu-metal dubstep`) |
 | 9+ mood words | Conflicting emotional signals | 2-3 related moods |
 | `amazing`, `epic`, `beautiful` | Zero effect on output | Replace with acoustic descriptors (`raspy`, `breathy`, `intimate`) |
-| BPM as descriptor (`fast`) | ±20 BPM drift | Use numeric (`128 BPM`) — ~90% adherence in v5.5 |
+| BPM as descriptor (`fast`) | ±20 BPM drift | Use numeric (`128 BPM`). ~90% adherence in v5.5 |
 | `(x2)` after a lyric line | Repeat is largely ignored | Write the line twice with minor variation |
 | Naming artists directly (`like Drake`) | Blocked or ignored | Use sound descriptors (`Toronto trap bounce`, `silk-smooth R&B falsetto`) |
 | `no drums` in a drum-heavy genre alone | Drums still appear | Pair with positive (`piano only, no drums`) |
@@ -170,32 +170,32 @@ Simple mode = unified prompt + auto-lyrics. **Custom mode** = separate fields (s
 
 ## How to handle each action
 
-**`prompt <intent>`** — build both style and lyrics. Read [context/style.md](context/style.md) for layer detail, [context/lyrics.md](context/lyrics.md) for tag taxonomy. Produce two fenced blocks (style, lyrics), each labeled, within budget. End with 2-3 tweak suggestions.
+**`prompt <intent>`**. Build both style and lyrics. Read [context/style.md](context/style.md) for layer detail, [context/lyrics.md](context/lyrics.md) for tag taxonomy. Produce two fenced blocks (style, lyrics), each labeled, within budget. End with 2-3 tweak suggestions.
 
-**`lyrics <intent>`** — load [context/lyrics.md](context/lyrics.md). Output a tagged lyrics block with section structure (`[Verse 1]`, `[Chorus]`, etc.). Include 1-2 performance cues (parentheticals, ellipses) where they fit naturally. Stay ≤3,000 chars — the quality sweet spot; the hard cap is 5,000 — unless user asked for max.
+**`lyrics <intent>`**. Load [context/lyrics.md](context/lyrics.md). Output a tagged lyrics block with section structure (`[Verse 1]`, `[Chorus]`, etc.). Include 1-2 performance cues (parentheticals, ellipses) where they fit naturally. Stay ≤3,000 chars, the quality sweet spot; the hard cap is 5,000, unless user asked for max.
 
-**`style <intent>`** — load [context/style.md](context/style.md). Walk the 6-layer formula. Output one fenced style-prompt block + character count. Suggest 2-3 alternatives (different mood, different production).
+**`style <intent>`**. Load [context/style.md](context/style.md). Walk the 6-layer formula. Output one fenced style-prompt block + character count. Suggest 2-3 alternatives (different mood, different production).
 
-**`clean <text>`** — load [context/troubleshoot.md](context/troubleshoot.md) and [context/style.md](context/style.md). Score the user's prompt against the anti-pattern table above. Surface flagged issues with specific quotes. Propose a rewrite. Do NOT silently rewrite — state what changed and why in your response.
+**`clean <text>`**. Load [context/troubleshoot.md](context/troubleshoot.md) and [context/style.md](context/style.md). Score the user's prompt against the anti-pattern table above. Surface flagged issues with specific quotes. Propose a rewrite. Do NOT silently rewrite. State what changed and why in your response.
 
-**`tags`** — load [context/lyrics.md](context/lyrics.md). Render the full taxonomy as tables (structural, vocal, instrument, mood, ending). Include parameterized syntax `[Tag: descriptors]` example.
+**`tags`**. Load [context/lyrics.md](context/lyrics.md). Render the full taxonomy as tables (structural, vocal, instrument, mood, ending). Include parameterized syntax `[Tag: descriptors]` example.
 
-**`genre <name>`** — 4-mode router. Detect intent from arguments:
+**`genre <name>`**. 4-mode router. Detect intent from arguments:
 
-1. **Template mode** — `<name>` matches one of the 12 built-in templates (pop, rock, hip-hop, trap, edm, jazz, classical, folk, metal, ambient, lofi, rnb): read [templates/<name>.md](templates/) and present.
+1. **Template mode**. `<name>` matches one of the 12 built-in templates (pop, rock, hip-hop, trap, edm, jazz, classical, folk, metal, ambient, lofi, rnb): read [templates/<name>.md](templates/) and present.
 
-2. **Research mode** — `<name>` is a real genre but no template exists (e.g., `dungeon synth`, `witch house`, `gqom`, `phonk`, `slowcore`, `vaporwave`, `nu-disco`):
-   - Check [context/genre-taxonomy.md](context/genre-taxonomy.md) first — if cataloged, build a Suno prompt from the catalog entry
+2. **Research mode**. `<name>` is a real genre but no template exists (e.g., `dungeon synth`, `witch house`, `gqom`, `phonk`, `slowcore`, `vaporwave`, `nu-disco`):
+   - Check [context/genre-taxonomy.md](context/genre-taxonomy.md) first, if cataloged, build a Suno prompt from the catalog entry
    - If not cataloged, invoke the `research` action's Phase 1 (WebFetch / Perplexity) to fetch BPM range, instrumentation, vocal style, production character
    - Synthesize into the standard template format: style prompt block + lyrics shell + 3 tweak knobs + 2-3 common variants
    - Cite sources
 
-3. **Suggest mode** — `<name>` starts with `suggest` (e.g., `genre suggest dark moody chill`, `genre suggest dystopian aggressive`) OR is a vibe phrase rather than a genre name:
+3. **Suggest mode**. `<name>` starts with `suggest` (e.g., `genre suggest dark moody chill`, `genre suggest dystopian aggressive`) OR is a vibe phrase rather than a genre name:
    - Read [context/genre-taxonomy.md](context/genre-taxonomy.md) "Vibe → genre mapping" section
    - Return 3-7 fitting genres, each with: 1-line distinguishing characteristic + the right BPM/key/instrumentation hints + which template to load OR which research target to chase
    - Ask user which one to expand into a full prompt
 
-4. **Family mode** — `<name>` starts with `family` (e.g., `genre family hip-hop`, `genre family electronic`):
+4. **Family mode**. `<name>` starts with `family` (e.g., `genre family hip-hop`, `genre family electronic`):
    - Read [context/genre-taxonomy.md](context/genre-taxonomy.md) family tree
    - Show the requested family's subgenres in tree form
    - Brief 1-line characteristic per subgenre
@@ -203,35 +203,35 @@ Simple mode = unified prompt + auto-lyrics. **Custom mode** = separate fields (s
 
 If `<name>` is ambiguous (could be template OR research OR suggest), ask user which mode they want.
 
-**`troubleshoot <symptom>`** — load [context/troubleshoot.md](context/troubleshoot.md). Match the symptom to a known failure mode. Give diagnosis + 1-3 specific fixes + a regenerate-with-this prompt rewrite if applicable.
+**`troubleshoot <symptom>`**. Load [context/troubleshoot.md](context/troubleshoot.md). Match the symptom to a known failure mode. Give diagnosis + 1-3 specific fixes + a regenerate-with-this prompt rewrite if applicable.
 
-**`tips`** — load [context/tips.md](context/tips.md). Surface community-validated techniques (caps for vocal pressure, vowel stretching for melisma, ellipses for breath, parentheticals for inline directives, hyphenation for staccato, line breaks for melodic separation). Caveat: MEDIUM-confidence — consensus across multiple community sources but no official Suno doc — **except where an entry flags itself lower: the timing-cue entry is LOW-MEDIUM.**
+**`tips`**. Load [context/tips.md](context/tips.md). Surface community-validated techniques (caps for vocal pressure, vowel stretching for melisma, ellipses for breath, parentheticals for inline directives, hyphenation for staccato, line breaks for melodic separation). Caveat: MEDIUM-confidence, consensus across multiple community sources but no official Suno doc, **except where an entry flags itself lower: the timing-cue entry is LOW-MEDIUM.**
 
-**`features`** — load [context/v55-features.md](context/v55-features.md) (what's new in v5.5) and/or [context/advanced.md](context/advanced.md) (modes, Personas, Cover, Extend, Replace Section, Stems, Sliders, Studio). Pick the section the user asked about — don't dump everything.
+**`features`**. Load [context/v55-features.md](context/v55-features.md) (what's new in v5.5) and/or [context/advanced.md](context/advanced.md) (modes, Personas, Cover, Extend, Replace Section, Stems, Sliders, Studio). Pick the section the user asked about. Don't dump everything.
 
 ---
 
 ## Confidence flags (be honest about source quality)
 
-- **HIGH confidence**: claims confirmed by Suno's official help center (`help.suno.com`) or `suno.com/blog`. The 6-layer formula, structural and vocal tag names, Custom mode requirements, Voices/Custom Models/My Taste mechanics, and Creative Slider names and qualitative endpoints — all HIGH. Character budgets are NOT officially published — third-party tester consensus only (MEDIUM-HIGH).
+- **HIGH confidence**: claims confirmed by Suno's official help center (`help.suno.com`) or `suno.com/blog`. The 6-layer formula, structural and vocal tag names, Custom mode requirements, Voices/Custom Models/My Taste mechanics, and Creative Slider names and qualitative endpoints, all HIGH. Character budgets are NOT officially published, third-party tester consensus only (MEDIUM-HIGH).
 - **MEDIUM confidence**: community-validated techniques across multiple guides + Reddit consensus, but no official Suno doc. Capitalization weighting magnitude, vowel-stretching letter counts, hyphenation staccato, `(x2)` failure mode, and **every numeric Creative Slider setting or range in this skill except the Audio Influence entry value** are community-empirical. Treat exact magnitudes and slider numbers as starting points for A/B tests, not official values.
 
-  **Reaching the Reddit half.** Web search and direct fetch of `reddit.com` both fail from this environment; **a browser session reaches it**, and that is the documented route (`context/workflow-recipes.md`). Three releases in a row recorded a claim as "Reddit untried" when the route was already written down here — so before rating anything below MEDIUM for want of Reddit, use the browser route rather than concluding the corpus is closed.
-- **LOW-MEDIUM confidence**: below MEDIUM because the multi-source consensus is missing — at most a single community post plus its own comment thread, and no official Suno doc. **One item at this rung was verified locally** (Duration range, corroborated by one community post — see [context/advanced.md](context/advanced.md#duration-slider-create-form)). Three live uses:
+  **Reaching the Reddit half.** Web search and direct fetch of `reddit.com` both fail from this environment; **a browser session reaches it**, and that is the documented route (`context/workflow-recipes.md`). Three releases in a row recorded a claim as "Reddit untried" when the route was already written down here, so before rating anything below MEDIUM for want of Reddit, use the browser route rather than concluding the corpus is closed.
+- **LOW-MEDIUM confidence**: below MEDIUM because the multi-source consensus is missing. At most a single community post plus its own comment thread, and no official Suno doc. **One item at this rung was verified locally** (Duration range, corroborated by one community post. See [context/advanced.md](context/advanced.md#duration-slider-create-form)). Three live uses:
   - the Duration slider range (10s–6min, 5-second increments) in [context/advanced.md](context/advanced.md#duration-slider-create-form), read from the UI and independently stated by one community post; no `help.suno.com` range article;
   - the two-stage voice bootstrap for non-singers and the "make this voice public" toggle warning, both in [context/voices.md](context/voices.md), both resting on the same single r/SunoAI post plus its comments (untested here);
   - the timing-cue nudge in [context/tips.md](context/tips.md), **whose basis is recorded nowhere in this repo and could not be sourced externally either.** The `~70%` adherence figure it carried through 1.1.1 was **removed in 1.1.2** after an in-repo search (2026-08-11, re-run 2026-08-12) and an external pass (2026-08-12: two `help.suno.com` articles read verbatim, two large community meta-tag references grepped, both yielding zero hits for the cue form and for `70%`) found nothing behind it. The *technique* is kept and stays flagged low; the number is gone, and `tips.md` records the corpus searched. Offer these as untested leads carrying their own caveat, never as procedure, and never in place of a better-supported route when one exists.
-- **OFF the ladder — first-hand writer observation.** Every rung above grades **second-hand** sourcing: official docs, multiple community guides, a single community post. A finding the writer produced by driving Suno directly is a different evidentiary axis, not a rung of that one, so it is labeled in place with `writer-observed, single session (2026-08-12), n=1 — not externally corroborated` (dated per finding) and **no new rung is invented for it** — the gap is named instead. Two things follow. First-hand does **not** outrank MEDIUM: one unreproduced session is not consensus, and where the reading is flow-scoped or setup-scoped the label must carry that scope with it. But an observed **failure** is existence evidence in a way a claimed success is not — it shows the failure *can* happen, which is enough to document a fix, and never enough to assert that it always happens or to state a mechanism. Surface these with the label and scope attached, and prefer the cheap safe default over the clever shape whenever one exists. Three live uses carry the label: the Audio Influence entry value ([context/advanced.md](context/advanced.md)), and tag-only section absorption plus short-line over-separation (both [context/troubleshoot.md](context/troubleshoot.md)). **The Duration slider's range is deliberately NOT one of them** — the writer read it first-hand *and* one community post states the same figures independently, so it is corroborated, the label's closing clause would be false of it, and it is rated **LOW-MEDIUM** on the ladder instead. A first-hand observation that finds external support graduates onto the ladder; it does not keep the off-ladder label as a badge.
-- **Re-verified 2026-07-18 — position flipped since the 2026-05-10 pass**: current third-party testers agree the lyrics **hard cap is 5,000 chars on v4.5/v5/v5.5**; 3,000 was the v4-and-earlier cap. The earlier "3,000 consensus" conflated the old cap with the quality threshold. **~3,000 remains the practical budget** — past it Suno rushes, skips sections, or shortens output. Sources: [hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits). No official Suno page states field limits.
+- **OFF the ladder. First-hand writer observation.** Every rung above grades **second-hand** sourcing: official docs, multiple community guides, a single community post. A finding the writer produced by driving Suno directly is a different evidentiary axis, not a rung of that one, so it is labeled in place with `writer-observed, single session (2026-08-12), n=1 — not externally corroborated` (dated per finding) and **no new rung is invented for it**, the gap is named instead. Two things follow. First-hand does **not** outrank MEDIUM: one unreproduced session is not consensus, and where the reading is flow-scoped or setup-scoped the label must carry that scope with it. But an observed **failure** is existence evidence in a way a claimed success is not. It shows the failure *can* happen, which is enough to document a fix, and never enough to assert that it always happens or to state a mechanism. Surface these with the label and scope attached, and prefer the cheap safe default over the clever shape whenever one exists. Three live uses carry the label: the Audio Influence entry value ([context/advanced.md](context/advanced.md)), and tag-only section absorption plus short-line over-separation (both [context/troubleshoot.md](context/troubleshoot.md)). **The Duration slider's range is deliberately NOT one of them**, the writer read it first-hand *and* one community post states the same figures independently, so it is corroborated, the label's closing clause would be false of it, and it is rated **LOW-MEDIUM** on the ladder instead. A first-hand observation that finds external support graduates onto the ladder; it does not keep the off-ladder label as a badge.
+- **Re-verified 2026-07-18. Position flipped since the 2026-05-10 pass**: current third-party testers agree the lyrics **hard cap is 5,000 chars on v4.5/v5/v5.5**; 3,000 was the v4-and-earlier cap. The earlier "3,000 consensus" conflated the old cap with the quality threshold. **~3,000 remains the practical budget**. Past it Suno rushes, skips sections, or shortens output. Sources: [hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits). No official Suno page states field limits.
 
-When generating prompts, default to HIGH-confidence techniques. Surface MEDIUM-confidence tricks as opt-in suggestions, not commands. Surface LOW-MEDIUM items only with their caveat attached, and only after naming the better-supported route. Surface off-ladder writer observations with their label and their scope attached — and when one records a failure, give the safe default as the fix rather than a prohibition.
+When generating prompts, default to HIGH-confidence techniques. Surface MEDIUM-confidence tricks as opt-in suggestions, not commands. Surface LOW-MEDIUM items only with their caveat attached, and only after naming the better-supported route. Surface off-ladder writer observations with their label and their scope attached, and when one records a failure, give the safe default as the fix rather than a prohibition.
 
 ---
 
 ## What this skill does NOT do
 
-- **Generate audio** — Suno does that. This skill produces text prompts.
-- **Cover legacy v4 prompting** — the ~200-char style-prompt era is out of scope. Targets v5.5.
-- **Make commercial-use determinations** — Cover and Voices have commercial constraints noted in `context/advanced.md`; treat as informational, not legal advice.
-- **Replace Suno's web UI workflow** — this is a prompt-craft assistant. Workflow steps requiring clicks in Suno's UI (Replace Section, Persona creation, Voice verification) are described, not automated.
-- **Fix already-generated audio** — Suno's prompt is a generation-time control. Most issues (hallucinated lyrics, vocal artifacts, BPM drift) are prevention-only. The skill's troubleshoot action gives the prompt-side fix, then asks the user to regenerate.
+- **Generate audio**. Suno does that. This skill produces text prompts.
+- **Cover legacy v4 prompting**, the ~200-char style-prompt era is out of scope. Targets v5.5.
+- **Make commercial-use determinations**. Cover and Voices have commercial constraints noted in `context/advanced.md`; treat as informational, not legal advice.
+- **Replace Suno's web UI workflow**. This is a prompt-craft assistant. Workflow steps requiring clicks in Suno's UI (Replace Section, Persona creation, Voice verification) are described, not automated.
+- **Fix already-generated audio**. Suno's prompt is a generation-time control. Most issues (hallucinated lyrics, vocal artifacts, BPM drift) are prevention-only. The skill's troubleshoot action gives the prompt-side fix, then asks the user to regenerate.
