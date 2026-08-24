@@ -408,7 +408,7 @@ assert_contains "dir target in git repo: only the tracked file counts" "$out" "1
 # the Windows form of the same checkout a shell reaches as "/tmp/...". An
 # expansion that derives its prefix from one source and its filter from another
 # drops every candidate wherever the two disagree, and the walk that backs it up
-# returns untracked markdown in place of the tracked listing (issue 3266). The
+# returns untracked markdown in place of the tracked listing. The
 # assertion is that the SPELLING of the target cannot change the answer. On a
 # host where the two forms already agree these two cases restate the one above,
 # which is the point: the invariant holds everywhere, and it is only observable

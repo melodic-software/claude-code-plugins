@@ -265,8 +265,8 @@ fi
 # checkout a shell reaches as `/tmp/...`. The earlier expansion built its
 # prefix from `git rev-parse --show-toplevel` and its filter from `pwd`, so on
 # any host where those disagree no candidate survived the filter and the walk
-# below silently replaced the tracked-files listing it was meant to back up
-# (issue 3266). Running `ls-files` with `-C <dir>` needs neither: it is already
+# below silently replaced the tracked-files listing it was meant to back up.
+# Running `ls-files` with `-C <dir>` needs neither: it is already
 # restricted to that directory's subtree and answers in paths relative to it,
 # so `<dir>` is the only anchor and cannot disagree with itself.
 #
