@@ -33,7 +33,7 @@ config). No action given: run `check`, then offer `apply` if anything is missing
    | team | must be tracked in git; untracked team config is a hard finding |
    | local overlay | must be gitignored and never staged |
 
-   All three layers absent is a **valid state**, reported as "unconfigured — routing resolves to
+   All three layers absent is a **valid state**, reported as "unconfigured: routing resolves to
    propose-only", not as an error. A malformed layer is named and skipped, per the contract.
 5. **Report** the effective routing per scope block with the layer that supplied each value
    (policy-floor provenance included), and the recursive overlay gitignore line
