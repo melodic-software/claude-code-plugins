@@ -81,7 +81,7 @@ Per-layer verdicts:
   `apply` (which writes the line at team-layer bind, not only at `layer=local`).
   Probe with `git check-ignore --no-index -v -- .claude/source-control.local.md`
   (the path does not need to exist). A match counts only when `-v` names a
-  repository `.gitignore` as the source — `$GIT_DIR/info/exclude` and
+  repository `.gitignore` as the source. `$GIT_DIR/info/exclude` and
   `core.excludesFile` are operator-local and do not protect a teammate.
 - **Local overlay file** (`REPO_ROOT/.claude/source-control.local.md`): when
   present, PASS only when an ignore rule matches it **and** it is not in the
