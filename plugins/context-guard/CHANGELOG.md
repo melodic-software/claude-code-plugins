@@ -5,6 +5,17 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.20]
+
+### Fixed
+
+- **Vendored `hook-utils.sh` skip latch (#3128).** The shared notice latch now
+  keys on session and agent (a subagent gets its own first notice), stores a
+  skip count in the marker (independent of `HOOK_TELEMETRY_SINK`), and emits a
+  one-line re-notice every 8 skips instead of going silent after the first.
+  The first `PATH probed:` dump omits other plugins' bin dirs. Copies stay
+  byte-identical via `scripts/sync-hook-utils.sh`.
+
 ## [0.7.19]
 
 ### Changed

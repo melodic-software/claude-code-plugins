@@ -232,6 +232,19 @@
         "Retires the duplicated subject_pattern from the markdown file in the same apply — both surfaces are never left authoritative for the same key",
         "Verifies the neutral file round-trips through the enforcement resolver (broken file fails closed), is staged/tracked so a fresh checkout resolves it, and keeps plugin-only keys markdown-side"
       ]
+    },
+    {
+      "id": 19,
+      "name": "check-reports-missing-overlay-ignore-without-overlay-file",
+      "prompt": "/source-control:setup check\n\nThe repo has a tracked team .claude/source-control.md and no .claude/source-control.local.md. .gitignore does not mention .claude/*.local.*.",
+      "expected_output": "Reports FAIL on the local-overlay ignore rule even though no overlay file exists: the rule must be in place before the first overlay is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes .claude/*.local.* at team-layer bind.",
+      "files": [],
+      "expectations": [
+        "Probes the ignore rule without requiring the overlay file to exist",
+        "Counts only a repository .gitignore match, not info/exclude or core.excludesFile",
+        "Missing .claude/*.local.* rule is FAIL, not INFO",
+        "Remediation is apply writing the ignore line at team-layer bind"
+      ]
     }
   ]
 }

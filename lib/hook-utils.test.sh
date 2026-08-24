@@ -788,6 +788,65 @@ else
 fi
 rm -rf "$DATA16"
 
+# --- Test 16c: hook::notice_once — agent isolation, skip count, renew (#3128)
+DATA16C="$(mktemp -d)"
+INPUT_AGENT_A='{"session_id":"sess-1","agent_id":"agent-A","hook_event_name":"PostToolUse"}'
+INPUT_AGENT_B='{"session_id":"sess-1","agent_id":"agent-B","hook_event_name":"PostToolUse"}'
+if (CLAUDE_PLUGIN_DATA="$DATA16C" hook::notice_once "k1" "$INPUT_AGENT_A"); then
+  ok "notice_once: first call for agent A emits"
+else
+  fail "notice_once: first call for agent A suppressed"
+fi
+if (CLAUDE_PLUGIN_DATA="$DATA16C" hook::notice_once "k1" "$INPUT_AGENT_B"); then
+  ok "notice_once: same session, other agent emits"
+else
+  fail "notice_once: same session, other agent inherited the latch"
+fi
+if (CLAUDE_PLUGIN_DATA="$DATA16C" hook::notice_once "k1" "$INPUT_AGENT_A"); then
+  fail "notice_once: agent A second call emitted before renew"
+else
+  ok "notice_once: agent A second call suppressed"
+fi
+agent_marker="$DATA16C/skip-notices/k1.sess-1.agent-A"
+if [[ -f "$agent_marker" ]] && [[ "$(tr -d '[:space:]' <"$agent_marker")" == "2" ]]; then
+  ok "notice_once: skip count stored in marker"
+else
+  fail "notice_once: skip count missing" "marker=$(cat "$agent_marker" 2>/dev/null)"
+fi
+DATA16C2="$(mktemp -d)"
+kind_out="$(
+  CLAUDE_PLUGIN_DATA="$DATA16C2"
+  for _i in 1 2 3 4 5 6 7; do hook::notice_once "k-renew" "$INPUT_AGENT_A" >/dev/null || true; done
+  hook::notice_once "k-renew" "$INPUT_AGENT_A"
+  printf '%s %s' "$HOOK_NOTICE_KIND" "$HOOK_NOTICE_COUNT"
+)"
+if [[ "$kind_out" == "renew 8" ]]; then
+  ok "notice_once: 8th skip is a short renew"
+else
+  fail "notice_once: 8th skip renew" "got '$kind_out'"
+fi
+rm -rf "$DATA16C" "$DATA16C2"
+
+probed="$(CLAUDE_PLUGIN_ROOT=/tmp/my-plugin hook::format_path_probed \
+  "/usr/bin:/tmp/other/plugins/foo/bin:/tmp/my-plugin/bin:/opt/homebrew/bin")"
+if [[ "$probed" == *'/usr/bin'* && "$probed" == *'/tmp/my-plugin/bin'* &&
+  "$probed" != *'/tmp/other/plugins/foo/bin'* && "$probed" == *'omitted'* ]]; then
+  ok "format_path_probed: drops other plugin bins"
+else
+  fail "format_path_probed: trim" "got '$probed'"
+fi
+
+HOOK_NOTICE_KIND=renew
+HOOK_NOTICE_COUNT=8
+renew_msg="$(hook::emit_skip_notice PostToolUse $'plugin: tool missing\nPATH probed: /usr/bin:/tmp/x')"
+HOOK_NOTICE_KIND=full
+HOOK_NOTICE_COUNT=0
+if [[ "$renew_msg" != *$'\n'* && "$renew_msg" == *'8 skips'* && "$renew_msg" != *'PATH probed:'* ]]; then
+  ok "emit_skip_notice: renew is one line without PATH dump"
+else
+  fail "emit_skip_notice: renew shape" "got '$renew_msg'"
+fi
+
 # --- Test 16b: hook::raw_file_path — jq-free extraction -----------------------
 if got=$(hook::raw_file_path '{"session_id":"s","tool_input":{"file_path":"src/app.py"},"tool_name":"Write"}') && [[ "$got" == "src/app.py" ]]; then
   ok "raw_file_path: plain path extracted"

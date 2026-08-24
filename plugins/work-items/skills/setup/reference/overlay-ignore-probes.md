@@ -31,11 +31,21 @@ OVERLAY=".work-item-tracker.local.json"
 #              code would mean "some pattern matched", not "the path is ignored" — under a
 #              `*.json` + `!.work-item-tracker.local.json` pair the overlay is NOT ignored
 #              yet `-v` exits 0. Only the bare exit code is a truth value.
+# The overlay path does not need to exist; the rule must be in place first.
 git -C "$REPO_ROOT" check-ignore --no-index -q -- "$OVERLAY" && IGNORED=1 || IGNORED=0
 # An ignore rule does not untrack an already-committed file, so ask the index separately.
 TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$OVERLAY")"
-# Only for the human-readable report, never for the verdict above.
+# Only for the human-readable report and for source inspection, never as the
+# ignored/not-ignored verdict. --no-index still consults info/exclude and
+# core.excludesFile; those are operator-local and do not protect a teammate.
 [ "$IGNORED" -eq 1 ] && IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$OVERLAY")"
+if [ "$IGNORED" -eq 1 ]; then
+  IGNORE_SRC="${IGNORE_MATCH%%:*}"
+  case "$IGNORE_SRC" in
+    .gitignore|*/.gitignore) ;;
+    *) IGNORED=0 ;;
+  esac
+fi
 ```
 
 ## Branching on the pair
