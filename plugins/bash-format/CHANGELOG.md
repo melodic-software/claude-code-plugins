@@ -3,17 +3,6 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.22]
-
-### Fixed
-
-- **Vendored `hook-utils.sh` skip latch (#3128).** The shared notice latch now
-  keys on session and agent (a subagent gets its own first notice), stores a
-  skip count in the marker (independent of `HOOK_TELEMETRY_SINK`), and emits a
-  one-line re-notice every 8 skips instead of going silent after the first.
-  The first `PATH probed:` dump omits other plugins' bin dirs. Copies stay
-  byte-identical via `scripts/sync-hook-utils.sh`.
-
 ## [0.7.23]
 
 ### Changed
@@ -24,6 +13,17 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
   parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
   and the sentence break change. The generated options block is ignore-fenced because
   `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+
+## [0.7.22]
+
+### Fixed
+
+- **Vendored `hook-utils.sh` skip latch (#3128).** The shared notice latch now
+  keys on session and agent (a subagent gets its own first notice), stores a
+  skip count in the marker (independent of `HOOK_TELEMETRY_SINK`), and emits a
+  one-line re-notice every 8 skips instead of going silent after the first.
+  The first `PATH probed:` dump omits other plugins' bin dirs. Copies stay
+  byte-identical via `scripts/sync-hook-utils.sh`.
 
 ## [0.7.21]
 
