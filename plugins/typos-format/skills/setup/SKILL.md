@@ -45,7 +45,9 @@ restores the FAIL semantics.
    running.
 4. **Consumer typos config (informational only).** The hook runs unconditionally and never
    gates on a config existing; typos resolves its own governing config (if any) directly from
-   the file path it is given. Report whether a `typos.toml`, `_typos.toml`, `.typos.toml`, a
+   the file path it is given. The hook also injects its bundled `config/default-typos.toml`
+   via `typos -c` (SHA `extend-ignore-re`); `extend-*` keys merge with the discovered file
+   rather than replacing it. Report whether a `typos.toml`, `_typos.toml`, `.typos.toml`, a
    `Cargo.toml` with `[workspace.metadata.typos]`/`[package.metadata.typos]`, or a
    `pyproject.toml` with `[tool.typos]` governs the repo, purely as INFO. Its presence or
    absence never changes whether the hook runs.
