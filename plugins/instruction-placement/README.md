@@ -3,8 +3,8 @@
 Routes agent-instruction content to the surface that loads it at the right moment.
 
 A convention that only matters when someone edits a `.cs` file should not be paid for in every
-session. Claude Code already provides the machinery to fix that — path-scoped rules, nested
-instruction files — but using it correctly is harder than it looks, and every way of getting it
+session. Claude Code already provides the machinery to fix that: path-scoped rules and nested
+instruction files. Using it correctly is harder than it looks, and every way of getting it
 wrong fails silently. This plugin finds the content worth moving, validates the move mechanically
 before proposing it, and executes it behind a human gate.
 
@@ -18,7 +18,7 @@ before proposing it, and executes it behind a human gate.
 | `/instruction-placement:setup` | Verify prerequisites, report config | Confirms the index target is one Claude Code will actually read, and resolves every setting with its source |
 | `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget |
 
-Run `setup` first on a new repository — it catches the one failure the other gates cannot see, an
+Run `setup` first on a new repository. It catches the one failure the other gates cannot see, an
 index Claude Code never loads. Then `audit`. Nothing changes until you accept a specific finding in
 `realign`. Use `delta` for repeat runs, so a re-audit costs attention proportional to what actually
 moved. Wire `check`
@@ -38,7 +38,7 @@ bookkeeping, not a saving. The glob is the product.
 dispatched *after* its parent had loaded a nested `CLAUDE.md`, a nested `AGENTS.md`, and a
 path-scoped rule saw none of them. In a repository where the file editing is delegated, a naive
 demotion puts the C# conventions out of reach of the agent editing C#. This is why every accepted
-move regenerates an **always-loaded index** of deferred surfaces — the one thing that does reach a
+move regenerates an **always-loaded index** of deferred surfaces, the one thing that does reach a
 subagent, and that turns an invisible rule into one an ordinary `Read` can fetch.
 
 **Path scoping triggers on read, not write.** Creating a new file is not a read, so a rule governing
@@ -51,13 +51,13 @@ the path-scoped destination structurally, not by judgment.
 
 ## What this plugin does NOT buy you
 
-An earlier version of this README claimed that path-scoping improves *adherence* — that a convention
+An earlier version of this README claimed that path-scoping improves *adherence*, that a convention
 arriving when a matching file is read is followed more reliably than the same text buried in a large
 always-loaded file. **That claim was measured and not supported**, so it has been removed rather than
 softened.
 
-Across 32 trials at two bloat levels — a realistic 251-line always-loaded file and an extreme
-1,927-line one, nearly ten times the official 200-line guidance — a clear convention was followed
+Across 32 trials at two bloat levels, using a realistic 251-line always-loaded file and an extreme
+1,927-line one nearly ten times the official 200-line guidance, a clear convention was followed
 **100% of the time in both arms**. Full method, caveats, and the ceiling effect the run hit:
 [`evals/adherence-results.md`](evals/adherence-results.md).
 
@@ -72,8 +72,8 @@ on the agent's own authority.
 
 The reasoning is asymmetric consequence. Demotion trades guaranteed presence for conditional
 presence. When a style convention goes missing the cost is a nit in review; when a safety rail goes
-missing the cost is unbounded. The index mitigates absence but cannot guarantee attention —
-injection is automatic, a pointer is discretionary — so safety rails stay where injection reaches
+missing the cost is unbounded. The index mitigates absence but cannot guarantee attention.
+Injection is automatic, a pointer is discretionary, so safety rails stay where injection reaches
 them.
 
 `audit` reports what it held back and why, so the exclusion is visible. `realign` has no code path
@@ -90,7 +90,7 @@ nearest-wins, while Claude concatenates the whole ancestor chain. Subtree conten
 written as additive and self-contained, and a candidate that only makes sense as an override is
 reported rather than moved.
 
-## Scope boundary — what this plugin does not own
+## Scope boundary: what this plugin does not own
 
 Placement is one question about an instruction, and it is not the only one. Where a sibling plugin
 owns a neighbouring question, route to it rather than bending this rubric. Each is optional: when it
@@ -99,19 +99,19 @@ is not installed, keep the observation in the report rather than judging it here
 | Question | Owner |
 |---|---|
 | Is this instruction still needed by the current model? | `claude-config`'s instruction audit |
-| Is the memory layer healthy — size, index integrity, conflicts? | `claude-memory`'s audit |
+| Is the memory layer healthy: size, index integrity, conflicts? | `claude-memory`'s audit |
 | Does this whole document earn its existence? | `docs-hygiene`'s derivability audit |
 | Is this file structured well for progressive disclosure generally? | `docs-hygiene`'s progressive-disclosure audit |
 | Is the same content repeated across several files? | `docs-hygiene`'s single-source-of-truth extraction |
 | Is the prose too long or too noisy? | `docs-hygiene`'s compression and noise audits |
 
 The dividing line: those audits ask whether a piece of content is *good*, *needed*, or *duplicated*.
-This plugin asks only where it should **live**, and owns the one capability none of them has — the
+This plugin asks only where it should **live**, and owns the one capability none of them has, the
 validated move, including glob derivation and the index that keeps the result reachable.
 
 These routes are **operative, not decorative**. When a candidate raises one of these questions, the
 audit invokes the named skill via the Skill tool if its plugin is installed, and otherwise keeps the
-observation in the report as an unjudged note. A routed candidate is reported as routed — never
+observation in the report as an unjudged note. A routed candidate is reported as routed, never
 silently dropped, and never re-classified as a placement finding just because the sibling was
 missing. A section can be both misplaced and duplicated; routing one question does not cancel the
 other finding.
@@ -133,6 +133,7 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 | A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |
 | The glob engine needs semantics bash cannot express cleanly | Reconsider the hand-rolled expander; it exists to avoid `eval` on repository content |
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -207,3 +208,4 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->

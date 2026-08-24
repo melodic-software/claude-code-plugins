@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "instruction-placement",
-  "version": "0.11.4",
+  "version": "0.11.5",
   "description": "Routes agent-instruction content to the surface that loads it at the right moment. The audit skill sweeps a repository's instruction layer and its ordinary markdown for content whose scope is narrower than the surface carrying it — conventions keyed to one file type or one subtree sitting in an always-loaded CLAUDE.md or AGENTS.md — and for normative conventions stranded in documentation Claude never loads at all, then classifies each against a routing rubric and proposes a destination whose `paths:` glob is machine-validated before it is ever offered. Safety-class content (irreversible actions, secrets, data integrity, external publication, compliance, agent authority) is hard-denied from demotion and reported as held back rather than proposed, because demotion trades guaranteed presence for conditional presence and deferred surfaces are invisible inside subagents and absent after compaction until re-triggered. Every accepted move regenerates an always-loaded index of deferred surfaces, which is what keeps a demoted rule reachable from a subagent that never receives its injection. The audit is read-only and emits a diffable findings artifact; realignment is a separate skill gated per item with no blanket-approve path; a deterministic check skill gates that every rule glob still resolves and the index is current; and a setup skill verifies the one thing no other gate can see — that the index target is a file Claude Code will actually read, since it reads CLAUDE.md and not AGENTS.md.",
   "author": {
     "name": "Melodic Software",
