@@ -23,8 +23,8 @@ Arguments: `$ARGUMENTS`
 
 - **Scope** (optional): a path limiting which changed files are considered. Default: every changed
   file inside the configured `mutate` globs.
-- **`--full`**: mutate the whole configured scope instead of the diff. Expensive and rarely correct
-State the estimated cost from `baseline-suite-ms` and confirm before running.
+- **`--full`**: mutate the whole configured scope instead of the diff. Expensive and rarely correct.
+  State the estimated cost from `baseline-suite-ms` and confirm before running.
 - **`--paths <globs>`**: mutate these paths regardless of the diff.
 - **`--max <n>`**: cap generated mutants for this run, overriding `max-mutants`.
 - **`--no-suppress`**: include mutants that the arid-node record would otherwise suppress, marked as
