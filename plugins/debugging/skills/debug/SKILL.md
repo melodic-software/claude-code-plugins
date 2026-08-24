@@ -6,7 +6,7 @@ disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: implement
-  summary: Diagnose broken behavior: reproduce, hypothesise, instrument, fix with regression test
+  summary: Diagnose broken behavior. Reproduce, hypothesise, instrument, fix with regression test
 ---
 
 ## Pre-computed context
