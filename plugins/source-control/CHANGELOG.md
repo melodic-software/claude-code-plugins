@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.13]
+
+### Changed
+
+- **setup:** remaining instruction-surface punctuation after the prior
+  plugin-wide rewrite. The overlay-ignore probe now ends the repository
+  `.gitignore` clause with a period before `$GIT_DIR/info/exclude`.
+
 ## [0.55.12]
 
 ### Fixed
