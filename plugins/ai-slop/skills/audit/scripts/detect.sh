@@ -266,6 +266,11 @@ fi
 # prefix from `git rev-parse --show-toplevel` and its filter from `pwd`, so on
 # any host where those disagree no candidate survived the filter and the walk
 # below silently replaced the tracked-files listing it was meant to back up.
+# `ls-files` C-quotes any path holding a non-ASCII byte unless
+# `core.quotePath=false`, so a tracked `café.md` (or a filename that itself
+# holds an em dash) would arrive as a literal quoted escape, fail the scan
+# loop's existence test, and produce neither a finding nor a declined row.
+#
 # Running `ls-files` with `-C <dir>` needs neither: it is already
 # restricted to that directory's subtree and answers in paths relative to it,
 # so `<dir>` is the only anchor and cannot disagree with itself.
@@ -299,7 +304,7 @@ expand_dir_target() {
     return 0
   fi
 
-  listing="$(git -C "$dir" ls-files '*.md')"
+  listing="$(git -C "$dir" -c core.quotePath=false ls-files '*.md')"
   status=$?
   if [[ "$status" -ne 0 ]]; then
     echo "detect.sh: git ls-files failed under $dir (exit $status); that directory expanded to nothing" >&2

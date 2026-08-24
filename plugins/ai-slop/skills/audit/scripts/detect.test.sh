@@ -456,6 +456,16 @@ EOF
 out="$(bash "$DETECT" "$GITDIR/untrackedonly" 2>&1)"
 assert_contains "dir target in git repo, no tracked markdown: expands to nothing" "$out" "0 files scanned"
 
+# git C-quotes non-ASCII path bytes unless core.quotePath=false. A tracked
+# filename holding an em dash would then fail the scan loop's existence test
+# and vanish from the report. The listing must emit the raw filename.
+mkdir -p "$GITDIR/unicode"
+printf 'A tracked em dash %s here.\n' "$EM" >"$GITDIR/unicode/dash${EM}name.md"
+git -C "$GITDIR" add "unicode/dash${EM}name.md"
+out="$(bash "$DETECT" "$GITDIR/unicode" 2>&1)"
+assert_contains "dir target, non-ASCII filename: the raw path is scanned" "$out" "dash${EM}name.md"
+assert_contains "dir target, non-ASCII filename: the file is not dropped" "$out" "1 files scanned"
+
 # --- Excerpt truncation at the byte boundary --------------------------------------
 
 # 79 ASCII bytes then an em dash: a byte cut at 80 would keep only the first
