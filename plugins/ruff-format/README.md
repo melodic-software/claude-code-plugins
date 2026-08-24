@@ -13,20 +13,20 @@ own and runs only when your repo has opted into Ruff.
 
 - **Opt-in on a Ruff config.** Ruff runs **only when a `.ruff.toml`,
   `ruff.toml`, or `pyproject.toml` with a `[tool.ruff]` section governs the
-  edited file**, found by walking up from the file to the repository root — the
+  edited file**, found by walking up from the file to the repository root, the
   same discovery Ruff itself uses (a `pyproject.toml` without `[tool.ruff]` is
   ignored, exactly as Ruff ignores it). A repo without a Ruff config is left
   untouched rather than rewritten to Ruff's built-in defaults, so the plugin
   never imposes a style you did not choose. **Known limitation:** a
   `pyproject.toml` that expresses this as a bare `[tool]` header with an inline
   table (`[tool]` + `ruff = { ... }`) is not recognized, even though Ruff
-  itself honors that form — such a repo is treated as un-configured and the
+  itself honors that form. Such a repo is treated as un-configured and the
   hook skips (fails safe: a missed opt-in, never a wrong edit).
 - **Fix + format on edit.** `ruff check --fix` applies safe fixes (never
   `--unsafe-fixes`) and `ruff format` formats in place. Residual diagnostics
   are reported but not auto-applied.
 - **Just-added imports are protected.** The hook passes `--unfixable F401`, so
-  an unused import is *reported* but never auto-deleted — during iterative
+  an unused import is *reported* but never auto-deleted. During iterative
   editing an import often lands one edit before the code that uses it. This
   extends your config's own `unfixable` list; it does not replace it.
 - **Syntax errors are version-aware.** Ruff's parser checks syntax against your
@@ -43,12 +43,12 @@ own and runs only when your repo has opted into Ruff.
 
 ## Requirements
 
-- **Bash** — the hook is a Bash script. On native Windows, install
+- **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible once-per-session notice. [Install jq](https://jqlang.org/download/).
-- **Ruff** available to the repo — installed in the repo's `.venv` (the hook
+- **Ruff** available to the repo. Installed in the repo's `.venv` (the hook
   resolves `.venv/bin/ruff`, or `.venv/Scripts/ruff.exe` on Windows, walking up
   from the edited file) or on `PATH`. Ruff is never downloaded on the fly; if
   it is not present while a Ruff config governs the repo, the hook skips with a
@@ -58,7 +58,7 @@ own and runs only when your repo has opted into Ruff.
   absent, in which case the run is reported as a tool break rather than a
   finding.
 - A **Ruff config** (`.ruff.toml`, `ruff.toml`, or `pyproject.toml` with
-  `[tool.ruff]`) in the repo — the opt-in.
+  `[tool.ruff]`) in the repo, the opt-in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while formatting
@@ -75,7 +75,7 @@ Then verify prerequisites with `/ruff-format:setup check`.
 
 ## Configuration
 
-The rules themselves are never configured here — they come from the Ruff config
+The rules themselves are never configured here. They come from the Ruff config
 already in your repository, which the plugin reads automatically. To change the
 rules, edit that file.
 
@@ -83,7 +83,7 @@ One `userConfig` option tunes the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
-| `ruff_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
+| `ruff_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
 
 Set it interactively with `/plugin configure ruff-format@<marketplace>`, or headless on the
 install command:
@@ -92,6 +92,7 @@ install command:
 claude plugin install ruff-format@<marketplace> --config ruff_format_enabled=false
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -164,6 +165,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
