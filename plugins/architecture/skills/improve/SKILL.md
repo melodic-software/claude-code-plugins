@@ -23,9 +23,9 @@ Arguments: `$ARGUMENTS`
 
 Improvement is distinct from review and planning. Review evaluates a DIFF against criteria (reactive). Planning designs NEW work (forward-looking). This skill scans EXISTING code for friction and proposes candidates for improvement (proactive).
 
-The scan-present-pick process generalizes across improvement **lenses**. Each lens (action) brings its own analysis method and vocabulary via an `actions/<lens>.md` playbook plus a `research/<lens>/` reference set, loaded only when that lens runs. The first lens, `deepening`, implements Ousterhout's deep-module concept — finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them. The aim is **testability and AI/agent-navigability (AX)**: a deep module's small interface lets a reader — human or agent — grasp its purpose without traversing the whole import graph.
+The scan-present-pick process generalizes across improvement **lenses**. Each lens (action) brings its own analysis method and vocabulary via an `actions/<lens>.md` playbook plus a `research/<lens>/` reference set, loaded only when that lens runs. The first lens, `deepening`, implements Ousterhout's deep-module concept: finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them. The aim is **testability and AI/agent-navigability (AX)**: a deep module's small interface lets a reader, human or agent, grasp its purpose without traversing the whole import graph.
 
-This finds existing friction — it does not plan new work, apply mechanical code-level tidyings, enforce rules on a diff, or review changes before a PR. Those are separate concerns handled by planning, tidying, rule-enforcement, and review tools respectively (see "Composition").
+This finds existing friction. It does not plan new work, apply mechanical code-level tidyings, enforce rules on a diff, or review changes before a PR. Those are separate concerns handled by planning, tidying, rule-enforcement, and review tools respectively (see "Composition").
 
 ## Actions
 
@@ -34,28 +34,28 @@ This finds existing friction — it does not plan new work, apply mechanical cod
 | *(empty)* | Defaults to `deepening` | Runs the deepening lens |
 | `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop (with a Design-It-Twice branch for parallel interface exploration) → hand off an agreed candidate for planning. Full process: `actions/deepening.md` |
 
-One lens per invocation — lenses don't chain implicitly. Read the action's playbook for its full process.
+One lens per invocation. Lenses don't chain implicitly. Read the action's playbook for its full process.
 
 ### Adding a lens
 
-A new improvement lens (e.g. `coupling`, `testability`, dependency-direction review) is a pure ADD — never edit an existing lens's contract to add one (open for extension, closed for modification):
+A new improvement lens (e.g. `coupling`, `testability`, dependency-direction review) is a pure ADD. Never edit an existing lens's contract to add one (open for extension, closed for modification):
 
-- `actions/<lens>.md` — the lens playbook (phases, gates, output shape)
-- `research/<lens>/` — reference for that lens, loaded only when its action runs (per-action progressive disclosure)
+- `actions/<lens>.md`. The lens playbook (phases, gates, output shape)
+- `research/<lens>/`. Reference for that lens, loaded only when its action runs (per-action progressive disclosure)
 - one row in the Actions table above
 
 ## What this skill does NOT do
 
-- **Does not plan implementation** — produces candidates + agreed shape; a planning step plans the work
-- **Does not enforce rules** — a rule-enforcement reviewer does that reactively on a diff
-- **Does not apply mechanical tidyings** — code-level tidyings (rename, extract, inline) are a separate, smaller-grained concern
-- **Does not review a diff** — pre-merge review tools do that
-- **Does not write code** — discovery and design skill only
-- **Does not brainstorm a rough problem** — this skill hunts architecture friction on its own lenses; open-ended "how could we approach X" divergence is a brainstorming concern
+- **Does not plan implementation.** Produces candidates + agreed shape; a planning step plans the work
+- **Does not enforce rules.** A rule-enforcement reviewer does that reactively on a diff
+- **Does not apply mechanical tidyings.** Code-level tidyings (rename, extract, inline) are a separate, smaller-grained concern
+- **Does not review a diff.** Pre-merge review tools do that
+- **Does not write code.** Discovery and design skill only
+- **Does not brainstorm a rough problem.** This skill hunts architecture friction on its own lenses; open-ended "how could we approach X" divergence is a brainstorming concern
 
 ## Composition
 
-Graceful degradation — where a named step below is not available in the consuming project, inline the equivalent work in this session instead of blocking on it.
+Graceful degradation: where a named step below is not available in the consuming project, inline the equivalent work in this session instead of blocking on it.
 
 | When | Then | How |
 |------|------|-----|
@@ -66,7 +66,7 @@ Graceful degradation — where a named step below is not available in the consum
 
 ## Gotchas
 
-Observed failure history — patterns that have actually bitten. Add here when a new one surfaces.
+Observed failure history: patterns that have actually bitten. Add here when a new one surfaces.
 
-- **The durable candidate artifact is a per-project memory-tier file, never `${CLAUDE_PLUGIN_DATA}`.** Even resolved it points at a plugin-global dir with no project dimension that collides candidates across projects, and uninstalling from the last remaining scope deletes the directory — the documented use is deps/caches/generated code, not per-project artifacts. The artifact resolves through the marketplace topic-docs convention (the plugin's topic-docs [binding](../../reference/topic-docs.md)) — memory tier, default `.work/<topic-slug>/`. A `${CLAUDE_PROJECT_DIR}/.claude/...` path is also wrong: `.claude/` generated output is reserved for observability, and an unignored artifact there leaks scan output into git.
-- **Scan-agent claims are shipped only after Phase 1.5 reproduction.** Explore agents have a demonstrated error rate: a real run reported a service "registered but never composed — a bug in the seam" that one grep disproved (it *is* consumed, via a different consumer, with tests). Any candidate headed for a `Strong` badge and any runtime-bug / dead-code claim is reproduced against the actual code before it reaches the user-facing report — the report lends every claim its authority, so an unreproduced overstatement is cheap to make and expensive to reputation.
+- **The durable candidate artifact is a per-project memory-tier file, never `${CLAUDE_PLUGIN_DATA}`.** Even resolved it points at a plugin-global dir with no project dimension that collides candidates across projects, and uninstalling from the last remaining scope deletes the directory. The documented use is deps/caches/generated code, not per-project artifacts. The artifact resolves through the marketplace topic-docs convention (the plugin's topic-docs [binding](../../reference/topic-docs.md)): memory tier, default `.work/<topic-slug>/`. A `${CLAUDE_PROJECT_DIR}/.claude/...` path is also wrong: `.claude/` generated output is reserved for observability, and an unignored artifact there leaks scan output into git.
+- **Scan-agent claims are shipped only after Phase 1.5 reproduction.** Explore agents have a demonstrated error rate: a real run reported a service "registered but never composed — a bug in the seam" that one grep disproved (it *is* consumed, via a different consumer, with tests). Any candidate headed for a `Strong` badge and any runtime-bug / dead-code claim is reproduced against the actual code before it reaches the user-facing report. The report lends every claim its authority, so an unreproduced overstatement is cheap to make and expensive to reputation.
