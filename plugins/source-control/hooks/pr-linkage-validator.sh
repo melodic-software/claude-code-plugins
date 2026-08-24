@@ -221,7 +221,7 @@ mask_markdown_code() {
     # Pairing completes in closer-first order. Nested differing-length
     # runs (`` `x` ``) therefore land the inner span first; a monotonic
     # render walk then orphans the outer span and leaks its gap text
-    # (including a decoy "closes #N") into has_linkage(). Sort by start
+    # (including a decoy closing keyword) into has_linkage(). Sort by start
     # and keep outermost only so the walk matches CommonMark: the first
     # opener consumes through its closer, and inner runs stay content.
     nspans=${#spans_start[@]}

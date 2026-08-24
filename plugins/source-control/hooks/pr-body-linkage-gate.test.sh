@@ -162,9 +162,10 @@ if ((elapsed < 5)); then
 else
   fail "crafted unmatched-tick line took ${elapsed}s (must stay under 5s here)"
 fi
-# Nested differing-length runs: `` closes #5 `x` `` is one CommonMark
-# inline span. Pairing that records the inner span first orphans the
-# outer span and leaks "closes #5" into the unanchored keyword scan.
+# Nested differing-length runs: a double-tick span wrapping a single-tick
+# span is one CommonMark inline span. Pairing that records the inner
+# span first orphans the outer span and leaks its gap text into the
+# unanchored keyword scan.
 printf '%s\n' $'See the format: `` closes #5 `x` `` for reference.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/nested-ticks.md"
 assert_block "a decoy closing keyword inside nested backticks is not linkage" "$GATED" \
   "gh pr create -t T --body-file nested-ticks.md"
