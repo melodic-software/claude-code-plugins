@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.9]
+
+### Changed
+
+- **setup:** remaining instruction-surface punctuation after the 0.13.8
+  plugin-wide rewrite. The OS-level media-tools probe now comma-separates
+  frame extraction from watch/course actions.
+
 ## [0.13.8]
 
 ### Fixed

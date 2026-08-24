@@ -49,7 +49,7 @@ config, or install anything.
    or `chromium_headless_shell-*` build (course-digest frame capture). Missing is INFO with
    remediation `apply install-deps`.
 4. **OS-level media tools**. INFO. Probe `yt-dlp --version` (youtube acquisition), `ffmpeg
-   -version` (frame extraction — watch/course actions), and `magick -version` (ImageMagick 7,
+   -version` (frame extraction, watch/course actions), and `magick -version` (ImageMagick 7,
    contact sheets. Watch/course actions). Each absence is INFO with the platform install command
    from the ingest skill's Prerequisites; this skill never installs system packages. `book-distill`
    (PDF) needs none of these.
