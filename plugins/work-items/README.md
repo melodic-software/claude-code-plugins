@@ -106,7 +106,8 @@ enough that one skill no longer predicts its contents.
   `lib/`, and the `github`, `local-markdown`, `jira`, `gitea`, and `linear` adapters) under
   `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`; the consuming repo only declares
   its active provider in `.work-item-tracker.json` at the repo root (run
-  `/work-items:setup`; per-user lease TTL / jira auth identity may ride a
+  `/work-items:setup`; per-user lease TTL and per-provider auth identity
+  (jira `auth_email`/`auth_env`, linear `auth_env`, gitea `auth_env`) may ride a
   gitignored `.work-item-tracker.local.json` overlay beside it). A repo
   may add or shadow an adapter consumer-local at
   `<repo root>/tools/work-item-tracker/adapters/<provider>/` (the root being

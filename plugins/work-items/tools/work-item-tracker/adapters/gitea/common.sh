@@ -197,7 +197,7 @@ wit_need_gitea_config() {
     }
   ejson="$(wit_effective_binding_json "$binding")" ||
     {
-      printf '%s: invalid binding at %s — see CONTRACT.md Setup\n' "$name" "$binding" >&2
+      printf '%s: invalid binding at %s — run /work-items:setup check for the itemized breakdown; see CONTRACT.md Setup\n' "$name" "$binding" >&2
       exit "$EX_CONFIG"
     }
   WIT_GITEA_HOST="$(jq -r '.config.gitea.host // empty' <<<"$ejson")"

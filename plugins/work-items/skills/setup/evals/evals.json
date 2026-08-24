@@ -199,6 +199,58 @@
         "Uses backfill-capability-tier-labels.sh apply rather than re-triaging the items",
         "Reports how many items received the label"
       ]
+    },
+    {
+      "id": 16,
+      "name": "apply-stops-on-tracked-personal-overlay-rather-than-appending-a-duplicate-ignore-line",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root, is committed to the repository, and .gitignore already carries a .work-item-tracker.local.json line, so the file is tracked despite a matching rule.)",
+      "expected_output": "At the personal-overlay gitignore step, runs two independent probes rather than a bare git check-ignore: git check-ignore --no-index -q for whether the path is ignored, and git ls-files for whether the path is in the index. Because bare git check-ignore consults the index first and exits 1 with no output for an already-tracked path, its silence cannot distinguish 'no rule exists' from 'a rule exists but the file was committed anyway', and those need opposite remediations. The ignore verdict comes from the non-verbose exit code — `-v` is only for the human-readable report, because `-v` treats a negation pattern as a match and still exits 0. With ls-files reporting the path as tracked, setup STOPS and reports it as a finding: the overlay is in team history and may carry per-user auth identity, and the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential. It does NOT append another .work-item-tracker.local.json line to .gitignore, and does not announce a duplicate ignore line as the fix, since an ignore rule does not untrack an already-committed file.",
+      "files": [],
+      "expectations": [
+        "Uses git check-ignore --no-index -q (not a bare git check-ignore, and not -v) to take the ignore verdict, so the index cannot mask the answer and a negation pattern cannot be read as coverage",
+        "Runs a separate git ls-files index probe and treats ignored and untracked as two independent conditions",
+        "Stops and reports the tracked overlay as a finding, naming git rm --cached as the remediation",
+        "Does not append a .gitignore line, and never reports a duplicate ignore line as having fixed a tracked overlay"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "apply-still-appends-the-ignore-line-for-an-untracked-uncovered-overlay",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root, is NOT tracked, and no .gitignore rule matches it.)",
+      "expected_output": "The same two probes report no matching rule and no index entry, which is the ordinary uncovered case. Setup appends the .work-item-tracker.local.json line to the consumer's .gitignore and announces the edit as the ADR 0015 declared exception, touching nothing else in that file. It does not stage the overlay, and it does not raise the tracked-overlay stop condition, which applies only when git ls-files reports the path.",
+      "files": [],
+      "expectations": [
+        "Appends the .work-item-tracker.local.json line to .gitignore and announces the edit",
+        "Modifies no other line of .gitignore",
+        "Does not stage or commit the overlay",
+        "Does not raise the tracked-overlay stop condition when the index probe comes back empty"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "apply-treats-a-negated-overlay-as-uncovered-not-as-already-ignored",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root and is untracked. The consumer's .gitignore carries `*.json` on one line and `!.work-item-tracker.local.json` on the next, so a pattern matches the overlay but the net effect is that git does NOT ignore it.)",
+      "expected_output": "Takes the ignore verdict from the bare exit code of git check-ignore --no-index, not from git check-ignore --no-index -v. With -v, git reports negation patterns as matches and exits 0, so the -v exit code means 'some pattern matched' rather than 'the path is ignored', and reading it as the verdict here would report the overlay as already covered while git leaves it exposed to git add -A. The bare probe exits non-zero, so setup treats this as the uncovered case: it appends the .work-item-tracker.local.json line to .gitignore and announces the edit, which is the correct remediation because the last matching rule wins. It uses -v only to render a matching rule in its report, never to decide.",
+      "files": [],
+      "expectations": [
+        "Derives the ignored/not-ignored verdict from git check-ignore --no-index WITHOUT -v",
+        "Does not report the overlay as already covered merely because a negation pattern matched",
+        "Appends the ignore line and announces the edit, relying on last-matching-rule-wins",
+        "Uses -v output only for the human-readable report"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "check-fails-on-a-tracked-overlay-that-no-rule-covers",
+      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json is committed to the repository and no .gitignore rule matches it.)",
+      "expected_output": "Probe 2 runs both probes and reports FAIL. With the index probe reporting the path and no rule covering it, both conditions are wrong at once, and the report names the TRACKED condition as the finding because it is the more serious of the two: the overlay is in team history and may carry per-user auth identity, so the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential, after which the missing ignore rule is what apply adds. check modifies nothing and does not append the .gitignore line itself.",
+      "files": [],
+      "expectations": [
+        "Reports FAIL rather than PASS when the overlay is tracked",
+        "Names the tracked condition as the finding when both the rule is missing and the file is tracked",
+        "Gives git rm --cached as the remediation, not just adding an ignore line",
+        "Writes nothing, since check is read-only"
+      ]
     }
   ]
 }

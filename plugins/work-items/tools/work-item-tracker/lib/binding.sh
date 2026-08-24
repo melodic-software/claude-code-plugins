@@ -41,13 +41,14 @@ wit_find_binding() {
 # Overlay key allowlist (jq path array). The gitignored per-user overlay
 # (.work-item-tracker.local.json, beside the team binding) may refine ONLY these
 # keys — values that are coherent per-user: lease TTL travels inside each lease
-# record, and jira auth identity is per-account. Everything else (provider,
+# record, and per-provider auth identity (jira auth_email/auth_env, linear
+# auth_env, gitea auth_env) is per-account. Everything else (provider,
 # role_labels, container_label, storage_dir, jira.site/project_keys, ...) is
 # shared coordination state and stays team-layer-only; an overlay value for any
 # such key is a configuration error, never a merge (deny-by-default; CONTRACT.md
 # "Setup (binding file)"). "docs" is the optional self-describing pointer either
 # layer may carry.
-readonly WIT_OVERLAY_ALLOWED_PATHS='[["config","lease_ttl_hours"],["config","lease_ttl_minutes"],["config","jira","auth_email"],["config","jira","auth_env"],["docs"]]'
+readonly WIT_OVERLAY_ALLOWED_PATHS='[["config","lease_ttl_hours"],["config","lease_ttl_minutes"],["config","jira","auth_email"],["config","jira","auth_env"],["config","linear","auth_env"],["config","gitea","auth_env"],["docs"]]'
 
 # wit_find_overlay <binding-path> — echo the overlay path beside the binding, or
 # fail when none exists. The overlay always lives beside whatever binding file
@@ -96,7 +97,7 @@ wit_effective_binding_json() {
                   and any($allowed[]; (length > ($p | length)) and (.[:($p | length)] == $p)))))
         | not))' "$overlay")"
   if [[ "$bad" != "[]" ]]; then
-    printf 'work-item-tracker: overlay %s sets non-overlayable key(s) %s — only lease TTL and jira auth identity may be personal; see CONTRACT.md "Setup (binding file)"\n' \
+    printf 'work-item-tracker: overlay %s sets non-overlayable key(s) %s — only lease TTL and per-provider auth identity (jira, linear, gitea) may be personal; see CONTRACT.md "Setup (binding file)"\n' \
       "$overlay" "$bad" >&2
     return 1
   fi
@@ -134,9 +135,9 @@ wit_role_label() {
 wit_read_binding() {
   local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container minutes
   # The effective view: team file merged with the allowlisted overlay keys
-  # (lease TTL, jira auth identity). Team-only keys read identically from either
-  # view; the reads below use the merged JSON so overlayable keys resolve
-  # per-user where an overlay exists.
+  # (lease TTL, jira/linear/gitea auth identity). Team-only keys read identically
+  # from either view; the reads below use the merged JSON so overlayable keys
+  # resolve per-user where an overlay exists.
   json="$(wit_effective_binding_json "$path")" || return 1
   version="$(jq -r '.schema_version // empty' <<<"$json")"
   [[ "$version" == 1.* ]] || return 1

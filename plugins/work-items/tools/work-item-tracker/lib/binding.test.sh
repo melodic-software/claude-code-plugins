@@ -271,6 +271,27 @@ assert_overlay_rejected "object-valued allowlisted key rejected" '{"config":{"ji
 assert_overlay_rejected "populated object at allowlisted key rejected" '{"config":{"jira":{"auth_email":{"x":1}}}}'
 assert_overlay_rejected "array-valued allowlisted key rejected" '{"config":{"lease_ttl_hours":[]}}'
 
+# linear and gitea auth identity is per-account for the same reason jira's is:
+# both adapters read the credential's env-var NAME from the merged view.
+write_binding "$OBINDING" '{"schema_version":"1.0","provider":"linear","config":{"lease_ttl_hours":24,"linear":{"team_keys":["ENG"],"auth_env":"TEAM_LINEAR_TOKEN"}}}'
+write_binding "$OVERLAY" '{"config":{"linear":{"auth_env":"MY_LINEAR_TOKEN"}}}'
+EL="$(wit_effective_binding_json "$OBINDING")"
+assert_eq "overlay linear auth_env wins" "MY_LINEAR_TOKEN" "$(jq -r '.config.linear.auth_env' <<<"$EL")"
+assert_eq "team linear team_keys survive the merge" "ENG" "$(jq -r '.config.linear.team_keys[0]' <<<"$EL")"
+
+write_binding "$OBINDING" '{"schema_version":"1.0","provider":"gitea","config":{"lease_ttl_hours":24,"gitea":{"base_url":"https://git.example.com","repo":"o/r","auth_env":"TEAM_GITEA_TOKEN"}}}'
+write_binding "$OVERLAY" '{"config":{"gitea":{"auth_env":"MY_GITEA_TOKEN"}}}'
+EG="$(wit_effective_binding_json "$OBINDING")"
+assert_eq "overlay gitea auth_env wins" "MY_GITEA_TOKEN" "$(jq -r '.config.gitea.auth_env' <<<"$EG")"
+assert_eq "team gitea repo survives the merge" "o/r" "$(jq -r '.config.gitea.repo' <<<"$EG")"
+
+# Widening auth_env must not widen the rest of either subtree: everything else
+# under linear/gitea is shared coordination state, exactly as jira's site is.
+assert_overlay_rejected "overlay linear team_keys rejected" '{"config":{"linear":{"team_keys":["X"]}}}'
+assert_overlay_rejected "overlay gitea repo rejected" '{"config":{"gitea":{"repo":"other/repo"}}}'
+assert_overlay_rejected "object-valued linear auth_env rejected" '{"config":{"linear":{"auth_env":{}}}}'
+assert_overlay_rejected "object-valued gitea auth_env rejected" '{"config":{"gitea":{"auth_env":{}}}}'
+
 rm -f "$OVERLAY"
 
 [[ $FAILED -eq 0 ]] || exit 1

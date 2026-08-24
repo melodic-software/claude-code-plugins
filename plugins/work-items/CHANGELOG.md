@@ -3,6 +3,57 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.21]
+
+### Fixed
+
+- **setup evals:** eval 16 now takes the ignore verdict from
+  `git check-ignore --no-index -q`, matching the reference, SKILL.md, and
+  eval 18. The previous text prescribed `-v` as the coverage probe, which is
+  the exact negation-pattern false-positive this change exists to prevent
+  (#3132).
+- **docs:** README, the config-cascade Implementers row, ADR 0015, and the
+  binding-reader comments now name linear and gitea `auth_env` alongside jira
+  auth identity as overlayable keys, matching the allowlist shipped in 0.39.19
+  (#3132).
+- **setup:** the personal-overlay gitignore step now runs two independent probes
+  (`git check-ignore --no-index -q` plus `git ls-files`) instead of a bare `git check-ignore`.
+  Bare `check-ignore` consults the index and exits 1 with no output for an already-tracked
+  path, so a *tracked* overlay — the stop condition the step exists to catch — was invisible
+  to its own probe, and `apply` appended a duplicate `.gitignore` line and announced it as
+  the fix. The tracked case now stops and reports, naming `git rm --cached` as the
+  remediation. `check` probe 2's overlay clause gets the same pair, and both now live in one
+  place, `setup/reference/overlay-ignore-probes.md`. Ported from `source-control`'s
+  `layer=local` verification, which already documented this trap (#3132).
+- **setup:** the ignore verdict is taken from `check-ignore`'s bare exit code, never from
+  `-v`'s. With `-v`, git reports **negation** patterns and still exits 0, so a `.gitignore`
+  carrying `*.json` followed by `!.work-item-tracker.local.json` would have been read as
+  "already covered" for an overlay that git does not ignore at all — leaving it exposed to
+  `git add -A` and steering away from the append that does fix it (last matching rule wins).
+  `-v` is now used only to render the matching rule in the report (#3132).
+- **seam:** the personal-overlay allowlist now covers `config.linear.auth_env` and
+  `config.gitea.auth_env` alongside `config.jira.auth_email` / `auth_env`. Both adapters read
+  their credential's env-var NAME from the merged binding view, and the stated
+  "auth identity is per-account" rationale applied to them already, so their omission was an
+  exit-3 denial the contract never documented: the message names the offending key, but a
+  user following the contract's own stated rationale had no way to predict the refusal.
+  Everything else under those subtrees stays team-layer-only (#3132).
+- **seam:** the `invalid binding at <path>` error now points at `/work-items:setup check`,
+  which reports the binding probes individually instead of one collapsed verdict. Applied to
+  all five emitters: the dispatcher, the jira/gitea/linear adapter preambles, and
+  `onboard-adapter`'s `common.sh.tmpl`, which seeds every consumer-authored adapter and each
+  carried its own copy of the string (#3132).
+
+### Changed
+
+- **docs:** CONTRACT.md's binding example carried a `docs` pointer string different from
+  `setup/SKILL.md`'s, embedding a `plugins/work-items/...` monorepo path that resolves to
+  nothing in a consumer repo. Both now use the consumer-facing form (#3132).
+- **docs:** CONTRACT.md no longer calls `${CLAUDE_PROJECT_DIR}` and the git toplevel "that
+  single anchor". They diverge inside a git worktree, where the toplevel is the worktree
+  directory while the variable stays the session's start directory. Latent while this seam
+  ships no hooks, live the moment a consumer adds a SessionStart hook (#3132).
+
 ## [0.39.20]
 
 ### Fixed
