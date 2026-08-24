@@ -100,13 +100,13 @@ when this pass must stop instead of guessing.
 5. **Ensure the personal-overlay gitignore line.** The gitignored per-user overlay
    (`.work-item-tracker.local.json`, allowlisted keys only. CONTRACT.md "Setup (binding file)") sits
    at the repo root, outside the `.claude/**/*.local.*` convention line, so `apply` must confirm a
-   rule covers it and append that line to the consumer's `.gitignore` when none does, **announcing
-   the edit** (the ADR 0015 declared exception; touch nothing else there). A *tracked* overlay in the
-   index is a finding to stop and report, never ignore. Ignored and untracked are **two independent
-   probes** and a bare `git check-ignore` cannot tell them apart: it is silent for an already-tracked
-   path, so the tracked case is invisible to it. Run the probes and branch exactly as
-   [`reference/overlay-ignore-probes.md`](reference/overlay-ignore-probes.md) specifies, including
-   why the ignore verdict must NOT come from `check-ignore -v`'s exit code.
+   repository `.gitignore` rule covers it even when the overlay file does not exist yet, and append
+   that line when none does, **announcing the edit** (ADR 0015; touch nothing else there).
+   `$GIT_DIR/info/exclude` and `core.excludesFile` do not protect a teammate. A *tracked* overlay
+   in the index is a finding to stop and report, never ignore. Ignored and untracked are **two
+   independent probes**; a bare `git check-ignore` is silent for an already-tracked path. Run the
+   probes as [`reference/overlay-ignore-probes.md`](reference/overlay-ignore-probes.md) specifies,
+   including why the ignore verdict must NOT come from `check-ignore -v`'s exit code.
 
 Example (`github`; `local-markdown` adds `"storage_dir": ".work-items"`):
 
@@ -138,13 +138,12 @@ check.
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
    `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.
-   A present overlay (`.work-item-tracker.local.json`) must parse as JSON, carry only allowlisted
-   keys (CONTRACT.md "Setup (binding file)"), and be gitignored, never tracked. Otherwise FAIL.
+   The ignore rule is required whether or not the overlay file exists. A present overlay
+   (`.work-item-tracker.local.json`) must parse as JSON, carry only allowlisted keys
+   (CONTRACT.md "Setup (binding file)"), and be gitignored, never tracked. Otherwise FAIL.
    Ignored and untracked are **two independent probes**: run the same pair `apply` step 5 uses, per
    [`reference/overlay-ignore-probes.md`](reference/overlay-ignore-probes.md). A bare
-   `git check-ignore` is silent for an already-tracked overlay, so reading that silence as "no rule"
-   raises a missing-rule FAIL (remediation: add the line) over a tracked one (`git rm --cached`),
-   and reading it as PASS misses the tracked overlay entirely. Tracked is the more serious FAIL;
+   `git check-ignore` is silent for an already-tracked overlay. Tracked is the more serious FAIL;
    name it as such when both hold.
    A `github` binding must additionally be **addressable from this checkout**, because everything
    above is shape and owner/repo are never recorded in the binding, every repo-scoped verb derives

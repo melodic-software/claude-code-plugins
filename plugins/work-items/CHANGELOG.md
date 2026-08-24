@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.22]
+
+### Fixed
+
+- **Setup probes the personal-overlay ignore rule before any overlay exists
+  (#3128 S2).** `check` no longer waits for `.work-item-tracker.local.json` to
+  appear. Missing rule is FAIL. A match counts only when `-v` names a
+  repository `.gitignore`, not `$GIT_DIR/info/exclude` or `core.excludesFile`.
+
 ## [0.39.21]
 
 ### Fixed

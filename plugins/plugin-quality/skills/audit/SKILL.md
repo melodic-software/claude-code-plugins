@@ -253,21 +253,23 @@ rename fallback is the backstop.
 
 ### Packet files are write-once evidence (sibling hooks rewrite them in place)
 
-The guardrail above anticipates a write being **rejected**. The likelier event is the write
-**succeeding and the content then being changed underneath it**, and the packet's whole value rests
-on its content being what the auditor wrote.
+The likelier event is a write **succeeding and then being changed underneath it**.
+`PostToolUse` runs after success and may rewrite; `matcher` keys on the **tool name**
+(<https://code.claude.com/docs/en/hooks>, fetched 2026-08-10). Keep write-once /
+read-back / seal: a formatter that reaches a packet rewrites in place and announces
+that only in the session the packet exists to outlive.
 
-The mechanism is documented harness behavior, not a quirk: `PostToolUse` runs *after a tool call
-succeeds* and may rewrite what the tool produced, and its `matcher` keys on the **tool name**
-(<https://code.claude.com/docs/en/hooks>, fetched 2026-08-10). So **any** sibling plugin registering
-`PostToolUse` on `Write|Edit` post-processes every packet write — nothing about the destination
-being this plugin's own data directory excludes it. Two such formatters ship in this fleet
-(`typos-format`, `markdown-format`), both matching `Write|Edit` unconditionally. Observed damage:
-"corrected" identifiers inside a verbatim upstream citation, and a quoted line's leading character
-normalized — the two content classes (verbatim quotations, code-span identifiers) an evidence
-packet exists to preserve. The rewrite is announced only in the **session**, which is exactly the
-context the packet exists to outlive: a fresh auditor reading the packet after compaction sees
-altered text and no notice.
+**Accurate scope (measured).** `markdown-format` is not unconditional `Write|Edit`: handlers
+use `if: "Edit(*.md)"` / `"Edit(*.mdc)"`. Both formatters go through `hook::read_file_path`,
+which scopes to `CLAUDE_PROJECT_DIR`, then the git worktree, and **fails closed**. A packet
+outside both is not rewritten. Discovery is file-anchored (`markdown-format`) or
+target-path-anchored (`typos-format`), not cwd-anchored. Residual: a `$HOME`-rooted session
+with a home-level markdownlint config, where `--fix` still rewrites. `typos-format` replaces
+word tokens and does not skip fences, so "corrected identifiers inside a citation" is its
+class when it runs. Leading-character normalization of a quoted line is
+`markdownlint --fix`, not `typos`. Keep the full apparatus against that residual (a
+`$HOME`-rooted session is a normal invoke). Sealing proves non-alteration after write, never
+truth at write time.
 
 Three rules, in force for every packet write:
 
@@ -288,13 +290,11 @@ Three rules, in force for every packet write:
    *after* the seal — a formatter re-run, a reverted hand-repair, tampering — turning silently
    altered evidence into altered evidence a reader can see.
 
-Three tempting escapes do not work and should not be re-proposed: a non-`.md` packet extension
-evades `markdown-format`'s `*.md`/`*.mdc` filter but not `typos-format` (language-agnostic, no
-extension filter), and it would break the closed-set basenames; a `typos` allowlist and a
-`markdownlint` opt-out are both unreachable for this tree (first-match-wins config discovery with
-no user or home layer, and cwd-anchored discovery against a freshly created per-run nonce
-directory); and writing the packet through a shell redirect to dodge the `Write|Edit` matcher is a
-hook bypass, which the fleet's own guardrails block by design. Detection is the lever, not evasion.
+Do not re-propose these escapes: a non-`.md` extension evades `markdown-format` but not
+`typos-format` when the project-dir gate holds, and it breaks closed-set basenames; a
+`typos` allowlist / `markdownlint` opt-out is unreliable on the `$HOME`-rooted residual;
+a shell redirect to dodge `Write|Edit` is a hook bypass the fleet blocks. Detection, not
+evasion.
 
 ## Workflow
 

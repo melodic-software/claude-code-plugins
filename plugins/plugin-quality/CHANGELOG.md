@@ -5,6 +5,19 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.9]
+
+### Changed
+
+- **Audit packet write-once justification matches measured hook reach (#3128
+  S3).** Formatters do not match `Write|Edit` unconditionally and
+  `hook::read_file_path` fails closed outside a project dir / git worktree.
+  Config discovery is file-anchored / target-path-anchored, not cwd-anchored.
+  The residual is a `$HOME`-rooted session with a home-level markdownlint
+  config. The write-once / read-back / seal apparatus is kept against that
+  residual; sealing proves non-alteration after write, never truth at write
+  time.
+
 ## [0.6.8]
 
 ### Changed

@@ -252,6 +252,14 @@ With no argument in an interactive session, run the interview:
      already tracked, so that check exits 0 even though the new content is still an unstaged
      working-tree modification.
 
+   For `layer=team`, also ensure the personal-overlay ignore rule exists
+   **whether or not an overlay file has been written**. The rule belongs to
+   bind time, not to `layer=local`. If `git check-ignore --no-index -v --
+   .claude/source-control.local.md` reports no match **from a repository
+   `.gitignore`** (ignore `$GIT_DIR/info/exclude` and `core.excludesFile`),
+   append `.claude/*.local.*` to the consumer `.gitignore`, announce the edit,
+   and stage that line with the team file.
+
    For `layer=team`, run these as one Bash tool call so `REPO_ROOT` only needs resolving once:
 
    ```bash
@@ -286,6 +294,16 @@ With no argument in an interactive session, run the interview:
    # consults the index first and reports nothing for an already-tracked file, conflating a missing
    # rule with a rule that exists but was overridden by a past commit.
    IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$OVERLAY")" && HAS_RULE=1 || HAS_RULE=0
+   # --no-index still consults $GIT_DIR/info/exclude and core.excludesFile. Those
+   # are operator-local; a teammate does not inherit them. Count only a
+   # repository .gitignore as the team-wide rule.
+   if [ "$HAS_RULE" -eq 1 ]; then
+     IGNORE_SRC="${IGNORE_MATCH%%:*}"
+     case "$IGNORE_SRC" in
+       .gitignore|*/.gitignore) ;;
+       *) HAS_RULE=0 ;;
+     esac
+   fi
    # An ignore rule does not untrack an already-committed file, so ask the index separately.
    TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$OVERLAY")"
    # Exit non-zero on either FAIL, exactly as the team guard does. The overlay was written at step 5,

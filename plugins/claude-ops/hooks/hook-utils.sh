@@ -93,8 +93,82 @@ hook::emit_channels() {
 # Visible skip notice: the same message on both channels. The caller must exit 0
 # right after unless it composes via hook::emit_channels itself.
 #   hook::emit_skip_notice PostToolUse "my-plugin: tool X not found — ..."
+#
+# When hook::notice_once just authorized a RENEW (periodic re-notice), the
+# message is forced to one short line: no PATH dump, capped length. That is
+# what makes a re-notice every N edits affordable (#3128). The first notice
+# still carries the full text, with PATH probed: trimmed by
+# hook::format_path_probed so other plugins' bin dirs are not dumped.
 hook::emit_skip_notice() {
-  hook::emit_channels "$1" "$2" "$2"
+  local event="$1" msg="$2"
+  if [[ "$msg" == *$'\nPATH probed: '* ]]; then
+    local prefix="${msg%%$'\nPATH probed: '*}"
+    local probed="${msg#*$'\nPATH probed: '}"
+    msg="${prefix}"$'\n'"PATH probed: $(hook::format_path_probed "$probed")"
+  fi
+  if [[ "${HOOK_NOTICE_KIND:-full}" == "renew" ]]; then
+    msg="${msg%%$'\n'*}"
+    if ((${#msg} > 240)); then
+      msg="${msg:0:237}..."
+    fi
+    if [[ -n "${HOOK_NOTICE_COUNT:-}" ]]; then
+      msg="${msg} [${HOOK_NOTICE_COUNT} skips this agent/session]"
+    fi
+  fi
+  hook::emit_channels "$event" "$msg" "$msg"
+}
+
+# Trim a PATH dump to directories that can plausibly hold a host / user /
+# repo-local tool. Other plugins' bin/hooks dirs are the 60+ entry dump that
+# made the first skip notice 10 KB (#3128 / #3134). Cap kept entries; say
+# how many were omitted.
+#   hook::format_path_probed                # reads $PATH
+#   hook::format_path_probed "$raw_path"    # trim a dumped PATH string
+hook::format_path_probed() {
+  local raw="${1:-${PATH:-}}"
+  [[ -n "$raw" ]] || {
+    printf '%s' '<unset>'
+    return 0
+  }
+  [[ "$raw" == '<unset>' ]] && {
+    printf '%s' '<unset>'
+    return 0
+  }
+  local rest="$raw" p
+  local -a kept=()
+  local omitted=0
+  local plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
+  local max=12
+  while [[ -n "$rest" ]]; do
+    if [[ "$rest" == *:* ]]; then
+      p="${rest%%:*}"
+      rest="${rest#*:}"
+    else
+      p="$rest"
+      rest=""
+    fi
+    [[ -n "$p" ]] || continue
+    if [[ "$p" == *'/plugins/'* ]] && [[ "$p" == *'/bin'* || "$p" == *'/hooks'* ]]; then
+      if [[ -z "$plugin_root" || "$p" != "$plugin_root"* ]]; then
+        omitted=$((omitted + 1))
+        continue
+      fi
+    fi
+    if ((${#kept[@]} < max)); then
+      kept+=("$p")
+    else
+      omitted=$((omitted + 1))
+    fi
+  done
+  local out="" i
+  for i in "${!kept[@]}"; do
+    [[ $i -gt 0 ]] && out+=':'
+    out+="${kept[$i]}"
+  done
+  if ((omitted > 0)); then
+    out+=" …(+${omitted} omitted)"
+  fi
+  printf '%s' "$out"
 }
 
 # systemMessage-only variant for hook events with no additionalContext channel
@@ -103,31 +177,72 @@ hook::emit_system_message() {
   hook::emit_channels "" "" "$1"
 }
 
-# Once-per-session gate for skip notices. Returns 0 (emit now) the first time a
-# given <key> fires in the current session, 1 afterwards — a missing-tool notice
-# behind a broad matcher (every Write|Edit) must not repeat on every edit. The
-# session id is regex-extracted from the raw hook input JSON (jq-free, see
-# section header); marker files live under ${CLAUDE_PLUGIN_DATA} (survives
-# plugin updates; mkdir -p defensively since creation is documented only on
-# first *reference*) and markers older than 7 days are pruned so per-session
-# files cannot accumulate unboundedly. Fails open toward visibility: when no
-# marker can be tracked, emit every time.
+# Skip-notice latch (#3128). Returns 0 (emit now) on the first fire for a
+# given <key> in the current (session, agent) pair, then every
+# HOOK_NOTICE_RENEW_EVERY skips thereafter (default 8); returns 1 otherwise.
+# A missing-tool notice behind a broad matcher must not repeat the full
+# diagnostic on every edit, but one notice for the whole session was the
+# opposite defect: later edits (and every subagent sharing the session id)
+# went silently unchecked, with no retained skip count unless
+# HOOK_TELEMETRY_SINK was wired.
+#
+# The marker keys on session AND agent (agent_id, else the transcript_path
+# basename, else no-agent) so a subagent gets its own first notice. The
+# marker file stores the skip count, independent of the telemetry sink.
+# hook::emit_skip_notice reads HOOK_NOTICE_KIND=renew and emits one short
+# line, no PATH dump. SessionEnd summary is not wired: the count lives in
+# the marker and the renew notice prints it.
+#
+# Fails open toward visibility: when no marker can be tracked, emit every
+# time (KIND=full).
 #   hook::notice_once "my-plugin-jq" "$INPUT" && hook::emit_skip_notice ...
+HOOK_NOTICE_KIND=full
+HOOK_NOTICE_COUNT=0
+HOOK_NOTICE_RENEW_EVERY="${HOOK_NOTICE_RENEW_EVERY:-8}"
+
 hook::notice_once() {
-  local key="$1" input="${2:-}" session="no-session"
+  local key="$1" input="${2:-}" session="no-session" agent="no-agent"
+  HOOK_NOTICE_KIND=full
+  HOOK_NOTICE_COUNT=0
   if [[ "$input" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
     session="${BASH_REMATCH[1]}"
     session="${session//[^A-Za-z0-9_-]/-}"
   fi
+  if [[ "$input" =~ \"agent_id\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+    agent="${BASH_REMATCH[1]}"
+  elif [[ "$input" =~ \"transcript_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
+    agent="${BASH_REMATCH[1]}"
+    agent="${agent##*/}"
+    agent="${agent%.jsonl}"
+  fi
+  agent="${agent//[^A-Za-z0-9_-]/-}"
+  [[ -n "$agent" ]] || agent="no-agent"
   local dir="${CLAUDE_PLUGIN_DATA:-}"
   [[ -n "$dir" ]] || return 0
   dir="$dir/skip-notices"
   mkdir -p "$dir" 2>/dev/null || return 0
   find "$dir" -type f -mtime +7 -delete 2>/dev/null
-  local marker="$dir/${key}.${session}"
-  [[ -f "$marker" ]] && return 1
-  : >"$marker" 2>/dev/null
-  return 0
+  local marker="$dir/${key}.${session}.${agent}"
+  local count=0
+  if [[ -f "$marker" ]]; then
+    count="$(tr -d '[:space:]' <"$marker" 2>/dev/null || true)"
+    [[ "$count" =~ ^[0-9]+$ ]] || count=1
+  fi
+  count=$((count + 1))
+  printf '%s\n' "$count" >"$marker" 2>/dev/null || return 0
+  HOOK_NOTICE_COUNT="$count"
+  local every="${HOOK_NOTICE_RENEW_EVERY:-8}"
+  [[ "$every" =~ ^[1-9][0-9]*$ ]] || every=8
+  if [[ "$count" -eq 1 ]]; then
+    HOOK_NOTICE_KIND=full
+    return 0
+  fi
+  if ((count % every == 0)); then
+    HOOK_NOTICE_KIND=renew
+    return 0
+  fi
+  HOOK_NOTICE_KIND=silent
+  return 1
 }
 
 # Best-effort jq-free extraction of tool_input.file_path from the raw hook

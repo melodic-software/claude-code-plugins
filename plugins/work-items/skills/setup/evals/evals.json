@@ -251,6 +251,19 @@
         "Gives git rm --cached as the remediation, not just adding an ignore line",
         "Writes nothing, since check is read-only"
       ]
+    },
+    {
+      "id": 20,
+      "name": "check-reports-missing-overlay-ignore-without-overlay-file",
+      "prompt": "/work-items:setup check\n\n.work-item-tracker.json is bound. There is no .work-item-tracker.local.json. .gitignore does not mention that path.",
+      "expected_output": "Reports FAIL on the personal-overlay ignore rule even though no overlay file exists: the rule must be in place before the first overlay is written. Does not wait for the overlay to appear before probing. Uses the same two-probe pair as apply step 5. Remediation is apply step 5, which appends the line. A match from info/exclude or core.excludesFile is not a team-wide rule.",
+      "files": [],
+      "expectations": [
+        "Probes git check-ignore --no-index on .work-item-tracker.local.json without requiring the file to exist",
+        "Missing ignore rule is FAIL, not skipped as INFO",
+        "Counts only a repository .gitignore match, not info/exclude or core.excludesFile",
+        "Remediation is apply appending the gitignore line"
+      ]
     }
   ]
 }

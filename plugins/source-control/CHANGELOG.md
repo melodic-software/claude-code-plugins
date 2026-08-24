@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.12]
+
+### Fixed
+
+- **Three seams from the cross-plugin audit (#3128).**
+
+  **S1 — vendored `hook-utils.sh` skip latch.** The shared notice latch now keys
+  on session and agent (a subagent gets its own first notice), stores a skip
+  count in the marker (independent of `HOOK_TELEMETRY_SINK`), and emits a
+  one-line re-notice every 8 skips instead of going silent after the first.
+  The first `PATH probed:` dump omits other plugins' bin dirs. SessionEnd is
+  not wired: the count lives in the marker and the renew notice prints it.
+
+  **S2 — overlay-ignore guard.** `/source-control:setup check` probes the
+  `.claude/*.local.*` ignore rule whether or not the personal overlay exists.
+  Missing rule is FAIL, not INFO. A match counts only when `-v` names a
+  repository `.gitignore` (not `$GIT_DIR/info/exclude` or `core.excludesFile`).
+  `apply` writes that line at team-layer bind time, not only at `layer=local`.
+
 ## [0.55.11]
 
 ### Fixed
