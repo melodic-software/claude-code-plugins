@@ -1,6 +1,6 @@
 ---
-description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context — actions: scrape, search, crawl, map, parse, interact, agent, monitor. Use when: 'scrape this page', 'crawl this site', 'search the web for X', 'WebFetch is blocked', 'this page needs JS', 'extract the text from this PDF', or WebFetch returns 403/429 (Cloudflare, PerimeterX, anti-bot block), a page requires JS rendering or clicks/form fills, you need web search with scraped results, bulk URL discovery and crawling, a local file (PDF/DOCX/XLSX) needs text extraction to markdown, or a natural-language web research task — skip for plain unprotected pages (WebFetch suffices) or when you want synthesis rather than primary source."
-argument-hint: "<command> [args] — commands: scrape, search, crawl, map, parse, interact, agent, monitor, search-feedback, credit-usage"
+description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context. Actions: scrape, search, crawl, map, parse, interact, agent, monitor. Use when: 'scrape this page', 'crawl this site', 'search the web for X', 'WebFetch is blocked', 'this page needs JS', 'extract the text from this PDF', or WebFetch returns 403/429 (Cloudflare, PerimeterX, anti-bot block), a page requires JS rendering or clicks/form fills, you need web search with scraped results, bulk URL discovery and crawling, a local file (PDF/DOCX/XLSX) needs text extraction to markdown, or a natural-language web research task. Skip for plain unprotected pages (WebFetch suffices) or when you want synthesis rather than primary source."
+argument-hint: "<command> [args]. Commands: scrape, search, crawl, map, parse, interact, agent, monitor, search-feedback, credit-usage"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(command -v firecrawl*) Bash(firecrawl --status*)
@@ -27,7 +27,7 @@ When WebFetch fails on a large page and an MCP equivalent would dump 30K tokens 
 | Situation | Command | Why |
 |---|---|---|
 | WebFetch returned 403/429 (Cloudflare, PerimeterX, rate limit) | `firecrawl scrape` | Managed IP rotation + headless browser |
-| Page is a SPA or requires JS rendering | `firecrawl scrape` | WebFetch is a plain HTTP client — no JS |
+| Page is a SPA or requires JS rendering | `firecrawl scrape` | WebFetch is a plain HTTP client. No JS |
 | Page needs clicks, form fills, or login | `firecrawl interact` | Full browser actions, not just fetch |
 | Need web search, not a known URL | `firecrawl search` | Search-and-scrape in one call |
 | Discovering all URLs on a site | `firecrawl map` | Cheap URL-only discovery |
@@ -44,13 +44,13 @@ When WebFetch fails on a large page and an MCP equivalent would dump 30K tokens 
 Escalation order when WebFetch fails:
 
 1. A cached doc-site reader MCP, if the session has one
-2. **`firecrawl scrape`** (this skill) — managed scrape with rotation
-3. **`firecrawl interact`** (this skill) — when the page needs clicks or login
-4. A synthesis tool with a domain filter, if available — forces a domain-specific read through another backend
+2. **`firecrawl scrape`** (this skill). Managed scrape with rotation
+3. **`firecrawl interact`** (this skill), when the page needs clicks or login
+4. A synthesis tool with a domain filter, if available. Forces a domain-specific read through another backend
 
-## Core pattern — write to disk, Read selectively
+## Core pattern. Write to disk, Read selectively
 
-Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`, never a hardcoded path and never a bare relative template — see the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Carry the temp root in the positional template — the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing** — BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable (per `docs/conventions/topic-docs/README.md` "The ephemeral tier" in the marketplace repository). Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
+Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`, never a hardcoded path and never a bare relative template. See the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable (per `docs/conventions/topic-docs/README.md` "The ephemeral tier" in the marketplace repository). Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:
 
 ```bash
 # Scrape a blocked doc page to markdown
@@ -83,13 +83,13 @@ firecrawl interact \
   -o "$DASH"
 ```
 
-**Spill files are self-consumed — clean up after the Read.** Once the needed portion is in context, remove the spill file in a follow-up Bash call (`rm -f "<echoed path>"` — shell state does not persist between calls, so use the literal echoed path). Nothing reclaims the OS temp tree on a schedule, so a research-heavy session that skips cleanup leaves one file per call behind. The one exception is command-agnostic: whenever the user asked for the file itself, whichever command produced it, the path is the deliverable — hand it back and do NOT delete it.
+**Spill files are self-consumed. Clean up after the Read.** Once the needed portion is in context, remove the spill file in a follow-up Bash call (`rm -f "<echoed path>"`. Shell state does not persist between calls, so use the literal echoed path). Nothing reclaims the OS temp tree on a schedule, so a research-heavy session that skips cleanup leaves one file per call behind. The one exception is command-agnostic: whenever the user asked for the file itself, whichever command produced it, the path is the deliverable. Hand it back and do NOT delete it.
 
 Direct stdout is acceptable only for tiny, single-paragraph results (e.g., "get the page title") where file I/O overhead exceeds the token savings. Default: `-o <path> && Read`.
 
 ## Commands
 
-Ten subcommands. One-line purpose below; **full flag detail + examples in `context/commands.md`** — read it when constructing any non-trivial call. `firecrawl <cmd> --help` is the live fallback.
+Ten subcommands. One-line purpose below; **full flag detail + examples in `context/commands.md`**. Read it when constructing any non-trivial call. `firecrawl <cmd> --help` is the live fallback.
 
 | Command | Purpose |
 |---|---|
@@ -100,44 +100,44 @@ Ten subcommands. One-line purpose below; **full flag detail + examples in `conte
 | `parse <file>` | Local PDF/DOCX/XLSX/HTML → markdown, server-side |
 | `interact "<p>"` | Prompt/code against a cached scrape session |
 | `agent "<p>"` | Hosted NL web-research task (Spark models) |
-| `monitor` | Server-side scheduled scrapes + change alerts (use sparingly — a local scheduler such as the built-in `/schedule` may fit better) |
+| `monitor` | Server-side scheduled scrapes + change alerts (use sparingly, a local scheduler such as the built-in `/schedule` may fit better) |
 | `search-feedback <id>` | Refund a credit on a bad `search` result |
 | `credit-usage` | Remaining quota (pre-computed in the context block above) |
 
 ## Configuration & defaults
 
-The CLI reads exactly three env vars (`FIRECRAWL_API_KEY` / `FIRECRAWL_API_URL` / `FIRECRAWL_NO_TELEMETRY`), a set of global flags (`-o`, `--json`, `--status`, …), and built-in non-env defaults (5-job concurrency, 60s search timeout, automatic retry/backoff, `.firecrawl/` local cache). Full tables in `context/configuration.md`. **Prefer env-var auth over `firecrawl config` / `firecrawl login`** — those persist to a user-level config dir that becomes a second source of truth alongside the env var.
+The CLI reads exactly three env vars (`FIRECRAWL_API_KEY` / `FIRECRAWL_API_URL` / `FIRECRAWL_NO_TELEMETRY`), a set of global flags (`-o`, `--json`, `--status`, …), and built-in non-env defaults (5-job concurrency, 60s search timeout, automatic retry/backoff, `.firecrawl/` local cache). Full tables in `context/configuration.md`. **Prefer env-var auth over `firecrawl config` / `firecrawl login`**. Those persist to a user-level config dir that becomes a second source of truth alongside the env var.
 
 ## Prerequisites
 
-The CLI is an escalation option, not a hard dependency — install it when first needed:
+The CLI is an escalation option, not a hard dependency. Install it when first needed:
 
 ```bash
 npm install -g firecrawl-cli
 ```
 
-Authenticate via the `FIRECRAWL_API_KEY` environment variable (OS user scope); the CLI reads it automatically. Avoid `firecrawl login` — it writes a separate user-level config that diverges from the env-var flow.
+Authenticate via the `FIRECRAWL_API_KEY` environment variable (OS user scope); the CLI reads it automatically. Avoid `firecrawl login`. It writes a separate user-level config that diverges from the env-var flow.
 
-**Do NOT run `firecrawl init --all --browser`.** That command installs the `firecrawl-mcp` MCP server plus a bundled copy of the upstream skill into `~/.claude/skills/` — a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. This plugin IS the maintained integration; updates arrive through `/plugin marketplace update`.
+**Do NOT run `firecrawl init --all --browser`.** That command installs the `firecrawl-mcp` MCP server plus a bundled copy of the upstream skill into `~/.claude/skills/`, a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. This plugin IS the maintained integration; updates arrive through `/plugin marketplace update`.
 
 ## Updating the skill and CLI
 
-The CLI ships new versions roughly weekly; the upstream canonical skill at `https://www.firecrawl.dev/agent-onboarding/SKILL.md` evolves alongside it. This skill **owns** its content — upstream is a *source*, not a parallel install.
+The CLI ships new versions roughly weekly; the upstream canonical skill at `https://www.firecrawl.dev/agent-onboarding/SKILL.md` evolves alongside it. This skill **owns** its content. Upstream is a *source*, not a parallel install.
 
-Keeping in sync is a **maintainer-facing** concern, split into its own sibling skill: `/firecrawl:update` (`--check` for a read-only drift report, bare for the full gated update). It tracks the `firecrawl-cli` npm release and the upstream `SKILL.md` source via the sidecar `UPSTREAM.md`, integrates upstream changes behind two approval gates, and preserves this skill's invariants (see its Preservation rules). Run it only in a working-tree checkout — consumers receive updates through `/plugin marketplace update`.
+Keeping in sync is a **maintainer-facing** concern, split into its own sibling skill: `/firecrawl:update` (`--check` for a read-only drift report, bare for the full gated update). It tracks the `firecrawl-cli` npm release and the upstream `SKILL.md` source via the sidecar `UPSTREAM.md`, integrates upstream changes behind two approval gates, and preserves this skill's invariants (see its Preservation rules). Run it only in a working-tree checkout. Consumers receive updates through `/plugin marketplace update`.
 
 ## Gotchas
 
-- **`-o` is mandatory for anything larger than a paragraph.** Streaming to stdout wastes the whole token-efficiency advantage. If a command lacks `-o` in this skill's examples, it's because the output is truly small (e.g., `credit-usage`). Everything else — scrape, search, crawl, interact, agent — writes to disk.
+- **`-o` is mandatory for anything larger than a paragraph.** Streaming to stdout wastes the whole token-efficiency advantage. If a command lacks `-o` in this skill's examples, it's because the output is truly small (e.g., `credit-usage`). Everything else, scrape, search, crawl, interact, agent, writes to disk.
 - **Credits are a shared resource.** Every call charges the account. Use `map` before `crawl`, use `--limit` aggressively on search, and skip Firecrawl entirely when a plain fetch would do.
-- **`firecrawl login` creates a second source of truth.** Auth via the `FIRECRAWL_API_KEY` env var; the login command writes to a user-level config dir — mixing them leaves two sources of truth.
-- **Transient DNS 503 on `api.firecrawl.dev` from sandboxed sessions.** Some cloud egress proxies intermittently return "DNS cache overflow" — retry after ~30s. This affects both the CLI and direct curl; it's an egress issue, not a Firecrawl outage.
-- **Windows tmp paths depend on which shell the Bash tool is.** Where it is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`), and both path forms work for `Read` with no normalization on the agent side. On a Windows host **without** Git Bash the PowerShell tool runs instead and `mktemp` does not exist — fall back to a user-scoped temp under `%LOCALAPPDATA%\Temp`. The skill's `shell: bash` frontmatter does **not** cover this: that field governs only the `!` dynamic-context injection run at skill-load time, not the Bash tool calls this skill's body issues.
-- **Self-hosted Firecrawl.** Set `FIRECRAWL_API_URL` as an OS user environment variable to switch the CLI to a local instance. Default is `https://api.firecrawl.dev` — only override when running against a self-hosted stack.
-- **CLI and `mcp__firecrawl__*` MCP tools overlap** — running both wastes context and splits configuration. If the consuming project also has the Firecrawl MCP registered, pick one surface.
+- **`firecrawl login` creates a second source of truth.** Auth via the `FIRECRAWL_API_KEY` env var; the login command writes to a user-level config dir. Mixing them leaves two sources of truth.
+- **Transient DNS 503 on `api.firecrawl.dev` from sandboxed sessions.** Some cloud egress proxies intermittently return "DNS cache overflow". Retry after ~30s. This affects both the CLI and direct curl; it's an egress issue, not a Firecrawl outage.
+- **Windows tmp paths depend on which shell the Bash tool is.** Where it is Git Bash, `${TMPDIR:-/tmp}` resolves through the `/tmp` mount to the user's Windows temp directory (`%TEMP%`, by default under `%LOCALAPPDATA%\Temp`), and both path forms work for `Read` with no normalization on the agent side. On a Windows host **without** Git Bash the PowerShell tool runs instead and `mktemp` does not exist. Fall back to a user-scoped temp under `%LOCALAPPDATA%\Temp`. The skill's `shell: bash` frontmatter does **not** cover this: that field governs only the `!` dynamic-context injection run at skill-load time, not the Bash tool calls this skill's body issues.
+- **Self-hosted Firecrawl.** Set `FIRECRAWL_API_URL` as an OS user environment variable to switch the CLI to a local instance. Default is `https://api.firecrawl.dev`. Only override when running against a self-hosted stack.
+- **CLI and `mcp__firecrawl__*` MCP tools overlap**. Running both wastes context and splits configuration. If the consuming project also has the Firecrawl MCP registered, pick one surface.
 
 ## Related
 
-- `/firecrawl:update` — the maintainer-facing drift-check and upstream-sync skill for this wrapper; its sidecar sync-state record, the deterministic update helper script, and the full update pipeline all live under that skill.
-- `/firecrawl:setup` — runtime prerequisite verification (CLI binary + `FIRECRAWL_API_KEY` auth).
+- `/firecrawl:update`, the maintainer-facing drift-check and upstream-sync skill for this wrapper; its sidecar sync-state record, the deterministic update helper script, and the full update pipeline all live under that skill.
+- `/firecrawl:setup`. Runtime prerequisite verification (CLI binary + `FIRECRAWL_API_KEY` auth).
 - Firecrawl docs: <https://docs.firecrawl.dev/sdks/cli>. Upstream skill source: <https://www.firecrawl.dev/agent-onboarding/SKILL.md>. MCP-vs-CLI guidance: <https://www.firecrawl.dev/blog/mcp-vs-cli>.
