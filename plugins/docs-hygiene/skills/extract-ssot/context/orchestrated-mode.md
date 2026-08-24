@@ -13,7 +13,7 @@ Defaults for running the extract-ssot pipeline at whole-repo scale —
 hundreds to thousands of tracked markdown files, dozens of candidate
 clusters — where identify/verify/execute becomes a multi-agent batch
 rather than a handful of inline actions. Loaded by the confirm-scope
-gate (SKILL.md "Bare invocation — confirm scope first") when the user
+gate (SKILL.md "Bare invocation: confirm scope first") when the user
 opts into a whole-repo run, and by `actions/batch.md` Step 6 when
 sizing dispatches.
 
@@ -129,7 +129,7 @@ ceiling and the guard check between dispatches.
 
 ## Cross-references
 
-- SKILL.md "Bare invocation — confirm scope first" — the gate that
+- SKILL.md "Bare invocation: confirm scope first", the gate that
   routes a whole-repo opt-in here
 - `actions/identify.md` — the single-survey inventory this mode retains
 - `actions/batch.md` — wave grouping and dispatch policy (Step 6)
