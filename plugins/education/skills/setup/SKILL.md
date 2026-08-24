@@ -58,7 +58,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
 6. If a recommended value differs from the effective one, direct the user to Claude Code's plugin
    configuration prompt for `education` (interactive `/plugin configure education@<marketplace>` any time;
    headless, rerun `claude plugin install education@<marketplace> -s <scope> --config
-   quiz_policy=<value>` — against an already-installed plugin it prints `already installed` and
+   quiz_policy=<value>`. Against an already-installed plugin it prints `already installed` and
    still writes the value, verified on Claude Code 2.1.240 for a non-sensitive option at `user`
    scope. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry and
    resets every option to its manifest default). Claude Code owns persistence. Do not hand-edit
