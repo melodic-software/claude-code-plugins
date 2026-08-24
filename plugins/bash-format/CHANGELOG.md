@@ -14,6 +14,17 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
   The first `PATH probed:` dump omits other plugins' bin dirs. Copies stay
   byte-identical via `scripts/sync-hook-utils.sh`.
 
+## [0.7.23]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, bash-format cluster).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. The generated options block is ignore-fenced because
+  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+
 ## [0.7.21]
 
 ### Changed

@@ -6,7 +6,7 @@ them. On every `Write` or `Edit` of a `.sh` or `.bash` file it runs
 [shfmt](https://github.com/mvdan/sh), surfacing findings back to Claude as
 advisory context.
 
-It uses **your repository's own configuration** — `.shellcheckrc` for linting
+It uses **your repository's own configuration**, `.shellcheckrc` for linting
 and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Behavior
@@ -14,7 +14,7 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 - **Lint on edit (always).** ShellCheck (`warning` severity and above) runs on
   every edit. It is non-mutating; it only reports.
 - **Format on edit (opt-in).** `shfmt` runs **only when an `.editorconfig`
-  section names shell files** — a shell glob such as `[*.sh]`, `[*.bash]`, or
+  section names shell files**: a shell glob such as `[*.sh]`, `[*.bash]`, or
   `[*.{sh,bash}]` (including path-prefixed forms like `[**/*.sh]`), found by
   walking up from the file to the repository root. A bare `[*]` catch-all is
   **not** an opt-in: most repos only set line-ending / charset properties there,
@@ -30,19 +30,19 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   your hard gate.
 - **Config from the consumer.** ShellCheck discovers `.shellcheckrc` by walking
   up from the file's directory; shfmt reads `.editorconfig` the same way. No
-  working-directory assumptions — the tools are anchored to the edited file.
-- **Scope: files inside the current project — when `CLAUDE_PROJECT_DIR` is set.**
+  working-directory assumptions. The tools are anchored to the edited file.
+- **Scope: files inside the current project, when `CLAUDE_PROJECT_DIR` is set.**
   With `CLAUDE_PROJECT_DIR` set, the hook acts only on shell files under it
-  (symlink-resolved): a `.sh`/`.bash` file written *outside* the project — e.g. to
-  a temp or scratchpad directory — is silently skipped (no lint, no format, no
+  (symlink-resolved): a `.sh`/`.bash` file written *outside* the project, e.g. to
+  a temp or scratchpad directory, is silently skipped (no lint, no format, no
   notice), deliberate defense-in-depth scoping inherited from the shared hook
   library. The OS temp tree (`TMPDIR`/`TMP`/`TEMP` and the POSIX defaults) is
-  outside the project even when it sits *under* `CLAUDE_PROJECT_DIR` — the shape a
+  outside the project even when it sits *under* `CLAUDE_PROJECT_DIR`, the shape a
   home-directory project dir takes, where Claude Code's own session scratchpad
   would otherwise prefix-match as project content. The one exception is a project
   root that itself lives under temp (a fixture checkout built with `mktemp -d`),
   whose files are project content. Membership recognizes Windows 8.3 short-name
-  spellings (`KYLESE~1`) of in-project paths — a per-volume concern: only volumes
+  spellings (`KYLESE~1`) of in-project paths, a per-volume concern: only volumes
   with 8.3 generation enabled produce such paths. If `CLAUDE_PROJECT_DIR` is **unset** (e.g. some
   headless `-p` sessions), the membership check is skipped and any existing edited
   file is processed. Either way, to lint a file the hook skipped, run `shellcheck`
@@ -50,17 +50,17 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Requirements
 
-- **Bash** — the hook is a Bash script. On native Windows, install
+- **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible once-per-session notice. [Install jq](https://jqlang.org/download/).
 - **ShellCheck** on `PATH` for the lint pass. Absent: the lint pass skips with
   a visible once-per-session notice.
 - **shfmt** on `PATH` for the format pass (and an `.editorconfig` in your repo
   to opt in). Absent while the repo opts in: the format pass skips with a
   visible once-per-session notice. Without the `.editorconfig` opt-in the
-  format pass stays quiet — the repo chose not to format.
+  format pass stays quiet. The repo chose not to format.
 
 Each pass is independent: when a tool is absent its pass is skipped (visibly)
 and the other still runs.
@@ -97,6 +97,7 @@ install command:
 claude plugin install bash-format@<marketplace> --config bash_format_enabled=false
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -169,6 +170,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
