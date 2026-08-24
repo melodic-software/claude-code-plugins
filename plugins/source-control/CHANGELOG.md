@@ -28,6 +28,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   pass, and the blocked-message remedy lists all four so following it produces
   a body CI accepts. Both surfaces pick the change up from the shared core
   ([#3206](https://github.com/melodic-software/claude-code-plugins/issues/3206)).
+  Inline-code masking pairs backtick runs after one collect pass so a crafted
+  line of unmatched run lengths cannot push the 15s PreToolUse timeout and
+  fail the gate open.
 
 ## [0.55.10]
 

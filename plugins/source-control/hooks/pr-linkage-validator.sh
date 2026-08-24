@@ -183,34 +183,47 @@ mask_markdown_code() {
       out+=$'\n'
       continue
     fi
-    rendered=""
+    # Collect backtick runs in one left-to-right pass, then pair each opener
+    # with the next unused same-length run. A per-opener rescan of the
+    # remainder is O(L^1.5) on a line of distinct run lengths and can exceed
+    # the 15s PreToolUse timeout, which fails this gate open.
+    runs_pos=()
+    runs_len=()
     i=0
     len=${#rest}
     while ((i < len)); do
       if [[ "${rest:i:1}" == '`' ]]; then
         ticks=1
         while ((i + ticks < len)) && [[ "${rest:i+ticks:1}" == '`' ]]; do ((ticks++)); done
-        j=$((i + ticks))
-        found=-1
-        while ((j < len)); do
-          if [[ "${rest:j:1}" == '`' ]]; then
-            run=1
-            while ((j + run < len)) && [[ "${rest:j+run:1}" == '`' ]]; do ((run++)); done
-            if ((run == ticks)); then
-              found=$((j + run))
-              break
-            fi
-            j=$((j + run))
-          else
-            ((j++))
-          fi
-        done
-        if ((found >= 0)); then
-          i=$found
-          continue
-        fi
-        rendered+="${rest:i:ticks}"
+        runs_pos+=("$i")
+        runs_len+=("$ticks")
         i=$((i + ticks))
+      else
+        ((i++))
+      fi
+    done
+    declare -A pending=()
+    spans_start=()
+    spans_end=()
+    for ((k = 0; k < ${#runs_pos[@]}; k++)); do
+      ticks=${runs_len[k]}
+      if [[ -n "${pending[$ticks]+x}" ]]; then
+        o=${pending[$ticks]}
+        unset 'pending[$ticks]'
+        spans_start+=("${runs_pos[o]}")
+        spans_end+=($((runs_pos[k] + runs_len[k])))
+      else
+        pending[$ticks]=$k
+      fi
+    done
+    rendered=""
+    i=0
+    sidx=0
+    nspans=${#spans_start[@]}
+    while ((i < len)); do
+      if ((sidx < nspans && i == spans_start[sidx])); then
+        i=${spans_end[sidx]}
+        ((sidx++))
         continue
       fi
       rendered+="${rest:i:1}"

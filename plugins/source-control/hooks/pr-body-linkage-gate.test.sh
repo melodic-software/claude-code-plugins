@@ -140,6 +140,28 @@ assert_block "a ## Fix that exists only inside a fenced sample is not the sectio
 assert_block "a ## Fix that exists only as indented code is not the section" "$GATED" "gh pr create -t T --body-file indented-fix.md"
 assert_block "a ## Fix that exists only in an inline span is not the section" "$GATED" "gh pr create -t T --body-file inline-fix.md"
 assert_allow "a real ## Fix is not hidden by a later fenced sample" "$GATED" "gh pr create -t T --body-file real-plus-fenced-fix.md"
+# A line of unmatched, strictly-increasing backtick-run lengths used to
+# rescan the remainder from each opener (O(L^1.5)). The pair-after-collect
+# scan must still finish quickly and still fail-closed on a missing section.
+{
+  printf 'Closes #5\n\n## Summary\n\nx\n\n'
+  printf 'crafted '
+  t=1
+  while ((t <= 80)); do
+    printf '%*s' "$t" '' | tr ' ' '`'
+    printf x
+    t=$((t + 1))
+  done
+  printf '\n\n## Verification\n\nx\n\n## Related\n\n- x\n'
+} >"$GATED/superlinear-ticks.md"
+start_s=$SECONDS
+assert_block "a crafted unmatched-tick line does not hide a missing ## Fix" "$GATED" "gh pr create -t T --body-file superlinear-ticks.md"
+elapsed=$((SECONDS - start_s))
+if ((elapsed < 5)); then
+  ok "crafted unmatched-tick line stays well under the 15s hook timeout (${elapsed}s)"
+else
+  fail "crafted unmatched-tick line took ${elapsed}s (must stay under 5s here)"
+fi
 
 run "$GATED" "$(gh_body "$ISSUE_3205")"
 if [[ "$ERR" == *'Missing a "## Fix" section.'* && "$ERR" == *"## Summary"* && "$ERR" == *"## Fix"* && "$ERR" == *"## Verification"* && "$ERR" == *"## Related"* && "$ERR" == *"Closes #<issue>"* ]]; then
