@@ -3,7 +3,7 @@
 A Claude Code plugin for **skill-authoring QA**: it runs a static, deterministic contract gate over a
 skill directory, reports the shared listing-budget estimate across a set of skills, and validates a
 skill's `evals.json` against a bundled schema plus a deterministic eval-quality lint. No model
-invocation anywhere — the same checks run identically in a session, a pre-commit hook, or CI.
+invocation anywhere. The same checks run identically in a session, a pre-commit hook, or CI.
 
 The one failure static analysis catches best is a rewrite silently dropping a `description` trigger
 phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the trigger phrases against
@@ -11,20 +11,20 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 
 | Skill | What it does |
 |---|---|
-| `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), or schema-validates and quality-lints evals (`validate-evals`) — for one skill, a set of roots, or every skill. |
+| `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), or schema-validates and quality-lints evals (`validate-evals`) for one skill, a set of roots, or every skill. |
 | `/skill-quality:setup` | `check` (default) resolves and verifies the skills directory; `apply` routes a non-default `skills_root` change through Claude Code. |
 
 ## Checks
 
-`check` runs `check-skill.sh` — twenty-five checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh`. Twenty-five checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
-  directory (in a plugin skill it also WARNs as redundant — the field defaults to the directory).
+  directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
 - `description` + `when_to_use` within the 1536-char **per-skill** listing-entry cap (overflow
-  truncates that entry) — a different, narrower limit from the shared budget below.
+  truncates that entry). A different, narrower limit from the shared budget below.
 - Trigger-keyword preservation vs `HEAD` (skipped for a new, uncommitted skill).
 - `SKILL.md` under 500 lines (hard) / 200 lines (soft, advisory).
-- Backtick- and link-cited skill-internal supporting files resolve — when a path that misses instead
+- Backtick- and link-cited skill-internal supporting files resolve. When a path that misses instead
   resolves under a sibling skill, the finding names that sibling and the
   `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/...` cross-skill form, while keeping the hand-verify
   caveat (the sibling hit is evidence, not proof: paths can collide).
@@ -34,36 +34,36 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 - Gotchas surface present; `description` carries `Use when` phrasing; no committed cache artifacts;
   action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
   dirs are referenced.
-- Precompute opportunity (advisory) — a fenced shell block gathers read-only context the skill could
+- Precompute opportunity (advisory). A fenced shell block gathers read-only context the skill could
   inline at load time via [`!` injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
   instead of a per-invocation tool call.
-- `!`-injection portability — bash-only syntax without a `shell:` declaration fails; portable-looking
+- `!`-injection portability. Bash-only syntax without a `shell:` declaration fails; portable-looking
   but undeclared warns; an injected command with no `|| <fallback>` continuation warns.
-- Fresh-eyes declaration conformance — same-context judgment language (a curated, advisory heuristic)
+- Fresh-eyes declaration conformance. Same-context judgment language (a curated, advisory heuristic)
   expects fresh-context delegation wording or a `fresh-eyes-exempt` directive nearby; malformed or
   reason-less directives fail. Contract: `skills/check/reference/fresh-eyes-declarations.md`.
-- `metadata.summary` within 100 Unicode codepoints — the key is the generated skill cheat
+- `metadata.summary` within 100 Unicode codepoints. The key is the generated skill cheat
   sheet's row source; the cap keeps rows scannable. An absent key is no finding.
-- Completion-criteria signal (advisory) — a numbered procedure of three or more steps with
+- Completion-criteria signal (advisory). A numbered procedure of three or more steps with
   no observable done-condition token.
-- Explicit invocation mode — marketplace plugin skills must state
+- Explicit invocation mode. Marketplace plugin skills must state
   `disable-model-invocation`; elsewhere a missing key warns.
-- Description/verb-contract polarity (advisory) — the description lead contradicts the
+- Description/verb-contract polarity (advisory). The description lead contradicts the
   Naming verb contract or the body (read-only vs mutate). `--fix` in the listing is the
   compliant override shape.
 
-`listing-budget` runs `check-listing-budget.sh` — an always-advisory report on the **shared** budget
+`listing-budget` runs `check-listing-budget.sh`. An always-advisory report on the **shared** budget
 every loaded skill draws from together (`skillListingBudgetFraction`, default 1% of the model's context
 window). This is the aggregate limit `check`'s per-skill cap above does not cover: nothing else in the
 gate checks it, so a marketplace's skill count can silently overflow the live listing with no local
 signal. It never asserts a live value it cannot observe (the model's context window and a consumer's
-settings are both unknowable statically) — it reports against a documented, overridable default and
+settings are both unknowable statically). It reports against a documented, overridable default and
 always exits 0.
 
 Only **listing-eligible** skills are counted: `disable-model-invocation: true` keeps a skill's
 description out of the model-visible listing entirely, so it spends none of the shared budget. A
 consumer's `skillOverrides` can free further descriptions with `"name-only"`, which repository
-content cannot reveal — so the reported figure is an upper bound for anyone who sets it.
+content cannot reveal, so the reported figure is an upper bound for anyone who sets it.
 
 ```shell
 /skill-quality:check my-skill                  # gate one skill
@@ -73,12 +73,12 @@ content cannot reveal — so the reported figure is an upper bound for anyone wh
 /skill-quality:check listing-budget plugins/*/skills  # pool every plugin's root into one aggregate
 ```
 
-## Skills directory — never baked in
+## Skills directory is never baked in
 
 The checker resolves the skills root through the convention-resolution ladder, first hit wins:
 
-1. `${user_config.skills_root}` — set only when your skills live outside `.claude/skills`.
-2. `${CLAUDE_PROJECT_DIR}/.claude/skills` — the conventional default.
+1. `${user_config.skills_root}`. Set only when your skills live outside `.claude/skills`.
+2. `${CLAUDE_PROJECT_DIR}/.claude/skills`. The conventional default.
 
 `CHECK_SKILL_SKILLS_ROOT` is honored as a one-run environment override the checker reads directly;
 the setup skill neither writes nor persists it. When your skills live at the default location, no
@@ -93,13 +93,13 @@ configuration is needed:
 
 `validate-evals` checks a skill's `evals/evals.json` against the bundled
 `reference/evals.schema.json`. Every case requires `id`, `prompt`, and at least one non-empty
-grading criterion — `expected_output`, `expectations`, or `assertions` (a case that cannot be
+grading criterion: `expected_output`, `expectations`, or `assertions` (a case that cannot be
 graded is not an eval); the rich form adds `name` (kebab-case) and `files`.
-Evals are warranted, not mandatory — a skill shipping none is not a failure.
+Evals are warranted, not mandatory. A skill shipping none is not a failure.
 
 After the schema, `check-evals-quality.sh` (bash + jq) lints eval CONTENT deterministically.
-`FAIL:` tier — duplicate case ids/names, empty criterion items, `files` fixture entries that
-resolve to no path under the skill or evals directory. `WARN:` tier (advisory, exit 0) — a case
+`FAIL:` tier: duplicate case ids/names, empty criterion items, `files` fixture entries that
+resolve to no path under the skill or evals directory. `WARN:` tier (advisory, exit 0): a case
 carrying both `expectations` and `assertions`, identical prompt+files pairs, vague whole-item
 phrasing ("the output is good"), a thin sole-criterion `expected_output`, a set with no
 refusal/guardrail or anti-pattern case, and (Q4 prose) an empty `files` list with
@@ -110,13 +110,14 @@ stands alone.
 
 ## Requirements
 
-- A skills root — via `CHECK_SKILL_SKILLS_ROOT`, `CLAUDE_PROJECT_DIR`, or a git repository
+- A skills root via `CHECK_SKILL_SKILLS_ROOT`, `CLAUDE_PROJECT_DIR`, or a git repository
   (last-resort default `.claude/skills`). Git-backed checks (trigger preservation, vendor
   identity, stale metadata, committed artifacts) skip with a note outside a repo so
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
   twenty-four still gate.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -189,3 +190,4 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
