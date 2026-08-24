@@ -471,7 +471,8 @@ introduced by this clause; rung 4 was already the one path the gate does not cov
 produces no external effect.
 
 > Verb-contract note (recorded deviation): the fleet's `audit` verb is read-only with "mutation
-> only behind an explicit user override". Here the unconditional draft+confirm IS that override. > the user approves the exact `gh issue create` at the mutation point, where fleet precedent
+> only behind an explicit user override". Here the unconditional draft+confirm IS that override.
+> The user approves the exact `gh issue create` at the mutation point, where fleet precedent
 > (`github:audit`) gates writes behind an `--apply` argument instead. Owner-approved.
 
 ## Recurring concerns. Apply every audit
