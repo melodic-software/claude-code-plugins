@@ -6,7 +6,7 @@ token-efficient live browser automation: named sessions,
 accessibility-ref snapshots (click/fill by ref, not CSS selector),
 screenshots, console and network capture, network mocking, tracing, video,
 and auth-state persistence. Snapshots and screenshots write to disk and only
-paths come back into context — roughly a 4x token reduction versus
+paths come back into context, roughly a 4x token reduction versus
 Playwright MCP in upstream's measurement.
 
 Invoke it with `/playwright:playwright`, or let Claude reach for it when you
@@ -22,16 +22,16 @@ npm install -g @playwright/cli
 
 ## What it provides
 
-- **Quick-start conventions** — named sessions, clean start/teardown, element
+- **Quick-start conventions**: named sessions, clean start/teardown, element
   refs over selectors, disk-first artifacts.
-- **Progressive disclosure** — a hub SKILL.md routes to topic reference files
+- **Progressive disclosure**. A hub SKILL.md routes to topic reference files
   (commands, sessions, snapshots, storage/auth, tracing/video, network
   mocking, run-code, test generation) so only the relevant slice loads.
-- **Original overlays** — empirically-verified Windows/Git Bash quirks (focus
+- **Original overlays**: empirically-verified Windows/Git Bash quirks (focus
   stealing, CWD-relative artifacts, anti-bot captchas) and a recipe for E2E
   against locally-orchestrated stacks (.NET Aspire, docker-compose, tilt),
   including Blazor hydration gotchas.
-- **Vendored upstream baseline** — the skill directory Microsoft ships inside
+- **Vendored upstream baseline**. The skill directory Microsoft ships inside
   the npm package is bundled verbatim for drift detection.
 
 ## Works in any repo
@@ -39,7 +39,7 @@ npm install -g @playwright/cli
 - **Self-contained.** All reference material ships inside the plugin and is
   referenced via `${CLAUDE_PLUGIN_ROOT}`.
 - **Reads your conventions, assumes none.** Artifacts land in
-  `.playwright-cli/` relative to the working directory — add that to your
+  `.playwright-cli/` relative to the working directory. Add that to your
   `.gitignore`. Endpoints, orchestrators, and test placement come from your
   own project context.
 - **Graceful degrade.** If your project has a broader test-orchestration
@@ -55,7 +55,7 @@ tarball, refreshes `vendor/`, and bumps frontmatter metadata. Integrating
 upstream changes into the distilled reference files stays a manual, reviewed
 step, and the script never mutates a globally installed CLI. Run it in a
 working-tree checkout of this plugin (the marketplace clone, or a directory
-loaded via `--plugin-dir`) — consumers receive updates through
+loaded via `--plugin-dir`). Consumers receive updates through
 `/plugin marketplace update` once a new plugin version is published.
 
 ## Install
@@ -79,5 +79,5 @@ defaults.
 This plugin's original content is MIT (SPDX-License-Identifier: MIT). The
 vendored upstream skill in `vendor/` (and the reference files derived from it)
 are Microsoft's `@playwright/cli` content, licensed Apache-2.0
-(SPDX-License-Identifier: Apache-2.0) — the upstream license text ships at
+(SPDX-License-Identifier: Apache-2.0). The upstream license text ships at
 `skills/playwright/vendor/LICENSE`.
