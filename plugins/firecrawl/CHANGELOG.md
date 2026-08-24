@@ -13,6 +13,8 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
   parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
   and the sentence break change. The generated options block is ignore-fenced because
   `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
+  Changing `skills/update/SKILL.md` required shipping `skills/update/evals/evals.json`
+  so the changed-skill `--require-evals` gate stays green.
 
 ## [0.5.2]
 

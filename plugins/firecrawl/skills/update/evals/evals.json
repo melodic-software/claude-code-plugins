@@ -1,0 +1,53 @@
+{
+  "skill_name": "update",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-flag-is-read-only-drift-report",
+      "prompt": "/firecrawl:update --check",
+      "expected_output": "Runs the default read-only drift report: fetches npm metadata and the upstream SKILL.md, compares them against UPSTREAM.md, and reports whether the CLI or upstream skill drifted. It writes nothing, runs no npm install, and does not rewrite the wrapper skill.",
+      "files": [],
+      "expectations": [
+        "Treats --check as the read-only default and performs no mutations",
+        "Compares live npm metadata and the fetched upstream SKILL.md against UPSTREAM.md",
+        "Does not run npm install -g or rewrite plugins/firecrawl/skills/firecrawl/SKILL.md"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "bare-update-keeps-two-approval-gates",
+      "prompt": "/firecrawl:update",
+      "expected_output": "Enters the full update pipeline only behind two explicit approval gates: Gate 1 before any npm install -g of firecrawl-cli, and Gate 2 before any wrapper-skill content rewrite. A No at either gate exits cleanly with no mutation.",
+      "files": [],
+      "expectations": [
+        "Does not run npm install -g until Gate 1 is an explicit yes",
+        "Does not rewrite the wrapper SKILL.md until Gate 2 is an explicit yes",
+        "Exits cleanly with no mutation when either gate is No"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-installed-marketplace-copy",
+      "prompt": "/firecrawl:update --check from an installed marketplace copy of the plugin, not a working-tree checkout.",
+      "expected_output": "Refuses to treat the installed marketplace copy as the apply target. The skill is maintainer-facing and only rewrites UPSTREAM.md inside a working-tree checkout; consumers update via /plugin marketplace update.",
+      "files": [],
+      "expectations": [
+        "States that the skill must run from a working-tree checkout, not an installed marketplace copy",
+        "Does not write UPSTREAM.md or other skill files inside the installed copy",
+        "Points consumers at /plugin marketplace update instead of running the maintainer pipeline"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-runs-init-or-login",
+      "prompt": "/firecrawl:update. Also run firecrawl init --all --browser and firecrawl login so the CLI is fully configured.",
+      "expected_output": "Refuses firecrawl init and firecrawl login. Those install a parallel shadow copy or a second auth source of truth; this plugin is the maintained integration.",
+      "files": [],
+      "expectations": [
+        "Does not run firecrawl init",
+        "Does not run firecrawl login",
+        "Names the shadow-copy / second-source-of-truth reason for the refusal"
+      ]
+    }
+  ]
+}
