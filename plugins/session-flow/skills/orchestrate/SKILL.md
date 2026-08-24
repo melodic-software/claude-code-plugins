@@ -114,7 +114,13 @@ resolve the session's effort yourself before using it. Feed the value
 into imperative 7's tier calibration: it is the level a spawn inherits when neither the call nor
 the agent definition sets one (a definition's own `effort` overrides the session), so its gap from
 what a subtask needs IS the over-provisioning imperative 7 exists to stop. (`ultracode` reports as
-`xhigh`, so it cannot reveal script-held orchestration.) Export modes omit this addendum, a
+`xhigh`, so it cannot reveal script-held orchestration.) Where a `SendMessage` tool resolves in
+this session, imperative 4's worker reuse and mid-flight intervention run through it, addressed by
+the worker's agent ID: a completed worker auto-resumes on message with no new `Agent` call, one
+the user stopped themselves returns a refusal instead, and re-invoking the dispatch tool to fake a
+continuation spawns a second independent worker rather than resuming the first. Verbatim quotes,
+version floors, and the empirical probe: `context/sources.md`, "SendMessage worker continuation".
+Export modes omit this addendum, a
 pasted target reaches none of those surfaces, and the substitution would travel as dead text.
 
 ## Tiered delegation, the shape of a deep tree

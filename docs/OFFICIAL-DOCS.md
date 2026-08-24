@@ -74,7 +74,7 @@ components are declared in, not a component, so it has no row.
 | Tools reference (includes the Monitor tool) | <https://code.claude.com/docs/en/tools-reference> | 2026-08-06 |
 | Run agents in parallel — compares subagents, agent view, agent teams, dynamic workflows | <https://code.claude.com/docs/en/agents> | 2026-08-10 |
 | Orchestrate agent teams — experimental, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | <https://code.claude.com/docs/en/agent-teams> | 2026-08-10 |
-| Cross-session messaging — `ListAgents`/`SendMessage`, `crossSessionInbound`; not on native Windows | <https://code.claude.com/docs/en/cross-session-messaging> | 2026-08-10 |
+| Cross-session messaging — `ListAgents`/`SendMessage`, `crossSessionInbound`; v2.1.224+ (native Windows v2.1.234+) | <https://code.claude.com/docs/en/cross-session-messaging> | 2026-08-24 |
 | Manage sessions — resume, branch, transcript storage | <https://code.claude.com/docs/en/sessions> | 2026-08-10 |
 | Checkpointing — what `/rewind` does and does not restore | <https://code.claude.com/docs/en/checkpointing> | 2026-08-10 |
 | Feature availability — per-feature matrix by model provider and subscription plan (not by host surface — see Platforms) | <https://code.claude.com/docs/en/feature-availability> | 2026-08-10 |

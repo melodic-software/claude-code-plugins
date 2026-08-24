@@ -4,6 +4,19 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.0]
+
+### Added
+
+- **`fable-5`: named the worker-continuation mechanism (topic
+  `list-agents-send-message-plugin-fit`).** `context/orchestration.md`'s "worker already oriented
+  is cheaper than a fresh one" guidance now says how to continue one where a `SendMessage` tool
+  resolves: address the worker's agent ID, a completed worker auto-resumes without a new `Agent`
+  invocation, a user-stopped worker returns a refusal, and a "continue"-shaped parameter on the
+  dispatch tool spawns a second worker rather than resuming the first. Quotes verified 2026-08-24
+  against the sub-agents page (raw `.md` channel, latest release 2.1.241 at read time); recheck
+  trigger: a changelog entry touching subagent resume.
+
 ## [0.8.10]
 
 ### Changed

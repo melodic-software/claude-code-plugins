@@ -1,5 +1,30 @@
 # Changelog — session-flow plugin
 
+## [0.33.0]
+
+### Added
+
+- **`orchestrate`: SendMessage worker-continuation guidance (#3341 follow-on decision, topic
+  `list-agents-send-message-plugin-fit`).** The priming addendum now names `SendMessage` as the
+  mechanism behind imperative 4's worker reuse and mid-flight intervention, presence-gated on the
+  tool resolving in the session, with the three operative caveats (completed workers auto-resume,
+  user-stopped workers refuse, re-invoking the dispatch tool spawns a second worker instead of
+  resuming). Export modes still omit the addendum, so the pasted brief stays tool-agnostic. Backing
+  quotes, version floors (v2.1.191/v2.1.199), the derived deny-rule caveat, and a same-day
+  empirical probe (two completed subagents resumed by agent ID in a cloud session) land in
+  `context/sources.md` under "SendMessage worker continuation", verified 2026-08-24 against the
+  sub-agents and cross-session-messaging pages with the standard recheck triggers.
+
+### Fixed
+
+- **`reference/observer.md`: corrected the SendMessage gating claim.** The findings-return channel
+  previously said reaching a still-running session is "gated behind experimental agent-teams",
+  which conflated two surfaces: cross-session messaging is its own feature (v2.1.224+, native
+  Windows v2.1.234+, on by default where its gates are met), and only structured team-protocol
+  messages require agent teams. The bullet now quotes and stamps the availability sentence
+  (verified 2026-08-24) and keeps the design decision unchanged on its surviving grounds: consent,
+  next-tool-round delivery latency, and the durable ledger as the crash-safe primary.
+
 ## [0.32.6]
 
 ### Changed

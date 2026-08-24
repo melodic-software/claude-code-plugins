@@ -79,6 +79,39 @@ All three sub-behaviors are from the Fable 5 prompting guide (verbatim, verified
 The brief states these model-agnostically on purpose: they are correct standing imperatives for an
 under-delegating model too.
 
+### SendMessage worker continuation
+
+The mechanism the priming addendum names for reusing and steering workers, in Claude Code
+specifically. All quotes verbatim, verified 2026-08-24 against
+<https://code.claude.com/docs/en/sub-agents> (raw `.md` channel, slug confirmed live in
+`code.claude.com/llms.txt`, latest release at read time 2.1.241). Recheck trigger: a Claude Code
+changelog entry touching `SendMessage`, subagent resume, or cross-session messaging.
+
+- **Resume, not re-dispatch:** "Claude uses the `SendMessage` tool with the agent's ID or name as
+  the `to` field to resume it. `SendMessage` doesn't require
+  [agent teams](https://code.claude.com/docs/en/agent-teams) to be enabled; only structured
+  team-protocol messages such as `shutdown_request` and `plan_approval_response` do."
+- **Completed workers auto-resume:** "A completed subagent that receives a `SendMessage`
+  auto-resumes in the background without a new `Agent` invocation. The same applies to a subagent
+  that Claude stopped with the `TaskStop` tool."
+- **User-stopped workers refuse (v2.1.191+):** "a subagent you stopped yourself, with `x` in
+  `/tasks` or an SDK `stop_task` request, doesn't auto-resume. The `SendMessage` call returns a
+  refusal telling Claude the agent was cancelled."
+- **Prefer the agent ID over the name (v2.1.199+):** "`SendMessage` checks that a name still
+  refers to the same agent it reached earlier in the conversation. If a newer agent has taken the
+  name, ... Claude Code refuses the send rather than delivering it to the wrong agent".
+- **Empirical probe (Tier 0):** in this repository's own cloud session on 2026-08-24, two
+  completed background subagents (a researcher and a verifier) were each resumed by agent ID via
+  `SendMessage`, retained their full context, and returned follow-up work without a fresh `Agent`
+  dispatch, matching the auto-resume quote above.
+
+Derived caveat, not a verbatim doc claim: a permission deny rule naming `SendMessage` "removes
+the `SendMessage` and `ListAgents` tools"
+(<https://code.claude.com/docs/en/cross-session-messaging>, verified 2026-08-24), and resume runs
+through that same tool per the first quote above, so deny-listing it also forfeits worker
+continuation. A session that wants no cross-session messaging but keeps continuation uses that
+page's narrower controls (`crossSessionInbound`) instead of the deny rule.
+
 ## Imperative 5 — NESTED SUBAGENTS
 
 Re-verified 2026-08-10 against two official surfaces — the prose page
