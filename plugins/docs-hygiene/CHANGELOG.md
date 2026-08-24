@@ -1,5 +1,16 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.10]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, docs-hygiene cluster).** Rewrote this plugin's `README.md`
+  and every `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. Fenced output templates, N/A cells, and quoted protocol
+  examples that themselves contain an em dash are kept.
+
 ## [0.21.9]
 
 ### Fixed
