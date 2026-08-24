@@ -21,13 +21,13 @@ Check-centric per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` scaffolds the profile, and the build-toolchain install is a distinct
 opt-in subaction rather than fused behind a flag. Tracked profile configuration belongs in
-the consuming repository — never in `${CLAUDE_PLUGIN_DATA}`, which is reserved for
+the consuming repository, never in `${CLAUDE_PLUGIN_DATA}`, which is reserved for
 machine-local state and generated artifacts.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 scaffolds; `apply install-build-deps` additionally authorizes the build-toolchain install
 below. `--profile <name>` selects the profile for either action and wins over the configured
-active profile. All actions are non-interactive when the profile is unambiguous — never
+active profile. All actions are non-interactive when the profile is unambiguous. Never
 prompt when the action and profile are given.
 
 ## Profile contents
@@ -51,17 +51,17 @@ anything.
    rendered `${user_config.active_profile}` value when non-empty, else the root `default`
    profile. A per-run `--profile` wins. Require a 1-63 character lowercase-kebab slug and
    reject reserved Windows device names. Report the resolved profile path, which of the three
-   sources supplied it, and — when the resolved value came from `${user_config.active_profile}` or
-   the configured value is wrong for this repository — the reconfiguration route:
+   sources supplied it. When the resolved value came from `${user_config.active_profile}` or
+   the configured value is wrong for this repository, also report the reconfiguration route:
    - **Interactive, any time:** `/plugin configure ai-briefing@<marketplace>`. The recommended
      route; this skill never writes `pluginConfigs`.
-   - **Headless:** rerun the install with the new value — `claude plugin install
+   - **Headless:** rerun the install with the new value. `claude plugin install
      ai-briefing@<marketplace> -s <scope> --config active_profile=<name>` (repeatable per key).
      Against an already-installed plugin it prints `already installed` **and still writes the
-     value** — verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a
+     value**. Verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a
      non-default value written to an installed plugin, then restored). The short-circuit is about
-     the install, not the config write. Re-verify before relying on it outside those conditions —
-     a `sensitive` option, or `project`/`local` scope, were not covered. Do **not** uninstall to
+     the install, not the config write. Re-verify before relying on it outside those conditions.
+     A `sensitive` option, or `project`/`local` scope, were not covered. Do **not** uninstall to
      reconfigure: uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting
      every option in the README's Options reference table to its manifest default. `-s` defaults
      to `user`, so pass the scope `claude plugin list` reports for this plugin, and run from that
@@ -70,26 +70,26 @@ anything.
      Afterwards, keep the two claims apart. The write is issued and the stored value is what you
      passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
      skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-     session start, so a same-session `check` still reports the OLD value — reporting that as a
+     session start, so a same-session `check` still reports the OLD value. Reporting that as a
      failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
      session**, and never claim an unobserved change.
    - **Neither, for a one-off:** a per-run `--profile <name>` selects a different profile without
      touching stored config.
-2. **`sources.md`** — FAIL if the resolved profile has no `sources.md`: `/ai-briefing:generate`
+2. **`sources.md`.** FAIL if the resolved profile has no `sources.md`: `/ai-briefing:generate`
    has no authorized sources to collect from. Remediation: `apply`.
-3. **Optional overlays** — INFO: report whether `audience.md` and declarative `brand.json`
+3. **Optional overlays.** INFO: report whether `audience.md` and declarative `brand.json`
    exist; their absence is expected and never a FAIL.
-4. **Build toolchain** — INFO unless the consumer intends `--format html`/`--format slides`.
+4. **Build toolchain.** INFO unless the consumer intends `--format html`/`--format slides`.
    Report whether the locked runtime at `${CLAUDE_PLUGIN_DATA}/runtime/build` exists and its
    `.version` matches the plugin's `plugin.json` version (a mismatch means a rebuild is due).
    Read-only: never launch a browser here. Missing or stale is INFO with remediation
-   `apply install-build-deps`, because the toolchain is opt-in — markdown output needs none
+   `apply install-build-deps`, because the toolchain is opt-in. Markdown output needs none
    of it.
-5. **Build preflight** — INFO: report `node --version`, `npm --version`, and the OS family
+5. **Build preflight.** INFO: report `node --version`, `npm --version`, and the OS family
    against Playwright's current supported environment matrix. The README's matrix is a dated
    snapshot (verified against
    [Playwright system requirements](https://playwright.dev/docs/intro#system-requirements));
-   the linked page is authoritative — re-check it before installing.
+   the linked page is authoritative. Re-check it before installing.
 
 ## `apply` (idempotent)
 
@@ -106,7 +106,7 @@ nothing and reports "already configured".
    the files the consumer requests. Keep local logo assets beside `brand.json`. Recommend a
    project ignore convention such as `.claude/ai-briefing/**/*.local.*` for personal overlays
    while keeping shared profile files tracked.
-3. **`apply install-build-deps` — install the optional build toolchain.** Parse the subaction
+3. **`apply install-build-deps` installs the optional build toolchain.** Parse the subaction
    before invoking a shell and never interpolate raw arguments into a command. Without it,
    skip this step and change no existing runtime. With it, build and validate a temporary
    locked runtime first, then replace the current runtime with same-filesystem renames. A
@@ -183,11 +183,11 @@ nothing and reports "already configured".
    operating-system packages. Other supported platforms install the browser shell and rely
    on their platform prerequisites. Supported OS and Node targets are whatever
    [Playwright's system requirements](https://playwright.dev/docs/intro#system-requirements)
-   currently list (the README's matrix is a dated snapshot of that page — the link is
+   currently list (the README's matrix is a dated snapshot of that page. The link is
    authoritative). The launch probe runs before the runtime swap.
 
-   After the install, re-run the `check` build-toolchain probe and report its actual result —
-   never claim the toolchain is ready on the swap's exit code alone.
+   After the install, re-run the `check` build-toolchain probe and report its actual result.
+   Never claim the toolchain is ready on the swap's exit code alone.
 
 4. **Confirm.** Report the profile path, whether `sources.md` was created or preserved, which
    optional overlays were created, and whether build dependencies were installed or
