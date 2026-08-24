@@ -12,7 +12,7 @@ metadata:
 ## Purpose
 
 Claude Code ships computer use as a built-in MCP server whose tool descriptions already cover
-the mechanics — actions, the allowlist gate, permission tiers, the ladder that prefers a
+the mechanics: actions, the allowlist gate, permission tiers, the ladder that prefers a
 dedicated MCP over Chrome over screen control. **This skill does not restate any of that.**
 
 It carries only what the surface does *not* tell you and the model cannot derive: the shape of
@@ -26,8 +26,8 @@ Parse `$ARGUMENTS`. Each value names one reference spoke; there are exactly thre
 | Argument | Loads |
 |---|---|
 | *(none)* | Nothing. Answer from the symptom guide below, and load a spoke only if the symptom needs it. |
-| `screenshots` | [reference/screenshots-and-zoom.md](reference/screenshots-and-zoom.md) — pixel budget, `zoom`, resolution guidance |
-| `failures` | [reference/failure-diagnostics.md](reference/failure-diagnostics.md) — the idle timer, capture and input ladders, probes |
+| `screenshots` | [reference/screenshots-and-zoom.md](reference/screenshots-and-zoom.md). Pixel budget, `zoom`, resolution guidance |
+| `failures` | [reference/failure-diagnostics.md](reference/failure-diagnostics.md). The idle timer, capture and input ladders, probes |
 | `quirks` | The per-OS file for the machine you are on (see below) |
 
 ## Symptom guide (no file load needed)
@@ -35,7 +35,7 @@ Parse `$ARGUMENTS`. Each value names one reference spoke; there are exactly thre
 | Situation | Answer |
 |---|---|
 | Screenshot looks low-resolution | Expected. Fixed pixel budget, no setting. Use `zoom`. → [screenshots-and-zoom.md](reference/screenshots-and-zoom.md) |
-| Small text unreadable after downscale | `zoom` the region — it re-captures at full resolution. Do **not** lower display resolution. |
+| Small text unreadable after downscale | `zoom` the region. It re-captures at full resolution. Do **not** lower display resolution. |
 | `empty capture (0x0)` | Environment, not a tool bug. Walk the ladder → [failure-diagnostics.md](reference/failure-diagnostics.md) |
 | Input returns a UIPI error | An elevated or secure-desktop process holds the foreground. Not recoverable by retrying. |
 | "not in the allowed applications and is currently in front" | A background app stole focus. Retry with `screenshot` as the batch's first action. |
@@ -49,14 +49,14 @@ Load only the file for the machine you are on:
 | Platform | File |
 |---|---|
 | Windows | [reference/windows-quirks.md](reference/windows-quirks.md) |
-| macOS | not yet written — see the honest-gap note below |
+| macOS | not yet written. See the honest-gap note below |
 
 **Verification gap (declared, not hidden).** Every empirical claim in this plugin was measured
 on Windows 11 with the Claude Desktop surface. macOS is supported by the platform and by this
 plugin's platform-neutral content, but no macOS quirks file ships because none has been
 verified. A macOS user gets the platform-neutral material and no fabricated specifics.
 
-## Surfaces differ — know which one you are on
+## Surfaces differ. Know which one you are on
 
 Computer use is not one thing, and guidance written for one surface is wrong on the other
 (verified 2026-08-10 against [computer use from the
@@ -74,13 +74,13 @@ before applying any surface-specific advice.
 ## Gotchas
 
 - **The screenshot budget is not a scale factor.** Two machines with different displays land at
-  the same megapixel count, not the same ratio — which is why "just use a smaller monitor" does
+  the same megapixel count, not the same ratio, which is why "just use a smaller monitor" does
   not produce a sharper screenshot. See the reference file before advising anyone on resolution.
 - **`zoom` re-captures; it does not crop.** It therefore fails when capture is failing, and it
   recovers genuine detail when capture is healthy. Both follow from the same fact.
 - **A tool error naming an unexpected app is the safety gate working**, not a defect. Nothing was
   typed into the wrong window. Re-screenshot and retry rather than escalating.
-- **On a multi-monitor machine, a launched app can be missing for two opposite reasons** — it
+- **On a multi-monitor machine, a launched app can be missing for two opposite reasons.** It
   opened on a display you are not capturing, or you are pinned to the display it did not open
   on. Chasing the first creates the second; reset to `auto` before sweeping.
 - **Elevated processes cannot be driven at all.** UIPI blocks synthesized input from a

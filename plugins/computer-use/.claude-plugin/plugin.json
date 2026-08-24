@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "computer-use",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Operating knowledge for Claude Code's built-in computer-use MCP server — the desktop screen-control surface. `/computer-use:diagnose` resolves a symptom to a cause instead of retrying: why every screenshot is downscaled to a fixed pixel budget and why zoom (not a bigger display) is the way back to detail, how to read a capture or input failure, and the per-OS quirks that make a synthesized key or menu behave unlike a human's. `/computer-use:setup` verifies the prerequisites the surface cannot verify for itself and reports the environment settings that end a session mid-run.",
   "author": {
     "name": "Melodic Software",
