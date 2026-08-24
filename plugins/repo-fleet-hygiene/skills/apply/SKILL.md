@@ -25,7 +25,7 @@ explicit `--apply`, then interactive confirmation **or** `--yes` for non-interac
 ## Non-negotiable boundary
 
 - Never run without `--plan-file` pointing at a prior audit plan (`schema_version: 1`).
-- Never treat plan tips as authorization — re-derive every mutable OID immediately before delete.
+- Never treat plan tips as authorization. Re-derive every mutable OID immediately before delete.
 - Skip fail-closed on OID drift, missing plan OID, protected/current/worktree-attached branches,
   locked or stranded worktrees, or unknown operations.
 - Own batched `merged-local-branch` deletion here (repo-hygiene branch deletion stays interactive /
@@ -61,7 +61,7 @@ One gate covers every repository and every operation in the plan.
 
 ## What this skill does NOT do
 
-- Re-run fleet discovery or GitHub evidence collection — that is `/repo-fleet-hygiene:audit`.
+- Re-run fleet discovery or GitHub evidence collection. That is `/repo-fleet-hygiene:audit`.
 - Add execution flags to `audit-fleet.sh`.
 - Batch-delete via `/repo-hygiene:clean git` (that skill refuses to batch branch deletion).
 - Remove stranded/dirty/locked worktrees, or act on tip-drift / manual-review findings.

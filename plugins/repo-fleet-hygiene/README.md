@@ -9,7 +9,7 @@ The currently shipped audit reports:
 
 - local branches whose matching GitHub pull request is merged;
 - remote-tracking heads that still exist on origin after a GitHub merge (where
-  `delete_branch_on_merge` is not enabled or was blocked — enabling that setting is complementary,
+  `delete_branch_on_merge` is not enabled or was blocked. Enabling that setting is complementary,
   not a substitute for this visibility, and this plugin never changes repository settings);
 - merged-PR, missing, prunable, or administratively mismatched worktree registrations;
 - linked worktrees that do not conform to the configured worktree root (or placement when unset); and
@@ -33,7 +33,7 @@ The epic's fleet architecture is intentionally split from the current implementa
 | Capability | Owner | Availability in this release |
 |---|---|---|
 | Bounded repository discovery (bare path, drive root, `--root`, `--repo`, config rungs) and canonical-checkout resolution | `repo-fleet-hygiene` | Shipped |
-| Machine-wide discovery with no argument (ghq / configured roots / agent state / bounded sweep ladder) | `repo-fleet-hygiene` | Not shipped — remaining contract work (not an open issue); a no-scope run fails with remedies rather than guessing a root |
+| Machine-wide discovery with no argument (ghq / configured roots / agent state / bounded sweep ladder) | `repo-fleet-hygiene` | Not shipped. Remaining contract work, not an open issue; a no-scope run fails with remedies rather than guessing a root |
 | Cross-repository GitHub merge and repository-identity evidence | `repo-fleet-hygiene` | Shipped |
 | Per-repository worktree status, stranded-work classification, and cleanup | `/source-control:worktree` | Delegated; fleet-local reclaimability was retired in [#2605](https://github.com/melodic-software/claude-code-plugins/issues/2605) |
 | Per-repository branch, cache, build, and deletion triage | `/repo-hygiene:clean` | Delegated |
@@ -64,7 +64,7 @@ Audit the current project repository explicitly (no fleet config required):
 ```
 
 A bare `/repo-fleet-hygiene:audit` with neither CLI scope nor `fleet.root` / `fleet.repo` in a
-resolved config hard-fails and names remedies — it does not audit the session project directory.
+resolved config hard-fails and names remedies. It does not audit the session project directory.
 
 Audit one or more repository-tree roots:
 
@@ -103,7 +103,7 @@ The apply verb:
 2. owns batched `merged-local-branch` deletion (repo-hygiene branch deletion stays interactive) and
    cleans merged/prunable/missing worktrees in the plan's declared order;
 3. shows one fleet plan and requires one explicit confirmation (or `--yes`) before any mutation; and
-4. re-derives mutable branch/worktree OIDs at execution time — tip drift skips fail-closed.
+4. re-derives mutable branch/worktree OIDs at execution time. Tip drift skips fail-closed.
 
 Audit remains read-only. A `HIGH` finding is never itself permission to delete; only `:apply
 --apply` after confirmation (or `--yes`) mutates. Do not add an execute flag to `audit-fleet.sh`.
@@ -159,11 +159,11 @@ successfully audited.
 
 ## What this does not answer
 
-"Can I delete this repository safely?" is deletion triage — an inventory of dirty files, stashes,
-and unpushed branches — and belongs to `/repo-hygiene:clean` (its scan/stash/git tiers), which owns
+"Can I delete this repository safely?" is deletion triage, an inventory of dirty files, stashes,
+and unpushed branches, and belongs to `/repo-hygiene:clean` (its scan/stash/git tiers), which owns
 per-repository disposability analysis. This audit is a read-only cross-repository evidence REPORT;
 it names candidates and hands off. Linked unlocked worktrees are named in `worktree-status-handoff`
-for `/source-control:worktree status` stranded-work classification — this audit does not emit a
+for `/source-control:worktree status` stranded-work classification. This audit does not emit a
 `git status`-based reclaimability substitute.
 
 ## Requirements
