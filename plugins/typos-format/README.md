@@ -1,21 +1,20 @@
 # typos-format
 
 A Claude Code plugin that spell-checks the moment you edit any file. On every
-`Write`, `Edit`, or `NotebookEdit` it runs
-[typos](https://github.com/crate-ci/typos) and
-surfaces findings back to Claude as advisory context — including remediation
+`Write`, `Edit`, or `NotebookEdit` it runs [typos](https://github.com/crate-ci/typos) and
+surfaces findings back to Claude as advisory context, including remediation
 guidance for allowlisting a false positive. It is **report-only by default**;
 with the `typos_format_write_changes` opt-in it applies typos' safe
 corrections in place and reports every correction it applied.
 
-It ships one fleet-wide protection of its own — a bundled
+It ships one fleet-wide protection of its own: a bundled
 `config/default-typos.toml` injected via `typos -c` so write mode cannot
-silently corrupt git SHAs — and otherwise runs unconditionally on typos'
+silently corrupt git SHAs. Otherwise it runs unconditionally on typos'
 built-in spelling dictionary. If your repository has its own typos
 configuration (`typos.toml`, `_typos.toml`, `.typos.toml`, `Cargo.toml` with
 `[workspace.metadata.typos]`/`[package.metadata.typos]`, or `pyproject.toml`
 with `[tool.typos]`), typos discovers it from the target path and merges
-`extend-*` keys with the bundled file rather than replacing them — no
+`extend-*` keys with the bundled file rather than replacing them. No
 opt-in required.
 
 ## Behavior
@@ -24,11 +23,11 @@ opt-in required.
   dictionary and needs no configuration to be useful, so this hook never gates
   on a consumer typos config existing. When a config IS present, typos' own
   file-anchored discovery still finds and applies it (allowlist/exclude), in
-  its documented precedence order — this plugin never re-implements that walk.
+  its documented precedence order. This plugin never re-implements that walk.
 - **Scan is language-agnostic; write is extension-scoped.** The read-only scan
   runs on any edited file (unlike sibling formatter plugins). Opt-in write mode
   only calls `--write-changes` for an explicit allowlist of source, prose, and
-  hand-edited config extensions — unknown extensions, extensionless paths, and
+  hand-edited config extensions. Unknown extensions, extensionless paths, and
   fixture/lock/binary-adjacent types stay report-only even when
   `typos_format_write_changes` is on (#2650).
 - **Report-only by default.** A dictionary autocorrect is a content mutation
@@ -37,19 +36,19 @@ opt-in required.
   the box the hook reports findings and never modifies a file.
 - **Fix in place is an opt-in, then an allowlist.** With
   `typos_format_write_changes` set to `true`, `typos --write-changes` applies
-  every correction it has confidence in — but only when the edited path's
-  extension is on the write allowlist. Residual findings — an entry with no
-  known correction (e.g. a blank-correction `extend-words` entry marking a
-  term "disallowed"), or one with more than one candidate correction — surface
-  as advisory context, never auto-applied.
+  every correction it has confidence in, but only when the edited path's
+  extension is on the write allowlist. Residual findings surface as advisory
+  context, never auto-applied: an entry with no known correction (e.g. a
+  blank-correction `extend-words` entry marking a term "disallowed"), or one
+  with more than one candidate correction.
 - **Every applied rewrite is disclosed.** A correction changes the content of
-  your file, so the hook reports each one it applied — the word, its
-  replacement, and the line — to Claude *and* to you, capped at ten per run
+  your file, so the hook reports each one it applied, the word, its
+  replacement, and the line, to Claude *and* to you, capped at ten per run
   with a count of the remainder. Nothing this hook writes is silent.
 - **Remediation guidance included.** Both an applied rewrite and a residual
   finding carry the fix: add the term to `extend-words` / `extend-identifiers`
   (or an `extend-ignore-re` pattern) in your typos config if it's intentional.
-  This matters most on the *applied* path — the dictionary has no memory of
+  This matters most on the *applied* path. The dictionary has no memory of
   your repair, so a word you correct by hand is rewritten again on the next
   edit until the allowlist entry exists.
 - **Respects your excludes.** The hook passes `--force-exclude`, so a path
@@ -74,13 +73,13 @@ make; the residual overlap class is tracked fleet-wide in #875.
 
 ## Requirements
 
-- **Bash** — the hook is a Bash script. On native Windows, install
+- **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible once-per-session notice. [Install jq](https://jqlang.org/download/).
 - **typos** on `PATH`. Unlike Ruff or markdownlint-cli2, typos has no
-  per-repo dependency-manager convention — it is a standalone Rust binary,
+  per-repo dependency-manager convention. It is a standalone Rust binary,
   installed at the machine level (cargo, Homebrew, Conda, pacman, or a
   pre-built binary). typos is never downloaded on the fly; if it is not
   present, the hook skips with a visible once-per-session notice.
@@ -101,7 +100,7 @@ Then verify prerequisites with `/typos-format:setup check`.
 
 ## Configuration
 
-The rules themselves are never configured here — they come from the typos
+The rules themselves are never configured here. They come from the typos
 config already in your repository, which the plugin reads automatically. To
 change the rules (allowlist a false positive, ignore a pattern), edit that
 file.
@@ -110,7 +109,7 @@ Two `userConfig` options tune the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
-| `typos_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
+| `typos_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
 | `typos_format_write_changes` | `false` | Set `true` to apply corrections in place for write-allowlisted extensions (accepting last-writer-wins with any sibling formatter hook on the same file). Default is report-only: findings are reported, no file is modified. Denied extensions stay report-only even when this is on. |
 
 Set them interactively with `/plugin configure typos-format@<marketplace>`, or headless on the
@@ -120,6 +119,7 @@ install command:
 claude plugin install typos-format@<marketplace> --config typos_format_enabled=false
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -193,6 +193,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
