@@ -31,7 +31,7 @@ interactive session) the interview below runs.
 REPO_ROOT=$(git rev-parse --show-toplevel)
 ```
 
-Read and write only inside `$REPO_ROOT/.claude/` — never the plugin directory or the plugin data
+Read and write only inside `$REPO_ROOT/.claude/`, never the plugin directory or the plugin data
 directory; configuration lives in the consumer's tracked files.
 
 ## `check` (read-only)
@@ -45,7 +45,7 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
    (`build-cmd`/`test-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
    `ecosystem.schema.json`. **FAIL** a schema-invalid file (with the validation error in the
    remediation line), or a tracked ecosystem file excluded by `.gitignore` (teammates would never
-   receive it — report the matching rule). Otherwise PASS. If `$ARGUMENTS` names one ecosystem, scope
+   receive it. Report the matching rule). Otherwise PASS. If `$ARGUMENTS` names one ecosystem, scope
    the report to just that file.
 2. **Unconfigured ecosystems.** INFO: detect which ecosystems the repo has that are *not* yet
    configured (see the inference signals under `apply`), and note that `/toolchain:check` /
@@ -55,7 +55,7 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
 ## `apply` (idempotent)
 
 Run `check` first. Then write the accepted ecosystem files. After each write, confirm the file is
-tracked (not gitignored) — re-run the `check` probe for that path rather than trusting the write.
+tracked (not gitignored). Re-run the `check` probe for that path rather than trusting the write.
 
 ### 1. Read existing config first
 
@@ -70,24 +70,24 @@ the draft from the bundled portable default at
 [`${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/<ecosystem>.yaml`](${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/),
 then specialize it to the repo:
 
-- **dotnet** — `*.slnx`/`*.sln`/`*.csproj` present. Resolve the `anchor` (solution file at root, else
+- **dotnet**. `*.slnx`/`*.sln`/`*.csproj` present. Resolve the `anchor` (solution file at root, else
   nearest project). Note any repo-specific trap in `notes` (e.g. the xUnit v3 `--nologo` pin).
-- **python** — `pyproject.toml`/`uv.lock`. Prefer `uv run …` when `uv.lock` exists, else plain
+- **python**. `pyproject.toml`/`uv.lock`. Prefer `uv run …` when `uv.lock` exists, else plain
   `ruff`/`pytest`. Set `project-discovery` to the `pyproject.toml` roots.
-- **typescript** — `package.json`/`tsconfig*.json`. Read the `scripts` block for the real `test-cmd`;
+- **typescript**. `package.json`/`tsconfig*.json`. Read the `scripts` block for the real `test-cmd`;
   pick `check-cmd`/`fix-cmd` (format-only) and `code-fix-cmd` (semantic lint autofixes) from the
   configured linter (`biome.json` → Biome format vs check --write; eslint config → ESLint).
-- **bash** / **powershell** — shell/PowerShell files present; keep the bundled check/fix commands
+- **bash** / **powershell**. Shell/PowerShell files present; keep the bundled check/fix commands
   unless the repo documents its own.
-- **markdown** — a markdownlint config present.
-- **yaml** — `.github/workflows/` present (lint-only surface — `/toolchain:lint` runs it,
+- **markdown**, a markdownlint config present.
+- **yaml**. `.github/workflows/` present (lint-only surface. `/toolchain:lint` runs it,
   `/toolchain:check` does not).
-- **cross-cutting** — repo-root config for `typos`/`gitleaks`/`editorconfig-checker`/`lychee-offline` present (lint-only).
+- **cross-cutting**. Repo-root config for `typos`/`gitleaks`/`editorconfig-checker`/`lychee-offline` present (lint-only).
 
 Repo-specific CI-parity gates beyond plain build/test/lint (lockfile drift, generated-artifact
-freshness, schema regeneration) belong in the ecosystem file's `gates` array — draft one when the
+freshness, schema regeneration) belong in the ecosystem file's `gates` array. Draft one when the
 repo's CI runs such a check. For an ecosystem with `project-discovery`, a gate that is repo-wide
-rather than per-project (protobuf generation, schema freshness — checks something that exists once,
+rather than per-project (protobuf generation, schema freshness. Checks something that exists once,
 not once per discovered project root) needs `run-from: repo-root` on the drafted gate; omitting it
 defaults to per-project execution, which redundantly re-runs the check in every root or fails in
 roots lacking its config. Ask which shape applies when the CI check's own scope is ambiguous from its
@@ -109,7 +109,7 @@ contract, `globs` (required), the four command keys (`null` where a phase does n
 optional keys that apply (`anchor`, `project-discovery`, `opt-in`, `install-hint`, `gates`, `notes`).
 Confirm each file is tracked, not ignored.
 
-Recommend the consumer validate these in their own gate — a `check-jsonschema` hook or CI lane against
+Recommend the consumer validate these in their own gate, a `check-jsonschema` hook or CI lane against
 the contract schema catches typos the tolerant reader would otherwise ignore.
 
 ### 5. Offer the overlay convention
@@ -127,9 +127,9 @@ configuration and changes nothing.
 
 ## What this skill does NOT do
 
-- Run build/test/lint — that is `/toolchain:check` and `/toolchain:lint`.
-- Write machine-local state — configuration lives in the consumer's tracked files, never in the plugin
+- Run build/test/lint. That is `/toolchain:check` and `/toolchain:lint`.
+- Write machine-local state. Configuration lives in the consumer's tracked files, never in the plugin
   directory or the plugin data directory.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-- Ship or edit the bundled portable defaults — those are the plugin's rung-4 fallback, never written
+- Ship or edit the bundled portable defaults. Those are the plugin's rung-4 fallback, never written
   into a consumer repo except as the seed for a file this interview produces.

@@ -1,6 +1,6 @@
 # toolchain
 
-A Claude Code plugin for **polyglot build/test/lint verification** — detect the
+A Claude Code plugin for **polyglot build/test/lint verification**. Detect the
 ecosystems a change touches and run the right build, test, and lint commands for
 each, with the consuming project's own documented commands overriding portable
 defaults. Three skills, one concern: mechanical verification of changed code.
@@ -8,11 +8,11 @@ defaults. Three skills, one concern: mechanical verification of changed code.
 | Skill | Role |
 |---|---|
 | `/toolchain:check` | Build + test + lint for changed files, auto-detecting the affected ecosystems from git status. Also the reference skill other plugins compose for ecosystem detection and command resolution. |
-| `/toolchain:lint` | Lint + format checks only — faster than a build cycle; `--fix` is format-only, `--code-fix` runs semantic lint autofixes behind a confirmation / `--yes` gate. |
+| `/toolchain:lint` | Lint + format checks only. Faster than a build cycle; `--fix` is format-only, `--code-fix` runs semantic lint autofixes behind a confirmation / `--yes` gate. |
 | `/toolchain:setup` | Configure the plugin for a repo: `check` (read-only, default) reports the effective configuration; `apply` interviews and writes the tracked config. Re-runnable. |
 
 Each skill's `SKILL.md` is the authoritative contract for its behavior, flags, and
-the ecosystem surface it currently covers — read it there rather than a
+the ecosystem surface it currently covers. Read it there rather than a
 restatement here.
 
 ## Works in any repo
