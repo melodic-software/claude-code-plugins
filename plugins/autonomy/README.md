@@ -26,7 +26,7 @@ state and records that binding.
   lease), plus the setup trigger/dispatch slice, its adapter and acknowledgment templates,
   and the signal-envelope conformance check.
 - **Guardrail matrix** (`reference/guardrails.md`): five semantic work classes (`C1`–`C5`)
-  crossed with six enforcement columns. Isolation floor, verification layers, verification
+  crossed with six enforcement columns: isolation floor, verification layers, verification
   topology, merge policy, cost tier, escalation, as one progressive-disclosure hub with
   on-demand leaves (isolation ladder, work classes, security review, verification topology,
   admission policy), human-ratified promotion with automatic fail-closed demotion, and a
@@ -78,8 +78,9 @@ state and records that binding.
   because `reference/` docs are written in surface classes and may not name vendors.
   **Recheck trigger:** that section changing its clause set, or a second model guide stating the same
   guidance in materially different terms.
-- **Guided setup** (`/autonomy:setup`): discovery-first interview of the adopting org's state:
-  role homes, substrate availability, budget posture, writing a schema-versioned binding under
+- **Guided setup** (`/autonomy:setup`): discovery-first interview of the adopting org's state,
+  covering role homes, substrate availability, and budget posture, that writes a schema-versioned
+  binding under
   `.claude/autonomy/` as reviewable changes. Never assumes any particular org or repo shape.
 
 ## Roadmap (deferred, trigger-gated)
@@ -159,7 +160,7 @@ location, so only managed settings can enable the gate there.
 
 It is fail-open (unreadable stdin / missing `jq` / a `SubagentStop` never trips it) and bounded
 against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's consecutive-block cap.
-It catches a graceful self-stop only, a closed laptop, a killed process, or `/loop` expiry emit no
+It catches a graceful self-stop only: a closed laptop, a killed process, or `/loop` expiry emit no
 `Stop` event.
 
 When the consuming repo sets `HOOK_TELEMETRY_SINK`, the gate emits one fire-and-forget envelope per

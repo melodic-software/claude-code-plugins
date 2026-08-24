@@ -34,7 +34,7 @@ it cannot infer, and every landed change is reviewable per
 
 | Argument | Values | Headless default |
 |---|---|---|
-| action | `check` \| `apply` |. (required) |
+| action | `check` \| `apply` | (required) |
 | `--org-policy-home` | repository locator, optionally `#<path>` to the binding document \| `none` | `none` |
 | `--budget-posture` | `free` \| `paid-opt-in` | `free` |
 
@@ -265,9 +265,9 @@ depends on the binding until that human-landed change exists.
    credentials live, bind per the deployment's secret-binding classification (a machine/userConfig
    binding), never inlined into the committed binding document.
 
-   Only when the probe transcript proves ALL THREE failures. Denied egress, absent host credentials,
-   and contained workspace host-writes. Does the binding for that level on that
-   surface land; the transcript's reference is recorded in the level binding's `probe_evidence`
+   The binding for that level on that surface lands only when the probe transcript proves ALL
+   THREE failures: denied egress, absent host credentials, and contained workspace host-writes;
+   the transcript's reference is recorded in the level binding's `probe_evidence`
    field (schema-required, a binding without probe evidence is invalid per
    [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs)). A binding never
    lands ahead of the probe that proves its boundary.
