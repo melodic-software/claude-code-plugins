@@ -43,6 +43,23 @@ the Skill invocation failed and a manual review was substituted (#3147).
 EOF
 }
 
+# filter_review_bodies — stdin is one or more GitHub reviews-list JSON
+# documents (gh --paginate emits one array per page). Prints one base64 body
+# per matching review. Tests call this with fixtures so the jq program is
+# exercised without an API call. gh api --jq has no --arg (pipe to jq).
+filter_review_bodies() {
+  local sha="$1" allow="$2"
+  # shellcheck disable=SC2016  # the jq program is literal; $sha/$allow bind via --arg
+  jq -r --arg sha "$sha" --arg allow "$allow" '
+    (if type == "array" then .[] else . end)
+    | ($allow | split(",") | map(gsub("^[ \t]+|[ \t]+$";"")) | map(select(length > 0))) as $logins
+    | select((.commit_id // "") == $sha)
+    | select(.user.login as $u | ($logins | index($u)) != null)
+    | (.body // "")
+    | @base64
+  '
+}
+
 # fetch_review_bodies — one base64 body per line, reviews only. Defined as a
 # function so the self-tests can substitute it without an API call.
 #
@@ -54,16 +71,7 @@ fetch_review_bodies() {
   local repo="${GITHUB_REPOSITORY:?}" pr="${PR_NUMBER:?}"
   local sha="${EVENT_HEAD_SHA:?}"
   local allow="${REVIEWER_LOGINS:-claude[bot]}"
-  # shellcheck disable=SC2016  # the jq program is literal; $sha/$allow bind via --arg
-  gh api --paginate "repos/${repo}/pulls/${pr}/reviews" \
-    --jq --arg sha "$sha" --arg allow "$allow" '
-      ($allow | split(",") | map(gsub("^[ \t]+|[ \t]+$";"")) | map(select(length > 0))) as $logins
-      | .[]
-      | select((.commit_id // "") == $sha)
-      | select(.user.login as $u | ($logins | index($u)) != null)
-      | (.body // "")
-      | @base64
-    '
+  gh api --paginate "repos/${repo}/pulls/${pr}/reviews" | filter_review_bodies "$sha" "$allow"
 }
 
 # decode_review_body — GNU `base64 -d`, BSD `base64 -D`. Prints the decoded

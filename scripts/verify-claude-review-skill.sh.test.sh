@@ -137,6 +137,29 @@ run_guard 1 "empty EVENT_HEAD_SHA fails closed on a successful lane" "$CLEAN" \
   GITHUB_REPOSITORY=melodic-software/claude-code-plugins PR_NUMBER=1 \
   LANE_RESULT=success
 
+# --- unstubbed jq filter (the real gh-api --arg bug) -------------------------
+
+b64_decode() {
+  printf '%s' "$1" | base64 -d 2>/dev/null || printf '%s' "$1" | base64 -D 2>/dev/null
+}
+
+REVIEWS_JSON='[
+  {"commit_id":"abc123","user":{"login":"claude[bot]"},"body":"skill review at this head"},
+  {"commit_id":"oldsha","user":{"login":"claude[bot]"},"body":"prior head"},
+  {"commit_id":"abc123","user":{"login":"other"},"body":"third-party review"}
+]'
+
+set +e
+# shellcheck source=verify-claude-review-skill.sh
+source "$GUARD_SCRIPT"
+filter_out="$(printf '%s' "$REVIEWS_JSON" | filter_review_bodies abc123 'claude[bot]')"
+filter_decoded="$(b64_decode "$(printf '%s' "$filter_out" | tr -d '\n')")"
+if [[ "$filter_decoded" == *'skill review at this head'* && "$filter_decoded" != *'prior head'* && "$filter_decoded" != *'third-party'* ]]; then
+  pass "filter_review_bodies keeps only current-head reviewer records"
+else
+  fail "filter_review_bodies keeps only current-head reviewer records" "got: $filter_decoded"
+fi
+
 # --- help --------------------------------------------------------------------
 
 help_out="$(bash "$GUARD_SCRIPT" --help)"
