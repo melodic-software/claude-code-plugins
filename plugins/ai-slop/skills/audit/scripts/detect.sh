@@ -270,13 +270,33 @@ fi
 # restricted to that directory's subtree and answers in paths relative to it,
 # so `<dir>` is the only anchor and cannot disagree with itself.
 #
-# The branch is chosen up front from `--is-inside-work-tree`, never from an
-# empty pipeline, so a walk is only ever the answer for a directory that is
-# genuinely outside a checkout. Inside one, a listing that fails says so on
-# stderr rather than degrading into a different set of files.
+# `core.quotePath=false` is load-bearing rather than cosmetic. At its default
+# git C-quotes any path holding a non-ASCII byte, so a tracked `caf\303\251.md`
+# comes back wrapped in literal double quotes, the joined path fails the scan
+# loop's -f test, and the file leaves no finding and no declined row. A
+# markdown file with an em dash in its NAME would go unscanned by the em-dash
+# detector for that reason alone. The listing stays newline-delimited rather
+# than moving to `-z`: the report format is one line per finding, so a filename
+# holding a newline cannot be represented downstream whichever way it is read,
+# and the newline form keeps the listing's exit status observable.
+#
+# The branch is chosen up front from `--is-inside-work-tree` rather than from
+# an empty pipeline, so a listing that legitimately finds nothing is no longer
+# indistinguishable from one that failed. A walk still answers whenever git
+# cannot CONFIRM a work tree, which covers a directory outside any checkout and
+# equally a git that is absent or refuses to answer; the absent case says so on
+# stderr, because tracked-files-only is not achievable without git. Inside a
+# confirmed work tree a failing listing reports rather than degrading into a
+# different set of files.
 expand_dir_target() {
-  local dir="${1%/}" inside listing status
-  [[ -n "$dir" ]] || dir="$1"
+  local dir="$1" inside listing status rel
+  while [[ "$dir" == */ && "$dir" != "/" ]]; do dir="${dir%/}"; done
+
+  if ! command -v git >/dev/null 2>&1; then
+    echo "detect.sh: git is unavailable; $dir expanded by filesystem walk, which counts untracked files" >&2
+    find "$dir" -name '*.md' -type f 2>/dev/null
+    return 0
+  fi
 
   inside="$(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null || true)"
   if [[ "$inside" != "true" ]]; then
@@ -284,7 +304,7 @@ expand_dir_target() {
     return 0
   fi
 
-  listing="$(git -C "$dir" ls-files '*.md')"
+  listing="$(git -C "$dir" -c core.quotePath=false ls-files '*.md')"
   status=$?
   if [[ "$status" -ne 0 ]]; then
     echo "detect.sh: git ls-files failed under $dir (exit $status); that directory expanded to nothing" >&2

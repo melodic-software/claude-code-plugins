@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.3.8]
+
+- **A directory target silently audited untracked files instead of the tracked ones it promised.**
+  `detect.sh` expanded a directory by prefixing `git ls-files --full-name` output with
+  `git rev-parse --show-toplevel`, then narrowing the result with a `grep -F` filter built from
+  `pwd`. One directory has several spellings on Git Bash, where git answers the Windows form of
+  the same checkout a shell reaches as `/tmp/...`, so wherever the two disagree no prefixed
+  candidate could match the filter, `grep` exited non-zero, and the `|| find` fallback ran in
+  place of the branch it was meant to back up. The two are not equivalent: `ls-files` lists
+  tracked files, while `find` walks the filesystem and returns untracked and ignored markdown as
+  well. A directory target therefore reported findings against files the checkout does not track,
+  with nothing to distinguish that from the documented behavior. Measured against
+  `plugins/ai-slop`: zero of the thirteen tracked markdown files survived the filter, and the walk
+  scanned fourteen files, one of them untracked.
+
+  Expansion now runs `git ls-files` with `-C <dir>`, which is already restricted to that
+  directory's subtree and answers in paths relative to it. The caller's own spelling of the
+  directory becomes the only anchor in the pipeline, so no second source remains to disagree with
+  it. The multi-anchor treatment #3242 gave the `emit-findings.sh` producers is deliberately not
+  copied here: those relativize a path a caller hands them and must recognize whichever spelling
+  arrives, whereas this expansion constructs its paths and can simply never introduce a second
+  spelling. Trailing slashes are stripped in full, so a `docs//` target can no longer emit a
+  doubled separator that splits one file across two target strings.
+
+- **A tracked markdown file whose name held a non-ASCII byte was dropped without a trace.** git
+  C-quotes such a path unless told otherwise, so `café.md` arrived as a literal
+  `"caf\303\251.md"`, the joined path failed the scan loop's existence test, and the file
+  produced neither a finding nor a declined row. The listing now sets `core.quotePath=false`. The
+  case that matters most for this plugin is a filename containing an em dash, which the em-dash
+  detector would otherwise never open. The listing stays newline-delimited rather than moving to
+  `-z`, because the report format is one line per finding, so a filename holding a newline cannot
+  be represented downstream whichever way the listing is read, and the newline form keeps the
+  listing's exit status observable.
+
+- **The fallback no longer changes semantics without saying so.** The branch is chosen up front
+  from `--is-inside-work-tree` rather than from an empty pipeline, so a listing that legitimately
+  finds nothing is no longer indistinguishable from one that failed, and a directory inside a
+  checkout holding only untracked markdown expands to nothing rather than falling through to a
+  walk. A walk still answers whenever git cannot confirm a work tree, which covers a directory
+  outside any checkout and equally a git that is absent or refuses to answer; the absent case now
+  reports on stderr, because tracked-files-only is not achievable without git. Inside a confirmed
+  work tree, a failing listing reports rather than degrading into a different set of files.
+
+  Coverage pins the invariant by asserting the emitted path rather than the file count alone: an
+  expansion that discarded the caller's spelling and rebuilt each path from
+  `git rev-parse --show-toplevel` still scans exactly one file, so a count-only assertion admits
+  the very defect this fixes. Added cases cover both spellings, single and doubled trailing
+  slashes, subtree restriction, a non-ASCII filename, and a directory holding only untracked
+  markdown.
+
 ## [0.3.7]
 
 - **A branch name beginning with a YAML indicator silently dropped every finding it emitted.**

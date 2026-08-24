@@ -416,17 +416,54 @@ assert_contains "dir target in git repo: only the tracked file counts" "$out" "1
 GITSPELL="$(git -C "$GITDIR/docs" rev-parse --show-toplevel)/docs"
 PWDSPELL="$(cd "$GITDIR/docs" && pwd)"
 
+# Each case asserts the emitted PATH, not just the count. A count alone does not
+# pin this: an expansion that discards the caller's spelling and rebuilds every
+# path from `git rev-parse --show-toplevel`, which is the anchor that must not
+# be reintroduced, still scans exactly one file and would satisfy a count-only
+# assertion while reproducing the defect.
 out="$(bash "$DETECT" "$GITSPELL" 2>&1)"
 assert_contains "dir target, git spelling: only the tracked file counts" "$out" "1 files scanned"
+assert_contains "dir target, git spelling: emits the caller's spelling" "$out" "file=$GITSPELL/tracked.md"
 
 out="$(bash "$DETECT" "$PWDSPELL" 2>&1)"
 assert_contains "dir target, shell spelling: only the tracked file counts" "$out" "1 files scanned"
+assert_contains "dir target, shell spelling: emits the caller's spelling" "$out" "file=$PWDSPELL/tracked.md"
 
 # A trailing slash is the same directory and must expand identically; the
 # expansion builds paths by concatenation, so an unnormalized target would emit
-# a doubled separator and scan nothing.
+# a doubled separator. Two slashes are stripped as readily as one, so a doubled
+# separator cannot reach the report and split one file across two target
+# strings that `sort -u` is then unable to collapse.
 out="$(bash "$DETECT" "$GITDIR/docs/" 2>&1)"
 assert_contains "dir target with a trailing slash: only the tracked file counts" "$out" "1 files scanned"
+assert_contains "dir target with a trailing slash: no doubled separator" "$out" "file=$GITDIR/docs/tracked.md"
+
+out="$(bash "$DETECT" "$GITDIR/docs//" 2>&1)"
+assert_contains "dir target with a doubled trailing slash: no doubled separator" "$out" "file=$GITDIR/docs/tracked.md"
+
+# Subtree restriction. `ls-files` run with `-C <dir>` reports only that
+# directory's own subtree, which is what lets the expansion drop the repo root
+# from the derivation entirely. A listing anchored at the checkout root instead
+# would sweep in this sibling.
+mkdir -p "$GITDIR/sibling"
+cat >"$GITDIR/sibling/outside.md" <<EOF
+A sibling em dash ${EM} here.
+EOF
+git -C "$GITDIR" add sibling/outside.md
+out="$(bash "$DETECT" "$GITDIR/docs" 2>&1)"
+assert_contains "dir target: restricted to its own subtree" "$out" "1 files scanned"
+
+# A non-ASCII filename. git C-quotes such a path unless told otherwise, and a
+# quoted path fails the scan loop's -f test and is dropped with no finding and
+# no declined row. The em dash in this name is the case that matters most here:
+# the detector would otherwise never read the file it is named for.
+mkdir -p "$GITDIR/unicode"
+cat >"$GITDIR/unicode/caf${EM}e.md" <<EOF
+An accented em dash ${EM} here.
+EOF
+git -C "$GITDIR" add "unicode/caf${EM}e.md"
+out="$(bash "$DETECT" "$GITDIR/unicode" 2>&1)"
+assert_contains "dir target: a non-ASCII filename is scanned, not silently dropped" "$out" "1 files scanned"
 
 # The walk is reserved for a directory genuinely outside a checkout. A directory
 # INSIDE one that holds only untracked markdown expands to nothing rather than
