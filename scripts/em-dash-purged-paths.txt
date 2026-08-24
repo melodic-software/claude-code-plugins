@@ -61,6 +61,8 @@ plugins/naming/README.md
 plugins/naming/skills/*/SKILL.md
 plugins/overengineering/README.md
 plugins/overengineering/skills/*/SKILL.md
+plugins/playwright/README.md
+plugins/playwright/skills/*/SKILL.md
 plugins/prototype/README.md
 plugins/prototype/skills/*/SKILL.md
 plugins/verification/README.md

@@ -288,7 +288,7 @@ jobs:
       # Deliberately UNCONDITIONAL, like the other whole-repo scanners. This
       # gate reads markdown prose, which is exactly what a docs-only diff
       # changes, so gating it on run_full would disable it on precisely the pull
-      # requests most able to trip it -- a fail-closed hole rather than an
+      # requests most able to trip it. That is a fail-closed hole rather than an
       # honest not-applicable. The self-test runs first and ungated so a broken
       # gate cannot mask a regression.
       - name: Test the purged-em-dash gate
