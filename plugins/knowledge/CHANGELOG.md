@@ -8,14 +8,9 @@ only after that version increases.
 
 ### Changed
 
-- **Instruction-surface de-slop (#2891, knowledge cluster).** Rewrote this plugin's `README.md`
-  and every `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
-  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
-  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
-  and the sentence break change. YAML frontmatter description/summary left unchanged so
-  the cheatsheet stays valid. The generated options block is ignore-fenced because
-  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
-  Precomputed probe echoes and fenced course-digest templates keep their quoted marks.
+- **setup:** remaining instruction-surface punctuation after the 0.13.8
+  plugin-wide rewrite. The OS-level media-tools probe now comma-separates
+  frame extraction from watch/course actions.
 
 ## [0.13.8]
 
