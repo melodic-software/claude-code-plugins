@@ -437,7 +437,7 @@ assert_contains "dir target with a trailing slash: only the tracked file counts"
 # shellcheck disable=SC1090
 source <(sed -n '/^normalize_dir_target()/,/^}/p' "$DETECT")
 assert_eq "ordinary trailing slash is stripped" "$(normalize_dir_target "docs/")" "docs"
-assert_eq "nested trailing slash is stripped" "$(normalize_dir_target "C:/Users/")" "C:/Users"
+assert_eq "nested trailing slash is stripped" "$(normalize_dir_target "C:/tmp/")" "C:/tmp"
 assert_eq "unix root keeps its slash" "$(normalize_dir_target "/")" "/"
 assert_eq "windows drive root keeps its slash" "$(normalize_dir_target "C:/")" "C:/"
 assert_eq "lowercase windows drive root keeps its slash" "$(normalize_dir_target "d:/")" "d:/"
