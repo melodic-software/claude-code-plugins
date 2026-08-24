@@ -3,6 +3,17 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, wizard cluster).** Rewrote this plugin's `README.md`
+  and every `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. YAML frontmatter description/summary left unchanged so
+  the cheatsheet stays valid. No generated options block.
+
 ## [0.2.1]
 
 ### Added
