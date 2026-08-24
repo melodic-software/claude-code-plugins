@@ -12,14 +12,15 @@
 # field — so the extraction caveats (heredocs, dynamic values, directory
 # changes) don't exist on this surface, and the fail-open set is much smaller.
 #
-# WHAT IT ENFORCES — the two halves the reusable
+# WHAT IT ENFORCES — the five requirements the reusable
 # melodic-software/ci-workflows pr-issue-linkage validator requires: after
 # stripping HTML comments (terminated spans, then an unterminated `<!--`
 # swallowing the rest), the body must carry
 #   (a) a native closing keyword (`Closes/Fixes/Resolves #N`, including
 #       `owner/repo#N`) OR the literal `No linked issue` / `No related issue:`;
-#   (b) a `## Related` section that is present AND non-empty, where a DEEPER
-#       heading (`### ...`) is that section's content, not its terminator.
+#   (b) four present AND non-empty contract sections — `## Summary`, `## Fix`,
+#       `## Verification`, `## Related` — where a DEEPER heading (`### ...`)
+#       is that section's content, not its terminator.
 #
 # SCOPE GUARDS —
 #   - enforcement is keyed to the repository's OWN policy: the gate runs only
@@ -44,7 +45,7 @@
 #
 # Kill switch: pr_linkage_mcp_gate_enabled userConfig option.
 #
-# BLOCKING: exits 2 naming the missing half(s) plus the line to add.
+# BLOCKING: exits 2 naming every missing or empty requirement plus the lines to add.
 
 set -uo pipefail
 
@@ -160,6 +161,12 @@ for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
 echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (required check 'pr-issue-linkage / pr-issue-linkage')." >&2
 echo "Add to the body:" >&2
 echo "  Closes #<issue>      (or the literal line: No linked issue)" >&2
+echo "  ## Summary" >&2
+echo "  <what and why>" >&2
+echo "  ## Fix" >&2
+echo "  <concrete change>" >&2
+echo "  ## Verification" >&2
+echo "  <evidence the change works>" >&2
 echo "  ## Related" >&2
 echo "  - <links, or N/A>" >&2
 emit_tel "blocked"

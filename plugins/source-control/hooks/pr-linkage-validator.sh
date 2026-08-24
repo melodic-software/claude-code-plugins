@@ -98,8 +98,14 @@ has_linkage() {
   [[ "$probe" =~ $KEYWORD_ERE || "$probe" =~ $NO_ISSUE_ERE ]]
 }
 
-# Content of the first `## Related` section on stdout; returns 1 when there is
-# no such heading, which is a different verdict from an empty one. Only a
+# The four contract sections the pinned ci-workflows reusable requires
+# (melodic-software/ci-workflows pr-issue-linkage.yml @ v0.14.2). Stated once
+# here so both hook surfaces, the blocked-message remedy, and the tests cannot
+# drift from each other the way "Related only" drifted from the other three.
+REQUIRED_SECTIONS=(Summary Fix Verification Related)
+
+# Content of the first `## <heading>` section on stdout; returns 1 when there
+# is no such heading, which is a different verdict from an empty one. Only a
 # heading at the SAME level or higher (fewer or equal `#`) closes the section,
 # so a nested `### …` subsection is content — a naive "next line starting with
 # #" reading would call such a section empty.
@@ -107,8 +113,8 @@ has_linkage() {
 # Trimming is spelled inline at both per-line sites rather than through `trim`:
 # a command substitution forks, and one fork per body line put a 1000-line body
 # past this hook's own declared timeout.
-related_section() {
-  local body="$1" line t start=0 lvl i=0 out=""
+section_content() {
+  local body="$1" heading_lc="${2,,}" line t start=0 lvl i=0 out=""
   local -a lines=()
   # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
   while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done < <(printf '%s\n' "$body")
@@ -116,7 +122,7 @@ related_section() {
     t="${lines[i]}"
     t="${t#"${t%%[![:space:]]*}"}"
     t="${t%"${t##*[![:space:]]}"}"
-    [[ "${t,,}" =~ ^##[[:space:]]+related$ ]] && {
+    [[ "${t,,}" =~ ^##[[:space:]]+${heading_lc}$ ]] && {
       start=$((i + 1))
       break
     }
@@ -136,21 +142,135 @@ related_section() {
   trim "$out"
 }
 
-# Aggregate verdict: strip comments, judge both halves. Fills the global
-# LINKAGE_PROBLEMS array with one line per missing half; returns 0 when the
-# body passes (array empty), 1 otherwise. The consuming hook owns what a
-# failure DOES — block message, telemetry, exit code.
+# Mask fenced blocks, indented code, and inline spans the way the pinned
+# ci-workflows reusable does before it searches for headings or keywords:
+# a `## Fix` that exists only inside a fenced template, a four-space sample,
+# or an inline span is not a real section. Fence close follows CommonMark
+# (same delimiter character, at least as long, info string empty on close;
+# a backtick fence's opener rejects an info string that itself contains a
+# backtick). Masked lines become empty so line structure — and therefore
+# heading-level section bounds — stays intact.
+mask_markdown_code() {
+  local body="$1" line rest rendered fence_char="" fence_len=0 in_fence=0
+  local marker_run marker_rest i ticks len k m j sidx nspans nruns cs ce out=""
+  local -a runs_pos runs_len spans_start spans_end used
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    rest="${line%$'\r'}"
+    if ((in_fence)); then
+      if [[ "$rest" =~ ^\ {0,3}(\`{3,}|~{3,})(.*)$ ]]; then
+        marker_run="${BASH_REMATCH[1]}"
+        marker_rest="${BASH_REMATCH[2]}"
+        if [[ "${marker_run:0:1}" == "$fence_char" && ${#marker_run} -ge $fence_len && "$marker_rest" =~ ^[[:space:]]*$ ]]; then
+          in_fence=0
+          fence_char=""
+          fence_len=0
+        fi
+      fi
+      out+=$'\n'
+      continue
+    fi
+    if [[ "$rest" =~ ^\ {0,3}(\`{3,}|~{3,})(.*)$ ]]; then
+      marker_run="${BASH_REMATCH[1]}"
+      marker_rest="${BASH_REMATCH[2]}"
+      if [[ "${marker_run:0:1}" != '`' || "$marker_rest" != *'`'* ]]; then
+        in_fence=1
+        fence_char="${marker_run:0:1}"
+        fence_len=${#marker_run}
+        out+=$'\n'
+        continue
+      fi
+    fi
+    if [[ "$rest" =~ ^(\ {4}|\t) ]]; then
+      out+=$'\n'
+      continue
+    fi
+    # Collect backtick runs in one left-to-right pass, then pair each opener
+    # with the next unused same-length run. A per-opener rescan of the
+    # remainder is O(L^1.5) on a line of distinct run lengths and can exceed
+    # the 15s PreToolUse timeout, which fails this gate open.
+    runs_pos=()
+    runs_len=()
+    i=0
+    len=${#rest}
+    while ((i < len)); do
+      if [[ "${rest:i:1}" == '`' ]]; then
+        ticks=1
+        while ((i + ticks < len)) && [[ "${rest:i+ticks:1}" == '`' ]]; do ((ticks++)); done
+        runs_pos+=("$i")
+        runs_len+=("$ticks")
+        i=$((i + ticks))
+      else
+        ((i++))
+      fi
+    done
+    # CommonMark: leftmost opener consumes through the next same-length
+    # run; everything between is content (nested pairs, the escaped-tick
+    # idiom, leftover pending of another length). Walk openers in order
+    # and mark absorbed runs used so they cannot steal a later pair.
+    nruns=${#runs_pos[@]}
+    used=()
+    for ((k = 0; k < nruns; k++)); do used[k]=0; done
+    spans_start=()
+    spans_end=()
+    for ((k = 0; k < nruns; k++)); do
+      ((used[k])) && continue
+      ticks=${runs_len[k]}
+      j=-1
+      for ((m = k + 1; m < nruns; m++)); do
+        if ((used[m] == 0 && runs_len[m] == ticks)); then
+          j=$m
+          break
+        fi
+      done
+      ((j < 0)) && continue
+      used[k]=1
+      used[j]=1
+      for ((m = k + 1; m < j; m++)); do
+        used[m]=1
+      done
+      cs=${runs_pos[k]}
+      ce=$((runs_pos[j] + runs_len[j]))
+      spans_start+=("$cs")
+      spans_end+=("$ce")
+    done
+    rendered=""
+    i=0
+    sidx=0
+    nspans=${#spans_start[@]}
+    while ((i < len)); do
+      if ((sidx < nspans && i == spans_start[sidx])); then
+        i=${spans_end[sidx]}
+        ((sidx++))
+        continue
+      fi
+      rendered+="${rest:i:1}"
+      ((i++))
+    done
+    out+="$rendered"$'\n'
+  done < <(printf '%s\n' "$body")
+  printf '%s' "$out"
+}
+
+# Aggregate verdict: strip comments, mask Markdown code (CI does both before
+# any heading or keyword scan), then the closing-keyword half plus every
+# required section. Fills the global LINKAGE_PROBLEMS array with one line per
+# problem so the author sees the full set in one pass; returns 0 when the body
+# passes (array empty), 1 otherwise. The consuming hook owns what a failure
+# DOES — block message, telemetry, exit code.
 LINKAGE_PROBLEMS=()
 linkage::problems() {
-  local body related
+  local body heading content
   body=$(strip_html_comments "$1")
+  body=$(mask_markdown_code "$body")
   LINKAGE_PROBLEMS=()
-  # shellcheck disable=SC2310  # the two exits ARE the verdict: absent vs present
-  if related=$(related_section "$body"); then
-    [[ -n "$related" ]] || LINKAGE_PROBLEMS+=('The "## Related" section is empty.')
-  else
-    LINKAGE_PROBLEMS+=('Missing a "## Related" section.')
-  fi
+  for heading in "${REQUIRED_SECTIONS[@]}"; do
+    # shellcheck disable=SC2310  # the two exits ARE the verdict: absent vs present
+    if content=$(section_content "$body" "$heading"); then
+      [[ -n "$content" ]] || LINKAGE_PROBLEMS+=("The \"## ${heading}\" section is empty.")
+    else
+      LINKAGE_PROBLEMS+=("Missing a \"## ${heading}\" section.")
+    fi
+  done
   has_linkage "$body" ||
     LINKAGE_PROBLEMS+=('Missing a native closing keyword (Closes/Fixes/Resolves #N) and no "No linked issue" marker.')
   ((${#LINKAGE_PROBLEMS[@]} == 0))

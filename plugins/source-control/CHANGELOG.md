@@ -3,6 +3,38 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.11]
+
+### Fixed
+
+- **PR-body linkage gates mask Markdown code the way CI does.** The shared
+  validator treated a `## Fix` (or any other required heading) inside a fenced
+  sample, a four-space indented block, or an inline span as the real section,
+  so a body CI rejects — real Summary/Verification/Related plus only a templated
+  Fix — still passed both local pre-checks. `mask_markdown_code` now blanks
+  those constructs before the heading and keyword scan, using the same
+  CommonMark fence-close rules the pinned `pr-issue-linkage` reusable applies
+  ([#3206](https://github.com/melodic-software/claude-code-plugins/issues/3206)).
+- **PR-body linkage gates now check all four contract sections.** The shared
+  validator (`pr-linkage-validator.sh`) only required a closing keyword and a
+  non-empty `## Related` section, so both local pre-checks — the MCP gate and
+  the Bash `gh pr create`/`edit` sibling — allowed bodies the pinned
+  `pr-issue-linkage` reusable rejects. Observed on #3205: a body with
+  `No linked issue` plus Summary, Verification, and Related (no Fix) passed
+  both local gates and failed CI with `Missing a "## Fix" section`. The
+  validator now looks up `## Summary`, `## Fix`, `## Verification`, and
+  `## Related` through one heading-level helper (a nested `###` is still
+  content, not a terminator), reports every missing or empty section in one
+  pass, and the blocked-message remedy lists all four so following it produces
+  a body CI accepts. Both surfaces pick the change up from the shared core
+  ([#3206](https://github.com/melodic-software/claude-code-plugins/issues/3206)).
+  Inline-code masking collects backtick runs in one pass, then walks
+  openers left to right the way CommonMark does: the first unused
+  same-length closer wins, and every run between is content. That keeps
+  a crafted unmatched-tick line under the 15s PreToolUse timeout, masks
+  nested differing-length runs (`` `code` ``), and does not let the
+  escaped-tick idiom steal a later pair on the same line.
+
 ## [0.55.10]
 
 ### Fixed
