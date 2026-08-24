@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.23]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, work-items cluster).** Re-audited this plugin's
+  `README.md` and every `SKILL.md` under `/ai-slop:audit fix` semantics after later
+  versions landed on the 0.39.13 shard. Prose stays em-dash-free. Leftovers that must
+  keep the mark: the quoted auto-invocation trigger (`the spec changed — redo the tickets`)
+  so skill-quality does not treat the rewrite as a dropped trigger; quoted claim/lease
+  and triage protocol strings; fenced templates; and the ignore-fenced generated options
+  block, because `scripts/sync-plugin-options-docs.py` still emits em dashes from its
+  shared template.
+
 ## [0.39.22]
 
 ### Fixed
