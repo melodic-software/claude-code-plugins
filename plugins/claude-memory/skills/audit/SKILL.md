@@ -1,6 +1,6 @@
 ---
-description: "Audit the Claude Code instruction/memory layer — CLAUDE.md, CLAUDE.local.md, .claude/rules/, and auto-memory — against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
-argument-hint: "[audit|fix|update|report] — default: audit"
+description: "Audit the Claude Code instruction/memory layer covering CLAUDE.md, CLAUDE.local.md, .claude/rules/, and auto-memory against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
+argument-hint: "[audit|fix|update|report]. Default: audit"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -23,7 +23,7 @@ MEMORY.md index issues (M2): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/
 # Memory Health
 
 Deterministic health check for the Claude Code instruction/memory layer. Audits files YOU write that
-shape Claude's behavior — not the entire context window (MCP tools, agents, and skills are covered by
+shape Claude's behavior, not the entire context window (MCP tools, agents, and skills are covered by
 the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 
 ## Scope
@@ -36,12 +36,12 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |
 | **User rules** | `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/**/*.md` | Same as project rules, in every project | Yes |
 | Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
-| Settings, hooks, MCP, agents, skills | Various | Various | No — use `claude-config`'s `audit` / `automation-gaps` |
+| Settings, hooks, MCP, agents, skills | Various | Various | No. Use `claude-config`'s `audit` / `automation-gaps` |
 
 The two user-scope rows are in scope because they load in every session regardless of where it starts.
 Discovery tags every file with its scope so project-scoped criteria (C9) skip personal files rather
 than reporting a repo-scoped finding against one. **C6 Consistency** owns instruction-content
-conflicts across that discover-instruction-surfaces population — including **user↔project** pairs.
+conflicts across that discover-instruction-surfaces population, including **user↔project** pairs.
 `claude-config:audit-instructions` I15 owns memory-layer precedence adjudication and every conflict
 pair with an anchor outside that population (nested `CLAUDE.md`, auto-memory, settings, hooks,
 skills, agents, output styles).
@@ -50,9 +50,10 @@ skills, agents, output styles).
 
 This audit owns instruction-layer **health**: structure, size, placement, and index integrity of
 the memory files against the codified checklist. Whether an instruction's *content* is still
-needed by the current model — prior-model workarounds, over-prescriptive scaffolding, bare
-prohibitions without rationale, reasoning-echo directives, stale example scaffolding — is the
-model-era fit question, owned by the `claude-config` plugin's `audit-instructions` skill. When
+needed by the current model is the model-era fit question, owned by the `claude-config` plugin's
+`audit-instructions` skill. Prior-model workarounds, over-prescriptive scaffolding, bare
+prohibitions without rationale, reasoning-echo directives, and stale example scaffolding fall
+there. When
 that plugin is installed, route such findings to `/claude-config:audit-instructions`, invoked via
 the Skill tool, rather than
 judging them against this checklist; when it is not installed, keep each as a criteria-free
@@ -74,7 +75,7 @@ The checklist at [reference/criteria.md](reference/criteria.md) is codified, not
 Its **deterministic spine** (C1 line budget, M1 index size, the script-backed M2 index integrity and
 RD1 orphan-rule checks) yields byte-identical findings on the same repo state; its **judgment tier**
 (C2-C9, R1-R4, M3-M4) applies fixed criteria with model reading, so findings vary in wording though
-not in criteria — label those "judgment candidate" in the report. Criteria derive from official Claude
+not in criteria. Label those "judgment candidate" in the report. Criteria derive from official Claude
 Code documentation (sourced quotes in [reference/official-guidance.md](reference/official-guidance.md));
 refresh both via the `update` action.
 
@@ -90,7 +91,7 @@ Load [context/update.md](context/update.md) for the research-and-refresh workflo
 
 Load [context/fix.md](context/fix.md) for the fix-with-approval workflow.
 
-## Report location — derive it before writing or reading
+## Derive the report location before writing or reading
 
 Every action that touches the report uses **one** path, resolved here: `audit` writes it, `report`
 serves it, `fix` acts on it.
@@ -105,19 +106,19 @@ ${CLAUDE_PLUGIN_DATA}/audit/<state-key>/last-audit.md
 bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
 ```
 
-It prints `<repo-identity>/<worktree-discriminator>` — the scheme `claude-config:audit-pass` defines
+It prints `<repo-identity>/<worktree-discriminator>`, the scheme `claude-config:audit-pass` defines
 and `audit-prompting-postures` already uses, adopted here rather than reinvented. Run it and use the
 result: the key comes from a command this run actually executes, not from a token read out of a file.
 Pass `--explain` when the report should say which rung produced its key.
 
 **Why the key exists.** `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`, keyed to
-the plugin identifier and nothing else — no project, checkout, worktree, or session segment
+the plugin identifier and nothing else. No project, checkout, worktree, or session segment
 ([plugins reference](https://code.claude.com/docs/en/plugins-reference), § Persistent data directory).
 A fixed `audit/last-audit.md` is therefore **one file per machine**. Losing reports is the smaller
 half; the larger half is the read. `report` mode would serve whatever that file currently holds and
 `fix` mode would act on it, so on a machine with two repositories, project B can be shown project A's
 findings and offered edits derived from another repository's memory layer. That is a wrong answer
-served, not merely an artifact lost — which is why an append-only history does not close it and the
+served, not merely an artifact lost, which is why an append-only history does not close it and the
 *path* has to carry project identity.
 
 **Never serve a report you cannot attribute.** If nothing exists at the derived path, say that no
@@ -127,12 +128,12 @@ location.
 **The pre-rename `health/` directory and any unkeyed `audit/last-audit.md` are unattributable.** This
 skill was once named `health`, and both older layouts wrote a machine-global file with no project
 segment, so nothing records which repository produced it. It cannot be adopted into a project's key
-without inventing that attribution — and inventing it is exactly the defect the key exists to remove.
+without inventing that attribution, and inventing it is exactly the defect the key exists to remove.
 Where such a file is present, name its path to the user as a leftover they may delete, and run the
 audit rather than reading it.
 
 **Audit output is contributor-local by design.** Reports audit a contributor's personal auto-memory
-(`~/.claude/projects/<project>/memory/`), which varies per team member — so they persist in the
+(`~/.claude/projects/<project>/memory/`), which varies per team member, so they persist in the
 plugin's own data directory, never in the consuming repo.
 
 **A rolling latest is a separate decision from keying, and this skill keeps one on purpose.**
@@ -151,13 +152,13 @@ never-serve-what-you-cannot-attribute rule above rather than reaching for anothe
 This skill ships the doc-derived checklist only. A consuming repo that layers its own
 instruction-hygiene conventions (e.g. a team-shared-first codification policy, an always-loaded
 context-budget policy, or an exemption from the 200-line CLAUDE.md target for repos that deliberately
-run a large rules layer) declares them in its own `CLAUDE.md` / `.claude/rules/` — read those files
+run a large rules layer) declares them in its own `CLAUDE.md` / `.claude/rules/`. Read those files
 during the audit and apply any additional criteria or documented exemptions they define, reporting
 such findings under a `REPO` check-ID so they stay distinct from the doc-derived checks.
 
 ## Complementary workflows
 
 If the `claude-md-management` plugin is installed, its `claude-md-improver` skill audits CLAUDE.md
-structure and content quality (complementary to this health check — run this audit FIRST to identify
-issues), and `revise-claude-md` captures session learnings after a fix pass. Absent that plugin, the
+structure and content quality, complementary to this health check. Run this audit FIRST to identify
+issues. `revise-claude-md` captures session learnings after a fix pass. Absent that plugin, the
 fix mode here stands on its own.

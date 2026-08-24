@@ -21,7 +21,7 @@ Audits the files you write that shape Claude's behavior against a codified check
 official Claude Code documentation (line budgets, deletion test, content placement, consistency,
 currency, auto-memory index integrity). A deterministic spine (script-backed checks for the MEMORY.md
 index and orphan always-loaded rules) yields identical findings on identical repo state; judgment-tier
-checks apply fixed criteria with model reading. Reports persist to the plugin's data directory — they
+checks apply fixed criteria with model reading. Reports persist to the plugin's data directory. They
 audit contributor-personal auto-memory, so they never land in the repo.
 
 Scope covers **both** layers that load every session: the project's `CLAUDE.md` / `CLAUDE.local.md` /
@@ -38,7 +38,7 @@ project-scoped criteria skip personal files instead of reporting a repo-scoped f
 
 ### stateless
 
-Inspects and disables Claude Code **auto memory** — the notes Claude writes for itself per repo at
+Inspects and disables Claude Code **auto memory**, the notes Claude writes for itself per repo at
 `~/.claude/projects/<project>/memory/` (relocatable via `autoMemoryDirectory`). Scope is auto-memory
 only: the instruction layer (`CLAUDE.md`, `.claude/rules/`) belongs to `audit`, and transcripts /
 history are out of scope (Claude Code auto-cleans those via `cleanupPeriodDays`).
@@ -49,11 +49,12 @@ history are out of scope (Claude Code auto-cleans those via `cleanupPeriodDays`)
 /claude-memory:stateless purge     # DESTRUCTIVE — delete auto-memory files after a confirmation gate
 ```
 
-`disable` sets both the env var (authoritative — it overrides `autoMemoryEnabled` per the env-vars
-doc) and the setting (persistent fallback); `purge` reads `autoMemoryDirectory` at every settings
+`disable` sets both the env var and the setting. The env var is authoritative and overrides
+`autoMemoryEnabled` per the env-vars doc; the setting is the persistent fallback. `purge` reads
+`autoMemoryDirectory` at every settings
 scope before it enumerates what to delete, shows a manifest, and deletes only after explicit
 confirmation. Claude Desktop / claude.ai
-account memory is a separate server-side store — the skill gives direction to the app's Settings →
+account memory is a separate server-side store. The skill gives direction to the app's Settings →
 Memory controls rather than deleting it locally.
 
 ## Consumer conventions
@@ -73,11 +74,11 @@ doc-derived checks. Nothing project-specific is baked into the plugin.
 
 ## Configuration
 
-No `userConfig`. State: `audit` reports persist under the plugin's `${CLAUDE_PLUGIN_DATA}` directory —
-they are contributor-local because they cover per-contributor auto-memory, so they never land in the
+No `userConfig`. State: `audit` reports persist under the plugin's `${CLAUDE_PLUGIN_DATA}` directory.
+They are contributor-local because they cover per-contributor auto-memory, so they never land in the
 consuming repo. Side effects: `stateless disable` edits a `settings.json` you choose (setting
 `autoMemoryEnabled` and an `env` var, then flagging a dotfile-manager backfill if the file is tracked);
-`stateless purge` deletes auto-memory `*.md` files after a confirmation gate — both act only on the
+`stateless purge` deletes auto-memory `*.md` files after a confirmation gate. Both act only on the
 scope you confirm. Network: the `audit update` action fetches official docs pages (read-only). Scripts
 require `git` and standard shell utilities.
 
