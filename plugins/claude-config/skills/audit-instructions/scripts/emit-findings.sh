@@ -12,9 +12,11 @@
 # instruction-scan.sh marks (I6, I8-a/b/c, I10, I23, I25, I27) has no
 # severity-crosswalk row, and the detector-findings contract admits no row
 # whose tier cannot be looked up from one — those stay in the human report.
-# Rows for them are counted as declined, never silently dropped. I29 rows
-# come from restatement-scan.py and are concatenated onto the same --from
-# stream.
+# Rows for them are counted as declined, never silently dropped. A --from
+# line that is not a scan row at all (suffix outside [a-c], prose, blank)
+# is counted as reason=unparsable-row, never omitted from both Scan rows
+# read and every Declined line. I29 rows come from restatement-scan.py and
+# are concatenated onto the same --from stream.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
 # docs/conventions/detector-findings/README.md ("The severity crosswalk"); that
@@ -120,8 +122,11 @@ if [[ -z "$BRANCH" ]]; then
 fi
 
 # A scan row is `<path>:<line>:<check-id>`. Anything with no such row is not
-# scanner output.
-if ! LC_ALL=C grep -qE '^.+:[0-9]+:I[0-9]+(-[a-c])?$' "$FROM"; then
+# scanner output. Strip a trailing CR first so an all-CRLF file with a matching
+# row is recognized rather than refused — the same strip the awk intake applies
+# before its pattern match.
+if ! LC_ALL=C grep -qE '^.+:[0-9]+:I[0-9]+(-[a-c])?$' \
+  < <(LC_ALL=C sed $'s/\r$//' "$FROM"); then
   echo "emit-findings.sh: $FROM has no instruction-scan.sh rows; not scanner output" >&2
   exit 3
 fi
@@ -423,8 +428,16 @@ LC_ALL=C awk \
   }
 
   # --- row intake ------------------------------------------------------------
-  /^.+:[0-9]+:I[0-9]+(-[a-c])?$/ {
+  # Count first, classify second. A line that misses the scan-row pattern still
+  # increments nrows and lands in reason=unparsable-row; it is never omitted
+  # from both Scan rows read and every Declined line. Trailing CR is stripped
+  # here the same way descr() and source_line() already strip it, so a mixed
+  # CRLF file does not silently drop the CR-terminated rows.
+  {
+    sub(/\r$/, "")
     nrows++
+  }
+  /^.+:[0-9]+:I[0-9]+(-[a-c])?$/ {
     # Split from the RIGHT: a path may contain colons, the last two fields never do.
     id = $0; sub(/^.*:/, "", id)
     rest = $0; sub(/:[^:]*$/, "", rest)
@@ -459,6 +472,12 @@ LC_ALL=C awk \
     seen[id]++
     next
   }
+  {
+    id = $0
+    sub(/^.*:/, "", id)
+    if (id == "" || id !~ /^I[0-9]+(-[A-Za-z0-9]+)?$/) id = "(unparsable)"
+    declined_unparsable[id]++
+  }
 
   END {
     printf "---\ntype: review-findings\ndate: %s\nbranch: %s\n---\n\n", date_utc, yaml_scalar(branch)
@@ -492,6 +511,8 @@ LC_ALL=C awk \
       printf "Declined candidates: %s count=%d reason=outside-repo-root (Location must be repo-relative; human report only)\n", k, declined_outofrepo[k]
     for (k in declined_unreadable)
       printf "Declined candidates: %s count=%d reason=source-line-unreadable\n", k, declined_unreadable[k]
+    for (k in declined_unparsable)
+      printf "Declined candidates: %s count=%d reason=unparsable-row\n", k, declined_unparsable[k]
     # The model lane drops carve-out candidates (destructive/security gate,
     # stated hard precondition, document about the pattern) before this script
     # sees them, so it reports their count here rather than letting the
