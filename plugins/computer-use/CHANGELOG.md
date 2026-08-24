@@ -3,6 +3,18 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, computer-use cluster).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change.
+  One quoted remediation protocol string keeps its em dash. The setup skill now
+  ships warranted `evals/evals.json` because a SKILL.md edit requires it.
+
 ## [0.1.0]
 
 ### Added
