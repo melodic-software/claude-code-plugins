@@ -8,7 +8,7 @@ disable-model-invocation: true
 ## Purpose
 
 Guide the user through Claude Code's native configuration flow and report whether the remote
-Dometrain MCP server is reachable — without reading, printing, or writing the sensitive
+Dometrain MCP server is reachable, without reading, printing, or writing the sensitive
 `dometrain_api_key`. Claude Code prompts for the required key when the plugin is enabled and owns
 its secure credential storage.
 
@@ -17,7 +17,7 @@ configuration surface is the native sensitive `userConfig` key, so `check` (defa
 action) verifies and reports, and reconfiguration routes through Claude Code's native flow.
 
 **Mechanism note (why this skill does not read `/mcp`):** `/mcp` is a human-run interactive
-command — no tool exposes its output to a model turn. The one real, model-visible signal for a
+command. No tool exposes its output to a model turn. The one real, model-visible signal for a
 failed remote server is Claude Code's own `ToolSearch`-surfaced connection error: "When a
 configured server fails to connect, Claude Code tells Claude which server failed and its
 connection error, including in `ToolSearch` results that find no matching tool... Requires tool
@@ -44,7 +44,7 @@ Official contracts:
    machine setup), point to the headless path below instead.
 3. When the plugin is enabled and a `dometrain`-scoped tool resolves (via direct tool-list
    presence or a successful `ToolSearch` match), report **connected**: the server started and the
-   key was supplied. Do not claim the key has valid API access beyond that — a connection-layer
+   key was supplied. Do not claim the key has valid API access beyond that. A connection-layer
    401/403/429 rejection (per Dometrain's own README Troubleshooting section) would prevent the
    tool from resolving at all, so resolution itself is the strongest signal this skill can observe.
 4. When the plugin is enabled but no `dometrain`-scoped tool resolves, report **failed or
@@ -53,7 +53,7 @@ Official contracts:
    - Otherwise do not assert why: Claude Code does not report failed connections to Claude in a
      configuration without tool search (custom `ANTHROPIC_BASE_URL`, `ENABLE_TOOL_SEARCH=false`, or
      a model that doesn't support tool search), and on Amazon Bedrock, Google Cloud's Agent
-     Platform, and Microsoft Foundry — and this skill cannot inspect the environment to tell which
+     Platform, and Microsoft Foundry, and this skill cannot inspect the environment to tell which
      is in effect. Direct the user to run `/mcp` themselves rather than claim knowledge it doesn't
      have.
    - After the user reconfigures the key, require `/reload-plugins` or a new session before
@@ -61,7 +61,7 @@ Official contracts:
 
 ## Headless installation
 
-For a non-interactive install — CI, a fleet bootstrap, a scripted machine setup — seed the key
+For a non-interactive install such as CI, a fleet bootstrap, or a scripted machine setup, seed the key
 on the initial install instead of the interactive `/plugin` prompt. Three steps, all required:
 
 ```shell
@@ -72,7 +72,7 @@ claude plugin enable dometrain -s <scope>
 
 Both placeholders are bootstrap inputs, not lookups: before the first install there is no record
 to read them from. `<marketplace>` is the name the catalog registers under when it is added, and
-`<scope>` is the scope the bootstrap chooses — `user`, `project`, or `local`; `marketplace add`
+`<scope>` is the scope the bootstrap chooses: `user`, `project`, or `local`. `marketplace add`
 and `install` default to `user` when the flag is omitted, while `enable` auto-detects. Carry the
 same `<scope>` through all three. Note the asymmetry: `marketplace add` spells it `--scope` only,
 while `install` and `enable` also accept the `-s` short form. Registering at `user` while
@@ -81,24 +81,24 @@ settings, so a fresh clone or CI agent carries the enabled plugin with no regist
 to resolve it from.
 
 **The enable step is not optional.** This plugin ships `defaultEnabled: false`, so it installs
-DISABLED — the install seeds the key but leaves the MCP server, and therefore every `dometrain`
+DISABLED. The install seeds the key but leaves the MCP server, and therefore every `dometrain`
 tool, unavailable until it is enabled ([Default enablement](https://code.claude.com/docs/en/plugins-reference#default-enablement),
 which also notes `claude plugin enable` auto-detects the scope when `-s` is omitted; passing it
 explicitly keeps the sequence deterministic in CI). A bootstrap that stops after `install` looks
 successful and delivers no tools.
 
 **Rotating or clearing the key:** `/plugin configure dometrain@<marketplace>` (interactive, any
-time) is the recommended rotation path regardless — it masks input, where a key passed on the
+time) is the recommended rotation path regardless. It masks input, where a key passed on the
 command line lands in shell history and the process table.
 
-The older claim here — that `--config` is ignored once the plugin is installed — was never
+The older claim that `--config` is ignored once the plugin is installed was never
 version-stamped, and on Claude Code 2.1.240 a plain `claude plugin install … --config` was
 observed to write the value of an already-installed plugin for a **non-sensitive** option at
 `user` scope. Whether that holds for a `sensitive` option such as `dometrain_api_key` has not
 been verified, so do not rely on it for a credential. Do **not** uninstall to rotate either:
 uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting every option in
 the README's Options reference table to its manifest default, and it can drop the
-`enabledPlugins` entry as well — a `defaultEnabled: false` plugin reinstalls DISABLED, so a
+`enabledPlugins` entry as well. A `defaultEnabled: false` plugin reinstalls DISABLED, so a
 rotation that ends at `install` completes with no tools available.
 
 Full detail, including the command-line-exposure caveat, is in the README's
@@ -116,7 +116,7 @@ supported keychain is available. Never read or reveal either location's contents
 
 Dometrain ships its own official Claude Code plugin (`github.com/Dometrain/mcp`) whose
 `plugin.json` `name` is also `"dometrain"`. If the user has that plugin enabled too, do not attempt
-to detect the collision by comparing MCP tool-name prefixes — a true collision produces an
+to detect the collision by comparing MCP tool-name prefixes. A true collision produces an
 *identical*, not divergent, prefix, so no prefix comparison can distinguish "one plugin enabled" from
 "two colliding plugins enabled." Point the user to this plugin's README collision warning instead.
 
@@ -126,6 +126,6 @@ to detect the collision by comparing MCP tool-name prefixes — a true collision
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
   setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
   marketplace repository).
-- Do not call a Dometrain tool during setup — resolution via tool inventory / `ToolSearch` is
+- Do not call a Dometrain tool during setup. Resolution via tool inventory / `ToolSearch` is
   sufficient and spends no quota.
-- Do not claim to have read `/mcp` connection status — no tool exposes it to a model turn.
+- Do not claim to have read `/mcp` connection status. No tool exposes it to a model turn.
