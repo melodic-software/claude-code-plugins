@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.4]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, planning cluster).** Isolated `/ai-slop:audit`
+  over this plugin's `README.md` and every `SKILL.md` found no remaining prose em dashes
+  under the repo's zero-tolerance house policy. YAML frontmatter description/summary left
+  unchanged so the cheatsheet stays valid. The generated options block is ignore-fenced
+  because `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared
+  template. Fenced interview, design, and plan templates keep their quoted protocol marks.
+
 ## [0.34.3]
 
 ### Changed
