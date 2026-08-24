@@ -1,19 +1,19 @@
 # context-guard
 
 A Claude Code plugin that makes each session's context-window usage observable to any session or
-tool that needs it — so long-running workflows can route heavy work away from a degraded context
+tool that needs it, so long-running workflows can route heavy work away from a degraded context
 **before** quality slips, instead of guessing. Five parts:
 
-- **Statusline shim** (`scripts/statusline-shim.sh`) — the durable wiring target. Installed once to
+- **Statusline shim** (`scripts/statusline-shim.sh`), the durable wiring target. Installed once to
   `~/.claude/context-guard/bin/`, it resolves whichever tee version is installed at run time, so a
   plugin update never requires re-wiring and an uninstall degrades to your statusline running
   alone. Pure Bash builtins: it adds no measurable time to a refresh.
-- **Statusline tee** (`scripts/statusline-tee.sh`) — a transparent wrapper around your statusline
+- **Statusline tee** (`scripts/statusline-tee.sh`), a transparent wrapper around your statusline
   command. Each refresh it atomically writes `captured_at`, `session_id`, and the session's
   `context_window` object (copied verbatim from the statusline stdin) to the per-session path
   `~/.claude/context-guard/context/<session_id>.json`, then passes your statusline through
   byte-for-byte. With no statusline configured it doubles as a minimal standalone statusline.
-- **Zone resolver** (`scripts/context-zone.sh`) — `context-zone.sh <session_id>` prints exactly one
+- **Zone resolver** (`scripts/context-zone.sh`). `context-zone.sh <session_id>` prints exactly one
   word: `smart` / `acceptable` / `dumb` / `unknown`. Two band shapes, combined conservatively (the
   worse computable zone wins): percentage bands over `used_percentage` (shipped defaults
   smart ≤ 50 < acceptable ≤ 75 < dumb) and window-class token bands over occupancy
@@ -21,10 +21,10 @@ tool that needs it — so long-running workflows can route heavy work away from 
   200k/400k on a 1M window). Bands come from the machine-scope
   `~/.claude/context-guard/zones.json` when present and valid, else from the shipped defaults.
   Zones say *where you are*; consumers decide *what to do*.
-- **Zone-crossing hooks** (`hooks/`) — the first shipped consumer. Once per transition into a
+- **Zone-crossing hooks** (`hooks/`), the first shipped consumer. Once per transition into a
   worse zone, a PostToolBatch/UserPromptSubmit hook reports the crossing (advisory; silent on
   unchanged, improving, or `unknown` zones), **splitting the report by audience**: the
-  continuation menu — continue, `/clear`, handoff-then-`/clear`, `/compact` — renders to the
+  continuation menu (continue, `/clear`, handoff-then-`/clear`, `/compact`) renders to the
   operator on `systemMessage`, because choosing among them is the human's call; the model's
   channel carries the zone determination plus the counter-steer that a zone word is a measurement
   and not a decay signal, and never an exit menu. An exit menu injected into model context
@@ -33,46 +33,43 @@ tool that needs it — so long-running workflows can route heavy work away from 
   evidence-degraded marker next to the session's snapshot, and both zone consumers honor it: a
   compacted session's effective zone is dumb regardless of its post-compaction numbers. An
   optional **blocking** mode (`zone_hook_mode` userConfig) adds a PreToolUse gate that denies new
-  Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past a grace budget —
-  fail-open on `unknown`, with handoff-path writes, reads, Bash, and Skill invocations never
+  Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past a grace budget, fail-open on `unknown`, with handoff-path writes, reads, Bash, and Skill invocations never
   gated, so a durable handoff is always writable.
-- **Reader contract** (`reference/reader-contract.md`) — the authoritative consumer contract: the
+- **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
   the zones.json shape, session-id discovery via `${CLAUDE_SESSION_ID}`, and the
   zone-is-not-a-compaction-indicator rule. Its companion
   `reference/cloud-headless-capture.md` is the writer-side channel inventory: why the statusline is
   the only capture channel, which other channels were checked and rejected (with sources and
-  dates) — including the two that do carry live occupancy and still cannot supply a snapshot — and
+  dates), including the two that do carry live occupancy and still cannot supply a snapshot, and
   why `unknown` in a session that runs no statusline, a cloud or headless session by default, is
   structural rather than a defect.
 
 ## Behavior
 
-- **Transparent by contract.** No tee outcome — missing `jq`, unwritable path, a rename blocked by
-  a concurrent reader — ever changes the wrapped statusline's output or exit code. Missing `jq` is
+- **Transparent by contract.** No tee outcome (missing `jq`, unwritable path, or a rename blocked
+  by a concurrent reader) ever changes the wrapped statusline's output or exit code. Missing `jq` is
   surfaced as a visible one-line notice, never a silent skip.
 - **Per-session, atomic snapshots.** One file per session id (no cross-session last-writer-wins);
   readers never see torn JSON (temp file + rename, with a brief retry for the Windows
-  rename-over-open-target case). Stale sibling files are pruned on write with a 14-day cutoff —
-  far above the staleness window, so live-but-idle sessions always survive.
+  rename-over-open-target case). Stale sibling files are pruned on write with a 14-day cutoff, far above the staleness window, so live-but-idle sessions always survive.
 - **Path containment.** `session_id` becomes a filename, so the tee accepts only `[A-Za-z0-9_-]`
-  and skips the snapshot for anything else — the wrapped statusline is unaffected.
+  and skips the snapshot for anything else, the wrapped statusline is unaffected.
 - **Fail-open zone resolution.** Absent, stale, or unparsable snapshots, null or out-of-range
   `used_percentage`, null `current_usage` (early-session and post-`/compact` statusline states),
   a non-ISO `captured_at`, a snapshot whose embedded `session_id` differs from the requested one,
-  or missing `jq` all resolve `unknown` — consumers take their conservative path on data they
+  or missing `jq` all resolve `unknown`. Consumers take their conservative path on data they
   cannot trust, never a fabricated zone. The shipped bands are declared judgment defaults: no
   official auto-compaction threshold is documented (verified 2026-07-24); `zones.json` is the
-  tuning path. The trigger itself is operator-tunable even though its default is unpublished —
-  `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and
-  `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` — and bands belong **below** whatever it resolves
+  tuning path. The trigger itself is operator-tunable even though its default is unpublished: `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and
+  `autoCompactEnabled` / `DISABLE_AUTO_COMPACT`, and bands belong **below** whatever it resolves
   to, normalized into the percentage shape, so the session reaches a boundary decision before the
   harness compacts for it. Note that `used_percentage` always measures against the model's *full*
   window, so a lowered auto-compact window no longer shows up in the percentage. The reader
   contract owns those surfaces, their verification dates, and the rationale.
 - **Integrity boundary (stated honestly).** The snapshot directory is owner-only where POSIX
   modes work; on Windows ACL volumes the `chmod` is a no-op and other local users could forge
-  snapshots. Zones are routing hints — consumers must never attach security or egress decisions
+  snapshots. Zones are routing hints. Consumers must never attach security or egress decisions
   to a zone word. See the reader contract's untrusted-data section.
 
 ## Install
@@ -84,10 +81,10 @@ tool that needs it — so long-running workflows can route heavy work away from 
 
 The tee needs two operator steps, both one-time:
 
-1. `/context-guard:setup apply` — installs the statusline shim to
+1. `/context-guard:setup apply`. Installs the statusline shim to
    `~/.claude/context-guard/bin/statusline-shim.sh` (and seeds/refreshes `zones.json`). The shim is
    inert until step 2.
-2. `/context-guard:setup check` — verifies prerequisites and prints the exact `settings.json`
+2. `/context-guard:setup check`. Verifies prerequisites and prints the exact `settings.json`
    statusline edit (wrapping your existing command, or standalone) for you to apply. The plugin
    never edits your settings itself.
 
@@ -101,16 +98,16 @@ flags legacy version-pinned wiring if you have it.
 
 ## Requirements
 
-The scripts run on Bash (Git Bash on native Windows — install
+The scripts run on Bash (Git Bash on native Windows. Install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows); the statusline wiring
 invokes `bash` explicitly) and need [`jq`](https://jqlang.org/download/) on `PATH` for the tee, the
 zone resolver, and the standalone statusline. The snapshot updates only while an interactive
 session refreshes the statusline; `context_window` fields can be `null` early in a session and
 right after `/compact`, per the
-[statusline reference](https://code.claude.com/docs/en/statusline) — readers own null handling.
+[statusline reference](https://code.claude.com/docs/en/statusline). Readers own null handling.
 
 Cost: the tee adds roughly 0.6–0.9 s per statusline refresh on Windows/Git Bash (process-spawn
-bound — `jq` and `date`), and correspondingly less on native POSIX shells. The statusline is not on
+bound. `jq` and `date`), and correspondingly less on native POSIX shells. The statusline is not on
 the input path, so this is display latency, not typing latency; `refreshInterval` in your settings
 governs how often it runs.
 
@@ -121,7 +118,7 @@ true), `zone_hook_mode` (`advisory` default | `blocking`), and `zone_gate_grace_
 mode's grace budget, in-script default 20). The snapshot path and the 10-minute staleness rule are
 deliberately **not** configurable: they are contract constants that cross-plugin consumers inline
 from the [reader contract](reference/reader-contract.md); a per-user override would silently split
-the writer from its readers. Band numbers are the one tunable — via
+the writer from its readers. Band numbers are the one tunable. Via
 `~/.claude/context-guard/zones.json` (shape in the reader contract), which the operator's own
 statusline display may read too, so display and consumers never drift. Disabling the tee is the
 operator's edit (remove or unwrap the statusline command); disabling everything is
@@ -133,6 +130,7 @@ The plugin's own zone-crossing hooks are the first shipped consumer. Next: the `
 audit skill (zone-informed dispatch and evidence-flush decisions, conservative on `unknown`). Any
 session or tool on the machine may read the same files under the same contract.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -207,6 +205,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
