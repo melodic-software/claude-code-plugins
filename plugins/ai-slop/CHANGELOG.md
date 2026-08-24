@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.8]
+
+- **Directory targets silently fell back to an untracked-inclusive filesystem
+  walk when git and the shell spelled the same checkout differently.**
+  `detect.sh` built its expansion prefix from `git rev-parse --show-toplevel`
+  and its filter from `pwd`. On Git Bash those disagree (`D:/repo` vs
+  `/d/repo`), so no prefixed candidate survived the filter, `grep` exited
+  non-zero, and `|| find` ran in place of the tracked-files listing it was
+  meant to back up. The walk returns untracked and ignored markdown, so a
+  directory target audited files the checkout does not track and said
+  nothing about it. Expansion now runs `git ls-files` with `-C <dir>`,
+  which is already restricted to that directory's subtree and answers in
+  paths relative to it. The caller's own spelling of the directory is the
+  only anchor. The branch is chosen up front from `--is-inside-work-tree`
+  rather than from an empty pipeline, so a filesystem walk is only ever
+  the answer for a directory genuinely outside a checkout; inside one, a
+  listing that fails reports on stderr instead of degrading into a
+  different set of files. A Windows drive-root target such as `C:/` keeps
+  its trailing slash: stripping it produced `C:`, which Windows treats as
+  drive-relative (the cwd on that drive), so `git -C` / `find` can scan
+  the wrong tree or nothing. Ordinary directory targets still lose one
+  trailing slash.
+
 ## [0.3.7]
 
 - **A branch name beginning with a YAML indicator silently dropped every finding it emitted.**

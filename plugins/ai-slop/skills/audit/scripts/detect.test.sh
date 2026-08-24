@@ -59,6 +59,9 @@ assert_not_contains() {
   *) pass "$1" ;;
   esac
 }
+assert_eq() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
+}
 
 EM=$'\xe2\x80\x94'
 CHECKMARK=$'\xe2\x9c\x85'
@@ -403,6 +406,55 @@ git -C "$GITDIR" add docs/tracked.md
 out="$(bash "$DETECT" "$GITDIR/docs" 2>&1)"
 assert_contains "dir target in git repo: tracked file scanned via ls-files" "$out" "tracked.md"
 assert_contains "dir target in git repo: only the tracked file counts" "$out" "1 files scanned"
+
+# Path agreement. One directory has several SPELLINGS on Git Bash: git answers
+# the Windows form of the same checkout a shell reaches as "/tmp/...". An
+# expansion that derives its prefix from one source and its filter from another
+# drops every candidate wherever the two disagree, and the walk that backs it up
+# returns untracked markdown in place of the tracked listing. The
+# assertion is that the SPELLING of the target cannot change the answer. On a
+# host where the two forms already agree these two cases restate the one above,
+# which is the point: the invariant holds everywhere, and it is only observable
+# here.
+GITSPELL="$(git -C "$GITDIR/docs" rev-parse --show-toplevel)/docs"
+PWDSPELL="$(cd "$GITDIR/docs" && pwd)"
+
+out="$(bash "$DETECT" "$GITSPELL" 2>&1)"
+assert_contains "dir target, git spelling: only the tracked file counts" "$out" "1 files scanned"
+
+out="$(bash "$DETECT" "$PWDSPELL" 2>&1)"
+assert_contains "dir target, shell spelling: only the tracked file counts" "$out" "1 files scanned"
+
+# A trailing slash is the same directory and must expand identically; the
+# expansion builds paths by concatenation, so an unnormalized target would emit
+# a doubled separator and scan nothing.
+out="$(bash "$DETECT" "$GITDIR/docs/" 2>&1)"
+assert_contains "dir target with a trailing slash: only the tracked file counts" "$out" "1 files scanned"
+
+# Drive-root slash preservation is a string contract, not a host contract: the
+# suite does not need Windows. Source the production helper so this case cannot
+# drift from the function expand_dir_target actually calls.
+# shellcheck disable=SC1090
+source <(sed -n '/^normalize_dir_target()/,/^}/p' "$DETECT")
+assert_eq "ordinary trailing slash is stripped" "$(normalize_dir_target "docs/")" "docs"
+assert_eq "nested trailing slash is stripped" "$(normalize_dir_target "C:/tmp/")" "C:/tmp"
+assert_eq "unix root keeps its slash" "$(normalize_dir_target "/")" "/"
+assert_eq "windows drive root keeps its slash" "$(normalize_dir_target "C:/")" "C:/"
+assert_eq "lowercase windows drive root keeps its slash" "$(normalize_dir_target "d:/")" "d:/"
+assert_eq "windows drive-root backslash is unchanged" "$(normalize_dir_target "C:\\")" "C:\\"
+assert_eq "already-drive-relative spelling is left alone" "$(normalize_dir_target "C:")" "C:"
+assert_eq "ordinary path without a slash is unchanged" "$(normalize_dir_target "docs")" "docs"
+
+# The walk is reserved for a directory genuinely outside a checkout. A directory
+# INSIDE one that holds only untracked markdown expands to nothing rather than
+# falling through to a filesystem walk, which is what the documented
+# tracked-files-only contract means.
+mkdir -p "$GITDIR/untrackedonly"
+cat >"$GITDIR/untrackedonly/loose.md" <<EOF
+A loose em dash ${EM} here.
+EOF
+out="$(bash "$DETECT" "$GITDIR/untrackedonly" 2>&1)"
+assert_contains "dir target in git repo, no tracked markdown: expands to nothing" "$out" "0 files scanned"
 
 # --- Excerpt truncation at the byte boundary --------------------------------------
 
