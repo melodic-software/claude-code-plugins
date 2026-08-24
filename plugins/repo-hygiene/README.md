@@ -3,7 +3,7 @@
 A Claude Code plugin that returns a repository toward a known-good state.
 `/repo-hygiene:clean` is an action-router: it inventories reclaimable space,
 removes tool caches and build artifacts, prunes stale git metadata, and, as a
-deliberately-gated destructive tier. Realigns the working tree to a fresh-pull
+deliberately-gated destructive tier, realigns the working tree to a fresh-pull
 state. Every mutating path is **dry-run-first**, and the destructive tiers are
 gated behind explicit confirmation plus a session-scoped destructive-command
 guard.
