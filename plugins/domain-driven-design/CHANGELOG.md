@@ -3,6 +3,14 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Changed
+
+- **Instruction-surface punctuation.** Replaced em dashes in the plugin README
+  with periods. YAML frontmatter and the `plugin.json` description are
+  unchanged. No behavior change.
+
 ## [0.3.0]
 
 ### Removed
