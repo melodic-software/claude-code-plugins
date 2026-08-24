@@ -1,6 +1,6 @@
 ---
-description: "Execute an enforcement-surface audit's findings behind an explicit per-item human gate. Consumes the findings artifact `overengineering:audit` produced — it never scans or re-judges the surface itself — and for each finding the operator accepts drives interview → explore and research → plan → implement through presence-gated skill composition, executing every removal down the rollback ladder: config-disable first, observe for a window with a stated end date, delete last with a recorded rationale. Unproven items route to a bounded, time-boxed ablation batch; security-class items surface the capped verdict's evidence and wait for the human's own call; remediation owned by an upstream or a forge control plane becomes a delegation rather than a local patch. Use when: 'realign our enforcement surface', 'act on the audit findings', 'execute the overengineering findings', 'retire the automation we agreed to retire', 'disable this gate and observe it', 'start the ablation window', 'peel back these hooks', 'the audit says retire it, do it'. This is the only skill in this plugin that changes anything, and there is no blanket-approve path."
-argument-hint: "[finding-id ...] [layer ...] — default: every finding awaiting a decision, in the artifact's order"
+description: "Execute an enforcement-surface audit's findings behind an explicit per-item human gate. Consumes the findings artifact `overengineering:audit` produced. It never scans or re-judges the surface itself. For each finding the operator accepts, it drives interview → explore and research → plan → implement through presence-gated skill composition, executing every removal down the rollback ladder: config-disable first, observe for a window with a stated end date, delete last with a recorded rationale. Unproven items route to a bounded, time-boxed ablation batch; security-class items surface the capped verdict's evidence and wait for the human's own call; remediation owned by an upstream or a forge control plane becomes a delegation rather than a local patch. Use when: 'realign our enforcement surface', 'act on the audit findings', 'execute the overengineering findings', 'retire the automation we agreed to retire', 'disable this gate and observe it', 'start the ablation window', 'peel back these hooks', 'the audit says retire it, do it'. This is the only skill in this plugin that changes anything, and there is no blanket-approve path."
+argument-hint: "[finding-id ...] [layer ...]. Default: every finding awaiting a decision, in the artifact's order"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -16,7 +16,7 @@ metadata:
 
 ## Purpose
 
-Execute what an `overengineering:audit` run found — one finding at a time, with the operator
+Execute what an `overengineering:audit` run found, one finding at a time, with the operator
 deciding each one. This is the **only** mutating surface in this plugin, and the per-item gate below
 is the entire reason it is safe to point at a surface nobody has reviewed in a year.
 
@@ -35,7 +35,7 @@ the scrutiny method, and a paraphrase of either document inside a proposal is a 
 it is presented.** Say so in the run's opening line, then hold it literally:
 
 - **One finding, one acceptance.** Accepting finding A authorizes A's remediation and nothing
-  else — not its neighbours, not the rest of its layer, not the obvious next one.
+  else, not its neighbours, not the rest of its layer, not the obvious next one.
 - **Blanket approval is not the gate.** "Approve everything", "do whatever the audit says", and a
   standing authorization from earlier in the session are all declined, out loud, with an offer to
   walk the queue instead. A gate that a sentence can switch off was never a gate.
@@ -45,12 +45,12 @@ it is presented.** Say so in the run's opening line, then hold it literally:
   authorizes the config-disable, not the deletion three rungs later; rung 3 asks again, after the
   window.
 - **Change approval shows the exact change before making it.** The file and the line, the config key
-  and its new value, or the entry to be written — shown after the plan, approved before any write,
+  and its new value, or the entry to be written, shown after the plan, approved before any write,
   then executed as shown, nothing adjacent.
 - **No operator present means present and stop.** In a dispatched, scheduled, or background run
   nobody can accept anything, so realign presents the queue and stops: no status transitions,
   nothing written anywhere. An absent operator is silence for every item at once. There is no
-  unattended mode to pass — the audit takes that flag for its own intent disposition; realign has
+  unattended mode to pass, the audit takes that flag for its own intent disposition; realign has
   nothing it may do without the gate.
 
 **Both gates are required and neither substitutes for the other.** *Item acceptance* authorizes
@@ -61,13 +61,13 @@ An acceptance given earlier is not an approval of the edit that later falls out 
 
 1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
    or the sentinel `no branch ref (detached HEAD or no checkout)`. **The precompute is a convenience,
-   not the source of truth** — a worktree-isolated or dispatched executor may decline to inject it at
+   not the source of truth**. A worktree-isolated or dispatched executor may decline to inject it at
    all, so where the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read
    its exit status rather than assuming an identity. **`HEAD` is never accepted as a branch
    identity**, and neither is the sentinel. Where the sentinel appears, prefer a logical ref
    if the environment supplies one that names a branch, after the same normalize-then-validate
    steps `audit` uses (strip a leading `refs/heads/`, then `git check-ref-format --branch`,
-   refuse `.` / `..` segments); name where it came from. **Otherwise stop** — see "An unresolved
+   refuse `.` / `..` segments); name where it came from. **Otherwise stop**. See "An unresolved
    branch identity is its own refusal" below. With an identity in hand,
    resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`. A hardcoded path reads where the audit never
@@ -75,24 +75,24 @@ An acceptance given earlier is not an approval of the edit that later falls out 
 2. **No artifact → stop.** Report, visibly, that no findings artifact exists at the resolved home,
    name `overengineering:audit` as the skill that produces one, and name the home resolved so the
    operator can tell "never audited" from "resolved elsewhere". **Do not scan, judge, or remediate
-   anything on your own** — this skill has no evidence and no verdict of its own, so an improvised
+   anything on your own**. This skill has no evidence and no verdict of its own, so an improvised
    pass would put a mutation behind a gate with nothing behind it.
 3. **Refuse a mismatched `branch:`**, naming both; **refuse an artifact whose `branch:` is absent,
-   empty, or the literal `HEAD`**, naming which; and **refuse an unrecognized `schema:`** — each with
+   empty, or the literal `HEAD`**, naming which; and **refuse an unrecognized `schema:`**. Each with
    a visible message rather than guessing at the shape. The artifact's own frontmatter is what binds
    it to a branch; the directory it sits in is not evidence (the slug mapping is lossy). A `branch:`
-   that carries no identity is not a match to be evaluated — it is the absence of the thing the check
+   that carries no identity is not a match to be evaluated, it is the absence of the thing the check
    compares, so it takes the refusal branch and never the comparison.
 4. **Read the evidence-availability assessment that leads the artifact, and never recompute it.** It
    changes what UNPROVEN means for every finding below it, and re-deriving it here would make a
    second record that can disagree with the first.
 5. **A `Status` value outside the artifact's closed vocabulary** is reported and that finding is
-   skipped — soft degradation, never a guess about what an unknown state meant.
+   skipped, soft degradation, never a guess about what an unknown state meant.
 6. **Surface a verdict that moved under a carried-forward judgment before anything else, and never
    act on it.** An `ACCEPTED` finding now recomputed to `KEEP`, or a `REJECTED` one now recomputed
    to a retirement-direction verdict, means the evidence moved under a decision the operator already
    made. **Direction is not the only trigger:** surface it too where the recomputed verdict
-   materially changes *what the acceptance authorized* without flipping direction — an `ACCEPTED`
+   materially changes *what the acceptance authorized* without flipping direction, an `ACCEPTED`
    `DOWNGRADE` now recomputed to `CONSOLIDATE` authorizes a different act on a different artifact.
    Re-confirm the act before anything proceeds; the earlier yes was given to the old one.
 
@@ -102,7 +102,7 @@ Parse `$ARGUMENTS`. **Finding ids**, and **layer names** from the artifact's lay
 narrow the queue to exactly those findings. Anything else is a free-text hint that orders the queue
 and is reported rather than dropped when it matches nothing. No argument widens the queue, and none
 replaces the gate. Bare invocation presents every finding awaiting a decision, in the artifact's own
-order; a queue too long for one sitting is said to be, not rushed — the statuses persist, so
+order; a queue too long for one sitting is said to be, not rushed, the statuses persist, so
 stopping halfway is a normal end to a run.
 
 ## The queue
@@ -112,7 +112,7 @@ Present findings in the artifact's order and dispose of each by its current stat
 | Status | What this run does with it |
 |---|---|
 | `OPEN` | Present the verdict, its evidence, its cost, and the proposed rung; ask for a decision |
-| `ACCEPTED` | Remediation was authorized in an earlier run — re-confirm the rung about to execute, then continue |
+| `ACCEPTED` | Remediation was authorized in an earlier run, re-confirm the rung about to execute, then continue |
 | `REJECTED` · `REALIGNED` | Nothing. Report it as already decided; re-asking is the noise the judgment record exists to stop |
 | `DELEGATED-EXTERNAL` | Report the delegation pointer and its state. Nothing local, ever |
 | `ABLATION-PENDING` | Gate and execute the rung-1 disable, then move to `ABLATION-ACTIVE` |
@@ -124,23 +124,23 @@ Present findings in the artifact's order and dispose of each by its current stat
 
 Interview → explore and research → plan → implement. Each composes a sibling skill **when its plugin
 is installed** and runs the documented inline fallback when it is not. Check presence, take the
-fallback, and **say which one ran** — a silent skip is indistinguishable from a step that was never
+fallback, and **say which one ran**. A silent skip is indistinguishable from a step that was never
 needed. Record the presence answer on the finding. Every skill in the `Composition` column is
 invoked via the Skill tool.
 
 | Movement | Composition (presence-gated) | Inline fallback when absent |
 |---|---|---|
-| **Interview** — settle intent, constraints, and what "done" means for this item | `/planning:interview`, when the planning plugin is installed | Ask the same questions inline as one small numbered set, recommendation first. The questions are the substance; only the mechanics are lost |
-| **Explore** — what the mechanism touches, where it is wired, what depends on it | `/discovery:explore`, when the discovery plugin is installed | Read the artifact, its registration surface, and its call sites directly, and list the blast radius in the response before proposing anything |
-| **Research** — is the native or existing mechanism the rediscovery names real, and current | `/discovery:research`, when the discovery plugin is installed | Check the current official documentation of the proposed replacement yourself and record the check with its date (§5 requires the date, not the memory) |
-| **Plan** — the rung, the exact edit, the reversal, the observation window | `/planning:plan`, when the planning plugin is installed | Write the plan in the response — goal, rung, blast radius, how it is reversed — and get it approved before any edit |
-| **Implement** — make the change | `/implementation:implement`, when the implementation plugin is installed | Make the change directly against the approved plan, one rung at a time, stopping at the same gates |
+| **Interview**. Settle intent, constraints, and what "done" means for this item | `/planning:interview`, when the planning plugin is installed | Ask the same questions inline as one small numbered set, recommendation first. The questions are the substance; only the mechanics are lost |
+| **Explore**. What the mechanism touches, where it is wired, what depends on it | `/discovery:explore`, when the discovery plugin is installed | Read the artifact, its registration surface, and its call sites directly, and list the blast radius in the response before proposing anything |
+| **Research**. Is the native or existing mechanism the rediscovery names real, and current | `/discovery:research`, when the discovery plugin is installed | Check the current official documentation of the proposed replacement yourself and record the check with its date (§5 requires the date, not the memory) |
+| **Plan**. The rung, the exact edit, the reversal, the observation window | `/planning:plan`, when the planning plugin is installed | Write the plan in the response. Goal, rung, blast radius, how it is reversed, and get it approved before any edit |
+| **Implement**. Make the change | `/implementation:implement`, when the implementation plugin is installed | Make the change directly against the approved plan, one rung at a time, stopping at the same gates |
 
-Run the movements the finding actually needs — a one-key config disable with a settled intent needs
+Run the movements the finding actually needs, a one-key config disable with a settled intent needs
 no research pass. "Skipped research: the rediscovery names a mechanism already in this repo" is a
 judgment recorded; skipping it wordlessly is not.
 
-## Execution order — the rollback ladder
+## Execution order. The rollback ladder
 
 §11 governs, in order, and the finding records the rung reached:
 
@@ -149,77 +149,77 @@ judgment recorded; skipping it wordlessly is not.
    state explicit and confirm the disable took effect rather than assuming the edit was the effect.
 2. **Observe** for the consumer's configured window, with **its end date written on the finding**. A
    window with no end date is an abandonment wearing an experiment's clothes, and the date belongs
-   on a durable pointer too — the artifact can be gone before the date arrives.
+   on a durable pointer too, the artifact can be gone before the date arrives.
 3. **Delete, with the rationale recorded** in the change description: the evidence, the observation
    result, and what re-adds it. Preserve the re-add surface where one exists.
 
 **Withdrawal is a normal outcome, not a failure.** A window showing the mechanism load-bearing ends
 at rung 1 with it re-enabled and the finding closed as KEEP, carrying the evidence the window
-produced. Say so when proposing the ladder — it is what makes rung 1 cheap to accept.
+produced. Say so when proposing the ladder, it is what makes rung 1 cheap to accept.
 
-**When rung 1 is inapplicable** — nothing registered or wired to disable: a copy nothing reads, a
-claim in a document, a lane nothing requires — the presentation records *"rung 1 inapplicable —
+**When rung 1 is inapplicable.** Nothing registered or wired to disable: a copy nothing reads, a
+claim in a document, a lane nothing requires. The presentation records *"rung 1 inapplicable:
 `<reason>`"* rather than inventing a disable, and says why rung 2 is uninformative too (disabling
-what never fires produces no signal). A **reversible non-rung remediation** — correcting a false
-claim, registering the copy that should have been wired — is then a valid proposal, recorded as one
+what never fires produces no signal). A **reversible non-rung remediation**, correcting a false
+claim or registering the copy that should have been wired, is then a valid proposal, recorded as one
 under its own item acceptance. And where the only remaining act is **deletion**, the acceptance must
 name the deletion explicitly: the ladder's cheap first rung is not there to soften it (see the gotcha
-below — an accepted finding is not an accepted deletion).
+below, an accepted finding is not an accepted deletion).
 
 **CONSOLIDATE** ends in removing the **redundant copy** once the survivor is named. Where that copy
 is live the ladder applies unchanged: disable, observe under the survivor, delete. Where it is inert,
-rung 1 has nothing to disable and rung 2 nothing to observe — route it by the rule above, deletion
+rung 1 has nothing to disable and rung 2 nothing to observe, route it by the rule above, deletion
 named in the acceptance.
 
-## UNPROVEN findings — the ablation track
+## UNPROVEN findings. The ablation track
 
 An UNPROVEN verdict is not an authorization to disable. Route it to §8's track: take the head of the
 carry-cost ranking the audit recorded, propose **one bounded batch** an operator can actually attend
-to, name an owner per item (§12 — ownerless is not a terminal state), set one window with its end
+to, name an owner per item (§12, ownerless is not a terminal state), set one window with its end
 date, and record a durable pointer so the batch survives the artifact. Each item still passes the
-per-item gate individually. Items below the batch keep their ranking and wait for the next window —
-dozens of concurrent windows destroy attribution and re-check nothing — and protected and
+per-item gate individually. Items below the batch keep their ranking and wait for the next window.
+Dozens of concurrent windows destroy attribution and re-check nothing, and protected and
 intentionally-dormant items (§7) never enter a batch at all.
 
 ## Protected findings
 
 A `FLAG-FOR-HUMAN` finding is a question, not a task. Present the capped retirement-direction
 verdict it would otherwise have carried, the evidence in full, the protected class that matched, and
-the rule that matched it — then **stop and wait for the operator's own call**, on that item, in
+the rule that matched it, then **stop and wait for the operator's own call**, on that item, in
 their words. Never retire a protected mechanism on this skill's own reasoning, and never reach the
 same end by routing it into an ablation batch. Where the operator overturns the classification, that
 is their decision to record, and the consumer's tracked configuration is where it belongs.
 
-## Out-of-repo custody — delegate, never patch locally
+## Out-of-repo custody. Delegate, never patch locally
 
-Where the audit's custody read placed the artifact upstream — organization-level policy, a managed
-or synced copy, a shared workflow this repo only references, a forge control plane — §12 makes the
-remediation a **delegation**. Produce the delegation artifact — an upstream change request, an
+Where the audit's custody read placed the artifact upstream, organization-level policy, a managed
+or synced copy, a shared workflow this repo only references, a forge control plane, §12 makes the
+remediation a **delegation**. Produce the delegation artifact, an upstream change request, an
 administrator issue, or written instructions handed to the owner, carrying the finding's evidence
-and the proposed rung — and set the status to `DELEGATED-EXTERNAL` with its pointer. **Never edit
+and the proposed rung, and set the status to `DELEGATED-EXTERNAL` with its pointer. **Never edit
 the out-of-repo surface in place and never patch a managed copy locally**: the next sync reverts the
 patch and leaves a report claiming the work is done.
 
 ## Statuses this skill writes
 
 This skill is the artifact's only writer of `Status`, and it writes one only as the outcome it names
-actually happens — never ahead of the operator's yes. `ACCEPTED` on acceptance; `REJECTED` when the
+actually happens, never ahead of the operator's yes. `ACCEPTED` on acceptance; `REJECTED` when the
 operator judges the finding and keeps the mechanism; `REALIGNED` when the change has landed;
 `DELEGATED-EXTERNAL` with its pointer; the `ABLATION-*` states as a batch moves through its window.
 What each one means is the contract's, not this skill's. Leave every other field exactly as the
-audit computed it — rewriting a verdict here puts this skill's opinion into the audit's record.
+audit computed it, rewriting a verdict here puts this skill's opinion into the audit's record.
 
 ## The durable judgment record
 
 A `REJECTED` finding and an `ABLATION-CONCLUDED-KEEP` one are judgments worth more than the
 memory-tier artifact a branch switch or a reclaimed container loses. **Offer** to persist each as a
-suppression entry in the consuming repo's tracked `.claude/overengineering.md` — offered, not taken:
+suppression entry in the consuming repo's tracked `.claude/overengineering.md`, offered, not taken:
 
 - **Show the exact entry before writing it**, and write only on an explicit yes, under the same
   per-item gate that authorized the remediation.
 - **The `reason` is the operator's own words.** Ask for them. Audit prose recycled into that field
   is not a stated reason, and an entry nobody can review is an entry nobody can retire.
-- **The team-tracked layer, not a personal overlay** — a personal-layer entry does not suppress, so
+- **The team-tracked layer, not a personal overlay**. A personal-layer entry does not suppress, so
   writing one there would leave the operator believing a judgment is in effect when it is not.
 - Entry keys, the constituents-authoritative rule, and the layering are owned by
   `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`. A `REALIGNED` finding needs no entry: the
@@ -230,7 +230,7 @@ suppression entry in the consuming repo's tracked `.claude/overengineering.md` �
 The branch-match check in "Before anything" step 3 protects the one thing this skill cannot recover
 from: executing one ref's findings against a different ref's surface. That check is only as good as
 the two identities it compares, and `git rev-parse --abbrev-ref HEAD` answers the literal string
-`HEAD` on a detached checkout — which compares equal to itself, so a `HEAD`-to-`HEAD` comparison
+`HEAD` on a detached checkout, which compares equal to itself, so a `HEAD`-to-`HEAD` comparison
 passes by construction and authorizes mutations from an artifact that may describe another ref
 entirely. Scheduled and dispatched runners commonly check out detached, so this is an ordinary
 condition, not an exotic one. The precompute therefore uses `git symbolic-ref`, which fails rather
@@ -238,18 +238,18 @@ than inventing a name, matching the `audit` and `delta` lanes.
 
 **Two distinct unresolved states both refuse, and neither may reach the comparison:**
 
-- **This checkout has no branch identity** — the precompute yielded the sentinel and no logical ref
+- **This checkout has no branch identity**. The precompute yielded the sentinel and no logical ref
   was supplied. Stop before reading the artifact. Say so plainly: *"Detached checkout, no logical ref
   supplied; no branch identity, so the artifact's branch cannot be verified and nothing will be
   executed."* Nothing is presented as a queue, no status transitions, nothing written anywhere.
-- **The artifact carries no branch identity** — its `branch:` is absent, empty, or the literal
+- **The artifact carries no branch identity**. Its `branch:` is absent, empty, or the literal
   `HEAD`. Refuse it by name, and say that `overengineering:audit` declines to write an artifact
   without an identity, so one carrying `HEAD` was produced by an older audit or by something other
   than this plugin. Do not repair the field, and do not fall back to the directory it sits in: the
   slug mapping is lossy, so the home is not evidence of which ref the findings describe.
 
 Refusing costs a re-run on an attached checkout. Passing costs a mutation nobody can attribute to a
-surface — and this is the only skill in the plugin that mutates anything, so the asymmetry is not
+surface, and this is the only skill in the plugin that mutates anything, so the asymmetry is not
 close. **Never fall back to `HEAD`, to the commit sha, or to the home's slug to manufacture the
 missing side of the comparison.**
 
@@ -257,17 +257,17 @@ missing side of the comparison.**
 
 - **`HEAD` is not a branch name.** A detached checkout makes `rev-parse --abbrev-ref` answer `HEAD`,
   which compares equal to itself and slips a cross-ref artifact through the branch-match refusal.
-  An unresolved identity — on either side of that check — refuses; it never compares.
+  An unresolved identity, on either side of that check, refuses; it never compares.
 - **An accepted finding is not an accepted deletion.** Acceptance authorizes the rung on the table
   at that moment; carrying it to rung 3 is how a reversible change becomes an irreversible one that
   nobody agreed to.
 - **Disable the copy the runtime actually reads.** Where a guard exists in both a local and a
-  packaged form, disabling the inert copy changes nothing and reports as done — confirm which one
+  packaged form, disabling the inert copy changes nothing and reports as done, confirm which one
   the live configuration registers first.
 - **Do not touch what the finding is not about.** A formatting fix, a stale comment, or an obvious
   adjacent tidy inside the same file is outside the acceptance that was given.
 - **A finding you realigned vanishes from the next audit.** Its artifact is gone, so the re-run
-  records it under closed-since-last-run instead — the contract working, not a loss.
+  records it under closed-since-last-run instead, the contract working, not a loss.
 - **Never argue a quality-enabling practice onto the ladder** (§10). Tests, review, type checking,
   and the build are outside this method, and so is the record-keeping that makes the evidence tiers
-  readable at all — retiring it would make the next audit weaker than this one.
+  readable at all, retiring it would make the next audit weaker than this one.
