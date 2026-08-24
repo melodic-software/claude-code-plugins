@@ -5,12 +5,13 @@
       "id": 1,
       "name": "default-check-is-read-only-and-reports-timeouts",
       "prompt": "/computer-use:setup",
-      "expected_output": "Runs the check-only preflight: determines the surface, confirms computer-use tools via list_granted_applications, probes screensaver, display-sleep, and lock timeouts, and reports a PASS/FAIL/INFO table with one remediation line each. Does not write system settings and does not call request_access.",
+      "expected_output": "Runs the check-only preflight: determines the surface, confirms computer-use tools via list_granted_applications, probes screensaver timeout and lock-on-resume, display-off timeout, and sleep timeout, and reports a PASS/FAIL/INFO table with one remediation line each. Does not write system settings and does not call request_access.",
       "files": [],
       "expectations": [
         "Treats bare invocation as check, the only action",
         "Calls list_granted_applications rather than request_access",
-        "Reports screensaver, display-sleep, and lock timeouts as independent settings",
+        "Reports screensaver timeout and lock-on-resume, display-off timeout, and sleep timeout as independent settings",
+        "Does NOT treat lock-on-resume as a substitute for the sleep timeout",
         "Does NOT change power, screensaver, or lock settings"
       ]
     },
