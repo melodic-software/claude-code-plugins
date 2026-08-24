@@ -139,6 +139,6 @@ under `.claude/ai-briefing/[<profile>/]` in the consumer repository.
 
 ## References
 
-- `references/audience-defaults.md` — default ranking lens and profile overlay.
-- `references/build-pipeline.md` — deterministic HTML/PDF/PPTX generation and validation.
-- `references/slide-generation.md` — slide structure and optional build prerequisites.
+- `references/audience-defaults.md`. Default ranking lens and profile overlay.
+- `references/build-pipeline.md`. Deterministic HTML/PDF/PPTX generation and validation.
+- `references/slide-generation.md`. Slide structure and optional build prerequisites.

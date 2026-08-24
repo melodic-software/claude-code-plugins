@@ -25,8 +25,8 @@ and presents the result as markdown or an optional HTML/PPTX deck.
 
 The presentation pipeline follows Playwright's current supported environment matrix
 (verified 2026-07-18 against
-[Playwright system requirements](https://playwright.dev/docs/intro#system-requirements) —
-re-check that page before installing, the matrix moves with Playwright releases):
+[Playwright system requirements](https://playwright.dev/docs/intro#system-requirements).
+Re-check that page before installing. The matrix moves with Playwright releases):
 
 - the latest Node.js 22.x, 24.x, or 26.x release, with npm;
 - Windows 11+ or Windows Server 2019+;
@@ -38,7 +38,7 @@ Setup preflights Node, npm, and the OS family. On Linux, Playwright's documented
 Unsupported or missing prerequisites are reported before the existing runtime is changed.
 
 The `setup apply install-build-deps` install step is a POSIX-shell script: it requires
-Bash — on native Windows that is Git Bash (its platform gate accepts
+Bash. On native Windows that is Git Bash (its platform gate accepts
 `MINGW*`/`MSYS*`/`CYGWIN*`; install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)).
 The build pipeline itself is portable Node and has no shell requirement.
@@ -80,6 +80,7 @@ Machine-local state and generated artifacts live under `${CLAUDE_PLUGIN_DATA}`, 
 profile. Tracked source, audience, and brand configuration always stays in the consumer
 repository.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -152,3 +153,4 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
