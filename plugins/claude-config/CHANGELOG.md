@@ -3,6 +3,40 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.1]
+
+### Fixed
+
+- **`audit-instructions` `emit-findings.sh` declined every relative scan-row path, dropping
+  the findings its own scanner produces (#3267).** `instruction-scan.sh` echoes the path it
+  was handed, so naming a repo-owned file relatively — the ordinary invocation, and the form
+  `SKILL.md` documents — puts a relative path on the row. `relativize_in_repo()` tested that
+  path against three absolute anchors and returned empty when none prefixed it, so the row was
+  counted as `outside-repo-root` and never reached the machine-readable relay. The stated
+  decline reason was the opposite of the truth for those rows, and the run still read as clean:
+  an audit that silently under-reports is indistinguishable from one that found nothing.
+  A path that is not absolute is now resolved against the calling directory — the same
+  directory `fm_end()`, `source_line()` and `quotes_trigger()` already read the file from, so
+  the Location can no longer name a file other than the one the row quotes — and then passes
+  the unchanged fail-closed fence. The `docs-hygiene:audit-noise` sibling joins to the repo
+  root instead, which is right there because its detector emits paths already relative to that
+  root; the two producers now agree on behavior rather than on anchor.
+- **The same fence admitted a traversing Location.** Its anchor tests are lexical, so
+  `<root>/../outside.md` prefix-matched the root while resolving outside it and relativized to
+  `../outside.md`, which the fix pass would then resolve outside the working tree. Admitting
+  relative paths is what makes traversal expressible, so both forms are refused in the same
+  change: any path holding a `..` segment is declined outright and counted, never dropped
+  silently. The segment test covers both `/` and `\` separators — `is_absolute` already
+  treats a backslash as a root/separator, so a slash-only `..` regex would admit
+  `..\outside.md` on Git Bash and emit a traversing Location. The two delimiter
+  spellings are separate regexes, not a bracket class holding both, because the runner
+  awk is mawk. A Location cell now goes through the same pipe-escape as Finding and
+  Action, so a newly admitted relative filename that contains `|` cannot split the row.
+  A symlink inside the repository pointing outside it still resolves past the test,
+  which needs a canonicalizing syscall awk has no portable access to; that residual is
+  recorded in the fence rather than implied. Absoluteness is tested with `substr` rather
+  than a bracket expression holding both delimiters.
+
 ## [0.40.0]
 
 ### Added

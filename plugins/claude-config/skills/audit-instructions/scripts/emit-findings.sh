@@ -154,9 +154,15 @@ DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # sub-path git reports for it. The git-reported forms stay as fallbacks.
 # (The ai-slop sibling fails OPEN on the same mismatch — Location stays
 # absolute and nothing reports it.)
+#
+# A scan row may also carry a path that is not absolute at all:
+# instruction-scan.sh echoes the caller's own argument, and naming a repo-owned
+# file relatively is the ordinary invocation. Such a path is resolved against
+# CALLER_PWD, the same directory the awk body reads the file from.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 REPO_ROOT_ALT=""
 REPO_ROOT_PWD=""
+CALLER_PWD="$(pwd)"
 if [[ -n "$REPO_ROOT" ]]; then
   REPO_ROOT_ALT="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || REPO_ROOT_ALT=""
   [[ "$REPO_ROOT_ALT" == "$REPO_ROOT" ]] && REPO_ROOT_ALT=""
@@ -178,7 +184,8 @@ fi
 
 LC_ALL=C awk \
   -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" \
-  -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" -v carveout="$CARVEOUT" '
+  -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" \
+  -v caller_pwd="$CALLER_PWD" -v carveout="$CARVEOUT" '
   function rule_id(id) {
     if (id == "I28-a") return "claude-config/audit-instructions/rule-coercive-emphasis"
     if (id == "I28-b") return "claude-config/audit-instructions/rule-blanket-tool-default"
@@ -233,10 +240,70 @@ LC_ALL=C awk \
     return out
   }
 
+  # is_absolute(p): true for every absolute spelling that can reach an anchor.
+  # A POSIX `/`-rooted path, a UNC or root-relative backslash path, and a
+  # drive-letter path — the last being exactly what `git rev-parse
+  # --show-toplevel` answers under Git Bash, so it is the form the anchors
+  # themselves are written in. Testing only the leading `/` would read
+  # `D:/repo/doc.md` as relative and join it to the calling directory,
+  # declining a row that relativizes correctly today.
+  #
+  # Written with substr rather than a bracket expression holding `/` and `\`:
+  # the runner awk is mawk (see the 0.39.3 changelog entry), and an unescaped
+  # delimiter inside a bracketed regex literal is where the dialects part.
+  function is_absolute(p,   c1) {
+    c1 = substr(p, 1, 1)
+    if (c1 == "/" || c1 == "\\") return 1
+    if (c1 !~ /^[A-Za-z]$/) return 0
+    if (substr(p, 2, 1) != ":") return 0
+    return (substr(p, 3, 1) == "/" || substr(p, 3, 1) == "\\")
+  }
+
   # Prefer the caller pwd spelling, then git toplevel, then cd-then-pwd.
   # Empty return means the path is not under any known spelling of the root
   # (fail closed — this producer pre-fix mode on a spelling mismatch).
+  #
+  # A path that is NOT absolute is resolved against the calling directory,
+  # because that is the directory this script already read the file from:
+  # fm_end(), source_line(), and quotes_trigger() each getline the path as
+  # written, so by the time control reaches here the excerpt in hand came out of
+  # caller_pwd/p. Anchoring the Location anywhere else would have the row name a
+  # different file than the one it quotes — a silent corruption in place of a
+  # silent drop. (The docs-hygiene sibling joins to the repo root instead, and is
+  # right to: its detector emits paths already relative to that root, where
+  # instruction-scan.sh echoes the argument it was handed, verbatim.)
+  #
+  # The anchor tests are LEXICAL, so a `..` segment defeats them:
+  # `<root>/../outside.md` starts with `<root>/` while resolving outside the
+  # repository, and would enter the relay carrying a traversing Location for the
+  # fix pass to resolve outside the working tree. Any path holding a `..`
+  # segment is refused outright — fail closed, the direction this fence exists
+  # to hold. Residual, recorded rather than implied: a symlink inside the
+  # repository pointing outside it still resolves past this test, which needs a
+  # canonicalizing syscall awk has no portable access to.
+  #
+  # `is_absolute` already treats `\` as a separator (Git Bash / Windows). A
+  # slash-only `..` test would admit `..\outside.md`: joined as
+  # `<pwd>/..\outside.md`, the `..` is followed by `\` rather than `/` or
+  # end-of-string, the prefix check still succeeds, and Location becomes a
+  # traversing spelling. Separate regexes, not a bracket class holding both
+  # delimiters: the runner awk is mawk.
+  function has_dotdot_segment(p) {
+    if (p ~ /(^|\/)\.\.(\/|$)/) return 1
+    if (p ~ /(^|\\)\.\.(\\|$)/) return 1
+    if (p ~ /\/\.\.\\/) return 1
+    if (p ~ /\\\.\.\//) return 1
+    return 0
+  }
+
   function relativize_in_repo(p) {
+    if (!is_absolute(p)) {
+      sub(/^\.\//, "", p)
+      sub(/^\.\\/, "", p)
+      p = caller_pwd "/" p
+    }
+    gsub(/\/\.\//, "/", p)
+    if (has_dotdot_segment(p)) return ""
     if (repo_root_pwd != "" && index(p, repo_root_pwd "/") == 1)
       return substr(p, length(repo_root_pwd) + 2)
     if (repo_root != "" && index(p, repo_root "/") == 1)
@@ -387,7 +454,7 @@ LC_ALL=C awk \
     excerpt = trim(text)
     if (length(excerpt) > 160) excerpt = substr(excerpt, 1, 157) "..."
 
-    rows[++nemit] = "| " rule_tier(id) " | high | " loc ":" lno " | claude-config:audit-instructions | " \
+    rows[++nemit] = "| " rule_tier(id) " | high | " esc(loc) ":" lno " | claude-config:audit-instructions | " \
       esc(rid " " fired_marker(id, text) " -- " excerpt) " | " esc(rule_action(id)) " |"
     seen[id]++
     next
