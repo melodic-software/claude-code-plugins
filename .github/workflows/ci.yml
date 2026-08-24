@@ -95,12 +95,14 @@ jobs:
   # inputs (.github/workflows/** and the named manifests) that a diff confined
   # to the docs-only allowlist (scripts/docs-only-paths.txt) cannot touch, so
   # on such a diff they report an honest evaluated-and-not-applicable success.
-  # ShellCheck, exec-bit, and hook-wiring-liveness are NOT
+  # ShellCheck, exec-bit, hook-wiring-liveness, and purged-em-dashes are NOT
   # gated: ShellCheck lints every tracked *.sh/*.bash, exec-bit flags every
-  # tracked shebang file recorded 100644, and hook-wiring-liveness greps
-  # .claude/hooks/*.sh against settings.json — a shell/shebang/hook file added
+  # tracked shebang file recorded 100644, hook-wiring-liveness greps
+  # .claude/hooks/*.sh against settings.json, and purged-em-dashes reads the
+  # markdown prose a docs-only diff is made of — a shell/shebang/hook file added
   # under an otherwise docs-only prefix like docs/topics/ is real input they
-  # must still catch — gating them would open a fail-closed hole. The job NEVER skips — only
+  # must still catch, and so is a docs-only diff that reintroduces an em dash on
+  # a surface already declared purged. The job NEVER skips — only
   # the path-scoped steps are gated, on `needs.scope.outputs.run_full` from the
   # `scope` lane, which resolves the diff once for the whole workflow and
   # carries the self-test and fail-closed guarantees (see that job). The gated
@@ -288,9 +290,9 @@ jobs:
       # Deliberately UNCONDITIONAL, like the other whole-repo scanners. This
       # gate reads markdown prose, which is exactly what a docs-only diff
       # changes, so gating it on run_full would disable it on precisely the pull
-      # requests most able to trip it. That is a fail-closed hole rather than an
-      # honest not-applicable. The self-test runs first and ungated so a broken
-      # gate cannot mask a regression.
+      # requests most able to trip it. A regression would then reach main under
+      # a green check rather than an honest not-applicable. The self-test runs
+      # first and ungated so a broken gate cannot mask a regression.
       - name: Test the purged-em-dash gate
         run: bash scripts/check-purged-em-dashes.test.sh
       - name: Check purged surfaces stayed free of em dashes
@@ -300,7 +302,7 @@ jobs:
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: needs.scope.outputs.run_full == 'false'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck, exec-bit, and hook-wiring-liveness scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck, exec-bit, hook-wiring-liveness, and purged-em-dashes scan the whole repo and stay unconditional."
 
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test

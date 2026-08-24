@@ -67,9 +67,10 @@
 # throwaway config ever stopped taking effect, rule-em-dash would be disabled,
 # the detector would report no em-dash findings, and this gate would pass
 # everything forever. So the run is only believed when the detector's own summary
-# line for rule-em-dash is present AND reports disabled=0, and when the file
-# count it says it handled matches the count handed to it. Any other shape is
-# exit 2.
+# line for rule-em-dash is present AND reports disabled=0, and when the files it
+# accounts for are exactly the files handed to it. Any other shape is exit 2.
+# That second count is derived rather than added up from the two summary
+# totals, which overlap; see the comment above the arithmetic.
 #
 # Test injection, all defaulting to this repository:
 #   EM_DASH_PURGED_ROOT      repository root to scan
@@ -141,6 +142,10 @@ trap 'rm -rf "$TMP"' EXIT
 FILES="$TMP/files.txt"
 : >"$FILES"
 stale=0
+# Initialized here rather than only where it is computed: the verdict section
+# reads it, this script runs under `set -u`, and a future early return between
+# the two would turn a clean run into an unbound-variable crash.
+excluded=0
 for glob in "${GLOBS[@]}"; do
   matched="$(git ls-files -z -- ":(glob)$glob" | tr '\0' '\n' | sed '/^$/d')"
   count=0
@@ -165,6 +170,16 @@ fi
 if ((EXPECTED == 0)); then
   echo "check-purged-em-dashes: allowlist expanded to zero files" >&2
   exit 2
+fi
+
+# --list stops here, and stopping here is the point. The allowlist header tells
+# a reader to audit the declaration by expanding it with --list and grepping the
+# named files, WITHOUT running the detector. Falling through to the detector run
+# would make that audit cost the same minutes as a full check and would report a
+# check verdict under a listing flag.
+if [[ "$MODE" == list ]]; then
+  printf 'check-purged-em-dashes: %s declared paths, %s files.\n' "${#GLOBS[@]}" "$EXPECTED"
+  exit 0
 fi
 
 # --- Throwaway detector config ----------------------------------------------
@@ -200,12 +215,21 @@ if [[ "$summary" != *" disabled=0"* ]]; then
   exit 2
 fi
 
-scanned="$(sed -n 's/^Summary total: [0-9]* findings across \([0-9]*\) files scanned (\([0-9]*\) files declined)$/\1 \2/p' "$OUT")"
+# The detector's two counters OVERLAP, and reading them as disjoint is how this
+# assertion misfires. "files scanned" counts every file the detector opened,
+# which includes one it opened and then declined on an in-file marker; that file
+# is counted a second time under "files declined". Only a file excluded by a
+# config glob is never opened, so only that cause is missing from the scanned
+# count. Unique files handled is therefore the scanned count plus the
+# excluded-glob declines alone, and the detector names the cause on every
+# decline row, so the gate reads those rather than inferring them.
+scanned="$(sed -n 's/^Summary total: [0-9]* findings across \([0-9]*\) files scanned ([0-9]* files declined)$/\1/p' "$OUT")"
 if [[ -z "$scanned" ]]; then
   echo "check-purged-em-dashes: detector emitted no total summary; cannot confirm coverage" >&2
   exit 2
 fi
-handled=$(($(echo "$scanned" | cut -d' ' -f1) + $(echo "$scanned" | cut -d' ' -f2)))
+excluded="$(grep -c '^Declined: file=.* cause=excluded-glob$' "$OUT" || true)"
+handled=$((scanned + excluded))
 if ((handled != EXPECTED)); then
   echo "check-purged-em-dashes: detector handled $handled files but $EXPECTED were declared; coverage is not what the allowlist claims" >&2
   exit 2
@@ -213,9 +237,19 @@ fi
 
 # --- Verdict ----------------------------------------------------------------
 
+# A declared path that the tracked config excludes is reported rather than
+# folded into the clean count. Such a path is inside the allowlist and outside
+# enforcement at the same time, which is the one way this gate can be green over
+# a surface it is checking nothing on, and a silent count would hide it.
+if ((excluded > 0)); then
+  echo "check-purged-em-dashes: $excluded declared file(s) are excluded by $SLOP_CONFIG and were NOT checked:" >&2
+  sed -n 's/^Declined: file=\([^ ]*\) cause=excluded-glob$/  \1/p' "$OUT" >&2
+  echo "check-purged-em-dashes: remove them from $ALLOWLIST or from the config's excluded_paths; declaring a path the detector never reads enforces nothing" >&2
+fi
+
 findings="$(grep '^Finding: rule=ai-slop/audit/rule-em-dash ' "$OUT")"
 if [[ -z "$findings" ]]; then
-  printf 'check-purged-em-dashes: %s declared paths, %s files, no em dashes.\n' "${#GLOBS[@]}" "$EXPECTED"
+  printf 'check-purged-em-dashes: %s declared paths, %s files scanned, no em dashes.\n' "${#GLOBS[@]}" "$scanned"
   exit 0
 fi
 

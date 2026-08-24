@@ -87,6 +87,25 @@ printf '%s\n' \
 
 write "other/unlisted.md" "Not on the allowlist ${EM} so not this gate's business."
 
+# A file the detector opens and then declines on an in-file marker. The detector
+# counts such a file BOTH as scanned and as declined, so a gate that adds those
+# two totals sees one file too many and reports a coverage mismatch on a file the
+# allowlist legitimately names. The marker is documented as an exemption, so it
+# has to be usable from an allowlisted path.
+printf '%s\n' \
+  '<!-- ai-slop-ignore-file -->' \
+  '' \
+  "Wholly declined text ${EM} not this gate's business either." \
+  >"$REPO/surface/marked.md"
+
+# The gate's sibling accounting path, an excluded_paths glob, is deliberately
+# NOT exercised here. detect.sh reads that array through a jq call whose output
+# carries CRLF under the Windows build of jq, so every element arrives with a
+# trailing carriage return and matches nothing; a case asserting the exclusion
+# took effect would pass on the Linux runner and fail on a Windows workstation.
+# That is a defect in the detector's own config reader rather than in this gate,
+# and pinning it from here would only make this suite platform-dependent.
+
 list() {
   local name="$1"
   shift
@@ -94,6 +113,7 @@ list() {
 }
 
 list "only-clean" 'surface/clean.md'
+list "marked" 'surface/clean.md' 'surface/marked.md'
 list "clean-and-data" 'surface/clean.md' 'surface/data.md'
 list "with-dirty" 'surface/clean.md' 'surface/dirty.md'
 list "globbed" 'surface/*.md'
@@ -120,8 +140,12 @@ else
 fi
 # An unlisted file is unenforced: that is the allowlist's defining property, and
 # asserting it here is what stops a later "just scan everything" edit from
-# passing this suite.
-if [[ "$clean_out" != *"unlisted.md"* ]]; then
+# passing this suite. Asserting the file is merely ABSENT from the output does
+# not pin that, because a clean run prints one summary line and names nothing;
+# the scanned count is what distinguishes "one file was checked" from "the whole
+# fixture was checked and happened to be clean apart from the listed one".
+if [[ "$clean_out" != *"unlisted.md"* ]] &&
+  [[ "$clean_out" == *"1 declared paths, 1 files scanned"* ]]; then
   ok "a file outside the allowlist is not scanned"
 else
   fail "a file outside the allowlist is not scanned: $clean_out"
@@ -158,6 +182,18 @@ if ((RC == 0)); then
   ok "em dashes in a code fence and an ignore-marked line do not fire"
 else
   fail "em dashes in a code fence and an ignore-marked line do not fire (rc=$RC): $OUT"
+fi
+
+# A whole-file ignore marker is one of the exemptions this gate documents, so an
+# allowlisted path is allowed to carry one. The detector counts such a file both
+# as scanned and as declined, and a gate that reads those two totals as disjoint
+# concludes it was handed one file too many and refuses the run at exit 2 —
+# green surfaces reported broken because of an exemption they were promised.
+run "$REPO" "marked.txt"
+if ((RC == 0)); then
+  ok "a whole-file ignore marker does not break the coverage assertion"
+else
+  fail "a whole-file ignore marker does not break the coverage assertion (rc=$RC): $OUT"
 fi
 
 run "$REPO" "globbed.txt"
@@ -200,6 +236,16 @@ if ((RC == 0)) && [[ "$OUT" == *"surface/clean.md"* ]]; then
   ok "--list reports each declared entry"
 else
   fail "--list reports each declared entry (rc=$RC): $OUT"
+fi
+# --list is the cheap audit the allowlist header sends a reader to, so it must
+# stop at the expansion. Pointed at the seeded violation it still lists rather
+# than judging: no detector verdict in the output, and exit 0 for a listing that
+# expanded cleanly even though a check of the same allowlist would exit 1.
+run "$REPO" "with-dirty.txt" --list
+if ((RC == 0)) && [[ "$OUT" != *"no em dashes"* ]] && [[ "$OUT" != *"em-dash line(s)"* ]]; then
+  ok "--list expands the allowlist without running the detector"
+else
+  fail "--list expands the allowlist without running the detector (rc=$RC): $OUT"
 fi
 
 run "$REPO" "only-clean.txt" --bogus
