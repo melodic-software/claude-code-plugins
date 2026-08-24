@@ -3,6 +3,17 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Changed
+
+- **Instruction-surface de-slop (#2891, mcp-tools cluster).** Rewrote this plugin's `README.md` and every
+  `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
+  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
+  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
+  and the sentence break change. Official page titles in the three authority links keep
+  their em dashes so the cited titles stay verbatim.
+
 ## [0.3.1]
 
 ### Changed
