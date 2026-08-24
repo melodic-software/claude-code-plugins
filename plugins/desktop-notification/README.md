@@ -3,7 +3,7 @@
 A Claude Code plugin that alerts you the moment Claude needs your input. On a
 `permission_prompt` or `idle_prompt` notification it emits up to three additive,
 independently-toggleable channels: an audible terminal bell, an OSC 9 terminal
-notification, and — on macOS and Linux — an OS-native desktop toast.
+notification, and, on macOS and Linux, an OS-native desktop toast.
 
 ## Behavior
 
@@ -27,9 +27,9 @@ channel semantics per the [hooks reference](https://code.claude.com/docs/en/hook
 
 | OS | Tool | Requirement |
 |---|---|---|
-| macOS | [`osascript … display notification`](https://code-maven.com/display-notification-from-the-mac-command-line) | Built-in — no dependency. First run prompts to allow notifications for the terminal app. |
+| macOS | [`osascript … display notification`](https://code-maven.com/display-notification-from-the-mac-command-line) | Built-in. No dependency. First run prompts to allow notifications for the terminal app. |
 | Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en) (libnotify) | Install `libnotify-bin` (Debian/Ubuntu) or `libnotify` (Fedora). Absent → the `os_toast` channel is a silent no-op. |
-| Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention — [Windows Terminal handles OSC 9](https://code.claude.com/docs/en/hooks). |
+| Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention. [Windows Terminal handles OSC 9](https://code.claude.com/docs/en/hooks). |
 
 The OS toast body includes the current git branch when the project is a git
 repository (e.g. `Waiting for your input — feat/my-branch`); outside a repo it is
@@ -37,9 +37,9 @@ just the message.
 
 ## Requirements
 
-The hook runs on Bash 3.2+ (Git Bash on native Windows — install
-[Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
-needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
+The hook runs on Bash 3.2+. On native Windows, install
+[Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so Git Bash is
+available. It needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
 are disabled with a visible once-per-session notice. macOS needs nothing
 further; Linux needs `libnotify` only for the `os_toast` channel; Windows needs
 nothing (terminal channels only). Telemetry
@@ -85,10 +85,11 @@ desktop-notification@<marketplace>` or `--config desktop_notification_enabled=fa
 ## Telemetry (opt-in)
 
 When the consumer sets `HOOK_TELEMETRY_SINK` to an executable, the hook emits one
-[telemetry envelope](../../docs/conventions/hook-telemetry/README.md) per run —
+[telemetry envelope](../../docs/conventions/hook-telemetry/README.md) per run.
 `hook: "desktop-notification"`, `hook_event: "Notification"`, and a `data` payload
 of `notification_type` plus the `channels` that fired. Unset → exact no-op.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -164,6 +165,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
