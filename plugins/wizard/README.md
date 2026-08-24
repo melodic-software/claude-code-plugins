@@ -1,6 +1,6 @@
 # wizard
 
-A Claude Code plugin that generates **interactive bash wizards** — scripts that
+A Claude Code plugin that generates **interactive bash wizards**, scripts that
 walk a human, step by step, through the manual procedures an agent cannot
 perform: provisioning infrastructure or credentials, setting CI secrets,
 clicking through an unfamiliar third-party dashboard, or sequencing a one-off
@@ -12,8 +12,8 @@ and confirms at every stage.
 |---|---|
 | `/wizard:generate` | Scope the manual procedure from the repo, author its stages onto the fixed hardened template, verify statically, and hand off to the human after explicit approval |
 
-The skill is model-invoked: when the agent hits a step only a human can take —
-a key it can't mint, a dashboard it can't click — it can reach for this instead
+The skill is model-invoked: when the agent hits a step only a human can take,
+a key it can't mint, a dashboard it can't click, it can reach for this instead
 of dumping numbered instructions into the chat. It is fenced the other way too:
 it never fires for steps the agent can perform itself.
 
@@ -45,9 +45,9 @@ it never fires for steps the agent can perform itself.
 
 ## Prerequisites
 
-- **bash** — to run the generated script. On Windows the supported path is Git
+- **bash**, to run the generated script. On Windows the supported path is Git
   Bash or WSL. (Generating a wizard needs nothing beyond the agent itself.)
-- **`gh` (GitHub CLI), optional** — only for stages that write GitHub Actions
+- **`gh` (GitHub CLI), optional**. Only for stages that write GitHub Actions
   secrets or variables. When `gh` is missing or unauthenticated those stages
   warn visibly and land in the closing to-do summary instead of failing the
   run. Wizards whose values live only in `.env` never touch `gh`.
@@ -56,14 +56,14 @@ it never fires for steps the agent can perform itself.
 
 A wizard is built for one run: save it to a scratch or `scripts/` path, run it,
 delete it. Commit it only when it is a repeatable setup path the next person on
-the repo will also need — then link it from the README so they run the script
+the repo will also need. Then link it from the README so they run the script
 instead of re-asking an agent.
 
 ## Setup skill assessment
 
 This plugin ships no `setup` skill, per the philosophy's criteria: it has (a) no
 consumer-project configuration surface, (b) no external prerequisite for its own
-operation — `bash` and `gh` are prerequisites of the *generated artifact's run*,
+operation. `bash` and `gh` are prerequisites of the *generated artifact's run*,
 declared above and at the point of use in the generated script itself, which
-degrades visibly when `gh` is absent — and (c) no `userConfig` at all. Setup
+degrades visibly when `gh` is absent, and (c) no `userConfig` at all. Setup
 would be blanket ceremony with nothing to check or apply.
