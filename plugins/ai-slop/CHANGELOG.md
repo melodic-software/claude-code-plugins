@@ -17,7 +17,11 @@
   rather than from an empty pipeline, so a filesystem walk is only ever
   the answer for a directory genuinely outside a checkout; inside one, a
   listing that fails reports on stderr instead of degrading into a
-  different set of files.
+  different set of files. A Windows drive-root target such as `C:/` keeps
+  its trailing slash: stripping it produced `C:`, which Windows treats as
+  drive-relative (the cwd on that drive), so `git -C` / `find` can scan
+  the wrong tree or nothing. Ordinary directory targets still lose one
+  trailing slash.
 
 ## [0.3.7]
 

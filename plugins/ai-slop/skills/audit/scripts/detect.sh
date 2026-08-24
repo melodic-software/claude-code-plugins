@@ -274,9 +274,24 @@ fi
 # empty pipeline, so a walk is only ever the answer for a directory that is
 # genuinely outside a checkout. Inside one, a listing that fails says so on
 # stderr rather than degrading into a different set of files.
+#
+# Strip one trailing slash, except when that would turn a Windows drive root
+# (`C:/`) into a drive-relative path (`C:`). Windows then treats the target as
+# "cwd on that drive", so git -C / find can scan the wrong tree or nothing.
+# Unix root `/` is the same class: stripping leaves empty, so the original
+# spelling is kept. `C:\` is unchanged because this strip only removes `/`.
+normalize_dir_target() {
+  local dir="${1%/}"
+  if [[ -z "$dir" || "$dir" == [A-Za-z]: ]]; then
+    printf '%s\n' "$1"
+    return 0
+  fi
+  printf '%s\n' "$dir"
+}
+
 expand_dir_target() {
-  local dir="${1%/}" inside listing status
-  [[ -n "$dir" ]] || dir="$1"
+  local dir inside listing status
+  dir="$(normalize_dir_target "$1")"
 
   inside="$(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null || true)"
   if [[ "$inside" != "true" ]]; then
@@ -292,7 +307,12 @@ expand_dir_target() {
   fi
 
   while IFS= read -r rel; do
-    [[ -n "$rel" ]] && printf '%s/%s\n' "$dir" "$rel"
+    [[ -n "$rel" ]] || continue
+    if [[ "$dir" == */ || "$dir" == *\\ ]]; then
+      printf '%s%s\n' "$dir" "$rel"
+    else
+      printf '%s/%s\n' "$dir" "$rel"
+    fi
   done <<<"$listing"
 }
 

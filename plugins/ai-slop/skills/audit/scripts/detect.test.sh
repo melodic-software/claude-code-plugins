@@ -59,6 +59,9 @@ assert_not_contains() {
   *) pass "$1" ;;
   esac
 }
+assert_eq() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
+}
 
 EM=$'\xe2\x80\x94'
 CHECKMARK=$'\xe2\x9c\x85'
@@ -427,6 +430,20 @@ assert_contains "dir target, shell spelling: only the tracked file counts" "$out
 # a doubled separator and scan nothing.
 out="$(bash "$DETECT" "$GITDIR/docs/" 2>&1)"
 assert_contains "dir target with a trailing slash: only the tracked file counts" "$out" "1 files scanned"
+
+# Drive-root slash preservation is a string contract, not a host contract: the
+# suite does not need Windows. Source the production helper so this case cannot
+# drift from the function expand_dir_target actually calls.
+# shellcheck disable=SC1090
+source <(sed -n '/^normalize_dir_target()/,/^}/p' "$DETECT")
+assert_eq "ordinary trailing slash is stripped" "$(normalize_dir_target "docs/")" "docs"
+assert_eq "nested trailing slash is stripped" "$(normalize_dir_target "C:/Users/")" "C:/Users"
+assert_eq "unix root keeps its slash" "$(normalize_dir_target "/")" "/"
+assert_eq "windows drive root keeps its slash" "$(normalize_dir_target "C:/")" "C:/"
+assert_eq "lowercase windows drive root keeps its slash" "$(normalize_dir_target "d:/")" "d:/"
+assert_eq "windows drive-root backslash is unchanged" "$(normalize_dir_target "C:\\")" "C:\\"
+assert_eq "already-drive-relative spelling is left alone" "$(normalize_dir_target "C:")" "C:"
+assert_eq "ordinary path without a slash is unchanged" "$(normalize_dir_target "docs")" "docs"
 
 # The walk is reserved for a directory genuinely outside a checkout. A directory
 # INSIDE one that holds only untracked markdown expands to nothing rather than
