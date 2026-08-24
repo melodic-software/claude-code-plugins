@@ -1,6 +1,6 @@
 ---
-description: "Audit MCP server tool definitions against design quality criteria. Use when: 'audit MCP tools', 'check MCP tool descriptions', 'review MCP server quality', 'tool annotations', 'readOnlyHint missing', 'parameter descriptions missing', 'check the _meta annotations', 'maxResultSizeChars', 'requiresUserInteraction', 'alwaysLoad', 'are my server instructions too long', 'mcp audit', or before shipping MCP server changes. Optional path argument targets a single server directory; omit to audit the whole project. Produces per-tool PASS/WARN/FAIL scorecard covering description completeness, parameters, naming, annotations, and the Claude Code `_meta` annotations, plus a server-level result for the server `instructions` size budget. Language-agnostic — Python (`mcp`), TypeScript, .NET. Not for: MCP server configuration or connection issues."
-argument-hint: "[path] — a directory to scope the audit to (e.g. a single server dir), or omit for the whole project"
+description: "Audit MCP server tool definitions against design quality criteria. Use when: 'audit MCP tools', 'check MCP tool descriptions', 'review MCP server quality', 'tool annotations', 'readOnlyHint missing', 'parameter descriptions missing', 'check the _meta annotations', 'maxResultSizeChars', 'requiresUserInteraction', 'alwaysLoad', 'are my server instructions too long', 'mcp audit', or before shipping MCP server changes. Optional path argument targets a single server directory; omit to audit the whole project. Produces per-tool PASS/WARN/FAIL scorecard covering description completeness, parameters, naming, annotations, and the Claude Code `_meta` annotations, plus a server-level result for the server `instructions` size budget. Language-agnostic: Python (`mcp`), TypeScript, .NET. Not for: MCP server configuration or connection issues."
+argument-hint: "[path]. A directory to scope the audit to (e.g. a single server dir), or omit for the whole project"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -13,9 +13,9 @@ metadata:
 Evaluate MCP server tool definitions against design quality criteria drawn from three upstream
 authorities, cited (not recapped) so the current text always governs:
 
-- [MCP specification 2025-11-25 — Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) — the normative protocol (MUST / SHOULD / OPTIONAL requirements for names, schemas, annotations).
-- [Anthropic — Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents) — engineering guidance for descriptions, parameters, namespacing, and workflow-shaped granularity.
-- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) — Claude-Code-specific client behavior: `_meta` annotations and truncation limits.
+- [MCP specification 2025-11-25 — Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). The normative protocol (MUST / SHOULD / OPTIONAL requirements for names, schemas, annotations).
+- [Anthropic — Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents). Engineering guidance for descriptions, parameters, namespacing, and workflow-shaped granularity.
+- [Claude Code — Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp). Claude-Code-specific client behavior: `_meta` annotations and truncation limits.
 
 Produces a per-tool scorecard with actionable findings. Catches description gaps, missing annotations,
 and naming issues before they degrade LLM tool selection accuracy.
@@ -32,8 +32,8 @@ how servers are grouped.
 
 Parse `$ARGUMENTS`:
 
-- **`<path>`** — audit a single scope. A directory to narrow the scan to (typically one server's directory).
-- ***(empty)*** — audit every tool discovered under the project root.
+- **`<path>`**. Audit a single scope. A directory to narrow the scan to (typically one server's directory).
+- ***(empty)***. Audit every tool discovered under the project root.
 
 ## Track progress
 
@@ -51,26 +51,26 @@ phases and tick each as it completes. Phase 2 may run subagent fan-out for ≥5 
 
 Read each `Tool file:` from Phase 1. Per the language rules in
 [reference/server-discovery.md](reference/server-discovery.md), extract descriptions, parameters,
-wire-level annotations (C12-C14), and the tool's `_meta` object (C17-C19) — the last via
+wire-level annotations (C12-C14), and the tool's `_meta` object (C17-C19). The last via
 **meta-extraction**, recording each key's JSON type and not merely its presence, because C18 turns on
 it. Load the detailed checklist from [reference/checklist.md](reference/checklist.md).
 
-Once per server, also resolve its `instructions` field — see **Server instructions** in
-[reference/server-discovery.md](reference/server-discovery.md) — and evaluate C4's per-server clause
+Once per server, also resolve its `instructions` field. See **Server instructions** in
+[reference/server-discovery.md](reference/server-discovery.md) and evaluate C4's per-server clause
 against it. Phase 1's records are per-tool, so this is the only step that reaches it; its result lands
 in the server-level row of the Phase 3 report, not in any tool's table.
 
 Evaluate every criterion in the checklist against each tool, and C4's per-server clause once per
 server. Record each result as:
 
-- **PASS** — criterion met
-- **WARN** — criterion partially met or could be improved
-- **FAIL** — criterion not met
-- **info** — an optimization opportunity rather than a defect; the severity `reference/checklist.md`
+- **PASS**. Criterion met
+- **WARN**. Criterion partially met or could be improved
+- **FAIL**. Criterion not met
+- **info**. An optimization opportunity rather than a defect; the severity `reference/checklist.md`
   assigns to C8, C11, C14, and by default to C17-C19
-- **n/a** — the criterion has no subject here, so it cannot pass: a server whose construction site
+- **n/a**. The criterion has no subject here, so it cannot pass: a server whose construction site
   declares no `instructions` gives C4's per-server clause nothing to size
-- **undetermined** — the subject was not reachable in the scanned scope (no server construction site
+- **undetermined**. The subject was not reachable in the scanned scope (no server construction site
   found), which is not the same as its being absent
 
 ### Phase 3: Report
@@ -114,17 +114,17 @@ Server-level criteria — the outcomes that belong to the server, not to any one
 (repeat for each tool)
 ```
 
-**Prioritize FAIL items** — highest-value improvements. WARN items are suggestions and info items are
-optimizations. The `Overall` line and the summary table count every outcome recorded for a server —
-its tools' criterion rows and its server-level rows — across the four severity buckets. `n/a` and
+**Prioritize FAIL items**. Highest-value improvements. WARN items are suggestions and info items are
+optimizations. The `Overall` line and the summary table count every outcome recorded for a server:
+its tools' criterion rows and its server-level rows, across the four severity buckets. `n/a` and
 `undetermined` are not severities: they record that a criterion had no subject, or none reachable, so
 they appear only in the server-level criterion table and never count as a pass. A missing annotation
-is never FAIL — annotations are
+is never FAIL. Annotations are
 OPTIONAL in the spec (C12-C14) or Claude-Code-specific advisories (C17-C19); only a declared value
 Claude Code silently ignores can FAIL (C18).
 
 ## What this skill does NOT do
 
-- Does not modify tool definitions — it reports. Use findings to guide manual improvements.
-- Does not test tool functionality — use MCP Inspector for that.
-- Does not evaluate MCP resources — only tools.
+- Does not modify tool definitions. It reports. Use findings to guide manual improvements.
+- Does not test tool functionality. Use MCP Inspector for that.
+- Does not evaluate MCP resources. Only tools.

@@ -13,16 +13,16 @@ The criteria come from three upstream authorities, cited so the current text alw
 
 19 criteria (C1-C19) across seven categories, each tagged by authority (SPEC-MUST / SPEC-SHOULD /
 SPEC-OPTIONAL / ANTHROPIC / OPINION) so you can tell a protocol requirement from a style preference.
-OPINION is the skill's own judgment — including the criteria built on Claude-Code-specific client
+OPINION is the skill's own judgment, including the criteria built on Claude-Code-specific client
 behavior, which the Claude Code page documents rather than mandates:
 
-- **Description** — states what / when / returns, fits the client size budget (2KB in Claude Code, for tool descriptions and server instructions alike), leaks no implementation detail.
-- **Parameters** — every parameter described, guidance and format examples, documented optional defaults.
-- **Naming** — valid name charset/length (spec), outcome-driven, service-namespaced.
-- **Annotations** — `readOnlyHint`, `destructiveHint`, `idempotentHint`. These are OPTIONAL in the spec, so a missing annotation is WARN, never FAIL.
-- **Granularity** — workflow-shaped consolidation, not one tool per raw API call.
-- **Schema** — callable from the schema alone, with a valid `inputSchema`.
-- **Claude Code `_meta` annotations** — `anthropic/maxResultSizeChars`, `anthropic/requiresUserInteraction`, `anthropic/alwaysLoad`. Missing is at most an info advisory; a declared value Claude Code ignores or caps is the defect.
+- **Description**. States what / when / returns, fits the client size budget (2KB in Claude Code, for tool descriptions and server instructions alike), leaks no implementation detail.
+- **Parameters**. Every parameter described, guidance and format examples, documented optional defaults.
+- **Naming**. Valid name charset/length (spec), outcome-driven, service-namespaced.
+- **Annotations**. `readOnlyHint`, `destructiveHint`, `idempotentHint`. These are OPTIONAL in the spec, so a missing annotation is WARN, never FAIL.
+- **Granularity**. Workflow-shaped consolidation, not one tool per raw API call.
+- **Schema**. Callable from the schema alone, with a valid `inputSchema`.
+- **Claude Code `_meta` annotations**. `anthropic/maxResultSizeChars`, `anthropic/requiresUserInteraction`, `anthropic/alwaysLoad`. Missing is at most an info advisory; a declared value Claude Code ignores or caps is the defect.
 
 Language-agnostic: it discovers tools in Python (`mcp`), TypeScript (`@modelcontextprotocol/sdk`), and
 .NET (`ModelContextProtocol`) by the SDKs' own tool markers.
@@ -38,13 +38,13 @@ Claude can also invoke it automatically when you ask to "audit MCP tools" or "ch
 
 ## What it does NOT do
 
-- Does not modify tool definitions — it reports; you apply the fixes.
-- Does not test tool functionality — use the MCP Inspector for that.
-- Does not evaluate MCP resources — only tools.
+- Does not modify tool definitions. It reports; you apply the fixes.
+- Does not test tool functionality. Use the MCP Inspector for that.
+- Does not evaluate MCP resources. Only tools.
 
 ## Requirements
 
-- **Bash + coreutils** for the audit's inline mechanics — on native Windows,
+- **Bash + coreutils** for the audit's inline mechanics. On native Windows,
   install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
   so they run under Git Bash.
@@ -60,7 +60,7 @@ Claude can also invoke it automatically when you ask to "audit MCP tools" or "ch
 
 ## Configuration
 
-This plugin has no `userConfig`. It reads your project's tool source directly and writes nothing — the
+This plugin has no `userConfig`. It reads your project's tool source directly and writes nothing. The
 scorecard is returned in the response.
 
 ## License
