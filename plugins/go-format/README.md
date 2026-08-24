@@ -4,17 +4,17 @@ A Claude Code plugin that formats Go files and manages their imports the
 moment you edit them. On every `Write` or `Edit` of a `.go` file it runs
 [goimports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports)'s `-w`,
 which adds missing imports, removes unused ones, and applies `gofmt`-
-equivalent formatting — then surfaces any syntax error goimports can't parse
+equivalent formatting, then surfaces any syntax error goimports can't parse
 back to Claude as advisory context.
 
 ## Behavior
 
-- **Unconditional — no consumer-config opt-in gate.** Unlike sibling
+- **Unconditional, no consumer-config opt-in gate.** Unlike sibling
   formatter plugins (`ruff-format`, `typos-format`), this hook runs on every
   edited `.go` file regardless of repository configuration. `goimports`'
   own docs describe it as "a replacement for your editor's gofmt-on-save
   hook" and it has no meaningful config-divergence axis when left
-  unconfigured — running it does not impose a style choice a repo hasn't
+  unconfigured. Running it does not impose a style choice a repo hasn't
   made, the same reasoning that makes `gofmt` itself safe to run
   unconditionally.
 - **Extension-scoped.** Only `.go` files trigger the hook (like
@@ -22,18 +22,18 @@ back to Claude as advisory context.
   language-agnostic scope).
 - **Skips generated files.** A file whose leading comment/blank-line block
   contains Go's canonical `// Code generated ... DO NOT EDIT.` marker is
-  left untouched — this includes files where a copyright/license header
+  left untouched. This includes files where a copyright/license header
   (a `//` or `/* */` block) precedes the marker, common for
   `addlicense`/`goheader` output. `goimports` itself has no awareness of
   that convention, so this hook adds the guard itself.
-- **Fix in place.** Formatting and import changes are applied silently — no
+- **Fix in place.** Formatting and import changes are applied silently. No
   advisory noise on a successful fix, the same posture as a successful
   `ruff-format`/`typos-format` autofix pass.
 - **Groups local imports using your module's own path.** When a `go`
   toolchain is on `PATH`, the hook resolves the edited file's own module
   path (`go list -m`) and passes it as goimports' `-local` grouping prefix,
   so your package's own internal imports stay in their own group instead of
-  being collapsed into the third-party group — matching goimports' own
+  being collapsed into the third-party group, matching goimports' own
   `-local` convention without adding any new consumer config. Falls back to
   goimports' plain default grouping when `go` is absent or the file isn't
   in a resolvable module.
@@ -46,13 +46,13 @@ back to Claude as advisory context.
 
 ## Requirements
 
-- **Bash** — the hook is a Bash script. On native Windows, install
+- **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible once-per-session notice. [Install jq](https://jqlang.org/download/).
 - **goimports** on `PATH`. Like `typos-format`, `goimports` has no
-  per-repo dependency-manager convention — it is conventionally
+  per-repo dependency-manager convention. It is conventionally
   `go install`ed to the machine-global `$GOPATH/bin`. It is never
   downloaded on the fly; if it is not present, the hook skips with a
   visible once-per-session notice.
@@ -78,12 +78,12 @@ Then verify prerequisites with `/go-format:setup check`.
 
 ## Configuration
 
-There are no rules to configure — `goimports` runs with no consumer-config
+There are no rules to configure. `goimports` runs with no consumer-config
 surface to read. One `userConfig` option tunes the hook itself:
 
 | Option | Default | Effect |
 |--------|---------|--------|
-| `go_format_enabled` | `true` | Kill switch — set `false` for a clean no-op. |
+| `go_format_enabled` | `true` | Kill switch. Set `false` for a clean no-op. |
 
 Set it interactively with `/plugin configure go-format@<marketplace>`, or headless on the
 install command:
@@ -92,6 +92,7 @@ install command:
 claude plugin install go-format@<marketplace> --config go_format_enabled=false
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -164,6 +165,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
