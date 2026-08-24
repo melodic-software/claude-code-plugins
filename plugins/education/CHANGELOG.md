@@ -7,14 +7,9 @@ All notable changes to the `education` plugin are documented here. Format follow
 
 ### Changed
 
-- **Instruction-surface de-slop (#2891, education cluster).** Rewrote this plugin's `README.md`
-  and every `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
-  `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
-  parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
-  and the sentence break change. YAML frontmatter description/summary left unchanged so
-  the cheatsheet stays valid. The generated options block is ignore-fenced because
-  `scripts/sync-plugin-options-docs.py` still emits em dashes from its shared template.
-  Fenced teach tree and quiz-me templates keep their quoted marks.
+- **setup:** remaining instruction-surface punctuation after the 0.8.4
+  plugin-wide rewrite. The headless reconfigure example now starts
+  `already installed` as its own sentence.
 
 ## [0.8.4]
 
