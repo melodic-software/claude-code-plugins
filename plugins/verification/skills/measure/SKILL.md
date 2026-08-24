@@ -42,7 +42,7 @@ Each context file owns its family's full discipline: claim-to-metric mapping, me
 
 ## Prerequisite. Green mechanical state (both phases)
 
-Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before EITHER phase. `baseline` capture or `compare`. Confirm the mechanical pass is green: reuse a `/toolchain:check` or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:check` via the Skill tool when the `toolchain` plugin is installed, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
+Measuring broken code is meaningless, and a baseline captured on a broken tree poisons every later comparison. Before EITHER phase, `baseline` capture or `compare`, confirm the mechanical pass is green: reuse a `/toolchain:check` or `/verification:confirm` Stage-1 result from this conversation if nothing changed since; otherwise invoke `/toolchain:check` via the Skill tool when the `toolchain` plugin is installed, or run the project's own build/test command when it is absent. Do not reimplement build/test/lint here.
 
 ## Integration
 
