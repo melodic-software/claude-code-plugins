@@ -2,29 +2,30 @@
 
 A Claude Code plugin for on-demand visualization. One skill, one job: at any point
 in a conversation, decide **what** is most worth showing visually and **how** to
-show it, then render it — a form-and-medium router, not a craft teacher.
+show it, then render it. It is a form-and-medium router, not a craft teacher.
 
 | Skill | What it does |
 |---|---|
-| `/visualization:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it — asking only on genuine ambiguity |
+| `/visualization:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it, asking only on genuine ambiguity |
 
 ## What it decides
 
 Two decisions, then the output:
 
-- **Form** — matched to the *shape* of the content: a mermaid diagram for flow /
+- **Form**, matched to the *shape* of the content: a mermaid diagram for flow /
   hierarchy / sequence / state / relationships; a markdown table for attribute
   comparison; a chart for quantities; ASCII/Unicode for a small structural sketch;
   a rich rendered page for a composite or interactive view; a hand-editable design
   canvas (via the bundled `design` skill, when that presence-gated preview is
   available) for a visual layout the user would rather tweak by hand.
-- **Medium** — one of three ascending tiers, **inline terminal → local HTML file →
+- **Medium**. One of three ascending tiers, **inline terminal → local HTML file →
   published Artifact**, chosen by the form's weight, a configurable preference, and
   which surfaces are actually available.
 
-The full grounded catalog — every mermaid family, the zero-dependency chart paths,
-and the rendering-surface facts — lives in the skill's
+The full grounded catalog lives in the skill's
 [`context/decision-matrix.md`](skills/visualize/context/decision-matrix.md).
+It covers every mermaid family, the zero-dependency chart paths, and the
+rendering-surface facts.
 
 ## Router, not craft
 
@@ -33,7 +34,7 @@ chart or the fundamentals of a good page. When a chart is the right form and a
 chart-craft/dataviz capability is installed, it routes the craft there; when a rich
 page is the right medium, the page's contract and design are owned by the Artifact
 tool's own contract and an artifact-design capability. Each is invoked through its
-capability when present and degrades to a documented fallback when absent — this
+capability when present and degrades to a documented fallback when absent. This
 skill never restates their guidance.
 
 It is also **not** a comprehension aid: restating dense text in plainer words is a
@@ -67,7 +68,7 @@ rendered diagram. These facts and their sources are documented in the catalog.
 
 Configure with `/plugin configure visualization@<marketplace>`, or headless with
 `claude plugin install visualization@<marketplace> -s <scope> --config
-medium=<value>` — against an already-installed plugin that prints `already
+medium=<value>`. Against an already-installed plugin that prints `already
 installed` and still writes the value, verified on Claude Code 2.1.240 for a
 non-sensitive option at `user` scope. Never uninstall to reconfigure: that drops
 the whole stored `pluginConfigs` entry and resets every option to its manifest
@@ -86,9 +87,10 @@ its own.
 - **Third-party visualization server.** No credible egress-free, self-hostable
   visualization server exists to depend on today. Re-evaluate if one lands with a
   maintained security posture (a self-hosted AntV deployment is the current
-  candidate) — until then the skill relies only on native rendering surfaces and
+  candidate). Until then the skill relies only on native rendering surfaces and
   the presence-gated craft capabilities.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -161,3 +163,4 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
