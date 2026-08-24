@@ -34,7 +34,7 @@ here rather than drifting.
 | `audit-progressive-disclosure` | empty arg + clean tree | user-stated whole-repo / confirmed offer | Read-only; report-first; corpus = tracked agent-facing instruction `.md` |
 | `audit-encapsulation` | bare detect with no inherited scope | `sweep` | Domain is already repo-wide; confirm is about intent, not discovery |
 | `compress` (default + `audit`) | empty arg + clean tree, interactive | user-stated whole-repo / confirmed offer | Mutating default stays interview-gated after a free audit pass; bare `compress audit` on a clean tree offers the same free audit corpus (report-only) instead of no-opping |
-| `extract-ssot` | bare invocation with no scope | path/glob-scoped survey after confirm | Already documented as "Bare invocation — confirm scope first"; cites this shape |
+| `extract-ssot` | bare invocation with no scope | path/glob-scoped survey after confirm | Already documented as "Bare invocation: confirm scope first"; cites this shape |
 | `rename-references` | *(out of scope)* | — | Always needs an old/new token pair; no clean-tree corpus offer |
 
 ## Deliberate divergences (do not "fix" these away)

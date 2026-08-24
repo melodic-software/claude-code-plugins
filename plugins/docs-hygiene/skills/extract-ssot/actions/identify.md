@@ -90,7 +90,7 @@ highest-volume bucket — from landing as one unreviewable diff.
 
 ```text
 0. Scope gate: exhaustive mode needs an affirmative scope — an explicit argument/user signal, the
-   SKILL.md "Bare invocation — confirm scope first" ask answered whole-repo, or that ask answered
+   SKILL.md "Bare invocation: confirm scope first" ask answered whole-repo, or that ask answered
    with named paths/globs (path-scoped exhaustive). Whole-repo large repos run the batch under
    `context/orchestrated-mode.md` defaults; path-scoped surveys inherit the same concurrency
    ceiling when they fan into verify/execute
