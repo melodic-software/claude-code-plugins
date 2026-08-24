@@ -24,8 +24,8 @@ runs the check first, then the write flow.
 (`~/.claude/mutation-testing.md`) → team (`${CLAUDE_PROJECT_DIR}/.claude/mutation-testing.md`) →
 local overlay (`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning
 lists. This skill writes only the **team** file; a higher overlay is the user's to change. Report
-explicitly when an overlay changes the team file's effect, and warn. Rather than silently
-presenting the team file as effective, when a layer cannot be read.
+explicitly when an overlay changes the team file's effect, and warn when a layer cannot be read,
+rather than silently presenting the team file as effective.
 
 The arid-node suppression record is a **separate** surface, `.claude/mutation-testing-arid.md`,
 shaped by the finding-suppression convention. Keeping it separate from the config keeps the config
