@@ -84,8 +84,8 @@ confidence attached to the ranking (strongest first):
 
 Two hard rules follow:
 
-- **Instrument-first.** When the target has no measurement at all. No telemetry, no usable CI
-  history, nothing above rung 4, the top-ranked candidate becomes "instrument this so future runs
+- **Instrument-first.** When the target has no measurement at all (no telemetry, no usable CI
+  history, nothing above rung 4), the top-ranked candidate becomes "instrument this so future runs
   can rank on data": a concrete baseline/instrumentation proposal (what to measure, where the
   signal lands), handed to the pipeline like any other improvement. This mirrors the SRE
   error-budget posture: measurement precedes prioritization.
