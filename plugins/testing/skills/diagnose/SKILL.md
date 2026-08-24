@@ -1,12 +1,12 @@
 ---
-description: "Diagnose and fix failing tests — failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use when: 'why does this fail', 'this test is failing', 'fix the failing tests', 'why is this test flaky', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check."
+description: "Diagnose and fix failing tests. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use when: 'why does this fail', 'this test is failing', 'fix the failing tests', 'why is this test flaky', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check."
 argument-hint: "[failure] (e.g., /testing:diagnose, /testing:diagnose the frozen-logger error, /testing:diagnose loop)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: test
-  summary: Root-cause failing tests — never retry blindly
+  summary: Root-cause failing tests, never retry blindly
 ---
 
 ## Pre-computed context
@@ -16,22 +16,22 @@ Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "cl
 
 ## Purpose
 
-The failure half of testing: understand WHY a test fails, then prove the fix. Never dismiss a failure, never retry blindly — "probably a timing issue" is not a diagnosis; even intermittent failures have deterministic root causes. Repo-specific shared-state workarounds and framework traps live in the consuming project's testing conventions — consult them before diagnosing.
+The failure half of testing: understand WHY a test fails, then prove the fix. Never dismiss a failure, never retry blindly. "probably a timing issue" is not a diagnosis; even intermittent failures have deterministic root causes. Repo-specific shared-state workarounds and framework traps live in the consuming project's testing conventions. Consult them before diagnosing.
 
 ## Redact
 
-Diagnosis surfaces commands, test output, stack traces, and CI logs. Redact every secret before showing it — write `<REDACTED>` in its place. Reproductions that need credentials read them from env vars, so the secret never lands in a command line, a fixture, or the regression test you commit. Captured output carries auth headers — quote only the lines carrying the diagnostic signal; if that is not enough to diagnose, say so and ask.
+Diagnosis surfaces commands, test output, stack traces, and CI logs. Redact every secret before showing it. Write `<REDACTED>` in its place. Reproductions that need credentials read them from env vars, so the secret never lands in a command line, a fixture, or the regression test you commit. Captured output carries auth headers. Quote only the lines carrying the diagnostic signal; if that is not enough to diagnose, say so and ask.
 
 ## Arguments
 
-`$ARGUMENTS` — optional failure description or `loop` to enter the fix cycle directly for an already-diagnosed bug.
+`$ARGUMENTS`, optional failure description or `loop` to enter the fix cycle directly for an already-diagnosed bug.
 
 ## Step 0: Route
 
 | Signal | Phase | Context file |
 |--------|-------|-------------|
-| Failure needs diagnosis — stack trace, assertion mismatch, flaky test | **investigate** | [context/investigate.md](context/investigate.md) |
-| Root cause known, fix needed — reproduce → isolate → fix → retest → regression | **loop** | [context/loop.md](context/loop.md) |
+| Failure needs diagnosis. Stack trace, assertion mismatch, flaky test | **investigate** | [context/investigate.md](context/investigate.md) |
+| Root cause known, fix needed. Reproduce → isolate → fix → retest → regression | **loop** | [context/loop.md](context/loop.md) |
 
 Default entry is **investigate**; it chains into **loop** once the root cause is found. Read the relevant context file before proceeding.
 
@@ -40,7 +40,7 @@ Default entry is **investigate**; it chains into **loop** once the root cause is
 | After phase | Suggest |
 |-------------|---------|
 | `investigate` | Enter the `loop` phase if a fix is needed, or report root cause. Root cause in test infrastructure → fix the test, not production code. Genuine bug → document, then fix via `/implementation:implement fix` |
-| `loop` | `/verification:confirm fix` (when the `verification` plugin is installed) when all green after the regression pass (routes fix-confirmation to the `fix` criterion — symptom resolved + no regression) |
+| `loop` | `/verification:confirm fix` (when the `verification` plugin is installed) when all green after the regression pass (routes fix-confirmation to the `fix` criterion. Symptom resolved + no regression) |
 
 ## Integration with /implementation:implement
 
@@ -48,10 +48,10 @@ When `/implementation:implement` hits a test failure during its TDD cadence it c
 
 ## What this skill does NOT do
 
-- **Does not run the suite wholesale** — `/toolchain:check` is SSOT for CLI invocation; this skill runs targeted reproductions
-- **Does not author new feature tests** — `/testing:write` (the loop's reproduce step writes only the failing test capturing the bug)
+- **Does not run the suite wholesale**. `/toolchain:check` is SSOT for CLI invocation; this skill runs targeted reproductions
+- **Does not author new feature tests**. `/testing:write` (the loop's reproduce step writes only the failing test capturing the bug)
 
 ## Gotchas
 
-- Framework traps — .NET examples: xUnit v3 rejects `--nologo` ("zero tests ran", exit 5); .NET 10 requires `dotnet test --project`; parallel-execution races. Check the consuming project's own gotcha notes before diagnosing
-- Process-global singleton symptoms ("frozen", "already initialized") — usually a shared-state fixture problem; check the consuming project's fixture conventions for the named pattern before inventing a workaround
+- Framework traps. .NET examples: xUnit v3 rejects `--nologo` ("zero tests ran", exit 5); .NET 10 requires `dotnet test --project`; parallel-execution races. Check the consuming project's own gotcha notes before diagnosing
+- Process-global singleton symptoms ("frozen", "already initialized"). Usually a shared-state fixture problem; check the consuming project's fixture conventions for the named pattern before inventing a workaround
