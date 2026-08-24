@@ -97,6 +97,86 @@ const setupSkills = pluginFiles.filter((path) =>
   /[\\/]skills[\\/]setup[\\/]SKILL\.md$/.test(path),
 );
 
+// PLUGIN-PHILOSOPHY's check-only carve-out is a consequence of a plugin's
+// surface, not a claim it may assert: "A plugin with even one writable owned
+// artifact takes the narrow-write shape instead." Tracked consumer config is
+// the writable artifact class this repo already registers, in the Implementers
+// table of docs/conventions/config-cascade/README.md — a signal that lives
+// OUTSIDE the setup skill whose claim is being checked, which is the whole
+// point. Reading ownership out of the declaring skill's own prose would let a
+// plugin certify itself, and would misread the carve-out's own second surface,
+// whose conforming `check` prints the exact settings edit it may not write.
+const configCascadeRegistry = join(
+  root,
+  "docs",
+  "conventions",
+  "config-cascade",
+  "README.md",
+);
+
+// The plugin names in that table's first column, or null when the table cannot
+// be read. Null is a recorded failure, never a quiet pass: a check that
+// degrades to a no-op when its input moves is worse than no check at all.
+function readTrackedConfigOwners() {
+  if (!existsSync(configCascadeRegistry)) {
+    fail(
+      configCascadeRegistry,
+      "the consumer-config registry is required to validate the check-only carve-out",
+    );
+    return null;
+  }
+  const lines = read(configCascadeRegistry).split(/\r?\n/);
+  const heading = lines.findIndex((line) => /^##\s+Implementers\s*$/.test(line));
+  if (heading === -1) {
+    fail(
+      configCascadeRegistry,
+      'the consumer-config registry must carry an "## Implementers" section naming every surface that owns tracked consumer config',
+    );
+    return null;
+  }
+  const owners = new Set();
+  for (const line of lines.slice(heading + 1)) {
+    if (/^#{1,6}\s/.test(line)) break;
+    if (!line.startsWith("|")) continue;
+    // Column 1 names the surface, and where the surface name is not itself the
+    // owning plugin it names the plugins alongside it ("`standards`
+    // (`planning`, `review`)"), so every backticked token in the cell is taken
+    // as an owner. Tokens naming no plugin directory are inert.
+    for (const [, name] of (line.split("|")[1] ?? "").matchAll(/`([^`]+)`/g)) {
+      owners.add(name);
+    }
+  }
+  if (owners.size === 0) {
+    fail(
+      configCascadeRegistry,
+      "the consumer-config registry's Implementers table named no surfaces; the check-only carve-out cannot be validated against it",
+    );
+    return null;
+  }
+  return owners;
+}
+
+const trackedConfigOwners = readTrackedConfigOwners();
+
+function claimsUserConfigSurface(body) {
+  const withoutNegation = body.replace(
+    /\b(?:no|not|without|never)\s+`?userConfig`?/gi,
+    "",
+  );
+  return /\buserConfig\b/.test(withoutNegation);
+}
+
+function declaresUserConfig(plugin) {
+  const manifest = join(pluginRoot, plugin, ".claude-plugin", "plugin.json");
+  if (!existsSync(manifest)) return false;
+  const userConfig = JSON.parse(read(manifest)).userConfig;
+  return (
+    typeof userConfig === "object" &&
+    userConfig !== null &&
+    Object.keys(userConfig).length > 0
+  );
+}
+
 for (const path of setupSkills) {
   const content = read(path);
   const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? "";
@@ -105,7 +185,12 @@ for (const path of setupSkills) {
   }
   // Uniform contract shape (PLUGIN-PHILOSOPHY "Setup is explicit and repeatable"):
   // check is the default read-only action; apply exists unless the skill declares the
-  // userConfig-only check-only carve-out the doctrine sanctions.
+  // check-only carve-out the doctrine sanctions. The registry check below is the
+  // writable-artifact exclusion (tracked consumer config). Native userConfig is
+  // the one carve-out surface with a manifest-side counterpart; the other two
+  // doctrine surfaces (settings this contract forbids setup to mutate; external
+  // prerequisites) have no such signal and are covered by the check-only
+  // declaration plus the registry exclusion, not by a second existence probe.
   if (!/^argument-hint:\s*"check(?:\s*\||\s*\[|")/m.test(frontmatter)) {
     fail(path, 'setup skills must declare check as the leading action in argument-hint ("check", "check | apply ...", or "check [<subaction>]")');
   }
@@ -114,7 +199,40 @@ for (const path of setupSkills) {
     fail(path, "setup skills must document the read-only check action");
   }
   if (!/`apply`/.test(body) && !/check-only/i.test(body)) {
-    fail(path, "setup skills must document apply, or declare the check-only userConfig-only carve-out");
+    fail(path, "setup skills must document apply, or declare the check-only carve-out and the surface qualifying it");
+  }
+
+  // Which shape a setup skill takes is declared where a reader and a gate can
+  // both see it: the action list in argument-hint, already constrained above to
+  // lead with check. A skill offering no apply is taking the carve-out, whatever
+  // its prose says, so the carve-out's preconditions are checked there rather
+  // than on the presence of the words "check-only" anywhere in the body.
+  const offersApply = /^argument-hint:\s*"[^"]*\bapply\b/m.test(frontmatter);
+  if (offersApply && !/`apply`/.test(body)) {
+    fail(
+      path,
+      "a setup skill advertising apply in argument-hint must document the apply action",
+    );
+  }
+  if (!offersApply) {
+    const plugin = relative(pluginRoot, path).split(sep)[0];
+    if (!/check-only/i.test(body)) {
+      fail(path, "a setup skill offering no apply must declare the check-only carve-out it relies on");
+    }
+    if (trackedConfigOwners?.has(plugin)) {
+      fail(
+        path,
+        "the check-only carve-out is unavailable here: this plugin owns the tracked consumer config surface registered in docs/conventions/config-cascade/README.md, and \"A plugin with even one writable owned artifact takes the narrow-write shape instead\"",
+      );
+    }
+    // The one carve-out surface with a manifest-side counterpart. Any claim
+    // that names that surface — the doctrine's "native userConfig surface"
+    // wording included — requires the manifest to declare it. Matching only
+    // the phrase "userConfig-only carve-out" would let a different spelling
+    // of the same claim pass.
+    if (claimsUserConfigSurface(body) && !declaresUserConfig(plugin)) {
+      fail(path, "a check-only skill that names the userConfig surface requires the plugin manifest to declare userConfig, and this one declares none");
+    }
   }
 }
 
