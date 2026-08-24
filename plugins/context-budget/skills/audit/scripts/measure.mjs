@@ -58,9 +58,38 @@ const DEFAULT_CATALOGUE = join(
 
 // Settings keys and env names the catalogue cites. Env vars are the CLAUDE_CODE_
 // / ENABLE_ / DISABLE_ family; settings keys are camelCase identifiers in the
-// row's title or emitted-config JSON. A row may override with `binaryTokens`.
+// row's prose fields. A row may override with `binaryTokens`.
 const ENV_TOKEN_RE = /\b(?:CLAUDE_CODE|ENABLE|DISABLE)_[A-Z0-9_]+\b/g;
-const CAMEL_KEY_RE = /\b[a-z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]*)+\b/g;
+
+// Linear camelCase scan — no nested quantifiers. The previous
+// /\b[a-z][a-zA-Z0-9]*(?:[A-Z][a-zA-Z0-9]*)+\b/g shape is ReDoS-vulnerable
+// on a long same-case run that then fails \b (e.g. "a" + "A"*n + "_").
+function extractCamelKeys(text) {
+  const out = [];
+  const s = String(text);
+  let i = 0;
+  while (i < s.length) {
+    const c = s.charCodeAt(i);
+    if (c >= 97 && c <= 122) {
+      const start = i;
+      i += 1;
+      let sawUpper = false;
+      while (i < s.length) {
+        const k = s.charCodeAt(i);
+        const isLower = k >= 97 && k <= 122;
+        const isUpper = k >= 65 && k <= 90;
+        const isDigit = k >= 48 && k <= 57;
+        if (!isLower && !isUpper && !isDigit) break;
+        if (isUpper) sawUpper = true;
+        i += 1;
+      }
+      if (sawUpper) out.push(s.slice(start, i));
+      continue;
+    }
+    i += 1;
+  }
+  return out;
+}
 
 const SPAWN_TIMEOUT_MS = 180000;
 
@@ -728,19 +757,27 @@ function catalogueTokens(lever) {
     .filter((t) => typeof t === 'string')
     .join('\n');
   for (const m of texts.matchAll(ENV_TOKEN_RE)) tokens.add(m[0]);
+  for (const key of extractCamelKeys(texts)) tokens.add(key);
   if (typeof lever.emittedConfig === 'string') {
     try {
       const obj = JSON.parse(lever.emittedConfig);
       if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
         for (const k of Object.keys(obj)) {
-          if (CAMEL_KEY_RE.test(k)) tokens.add(k);
-          CAMEL_KEY_RE.lastIndex = 0;
+          if (extractCamelKeys(k).includes(k)) tokens.add(k);
         }
       }
-    } catch { /* emittedConfig is not JSON — title/mechanism still contribute */ }
+    } catch { /* emittedConfig is not JSON — prose fields still contribute */ }
   }
-  for (const m of (lever.title || '').matchAll(CAMEL_KEY_RE)) tokens.add(m[0]);
   return [...tokens];
+}
+
+// Prefer a sibling .exe over a Windows command shim so the scan reads the
+// payload the consumer actually runs, not the wrapper script.
+function binaryScanPath(bin) {
+  if (!/\.(cmd|bat)$/i.test(bin)) return { path: bin, viaShim: false };
+  const exe = bin.replace(/\.(cmd|bat)$/i, '.exe');
+  if (existsSync(exe)) return { path: realpathSync(exe), viaShim: true };
+  return { path: bin, viaShim: true };
 }
 
 function countTokenHits(buf, token) {
@@ -771,11 +808,12 @@ function runVerifyCatalogue(args) {
     degrade('no-binary', 'no `claude` executable found on PATH and no --binary given',
       'Pass --binary <path> naming the Claude Code executable whose strings to grep.');
   }
+  const scanned = binaryScanPath(bin);
   let buf;
   try {
-    buf = readFileSync(bin);
+    buf = readFileSync(scanned.path);
   } catch (e) {
-    degrade('binary-unreadable', `could not read binary ${bin}: ${e.message}`,
+    degrade('binary-unreadable', `could not read binary ${scanned.path}: ${e.message}`,
       'Pass --binary with a readable Claude Code executable.');
   }
 
@@ -796,11 +834,21 @@ function runVerifyCatalogue(args) {
     });
   }
 
+  const caveats = [
+    'binary scan is the authority on existence of each key/env name at this binary version',
+    'docs fetch remains the authority on semantics',
+  ];
+  if (scanned.viaShim && scanned.path === bin) {
+    caveats.push('scanned a Windows command shim; a sibling .exe was not found, so absence findings may be the wrapper rather than the payload');
+  } else if (scanned.viaShim) {
+    caveats.push(`resolved Windows command shim ${bin} to sibling ${scanned.path}`);
+  }
+
   return {
     schema: CATALOGUE_VERIFY_SCHEMA,
     timestampUtc: nowUtc(),
     method: 'binary-scan',
-    binary: { path: bin, version: binaryVersion(bin) },
+    binary: { path: scanned.path, version: binaryVersion(bin), resolvedFrom: bin },
     catalogue: {
       path: cataloguePath,
       verifiedAgainst: cat.meta?.verifiedAgainst ?? null,
@@ -809,10 +857,7 @@ function runVerifyCatalogue(args) {
     checked: rows.reduce((n, r) => n + r.tokens.length, 0),
     missing: absent.length,
     absent,
-    caveats: [
-      'binary scan is the authority on existence of each key/env name at this binary version',
-      'docs fetch remains the authority on semantics',
-    ],
+    caveats,
   };
 }
 

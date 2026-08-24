@@ -395,6 +395,14 @@ fs.writeFileSync(process.argv[1], JSON.stringify({
       detection: "x", measurement: "x", emittedConfig: null,
       citations: ["https://example.com"], verified: "2026-01-01", recheckTrigger: "x",
     },
+    {
+      id: "detection-only",
+      title: "No camel here",
+      category: "removes-weight", categoryBasis: "t", posture: "recommendable-on-fit",
+      detection: "enabledMcpjsonServers across scopes", measurement: "x",
+      emittedConfig: null,
+      citations: ["https://example.com"], verified: "2026-01-01", recheckTrigger: "x",
+    },
   ],
 }));
 ' "$minicat"
@@ -414,10 +422,49 @@ if node "$ENGINE" verify-catalogue --binary "$WORK/fake-strings-bin" --catalogue
     "absent key is reported absent (never invented present)" "absent key marked present"
   assert_eq "$(jsonget "$vcat" 'j.rows.find((r)=>r.id==="no-tokens").skipped')" "true" \
     "a row with no extractable key is skipped" "no-token row not skipped"
-  assert_eq "$(jsonget "$vcat" 'j.missing')" "1" \
-    "missing count is the absent-token total" "missing count wrong"
+  assert_eq "$(jsonget "$vcat" 'j.missing')" "2" \
+    "missing count includes detection-only absent key" "missing count wrong"
+  assert_eq "$(jsonget "$vcat" 'j.rows.find((r)=>r.id==="detection-only").tokens.find((t)=>t.name==="enabledMcpjsonServers").present')" "false" \
+    "camelCase in detection is extracted (not silently skipped)" "detection-only key not extracted"
 else
   fail "verify-catalogue exited nonzero on a readable fake binary"
+fi
+
+# ReDoS-shaped title (long same-case run then _) must finish, not hang.
+redoscat="$WORK/redos-levers.json"
+node -e '
+const fs = require("fs");
+fs.writeFileSync(process.argv[1], JSON.stringify({
+  schema: "context-budget.levers/1",
+  meta: { categories: { "removes-weight": "x" } },
+  levers: [{
+    id: "redos",
+    title: "a" + "A".repeat(80) + "_",
+    category: "removes-weight", categoryBasis: "t", posture: "recommendable-on-fit",
+    detection: "x", measurement: "x", emittedConfig: null,
+    citations: ["https://example.com"], verified: "2026-01-01", recheckTrigger: "x",
+  }],
+}));
+' "$redoscat"
+if node -e '
+const { spawnSync } = require("child_process");
+const r = spawnSync(process.execPath, [process.argv[1], "verify-catalogue", "--binary", process.argv[2], "--catalogue", process.argv[3]], { timeout: 2000, stdio: "ignore" });
+process.exit(r.error ? 1 : (r.status ?? 1));
+' "$ENGINE" "$WORK/fake-strings-bin" "$redoscat"; then
+  ok "camelCase extract finishes on a ReDoS-shaped title (no hang)"
+else
+  fail "camelCase extract hung or failed on a ReDoS-shaped title"
+fi
+
+# A .cmd path with a sibling .exe scans the exe, not the wrapper.
+printf 'wrapper-only no-keys-here' >"$WORK/shim-claude.cmd"
+printf 'payload disableWorkflows CLAUDE_CODE_DISABLE_WORKFLOWS' >"$WORK/shim-claude.exe"
+shimout="$WORK/verify-shim.json"
+if node "$ENGINE" verify-catalogue --binary "$WORK/shim-claude.cmd" --catalogue "$minicat" --out "$shimout" >/dev/null; then
+  assert_eq "$(jsonget "$shimout" 'j.rows.find((r)=>r.id==="has-key").tokens.find((t)=>t.name==="disableWorkflows").present')" "true" \
+    "Windows .cmd with sibling .exe scans the exe" "shim scan missed the sibling exe payload"
+else
+  fail "verify-catalogue on a .cmd shim exited nonzero"
 fi
 
 # --- snapshot: pinned-binary honesty --------------------------------------

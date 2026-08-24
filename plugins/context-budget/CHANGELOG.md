@@ -25,7 +25,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   keys and env names and reports present/absent with hit counts. Run automatically on a
   version-jump recheck; the binary is the authority on existence at the measured version, the
   docs fetch on semantics
-  ([#3198](https://github.com/melodic-software/claude-code-plugins/issues/3198)).
+  ([#3198](https://github.com/melodic-software/claude-code-plugins/issues/3198)). CamelCase
+  extraction is a linear scan (no nested-quantifier ReDoS), reads every prose field (not just
+  `title`), and prefers a sibling `.exe` over a Windows `.cmd`/`.bat` shim.
 
 ## [0.6.6]
 
