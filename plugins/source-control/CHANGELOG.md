@@ -28,11 +28,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   pass, and the blocked-message remedy lists all four so following it produces
   a body CI accepts. Both surfaces pick the change up from the shared core
   ([#3206](https://github.com/melodic-software/claude-code-plugins/issues/3206)).
-  Inline-code masking pairs backtick runs after one collect pass so a crafted
-  line of unmatched run lengths cannot push the 15s PreToolUse timeout and
-  fail the gate open. Completed pairs are then sorted by start and reduced to
-  outermost spans so a nested differing-length run (`` `code` ``) cannot
-  orphan the outer span and leak a decoy closing keyword into the scan.
+  Inline-code masking collects backtick runs in one pass, then walks
+  openers left to right the way CommonMark does: the first unused
+  same-length closer wins, and every run between is content. That keeps
+  a crafted unmatched-tick line under the 15s PreToolUse timeout, masks
+  nested differing-length runs (`` `code` ``), and does not let the
+  escaped-tick idiom steal a later pair on the same line.
 
 ## [0.55.10]
 

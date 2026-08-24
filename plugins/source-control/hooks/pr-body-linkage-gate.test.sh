@@ -172,6 +172,13 @@ assert_block "a decoy closing keyword inside nested backticks is not linkage" "$
 printf '%s\n' $'Closes #5\n\nSee the format: `` closes #9 `x` `` for reference.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/nested-ticks-plus-real.md"
 assert_allow "a real closing keyword is not hidden by nested backtick decoys" "$GATED" \
   "gh pr create -t T --body-file nested-ticks-plus-real.md"
+# Escaped-tick idiom (double ticks around a lone tick) plus a later
+# same-length pair on the same line. A stale pending entry for the
+# inner tick would steal the later opener and leave its partner
+# unmatched, leaking the later span's text into the keyword scan.
+printf '%s\n' $'Use `` ` `` because `closes #5` is shown.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x' >"$GATED/escaped-tick.md"
+assert_block "a decoy keyword after an escaped-backtick idiom is not linkage" "$GATED" \
+  "gh pr create -t T --body-file escaped-tick.md"
 
 run "$GATED" "$(gh_body "$ISSUE_3205")"
 if [[ "$ERR" == *'Missing a "## Fix" section.'* && "$ERR" == *"## Summary"* && "$ERR" == *"## Fix"* && "$ERR" == *"## Verification"* && "$ERR" == *"## Related"* && "$ERR" == *"Closes #<issue>"* ]]; then

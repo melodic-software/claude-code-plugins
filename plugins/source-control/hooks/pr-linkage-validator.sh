@@ -152,9 +152,8 @@ section_content() {
 # heading-level section bounds — stays intact.
 mask_markdown_code() {
   local body="$1" line rest rendered fence_char="" fence_len=0 in_fence=0
-  local marker_run marker_rest i ticks len k o sidx nspans a b key last_end out=""
-  local -a runs_pos runs_len spans_start spans_end order kept_start kept_end
-  local -A pending
+  local marker_run marker_rest i ticks len k m j sidx nspans nruns cs ce out=""
+  local -a runs_pos runs_len spans_start spans_end used
   while IFS= read -r line || [[ -n "$line" ]]; do
     rest="${line%$'\r'}"
     if ((in_fence)); then
@@ -204,52 +203,36 @@ mask_markdown_code() {
         ((i++))
       fi
     done
-    pending=()
+    # CommonMark: leftmost opener consumes through the next same-length
+    # run; everything between is content (nested pairs, the escaped-tick
+    # idiom, leftover pending of another length). Walk openers in order
+    # and mark absorbed runs used so they cannot steal a later pair.
+    nruns=${#runs_pos[@]}
+    used=()
+    for ((k = 0; k < nruns; k++)); do used[k]=0; done
     spans_start=()
     spans_end=()
-    for ((k = 0; k < ${#runs_pos[@]}; k++)); do
+    for ((k = 0; k < nruns; k++)); do
+      ((used[k])) && continue
       ticks=${runs_len[k]}
-      if [[ -n "${pending[$ticks]+x}" ]]; then
-        o=${pending[$ticks]}
-        unset 'pending[$ticks]'
-        spans_start+=("${runs_pos[o]}")
-        spans_end+=($((runs_pos[k] + runs_len[k])))
-      else
-        pending[$ticks]=$k
-      fi
-    done
-    # Pairing completes in closer-first order. Nested differing-length
-    # runs (`` `x` ``) therefore land the inner span first; a monotonic
-    # render walk then orphans the outer span and leaks its gap text
-    # (including a decoy closing keyword) into has_linkage(). Sort by start
-    # and keep outermost only so the walk matches CommonMark: the first
-    # opener consumes through its closer, and inner runs stay content.
-    nspans=${#spans_start[@]}
-    if ((nspans > 1)); then
-      order=()
-      for ((k = 0; k < nspans; k++)); do order+=("$k"); done
-      for ((a = 1; a < nspans; a++)); do
-        key=${order[a]}
-        b=$((a - 1))
-        while ((b >= 0 && spans_start[order[b]] > spans_start[key])); do
-          order[b + 1]=${order[b]}
-          ((b--))
-        done
-        order[b + 1]=$key
-      done
-      kept_start=()
-      kept_end=()
-      last_end=-1
-      for k in "${order[@]}"; do
-        if ((spans_start[k] >= last_end)); then
-          kept_start+=("${spans_start[k]}")
-          kept_end+=("${spans_end[k]}")
-          last_end=${spans_end[k]}
+      j=-1
+      for ((m = k + 1; m < nruns; m++)); do
+        if ((used[m] == 0 && runs_len[m] == ticks)); then
+          j=$m
+          break
         fi
       done
-      spans_start=("${kept_start[@]}")
-      spans_end=("${kept_end[@]}")
-    fi
+      ((j < 0)) && continue
+      used[k]=1
+      used[j]=1
+      for ((m = k + 1; m < j; m++)); do
+        used[m]=1
+      done
+      cs=${runs_pos[k]}
+      ce=$((runs_pos[j] + runs_len[j]))
+      spans_start+=("$cs")
+      spans_end+=("$ce")
+    done
     rendered=""
     i=0
     sidx=0
