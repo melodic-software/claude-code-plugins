@@ -1,5 +1,5 @@
 ---
-description: "Measure a Claude Code session's fixed startup context payload per item, on this machine at a pinned binary — including per-tool attribution of the built-in tool pools that /context reports only as lump sums, derived live by A/B deny differencing, with a per-project before/after ledger for every lever toggled. Reports only measured numbers; ships none. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only — measures and reports; changes no configuration."
+description: "Measure a Claude Code session's fixed startup context payload per item, on this machine at a pinned binary, including per-tool attribution of the built-in tool pools that /context reports only as lump sums, derived live by A/B deny differencing, with a per-project before/after ledger for every lever toggled. Reports only measured numbers; ships none. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only: measures and reports; changes no configuration."
 argument-hint: "[--full-sweep] every live tool | [--tools T1,T2] chosen tools | [--ledger] history | [fix] guided trim (explicit override)"
 user-invocable: true
 disable-model-invocation: false
@@ -10,12 +10,12 @@ metadata:
 
 ## Purpose
 
-`/context` itemises skills, agents, and MCP tools natively — for those, run it and read the tables.
+`/context` itemises skills, agents, and MCP tools natively. For those, run it and read the tables.
 What it structurally cannot itemise is the built-in tool pool: `System tools` and
 `System tools (deferred)` are lump sums, and together they are typically the largest single
 contributor to the fixed startup payload. This skill measures that attribution on the consumer's
-own machine by A/B differencing — a baseline session versus one session per candidate tool with
-that tool denied by bare name — which is compositional (deltas add), so a basket of trims can be
+own machine by A/B differencing: a baseline session versus one session per candidate tool with
+that tool denied by bare name, which is compositional (deltas add), so a basket of trims can be
 priced from its members.
 
 Two rules govern everything this skill says, per the plugin's
@@ -42,16 +42,16 @@ Two rules govern everything this skill says, per the plugin's
 
 This skill measures **the local Claude Code CLI, in a headless session**. On cloud or web surfaces
 (where the container's binary and settings are not the operator's own), the numbers describe the
-container, not the operator's machine — say so in the report. Interactive sessions can differ from
+container, not the operator's machine. Say so in the report. Interactive sessions can differ from
 headless ones (deferral eligibility is partly server-decided); the stamp's `sessionKind: headless`
 is the honest boundary of the claim.
 
 ## Prerequisites
 
-- `node` — required for correctness. Absent: stop and report the gap; do not estimate.
+- `node`. Required for correctness. Absent: stop and report the gap; do not estimate.
 - The Claude Code CLI (`claude` on PATH, or a `--binary` path the operator names).
-- `@anthropic-ai/claude-agent-sdk` — required for exact mode only. Absent, the engine degrades to
-  parsing headless `/context` output (display-rounded, and undocumented as a `-p` surface — the
+- `@anthropic-ai/claude-agent-sdk`. Required for exact mode only. Absent, the engine degrades to
+  parsing headless `/context` output (display-rounded, and undocumented as a `-p` surface. The
   record carries both caveats). To enable exact mode, offer the operator this one-time install
   into the plugin's own data directory (network access; their call):
 
@@ -67,7 +67,7 @@ is the honest boundary of the claim.
 bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
 ```
 
-The audit's artifacts live under `${CLAUDE_PLUGIN_DATA}/audit/<state-key>/` — keyed by project so
+The audit's artifacts live under `${CLAUDE_PLUGIN_DATA}/audit/<state-key>/`, keyed by project so
 one machine's many checkouts never share a ledger. Pass this resolved absolute path wherever
 `<data-dir>` appears below. Note near the ledger that uninstalling the plugin from its last scope
 deletes this directory unless `--keep-data` is passed.
@@ -82,12 +82,12 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" snapshot \
 Each measurement spawns a short-lived headless session against the pinned binary (the `/context`
 prompt is handled by the CLI itself, so no model API call is made) and records: per-category
 tokens, the live tool list, per-agent tokens, the skill-listing signature, and the binary stamp.
-Exit 3 means measurement is unavailable — the JSON record names the remediation; relay it and
+Exit 3 means measurement is unavailable. The JSON record names the remediation; relay it and
 stop. Never substitute an estimate.
 
 ### 3. Attribute the built-in tool pools
 
-Candidates come from the **live tool list in the baseline record** (`tools`) — never from a
+Candidates come from the **live tool list in the baseline record** (`tools`), never from a
 memorised inventory. Ask the operator (or take from arguments) which to measure:
 
 - A **chosen set** (fast; one ~5–60 s run per tool):
@@ -99,21 +99,21 @@ memorised inventory. Ask the operator (or take from arguments) which to measure:
   ```
 
 - The **full sweep** (`--tools from-baseline`) prices every live tool; warn that it is one run per
-  tool and let the operator opt in. Interactive-only tools never appear in that live list —
+  tool and let the operator opt in. Interactive-only tools never appear in that live list:
   Artifact, SendUserFile, AskUserQuestion, plan-mode tools, interactive-only MCP servers. The
   attribution record's `knownUncovered` names them; the report lists each as known-uncovered,
   never as absent. That category is distinct from unmeasured-but-candidate.
 
 Report the ranked `perTool` table with the binary stamp, and each row's `comparable` flag: a row
 the engine marked incomparable (skill listing shifted, version changed mid-run) is reported as
-such, not as a number. Note which bucket moved — a deny that empties a *deferred* tool's schema
+such, not as a number. Note which bucket moved. A deny that empties a *deferred* tool's schema
 reduces request weight without changing the context-usage headline, so present `prefixDelta` and
 `deferredDelta` separately, never merged into one figure.
 
 ### 4. Present levers from the catalogue
 
 Levers come from the catalogue at
-[`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/levers.json`](reference/levers.json) — data rows,
+[`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/levers.json`](reference/levers.json), data rows,
 each carrying its honesty category, category basis, posture, detection, measurement route,
 emitted config, official citations, verified date, and recheck trigger. Rules, from the
 catalogue's own meta:
@@ -122,14 +122,14 @@ catalogue's own meta:
   whose category cannot be determined for this consumer's configuration is not offered.
 - **Resolve conditions by measurement, not assumption.** A row whose `conditions` names a
   configuration dependency (cap saturation, model default, surface) is measured here before its
-  category is asserted — a condition-dependent lever presented without resolving the condition is
+  category is asserted. A condition-dependent lever presented without resolving the condition is
   the exact failure this plugin exists to prevent.
 - **Respect postures.** `never-recommend` rows (net-negative) are disclosed with their price,
   never offered as actions; `disclose-only` rows are explained, not pushed; `report-only` rows
   (vendor weight) appear as the honest unaddressable floor.
 - **Honor recheck triggers.** A row whose trigger has plausibly fired (version jump past the
   catalogue's `verifiedAgainst`, upstream page moved) is re-verified against a fresh fetch of its
-  citations before being offered — and a measured result always outranks the catalogue's stored
+  citations before being offered, and a measured result always outranks the catalogue's stored
   expectation. On a version jump, also run the binary-strings existence check against the
   stamped binary (docs pages move; the binary is what the consumer actually runs):
 
@@ -139,7 +139,7 @@ catalogue's own meta:
   ```
 
   The binary is the authority on *existence* of each key/env name at the measured version; the
-  docs fetch remains the authority on *semantics*. Report every `absent` token by name — silence
+  docs fetch remains the authority on *semantics*. Report every `absent` token by name. Silence
   reads as "present".
 - **Keep the two ledgers apart** (the catalogue's `dualLedger` note): context-window occupancy
   versus per-request weight. Deferral moves weight between them; only removal clears both.
@@ -167,7 +167,7 @@ The audit's deliverable follows the report contract at
 smart-zone headline (reclaimed reasoning space, never cost), measured category totals, the ranked
 per-tool table with incomparable rows carrying reasons instead of numbers, lever findings grouped
 by honesty category with citations and emitted config, route-outs, then degradations and caveats.
-Persist it to `<data-dir>/reports/<UTC-timestamp>-audit.md` — one file per run — and present it
+Persist it to `<data-dir>/reports/<UTC-timestamp>-audit.md`, one file per run, and present it
 to the operator. When `context-guard` is installed its zone vocabulary may frame the headline;
 otherwise use the payload's share of the measured window.
 
@@ -178,10 +178,10 @@ otherwise use the payload's share of the measured window.
   [`reference/engine.md`](reference/engine.md).
 - **A deferred tool is out of the context window but still in every request.** Do not present the
   deferred bucket as already-saved weight.
-- **`System tools` deltas are valid only between runs with identical skill listings** — the engine
+- **`System tools` deltas are valid only between runs with identical skill listings.** The engine
   enforces this via the listing signature; relay its verdict rather than overriding it.
 - **Zero is a finding.** A lever that measures zero here is reported as measuring zero here, at
-  this version — not as broken, and not silently dropped.
+  this version, not as broken, and not silently dropped.
 
 ## Gotchas
 
@@ -189,29 +189,29 @@ Observed failures, each of which produced a confidently wrong number before the 
 
 - **Removing skills makes `System tools` rise.** Listed skill-frontmatter tokens are subtracted
   from that bucket, so a run that changes the skill listing shifts `System tools` with no tool
-  changing state — this once misread a safe-mode run as "safe mode loads deferred tools". The
+  changing state. This once misread a safe-mode run as "safe mode loads deferred tools". The
   signature check exists because of it; never hand-compare two snapshots the engine marked
   incomparable.
 - **Unredirected stdin prepends a warning line** to headless output, which breaks naive parsing.
   The engine redirects and strips; if you capture `/context` by hand for `parse-context`, redirect
   stdin or expect the leading line.
-- **Two CLI installs on one machine answer differently** — category lists differ across versions.
+- **Two CLI installs on one machine answer differently.** Category lists differ across versions.
   The stamp is the guard; when the operator's interactive `claude` is not the binary on PATH, ask
   which to pin with `--binary`.
 - **The measured machine's numbers are not this repo's research numbers.** Never quote a figure
-  from any document — including this plugin's own development history — as if it were the
+  from any document, including this plugin's own development history, as if it were the
   consumer's; the drift is the whole reason the engine exists.
 
 ## Report-only by default; the fix path is an explicit override
 
-Bare invocation is the audit — it changes no configuration. When a measured result suggests a
-trim, print the exact config the operator would apply (for persistent denies: a
-`permissions.deny` entry — there is no `disallowedTools` settings key) and let them apply it,
-with the ledger loop verifying the result.
+Bare invocation is the audit. It changes no configuration. When a measured result suggests a
+trim, print the exact config the operator would apply and let them apply it, with the ledger
+loop verifying the result. For persistent denies, print a `permissions.deny` entry. There is
+no `disallowedTools` settings key.
 
 ### Fix path (`fix` in the arguments only)
 
-The guided walkthrough runs only when the operator explicitly asked for `fix` — the verb
+The guided walkthrough runs only when the operator explicitly asked for `fix`, the verb
 contract's mutation override. Per lever, in the report's ranked order, offer only
 `recommendable-on-fit` catalogue rows whose conditions this audit resolved by measurement;
 everything else stays report material even here.
@@ -221,14 +221,14 @@ Write posture splits by scope, and the split is not negotiable:
 - **Project scope** (`.claude/settings.json`, `.claude/settings.local.json`): may be edited, one
   lever at a time, after the operator approves the exact diff shown in advance. The plugin's
   PreToolUse checkpoint returns `permissionDecision: "ask"` for any settings-surface write, so
-  even in auto mode the write prompts rather than sliding through — **a checkpoint, not a
+  even in auto mode the write prompts rather than sliding through. **A checkpoint, not a
   guarantee**: a `PermissionRequest` hook can still allow it and `disableAllHooks` removes
   non-managed hooks. Measured at v2.1.232 in headless mode, the `ask` fires and blocks even
   under `bypassPermissions` (surfacing as a tool error carrying the reason); interactive
   `bypassPermissions` behavior is unmeasured. Say so when describing the protection.
 - **User-global** (`~/.claude/settings.json`): **never written by this skill.** Print the exact
   edit, fully resolved and paste-ready; applying it is the operator's. "Protected path" is not a
-  human-confirmation guarantee — in auto mode a write there routes to the classifier, which can
+  human-confirmation guarantee. In auto mode a write there routes to the classifier, which can
   approve with no human involved. Print-only is the posture precisely because the prompt cannot
   be relied on.
 - **Managed policy**: read-only by construction; never targeted, never suggested as a write.
@@ -238,4 +238,4 @@ Write posture splits by scope, and the split is not negotiable:
 The loop per applied lever: approve → apply (project scope) or print (everywhere else) →
 re-measure → `compare --lever "<lever>" --emitted-config "<exact text>"` → `ledger --append` →
 report the measured delta, zero included. Never apply a second lever before the first one's
-delta is measured — un-attributed multi-lever jumps are how false folklore starts.
+delta is measured. Un-attributed multi-lever jumps are how false folklore starts.

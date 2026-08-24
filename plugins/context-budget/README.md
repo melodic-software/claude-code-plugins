@@ -1,12 +1,12 @@
 # context-budget
 
 Measure a Claude Code session's fixed startup context payload **per item**, on your machine, at a
-pinned binary — and record what every trim actually saved.
+pinned binary, and record what every trim actually saved.
 
 `/context` already itemises skills, agents, and MCP tools. What it structurally cannot itemise is
 the built-in tool pool: `System tools` and `System tools (deferred)` are lump sums, and together
 they are typically the largest single contributor to the fixed payload. This plugin attributes
-them per tool by A/B differencing — a baseline headless session versus one session per candidate
+them per tool by A/B differencing: a baseline headless session versus one session per candidate
 tool with that tool denied by bare name. The deltas are compositional, so a basket of trims can be
 priced from its members.
 
@@ -19,16 +19,16 @@ priced from its members.
 
 ## Skills
 
-- `/context-budget:setup` — read-only prerequisite check: `node` (the hook launches it by bare
+- `/context-budget:setup`. Read-only prerequisite check: `node` (the hook launches it by bare
   name, and a launch failure is non-blocking, so the checkpoint can be configured on yet never
   fire), the `claude` CLI the engine measures against, the optional Agent SDK that enables exact
   mode, and the effective `settings_write_ask_enabled` value. Installs nothing.
-- `/context-budget:audit` — take a stamped baseline snapshot, attribute the built-in tool pools
+- `/context-budget:audit`. Take a stamped baseline snapshot, attribute the built-in tool pools
   over the live tool list, present catalogue levers with their honesty categories, and ledger
   any before/after the operator produces. Read-only on bare invocation: it prints exact config
   (for persistent denies, a `permissions.deny` entry) and applies nothing. With the explicit
   `fix` argument, a guided per-lever walkthrough may edit **project** settings after per-diff
-  approval — user-global `~/.claude/settings.json` is only ever printed, and every applied lever
+  approval. User-global `~/.claude/settings.json` is only ever printed, and every applied lever
   is re-measured and ledgered before the next.
 
 ## Hook
@@ -41,7 +41,7 @@ non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
 ## What makes the numbers trustworthy
 
 - **Nothing is shipped, everything is measured.** The skill contains no token figures, tool
-  inventories, or thresholds — those drift with every CLI release. Every number in a report was
+  inventories, or thresholds. Those drift with every CLI release. Every number in a report was
   produced by a run on the consumer's machine during that audit.
 - **Every report is stamped** with the measured binary path and version, the measurement mode,
   and the session kind. Machines with two CLI installs get an answer per binary, not a blend.
@@ -58,11 +58,11 @@ non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
 - **Honest degradation.** Exact mode uses the Agent SDK's structured context usage. Without the
   SDK, the engine parses headless `/context` output version-aware (display-rounded, and flagged
   as resting on an undocumented surface). When neither works, it emits a structured error with a
-  remediation — never a wrong number.
+  remediation, never a wrong number.
 
 ## Prerequisites
 
-- `node` (required — the engine's runtime).
+- `node` (required, the engine's runtime).
 - The Claude Code CLI (`claude` on PATH, or pass the engine an explicit `--binary`).
 - Optional, for exact mode: `@anthropic-ai/claude-agent-sdk`, installed once into the plugin's
   data directory (the audit skill offers the command; it is the operator's call since it needs
@@ -84,6 +84,7 @@ passed.
 - Measurements describe **headless** sessions of the **local CLI**; interactive sessions and
   cloud/web surfaces can compose the payload differently, and reports say so.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -156,3 +157,4 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
