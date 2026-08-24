@@ -29,7 +29,7 @@ the compact machine-readable rollup and action-plan artifact from
 
 Never run or suggest running inline from this skill: `git fetch`, `git worktree prune`,
 `git worktree repair`, `git worktree remove`, `git branch -d/-D`, `git remote set-url`, or any
-filesystem deletion. The bundled script has no mutation mode — `--apply-plan` is a read-only
+filesystem deletion. The bundled script has no mutation mode. `--apply-plan` is a read-only
 dry-run approval artifact over a prior plan file. A report may name a command/tool as a future
 handoff; the fleet action plan lists those invocations once per repository behind one confirmation
 gate. Actual fleet mutation belongs to `/repo-fleet-hygiene:apply`, not this skill.
@@ -46,7 +46,7 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
 - `--canonical <github.com/owner/repo=path>`: invocation-specific canonical checkout override
   (repeatable; explicit wins over config).
 - `--skip <name>`: discovery directory-name skip (repeatable). Explicit `--skip` / `fleet.skip`
-  entries **replace** the default skip list rather than appending — otherwise shrinking is
+  entries **replace** the default skip list rather than appending. Otherwise shrinking is
   impossible. Default (neither CLI nor config): `node_modules`, `vendor`, `.venv`. To extend, pass
   those three defaults plus your names; to shrink (e.g. reach a repo under `vendor/`), omit names
   you want walked. CLI and config compose additively with each other like other scope inputs.
@@ -54,29 +54,29 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
   stay skipped unconditionally even when an explicit list omits them.
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 - `--project-dir <dir>`: the session's project directory, used for the project-scoped config rung.
-  It is **not** a scope fallback — a run with no scope fails rather than auditing it.
+  It is **not** a scope fallback. A run with no scope fails rather than auditing it.
 - `--detail`: emit collapsed per-target evidence after the rollup (default is rollup + action plan
   only).
 - `--plan-file <path>`: write the machine-readable action-plan JSON to this path (otherwise a temp
   file is created and named in the report).
-- `--apply-plan <path>`: standalone read-only mode — render the ordered dry-run approval artifact
+- `--apply-plan <path>`: standalone read-only mode. Render the ordered dry-run approval artifact
   for a previously written plan (cannot combine with discovery flags).
 
 Always pass `--project-dir "${CLAUDE_PROJECT_DIR}"` on audit runs (not on `--apply-plan`). That
 variable is substituted in this markdown content and in `allowed-tools` Bash rules, but it is
-**not** present in the Bash tool's environment, so the script cannot read it for itself — passing
+**not** present in the Bash tool's environment, so the script cannot read it for itself. Passing
 it in is what makes the project rung below reachable at all.
 
-If no scope resolves — no bare path, no `--root`, no `--repo`, and no config-supplied
-`fleet.root`/`fleet.repo` — the run **stops** and names the ways to supply scope plus
+If no scope resolves, no bare path, no `--root`, no `--repo`, and no config-supplied
+`fleet.root`/`fleet.repo`, the run **stops** and names the ways to supply scope plus
 `/repo-fleet-hygiene:setup apply`. Pass that guidance through rather than re-deriving a root
 yourself. The project directory is **not** a fallback scope: auditing the session's incidental
 working directory was removed because it silently audited whatever tree the shell happened to sit
 in. Config
-resolution is the script's own ladder — do not pre-resolve or pass a probed path yourself:
+resolution is the script's own ladder. Do not pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
 `<project-dir>/.claude/repo-fleet-hygiene.conf` (project-scoped), else
-`~/.claude/repo-fleet-hygiene.conf` (user-global — a machine-scoped fleet config placed there is
+`~/.claude/repo-fleet-hygiene.conf` (user-global, a machine-scoped fleet config placed there is
 recorded user intent, not a guessed root). The report header names the consumed config and its
 source, or states that none was consumed. Never guess a broader machine root from the current
 path beyond that ladder.
@@ -85,7 +85,7 @@ Config-supplied scope is **additive** to CLI-supplied scope: a `--repo X` run st
 configured root. The header's `Scope:` line names each contributing rung and its entry count, so
 report that line rather than assuming the arguments were the whole scope.
 
-Before execution, reject any arguments outside this grammar — noting that a bare positional path
+Before execution, reject any arguments outside this grammar, noting that a bare positional path
 **is** in the grammar, so `/repo-fleet-hygiene:audit D:` and
 `/repo-fleet-hygiene:audit /path/to/tree` are valid invocations to pass through, not arguments to
 refuse. What stays rejected is an unrecognized flag: anything beginning with `-` that is not listed
@@ -111,7 +111,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    the linked root, so a sibling worktree reached first by discovery would otherwise become the
    path every handoff points at. When a supplied or discovered path resolves to a different main
    worktree, the header states the substitution on one `Resolved to main worktree:` line per
-   repository, naming every path that resolved into it — relay it, because the operator named one
+   repository, naming every path that resolved into it. Relay it, because the operator named one
    path and the report is about another. The report always shows
    discovered and canonical paths. An
    override target with a missing/non-GitHub remote, or a different identity that cannot be proven to
@@ -119,30 +119,30 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
 2. **GitHub identity:** read the selected fetch remote with `git remote get-url`; accept only
    `github.com/owner/repo`; query `GET /repos/{owner}/{repo}`. If returned `full_name` differs, report
    `HIGH` transfer/rename evidence and **continue** branch/worktree analysis against that resolved
-   identity — a moved remote is not a reason to skip local classification or merge evidence. A
+   identity. A moved remote is not a reason to skip local classification or merge evidence. A
    404/403/network error is `UNKNOWN`, never "deleted" or "moved". A 404/403 on an identity listed
-   in `fleet.ackUnavailable` is demoted to `ACKNOWLEDGED` — still reported, never suppressed; acks
+   in `fleet.ackUnavailable` is demoted to `ACKNOWLEDGED`, still reported, never suppressed; acks
    never touch non-404/403 failures or successful-response evidence.
 3. **Merged branch:** one aliased `gh api graphql` query per repository page of local branches
    (up to `MERGED_PR_GRAPHQL_ALIAS_PAGE` `headRefName` aliases per call, `first:1`,
-   `states:[MERGED]`). GraphQL's `headRefName` argument is an **exact** match — never the search
+   `states:[MERGED]`). GraphQL's `headRefName` argument is an **exact** match, never the search
    API's prefix-matching `head:` qualifier, so `feature/auth` and `feature/auth-v2` never conflate.
    Measured rate cost stays 1 per call (nodeCount equals the alias count); that stays well under
    GitHub's documented 500,000-node ceiling and 5,000-point/hour primary limit. This retires the REST
    `merged-pr-window-truncated` disclosure and the privacy-gated per-branch `--head` fallback:
    every non-default local branch the operator asked about is queried by exact name, including
    heads GitHub auto-deleted and a later fetch pruned. Fail closed when `gh`/GraphQL is
-   unavailable — emit `github-pr-evidence-unavailable` and never infer unmerged from a missing
+   unavailable. Emit `github-pr-evidence-unavailable` and never infer unmerged from a missing
    row after a failed page. Identical branch names in another repository are unrelated. `HIGH`
    requires the PR `headRefOid` to equal the current local tip. Tip drift is `MEDIUM` manual
-   review. Git ancestry without GitHub evidence is `LOW` and never called merged-by-PR — and
+   review. Git ancestry without GitHub evidence is `LOW` and never called merged-by-PR, and
    under squash merges that ancestry predicate is near-inert, so on a squash-merging fleet
    GitHub evidence is effectively the only merge evidence.
 4. **Merged remote branch:** after local classification, the same merged-PR rows are matched
    against each remote-tracking tip under the selected remote. When `headRefOid` equals that tip
    and the branch is not the default, probe live existence with
    `git ls-remote --heads <remote> refs/heads/<branch>`. A matching tip → `HIGH`
-   `merged-remote-branch` (remote head still present after merge — unset or blocked
+   `merged-remote-branch` (remote head still present after merge, unset or blocked
    `delete_branch_on_merge`). ls-remote failure → `MEDIUM` cached observation (may be stale after a
    prune-less fetch). Empty ls-remote → no finding (head already gone upstream). Remote-only heads
    (local already deleted) are included. The handoff is an optional `git push --delete --dry-run`
@@ -155,7 +155,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    the canonical checkout's expected common dir. A mismatch is `HIGH` evidence of an administrative
    linkage problem but **manual review only**. Missing/prunable registrations never trigger pruning.
    Linked, unlocked registrations with reliable admin emit one `MEDIUM` `worktree-status-handoff`
-   per repository naming those paths — disposability (stranded / unknown / safe) is owned by
+   per repository naming those paths. Disposability (stranded / unknown / safe) is owned by
    `/source-control:worktree status`, and this collector emits no `git status`-based substitute
    verdict. Separately, every linked worktree that passes existence and root-verifiability checks
    is classified against the configured worktree root (`melodic.worktreeroot` when present on the
@@ -176,7 +176,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    empty/failed inventory never means no branches are attached.
 6. **Protection:** current/default/worktree-attached branches are never emitted as standalone branch
    cleanup candidates. A merged worktree is routed to worktree dry-run first. `merged-remote-branch`
-   is independent of local attachment — it describes the remote ref.
+   is independent of local attachment. It describes the remote ref.
 
 Every emitted finding kind, both confidence axes, and the merge-strategy and
 `gc.worktreePruneExpire` dependencies the tiers rest on:
@@ -190,10 +190,10 @@ read-only enforcement model and its threat assumptions:
 Default output is screen-scale:
 
 1. Fleet header (config, scope, discovery counts).
-2. **Repository rollup** — one row per repository with `CLEAN` / `N candidates` /
+2. **Repository rollup**. One row per repository with `CLEAN` / `N candidates` /
    `BLOCKED (evidence gap)`, plus counts by finding kind. Fleet-level findings (stale config,
    duplicate checkouts) get their own row. A fleet verdict summarizes blocked vs candidate vs clean.
-3. **Fleet action plan** — recommended skill invocations **once per repository** (not once per
+3. **Fleet action plan**. Recommended skill invocations **once per repository** (not once per
    finding), ordered so branch cleanups precede worktree cleanups, behind **one** confirmation gate.
 4. Path to the machine-readable action-plan JSON (and the `--apply-plan` dry-run invocation).
 
@@ -204,7 +204,7 @@ same-named branches across repositories.
 `ACKNOWLEDGED` remains a prominence demotion, not a fifth confidence tier: the evidence stays exactly
 as weak as the `UNKNOWN` it came from. A rollup `CLEAN` verdict means no actionable cleanup-plan
 candidates (the kinds that produce skill invocations) and no UNKNOWN evidence gap for that
-repository — not "GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
+repository, not "GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
 (for example `locked-worktree` or `merged-pr-tip-drift`) remain in kind counts but do not inflate
 `N candidates` when the action plan correctly lists `Actions: none`.
 
@@ -249,7 +249,7 @@ Related fleet contracts that remain separate:
 - Invalid config SYNTAX, invalid override, or an invalid CLI-supplied `--repo`/`--root` path: report
   the exact invalid input and stop; never silently fall back.
 - No scope given and the project directory is not a Git working tree: stop, and relay the script's
-  remedy block verbatim — the operator did not choose that path, so the rejection alone is not
+  remedy block verbatim. The operator did not choose that path, so the rejection alone is not
   actionable.
 - A config-sourced `fleet.repo`/`fleet.root` path that is missing or not a Git working tree degrades
   per-entry, not per-run: the entry becomes an `UNKNOWN` `stale-config-entry` finding and the rest of
@@ -284,12 +284,12 @@ Related fleet contracts that remain separate:
 | Finding | Handoff (not executed here) |
 |---|---|
 | `merged-local-branch` | Run `/repo-hygiene:clean git` in the named canonical repository |
-| `merged-remote-branch` | Optional preview only: `git push --delete --dry-run <remote> <branch>` in the canonical repository (never executed here). Enabling GitHub `delete_branch_on_merge` is complementary and owned by the repository's settings automation — this audit does not change it |
+| `merged-remote-branch` | Optional preview only: `git push --delete --dry-run <remote> <branch>` in the canonical repository (never executed here). Enabling GitHub `delete_branch_on_merge` is complementary and owned by the repository's settings automation. This audit does not change it |
 | `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
-| `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not installed, name the listed worktree targets and the missing collaborator — emit no porcelain-based substitute verdict |
+| `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not installed, name the listed worktree targets and the missing collaborator. Emit no porcelain-based substitute verdict |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |
 | `worktree-not-a-root` | Manual inspection of the registered path; a `git -C` probe of it describes the CONTAINING repository, so no cleanup handoff is safe until the path is resolved |
-| `worktree-root-unverifiable` | Manual inspection of the registered path. Root-ness is unproven here rather than disproven — the probe itself failed — so infer nothing about the path in either direction |
+| `worktree-root-unverifiable` | Manual inspection of the registered path. Root-ness is unproven here rather than disproven. The probe itself failed, so infer nothing about the path in either direction |
 | `worktree-nested-in-repository` | Recreate at an external root with `/source-control:worktree create`, then remove the nested one |
 | `worktree-outside-configured-root` | Recreate at the expected location named in evidence with `/source-control:worktree create`, then remove the misplaced one |
 | `worktree-wrong-layout` | Recreate at the expected `<owner>-<repo>-<slug>` path under the configured root, then remove the wrong-layout one |
