@@ -55,8 +55,8 @@ the repo make the values unambiguous; ask only where a dimension's targets genui
 1. **Read the effective config first, across all layers.** Load every layer you can access and present a
    short summary of the *effective merged* result. Honoring opt-outs, so a dimension a higher layer
    deliberately zeroed out is reported as removed, not present, and report which layer contributes what.
-   When a local or user-global layer changes the team file's effect. Whether it *adds* globs or *opts a
-   dimension out* with empty source lists. **say so explicitly**, because this step writes only the
+   When a local or user-global layer changes the team file's effect, whether it *adds* globs or *opts a
+   dimension out* with empty source lists, **say so explicitly**, because this step writes only the
    *team* file. A team-scope edit alone will not account for what a higher overlay contributes; in
    particular, when a local (or user-global) opt-out zeroes a dimension, accepting a team-scope
    *re-enable* here will not restore that dimension on this machine, the overlay keeps removing it, so
