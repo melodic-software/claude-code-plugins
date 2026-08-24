@@ -122,8 +122,17 @@ config overrides — stop the live observer to re-arm with new settings.
   `<memory_dir>/.gitignore` contains `*`; refuses a repo-root memory root; never the consumer's root
   `.gitignore`). On a `source=resume` re-arm the observer resumes from the prior run's persisted byte
   offset, so an already-analyzed span is not re-analyzed into a duplicate ledger entry.
-- **`SendMessage`** — reserved for the case where findings must reach a still-running session; gated
-  behind experimental agent-teams and cannot grant consent, so it is not the default.
+- **`SendMessage`** — reserved for the case where findings must reach a still-running session.
+  Reaching another session is cross-session messaging, not an agent-teams surface: "Cross-session
+  messaging requires Claude Code v2.1.224 or later on macOS, Linux, and WSL 2, and v2.1.234 or
+  later on native Windows", and "When a session meets the requirements, messaging is on with
+  nothing to enable" (both verbatim, verified 2026-08-24 against
+  <https://code.claude.com/docs/en/cross-session-messaging>; recheck trigger: a Claude Code
+  changelog entry touching cross-session messaging or its availability). It stays non-default
+  here on the original grounds that survive the correction: the observer cannot grant consent on
+  the target session's behalf (the receiver's inbound controls can hold or refuse the message), a
+  still-running receiver reads it only between tool calls during its active turn, and the durable
+  ledger is the crash-safe, auditable primary.
 - **desktop-notification** — not usable: it is bound to Claude Code's own `Notification` events, not
   arbitrary external triggers, and its OS toast is macOS/Linux only.
 
