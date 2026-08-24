@@ -4,7 +4,7 @@ A Claude Code plugin that makes a pasted X (formerly Twitter) link readable.
 
 X serves its content behind an authenticated client, so a plain HTTP fetch of an `x.com` URL returns
 a shell rather than the post. This plugin routes the URL through public third-party converters that
-already hold the extraction logic and returns Markdown — no X account, no API key, no browser
+already hold the extraction logic and returns Markdown. No X account, no API key, no browser
 extension.
 
 The plugin namespace is the platform, not the technique, so later capabilities (search, archival, an
@@ -24,25 +24,25 @@ post and article patterns, **refuses outright** on no match, and on a match disc
 string and rebuilds the URL from captured groups restricted to `[A-Za-z0-9_]` and `[0-9]`.
 
 This is rebuild-from-captures, not escaping. The URL otherwise lands inside a shell command line,
-where an apostrophe terminates the quoting and contributes new arguments — demonstrated against a
+where an apostrophe terminates the quoting and contributes new arguments, demonstrated against a
 real `argv` dump, yielding a second unconstrained URL and an arbitrary-write flag. Character classes
 that cannot express a quote make the emitted command safe by construction; hand-escaping is the
 failure mode, not the fix.
 
 Rebuilding also drops the host and the query string, so the `x.com`, `twitter.com`, `www.`, and
 legacy `mobile.` forms are all accepted and all collapse to a canonical `x.com` URL, and `?s=`/`?t=`
-share-tracking tokens never reach a third party. Scheme and host are matched case-insensitively —
-RFC 3986 makes both case-insensitive while the path is not — so an uppercased link is admitted by the
+share-tracking tokens never reach a third party. Scheme and host are matched case-insensitively.
+RFC 3986 makes both case-insensitive while the path is not, so an uppercased link is admitted by the
 pattern rather than repaired into matching it. The scheme is discarded on rebuild alongside the host,
 so an `http://` link off an old bookmark still matches and the emitted request is `https://`
 regardless; `--proto '=https'` enforces that at runtime.
 
 Four forms match: a post, an article, an anonymous `/i/article/` article, and the handle-less
 `/i/web/status/` post that embeds, feeds, and legacy clients emit. The handle-less form rebuilds to
-`https://x.com/i/web/status/<id>` rather than acquiring an invented handle — the author is read from
+`https://x.com/i/web/status/<id>` rather than acquiring an invented handle. The author is read from
 the converted body, never from the URL.
 
-The gate is model-honored instruction, not a runtime-enforced control — stated plainly because it is
+The gate is model-honored instruction, not a runtime-enforced control, stated plainly because it is
 the primary defense. The plugin therefore ships **no** shell pre-approval: the network call surfaces
 a permission prompt showing the exact command, destination and transport bounds included. That
 inspectability is why the invocation stays a single bash command line rather than a config file, and
@@ -51,20 +51,20 @@ deferred, with re-introducing a shell grant as its trigger.
 
 ## The ladder
 
-1. **xtomd.com** (`POST /api/markdown`) — X Articles, plain tweets, note tweets, quote tweets. This
+1. **xtomd.com** (`POST /api/markdown`). X Articles, plain tweets, note tweets, quote tweets. This
    resolves the large majority of pasted links.
-2. **Thread Reader App** (`WebFetch`) — only when step 1's result is a fragment of a multi-post reply
+2. **Thread Reader App** (`WebFetch`), only when step 1's result is a fragment of a multi-post reply
    chain. xtomd returns exactly one post; its response schema has no field for sibling or child
    posts, and `replies` is an integer count rather than an array. Verified end to end: a genuine
    12-post chain came back from xtomd as a 346-character root, and Thread Reader App recovered all
    twelve.
-3. **Ask** — reached whenever the requested content is still incomplete, including the common case of
+3. **Ask**. Reached whenever the requested content is still incomplete, including the common case of
    step 1 succeeding with a chain root and step 2 missing. The skill names what each step did, then
    asks for the remaining post URLs. It never presents a truncated chain as complete and never
    reconstructs a post from memory.
 
-Escalation requires positive evidence of continuation — an explicit thread request, text ending
-mid-thought, or `1/`-style markers — and length is evidence in neither direction. The `isNoteTweet`
+Escalation requires positive evidence of continuation: an explicit thread request, text ending
+mid-thought, or `1/`-style markers. Length is evidence in neither direction. The `isNoteTweet`
 flag from `/api/fetch` describes a post's long-form representation, **not** the absence of replies: a
 chain can begin with a note tweet, so `true` suppresses length-only escalation but never overrides
 positive continuation evidence.
@@ -83,13 +83,13 @@ PowerShell-portable form of this request hides the destination and transport bou
 prompt, and that prompt is the only runtime-enforced control here. A narrower, declared platform
 boundary is the honest trade against a Windows path whose approval cannot be trusted.
 
-Absence of either prerequisite is always reported — never a silent skip — and step 2 is **not** a
+Absence of either prerequisite is always reported, never a silent skip, and step 2 is **not** a
 general substitute: it resolves chains only. Without them a single post is unreadable, and the skill
 says so rather than returning an empty chain lookup that reads as if content were lost.
 
 ## Configuration
 
-None. No `userConfig`, no consumer-project config file, no external credential — so per the
+None. No `userConfig`, no consumer-project config file, no external credential, so per the
 marketplace's setup criteria the plugin ships no `setup` skill. Per-project control is whole-plugin
 via scope-level `enabledPlugins`.
 
@@ -102,14 +102,14 @@ select a subsequent tool call, path, or URL.
 ## What leaves the machine
 
 Only the gate's rebuilt, query-stripped URL, sent to `xtomd.com` and `threadreaderapp.com`. No
-credentials, no repository content, no conversation text. This holds because of the gate — without
+credentials, no repository content, no conversation text. This holds because of the gate. Without
 it the request body is attacker-steerable.
 
 Locally, each step-1 call spools its response to one file under the plugin's own data directory,
 reads it in bounded slices up to a fixed 256 KB total, and deletes it on every exit path. A read that
 stops before the end is reported as partial rather than passed off as the whole article. The redirect is unconditional rather
 than reserved for long articles, because an X Article is routinely shared as an ordinary `/status/`
-link and the URL gives no advance signal of response size — streaming instead would put an unbounded
+link and the URL gives no advance signal of response size. Streaming instead would put an unbounded
 third-party body straight into the session.
 
 Neither vendor identifies its operating entity or publishes a retention policy, so assume every
@@ -122,7 +122,7 @@ lives in the marketplace's
 
 - **Private, protected, or deleted posts** are unreachable by any converter. xtomd reports `502`;
   the skill surfaces that rather than retrying.
-- **Thread Reader App coverage is not guaranteed** — a thread page exists only if someone requested
+- **Thread Reader App coverage is not guaranteed**. A thread page exists only if someone requested
   that unroll. A miss redirects to `.../thread/<id>/error` while still returning HTTP `200`, so the
   skill detects it by final URL rather than status code.
 - **A mid-chain reply URL** carries its own id, not the root's, so the step-2 path will miss. The
