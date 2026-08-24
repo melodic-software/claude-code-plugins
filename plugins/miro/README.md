@@ -12,13 +12,13 @@ spawn bug, [anthropics/claude-code#58510](https://github.com/anthropics/claude-c
 
 ## Enabling and configuration
 
-The plugin **installs disabled** (`defaultEnabled: false`) — a bundled MCP server that
+The plugin **installs disabled** (`defaultEnabled: false`). A bundled MCP server that
 connects to an external, credentialed service is opt-in, not on by default. Enable it
 with `claude plugin enable miro` or the `/plugin` interface, and provide a token:
 
 | Option | Storage | Purpose |
 |---|---|---|
-| `miro_api_token` | Claude Code secure credential storage (never `settings.json`) | Miro REST API token. Required — the server exits at startup without it. |
+| `miro_api_token` | Claude Code secure credential storage (never `settings.json`) | Miro REST API token. Required. The server exits at startup without it. |
 
 Get a token from <https://miro.com/app/settings/user-profile/apps>. Claude Code prompts
 for it at enable time (masked input). Sensitive values use the macOS Keychain, or
@@ -34,7 +34,7 @@ token and never invokes a mutating Miro tool.
 
 Once set, a sensitive `userConfig` value has no dedicated reconfigure entry in the `/plugin`
 detail view, and the `/mcp` server menu's "Clear authentication" applies to OAuth-based servers
-only — it is not the rotation path for a token supplied through `userConfig` (the bundled stdio
+only. It is not the rotation path for a token supplied through `userConfig` (the bundled stdio
 server receives `miro_api_token` as its `MIRO_API_TOKEN` environment variable, never through an
 OAuth flow). To change or clear the token at any time, run:
 
@@ -43,14 +43,14 @@ OAuth flow). To change or clear the token at any time, run:
 ```
 
 That reopens the same configuration screen shown at first enable, letting you overwrite or blank
-the stored token. Prefer it regardless — it masks input, where a token passed on the command line
+the stored token. Prefer it regardless. It masks input, where a token passed on the command line
 lands in shell history and the process table.
 
-The older claim here — that `--config` is ignored once the plugin is installed — was never
+The older claim here, that `--config` is ignored once the plugin is installed, was never
 version-stamped, and on Claude Code 2.1.240 a plain `claude plugin install … --config` was
 observed to write the value of an already-installed plugin for a **non-sensitive** option at
 `user` scope. Whether that holds for a `sensitive` option such as `miro_api_token` has not been
-verified, so do not rely on it for a credential — and do not uninstall to rotate: that drops this
+verified, so do not rely on it for a credential. Do not uninstall to rotate: that drops this
 plugin's entire stored `pluginConfigs` entry, resetting every option in the Options reference
 table below to its manifest default.
 
@@ -63,12 +63,12 @@ tags, connectors, bulk create, and overlap detection. Read-only tools annotate
 ## Architecture
 
 Stdio MCP server ([`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk))
-on Node ≥ 24 — cross-platform, no per-OS path divergence at the stdio boundary. Tool
+on Node ≥ 24. Cross-platform, no per-OS path divergence at the stdio boundary. Tool
 definitions are thin wrappers over the [`@mirohq/miro-api`](https://www.npmjs.com/package/@mirohq/miro-api)
 client; the request/response and error-shaping logic lives in `src/`.
 
 The TypeScript in `src/` is the single source of truth. `dist/index.min.js` is generated
-build output — an [esbuild](https://esbuild.github.io/) single-file bundle of the
+build output: an [esbuild](https://esbuild.github.io/) single-file bundle of the
 source and all runtime dependencies. Plugin install runs no build step, so the bundle
 is committed; CI rebuilds it from source with the pinned toolchain and fails on any
 drift, so the committed artifact is always exactly what the source produces.
@@ -88,6 +88,7 @@ npm run verify-bundle # fail if dist/index.min.js drifts from src/
 After editing `src/`, run `npm run bundle` and commit the regenerated `dist/index.min.js`
 alongside the source change.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -155,3 +156,4 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
