@@ -11,8 +11,8 @@ Inspect and customize `/machine-health:audit` on this host per the uniform setup
 (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository):
 `check` reads the effective configuration and reports, `apply` writes it. The machine-local
 surface is the catalog overlay at `<StateBase>/catalog/checks.local.jsonc` and the remediation
-approvals at `<StateBase>/state/approvals.json`. Configuration here is machine-local by design —
-a workstation's check tuning does not belong in any repository. Idempotent: re-running reads the
+approvals at `<StateBase>/state/approvals.json`. Configuration here is machine-local by design.
+A workstation's check tuning does not belong in any repository. Idempotent: re-running reads the
 existing files and offers updates rather than overwriting blind.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then applies
@@ -23,20 +23,20 @@ and always interviews.
 
 ## Resolving the state root
 
-`<StateBase>` is `${CLAUDE_PLUGIN_DATA}` — the per-plugin data directory that survives plugin
+`<StateBase>` is `${CLAUDE_PLUGIN_DATA}`, the per-plugin data directory that survives plugin
 updates. Create it if missing.
 
 **There is no hardcoded fallback path, and inventing one is a defect rather than a safety net.** The
 directory under `~/.claude/plugins/data/` is named for the plugin's *install identity*
 (`<name>-<marketplace>`, or `<name>-inline` for a `--plugin-dir` session), not for the plugin. Any
 literal path written here therefore resolves to a **different** directory than the one this plugin
-actually reads and writes — so the overlay and approvals land in one place while the audit's state
+actually reads and writes. The overlay and approvals land in one place while the audit's state
 and logs live in another, each half looking complete to whoever wrote it, and the operator's
 disabled checks silently stop taking effect.
 
 So when `${CLAUDE_PLUGIN_DATA}` renders as the literal unexpanded token, **stop at step 1 of
 `check`**: report that the skill is running outside plugin context and cannot resolve its state
-root, run no further probe, and write nothing. Continuing would be worse than stopping — with the
+root, run no further probe, and write nothing. Continuing would be worse than stopping. With the
 root unresolved, an absent overlay and an unreadable one are the same observation, so every verdict
 below would assert more than the evidence supports. `apply` refuses outright for the same reason:
 there is no root to write to. (This differs from `/machine-health:audit`, which passes a state root
@@ -47,7 +47,7 @@ overlay directly and has no such rung.)
 `~/.claude/plugins/data/machine-health`, `check` reports a split when it finds one: probe that exact
 legacy path and any `machine-health-*` sibling of the resolved `<StateBase>`, and for each that
 exists and is not `<StateBase>`, name it and list what it holds. Only `<StateBase>` is read.
-Consolidating is the operator's move — moving or deleting the stray root is a decision about their
+Consolidating is the operator's move. Moving or deleting the stray root is a decision about their
 data, and this skill neither relocates nor removes files.
 
 ## `check` (read-only)
@@ -59,47 +59,47 @@ suggested-action line per FAIL; modify nothing. The plugin ships a working zero-
 shipped catalog, no remediations approved), so an absent overlay or absent approvals file is **INFO**
 (default in effect), never FAIL.
 
-1. **State root** — INFO: the resolved `<StateBase>` path, whether it exists yet, and any split root
-   found. FAIL and stop here when the token did not expand (see above) — the remaining probes do not
+1. **State root**. INFO: the resolved `<StateBase>` path, whether it exists yet, and any split root
+   found. FAIL and stop here when the token did not expand (see above). The remaining probes do not
    run.
-2. **Catalog overlay** (`<StateBase>/catalog/checks.local.jsonc`) — INFO when absent (the shipped
+2. **Catalog overlay** (`<StateBase>/catalog/checks.local.jsonc`). INFO when absent (the shipped
    catalog applies unchanged). When present, validate against
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/schemas/checks.schema.json`: a registered custom check
    is a full `#/$defs/CheckEntry` and must satisfy it outright, while a partial override of a shipped
-   check carries `id` plus only the fields it changes — check those field names and value types
+   check carries `id` plus only the fields it changes. Check those field names and value types
    against `CheckEntry` without applying its `required` list (merge behavior:
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/catalog-overlay.md`). Confirm every
-   entry targets a real check — a shipped check id, or a custom check whose `script` path resolves
+   entry targets a real check: a shipped check id, or a custom check whose `script` path resolves
    under `<StateBase>`. FAIL a malformed entry, an entry targeting an unknown check id, or a custom
    entry whose `script` file is missing; report which checks the overlay patches (disabled,
    deprecated, demoted) and any custom checks it registers.
-3. **Remediation approvals** (`<StateBase>/state/approvals.json`) — INFO when absent (no remediation
-   is approved — the safe default; a bare audit mutates nothing). When present: validate against
+3. **Remediation approvals** (`<StateBase>/state/approvals.json`). INFO when absent (no remediation
+   is approved, the safe default; a bare audit mutates nothing). When present: validate against
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/catalog/schemas/approvals.schema.json` (shape and examples in
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md`) and confirm each approval names a real remediation
    (`restart-stopped-service`, `clear-temp-files`). FAIL a malformed file or an approval for an
    unknown remediation; otherwise report which remediations are approved.
-4. **Pending proposals** (`<StateBase>/TODO.md`) — INFO: count proposals (deprecation, cadence
+4. **Pending proposals** (`<StateBase>/TODO.md`). INFO: count proposals (deprecation, cadence
    demotion, new check) awaiting a decision from a prior audit; the suggested-action line is to run
    `apply` to walk them.
-5. **Report directory** — INFO: the effective location — the `report_dir` plugin option when set,
+5. **Report directory**. INFO: the effective location. The `report_dir` plugin option when set,
    else `$env:USERPROFILE\Documents\MachineHealth`.
 
 ## `apply` (idempotent)
 
 Run `check` first. Then, if the invocation carries write arguments, apply each non-interactively;
-otherwise run the interview. After any write, re-read the target file and confirm the entry landed —
-never report success on the write alone. Only write entries that differ from the shipped catalog, so
+otherwise run the interview. After any write, re-read the target file and confirm the entry landed.
+Never report success on the write alone. Only write entries that differ from the shipped catalog, so
 the overlay stays minimal.
 
 **Non-interactive write paths** (named in the argument-hint; each targets a shipped check or
 remediation, so no interview is needed):
 
-- `disable=<check-id>` — write `"enabled": false` for that check to the overlay.
-- `deprecate=<check-id>` — write `"deprecated": true` plus a `deprecation_reason` (from a
+- `disable=<check-id>`. Write `"enabled": false` for that check to the overlay.
+- `deprecate=<check-id>`. Write `"deprecated": true` plus a `deprecation_reason` (from a
   `reason=<text>` argument when supplied, else a short default) to the overlay.
-- `demote=<check-id>` — write `"cadence": "monthly"` for that check to the overlay.
-- `approve=<remediation-id>` — write the approval to `<StateBase>/state/approvals.json` per
+- `demote=<check-id>`. Write `"cadence": "monthly"` for that check to the overlay.
+- `approve=<remediation-id>`. Write the approval to `<StateBase>/state/approvals.json` per
   `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md`. A supplied `approve=` argument IS the explicit user decision;
   never approve a remediation not named in the arguments or the interview.
 
@@ -115,7 +115,7 @@ give, rather than writing a dangling entry.
    `TODO.md`.
 3. **Interview catalog changes** against the merged view: disable (`"enabled": false`), retire
    (`"deprecated": true` + `deprecation_reason`), or demote to monthly (`"cadence": "monthly"`).
-4. **Register custom checks** when the user wants one (always interactive — it authors a script):
+4. **Register custom checks** when the user wants one (always interactive, it authors a script):
    write the script to `<StateBase>/scripts/windows/checks/Test-<Thing>.ps1` (single JSON object per
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/output-schema.md`, `-Human` mode included), then add a full schema-valid
    overlay entry with `script` set to `scripts/windows/checks/Test-<Thing>.ps1`. Merge and resolution
@@ -126,8 +126,8 @@ give, rather than writing a dangling entry.
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md`. Never enable a remediation the user did not explicitly approve.
 6. **Confirm the report directory.** Show where reports land (the `report_dir` plugin option when
    set, else `$env:USERPROFILE\Documents\MachineHealth`); to change it, direct the user to
-   `/plugin configure machine-health@<marketplace>` (interactive, any time) — the option is stored in plugin
-   config, not the overlay. Headless: rerun the install with the new value —
+   `/plugin configure machine-health@<marketplace>` (interactive, any time). The option is stored in plugin
+   config, not the overlay. Headless: rerun the install with the new value,
    `claude plugin install machine-health@<marketplace> -s <scope> --config report_dir=<path>`.
    Against an already-installed plugin it prints `already installed` and still writes the value,
    verified on Claude Code 2.1.240 for a non-sensitive option at `user` scope; a `sensitive`
@@ -140,7 +140,7 @@ give, rather than writing a dangling entry.
    Afterwards, keep the two claims apart. The write is issued and the stored value is what you
    passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
    skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-   session start, so a same-session `check` still reports the OLD value — reporting that as a
+   session start, so a same-session `check` still reports the OLD value. Reporting that as a
    failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
    session**, and never claim an unobserved change.
 
@@ -154,9 +154,9 @@ alone reports the effective configuration and changes nothing.
 
 ## What this skill does NOT do
 
-- Run the audit — that is `/machine-health:audit`.
-- Edit the shipped catalog or anything inside the plugin install directory — a plugin update
+- Run the audit. That is `/machine-health:audit`.
+- Edit the shipped catalog or anything inside the plugin install directory. A plugin update
   replaces it; machine-local changes live only under `<StateBase>`.
-- Approve remediations silently — every approval is an explicit user decision (an `approve=`
+- Approve remediations silently. Every approval is an explicit user decision (an `approve=`
   argument or an interview yes).
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
