@@ -516,6 +516,45 @@ assert_contains "a git-toplevel-spelled absolute path still emits" "$RELTOP_OUT"
 assert_not_contains "and is not re-anchored as a relative path" \
   "$RELTOP_OUT" "reason=outside-repo-root"
 
+# Git Bash / Windows: `\` is a separator (`is_absolute` already treats it as
+# one). A slash-only `..` regex misses `..\outside.md`, joins it as
+# `<pwd>/..\outside.md`, prefix-matches the root, and emits a traversing
+# Location. The file is created under a literal backslash name so source_line
+# can read it on POSIX; the fence must still refuse the path form.
+printf -- '# Body\n\nCRITICAL: You MUST always do this.\n' >"$RELREPO/..\\outside-doc.md"
+printf '%s\n' '..\outside-doc.md:3:I28-a' >"$TEST_TMPDIR/reltravbs.txt"
+(cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/reltravbs.txt" \
+  --out "$TEST_TMPDIR/reltravbs-find.md" --branch testbranch >/dev/null 2>&1)
+TRAVBS_OUT=$(cat "$TEST_TMPDIR/reltravbs-find.md")
+TRAVBS_ROWS=$(printf '%s\n' "$TRAVBS_OUT" | grep -c '^| [0-9]')
+assert_eq "a backslash-separated relative traversal emits nothing" "0" "$TRAVBS_ROWS"
+assert_not_contains "and no backslash-traversing Location reaches the report" \
+  "$TRAVBS_OUT" '..\outside-doc.md'
+assert_contains "the backslash traversal refusal is counted" \
+  "$TRAVBS_OUT" "reason=outside-repo-root"
+
+# Mixed separators: `<root>/..\outside.md` is the same lexical-prefix hole.
+printf '%s\n' "$RELREPO/..\\outside-doc.md:3:I28-a" >"$TEST_TMPDIR/mixtrav.txt"
+(cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/mixtrav.txt" \
+  --out "$TEST_TMPDIR/mixtrav-find.md" --branch testbranch >/dev/null 2>&1)
+MIXTRAV_OUT=$(cat "$TEST_TMPDIR/mixtrav-find.md")
+MIXTRAV_ROWS=$(printf '%s\n' "$MIXTRAV_OUT" | grep -c '^| [0-9]')
+assert_eq "a mixed-separator anchored traversal emits nothing" "0" "$MIXTRAV_ROWS"
+assert_contains "and the mixed-separator refusal is counted" \
+  "$MIXTRAV_OUT" "reason=outside-repo-root"
+
+# A relative Location that contains `|` must not split the findings table.
+# Finding/Action already went through esc(); Location did not, and admitting
+# relative paths is what makes a `|` in the filename expressible as written.
+printf -- '# Body\n\nCRITICAL: You MUST always do this.\n' >"$RELREPO/p|q.md"
+printf '%s\n' 'p|q.md:3:I28-a' >"$TEST_TMPDIR/rellocpipe.txt"
+(cd "$RELREPO" && bash "$EMIT" --from "$TEST_TMPDIR/rellocpipe.txt" \
+  --out "$TEST_TMPDIR/rellocpipe-find.md" --branch testbranch >/dev/null 2>&1)
+LOCPIPE_ROW=$(LC_ALL=C grep -m1 '^| [0-9]' "$TEST_TMPDIR/rellocpipe-find.md")
+assert_contains "a pipe in a relative Location is escaped" "$LOCPIPE_ROW" 'p\|q.md:3'
+LOCPIPE_COLS=$(printf '%s\n' "$LOCPIPE_ROW" | sed 's/\\|//g' | awk -F'|' '{print NF}')
+assert_eq "and the row still parses as one 7-column row" "9" "$LOCPIPE_COLS"
+
 # --- Case 14: I29 description-restatement emits, sibling emits, fences hold --
 RESTATE="$TEST_TMPDIR/restate-repo"
 mkdir -p "$RESTATE"

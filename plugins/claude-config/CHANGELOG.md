@@ -26,10 +26,16 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `../outside.md`, which the fix pass would then resolve outside the working tree. Admitting
   relative paths is what makes traversal expressible, so both forms are refused in the same
   change: any path holding a `..` segment is declined outright and counted, never dropped
-  silently. A symlink inside the repository pointing outside it still resolves past the test,
-  which needs a canonicalizing syscall awk has no portable access to; that residual is recorded
-  in the fence rather than implied. Absoluteness is tested with `substr` rather than a bracket
-  expression holding both delimiters, because the runner awk is mawk.
+  silently. The segment test covers both `/` and `\` separators — `is_absolute` already
+  treats a backslash as a root/separator, so a slash-only `..` regex would admit
+  `..\outside.md` on Git Bash and emit a traversing Location. The two delimiter
+  spellings are separate regexes, not a bracket class holding both, because the runner
+  awk is mawk. A Location cell now goes through the same pipe-escape as Finding and
+  Action, so a newly admitted relative filename that contains `|` cannot split the row.
+  A symlink inside the repository pointing outside it still resolves past the test,
+  which needs a canonicalizing syscall awk has no portable access to; that residual is
+  recorded in the fence rather than implied. Absoluteness is tested with `substr` rather
+  than a bracket expression holding both delimiters.
 
 ## [0.40.0]
 

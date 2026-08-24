@@ -281,13 +281,29 @@ LC_ALL=C awk \
   # to hold. Residual, recorded rather than implied: a symlink inside the
   # repository pointing outside it still resolves past this test, which needs a
   # canonicalizing syscall awk has no portable access to.
+  #
+  # `is_absolute` already treats `\` as a separator (Git Bash / Windows). A
+  # slash-only `..` test would admit `..\outside.md`: joined as
+  # `<pwd>/..\outside.md`, the `..` is followed by `\` rather than `/` or
+  # end-of-string, the prefix check still succeeds, and Location becomes a
+  # traversing spelling. Separate regexes, not a bracket class holding both
+  # delimiters: the runner awk is mawk.
+  function has_dotdot_segment(p) {
+    if (p ~ /(^|\/)\.\.(\/|$)/) return 1
+    if (p ~ /(^|\\)\.\.(\\|$)/) return 1
+    if (p ~ /\/\.\.\\/) return 1
+    if (p ~ /\\\.\.\//) return 1
+    return 0
+  }
+
   function relativize_in_repo(p) {
     if (!is_absolute(p)) {
       sub(/^\.\//, "", p)
+      sub(/^\.\\/, "", p)
       p = caller_pwd "/" p
     }
     gsub(/\/\.\//, "/", p)
-    if (p ~ /(^|\/)\.\.(\/|$)/) return ""
+    if (has_dotdot_segment(p)) return ""
     if (repo_root_pwd != "" && index(p, repo_root_pwd "/") == 1)
       return substr(p, length(repo_root_pwd) + 2)
     if (repo_root != "" && index(p, repo_root "/") == 1)
@@ -438,7 +454,7 @@ LC_ALL=C awk \
     excerpt = trim(text)
     if (length(excerpt) > 160) excerpt = substr(excerpt, 1, 157) "..."
 
-    rows[++nemit] = "| " rule_tier(id) " | high | " loc ":" lno " | claude-config:audit-instructions | " \
+    rows[++nemit] = "| " rule_tier(id) " | high | " esc(loc) ":" lno " | claude-config:audit-instructions | " \
       esc(rid " " fired_marker(id, text) " -- " excerpt) " | " esc(rule_action(id)) " |"
     seen[id]++
     next
