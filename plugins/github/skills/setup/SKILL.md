@@ -6,30 +6,30 @@ disable-model-invocation: true
 
 # github setup
 
-User-invoked only. Two actions — `check` (report, change nothing) and `apply` (write consumer
+User-invoked only. Two actions: `check` (report, change nothing) and `apply` (write consumer
 config). No action given: run `check`, then offer `apply` if anything is missing.
 
-## `check` — verify, report, change nothing
+## `check`, verify, report, change nothing
 
 1. **`gh` present?** If not: stop with a concise message naming the missing prerequisite and the
-   official install page (`https://cli.github.com`) — remediation is the user's to run.
-2. **`gh auth status`** — confirm an authenticated session; name the account and host in the
+   official install page (`https://cli.github.com`). Remediation is the user's to run.
+2. **`gh auth status`**. Confirm an authenticated session; name the account and host in the
    report. **Never store, echo, or persist credentials or token values.**
-3. **Credential-modality picture** — for the areas the consumer cares about (ask, or take them
+3. **Credential-modality picture**. For the areas the consumer cares about (ask, or take them
    from the invocation), run the diagnosis method from
    `${CLAUDE_PLUGIN_ROOT}/reference/method-ladder.md` (rung 0): what the live session's credential
-   can and cannot reach, resolved against fresh official docs — never a shipped scope table. When
+   can and cannot reach, resolved against fresh official docs. Never a shipped scope table. When
    a needed scope is missing, report it as the honest-degradation gate and recommend the exact
-   `gh auth refresh` command **for the user to run themselves — never auto-run a re-consent**, no
+   `gh auth refresh` command **for the user to run themselves**. Never auto-run a re-consent, no
    matter what standing "fix it automatically" instructions exist.
-4. **Config layers** — resolve both surfaces (`routing.yaml`,`conventions.md`) per
+4. **Config layers**. Resolve both surfaces (`routing.yaml`,`conventions.md`) per
    `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md` and
    `${CLAUDE_PLUGIN_ROOT}/reference/conventions-file.md`, anchored at the repo root, and report a
    **per-layer verdict**:
 
    | Layer | Verdict to check |
    |---|---|
-   | user-global | exists / absent — no git verdict applies outside the worktree |
+   | user-global | exists / absent. No git verdict applies outside the worktree |
    | team | must be tracked in git; untracked team config is a hard finding |
    | local overlay | must be gitignored and never staged |
 
@@ -37,38 +37,38 @@ config). No action given: run `check`, then offer `apply` if anything is missing
    propose-only", not as an error. A malformed layer is named and skipped, per the contract.
 5. **Report** the effective routing per scope block with the layer that supplied each value
    (policy-floor provenance included), and the recursive overlay gitignore line
-   (`.claude/**/*.local.*`) when it is missing from the consumer's `.gitignore` — recommend it;
+   (`.claude/**/*.local.*`) when it is missing from the consumer's `.gitignore`. Recommend it;
    **never edit the consumer's `.gitignore`**.
 
-## `apply` — idempotent, interview-driven config write
+## `apply`, idempotent, interview-driven config write
 
 1. **Read first.** Load every existing layer of `routing.yaml` and `conventions.md`. `apply`
-   converges the config on the interview's answers — it never blindly rewrites. Converging is
+   converges the config on the interview's answers. It never blindly rewrites. Converging is
    state-assessing, so a `routing.yaml` rewrite is bounded two ways:
    - **Preserve every key the existing file carries that this schema does not recognize.** A
      consumer extension or a newer plugin version may own it; a re-run never drops one. Write the
      merged document rather than a fresh one built from the answers alone.
-   - **Report a recognized key whose value this version cannot reconcile — never silently rewrite
-     it.** An obsolete `default`, a scope block naming an area this version does not know, a
+   - **Report a recognized key whose value this version cannot reconcile.** Never silently rewrite
+     it. An obsolete `default`, a scope block naming an area this version does not know, a
      `handoff` channel whose `target` no longer parses: name the key, the value, and why it did not
      reconcile, and let the user decide. Silently converging an unreconcilable value is config loss
      the consumer only discovers when routing misbehaves.
 2. **Interview** the routing posture, with a recommendation per question: which scopes to
    declare (repo / org / enterprise), the `default` per scope, per-area overrides worth
-   declaring, and — when any answer is `handoff` — the channel's `target`/`instructions`.
+   declaring, and, when any answer is `handoff`, the channel's `target`/`instructions`.
    Unanswered postures fall back to `propose`. When the invocation already supplies complete
    answers, skip the interview and run non-interactively.
 3. **Write** to the team layer (`${CLAUDE_PROJECT_DIR}/.claude/github/`), or the layer the user
    explicitly chooses. Local-layer precondition: before writing any `*.local.*` overlay, verify
    the target path is ignored (`git check-ignore -q <path>`); when it is not, surface the
    recommended gitignore line first and wait for the user to either add it themselves or
-   explicitly accept writing an unignored overlay — never write silently, never stage it, and
+   explicitly accept writing an unignored overlay. Never write silently, never stage it, and
    never edit their `.gitignore`.
    - `routing.yaml` conforming to the schema in
-     `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md` — `default: propose` unless the user
+     `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md`. `default: propose` unless the user
      chose otherwise.
    - `conventions.md` stub (what the file is for + a pointer to
-     `${CLAUDE_PLUGIN_ROOT}/reference/conventions-file.md` semantics) — **only if none exists**;
+     `${CLAUDE_PLUGIN_ROOT}/reference/conventions-file.md` semantics). **Only if none exists**;
      never overwrite or append to a consumer's existing conventions.
 4. **Idempotency check**: when the merged answers equal the existing config, report "no changes
    needed" and write nothing. A second run with the same answers must produce zero file changes.
