@@ -2,8 +2,8 @@
 
 A Claude Code plugin that returns a repository toward a known-good state.
 `/repo-hygiene:clean` is an action-router: it inventories reclaimable space,
-removes tool caches and build artifacts, prunes stale git metadata, and — as a
-deliberately-gated destructive tier — realigns the working tree to a fresh-pull
+removes tool caches and build artifacts, prunes stale git metadata, and, as a
+deliberately-gated destructive tier, realigns the working tree to a fresh-pull
 state. Every mutating path is **dry-run-first**, and the destructive tiers are
 gated behind explicit confirmation plus a session-scoped destructive-command
 guard.
@@ -12,7 +12,7 @@ guard.
 
 `/repo-hygiene:clean <action>` routes every action below. Bare invocation infers
 intent from the conversation, or presents a menu and falls back to the safe `scan`.
-`/repo-hygiene:setup` is the separate, read-only prerequisite check — it verifies
+`/repo-hygiene:setup` is the separate, read-only prerequisite check. It verifies
 `git`, the optional `ghq`, and the effective destructive-guard toggle, and cleans
 nothing.
 
@@ -22,12 +22,12 @@ nothing.
 | `caches` | Remove tool / linter caches (`.pytest_cache`, `.ruff_cache`, `__pycache__`, `.turbo`, `.vs`, …) | Low |
 | `build` | Remove build artifacts (`bin`/`obj`/`build`/`dist`/`out`/`target`/`TestResults`, `*.binlog`), includes caches | Low |
 | `git` | Prune stale worktree/remote metadata and gc; audit branches (merged / PR-merged / stale) and delete only on per-branch opt-in | Low |
-| `tree` | Reset the working tree like a fresh pull — `git reset --hard` + `git clean -fdx` | **Destructive** |
+| `tree` | Reset the working tree like a fresh pull. `git reset --hard` + `git clean -fdx` | **Destructive** |
 | `tree-batch` | Run `tree` across many repos (`ghq list`, a glob, or an explicit list) behind one confirmation gate, with a separator-agnostic skip list and a dirty-by-default guard | **Destructive** |
-| `all` | Sweep `caches` + `build` + `git` — **never** the `tree` reset | Medium |
+| `all` | Sweep `caches` + `build` + `git`. **never** the `tree` reset | Medium |
 
 Tiers are cumulative (`build` includes `caches`; `all` = `build` + `git`), and
-neither `tree` nor `tree-batch` is composed into `all` — one mistaken sweep cannot
+neither `tree` nor `tree-batch` is composed into `all`. One mistaken sweep cannot
 trigger a `reset --hard`.
 
 ### Multi-repo reset (`tree-batch`)
@@ -36,7 +36,7 @@ trigger a `reset --hard`.
 without hand-rolling a loop. It skips any repo with uncommitted/untracked changes
 or unpushed commits **by default** (opt in with `--include-dirty`), and its skip
 list is matched separator-agnostically, so a `\`-path skip entry reliably protects
-a repo enumerated with `/` paths — the failure that lost an uncommitted edit in an
+a repo enumerated with `/` paths, the failure that lost an uncommitted edit in an
 ad-hoc loop. A skip entry that matches nothing is reported, never silently ignored.
 
 ```shell
@@ -52,7 +52,7 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
   local config** (`.env*`, `*.local.json`/`.jsonc`/`.md`, IDE + cloud + Codex
   config), **runtime dependencies** (`node_modules/`, `.venv/`, `vendor/`), and
   **skill-owned `data/`** directories. `tree` widens deletion only with the
-  explicit `--include-deps` / `--include-secrets` flags — and `--include-secrets`
+  explicit `--include-deps` / `--include-secrets` flags, and `--include-secrets`
   demands its own separate confirmation because it is unrecoverable.
 - **Any git-tracked file is off-limits** to selective deletion; a tracked file
   deleted by reparse-point (junction/symlink) traversal during a `tree` clean is
@@ -63,7 +63,7 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
   through the skill's own gate. Kill switch: the `clean_destructive_guard_enabled`
   userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`, or
   `claude plugin install repo-hygiene@<marketplace> --config clean_destructive_guard_enabled=false`;
-  user-scoped — per-repository disable means disabling the plugin in that
+  user-scoped. Per-repository disable means disabling the plugin in that
   project's `enabledPlugins`).
 - **Autonomous sessions abort** the destructive tiers rather than deleting
   unattended.
@@ -73,7 +73,7 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
 - Self-contained: the path registry, tier scripts, destructive guard, and the
   reference tables all ship inside the plugin under `${CLAUDE_PLUGIN_ROOT}`.
 - No baked layout. Ecosystem targets are generic (universal `bin`/`obj`/… globs,
-  common cache dirs) and the .NET solution is detected at runtime — nothing
+  common cache dirs) and the .NET solution is detected at runtime. Nothing
   assumes a specific repo's directory structure.
 - Conservative by default: the protected-path and preserve lists err toward
   keeping a consumer's dependencies, credentials, and IDE state.
@@ -93,6 +93,7 @@ and the `tree` tier's default-preserve classes to keep additional paths safe. A
 declared per-consumer override for the script-enforced protected list is a known
 extension point, not yet exposed as configuration.
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -165,6 +166,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
