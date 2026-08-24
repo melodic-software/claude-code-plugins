@@ -34,11 +34,11 @@ To *run* an agentic AI-driven workshop (multi-persona simulation on Miro) rather
 
 ## Interactive Discovery (no args)
 
-When invoked with no arguments, help the user figure out what they need. Don't dump information — ask questions.
+When invoked with no arguments, help the user figure out what they need. Don't dump information. Ask questions.
 
 ### Step 1: Check for existing boards
 
-**Miro availability gate:** this step needs a Miro MCP server. If Miro tools are unavailable in the session (no `miro_list_boards` tool), skip board discovery entirely and go straight to Step 2 — do not error. Reference-only guidance (every `--<format>` action) works with no Miro at all.
+**Miro availability gate:** this step needs a Miro MCP server. If Miro tools are unavailable in the session (no `miro_list_boards` tool), skip board discovery entirely and go straight to Step 2. Do not error. Reference-only guidance (every `--<format>` action) works with no Miro at all.
 
 When Miro IS available, query it for recent boards: `miro_list_boards`. Look for boards with EventStorming-related names (containing "Big Picture", "Process Model", "Design-Level", "EventStorming", or domain-specific names from prior sessions). Sort by last modified.
 
@@ -54,7 +54,7 @@ If recent boards exist, present them:
 > 2. Start a new EventStorming session
 > 3. Just learn about EventStorming (reference mode)"
 
-If the user picks an existing board, read it via `miro_list_board_items` (full pagination) to understand what's there — what format was used, what phase it's in, what building blocks are present. Then suggest next steps:
+If the user picks an existing board, read it via `miro_list_board_items` (full pagination) to understand what's there: what format was used, what phase it's in, what building blocks are present. Then suggest next steps:
 
 - If it's a Big Picture with no PM/DL follow-up → suggest `/event-storming:simulation --process-model` or `/event-storming:simulation --value` on the winning problem
 - If it's a Big Picture with PM done → suggest `/event-storming:simulation --design-level` or `/event-storming:simulation --crc`
@@ -82,7 +82,7 @@ Based on their choice, ask:
 >
 > Examples: e-commerce, conference organization, healthcare scheduling, insurance claims, logistics..."
 
-Then do 3+ web-research searches for domain context before proceeding — use the Perplexity MCP tools if present, otherwise the built-in `WebSearch`/`WebFetch`. If no web-research surface is available, ask the user for the domain context instead of guessing.
+Then do 3+ web-research searches for domain context before proceeding. Use the Perplexity MCP tools if present, otherwise the built-in `WebSearch`/`WebFetch`. If no web-research surface is available, ask the user for the domain context instead of guessing.
 
 ### Step 4: Recommend and execute
 
@@ -107,11 +107,11 @@ EventStorming is a flexible workshop format for collaborative exploration of com
 
 **Three main formats, increasing in precision:**
 
-1. **Big Picture** — Explore the entire business domain with all stakeholders. Discover bounded contexts, hotspots, and key business events. The broadest format.
-2. **Process Modeling** — Zoom into a specific business process. Model the flow with events, commands, policies, read models, and external systems. A cooperative game.
-3. **Design-Level** — Zoom into software design. Discover aggregates, define command/event contracts, and bridge to implementation. The most precise format.
+1. **Big Picture.** Explore the entire business domain with all stakeholders. Discover bounded contexts, hotspots, and key business events. The broadest format.
+2. **Process Modeling.** Zoom into a specific business process. Model the flow with events, commands, policies, read models, and external systems. A cooperative game.
+3. **Design-Level.** Zoom into software design. Discover aggregates, define command/event contracts, and bridge to implementation. The most precise format.
 
-**Core principle:** EventStorming is not about the stickies — it is about the conversations the stickies trigger. The real value is shared understanding, not the artifact.
+**Core principle:** EventStorming is not about the stickies. It is about the conversations the stickies trigger. The real value is shared understanding, not the artifact.
 
 ### Source authority hierarchy
 
@@ -122,7 +122,7 @@ Brandolini's book (*Introducing EventStorming*, Leanpub) is the **canonical sour
 3. **When sources conflict, Brandolini wins**
 4. **When Brandolini is silent** (e.g., Design-Level at ~10% written), secondary sources fill the gap with clear attribution
 
-This matters because secondary authors publish their *interpretations* of how to facilitate Brandolini's method — often good interpretations, but not Brandolini's prescribed sequence.
+This matters because secondary authors publish their *interpretations* of how to facilitate Brandolini's method. Often good interpretations, but not Brandolini's prescribed sequence.
 
 ---
 
@@ -132,7 +132,7 @@ This matters because secondary authors publish their *interpretations* of how to
 |-------|---------|-------------|
 | **Orange** | Domain Event | Something that happened (past tense). The fundamental building block |
 | **Blue** | Command / Action | An intention or decision that triggers an event |
-| **Lilac/Purple** | Policy | Reactive logic — "whenever X happens, do Y". Connects events to commands |
+| **Lilac/Purple** | Policy | Reactive logic: "whenever X happens, do Y". Connects events to commands |
 | **Yellow (small)** | Actor / Person | A human role that issues commands |
 | **Yellow (large)** | Read Model | Information a person needs to make a decision |
 | **Pink/Red** | External System | A system outside the current domain boundary |
@@ -177,13 +177,13 @@ Load these based on what the user needs:
 ## Applying EventStorming to Your Codebase
 
 EventStorming output (sticky notes on a wall) bridges to code via DDD tactical patterns. Each
-sticky-note color maps to a concrete code element in a DDD codebase — commands, domain events,
+sticky-note color maps to a concrete code element in a DDD codebase: commands, domain events,
 aggregates, read models, policies. See `reference/design-level.md` ("Relationship to Your
 Architecture") for the sticky-color-to-tactical-pattern mapping and how to translate it to the
 building blocks your own stack uses.
 
 EventStorming directly informs bounded context discovery, domain event design, aggregate
-boundaries, command/query separation, policy identification, and hot-spot tracking — see
+boundaries, command/query separation, policy identification, and hot-spot tracking. See
 `reference/design-level.md` for the concrete code mapping.
 
 When using this skill for domain modeling, read the consuming project's own architecture and
@@ -195,8 +195,8 @@ patterns onto that stack's building blocks rather than assuming a particular fra
 When the user wants shareable artifacts from EventStorming output, and the `document-skills` plugin
 (or equivalent document tooling) is available in the session, hand off to it:
 
-- **Board results slides** — `document-skills:pptx` for Big Picture results, Process Model swimlanes
-- **Workshop guide** — `document-skills:docx` for participant materials and facilitation notes
-- **Stakeholder report** — `document-skills:pdf` for comprehensive modeling report
+- **Board results slides.** `document-skills:pptx` for Big Picture results, Process Model swimlanes
+- **Workshop guide.** `document-skills:docx` for participant materials and facilitation notes
+- **Stakeholder report.** `document-skills:pdf` for comprehensive modeling report
 
 If no document tooling is present, emit the artifact as markdown instead.
