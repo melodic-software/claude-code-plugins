@@ -5,7 +5,7 @@ edit them. On every `Write` or `Edit` of a file under `.github/workflows/`
 (`*.yml` or `*.yaml`) it runs [actionlint](https://github.com/rhysd/actionlint)
 and surfaces any findings back to Claude as advisory context.
 
-It ships no rules of its own and no binary — it runs the `actionlint` already on
+It ships no rules of its own and no binary. It runs the `actionlint` already on
 your `PATH`.
 
 ## Behavior
@@ -19,22 +19,22 @@ your `PATH`.
   `.github/workflows/*.yaml` are linted. Other YAML is left alone.
 - **External run-block linters disabled (`-shellcheck= -pyflakes=`).**
   actionlint's embedded-bash ShellCheck and `shell: python` pyflakes
-  integrations are turned off. Each spawns a subprocess per `run:` block —
+  integrations are turned off. Each spawns a subprocess per `run:` block.
   ShellCheck deadlocks on large blocks under the Windows subprocess IPC path in
   actionlint 1.7.x, and either adds latency unsuited to an edit-time hook.
   Native workflow diagnostics are unaffected; run the full integrations in CI.
 - **Graceful degrade.** When `actionlint` (or `jq`) is not on `PATH` the hook
-  skips and says so — a once-per-session notice to both Claude
+  skips and says so, a once-per-session notice to both Claude
   (`additionalContext`) and you (`systemMessage`), never a silent no-op.
 
 ## Requirements
 
-- **Bash** — the hook is a Bash script. On native Windows, install
+- **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
-- **jq** on `PATH` — parses the hook payload. Absent: the hook skips with a
+- **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible once-per-session notice. [Install jq](https://jqlang.org/download/).
-- **actionlint** on `PATH` — the linter itself. Absent: workflow lint skips
+- **actionlint** on `PATH`. The linter itself. Absent: workflow lint skips
   with a visible once-per-session notice. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
 
@@ -52,9 +52,9 @@ Then verify prerequisites with `/actionlint:setup check`.
 actionlint auto-discovers its own `.github/actionlint.yaml` config from your
 repository when present. Two `userConfig` options tune the hook itself:
 
-- **`actionlint_enabled`** (boolean, default `true`) — kill switch for the
+- **`actionlint_enabled`** (boolean, default `true`). Kill switch for the
   actionlint-check hook.
-- **`stdin_read_timeout`** (number, default `2`, minimum `1`) — **idle** bound in
+- **`stdin_read_timeout`** (number, default `2`, minimum `1`). **Idle** bound in
   seconds on reading the hook payload from stdin. Any byte arriving resets it, so
   a large or slowly-delivered payload is never cut off while it is still coming;
   it fires only once the pipe has gone silent for that long, and this hook then
@@ -63,9 +63,9 @@ repository when present. Two `userConfig` options tune the hook itself:
   configured interval of it; where fractional timeouts are unavailable (Bash 3.2,
   the macOS system shell) it is read as one window and a producer that sends
   bytes then goes silent can take up to two intervals. A producer that keeps
-  emitting is bounded by Claude Code's own hook timeout, not by this value. A
-  setting this shell's `read -t` will not accept — or `0` — falls back to the
-  default.
+  emitting is bounded by Claude Code's own hook timeout, not by this value. If
+  this shell's `read -t` will not accept the setting, or the setting is `0`, the
+  hook falls back to the default.
 
 Configure interactively with `/plugin configure actionlint@<marketplace>` or headless at
 install time:
@@ -74,6 +74,7 @@ install time:
 claude plugin install actionlint@<marketplace> --config actionlint_enabled=false
 ```
 
+<!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -147,6 +148,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins) — enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
+<!-- ai-slop-ignore-end -->
 
 ## License
 
