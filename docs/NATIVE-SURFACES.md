@@ -17,14 +17,26 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
 
 | Lane | Rows | Baked | Verdicts |
 |---|---|---|---|
-| Built-in CLI commands | 0 | 0 | — |
+| Built-in CLI commands | 1 | 0 | complementary 1 |
 | Bundled skills | 6 | 1 | complementary 6 |
 | Plugin-backed built-ins | 1 | 0 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | defer 1 |
 
 ## Built-in CLI commands
 
-No rows recorded in this lane.
+### `export` → `session-flow:clean-stop`
+
+- **Verdict:** `complementary` — No component duplicates /export and none may invoke it: built-ins are user-invoked only, and the command is confirmed unavailable headless. clean-stop, handoff (prompt-only path), and retro instead suggest that the user run it at session-end moments, because transcripts are retention-swept and the conversation otherwise has no durable artifact. The native surface does the exporting; the skills only name the moment and a destination convention (<memory_dir>/exports/). Verdict recorded per the user-approved export-session-flow Brief (PR #3355).
+- **Native surface:** `export` (built-in command; markers: none)
+- **Our component:** `session-flow:clean-stop` (skill)
+- **Evidence:**
+  - probed on the live v2.1.241 binary 2026-08-24: `claude --bare -p "/export <path>"` returned `/export isn't available in this environment.` and wrote no file, so the command is an interactive-terminal surface
+  - documented at code.claude.com/docs/en/commands.md: /export renders the current conversation as plain text to clipboard or a file (optional filename argument), no format or redaction flags
+  - output written to user paths sits outside the cleanupPeriodDays retention sweep (path-scoped to ~/.claude), which is the durability property the suggestions exist for
+  - suggestion sites: plugins/session-flow/skills/clean-stop/SKILL.md (durability sweep), handoff/SKILL.md (prompt-only close), retro/SKILL.md (post-chain-coverage offer); all body text, presence-gated with the canonical token, none baked into a description or Boundary section
+- **Observation:** live-roster — probed on the live v2.1.241 binary in a Linux container (headless form unavailable; interactive form documented but not observed here); one environment, one day (2026-08-24)
+- **Recheck trigger:** a Claude Code release note or docs change adds an /export format/redaction flag, a headless or programmatic form, or an official conversation-sharing surface; any of these reopens whether suggestion-only is still the right integration shape (verified 2026-08-24)
+- **Baked:** description phrase no · Boundary section no
 
 ## Bundled skills
 

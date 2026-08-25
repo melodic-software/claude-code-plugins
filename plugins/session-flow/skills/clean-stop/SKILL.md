@@ -49,6 +49,17 @@ PR and issue bodies on the remote.
    deliberately-ignored files, is never pushed; when it is not reproducible,
    surface it as a "preserve off the machine before shutdown" item so it is
    not silently lost with the disk.
+   The conversation itself is another machine-local, non-durable item:
+   transcripts live only in this machine's `~/.claude` tree and are
+   retention-swept besides. When the built-in `export` command resolves in
+   your session and the session is worth keeping, first verify the resolved
+   memory root's self-ignore guard (a `.gitignore` containing `*`, created and
+   announced when absent), then offer the one-line export
+   `/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`. Offer only,
+   never run: built-ins are user-invoked, and nothing verifies the export
+   happened. That destination is itself machine-local, so when the machine may
+   go away, also surface copying the export off the machine (or a durable
+   destination of the user's choice) as a "preserve off the machine" item.
 3. **Linkage + breadcrumbs (redact before any remote write).** Before a PR
    or issue body is created or updated, sweep everything outbound: remaining
    tasks, dependencies, resume context, any pasted terminal output or diffs,

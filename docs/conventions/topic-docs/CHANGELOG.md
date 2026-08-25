@@ -1,5 +1,17 @@
 # Changelog — topic-docs convention
 
+## 2.5.2 — 2026-08-25
+
+Docs-only: `exports` joins the reserved first-level names under the memory
+root — the suggested destination for user-run `/export` conversation
+snapshots (`.work/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`), offered by the
+session-flow plugin's clean-stop, handoff, and retro skills. The Memory,
+concern-scoped tier row, the Implementers table, and the schema `memory_dir`
+description all carry the fifth name, matching how `overengineering` was
+added. Nothing writes this directory programmatically; the user runs the
+built-in command and the memory root's self-ignore guard keeps snapshots out
+of commits.
+
 ## 2.5.1 — 2026-08-17
 
 Docs-only: `overengineering` joins the reserved first-level names under the

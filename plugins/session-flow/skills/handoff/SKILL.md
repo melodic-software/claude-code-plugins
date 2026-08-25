@@ -239,7 +239,12 @@ box above is ticked. Emit the rails block before ending the turn, always.
   "Original goal, mandatory on BOTH paths")
 - [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
-- [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
+- [ ] When the built-in `export` command resolves in your session, the close offers the one-line
+  conversation export `/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`, after
+  verifying the memory root's self-ignore guard (a `.gitignore` containing `*`, created and
+  announced when absent). Prompt-only writes no file, so the transcript is this handoff's only
+  record and it is retention-swept; an export is the copy that survives the sweep. Offer only,
+  never run, and record nothing about whether the user ran it
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No
