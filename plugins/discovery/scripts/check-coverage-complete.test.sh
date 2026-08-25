@@ -243,7 +243,6 @@ bad_utf8="$WORK/bad-utf8.md"
   printf '| # | Corpus item | Depth criterion | Done |\n'
   printf '|---|-------------|-----------------|------|\n'
   printf '| 1 | '
-  # shellcheck disable=SC2059
   printf '\xff'
   printf ' alpha | criterion | [x] |\n'
 } >"$bad_utf8"
