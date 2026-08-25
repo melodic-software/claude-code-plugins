@@ -52,12 +52,9 @@ const ERROR_SCHEMA = 'context-budget.error/1';
 const CATALOGUE_SCHEMA = 'context-budget.levers/1';
 const CATALOGUE_VERIFY_SCHEMA = 'context-budget.catalogue-verify/1';
 
-const DEFAULT_CATALOGUE = join(
-  dirname(fileURLToPath(import.meta.url)), '..', 'reference', 'levers.json',
-);
-const INTERACTIVE_ONLY_LISTING = join(
-  dirname(fileURLToPath(import.meta.url)), '..', 'reference', 'interactive-only-tools.json',
-);
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+const DEFAULT_CATALOGUE = join(SCRIPT_DIR, '..', 'reference', 'levers.json');
+const INTERACTIVE_ONLY_LISTING = join(SCRIPT_DIR, '..', 'reference', 'interactive-only-tools.json');
 const INTERACTIVE_ONLY_SCHEMA = 'context-budget.interactive-only/1';
 
 // Settings keys and env names the catalogue cites. Env vars are the CLAUDE_CODE_
@@ -769,10 +766,6 @@ function ledgerList(dir) {
 }
 
 // ---------------------------------------------------------------------------
-// main
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // verify-catalogue — binary-strings existence check (no network).
 // Docs fetch remains the authority on semantics; this is the authority on
 // whether each catalogue key/env name exists in the measured binary.
@@ -890,6 +883,10 @@ function runVerifyCatalogue(args) {
     caveats,
   };
 }
+
+// ---------------------------------------------------------------------------
+// main
+// ---------------------------------------------------------------------------
 
 function emit(record, outFile) {
   const text = `${JSON.stringify(record, null, 2)}\n`;
