@@ -3,6 +3,22 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.6]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Replaced the
+  hand-rolled `--` argument-drain loops in `audit-comment-residue/scripts/detect.sh` and
+  `audit-dead-code/scripts/dead-code-scan.sh` with the equivalent `TARGETS+=("$@"); break`;
+  removed the inert trailing optional ticket-ref group from `cr_is_sanctioned_todo`'s
+  unanchored regex in `lib/comment-shapes.sh` (boolean-only usage, group never affected the
+  match); in `dead-code-scan.sh`'s gopls lane, derived the owned-file count from the hoisted
+  `files_owned` result instead of a second same-predicate `count_owned` pass. Suites green
+  (53 + 162); refutation pass ran 29 adversarial differential invocations plus a 3000-case
+  regex fuzz, all byte-identical. Note the pass preserves the pre-existing (possibly
+  unintended) behavior that any TODO/FIXME/HACK/XXX comment counts as sanctioned with or
+  without a ticket ref.
+
 ## [0.14.5]
 
 ### Changed
