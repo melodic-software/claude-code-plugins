@@ -7,10 +7,10 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- **Repo-wide `/ai-slop:audit fix` pass (#3359).** Four "in order to describe" <!-- ai-slop-ignore: quotes the tell it documents -->
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** Four "in order to describe"
   constructions in `audit-instructions/reference/criteria.md` tightened to "to
   describe" (the criteria's own prose; the documented smells are untouched). The
-  purposive "in order to run" in `audit-pass/reference/suppression.md` stays, behind <!-- ai-slop-ignore: quotes the tell it documents -->
+  purposive "in order to run" in `audit-pass/reference/suppression.md` stays, behind
   an `ai-slop-ignore` marker, because the short form reads as a list of things the
   pass must run.
 

@@ -17,7 +17,7 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 > 78, 94–95) are the same kind of snapshot** — launch-day rates, verified still current 2026-08-04.
 > Current rates are upstream-owned: resolve them from
 > [pricing](https://platform.claude.com/docs/en/about-claude/pricing), never from these lines.
-> **The Section 94 specs sentence (model id, context window, max output, knowledge cutoff) is the <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
+> **The Section 94 specs sentence (model id, context window, max output, knowledge cutoff) is the
 > same kind of snapshot** — verified still current 2026-08-08 against the models overview linked
 > above, which owns those fields. Resolve current specs there, never from these lines.
 

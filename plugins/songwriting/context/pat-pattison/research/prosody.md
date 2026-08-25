@@ -148,13 +148,11 @@ purpose, the lyric can create irony, denial, suspense, or instability.
 This is also the diagnosis for a good line that lands flat. Chapter 19 opens on
 exactly that point:
 
-<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 > Sometimes, you may accidentally trip onto this sort of writing, unaware of the
 > choices you're making. But if you tune into your lyrics' motion consistently,
 > you'll not only write and rewrite your songs more effectively, but, more
 > important, you won't rely on lucky accidents or divine inspiration to drop
 > those good bits into your lap.
-<!-- ai-slop-ignore-end -->
 
 A writer who has not tuned into motion is left waiting on those accidents; a
 writer who has can name which element is fighting the idea and change it. Flat

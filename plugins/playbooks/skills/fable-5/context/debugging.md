@@ -49,7 +49,7 @@ You are debugging: an observed failure with no confirmed cause — treat it as a
 
 ## Reading code vs running code
 
-- RULE: run code when the question is "what actually happens" — which branch executes, a runtime value, what the environment resolves to (assumption bugs); read code when the question is "what could possibly happen" — all callers, every writer of a value, whether an invariant can hold (logic bugs); if your live hypotheses are assumption-shaped, reading harder cannot resolve them. <!-- ai-slop-ignore: quoted discriminator phrase; possibly is the load-bearing contrast with actually -->
+- RULE: run code when the question is "what actually happens" — which branch executes, a runtime value, what the environment resolves to (assumption bugs); read code when the question is "what could possibly happen" — all callers, every writer of a value, whether an invariant can hold (logic bugs); if your live hypotheses are assumption-shaped, reading harder cannot resolve them.
 - RULE: after reading the same function three times while the bug still looks "impossible," stop reading and observe execution — the impossibility means your mental model diverges from reality somewhere, and more reading just re-runs the same flawed model.
 - RULE: when one observation costs a multi-minute rebuild or redeploy, static analysis of all writers and readers of the suspect state may be cheaper than one probe — choose by cost per bit of information, not by habit.
 

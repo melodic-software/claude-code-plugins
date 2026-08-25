@@ -172,7 +172,7 @@ Aggregates are **units of transactional consistency** — groups of objects whos
 
 Looking at data to be "contained" in the aggregate is the wrong approach. Data-driven thinking leads to misleading agreements — everyone pretends to agree on a container, but the models are actually different.
 
-**Critical distinction:** "Data to be displayed to a user in order to make a decision" will be a **Read Model**. Aggregates are something else — you must resist "this vicious temptation of superimposing what we need to see on the screen on the internal structure of our model. They're not the same thing." A shopping cart's `ItemDescription` is needed for display (Read Model), not for enforcing the invariant that the subtotal equals the sum of quantities times unit prices (Aggregate). <!-- ai-slop-ignore: verbatim quoted definition from source -->
+**Critical distinction:** "Data to be displayed to a user in order to make a decision" will be a **Read Model**. Aggregates are something else — you must resist "this vicious temptation of superimposing what we need to see on the screen on the internal structure of our model. They're not the same thing." A shopping cart's `ItemDescription` is needed for display (Read Model), not for enforcing the invariant that the subtotal equals the sum of quantities times unit prices (Aggregate).
 
 ### Aggregates as State Machines
 
@@ -227,7 +227,7 @@ A technique for modeling interactions collaboratively after Design-Level EventSt
 
 - **Humans** take the role of Users, Aggregates, Processes, and Projections (decision makers in the system)
 - **Cards** represent Commands, Domain Events, and UIs (carrying information)
-- Each human can produce output only based on available information
+- Each human can produce output only based on available information <!-- ai-slop-ignore: literal statement about workshop information flow, not assistant-frame residue -->
 - "Tell don't ask" — humans can tell, not ask
 - This sketches the communication patterns needed for event-based solutions
 

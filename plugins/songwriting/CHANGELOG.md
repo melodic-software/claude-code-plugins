@@ -7,12 +7,14 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
 
 ### Changed
 
-- **Repo-wide `/ai-slop:audit fix` pass (#3359).** "in order to" tightened to "to" <!-- ai-slop-ignore: quotes the tell it documents -->
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** "in order to" tightened to "to"
   in the plugin's own prose (two old changelog entries, `line-brainstorm.md`,
   `object-writing.md`, `worksheets.md`), and one paraphrase sentence in
-  `rhyme-sonic-bonding.md` restated positively. Verbatim Pattison blockquotes across
-  the research corpus are fenced with `ai-slop-ignore` markers so the quoted lines
-  stay byte-identical.
+  `rhyme-sonic-bonding.md` restated positively. Verbatim Pattison quotes stay
+  byte-identical: the detector's quotation exemption (ai-slop 0.4.0) keeps wording
+  rules out of blockquotes, so the fences briefly added for them came out again in
+  the same PR; one straight-quoted multi-line quote in
+  `rhyme-spotlight-connection.md` keeps its fence (the span exemption is per-line).
 
 ## [1.4.9]
 

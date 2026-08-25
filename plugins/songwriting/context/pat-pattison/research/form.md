@@ -776,7 +776,6 @@ BALANCING SECTION OR PHRASE"), verbatim:
 > the unbalanced three-phrase verses. Something more finally arrives, in spades:
 > 'cause that's all they need.
 
-<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 > Spotlights blaze onto the extra phrase as it balances the entire last system
 > with an even number of phrases (twelve), and steps onto the platform at the
 > other side of the high-wire journey. We breathe a sigh of satisfaction and
@@ -784,7 +783,6 @@ BALANCING SECTION OR PHRASE"), verbatim:
 > fraught with danger and the result has been so satisfying. The last phrase
 > stands firm and strong in the carefully prepared balancing position and
 > delivers its message forcefully: Love is all you need. The crowd goes wild.
-<!-- ai-slop-ignore-end -->
 
 So the need is set up by the **unbalanced three-phrase verses** (verses 4 and 5),
 not by the two four-phrase choruses, and the count that matters is **twelve
@@ -1034,12 +1032,10 @@ Ocasek of The Cars is typical." *Essential Guide to Lyric Form and Structure*
 > Added to these unbalancing techniques is the imperfect rhyme "time/mind"
 > positioned to trip you up like a piano wire stretched across the road:
 
-<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 > Not only does this asymmetrical position push you forward, but it sets you up
 > for the long "i" sound of the key words of the HOOK: "WHY CAN'T I HAVE YOU"!
 > The chorus "i" sounds are also positioned asymmetrically, so there is no
 > resolution until the end of the system.
-<!-- ai-slop-ignore-end -->
 
 > A Transitional Bridge can change. Here, one phrase makes a difference in
 > meaning, but the structure is preserved. The tripping effect at the long "i"

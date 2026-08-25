@@ -41,7 +41,7 @@ CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate"
 
 # --- Rule registry ---------------------------------------------------------------
-# Pattern rules: slug|fired label|case-insensitive(0/1)|whole-word(0/1)|ERE
+# Pattern rules: slug|fired label|case-insensitive(0/1)|whole-word(0/1)|class|ERE
 #
 # whole-word adds grep's POSIX -w: the match must be bounded by non-word
 # characters on both sides. Phrase rules need it — without it "great question"
@@ -54,29 +54,45 @@ DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores b
 # word-shaped at all: the byte-class rules (em dash, emoji, curly quotes),
 # the two EREs carrying `[^.]{0,80}` wildcards, the citation tokens (`[cite:`
 # is followed by digits), and `utm_[a-z]+=` (followed by its value).
+#
+# class is `wording` or `typography` — the policy-level quotation exemption
+# (catalog "Quotation exemption"; design borrowed from Wikipedia's MOS "principle
+# of minimal change"). A wording rule judges prose the repo AUTHORS, so it never
+# scans quoted material: blockquote lines and double-quoted spans are removed
+# from its input and counted as declined. A typography rule targets artifacts
+# that are defects wherever they appear (byte residue, tracking params, citation
+# tokens), so it scans quoted material too.
 PATTERN_RULES=(
-  "rule-em-dash|zero-tolerance|0|0|${EM_DASH}"
-  "rule-emoji-formatting|formatting emoji|0|0|$(printf '\t')(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
-  "rule-curly-artifacts|unicode artifact|0|0|${CURLY_ERE}"
-  "rule-significance-inflation|phrase match|1|1|(stands as a testament|testament to|pivotal (moment|role)|underscores (its|the) (importance|significance)|reflects broader|enduring legacy|marks a (significant )?shift|evolving landscape|indelible mark|deeply rooted|setting the stage for|rich tapestry|key turning point|(crucial|vital) role)"
-  "rule-negative-parallelism|construction match|1|0|(not (just|only|simply|merely) [^.]{0,80}but|isn.t [^.;]{0,60}[;,] it.s)"
-  "rule-challenges-conclusion|formula match|1|0|(despite [^.]{0,80}(challenge|hurdle)|challenges (remain|ahead|persist)|faces (several|numerous|significant|ongoing) challenges)"
-  "rule-knowledge-cutoff-disclaimer|assistant-frame residue|1|1|(knowledge cutoff|as of my last (update|training)|i cannot browse|i do not have access to real|as an ai( language)? model)"
-  "rule-llm-citation-artifacts|citation residue|0|0|(oaicite|\[cite:|grok_card|attached_file|contentReference|filecite)"
-  "rule-utm-params|tracking parameter|0|0|utm_[a-z]+="
-  "rule-chatbot-artifacts|chat-turn residue|1|1|(i hope this helps|let me know if you|feel free to (ask|reach out)|i.d be happy to|happy to help|great question|you.re absolutely right|found the smoking gun)"
-  "rule-filler-phrases|filler phrase|1|1|(in order to|due to the fact that|it( is|.s) (important to note|worth noting)|it should be noted)"
-  "rule-stacked-hedging|stacked hedge|1|1|((could|may|might) potentially|(could|might) possibly)"
+  "rule-em-dash|zero-tolerance|0|0|typography|${EM_DASH}"
+  "rule-emoji-formatting|formatting emoji|0|0|typography|$(printf '\t')(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
+  "rule-curly-artifacts|unicode artifact|0|0|typography|${CURLY_ERE}"
+  "rule-significance-inflation|phrase match|1|1|wording|(stands as a testament|testament to|pivotal (moment|role)|underscores (its|the) (importance|significance)|reflects broader|enduring legacy|marks a (significant )?shift|evolving landscape|indelible mark|deeply rooted|setting the stage for|rich tapestry|key turning point|(crucial|vital) role)"
+  "rule-negative-parallelism|construction match|1|0|wording|(not (just|only|simply|merely) [^.]{0,80}but|isn.t [^.;]{0,60}[;,] it.s)"
+  "rule-challenges-conclusion|formula match|1|0|wording|(despite [^.]{0,80}(challenge|hurdle)|challenges (remain|ahead|persist)|faces (several|numerous|significant|ongoing) challenges)"
+  "rule-knowledge-cutoff-disclaimer|assistant-frame residue|1|1|wording|(knowledge cutoff|as of my last (knowledge )?(update|training)|up to my last training( update)?|i cannot browse|i do not have access to real|as an ai( language)? model|while specific details are (limited|scarce)|not widely (available|documented|disclosed)|(in|from) the (provided|available) (sources|search results)|based on (the )?available information)"
+  "rule-llm-citation-artifacts|citation residue|0|0|typography|(oaicite|\[cite:|grok_card|attached_file|contentReference|filecite)"
+  "rule-utm-params|tracking parameter|0|0|typography|utm_[a-z]+="
+  "rule-chatbot-artifacts|chat-turn residue|1|1|wording|(i hope this helps|let me know if you|feel free to (ask|reach out)|i.d be happy to|happy to help|great question|you.re absolutely right|found the smoking gun)"
+  "rule-filler-phrases|filler phrase|1|1|wording|(in order to|due to the fact that|it( is|.s) (important to note|worth noting)|it should be noted)"
+  "rule-stacked-hedging|stacked hedge|1|1|wording|((could|may|might) potentially|(could|might) possibly)"
 )
 # Density rules: slug|threshold key|default threshold|ERE (vocab ERE is built at runtime).
+# All density rules are wording-class: they judge authored prose, so they run on
+# the quote-exempt stream and its word count.
 # A density rule needs BOTH density >= threshold AND at least DENSITY_MIN_HITS
 # matches: short files otherwise fire on a single normal-prose occurrence
 # (measured on this repo: one triad in a 201-word doc hit 5.0/1000).
+#
+# rule-rule-of-three was demoted from this table to the judgment rubric
+# (catalog reclass, 2026-08-25): a dogfood fix pass ended with 18/18 residual
+# findings on load-bearing enumerations, no surveyed prose linter implements a
+# tricolon rule, and the shipped ERE matched only single-word triads — biasing
+# it toward exactly the terse operative enumerations the catalog's own boundary
+# ("enumerating three actual things is not a tell") protects.
 DENSITY_MIN_HITS=3
 DENSITY_RULES=(
   "rule-ai-vocabulary|ai_vocabulary|3.0|__VOCAB__"
   "rule-copulative-avoidance|copulative_avoidance|4.0|(serves as|stands as|functions as|operates as|acts as a|represents a|marks a|boasts|features a|offers a|maintains a|refers to)"
-  "rule-rule-of-three|rule_of_three|3.0|[A-Za-z]+, [A-Za-z]+, and [A-Za-z]+"
 )
 
 PATHS_FILE=""
@@ -164,6 +180,13 @@ VOCAB="$DEFAULT_VOCAB"
 EXCLUDED_GLOBS=()
 EM_DASH_ALLOWED_GLOBS=()
 DISABLED_RULES=""
+# Per-rule path exemptions: rule_allowed_paths maps a rule slug to globs whose
+# files decline that rule (the generalization of em_dash_allowed_paths, which
+# stays supported as an alias feeding rule-em-dash's entry). This is the
+# proportionate closure for a density rule: a line marker cannot quiet a
+# per-file density verdict, a file marker silences every rule, and this key
+# silences exactly one rule on exactly the named paths.
+declare -A RULE_ALLOWED_GLOBS
 
 # cfg_scalar <jq-path>: last layer that defines the key wins (per-key override).
 cfg_scalar() {
@@ -194,6 +217,12 @@ if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   read -r -a EXCLUDED_GLOBS <<<"$(cfg_array '.excluded_paths')"
   read -r -a EM_DASH_ALLOWED_GLOBS <<<"$(cfg_array '.em_dash_allowed_paths')"
   DISABLED_RULES="$(cfg_array '.disabled_rules')"
+  # rule_allowed_paths: object of slug -> glob array; later layer wins per slug.
+  for layer in "${CFG_LAYERS[@]}"; do
+    while IFS=$'\t' read -r slug globs; do
+      [[ -n "$slug" && -n "${globs// /}" ]] && RULE_ALLOWED_GLOBS[$slug]="$globs"
+    done < <(jq -r '(.rule_allowed_paths // {}) | to_entries[] | [.key, (.value | join(" "))] | @tsv' "$layer" 2>/dev/null)
+  done
   add="$(cfg_array '.vocab_add')"
   remove="$(cfg_array '.vocab_remove')"
   [[ -n "${add// /}" ]] && VOCAB="$VOCAB $add"
@@ -212,6 +241,21 @@ elif [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
 fi
 
 VOCAB_ERE="($(printf '%s' "$VOCAB" | tr ' ' '|'))"
+
+# em_dash_allowed_paths is the legacy alias: append it to rule-em-dash's entry
+# so both spellings work and neither silently shadows the other.
+if [[ "${#EM_DASH_ALLOWED_GLOBS[@]}" -gt 0 ]]; then
+  RULE_ALLOWED_GLOBS["rule-em-dash"]="${RULE_ALLOWED_GLOBS["rule-em-dash"]:-} ${EM_DASH_ALLOWED_GLOBS[*]}"
+fi
+
+# rule_allowed <slug> <file>: the file declines this one rule via config.
+rule_allowed() {
+  local slug="$1" file="$2" globs
+  globs="${RULE_ALLOWED_GLOBS[$slug]:-}"
+  [[ -z "${globs// /}" ]] && return 1
+  # shellcheck disable=SC2086
+  matches_glob "$file" $globs
+}
 
 rule_disabled() {
   case " $DISABLED_RULES " in
@@ -234,6 +278,9 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   echo "Effective: vocab=$VOCAB"
   echo "Effective: excluded_paths=${EXCLUDED_GLOBS[*]:-}"
   echo "Effective: em_dash_allowed_paths=${EM_DASH_ALLOWED_GLOBS[*]:-}"
+  for slug in "${!RULE_ALLOWED_GLOBS[@]}"; do
+    echo "Effective: rule_allowed_paths[$slug]=${RULE_ALLOWED_GLOBS[$slug]# }"
+  done
   echo "Effective: disabled_rules=${DISABLED_RULES:-}"
   exit 0
 fi
@@ -507,39 +554,67 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
   prose="$(printf '%s\n' "$prose" | LC_ALL=C grep -v '^DECLINE' || true)"
   [[ "$declines" -gt 0 ]] && decline_all_rules "$declines"
 
+  # Quotation exemption: wording rules never scan quoted material. Blockquote
+  # lines are dropped and double-quoted spans stripped; every quote-exempt
+  # candidate a wording rule WOULD have matched is counted as declined for that
+  # rule below, never silently dropped. Typography rules keep the full stream.
+  prose_wording="$(printf '%s\n' "$prose" | awk '{
+      tab = index($0, "\t")
+      if (tab == 0) next
+      lineno = substr($0, 1, tab - 1)
+      text = substr($0, tab + 1)
+      if (text ~ /^[ ]?[ ]?[ ]?>/) next
+      gsub(/"[^"]*"/, "", text)
+      printf "%s\t%s\n", lineno, text
+    }')"
+
   # Pattern rules: one finding per matching prose line.
   for entry in "${PATTERN_RULES[@]}"; do
-    IFS='|' read -r slug label ci word ere <<<"$entry"
+    IFS='|' read -r slug label ci word class ere <<<"$entry"
     rule_disabled "$slug" && continue
-    if [[ "$slug" == "rule-em-dash" && "${#EM_DASH_ALLOWED_GLOBS[@]}" -gt 0 ]] &&
-      matches_glob "$file" "${EM_DASH_ALLOWED_GLOBS[@]}"; then
+    if rule_allowed "$slug" "$file"; then
       DECLINED[$slug]=$((DECLINED[$slug] + 1))
       continue
     fi
     flags=(-E)
     [[ "$ci" == "1" ]] && flags+=(-i)
     [[ "$word" == "1" ]] && flags+=(-w)
+    stream="$prose"
+    if [[ "$class" == "wording" ]]; then
+      stream="$prose_wording"
+      full_hits="$(printf '%s\n' "$prose" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
+      kept_hits="$(printf '%s\n' "$stream" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
+      [[ "$full_hits" -gt "$kept_hits" ]] && DECLINED[$slug]=$((DECLINED[$slug] + full_hits - kept_hits))
+    fi
     while IFS=$'\t' read -r lineno text; do
       [[ -z "$lineno" ]] && continue
       excerpt="$(printf '%s' "$text" | truncate_excerpt | tr '|' '/')"
       emit_finding "$slug" "$rel" "$lineno" "$label" "$excerpt"
-    done < <(printf '%s\n' "$prose" | LC_ALL=C grep "${flags[@]}" -- "$ere" || true)
+    done < <(printf '%s\n' "$stream" | LC_ALL=C grep "${flags[@]}" -- "$ere" || true)
   done
 
   # Density rules: one finding per file when density reaches the threshold.
-  words="$(printf '%s\n' "$prose" | cut -f2- | wc -w | tr -d ' ')"
+  # All density rules are wording-class, so both the hit count and the word
+  # count come from the quote-exempt stream; quote-exempt hits are declined.
+  words="$(printf '%s\n' "$prose_wording" | cut -f2- | wc -w | tr -d ' ')"
   if [[ "$words" -gt 0 ]]; then
     for entry in "${DENSITY_RULES[@]}"; do
       IFS='|' read -r slug key default ere <<<"$entry"
       rule_disabled "$slug" && continue
+      if rule_allowed "$slug" "$file"; then
+        DECLINED[$slug]=$((DECLINED[$slug] + 1))
+        continue
+      fi
       [[ "$ere" == "__VOCAB__" ]] && ere="$VOCAB_ERE"
       threshold="$(threshold_for "$key" "$default")"
-      hits="$(printf '%s\n' "$prose" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
+      hits="$(printf '%s\n' "$prose_wording" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
+      full_hits="$(printf '%s\n' "$prose" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
+      [[ "$full_hits" -gt "$hits" ]] && DECLINED[$slug]=$((DECLINED[$slug] + full_hits - hits))
       [[ "$hits" -lt "$DENSITY_MIN_HITS" ]] && continue
       density="$(awk -v h="$hits" -v w="$words" 'BEGIN { printf "%.1f", (h * 1000) / w }')"
       over="$(awk -v d="$density" -v t="$threshold" 'BEGIN { print (d >= t) ? 1 : 0 }')"
       if [[ "$over" -eq 1 ]]; then
-        first_line="$(printf '%s\n' "$prose" | LC_ALL=C grep -E -i -m1 -- "$ere" | cut -f1)"
+        first_line="$(printf '%s\n' "$prose_wording" | LC_ALL=C grep -E -i -m1 -- "$ere" | cut -f1)"
         emit_finding "$slug" "$rel" "${first_line:-1}" \
           "density $density/1000 words, threshold $threshold ($hits hits in $words words)" \
           "density rule"

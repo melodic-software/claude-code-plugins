@@ -7,9 +7,9 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ### Changed
 
-- **Repo-wide `/ai-slop:audit fix` pass (#3359).** "not merely aliased but <!-- ai-slop-ignore: quotes the tell it documents -->
-  unreachable" in `setup/SKILL.md` tightened to "unreachable outright"; the aliasing
-  case is carried by the surrounding two-case structure.
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The `setup/SKILL.md` phrase
+  "not merely aliased but unreachable" tightened to "unreachable outright"; the
+  aliasing case is carried by the surrounding two-case structure.
 
 ## [0.23.10]
 

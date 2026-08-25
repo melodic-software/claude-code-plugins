@@ -138,7 +138,7 @@ Use exactly: module, interface, implementation, depth, deep, shallow, seam, adap
 
 Never substitute: component, service, unit (for module); API, signature (for interface); boundary (for seam); layer, wrapper (for module).
 
-No hedging, no throat-clearing, no "it's worth noting that..." <!-- ai-slop-ignore: quotes the tell it bans -->
+No hedging, no throat-clearing, no "it's worth noting that..."
 
 Phrasings that fit the style:
 

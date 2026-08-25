@@ -5,6 +5,18 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0]
+
+### Added
+
+- **Doc-worthy gotcha harvest (#3359 retrospective).** The `auditor` agent's return contract
+  gains a fourth field: operational lessons the evidence packet shows real usage hit (improvised
+  workarounds, undocumented escapes that worked, repeatable failure triggers) that the audited
+  component's own docs do not carry, each graded general (candidate doc addition, with a stated
+  home) or situational (recorded only). The skill lens gains the matching check. An ai-slop
+  audit surfaced this gap: the session's most valuable outputs were exactly such gotchas, and
+  nothing in the return shape asked for them.
+
 ## [0.6.10]
 
 ### Changed

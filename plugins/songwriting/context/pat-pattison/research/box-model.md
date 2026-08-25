@@ -580,7 +580,6 @@ Pat's case is "Between Fathers and Sons" (John Jarvis and Gary Nicholson), in
 
 On verse three:
 
-<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 > This sounds familiar. Not that I've seen things from the mother's perspective
 > yet, but I have seen the father — in fact, both fathers — trying to protect the
 > child. I've also seen the child trying to go beyond the parents. Not that this
@@ -588,7 +587,6 @@ On verse three:
 > perspectives — she and you) have been covered. This doesn't bode well for the
 > second chorus. We'll need development rather than restatement to keep
 > repetition interesting.
-<!-- ai-slop-ignore-end -->
 
 On verse four:
 

@@ -7,7 +7,7 @@ All notable changes to the `github` plugin are documented here. Format follows
 
 ### Changed
 
-- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The README's "No endpoint tables, <!-- ai-slop-ignore: quotes the tell it documents -->
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The README's "No endpoint tables,
   no scope lists, no prices" cadence flattened to a single plain enumeration; all
   three denied items stay asserted. The read-only contract enumeration also stays:
   it defines the actual guarantee.

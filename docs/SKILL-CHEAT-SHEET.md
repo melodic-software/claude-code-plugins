@@ -8,8 +8,6 @@ Grouping axis: this page groups skills by **sequence of use** — the session-fl
 stages you move through while working. The separate what-kind-of-plugin taxonomy axis is
 owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
-<!-- ai-slop-ignore-file: generated from SKILL.md frontmatter; hand edits are forbidden here, prose fixes belong in each skill's frontmatter -->
-
 <!-- cheatsheet:start -->
 
 - [0. Contract](#0-contract)

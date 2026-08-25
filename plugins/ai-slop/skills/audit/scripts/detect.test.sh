@@ -239,7 +239,11 @@ assert_contains "roster: knowledge-cutoff fires" "$out" "Finding: rule=ai-slop/a
 assert_contains "roster: citation-artifacts fires" "$out" "Finding: rule=ai-slop/audit/rule-llm-citation-artifacts"
 assert_contains "roster: utm-params fires" "$out" "Finding: rule=ai-slop/audit/rule-utm-params"
 assert_contains "roster: copulative-avoidance density fires" "$out" "Finding: rule=ai-slop/audit/rule-copulative-avoidance"
-assert_contains "roster: rule-of-three density fires" "$out" "Finding: rule=ai-slop/audit/rule-rule-of-three"
+# rule-of-three was demoted to the judgment rubric (catalog reclass 2026-08-25):
+# dogfood calibration ended with every residual finding on a load-bearing
+# enumeration, and no surveyed prose linter ships a tricolon rule. The script
+# must neither emit findings nor report a Summary row for it.
+assert_not_contains "roster: rule-of-three is rubric-demoted, no finding" "$out" "rule=ai-slop/audit/rule-rule-of-three"
 
 out="$(bash "$DETECT" "$MIDEMOJI" 2>&1)"
 assert_not_contains "emoji negative: content-position emoji does not fire the formatting rule" "$out" "Finding: rule=ai-slop/audit/rule-emoji-formatting"
@@ -276,6 +280,57 @@ cursor_row="$(LC_ALL=C grep -m1 'rule-chatbot-artifacts' "$TEST_TMPDIR/findings/
 assert_contains "cursor: chatbot-artifacts emits at IMPORTANT (crosswalk mirror)" "$cursor_row" "IMPORTANT"
 filler_row="$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TEST_TMPDIR/findings/cursor.md")"
 assert_contains "cursor: filler-phrases emits at SUGGESTION (crosswalk mirror)" "$filler_row" "SUGGESTION"
+
+# --- Quotation exemption (wording vs typography rule classes) --------------------
+# Policy-level exemption: a wording rule never scans quoted material (blockquote
+# lines, double-quoted spans); a typography rule scans it, because byte residue
+# is a defect wherever it sits. Quote-exempt candidates are counted as declined.
+
+QUOTED="$TEST_TMPDIR/quoted.md"
+cat >"$QUOTED" <<EOF
+# Quoted material
+
+> The source says we did this in order to ship on time ${EM} verbatim quote.
+
+The guide bans "in order to" and recommends the shorter form.
+
+Plain prose written in order to trip the wording rule.
+EOF
+out="$(bash "$DETECT" "$QUOTED" 2>&1)"
+assert_contains "quote exemption: unquoted filler still fires" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1"
+assert_contains "quote exemption: blockquote and quoted-span hits declined" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=2"
+assert_contains "quote exemption: typography rule still fires inside the blockquote" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
+
+# Extended knowledge-cutoff families (source section words-to-watch): the
+# original ERE missed even the wiki's own example "as of my last knowledge
+# update"; the source-gap half of the section was absent entirely.
+CUTOFF="$TEST_TMPDIR/cutoff.md"
+cat >"$CUTOFF" <<'EOF'
+# Source-gap speculation
+
+As of my last knowledge update, the API had no batch endpoint.
+While specific details are scarce, the rollout continued.
+This is not widely documented behavior.
+The change appears in the provided sources only.
+Based on available information, the flag defaults to off.
+EOF
+out="$(bash "$DETECT" "$CUTOFF" 2>&1)"
+assert_contains "cutoff families: all five source-gap lines fire" "$out" "rule=ai-slop/audit/rule-knowledge-cutoff-disclaimer findings=5"
+
+# rule_allowed_paths: the generalized per-rule exemption (em_dash_allowed_paths
+# stays as the rule-em-dash alias, asserted in the config cascade section).
+RAP="$TEST_TMPDIR/rap-repo"
+mkdir -p "$RAP/.claude"
+cat >"$RAP/.claude/ai-slop.json" <<'EOF'
+{ "rule_allowed_paths": { "rule-filler-phrases": ["quirks/**"] } }
+EOF
+mkdir -p "$RAP/quirks"
+printf '# Quirks\n\nWritten in order to stay exempt here.\n' >"$RAP/quirks/doc.md"
+printf '# Plain\n\nWritten in order to fire here.\n' >"$RAP/plain.md"
+out="$(CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" "$RAP/plain.md" 2>&1)"
+assert_contains "rule_allowed_paths: unlisted file still fires" "$out" "file=plain.md"
+assert_not_contains "rule_allowed_paths: listed path declines the one rule" "$out" "file=quirks/doc.md"
+assert_contains "rule_allowed_paths: decline counted for the exempted rule" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=1"
 
 # --- Exemptions ------------------------------------------------------------------
 
@@ -331,7 +386,7 @@ cp "$SLOP" "$TEST_TMPDIR/repo/allowed.md"
 cat >"$cfgdir/ai-slop.json" <<'EOF'
 {
   "em_dash_allowed_paths": ["allowed.md"],
-  "thresholds": { "ai_vocabulary": 999, "copulative_avoidance": 999, "rule_of_three": 999 },
+  "thresholds": { "ai_vocabulary": 999, "copulative_avoidance": 999 },
   "disabled_rules": ["rule-significance-inflation"]
 }
 EOF
@@ -743,19 +798,19 @@ fi
 # the code instead of restating it.
 
 EXPECTED_IMPORTANT="rule-knowledge-cutoff-disclaimer rule-llm-citation-artifacts rule-chatbot-artifacts"
-EXPECTED_SUGGESTION="rule-em-dash rule-emoji-formatting rule-curly-artifacts rule-significance-inflation rule-negative-parallelism rule-challenges-conclusion rule-utm-params rule-filler-phrases rule-stacked-hedging rule-ai-vocabulary rule-copulative-avoidance rule-rule-of-three"
+EXPECTED_SUGGESTION="rule-em-dash rule-emoji-formatting rule-curly-artifacts rule-significance-inflation rule-negative-parallelism rule-challenges-conclusion rule-utm-params rule-filler-phrases rule-stacked-hedging rule-ai-vocabulary rule-copulative-avoidance"
 
 # The roster detect.sh actually ships, taken from its Summary rows on any run.
 ROSTER="$(bash "$DETECT" "$CLEAN" 2>&1 | LC_ALL=C sed -n 's|^Summary rule=ai-slop/audit/\([a-z-]*\) .*|\1|p' | sort)"
 EXPECTED_ROSTER="$(printf '%s %s' "$EXPECTED_IMPORTANT" "$EXPECTED_SUGGESTION" | tr ' ' '\n' | sort)"
 if [[ "$ROSTER" == "$EXPECTED_ROSTER" ]]; then
-  pass "roster agreement: detect.sh ships exactly the 15 tabled rules"
+  pass "roster agreement: detect.sh ships exactly the 14 tabled rules"
 else
-  fail "roster agreement: detect.sh ships exactly the 15 tabled rules" \
+  fail "roster agreement: detect.sh ships exactly the 14 tabled rules" \
     "the tabled set" "$(diff <(echo "$EXPECTED_ROSTER") <(echo "$ROSTER") | tr '\n' ' ')"
 fi
 
-# Synthetic detector output naming every slug: a fixture that fired all 15
+# Synthetic detector output naming every slug: a fixture that fired all 14
 # organically would be a slop corpus this plugin then has to exempt from itself.
 TIERSRC="$TEST_TMPDIR/tier-src.txt"
 : >"$TIERSRC"

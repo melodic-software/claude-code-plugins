@@ -4,8 +4,6 @@ The generated per-category plugin catalog: the block between the markers below i
 plugin manifests and kept in sync by CI — never hand-edit it; the category vocabulary is owned by
 [`docs/CATALOG-TAXONOMY.md`](CATALOG-TAXONOMY.md).
 
-<!-- ai-slop-ignore-file: generated from plugin manifests and CI-checked for drift; hand edits are forbidden here, prose fixes belong in each plugin.json description -->
-
 <!-- catalog:start -->
 
 ## Discovery

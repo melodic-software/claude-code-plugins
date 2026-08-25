@@ -47,6 +47,16 @@ The "Cursor unslop additions" section was inspired by
     em dashes).
   - The inventory pin stays `1369699198`. This recheck closes the two-section gap; it does
     not re-derive the rest of the inventory.
+- **Recheck logged (2026-08-25, fleet audit + verified research pass)**: live head revision
+  [1371235958](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1371235958)
+  (2026-08-25). Measured drift since the pin: 4 heading changes across 29 edits; the sections
+  this catalog draws on are byte-identical between pin and head. The research verdict was that
+  the catalog's defects were under-extraction from the pin, not staleness, and this recheck
+  closed them: the source Caveats posture (section below), the em-dash spacing qualifier, the
+  knowledge-cutoff words-to-watch families, and the upstream demotion of lexical diversity.
+  The pin stays `1369699198`. One new live-page general-prose tell ("Vague expression of
+  connection or association") measured 0 qualifying hits on this corpus and is recorded as a
+  candidate for the next recheck rather than a rule.
 
 ## Inventory
 
@@ -60,13 +70,55 @@ in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
 - **v1**: `script` (implemented in detect.sh), `rubric` (skill judgment layer), or
   `recorded-only` (catalogued, not run; reason given).
 
+## False-positive posture (source Caveats)
+
+Mined from the pin's Caveats section (byte-identical on the live head; extraction closed
+2026-08-25). Three source statements bind how this catalog's verdicts are read:
+
+- **The signs are descriptive, not prescriptive.** The source: "do not merely treat these signs
+  as the problems to be fixed; that could just make detection harder." This plugin's fix flow
+  is therefore framed as house style (better prose on its own merits), never detector evasion;
+  the rewrite guide's non-evasion posture carries the operational test.
+- **Expert false-positive rate.** The source's calibration figure: an experienced LLM-output
+  patroller who tags 10 pages has probably made one false positive. A deterministic subset of
+  those signs run over a technical corpus is not better calibrated than the experts; verdicts
+  are evidence for a rewrite decision, never proof of provenance, and accusatory framing
+  ("this is AI-written") is outside this plugin's vocabulary.
+- **Combination over isolation.** Individual signs are weak alone; the source repeats per-sign
+  that combination strengthens a verdict. Density thresholds, the minimum-hits floor, and the
+  rubric's counter-sign tempering are this catalog's mechanical forms of that instruction.
+
+## Quotation exemption (policy-level)
+
+Stated once here and inherited by every rule; the design follows Wikipedia's MOS "principle of
+minimal change" for quoted material (quotations are not the repo's own prose to restyle) and the
+detector implements it mechanically. Each rule carries a class:
+
+- **wording** — the rule judges prose the repo AUTHORS. It never scans quoted material:
+  blockquote lines and double-quoted spans are removed from its input, and inline code spans
+  were already exempt. Quote-exempt candidates are counted as declined, never silently dropped.
+  This is also the use/mention boundary: a document that QUOTES a tell to document it (a style
+  guide, a forbidden-phrase list, a changelog citing the phrase a fix removed) is mentioning,
+  not using, and backticking or double-quoting the mention is the marker-free suppression.
+- **typography** — the rule targets artifacts that are defects wherever they sit (em-dash
+  bytes, curly-paste residue, formatting emoji, model citation tokens, tracking parameters).
+  It scans quoted material too; MOS makes the same split by permitting typographic
+  normalization inside quotations while forbidding wording edits.
+
+Known limitation: the double-quoted-span exemption is per-line. A quotation wrapped across a
+line break escapes it; the closures are rewrapping the quote onto one line, the blockquote
+form, or the fenced marker.
+
+The class assignments live in the detector's rule registry; the crosswalk rows are unchanged by
+the exemption (it moves candidates from findings to declines, not between tiers).
+
 ## Calibration record (V1)
 
 Calibrated 2026-08-17 against this marketplace's tracked markdown (1161 files) with neutral
 defaults. Outcomes:
 
 - All 12 `v1: script` rules ship as of this pass; none demoted. (The roster is 15 after the
-  second pass below adds three.)
+  second pass below adds three, and 14 after the third pass demotes `rule-rule-of-three`.)
 - Density rules gained a minimum-hits floor (3) after short files fired on a single
   normal-prose occurrence (one triad in a 201-word document hit 5.0/1000 words).
 - `rule-knowledge-cutoff-disclaimer` has a known false-positive class: prose ABOUT model
@@ -97,6 +149,22 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
   the shipped vocabulary default: "leverage" measured 32 occurrences here, but the density gate
   (3.0/1000 words, minimum 3 hits per file) kept the rule quiet on every file, so the shipped
   default stays neutral while saturated files still flag.
+
+Third pass, 2026-08-25, from a full repo-wide `fix` dogfood of PR 3359 (82 findings across 45
+files) plus a plugin-quality audit and a verified prior-art survey:
+
+- `rule-rule-of-three` demoted to rubric per its own calibration clause: 18 of 18 residual
+  findings after the fix pass sat on load-bearing enumerations, the ERE matched only
+  single-word triads, and no surveyed prose linter implements the tell. See the entry.
+- The quotation exemption (section above) was added after roughly half of the pass's ~40
+  suppression markers protected quoted or tell-documenting text — one use/mention problem the
+  policy now closes marker-free. Measured on the same corpus after the change: the exemption
+  moved those candidate classes from findings to declines with no loss on unquoted prose.
+- `rule-knowledge-cutoff-disclaimer` gained the source section's missing phrase families (the
+  candidate-additions research measured 0 pre-existing hits for the new families on this
+  corpus, so the extension ships without a threshold change).
+- `rule_allowed_paths` generalized the per-rule path exemption the em-dash rule already had,
+  as the proportionate closure for density verdicts a line marker cannot quiet.
 
 ## Content
 
@@ -205,18 +273,28 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
 
 ### rule-rule-of-three: Rule of three
 
-- detectability: mechanical
+- detectability: judgment
 - applicability: general-prose
-- v1: script
-- Triplet overuse: "adjective, adjective, adjective" runs and three-item list density. Highest
-  false-positive risk in the roster; calibration decides whether it ships or demotes.
+- v1: rubric
+- Triplet overuse: "adjective, adjective, adjective" runs and rhythmic three-item cadence.
+- **Demoted from script to rubric (2026-08-25), per this entry's own calibration clause.** The
+  dogfood fix pass ended with 18 of 18 residual findings on load-bearing enumerations; the
+  shipped ERE matched only single-word triads, selecting for exactly the terse operative lists
+  the boundary protects; and a survey of comparable prose linters (Vale, textlint, proselint,
+  write-good, alex, markdownlint) found no tricolon implementation anywhere to learn from.
+  The boundary the rubric applies: enumerating three actual things the reader needs is not a
+  tell; three parallel items used for rhythm, where the survivors would entail the deleted
+  ones, is. A reader can make that call; a density regex demonstrably cannot.
 
 ### rule-elegant-variation: Lexical diversity and elegant variation
 
 - detectability: judgment
 - applicability: general-prose
-- v1: rubric
+- v1: recorded-only
 - Synonym-cycling to avoid repeating a word a human would simply repeat.
+- Demoted from the active rubric 2026-08-25: the live source page moved this sign to its
+  Historical indicators (base rate collapsed in current model output), and this catalog
+  follows the upstream demotion rather than keeping an era-bound tell active.
 
 ## Style
 
@@ -277,7 +355,17 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
   corroboration note on a kept tell, not a listing under **Ineffective indicators** (checked
   explicitly; see that section). The shipped default stays zero-tolerance: this plugin is a
   house-style detector, not a Wikipedia AI-authorship tribunal. A consuming repo that wants the
-  source's combination reading disables the rule or uses `em_dash_allowed_paths`.
+  source's combination reading disables the rule or uses `em_dash_allowed_paths` (or the
+  generalized `rule_allowed_paths`).
+- **Spacing qualifier (mined 2026-08-25 from the same pinned section):** the source
+  distinguishes SPACED em dashes ( — ) as the stronger AI tell, while unspaced em dashes are
+  the typographically informed human convention; it cites reporting (The Economist, 2026-07-30,
+  wiki-cited, not independently verified here) that among current models only Claude still
+  over-uses them. The shipped rule stays character-level zero-tolerance as house style, and
+  records the spacing discriminator here for any consuming repo calibrating a softer setting.
+- **Zero-tolerance is a house-style choice, not a detection claim.** The false-accusation
+  literature the source's Caveats cite is one more reason this rule's verdict is "this repo
+  does not use em dashes", never "this text is AI-written".
 
 ### rule-emoji-formatting: Emoji as formatting
 
@@ -338,8 +426,14 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
 - detectability: mechanical
 - applicability: general-prose
 - v1: script
-- Assistant-frame residue: "as of my knowledge cutoff", "as of my last update", "I cannot browse",
-  "based on available information up to".
+- Assistant-frame residue, both halves of the source section (extraction completed 2026-08-25;
+  the original ERE covered roughly one of the section's six words-to-watch families and missed
+  even the source's own example "as of my last knowledge update"):
+  - Cutoff half: "as of my knowledge cutoff", "as of my last (knowledge) update", "up to my
+    last training update", "I cannot browse", "as an AI (language) model".
+  - Source-gap (RAG-era) half: "while specific details are limited/scarce", "not widely
+    available/documented/disclosed", "in the provided/available sources", "in the search
+    results", "based on (the) available information".
 
 ### rule-placeholder-text: Phrasal templates and placeholder text
 
@@ -745,6 +839,12 @@ either layer, and those rows say so.
 - Multiword filler with a shorter exact equivalent: "in order to" (for "to"), "due to the fact
   that" (for "because"), "it is important to note that", "it is worth noting that", "it should
   be noted that" (all deletable). Fires per occurrence; each hit has a mechanical rewrite.
+- **Recorded divergence from the source (2026-08-25):** the source's Syntax counter-sign list
+  names "isolated wordy constructions such as 'in order to'" among signs of HUMAN writing (an
+  uncited bullet, and the study its neighboring bullet cites does not measure this
+  construction). This rule keeps flagging it deliberately: the plugin's goal is concise house
+  style, not authorship attribution, and "in order to" -> "to" is de-verbosing every style
+  authority endorses. The divergence is a house-style choice, recorded rather than hidden.
 
 ### rule-stacked-hedging: Stacked hedging
 

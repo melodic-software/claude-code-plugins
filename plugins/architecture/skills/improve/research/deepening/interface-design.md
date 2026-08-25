@@ -16,7 +16,7 @@ Show the framing to the user, then move straight to step 2. The user absorbs the
 
 Spawn 3–4 subagents in parallel via the Agent tool. Orthogonality is deliberate — each subagent gets one design constraint chosen so the resulting interfaces cannot converge on the same shape:
 
-- **Minimal interface** — 1–3 entry points at most; squeeze maximum leverage from each <!-- ai-slop-ignore: "leverage" is this lens's defined term (vocabulary.md), not AI vocab -->
+- **Minimal interface** — 1–3 entry points at most; squeeze maximum leverage from each
 - **Maximum flexibility** — support many use cases and extension
 - **Optimize the common caller** — the dominant call site's default case becomes trivial
 - **Ports and adapters** (only when the candidate's dependency classification shows cross-seam dependencies) — port at the seam, transport injected
@@ -29,7 +29,7 @@ Every subagent returns the same six-part structure:
 2. **Usage example** — real caller code against the proposed interface
 3. **What the implementation hides** — the complexity absorbed behind the seam
 4. **Dependency strategy** — how each dependency is handled and which adapters exist
-5. **Trade-offs** — where the design's leverage is high, and where it thins out <!-- ai-slop-ignore: "leverage" is this lens's defined term (vocabulary.md), not AI vocab -->
+5. **Trade-offs** — where the design's leverage is high, and where it thins out
 6. **Rejected shapes** — the alternatives this design considered and turned down, each with its
    `rejected-reason`. Same field name the candidate artifact already uses, deliberately, so one
    vocabulary covers both.
@@ -48,7 +48,7 @@ this flow later and part 6 stops at the parent.
 
 Present the designs one at a time so the user can absorb each before the next arrives. Then compare across three axes:
 
-- **Interface depth / leverage** — behavior per unit of interface a caller must learn <!-- ai-slop-ignore: "leverage" is this lens's defined term (vocabulary.md), not AI vocab -->
+- **Interface depth / leverage** — behavior per unit of interface a caller must learn
 - **Locality of change** — where future change, bugs, and verification concentrate
 - **Seam placement** — where each design puts the seam, and what that position costs or buys
 

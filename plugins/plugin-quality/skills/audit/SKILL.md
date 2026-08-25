@@ -328,7 +328,9 @@ does or does not inherit, which is contested (see the plan's caveat on #1258).
 ### Step 3. Persist-check, then blindspot + candidate findings (subagent output → user)
 
 The `auditor` returns: grounded findings (each with evidence + doc citation), blindspots (what
-the audit framing missed), and candidate remediations ordered cheapest → most ambitious. Every doc
+the audit framing missed), candidate remediations ordered cheapest → most ambitious, and
+doc-worthy gotchas (operational lessons the usage evidence surfaced, each graded general vs
+situational; the general ones are candidate additions to the audited component's own docs). Every doc
 citation states the retrieval channel it came over plus a byte count or line number; a finding whose
 citation omits **either** field is recorded as **unverified**, however confidently worded. "rung-1
 `curl`, `<url>`, fetched `<date>`" with no count and no line is a half-citation, not a grounded one.

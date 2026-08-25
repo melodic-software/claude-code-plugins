@@ -4,9 +4,11 @@
 
 ### Changed
 
-- **Repo-wide `/ai-slop:audit fix` pass (#3359).** `ai-slop-ignore` markers on the
-  filler-phrase examples in `compress/context/flavor-vs-content-matrix.md` and
-  `write-for-humans/SKILL.md`: both quote the verbose forms they teach against.
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The filler-phrase examples in
+  `compress/context/flavor-vs-content-matrix.md` and `write-for-humans/SKILL.md`
+  quote the verbose forms they teach against; the detector's quoted-span exemption
+  (ai-slop 0.4.0) now covers them marker-free, so the markers briefly added for
+  them came out again in the same PR.
 
 ## [0.21.10]
 

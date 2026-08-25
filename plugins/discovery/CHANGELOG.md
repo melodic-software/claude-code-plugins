@@ -5,7 +5,7 @@
 ### Changed
 
 - **Repo-wide `/ai-slop:audit fix` pass (#3359).** A negative parallelism in an old
-  changelog entry restated positively, and "in order to dodge the gate" in <!-- ai-slop-ignore: quotes the tell it documents -->
+  changelog entry restated positively, and "in order to dodge the gate" in
   `explore/SKILL.md` tightened to "to dodge the gate".
 
 ## [0.16.5]

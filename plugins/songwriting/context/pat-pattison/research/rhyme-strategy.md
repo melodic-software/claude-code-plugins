@@ -780,7 +780,6 @@ If you knew how I wanted someone to come along
 And change my world with love this strong
 ```
 
-<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 > Again, the meaning is essentially the same, but now we hear a tribute to the
 > power of love, a stable feeling created, again, simply by the rhyme type. It
 > not only transforms the emotion of the section, but the color of the entire
@@ -789,7 +788,6 @@ And change my world with love this strong
 > unstable/unstable/stable in the first sequence, we’re moving
 > unstable/stable/stable, and the last part of the song feels more like it
 > repeats the same ideas rather than growing. Rhyme types, baby.
-<!-- ai-slop-ignore-end -->
 
 > While we’re at it, look how the first verse:
 

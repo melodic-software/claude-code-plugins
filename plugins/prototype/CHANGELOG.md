@@ -8,7 +8,7 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 ### Changed
 
 - **Repo-wide `/ai-slop:audit fix` pass (#3359).** The wallpaper contrast in
-  `explore-directions/SKILL.md` ("isn't a UI prototype, it's wallpaper") keeps its <!-- ai-slop-ignore: quotes the tell it documents -->
+  `explore-directions/SKILL.md` ("isn't a UI prototype, it's wallpaper") keeps its
   deliberate voice behind an `ai-slop-ignore` marker; a positive restatement blunts
   the operative point.
 
