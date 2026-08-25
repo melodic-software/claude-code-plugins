@@ -340,7 +340,6 @@ scan_file() {
       }
       return 0
     }
-    # Pass 1: collect active ERE patterns from the token list.
     # Pass 1: load the token list. It arrives PRE-FILTERED — trimmed, no blanks,
     # no comment lines — because scripts/lib/read-list.sh resolved it in the
     # shell (#3161). Stripping here too would re-create the private copy of the
