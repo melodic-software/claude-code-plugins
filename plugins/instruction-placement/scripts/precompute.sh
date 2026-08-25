@@ -58,7 +58,7 @@ present_or_absent() {
 
 case "${1:-}" in
 audit)
-  printf -- '- Branch: %s\n' "$(branch || true)"
+  printf -- '- Branch: %s\n' "$(branch)"
   printf -- '- Root CLAUDE.md lines: %s\n' "$(lines_of CLAUDE.md)"
   printf -- '- Root AGENTS.md lines: %s\n' "$(lines_of AGENTS.md)"
   printf -- '- Rules files: %s\n' "$(count_or_zero ip_discover_rules .)"
@@ -71,7 +71,7 @@ check)
   printf -- '- Root CLAUDE.md: %s\n' "$(present_or_absent CLAUDE.md)"
   ;;
 realign)
-  printf -- '- Branch: %s\n' "$(branch || true)"
+  printf -- '- Branch: %s\n' "$(branch)"
   printf -- '- Uncommitted files: %s\n' "$(count_or_zero git status --porcelain)"
   ;;
 *)

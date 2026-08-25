@@ -227,14 +227,13 @@ SECTION_COUNT=0
 RULE_COUNT=0
 
 emit_file_facts() {
-  local file="$1" tier="$2"
+  local file="$1"
   # The path comes in through ENVIRON rather than `awk -v`: POSIX has -v process
   # escape sequences, so a path containing a backslash is rewritten before the
   # program sees it (gawk reads `\t` as a tab and drops an unknown escape's
   # backslash; mawk passes both through). Every fact this emits is keyed by the
-  # path, so a mangled one silently misattributes findings. `tier` is a fixed
-  # word from this script and stays on -v.
-  IP_FILE_PATH="$file" awk -v tier="$tier" '
+  # path, so a mangled one silently misattributes findings.
+  IP_FILE_PATH="$file" awk '
     BEGIN { path = ENVIRON["IP_FILE_PATH"] }
     function flush_section(endline,   markerlist) {
       if (sec_start == 0) return
@@ -394,7 +393,7 @@ for f in "${FILES[@]}"; do
   total="$(wc -l <"$f" 2>/dev/null | tr -d ' ')"
   {
     printf 'FILE\t%s\t%s\t%s\n' "$f" "$tier" "${total:-0}"
-    emit_file_facts "$f" "$tier"
+    emit_file_facts "$f"
     lang_hints "$f"
   } >>"$ROWS"
 done

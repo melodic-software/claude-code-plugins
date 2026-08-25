@@ -18,7 +18,7 @@
 # nothing about the repository looks wrong until someone runs the gate.
 #
 # Kill switch: the plugin's `index_drift_hook_enabled` userConfig boolean,
-# surfaced as $CLAUDE_PLUGIN_OPTION_INSTRUCTION_PLACEMENT_INDEX_DRIFT_ENABLED.
+# surfaced as $CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED.
 
 set -uo pipefail
 
