@@ -7,11 +7,7 @@ export function createMockPage() {
     click: async () => {
       actions.push({ type: "click", selector });
     },
-    first: () => ({
-      click: async () => {
-        actions.push({ type: "click", selector });
-      },
-    }),
+    first: () => mockLocator(selector),
   });
 
   return {

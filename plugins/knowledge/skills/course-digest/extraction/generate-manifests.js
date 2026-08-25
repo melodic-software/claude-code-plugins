@@ -92,7 +92,7 @@ function classifyLesson(dedupEntry, durationSec) {
   const intervalFrames = frames.filter((f) => f.isInterval);
   const sceneFrames = frames.filter((f) => !f.isInterval);
 
-  // Check if this is a talking-head lesson: all interval, high avg size, mostly duplicates
+  // Check if this is a talking-head lesson: all interval, mostly duplicates
   const isTalkingHead =
     sceneFrames.length === 0 &&
     intervalFrames.length > 3 &&
