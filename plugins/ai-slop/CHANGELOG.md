@@ -401,7 +401,7 @@ over all 15 script rules; the judgment side had none, which is the half that onl
 - Overlap map says "catalogued by" rather than "covered by", and names the rows whose entries are
   dormant; Name-dropping is recorded as deliberately out of scope for general prose, and generic
   conclusions as detected only in their formulaic half.
-- `rule-chatbot-artifacts` gains "Found the smoking gun"; `rule-abstract-metaphor-jargon` and the <!-- ai-slop-ignore: quotes the tell it documents -->
+- `rule-chatbot-artifacts` gains "Found the smoking gun"; `rule-abstract-metaphor-jargon` and the
   rewrite guide gain `evacuate` -> "move out". Two narrowings that were silent are now recorded:
   the promotional word core deliberately omits travel-copy words with no technical base rate, and
   the shipped AI-vocabulary list is a deliberate narrowing of the era-union rather than the union
