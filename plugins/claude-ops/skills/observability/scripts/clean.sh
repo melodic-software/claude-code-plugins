@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # /observability clean — prune local observability data by age.
-# Two layers, two retention windows:
+# Three layers, each with its own retention:
 #   1. JSONL metadata (.claude/observability/hook-events.jsonl) —
 #      path-only, pruned in place to the --keep-days window (default 30).
 #   2. OTEL file store (.claude/observability/otel/{cc-logs,cc-metrics}.json) — holds full
@@ -139,17 +139,24 @@ fi
 OBS_DIR="${REPO_ROOT}/.claude/observability"
 HOOK_LOG="${OBS_DIR}/hook-events.jsonl"
 
-# Cutoff timestamp — ISO-8601 UTC. GNU date (Linux/Git Bash) and BSD date (macOS)
-# require different flags for relative time and epoch-to-ISO conversion.
-# portability-ok: GNU-first dual-dialect probe, BSD branch in the else below (#1510)
-if date -u -d "1 day ago" +%s >/dev/null 2>&1; then
-  CUTOFF_EPOCH=$(date -u -d "${KEEP_DAYS} days ago" +%s)        # portability-ok: see if-guard above (#1510)
-  CUTOFF_ISO=$(date -u -d "@$CUTOFF_EPOCH" +%Y-%m-%dT%H:%M:%SZ) # portability-ok: see if-guard above (#1510)
-else
-  # macOS BSD date
-  CUTOFF_EPOCH=$(date -u -v-"${KEEP_DAYS}"d +%s)
-  CUTOFF_ISO=$(date -u -r "$CUTOFF_EPOCH" +%Y-%m-%dT%H:%M:%SZ)
-fi
+# Cutoff timestamp for N days ago — ISO-8601 UTC. GNU date (Linux/Git Bash) and
+# BSD date (macOS) require different flags for relative time and epoch-to-ISO
+# conversion; both the hook-events and skill-usage windows resolve through this
+# one probe.
+cutoff_iso_days_ago() {
+  local days="$1" epoch
+  # portability-ok: GNU-first dual-dialect probe, BSD branch in the else below (#1510)
+  if date -u -d "1 day ago" +%s >/dev/null 2>&1; then
+    epoch=$(date -u -d "${days} days ago" +%s) # portability-ok: see if-guard above (#1510)
+    date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ   # portability-ok: see if-guard above (#1510)
+  else
+    # macOS BSD date
+    epoch=$(date -u -v-"${days}"d +%s)
+    date -u -r "$epoch" +%Y-%m-%dT%H:%M:%SZ
+  fi
+}
+
+CUTOFF_ISO=$(cutoff_iso_days_ago "$KEEP_DAYS")
 
 log() {
   if [[ "$QUIET" -eq 0 ]]; then echo "$@" >&2; fi
@@ -313,14 +320,7 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
     exit 2
   fi
 
-  # portability-ok: GNU-first dual-dialect probe, BSD branch in the else below (#1510)
-  if date -u -d "1 day ago" +%s >/dev/null 2>&1; then
-    SU_EPOCH=$(date -u -d "${KEEP_SKILL_USAGE_DAYS} days ago" +%s) # portability-ok: see if-guard above (#1510)
-    SU_CUTOFF_ISO=$(date -u -d "@$SU_EPOCH" +%Y-%m-%dT%H:%M:%SZ)   # portability-ok: see if-guard above (#1510)
-  else
-    SU_EPOCH=$(date -u -v-"${KEEP_SKILL_USAGE_DAYS}"d +%s)
-    SU_CUTOFF_ISO=$(date -u -r "$SU_EPOCH" +%Y-%m-%dT%H:%M:%SZ)
-  fi
+  SU_CUTOFF_ISO=$(cutoff_iso_days_ago "$KEEP_SKILL_USAGE_DAYS")
 
   if [[ "$SKILL_USAGE_SCOPE" == "data-dir" ]]; then
     # Reproduce the writer's layout: <data-root>/skill-usage/<repo-slug>. The
