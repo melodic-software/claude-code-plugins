@@ -208,11 +208,8 @@ report() {
   errors=$((errors + 1))
 }
 
-while IFS= read -r record; do
-  [[ -n "$record" ]] || continue
-  job="$(printf '%s' "$record" | cut -d' ' -f2)"
-  flag="$(printf '%s' "$record" | cut -d' ' -f3)"
-  reason="$(printf '%s' "$record" | cut -d' ' -f4-)"
+while read -r _ job flag reason; do
+  [[ -n "$job" ]] || continue
   [[ "$job" != "$AGGREGATE" ]] || continue
 
   in_needs=1

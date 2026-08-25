@@ -98,7 +98,7 @@ while IFS=$'\t' read -r name source; do
   # the repository root. Unlike that script's silent skip, an out-of-tree
   # catalog entry is itself invalid content, so this fails the gate loudly
   # instead of quietly ignoring the entry.
-  if [[ "$rel" == /* || "$rel" =~ ^[A-Za-z]: || "/$rel/" == *"/../"* || "$rel" == ".." || "$rel" == "../"* || "$rel" == *"/.." ]]; then
+  if [[ "$rel" == /* || "$rel" =~ ^[A-Za-z]: || "/$rel/" == *"/../"* ]]; then
     printf 'UNSAFE CATALOG SOURCE: %s entry %s has source %s, which resolves outside the repository -- refusing to probe it.\n' \
       "$MARKETPLACE" "$name" "$source" >&2
     errors=$((errors + 1))
