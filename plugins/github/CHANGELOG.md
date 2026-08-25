@@ -3,6 +3,15 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The README's rhythm triad "No
+  endpoint tables, no scope lists, no prices" collapsed to "not even an endpoint
+  table"; the preceding "zero vendored GitHub knowledge" claim already entails the
+  rest. The read-only contract enumeration stays: it defines the actual guarantee.
+
 ## [0.3.5]
 
 ### Changed

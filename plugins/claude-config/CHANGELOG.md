@@ -3,6 +3,17 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.3]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** Four "in order to describe" <!-- ai-slop-ignore: quotes the tell it documents -->
+  constructions in `audit-instructions/reference/criteria.md` tightened to "to
+  describe" (the criteria's own prose; the documented smells are untouched). The
+  purposive "in order to run" in `audit-pass/reference/suppression.md` stays, behind <!-- ai-slop-ignore: quotes the tell it documents -->
+  an `ai-slop-ignore` marker, because the short form reads as a list of things the
+  pass must run.
+
 ## [0.40.2]
 
 ### Fixed

@@ -3,6 +3,17 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** A simulation-evaluation criterion
+  reworded from "(not just facilitator)" to "(facilitator-raised ones do not count)".
+  `ai-slop-ignore` markers protect the quoted participant testimonial in
+  `big-picture-workshop.md`, the quoted definition in `design-level.md`, and the
+  glossary's "Fuzzy by design" sentence, which keeps its original "in order to" <!-- ai-slop-ignore: quotes the tell it documents -->
+  phrasing as likely verbatim source wording.
+
 ## [0.6.4]
 
 ### Changed

@@ -1,5 +1,13 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.11]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** `ai-slop-ignore` markers on the
+  filler-phrase examples in `compress/context/flavor-vs-content-matrix.md` and
+  `write-for-humans/SKILL.md`: both quote the verbose forms they teach against.
+
 ## [0.21.10]
 
 ### Changed

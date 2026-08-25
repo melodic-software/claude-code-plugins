@@ -3,6 +3,17 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.10]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** "in order to" tightened to "to" <!-- ai-slop-ignore: quotes the tell it documents -->
+  in the plugin's own prose (two old changelog entries, `line-brainstorm.md`,
+  `object-writing.md`, `worksheets.md`), and one paraphrase sentence in
+  `rhyme-sonic-bonding.md` restated positively. Verbatim Pattison blockquotes across
+  the research corpus are fenced with `ai-slop-ignore` markers so the quoted lines
+  stay byte-identical.
+
 ## [1.4.9]
 
 ### Changed

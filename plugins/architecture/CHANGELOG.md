@@ -3,6 +3,16 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** Added `ai-slop-ignore` markers in
+  the deepening research files: `html-report.md` quotes the banned phrase its tone
+  rule forbids, and `interface-design.md` plus `vocabulary.md` use "leverage" as the
+  lens's defined term, so the vocabulary detector's hits there are mentions of the
+  word as a term, not AI-vocabulary prose.
+
 ## [0.6.4]
 
 ### Changed

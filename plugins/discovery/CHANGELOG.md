@@ -1,5 +1,13 @@
 # Changelog — discovery plugin
 
+## [0.16.6]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** A negative parallelism in an old
+  changelog entry restated positively, and "in order to dodge the gate" in <!-- ai-slop-ignore: quotes the tell it documents -->
+  `explore/SKILL.md` tightened to "to dodge the gate".
+
 ## [0.16.5]
 
 ### Fixed

@@ -3,6 +3,15 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The wallpaper contrast in
+  `explore-directions/SKILL.md` ("isn't a UI prototype, it's wallpaper") keeps its <!-- ai-slop-ignore: quotes the tell it documents -->
+  deliberate voice behind an `ai-slop-ignore` marker; a positive restatement blunts
+  the operative point.
+
 ## [0.9.4]
 
 ### Changed
