@@ -5,7 +5,7 @@
 # Usage: sync-finalize.sh
 
 # shellcheck disable=SC2154
-# (Windows env vars LOCALAPPDATA/USERNAME are runtime-resolved)
+# (Windows env var LOCALAPPDATA is set on Git Bash runtime)
 
 set -uo pipefail
 

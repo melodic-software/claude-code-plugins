@@ -142,8 +142,7 @@ verify_sha "${DL_DIR}/$(basename "${PINNED_KFC_URL}")" "${PINNED_KFC_SHA}" "Kind
 KKF_MATCHES=("${DL_DIR}"/Kindle_Key_Finder_*.JH.zip)
 KKF_LOCAL="${KKF_MATCHES[0]}"
 [[ -e "${KKF_LOCAL}" ]] && verify_sha "${KKF_LOCAL}" "${PINNED_KKF_SHA}" "Kindle_Key_Finder zip"
-DEDRM_MATCHES=("${DL_DIR}"/DeDRM_tools-"${PINNED_DEDRM_TAG}".zip)
-DEDRM_LOCAL="${DEDRM_MATCHES[0]}"
+DEDRM_LOCAL="${DL_DIR}/DeDRM_tools-${PINNED_DEDRM_TAG}.zip"
 [[ -e "${DEDRM_LOCAL}" ]] && verify_sha "${DEDRM_LOCAL}" "${PINNED_DEDRM_SHA}" "DeDRM_tools zip"
 
 echo
