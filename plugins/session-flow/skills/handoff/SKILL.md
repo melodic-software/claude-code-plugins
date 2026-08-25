@@ -239,6 +239,7 @@ box above is ticked. Emit the rails block before ending the turn, always.
   "Original goal, mandatory on BOTH paths")
 - [ ] Claim provenance applied to every inline remaining-work bullet, inherited status marked
   `UNVERIFIED (<source>)`, not stated as plain fact (engine doc, "Claim provenance")
+- [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
 - [ ] When the built-in `export` command resolves in your session, the close offers the one-line
   conversation export `/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`, after
   verifying the memory root's self-ignore guard (a `.gitignore` containing `*`, created and
