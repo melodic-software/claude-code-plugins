@@ -272,8 +272,7 @@ function sortTiersByDate(normalized) {
 
 /** Mutate `normalized` to apply tier auto-balance:
  *   - HIGH > 7 → demote weakest (last) item to MED until HIGH ≤ 7
- *   - MED ≥ 5 AND HIGH < 3 → promote first MED item to HIGH until balance
- *   Authoring intent always wins for explicit tier markers in headlines (e.g. "[STATE: GA]"). */
+ *   - MED ≥ 5 AND HIGH < 3 → promote first MED item to HIGH until balance */
 function balanceTiers(normalized) {
   for (const bucket of Object.keys(normalized)) {
     const data = normalized[bucket];
