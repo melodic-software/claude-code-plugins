@@ -704,9 +704,11 @@ Repetition also works at the line level. Look for smaller pieces inside a line
 that can be isolated and repeated to create a new question, command, emphasis,
 or emotional turn.
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 > Think of it as hunting for hidden treasures. Learn to start looking at
 > sentences not just for meaning, but for little pieces of meaning that can be
 > isolated and repeated, giving additional information or emphasis.
+<!-- ai-slop-ignore-end -->
 
 The key is that the repeated fragment must add meaning, not merely echo sound.
 Pat allows sound as one reason to repeat something — "Maybe the words just feel

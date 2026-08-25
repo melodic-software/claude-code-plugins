@@ -1939,7 +1939,7 @@ not that.)
 - **`block-hook-bypass` missed the explicit stdout redirect entirely — `cat 1>file` and
   `echo x 1>file` were never caught.** `1>file` writes the file exactly as `>file` does, but both
   detection patterns only ever admitted the bare `>`: `_cat_redir` required `cat[[:space:]]*>` and
-  `_echo_file_out` excluded any operator preceded by a digit, in order to keep `2>` out. That
+  `_echo_file_out` excluded any operator preceded by a digit, to keep `2>` out. That
   exclusion took the legitimate fd-1 spelling with it, so a single character defeated both lanes of
   the guard. Verified live against the shipped hook before the fix: `cat 1>real.txt` exited 0 while
   `cat > real.txt` exited 2.

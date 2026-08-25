@@ -182,7 +182,7 @@ stub.Setup(x => x.GetDeliveries(1))
     .Returns(new List<DeliveryRecord>());
 ```
 
-> "The necessity to mock a concrete class in order to preserve part of its functionality is a result of violating the Single Responsibility principle."
+> "The necessity to mock a concrete class in order to preserve part of its functionality is a result of violating the Single Responsibility principle." <!-- ai-slop-ignore: verbatim quote from Khorikov -->
 
 **Fix**: split into two classes using the Humble Object pattern:
 

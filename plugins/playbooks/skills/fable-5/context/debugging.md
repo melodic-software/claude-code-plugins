@@ -49,7 +49,7 @@ You are debugging: an observed failure with no confirmed cause — treat it as a
 
 ## Reading code vs running code
 
-- RULE: run code when the question is "what actually happens" — which branch executes, a runtime value, what the environment resolves to (assumption bugs); read code when the question is "what could possibly happen" — all callers, every writer of a value, whether an invariant can hold (logic bugs); if your live hypotheses are assumption-shaped, reading harder cannot resolve them.
+- RULE: run code when the question is "what actually happens" — which branch executes, a runtime value, what the environment resolves to (assumption bugs); read code when the question is "what could possibly happen" — all callers, every writer of a value, whether an invariant can hold (logic bugs); if your live hypotheses are assumption-shaped, reading harder cannot resolve them. <!-- ai-slop-ignore: quoted discriminator phrase; possibly is the load-bearing contrast with actually -->
 - RULE: after reading the same function three times while the bug still looks "impossible," stop reading and observe execution — the impossibility means your mental model diverges from reality somewhere, and more reading just re-runs the same flawed model.
 - RULE: when one observation costs a multi-minute rebuild or redeploy, static analysis of all writers and readers of the suspect state may be cheaper than one probe — choose by cost per bit of information, not by habit.
 
@@ -58,7 +58,7 @@ You are debugging: an observed failure with no confirmed cause — treat it as a
 **Trigger:** you need visibility into runtime state that the existing output does not show.
 
 - Place observation points at the boundary between "verified correct" and "unknown" — assert what you believe, print what you don't; instrumenting randomly produces output volume, not information.
-- Log values and shapes, not just checkpoints — "reached here" answers control flow, but most bugs are data flow, and printing the actual value on the same line answers both for the same cost.
+- Log values and shapes, not just checkpoints — "reached here" answers control flow, but most bugs are data flow, and printing the actual value on the same line answers both for the same cost. <!-- ai-slop-ignore: rewrite rejected by semantic-diff guard; the contrast directs what to log, not where -->
 - Tag every temporary probe with one unique, greppable marker so removal is a single search — leftover probes mislead the next investigator and, in timing-sensitive code, can themselves change behavior; run the removal sweep per the execution chapter, section "Leave no debris", before the fix is finalized.
 - If adding a probe makes the failure disappear, that is a finding, not an annoyance — you are in race/timing territory: record it and switch to observation that does not perturb timing (post-hoc state capture, counters, existing logs).
 

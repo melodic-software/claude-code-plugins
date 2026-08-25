@@ -385,7 +385,7 @@ A great session ends with people happily tired and a feeling of accomplishment â
 ### When things go wrong
 
 - A workshop that reveals organizational dysfunction (power plays, silent audiences) is still valuable â€” it shows you the real situation before you waste months building the wrong software
-- "It took me less than two hours to have all the information needed in order to quit a project that was doomed"
+- "It took me less than two hours to have all the information needed in order to quit a project that was doomed" <!-- ai-slop-ignore: verbatim participant quote from source -->
 
 ---
 

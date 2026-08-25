@@ -143,7 +143,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Fixed
 
 - **`setup` skill:** the babysit-config guidance now names `claude plugin uninstall`'s
-  `--keep-data` flag. The section already warned against uninstalling in order to reconfigure,
+  `--keep-data` flag. The section already warned against uninstalling to reconfigure,
   citing the lost `pluginConfigs` entry, but stopped there, and `--keep-data` appeared nowhere in
   the plugin. An operator who uninstalled for any of the other legitimate reasons (troubleshooting,
   changing scopes, reinstalling a version) had no warning that uninstalling from the **last

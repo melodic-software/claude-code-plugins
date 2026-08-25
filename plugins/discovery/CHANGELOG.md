@@ -465,7 +465,7 @@
   "Tool honesty" section asserted "`Edit` is absent from your tool list" and "`Agent` is listed."
   Both sentences are false there. The paragraph is a verbatim copy from `agents/explorer.md`, where
   the `tools:` allowlist at line 4 makes both of them true; it was carried into a file whose
-  frontmatter inverts them. Inheritance was not only derivable but observed — the agent's own
+  frontmatter inverts them. Inheritance was derivable from the missing keys and observed directly: the agent's own
   transcript shows it calling `ToolSearch` and `WebFetch`, neither of which appears in the
   explorer's allowlist.
 

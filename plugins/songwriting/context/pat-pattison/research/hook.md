@@ -265,8 +265,10 @@ examples, and his analysis of the Kevin Cronin bridge.
 
 ## Strategy 5: use hook rhythm strategically
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 > "This is a terrific strategy. It not only helps spotlight your HOOK, but it
 > makes finding line lengths and rhythms for your verses less arbitrary."
+<!-- ai-slop-ignore-end -->
 
 The Common Meter scansion and the definition of "strategic position" are under
 "Strategic position" below; the composers' analogy Pat draws it
@@ -678,9 +680,11 @@ version of this file also gave a "Balancing position" as though it were a
 second Pat term; it is not. He describes the later phrase as the thing that
 *balances*, never as a named position.
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 > "I thought you'd never ask ... A strategic position is a place you have to
 > match in order to balance a section. In Common Meter, this is a strategic
 > position:"
+<!-- ai-slop-ignore-end -->
 
 He then scans Common Meter and says of it:
 

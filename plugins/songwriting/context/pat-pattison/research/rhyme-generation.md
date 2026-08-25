@@ -515,6 +515,7 @@ fourth line — unchanged — is left with nothing to resolve against (p.117):
 In the first prechorus he goes the other way, rewriting the closing fourth line
 so that `long` is answered by a perfect rhyme instead of by `done` (p.118):
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 > Again, the meaning is essentially the same, but now we hear a tribute to the
 > power of love, a stable feeling created, again, simply by the rhyme type. It
 > not only transforms the emotion of the section, but the color of the entire
@@ -522,6 +523,7 @@ so that `long` is answered by a perfect rhyme instead of by `done` (p.118):
 > unstable/unstable/stable in the first sequence, we're moving
 > unstable/stable/stable, and the last part of the song feels more like it
 > repeats the same ideas rather than growing.
+<!-- ai-slop-ignore-end -->
 
 **The generation lesson.** A rhyme-type choice at one slot is not local. It
 sets the stability of the section, and the section's stability sets whether the

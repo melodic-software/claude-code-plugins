@@ -166,7 +166,7 @@ only after that version increases.
   Reference and in Sections 17 and 34. Section 2 gains the pack's own supersession-note pattern
   pointing at Section 94, leaving Boris's historical text intact.
 - **`boris`: the orchestration snapshot disclaimer now covers Section 94's specs sentence.** Model
-  id, context window, max output, and knowledge cutoff sat outside the framing that already covered
+  id, context window, max output, and knowledge cutoff sat outside the framing that already covered <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
   benchmark and pricing figures; they are verified still current 2026-08-08 against the models
   overview, which owns them.
 - **`boris`: Section 113 no longer reads as retiring rule-writing.** What auto-memory replaces is

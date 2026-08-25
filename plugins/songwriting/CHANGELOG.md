@@ -969,7 +969,7 @@ where its neighbours match means "look for a typo", not "absent".
   one hash site remains in the research corpus — `metaphor.md`, inside a
   quotation, verified verbatim against the 2011 spine. The other occurrences in
   the plugin are the new rule in `book-references.md` and this changelog, both
-  of which quote the form in order to describe it.
+  of which quote the form to describe it.
 - **`lyrics.md` no longer claims first-party support it does not have.** The
   cited Suno article is "How to Use: Song Editor" and contains no bracket-tag
   content. The false clause was deleted and **no citation was substituted for
@@ -2399,7 +2399,7 @@ example writes, or student work reaches this public repository.
   rhyme type mixed together. The mixing is the point: a single field is scanned
   and compared on meaning, where five labelled rows turn one choice into five
   sub-choices and invite filling each to a quota — the opposite of generating a
-  surplus in order to reject most of it. The per-type SEARCH still runs — each
+  surplus to reject most of it. The per-type SEARCH still runs — each
   type is a different lookup and skipping one loses candidates — but its results
   are recorded together; type matters again only when placing a survivor, which
   is `rhyme-strategy.md`'s job.

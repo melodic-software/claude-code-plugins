@@ -133,7 +133,7 @@ instead of leaving the recommendation purely prospective.
 
 ## Inverse direction — mid-task
 
-The same two signals matter mid-task, not only at the interview boundary — but the
+The same two signals keep mattering mid-task, past the interview boundary, but the
 interview terminates at handoff (SKILL.md Step 5) and nothing wires this context into
 whatever session executes next. Hand it to the **user** as a watch-for at handoff,
 not as an instruction to an executing actor: tell them that if execution starts

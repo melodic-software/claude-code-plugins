@@ -484,7 +484,7 @@ land in one column together, and the mixing is the point: the eye scans a single
 field and compares candidates on what they *mean* for this lyric.
 
 Labelled per-type rows turn one choice into five sub-choices and invite filling
-each row to a quota — the opposite of generating a surplus in order to reject
+each row to a quota — the opposite of generating a surplus to reject
 most of it. Which type a surviving candidate belongs to matters again when
 deciding where it lands, and that stability question is
 [rhyme strategy](rhyme-strategy.md)'s, after the column exists.

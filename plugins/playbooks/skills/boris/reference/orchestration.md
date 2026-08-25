@@ -17,7 +17,7 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 > 78, 94–95) are the same kind of snapshot** — launch-day rates, verified still current 2026-08-04.
 > Current rates are upstream-owned: resolve them from
 > [pricing](https://platform.claude.com/docs/en/about-claude/pricing), never from these lines.
-> **The Section 94 specs sentence (model id, context window, max output, knowledge cutoff) is the
+> **The Section 94 specs sentence (model id, context window, max output, knowledge cutoff) is the <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
 > same kind of snapshot** — verified still current 2026-08-08 against the models overview linked
 > above, which owns those fields. Resolve current specs there, never from these lines.
 
@@ -95,7 +95,7 @@ Launched Jun 9, 2026 — a "Mythos-class" model made safe for general use, in Cl
 
 Launch-day benchmarks (Fable 5 → Opus 4.8), from the [launch announcement](https://www.anthropic.com/news/claude-fable-5-mythos-5#evaluating-claude-fable-5-and-claude-mythos-5): SWE-Bench Pro **80.3%** → 69.2%; FrontierCode/Diamond (xhigh) **29.3%** → 13.4%; GDPval-AA **1932** → 1890; OSWorld-Verified **85.0%** → 83.4%. On starred benchmarks (cybersecurity, biology, Terminal-Bench, HLE, HealthBench) Fable performs closer to Opus 4.8 due to safety fallbacks — those higher figures are Mythos 5. Boris confirms the safety classifiers are currently "trigger-happy" (flagging ordinary debugging as cyber/bio) and being improved.
 
-Specs: model id `claude-fable-5`; 1M context; 128K max output; adaptive thinking; knowledge cutoff Jan 2026; no fast mode yet. **Pricing: $10/M input · $50/M output — exactly 2× Opus 4.8**; cache write $12.50, cache read $1; full 1M context at standard rate. Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
+Specs: model id `claude-fable-5`; 1M context; 128K max output; adaptive thinking; knowledge cutoff Jan 2026; no fast mode yet. <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer --> **Pricing: $10/M input · $50/M output — exactly 2× Opus 4.8**; cache write $12.50, cache read $1; full 1M context at standard rate. Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
 
 ## 95. What Fable 5 Changes for You
 

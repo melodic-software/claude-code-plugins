@@ -11,7 +11,7 @@ Canonical FLAVOR / CONTENT taxonomy for the `/docs-hygiene:compress` semantic-di
 - Hedging (perhaps/somewhat/might)
 - Pleasantries
 - Redundant restatement of bold rule names (single-file Edit fallback only — batch Phase A LATITUDE does not delete sentences)
-- "in order to" / "due to the fact that" verbose forms
+- "in order to" / "due to the fact that" verbose forms <!-- ai-slop-ignore: quotes the tell it documents -->
 - Conversational connectives ("that said", "in other words") (Edit fallback; batch LATITUDE is word-level)
 - Verbose verb phrases ("make use of" → "use")
 

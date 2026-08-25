@@ -844,7 +844,7 @@ fails only at the top of the effort ladder, and a disable that fails at every le
   flags the value where it is actually written, and an instruction-text auditor sent after the
   literal finds nothing and learns nothing. The value is writable, not unreachable: the schema is
   advisory and the harness reads a file that violates it, which is why the settings-file check is
-  `claude-config:audit` category H rather than absent. **A document that states either arm in order to
+  `claude-config:audit` category H rather than absent. **A document that states either arm to
   describe or forbid it** — this row, a model-adaptation delta chapter, a verification record
   quoting it — on the same audience test I8-b applies: either arm prescribed inside an operative
   directive is a finding; a document *about* it is not. **The bare `ultracode` prompt
@@ -1082,7 +1082,7 @@ is what a surface believes about blocks that are *not there*. They share a subje
   being present in local transcripts**, which is a separate and unevidenced claim; this row's
   concern is only that a type filter would drop them if the API returned them. Pruning of *prior*
   turns' thinking, which the API does for you and which the page explicitly allows outside tool use.
-  **A document that names the type-filter predicate in order to describe the smell** — this row,
+  **A document that names the type-filter predicate to describe the smell** — this row,
   a model-adaptation delta chapter, a verification record quoting it — on the same audience test
   I8-b applies: the predicate quoted inside an operative directive is still operative and is a
   finding; a document *about* the pattern is not.
@@ -1217,7 +1217,7 @@ condition, not a `Model scope` annotation**, for the reason I17 states.
   prompt clearly rather than prefill past a refusal, and move context reinjection into the user turn
   or a tool.
 - **Must NOT flag:** an assistant message anywhere other than the last turn, which is unaffected.
-  **A document that names the technique or its tells in order to describe it as retired** — this
+  **A document that names the technique or its tells to describe it as retired** — this
   row, a migration guide, a model-delta chapter — on the same audience test I8-b applies: a prefill
   prescribed inside an operative directive is a finding; a document *about* prefill is not.
   Instructions targeting an explicitly pinned earlier model, which still supports it.
@@ -1572,7 +1572,7 @@ Model scope: `opus-5` (both statements of the property are qualified to Claude O
 and the effort page's inside its Opus 5 section; no model-agnostic page states it, so the promotion
 gate is unmet).
 
-- **Detect:** instruction text directing a reader or model to lower effort IN ORDER TO shorten the
+- **Detect:** instruction text directing a reader or model to lower effort TO SHORTEN the
   visible response — "lower effort to keep replies short", "reduce effort so answers stay concise" —
   the premise being that the effort level controls response length. Seeded by the scanner's I27
   family (an effort-lowering directive and a brevity token on one line); the lane adjudicates that

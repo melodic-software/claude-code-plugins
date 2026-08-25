@@ -2,7 +2,7 @@
 
 ## Glossary
 
-**"Fuzzy by design"** — Precision gets in the way. A large portion of EventStorming is about making significant conversations possible, and if you have to know what an Aggregate is in order to speak, that isn't going to work.
+**"Fuzzy by design"** — Precision gets in the way. A large portion of EventStorming is about making significant conversations possible, and if you have to know what an Aggregate is in order to speak, that isn't going to work. <!-- ai-slop-ignore: likely verbatim source phrasing (Brandolini); shorter form invites a garden-path parse -->
 
 ### Core Terms
 

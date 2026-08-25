@@ -230,7 +230,7 @@ the comparison is:
 > — *Writing Better Lyrics* (2009), Chapter 2
 
 So: if a draft swaps vivid place, job, weather, object, or body detail for broad
-labels in order to reach a rhyme, keep the image and rework the rhyme.
+labels to reach a rhyme, keep the image and rework the rhyme.
 
 Use [rhyme strategy](rhyme-strategy.md) and [rhyme types](rhyme-types.md) after
 the collar is protected. The rhyme should serve the image, not erase it.

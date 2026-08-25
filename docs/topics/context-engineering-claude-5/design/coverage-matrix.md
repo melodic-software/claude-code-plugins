@@ -5,6 +5,8 @@ covers it, and states what is left over. Verdict values: `COVERED` (an incumbent
 `PARTIAL` (an incumbent touches it but leaves a stated remainder), `GAP` (nothing enforces it),
 `N/A` (framing or out-of-scope, no check possible).
 
+<!-- ai-slop-ignore-file: rule-of-three density fires on the matrix rows' paraphrases of the source article's own enumerations; the verdict cells argue against those items one by one, so collapsing a triad changes what a row asserts is covered -->
+
 ## Incumbents, as verified 2026-07-24
 
 | Incumbent | Surface it owns | How verified |

@@ -53,7 +53,7 @@ documenting. Apply them whichever standard you resolved, and if a project's guid
 contradicts one, the guide still wins.
 
 - **Cut every word that does no work.** If the sentence survives without a word, the word goes.
-  "In order to" is "to". "It is important to note that" is nothing.
+  "In order to" is "to". "It is important to note that" is nothing. <!-- ai-slop-ignore: quotes the tell it documents -->
 - **Use the short, everyday word.** "Use", not "utilize". "Help", not "facilitate". A long word has
   to buy its length with precision.
 - **Write the real name, and the real number.** The thing being documented supplies the vocabulary:
