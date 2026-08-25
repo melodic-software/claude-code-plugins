@@ -510,9 +510,7 @@ class HygieneTests(unittest.TestCase):
         )
         self.assertEqual(
             200,
-            hygiene.empty_directory_count(
-                entries, error_paths={"unreadable"}
-            ),
+            hygiene.empty_directory_count(entries, error_paths={"unreadable"}),
         )
         parents = hygiene.inventory_parent_paths(
             entry["path"] for entry in entries if isinstance(entry.get("path"), str)
@@ -561,7 +559,9 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(1, preview["empty_directories"])
             self.assertEqual(0, item["logical_bytes"])
             self.assertEqual(0, item["reclaimable_local_bytes"])
-            self.assertEqual(candidate("orphan-empty")["provenance"], item["provenance"])
+            self.assertEqual(
+                candidate("orphan-empty")["provenance"], item["provenance"]
+            )
             self.assertEqual(candidate("orphan-empty")["risk"], item["risk"])
             self.assertIn("Safe tidiness is the primary objective", preview["warning"])
 
@@ -1923,8 +1923,9 @@ class HygieneTests(unittest.TestCase):
             self.assertTrue(report["removed"][0]["empty_directory"])
             self.assertEqual(0, report["reclaimable_local_bytes_removed"])
             self.assertFalse((root / "orphan-empty").exists())
-            self.assertEqual("work product", (root / "keep.txt").read_text(encoding="utf-8"))
-
+            self.assertEqual(
+                "work product", (root / "keep.txt").read_text(encoding="utf-8")
+            )
 
     def test_scan_max_depth_truncates_and_preview_blocks_planning(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2392,7 +2393,9 @@ class ChildrenRollupTests(unittest.TestCase):
         (root / "empty_child").mkdir(parents=True)
         (root / "full_child" / "nested").mkdir(parents=True)
         (root / "full_child" / "a.log").write_text("a" * 100, encoding="utf-8")
-        (root / "full_child" / "nested" / "b.log").write_text("b" * 200, encoding="utf-8")
+        (root / "full_child" / "nested" / "b.log").write_text(
+            "b" * 200, encoding="utf-8"
+        )
         (root / "Documents").mkdir()
         (root / "Documents" / "kept.txt").write_text("k" * 50, encoding="utf-8")
         (root / "loose.tmp").write_text("x" * 42, encoding="utf-8")
@@ -2512,7 +2515,9 @@ class ChildrenRollupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
             (root / "repo_child" / ".git").mkdir(parents=True)
-            (root / "repo_child" / ".git" / "obj").write_text("g" * 90, encoding="utf-8")
+            (root / "repo_child" / ".git" / "obj").write_text(
+                "g" * 90, encoding="utf-8"
+            )
             (root / "repo_child" / "src.py").write_text("p" * 10, encoding="utf-8")
             snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
             entries = hygiene.entry_map(snapshot)
@@ -2583,12 +2588,19 @@ class ChildrenRollupTests(unittest.TestCase):
             rows,
         )
 
-    def test_an_unwalked_row_nulls_every_aggregate_including_the_byte_pair(self) -> None:
+    def test_an_unwalked_row_nulls_every_aggregate_including_the_byte_pair(
+        self,
+    ) -> None:
         """`walked: false` must not leave one aggregate looking answered."""
         rows = hygiene.children_rollup(
             [
                 {"path": "deep", "kind": "directory", "logical_size": 5, "mtime_ns": 1},
-                {"path": "deep/f.bin", "kind": "file", "logical_size": 5, "mtime_ns": 3},
+                {
+                    "path": "deep/f.bin",
+                    "kind": "file",
+                    "logical_size": 5,
+                    "mtime_ns": 3,
+                },
             ],
             unknown_paths={"deep/inner"},
         )
@@ -2614,7 +2626,12 @@ class ChildrenRollupTests(unittest.TestCase):
         """
         rows = hygiene.children_rollup(
             [
-                {"path": "mixed", "kind": "directory", "logical_size": 3000, "mtime_ns": 1},
+                {
+                    "path": "mixed",
+                    "kind": "directory",
+                    "logical_size": 3000,
+                    "mtime_ns": 1,
+                },
                 {
                     "path": "mixed/remote.bin",
                     "kind": "file",
@@ -4782,6 +4799,7 @@ class GuardTests(unittest.TestCase):
         Bare names are denied (exported shell functions shadow them); only
         absolute paths under trusted system directories are allowlisted.
         """
+
         # Prefer /usr/bin on every runner; fall back to /bin when a binary is
         # absent from /usr/bin (minimal images). Skip a head entirely when
         # neither exists so the suite stays green on stripped hosts.
@@ -5061,9 +5079,7 @@ class GuardTests(unittest.TestCase):
             guard._nt_trusted_readonly_bin_roots.cache_clear()
             try:
                 with (
-                    mock.patch.object(
-                        guard.shutil, "which", return_value=str(planted_git)
-                    ),
+                    mock.patch.object(shutil, "which", return_value=str(planted_git)),
                     mock.patch.dict(
                         guard.os.environ,
                         {
@@ -5114,7 +5130,9 @@ class GuardTests(unittest.TestCase):
         with mock.patch.object(guard.os, "name", "nt"):
             self.assertEqual(
                 "ls",
-                guard._readonly_supporting_basename(r"C:/Program Files/Git/usr/bin/ls.EXE"),
+                guard._readonly_supporting_basename(
+                    r"C:/Program Files/Git/usr/bin/ls.EXE"
+                ),
             )
             self.assertEqual(
                 "find",
@@ -5186,7 +5204,9 @@ class GuardTests(unittest.TestCase):
         """
         head = None
         for candidate in ("/usr/bin/ls", "/bin/ls"):
-            if Path(candidate).is_file() and guard._trusted_system_readonly_head(candidate):
+            if Path(candidate).is_file() and guard._trusted_system_readonly_head(
+                candidate
+            ):
                 head = candidate
                 break
         if head is None:
@@ -5224,9 +5244,7 @@ class GuardTests(unittest.TestCase):
         gate passes.
         """
         bare = "[ -d /tmp/example ]"
-        self.assertEqual(
-            ["-d", "/tmp/example"], guard._parse_bracket_test_words(bare)
-        )
+        self.assertEqual(["-d", "/tmp/example"], guard._parse_bracket_test_words(bare))
         self.assertFalse(guard.is_exact_readonly_supporting_command(bare))
 
         absolute = "/usr/bin/[ -d /tmp/example ]"
@@ -5244,16 +5262,10 @@ class GuardTests(unittest.TestCase):
             guard, "_trusted_system_readonly_head", return_value=True
         ):
             self.assertTrue(guard.is_exact_readonly_supporting_command(absolute))
+            self.assertFalse(guard.is_exact_readonly_supporting_command("/usr/bin/[ ]"))
+            self.assertFalse(guard.is_exact_readonly_supporting_command("/usr/bin/["))
             self.assertFalse(
-                guard.is_exact_readonly_supporting_command("/usr/bin/[ ]")
-            )
-            self.assertFalse(
-                guard.is_exact_readonly_supporting_command("/usr/bin/[")
-            )
-            self.assertFalse(
-                guard.is_exact_readonly_supporting_command(
-                    "/usr/bin/[ -d $(pwd) ]"
-                )
+                guard.is_exact_readonly_supporting_command("/usr/bin/[ -d $(pwd) ]")
             )
 
     def test_classifier_rejects_a_subcommand_outside_the_shared_list(self) -> None:
@@ -6712,7 +6724,9 @@ class GuardTests(unittest.TestCase):
                 command,
             )
 
-    def test_powershell_recycle_bin_preferred_spellings_force_final_prompt(self) -> None:
+    def test_powershell_recycle_bin_preferred_spellings_force_final_prompt(
+        self,
+    ) -> None:
         """#2595: the skill's preferred Recycle Bin paths must prompt like Remove-Item.
 
         The clean skill's own manual-handoff lane RECOMMENDS Recycle Bin removal,
@@ -6850,7 +6864,7 @@ class GuardTests(unittest.TestCase):
             sink = Path(self._cfg.name) / "telemetry-sink.cmd"
             py = os.fspath(Path(sys.executable).resolve())
             sink.write_text(
-                f"@echo off\r\n\"{py}\" \"{sink_py}\"\r\n",
+                f'@echo off\r\n"{py}" "{sink_py}"\r\n',
                 encoding="utf-8",
             )
         else:
@@ -6898,7 +6912,7 @@ class GuardTests(unittest.TestCase):
             sink = Path(self._cfg.name) / "telemetry-skip-sink.cmd"
             py = os.fspath(Path(sys.executable).resolve())
             sink.write_text(
-                f"@echo off\r\n\"{py}\" \"{sink_py}\"\r\n",
+                f'@echo off\r\n"{py}" "{sink_py}"\r\n',
                 encoding="utf-8",
             )
         else:
