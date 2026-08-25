@@ -4,6 +4,22 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.10]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** course-digest:
+  stale classifyLesson comment corrected in `generate-manifests.js`; auth test helper's
+  `first()` delegates to the full mock locator (recorded actions byte-identical);
+  `validate-extraction.js` reuses the PASS/WARN/FAIL constants from `lib/validators.js`;
+  `setup-deps.mjs` drops a per-directory sort provably dead with respect to the vendor
+  stamp. docpage-digest: shared `preview_payload()` extracted across the two gates
+  (escape-then-truncate order proven identical); dead `extra_args` harness parameter
+  removed. video-digest: dead `EN_ORIG_LOCALIZED_PATTERN` subset regex removed from
+  `select-caption.js` with its adjacent auto-en blocks merged (165k+ differential
+  comparisons, zero mismatches). All suites green (36 + 55 + 39 vitest targeted, 494 full
+  video-digest, 19 + 11 unittest); every change independently refutation-verified.
+
 ## [0.13.9]
 
 ### Changed
