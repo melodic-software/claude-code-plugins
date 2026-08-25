@@ -3,6 +3,23 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.13]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Hooks: removed an
+  always-true `commit||push` wrapper inside `block-no-verify.sh`'s flag scan (the identical
+  early gate already returns for other subcommands) and the provably-constant `saw_commit`
+  local in `block-noncanonical-commit.sh`; `stale-path-verify.sh`'s emit_tel accumulator
+  loop now uses the sibling hooks' `printf | jq -Rn '[inputs]'` idiom (guarded empty case
+  unchanged); a stale looks-like-help comment in `lib/verification/verify-cli-flag.sh`
+  corrected to the code's non-empty-and-not-timeout rule. Tests: notice-isolation suite
+  uses the shared `report` trailer; dead `skip_case` helper and a no-op `mkdir` removed.
+  Verified by independent refutation passes: 119 adversarial differential envelopes across
+  the two blocking hooks with zero verdict or output divergence, plus byte-identical
+  telemetry envelopes; suites green (238/213/99/109/52/40/2). No detection pattern,
+  BLOCKED message, or fail-closed default touched.
+
 ## [0.29.12]
 
 ### Changed
