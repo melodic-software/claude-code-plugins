@@ -34,6 +34,7 @@ from digest_fences import (  # noqa: E402
     find_section,
     parse_claims,
     payload_in_source,
+    preview_payload,
     read_text,
 )
 
@@ -47,7 +48,8 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
     if found is None:
         failures.add(
             f"{path}: no '## Key claims' heading; this gate parses that "
-            f"section only and will not PASS over an unparsed digest.")
+            f"section only and will not PASS over an unparsed digest."
+        )
         return 0
     _title, body, heading_line = found
     try:
@@ -59,7 +61,8 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
         failures.add(
             f"{path}: parsed ZERO claims under Key claims. A clean result "
             f"over nothing parsed is the quote-gate defect this gate exists "
-            f"to refuse.")
+            f"to refuse."
+        )
         return 0
 
     seen = {}
@@ -67,46 +70,52 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
     for claim in claims:
         label = f"{path}: C{claim.number} (line {claim.label_line})"
         if claim.number in seen:
-            failures.add(f"{label}: duplicate **C{claim.number}.** "
-                         f"(first at line {seen[claim.number]}).")
+            failures.add(
+                f"{label}: duplicate **C{claim.number}.** "
+                f"(first at line {seen[claim.number]})."
+            )
             continue
         seen[claim.number] = claim.label_line
         if claim.unfenced_blockquote:
             failures.add(
                 f"{label}: quote is a blockquote, not a fence. The "
                 f"markdownlint PostToolUse hook rewrites list markers and "
-                f"renumbers lists inside blockquoted verbatim quotes.")
+                f"renumbers lists inside blockquoted verbatim quotes."
+            )
             continue
         if claim.unfenced_inline_code:
             failures.add(
                 f"{label}: quote is an inline code span, not a fence. A "
                 f"bare code span cannot hold a trailing space through the "
-                f"hook.")
+                f"hook."
+            )
             continue
         if claim.fence is None:
             failures.add(
                 f"{label}: no fenced container follows the label. Every "
-                f"verbatim quote is a column-0 fence under **CN.**.")
+                f"verbatim quote is a column-0 fence under **CN.**."
+            )
             continue
         if claim.fence.indented:
             failures.add(
                 f"{label}: fence opener at line {claim.fence.start_line} is "
                 f"indented. Indented-fence corruption is a defect; this gate "
-                f"does not strip indent to make it pass.")
+                f"does not strip indent to make it pass."
+            )
             continue
         if claim.fence.payload == "":
             failures.add(
                 f"{label}: fence payload is empty. An unfinished "
-                f"placeholder is not a quote.")
+                f"placeholder is not a quote."
+            )
             continue
         if not payload_in_source(claim.fence.payload, source):
-            shown = claim.fence.payload.replace("\n", "\\n")
-            if len(shown) > 80:
-                shown = shown[:80] + "…"
+            shown = preview_payload(claim.fence.payload)
             failures.add(
                 f"{label}: fence payload is not an exact contiguous "
                 f"substring of the source (no strip applied). Payload "
-                f"starts {shown!r}.")
+                f"starts {shown!r}."
+            )
             continue
         exercised += 1
 
@@ -121,7 +130,8 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
             failures.add(
                 f"{path}: unlabelled fence at line {fence.start_line} under "
                 f"Key claims; this gate only attests **CN.**-labelled "
-                f"fences, so an unlabelled one is unparsed surface.")
+                f"fences, so an unlabelled one is unparsed surface."
+            )
 
     return exercised
 
@@ -130,12 +140,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog=PROG,
         description="Gate Key-claims fence payloads against the source, "
-                    "without stripping.")
-    parser.add_argument("--source", required=True,
-                        help="Immutable source.md / source.txt")
-    parser.add_argument("--digest", action="append", default=[],
-                        dest="digests",
-                        help="Digest file (repeatable)")
+        "without stripping.",
+    )
+    parser.add_argument(
+        "--source", required=True, help="Immutable source.md / source.txt"
+    )
+    parser.add_argument(
+        "--digest",
+        action="append",
+        default=[],
+        dest="digests",
+        help="Digest file (repeatable)",
+    )
     args = parser.parse_args(argv)
     if not args.digests:
         fail(PROG, 2, "no --digest given; nothing to parse is not a PASS.")
@@ -147,9 +163,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         exercised += check_digest(path, source, failures)
 
     if failures.items:
-        print(f"{PROG}: FAILED -- {len(failures.items)} failure(s) across "
-              f"{len(args.digests)} digest(s); {exercised} claim fence(s) "
-              f"matched the source exactly.")
+        print(
+            f"{PROG}: FAILED -- {len(failures.items)} failure(s) across "
+            f"{len(args.digests)} digest(s); {exercised} claim fence(s) "
+            f"matched the source exactly."
+        )
         return 1
 
     print(
@@ -160,15 +178,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         f"Checked: Key claims heading present, ≥1 labelled claim, column-0 "
         f"fence per label, no unlabelled fences, no blockquote/inline-code "
         f"substitutes. Nothing outside Key claims / **CN.** / fence "
-        f"payloads was checked.")
+        f"payloads was checked."
+    )
     return 0
 
 
 if __name__ == "__main__":
     if sys.version_info < MIN_PYTHON:
         sys.stderr.write(
-            f"{PROG}: ERROR: Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ "
-            f"required.\n")
+            f"{PROG}: ERROR: Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required.\n"
+        )
         sys.exit(2)
     try:
         sys.exit(main())
@@ -177,5 +196,6 @@ if __name__ == "__main__":
     except Exception as exc:
         sys.stderr.write(
             f"{PROG}: ERROR: internal failure {type(exc).__name__}: {exc}. "
-            f"This is a gate bug; the run is NOT clean.\n")
+            f"This is a gate bug; the run is NOT clean.\n"
+        )
         sys.exit(3)

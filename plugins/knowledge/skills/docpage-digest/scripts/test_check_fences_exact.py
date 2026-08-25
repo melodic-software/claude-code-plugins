@@ -22,12 +22,7 @@ GATE = os.path.join(HERE, "check-fences-exact.py")
 # quotes so this file has no physical trailing whitespace (editorconfig).
 KEEP = "keep me "
 SOURCE = (
-    "Intro line.\n"
-    + KEEP + "\n"
-    "A list:\n"
-    "* star item\n"
-    "1. one\n"
-    "prompt example here\n"
+    "Intro line.\n" + KEEP + "\nA list:\n* star item\n1. one\nprompt example here\n"
 )
 
 
@@ -46,18 +41,15 @@ class GateHarness(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
 
-    def run_gate(self, digest_text: str, expect_code: int,
-                 extra_args=None):
+    def run_gate(self, digest_text: str, expect_code: int):
         digest = write(self.dir, "digest.md", digest_text)
-        cmd = [sys.executable, GATE, "--source", self.source,
-               "--digest", digest]
-        if extra_args:
-            cmd.extend(extra_args)
+        cmd = [sys.executable, GATE, "--source", self.source, "--digest", digest]
         proc = subprocess.run(cmd, capture_output=True)
         if proc.returncode != expect_code:
             raise AssertionError(
                 f"exit {proc.returncode}, expected {expect_code}; "
-                f"stdout={proc.stdout!r} stderr={proc.stderr!r}")
+                f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+            )
         return proc
 
 
@@ -107,8 +99,8 @@ class TestCleanPass(GateHarness):
 class TestFailLoudZeroParse(GateHarness):
     def test_no_digest_arg_is_unusable(self):
         proc = subprocess.run(
-            [sys.executable, GATE, "--source", self.source],
-            capture_output=True)
+            [sys.executable, GATE, "--source", self.source], capture_output=True
+        )
         self.assertEqual(proc.returncode, 2)
         self.assertIn(b"no --digest", proc.stderr)
 
@@ -117,7 +109,8 @@ class TestFailLoudZeroParse(GateHarness):
         digest = write(self.dir, "d.md", CLEAN)
         proc = subprocess.run(
             [sys.executable, GATE, "--source", empty, "--digest", digest],
-            capture_output=True)
+            capture_output=True,
+        )
         self.assertEqual(proc.returncode, 2)
         self.assertIn(b"empty", proc.stderr)
 
@@ -127,7 +120,8 @@ class TestFailLoudZeroParse(GateHarness):
 
     def test_zero_claims_is_failure_not_pass(self):
         proc = self.run_gate(
-            "## Key claims (verbatim)\n\nNo labelled claims here.\n", 1)
+            "## Key claims (verbatim)\n\nNo labelled claims here.\n", 1
+        )
         self.assertIn(b"parsed ZERO claims", proc.stderr)
         self.assertNotIn(b"PASS", proc.stdout)
 
@@ -135,8 +129,7 @@ class TestFailLoudZeroParse(GateHarness):
 class TestFenceContract(GateHarness):
     def test_indented_fence_fails(self):
         # REPAIR-pass corruption: indent the fence. strip() would hide this.
-        text = CLEAN.replace(
-            f"```\n{KEEP}\n```", f"    ```\n    {KEEP}\n    ```")
+        text = CLEAN.replace(f"```\n{KEEP}\n```", f"    ```\n    {KEEP}\n    ```")
         proc = self.run_gate(text, 1)
         self.assertIn(b"indented", proc.stderr)
 
@@ -179,8 +172,8 @@ this was never in the source
 
     def test_unlabelled_fence_is_unparsed_surface(self):
         text = CLEAN.replace(
-            "## Prompt snippets",
-            "```\nIntro line.\n```\n\n## Prompt snippets")
+            "## Prompt snippets", "```\nIntro line.\n```\n\n## Prompt snippets"
+        )
         proc = self.run_gate(text, 1)
         self.assertIn(b"unlabelled fence", proc.stderr)
 
@@ -203,7 +196,7 @@ this was never in the source
         self.assertIn(b"duplicate", proc.stderr)
 
     def test_empty_fence_payload_fails(self):
-        text = f"""## Key claims (verbatim)
+        text = """## Key claims (verbatim)
 
 **C1.** `cc-applicable`
 
@@ -229,7 +222,7 @@ this was never in the source
 
     def test_heading_inside_fence_does_not_truncate_section(self):
         source = write(self.dir, "src2.md", "## Configuration\nkeep me \n")
-        text = f"""## Key claims (verbatim)
+        text = """## Key claims (verbatim)
 
 **C1.** `cc-applicable`
 
@@ -244,7 +237,8 @@ none
         digest = write(self.dir, "d2.md", text)
         proc = subprocess.run(
             [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True)
+            capture_output=True,
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
 
@@ -270,7 +264,8 @@ none
         digest = write(self.dir, "d-nested.md", text)
         proc = subprocess.run(
             [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True)
+            capture_output=True,
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
         self.assertIn(b"1 **CN.**", proc.stdout)
@@ -291,7 +286,8 @@ none
         digest = write(self.dir, "d-immediate.md", text)
         proc = subprocess.run(
             [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True)
+            capture_output=True,
+        )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
 
