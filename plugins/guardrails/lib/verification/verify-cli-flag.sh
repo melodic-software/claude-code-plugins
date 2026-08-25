@@ -43,23 +43,23 @@ VERBOSE=false
 # positional and gets verified instead of silently steering the verifier.
 while (($# > 0)); do
   case "$1" in
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    --quiet)
-      QUIET=true
-      shift
-      ;;
-    --verbose)
-      VERBOSE=true
-      shift
-      ;;
-    --)
-      shift
-      break
-      ;;
-    *) break ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --quiet)
+    QUIET=true
+    shift
+    ;;
+  --verbose)
+    VERBOSE=true
+    shift
+    ;;
+  --)
+    shift
+    break
+    ;;
+  *) break ;;
   esac
 done
 
@@ -130,7 +130,7 @@ else
     HELP_RC=$?
   fi
   # Some CLIs return non-zero on --help (e.g. busybox tools, malformed args).
-  # Tolerate non-zero IF output is non-empty AND looks like help text.
+  # Tolerate non-zero as long as output is non-empty and it did not time out.
   if [[ -z "$HELP_OUTPUT" ]] || ((HELP_RC == 124)); then
     $QUIET || echo "verify-cli-flag: '$BIN ${SUBCMDS[*]} --help' failed (rc=$HELP_RC, empty/timeout)" >&2
     exit 2

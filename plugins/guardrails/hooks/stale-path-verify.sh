@@ -521,9 +521,7 @@ emit_tel() {
   *) ;;
   esac
   if ((${#MISSING[@]} > 0)); then
-    local m raw_list=""
-    for m in "${MISSING[@]}"; do raw_list+="$m"$'\n'; done
-    findings_json=$(printf '%s' "$raw_list" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
+    findings_json=$(printf '%s\n' "${MISSING[@]}" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
   fi
   local data
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \
