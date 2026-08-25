@@ -53,8 +53,8 @@ NEVER_FLAG_HEADINGS = frozenset(
 STOPWORDS = frozenset(
     """
     a an the and or of to for in on at is it this that with as by from be are
-    was were not do does did its own than then also just only also into over
-    after before about into than so if when where which who whom whose what
+    was were not do does did its own than then also just only into over
+    after before about so if when where which who whom whose what
     their there here such any all each every both few more most other some
     no nor but yet can may must should would could will shall been being
     has have had having use used using via per
@@ -90,7 +90,11 @@ def normalize(text: str) -> str:
 
 
 def content_tokens(text: str) -> set[str]:
-    return {m.group(0) for m in WORD_RE.finditer(normalize(text)) if m.group(0) not in STOPWORDS}
+    return {
+        m.group(0)
+        for m in WORD_RE.finditer(normalize(text))
+        if m.group(0) not in STOPWORDS
+    }
 
 
 def extract_frontmatter(lines: list[str]) -> tuple[int, list[str]]:
@@ -118,7 +122,9 @@ def frontmatter_field(fm: list[str], key: str) -> str:
             fold = raw.startswith(">")
             parts: list[str] = []
             i += 1
-            while i < len(fm) and (fm[i].startswith(" ") or fm[i].startswith("\t") or fm[i].strip() == ""):
+            while i < len(fm) and (
+                fm[i].startswith(" ") or fm[i].startswith("\t") or fm[i].strip() == ""
+            ):
                 if fm[i].strip() == "":
                     if parts:
                         parts.append("")
@@ -261,7 +267,9 @@ def scan_file(path: Path) -> list[str]:
     # capability sentence is not rescued by trigger-phrase tokens, and so a
     # section that only restates the trigger list is not a finding (those
     # phrases are the listing, not body ceremony).
-    desc_capability = re.split(r"(?i)\buse when\b|\bnot for\b", description, maxsplit=1)[0]
+    desc_capability = re.split(
+        r"(?i)\buse when\b|\bnot for\b", description, maxsplit=1
+    )[0]
     sections = parse_sections(lines, body_start)
     rows: list[str] = []
     for section in sections:
@@ -292,7 +300,9 @@ def main(argv: list[str]) -> int:
         description="Mark I29 description-restatement and sibling-section-restatement candidates."
     )
     parser.add_argument("files", nargs="*", help="markdown files to scan")
-    parser.add_argument("--count", action="store_true", help="print the integer candidate count only")
+    parser.add_argument(
+        "--count", action="store_true", help="print the integer candidate count only"
+    )
     parser.add_argument(
         "--body-only",
         action="store_true",

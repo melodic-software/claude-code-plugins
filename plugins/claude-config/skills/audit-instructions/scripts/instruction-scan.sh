@@ -51,9 +51,8 @@
 #
 # Rows are `file:line:check-id` (grep -n convention). With no rationale on a line
 # a prohibition surfaces as an I6 row; a line may surface once per matching check
-# id (I6, I10, I23, I27, and one of the I8 families). Nonexistent path arguments
-# are
-# skipped, not errors.
+# id (I6, I10, I23, I27, and one of the I8 families). Nonexistent path
+# arguments are skipped, not errors.
 #
 # --body-only skips YAML frontmatter (a leading `---` block), so no row can point
 # at a `description`, `when_to_use`, or any trigger phrase quoted in one. This is
