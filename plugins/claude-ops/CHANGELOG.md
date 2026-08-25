@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.4]
+
+### Added
+
+- **audit-native-overlap: `export` builtin-command candidate pair.** `reference/canonical-pairs.json`
+  gains the `export` x `session-flow:clean-stop` candidate backing the human-gated row recorded in
+  `docs/native-surfaces/records.json` (export-session-flow Brief, #3355). Candidate only; the
+  verdict lives in the store, per this skill's own machinery.
+
 ## [0.38.3]
 
 ### Changed

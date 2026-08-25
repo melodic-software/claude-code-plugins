@@ -41,6 +41,11 @@
       "native": { "name": "morning", "class": "session-skill" },
       "component": { "plugin": "claude-ops", "skill": "morning-brief", "kind": "skill" },
       "why": "Both assemble an operator morning view. Session-provided, so it is observation-only: absent from the vendored binary's bundled set."
+    },
+    {
+      "native": { "name": "export", "class": "builtin-command" },
+      "component": { "plugin": "session-flow", "skill": "clean-stop", "kind": "skill" },
+      "why": "clean-stop, handoff, and retro suggest the built-in /export at session-end moments; the command is the only stable conversation-export surface and the skills reference it by name."
     }
   ]
 }

@@ -194,6 +194,29 @@
       },
       "baked": { "description_phrase": false, "boundary_section": false },
       "budget_caveat": false
+    },
+    {
+      "native": { "name": "export", "class": "builtin-command", "markers": [] },
+      "component": { "plugin": "session-flow", "skill": "clean-stop", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "No component duplicates /export and none may invoke it: built-ins are user-invoked only, and the command is confirmed unavailable headless. clean-stop, handoff (prompt-only path), and retro instead suggest that the user run it at session-end moments, because transcripts are retention-swept and the conversation otherwise has no durable artifact. The native surface does the exporting; the skills only name the moment and a destination convention (<memory_dir>/exports/). Verdict recorded per the user-approved export-session-flow Brief (PR #3355).",
+      "evidence": [
+        "probed on the live v2.1.241 binary 2026-08-24: `claude --bare -p \"/export <path>\"` returned `/export isn't available in this environment.` and wrote no file, so the command is an interactive-terminal surface",
+        "documented at code.claude.com/docs/en/commands.md: /export renders the current conversation as plain text to clipboard or a file (optional filename argument), no format or redaction flags",
+        "output written to user paths sits outside the cleanupPeriodDays retention sweep (path-scoped to ~/.claude), which is the durability property the suggestions exist for",
+        "suggestion sites: plugins/session-flow/skills/clean-stop/SKILL.md (durability sweep), handoff/SKILL.md (prompt-only close), retro/SKILL.md (post-chain-coverage offer); all body text, presence-gated with the canonical token, none baked into a description or Boundary section"
+      ],
+      "observation": {
+        "class": "live-roster",
+        "detail": "probed on the live v2.1.241 binary in a Linux container (headless form unavailable; interactive form documented but not observed here); one environment, one day",
+        "date": "2026-08-24"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release note or docs change adds an /export format/redaction flag, a headless or programmatic form, or an official conversation-sharing surface; any of these reopens whether suggestion-only is still the right integration shape",
+        "verified": "2026-08-24"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": false
     }
   ]
 }

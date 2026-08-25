@@ -1,5 +1,25 @@
 # Changelog — session-flow plugin
 
+## [0.34.0]
+
+### Added
+
+- **Conversation-export suggestions (export-session-flow Brief, #3355).** Three skills now
+  suggest the built-in `/export` command at their natural decision points, closing the one
+  durability gap the artifact layer leaves open: the conversation itself, whose transcript is
+  retention-swept (`cleanupPeriodDays`, default 30 days) and has no durable home. `clean-stop`
+  names the conversation as a machine-local item in its durability sweep (with an off-machine
+  caveat, since the export destination dies with the disk too); `handoff` offers the export on
+  its prompt-only path, where the transcript is the handoff's only record; `retro` offers it
+  after the chain-coverage report, since a session worth retrospecting is worth keeping. All
+  three suggestions are presence-gated per the native-references convention (never asserting
+  the command exists), name the shared destination `<memory_dir>/exports/<TS>-<topic>.txt`
+  (now a reserved concern directory in the topic-docs convention, 2.5.2), require the memory
+  root's self-ignore guard before the path is offered, and are offer-only: nothing invokes
+  `/export` (built-ins are user-invoked and the command has no headless form) and nothing
+  records whether the user ran it. Overlap verdict for the referenced native surface:
+  `docs/native-surfaces/records.json` (`export` × `session-flow:clean-stop`, complementary).
+
 ## [0.33.0]
 
 ### Added

@@ -107,6 +107,14 @@ so before presenting: name the found and available counts, and offer `--sessions
 enumerated explicitly. A retro authored from a fifth of the evidence must not read like a complete
 one.
 
+**Offer a durable copy when the session was worth retrospecting.** The transcripts this retro reads
+are retention-swept (`cleanupPeriodDays`, default 30 days), and the conversation itself has no
+durable artifact; a session interesting enough to retrospect is the one worth keeping. When the
+built-in `export` command resolves in your session, close by offering the one-line export
+`/export <memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt`, after verifying the memory root's
+self-ignore guard (a `.gitignore` containing `*`, created and announced when absent). Offer only,
+never run: built-ins are user-invoked, and nothing records or verifies that the export happened.
+
 ## What this skill does NOT do
 
 - **Does not run builds or tests**. That's the consuming repo's verify stage
