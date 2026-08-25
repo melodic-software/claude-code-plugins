@@ -7,8 +7,6 @@
 # Exit: 0 on scan paths; 2 on unknown args.
 set -uo pipefail
 
-# SCRIPT_DIR unused — script is self-contained
-
 usage() {
   cat <<'EOF'
 audit-scan.sh — classify markdown targets SKIP/COMPRESS/UNCERTAIN.
@@ -69,15 +67,13 @@ word_count() {
 
 classify_file() {
   local file="$1"
-  local words kw tick_pairs path_hits flavor_hits
+  local words tick_pairs path_hits flavor_hits
   if [[ ! -f "$file" ]]; then
     # shellcheck disable=SC2016 # intentional backticks in markdown table cells
     printf '| `%s` | — | SKIP | reason=missing |\n' "$file"
     return 0
   fi
   words=$(word_count "$file")
-  kw=$((words > 0 ? (words + 999) / 1000 : 1))
-  [[ "$kw" -lt 1 ]] && kw=1
 
   if is_signal1_path "$file"; then
     # shellcheck disable=SC2016 # intentional backticks in markdown table cells
@@ -111,7 +107,7 @@ classify_file() {
     printf '| `%s` | 3-7%% | UNCERTAIN | inline-code density %s/kw AND/OR cross-ref density %s/kw; flavor band narrow |\n' "$file" "$tick_dens" "$path_dens"
     return 0
   fi
-    # shellcheck disable=SC2016 # intentional backticks in markdown table cells
+  # shellcheck disable=SC2016 # intentional backticks in markdown table cells
   printf '| `%s` | 5-15%% | COMPRESS | verbose-prose baseline; expected flavor cuts on filler/hedging/articles |\n' "$file"
 }
 

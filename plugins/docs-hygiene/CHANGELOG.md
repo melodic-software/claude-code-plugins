@@ -1,5 +1,20 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.12]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** In
+  `skills/compress/scripts/audit-scan.sh`, removed the dead `kw` computation (never read;
+  the "/kw" in output rows is literal format text) and a stale placeholder comment; in
+  `skills/audit-encapsulation/scripts/detect.sh`, deduplicated the two byte-identical
+  scope-scan grep blocks into one `scan_scope()` helper (grep failure semantics preserved
+  by the per-grep `|| true`). A third candidate, replacing `audit-noise/scripts/detect.sh`'s
+  chunk loop with array slicing, was refuted by the run's verifier (offset/limit digit
+  strings ≥ 2^63 wrap negative past the regex validation and diverge) and was NOT shipped;
+  that file is unchanged. Suites green (3/77/193/35); differential runs byte-identical on
+  the shipped changes.
+
 ## [0.21.11]
 
 ### Changed

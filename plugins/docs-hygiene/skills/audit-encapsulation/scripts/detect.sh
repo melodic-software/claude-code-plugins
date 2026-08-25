@@ -192,19 +192,25 @@ DOTDOT_RAW="$(mktemp)"
 RAW_HITS="$(mktemp)"
 trap 'rm -f "$HITS_FILE" "$DOTDOT_RAW" "$RAW_HITS"' EXIT
 
-# Aggregate hits, then drop scripts/ entry-surface cites (carve-out above).
-{
+# Emit "file:line:match" hits for a pattern across every in-scope surface.
+# Always returns 0: a pattern with no hits is an ordinary outcome, not a
+# failure.
+scan_scope() {
+  local pattern="$1"
   if [[ ${#SCOPE_DIRS[@]} -gt 0 ]]; then
-    grep -Erno "$PATTERN" \
+    grep -Erno "$pattern" \
       --include='*.md' --include='*.sh' --include='*.json' \
       --include='*.yml' --include='*.yaml' \
       "${SCOPE_DIRS[@]}" 2>/dev/null || true
   fi
   if [[ ${#SCOPE_FILES[@]} -gt 0 ]]; then
     # -H forces the file prefix even when only one file exists.
-    grep -EHno "$PATTERN" "${SCOPE_FILES[@]}" 2>/dev/null || true
+    grep -EHno "$pattern" "${SCOPE_FILES[@]}" 2>/dev/null || true
   fi
-} >"$RAW_HITS" || true
+}
+
+# Aggregate hits, then drop scripts/ entry-surface cites (carve-out above).
+scan_scope "$PATTERN" >"$RAW_HITS"
 
 : >"$HITS_FILE"
 if [[ -s "$RAW_HITS" ]]; then
@@ -226,17 +232,7 @@ fi
 # still contain a `skills/` segment after `../`) are skipped here to avoid
 # duplicate rows.
 DOTDOT_PATTERN='(\.\./)+([A-Za-z0-9_.-]+/)+([A-Za-z0-9_.-]+/|SKILL\.md#|[A-Za-z0-9_.-]+\.schema\.json)'
-{
-  if [[ ${#SCOPE_DIRS[@]} -gt 0 ]]; then
-    grep -Erno "$DOTDOT_PATTERN" \
-      --include='*.md' --include='*.sh' --include='*.json' \
-      --include='*.yml' --include='*.yaml' \
-      "${SCOPE_DIRS[@]}" 2>/dev/null || true
-  fi
-  if [[ ${#SCOPE_FILES[@]} -gt 0 ]]; then
-    grep -EHno "$DOTDOT_PATTERN" "${SCOPE_FILES[@]}" 2>/dev/null || true
-  fi
-} >"$DOTDOT_RAW" || true
+scan_scope "$DOTDOT_PATTERN" >"$DOTDOT_RAW"
 
 if [[ -s "$DOTDOT_RAW" ]]; then
   while IFS= read -r line; do
