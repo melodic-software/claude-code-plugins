@@ -182,7 +182,7 @@ Run these checks BEFORE starting any simulation:
 |-----------|--------------|----------|--------------|--------|
 | Partial views — no comprehensive coverage | #1 Completeness | Each persona covers only their domain; visible gaps between personas | Check if any single persona wrote events spanning the entire flow | Critical |
 | Divergent vocabulary | #2 Convergence | 3+ moments where personas used different words for the same business event | Pairwise scan of event names near shared focal moments | Critical |
-| Genuine pushback / challenges | #3 Politeness | 3+ hot spots from inter-persona disagreement (facilitator-raised ones do not count) | Count hot spots with "[PersonaName] disagrees" attribution | High |
+| Genuine pushback / challenges | #3 Politeness | 3+ hot spots from inter-persona disagreement (facilitator-authored ones do not count; persona disagreements the facilitator prompted for still do) | Count hot spots with "[PersonaName] disagrees" attribution | High |
 | Messy organic output | #4 Clean flows | Chaotic Exploration produces unordered clusters, not a clean timeline | Visual check — events should NOT read as a process document | High |
 | Sticky note brevity | #5 Verbosity | 90%+ of events are 2-5 words, past tense | Word count analysis; flag any >7 words | Critical |
 | Participant mode (no explaining) | #6 Expert/Teacher | Agents place stickies and react, not write explanations | Check agent output for paragraphs of explanation vs sticky-format events | Medium |
