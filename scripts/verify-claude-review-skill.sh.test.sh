@@ -24,8 +24,7 @@ run_guard() {
   # shellcheck disable=SC2016  # the bash -c body is literal source for the
   # child shell; expanding $1 here would substitute this harness's own args.
   output="$(
-    REVIEW_BODY_STUB="$body_stub" \
-      env -i \
+    env -i \
       PATH="$PATH" \
       HOME="${HOME:-/tmp}" \
       REVIEW_BODY_STUB="$body_stub" \

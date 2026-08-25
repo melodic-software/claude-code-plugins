@@ -125,7 +125,7 @@ class GateCase(unittest.TestCase):
         path.write_text(content, encoding="utf-8")
         subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
 
-    def run_gate(self, *extra: str) -> "subprocess.CompletedProcess[str]":
+    def run_gate(self, *extra: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 sys.executable,
@@ -155,8 +155,7 @@ class GateCase(unittest.TestCase):
     def test_complete_tagged_restatement_passes(self) -> None:
         self.write(
             "restate.md",
-            "Widgets must be blue and be round. "
-            "<!-- contract-restatement: C1 -->\n",
+            "Widgets must be blue and be round. <!-- contract-restatement: C1 -->\n",
         )
         result = self.run_gate()
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -268,7 +267,9 @@ class GateCase(unittest.TestCase):
         self.assertIn("beta", result.stderr)
 
     def test_canonical_without_a_span_fails(self) -> None:
-        self.write("canonical.md", "# Canonical\n\nWidgets must be blue and be round.\n")
+        self.write(
+            "canonical.md", "# Canonical\n\nWidgets must be blue and be round.\n"
+        )
         result = self.run_gate()
         self.assertEqual(result.returncode, 1)
         self.assertIn("canonical-declares-no-span", result.stderr)
