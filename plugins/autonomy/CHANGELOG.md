@@ -3,6 +3,20 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.9]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** In
+  `skills/setup/scripts/resolve-prerequisites.mjs`, collapsed `probeMcp`'s presence ternary
+  (two object literals differing only in `result`) into one literal and removed the dead
+  `ran` key from `resolveNeed`'s return (its sole consumer projects fields explicitly, so
+  the key never reached output); in `apply-prerequisite-resolution.mjs`, hoisted the
+  twice-computed non-interactive check into one const; removed a stale comment in
+  `check-prerequisite-resolution-slice.test.sh`. Emitted JSON is byte-identical (56
+  old-vs-new differential runs across fixtures, surfaces, and synthetic `.mcp.json` repos);
+  suites green (22 + 4).
+
 ## [0.22.8]
 
 ### Changed
