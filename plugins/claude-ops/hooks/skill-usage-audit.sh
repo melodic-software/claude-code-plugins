@@ -38,47 +38,7 @@ SKILL=$(
 SKILL="${SKILL#/}"
 
 # --- Second store: skill-usage.jsonl (unconditional) ------------------------
-project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
-rel_dir="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR:-.claude/observability}"
-scope="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE:-repo}"
-case "$scope" in
-repo | user | data-dir) ;;
-*)
-  if hook::notice_once "skill-usage-audit-badscope" "$INPUT"; then
-    hook::emit_skip_notice "PostToolUse" \
-      "claude-ops skill-usage logging: unknown skill_usage_scope \"${scope}\" (valid: repo, user, data-dir) — using the default repo scope."
-  fi
-  scope="repo"
-  ;;
-esac
-log_dir=""
-if ! log_dir=$(claude_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir"); then
-  if hook::notice_once "skill-usage-audit-badconfig" "$INPUT"; then
-    hook::emit_skip_notice "PostToolUse" \
-      "claude-ops skipped skill-usage logging: the skill-usage destination is invalid for scope \"${scope}\" (repo/user scopes need a contained relative skill_usage_dir — no absolute, drive, UNC, traversal, or escaping symlink path; data-dir needs CLAUDE_PLUGIN_DATA)."
-  fi
-elif mkdir -p "$log_dir" 2>/dev/null &&
-  verified_log_dir=$(claude_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir") &&
-  [[ "$verified_log_dir" == "$log_dir" ]]; then
-  [[ "$scope" == "repo" ]] && claude_ops::ensure_git_exclude "$project_dir" "$rel_dir"
-  ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
-  branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-  line=$(
-    jq -nc \
-      --arg ts "$ts" \
-      --arg skill "$SKILL" \
-      --arg branch "$branch" \
-      --arg project "$(basename -- "$project_dir")" \
-      --arg project_id "$(claude_ops::repo_slug "$project_dir")" \
-      --arg hook "skill-usage-audit" \
-      '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, project: $project, project_id: $project_id, hook: $hook, source: "tool"}'
-  ) && hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
-else
-  if hook::notice_once "skill-usage-audit-nodest" "$INPUT"; then
-    hook::emit_skip_notice "PostToolUse" \
-      "claude-ops skipped skill-usage logging: the configured destination could not be created safely."
-  fi
-fi
+claude_ops::record_skill_use "PostToolUse" "skill-usage-audit" "$INPUT" "$SKILL" "tool" ""
 
 # --- Telemetry envelope (only when a sink is wired) -------------------------
 if hook::telemetry_enabled; then
