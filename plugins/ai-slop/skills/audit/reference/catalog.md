@@ -432,8 +432,11 @@ files) plus a plugin-quality audit and a verified prior-art survey:
   - Cutoff half: "as of my knowledge cutoff", "as of my last (knowledge) update", "up to my
     last training update", "I cannot browse", "as an AI (language) model".
   - Source-gap (RAG-era) half: "while specific details are limited/scarce", "not widely
-    available/documented/disclosed", "in the provided/available sources", "in the search
-    results", "based on (the) available information".
+    available/documented/disclosed", "in/from the provided/available sources (or search
+    results)", "based on (the) available information". The bare, unqualified "in the search
+    results" is deliberately NOT matched: it is ordinary prose in any document describing a
+    search feature, so the ERE requires the provided/available qualifier that marks the
+    RAG-disclaimer register.
 
 ### rule-placeholder-text: Phrasal templates and placeholder text
 
