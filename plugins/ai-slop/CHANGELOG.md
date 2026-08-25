@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.4.1]
+
+- **Every configured array stopped applying under the Windows build of jq
+  (#3343).** `cfg_array` piped `jq -r` through `tr '\n' ' '`, which converts the
+  line feed and leaves the carriage return of a CRLF attached to the element, so
+  `excluded_paths`, `em_dash_allowed_paths` and `disabled_rules` arrived as
+  `plugins/*/skills/*/vendor/**<CR>` and matched nothing. The exclusion was not
+  reported as failing; it simply never fired, and the detector reported findings
+  on files the consuming repo had deliberately placed out of scope. The CR
+  originates in the detector's own jq invocation, so no caller could normalize
+  it away from the config it supplies. Every config reader now strips it. Two
+  more carried the same defect from the same source: `rule_allowed_paths`, the
+  per-rule exemption added in 0.4.0, reads jq through `read`, which splits on
+  the line feed, so the CR landed on the last glob of every entry and that key
+  never applied on Windows either; and `cfg_scalar`, which Git Bash masks —
+  its command substitution strips one trailing CRLF pair — but which on a bash
+  that strips only the line feed carries the CR into the emitted threshold text,
+  in `--show-config` and in the density finding's label. CI cannot observe any
+  of these conditions, because it runs on Linux, where jq emits LF, so the new
+  cases force them with a shim ahead of jq on PATH that appends a CR to every
+  output line, and a further assertion pins the shim itself so a runner that
+  failed to select it fails loudly instead of reporting vacuous passes. The
+  array and `rule_allowed_paths` cases reproduce on both platforms; the scalar
+  case discriminates on Linux only, and says so where it sits.
+
 ## [0.4.0]
 
 Shaped by the first full repo-wide `fix` dogfood (PR 3359: 82 findings, 45 files, ~40 closed
