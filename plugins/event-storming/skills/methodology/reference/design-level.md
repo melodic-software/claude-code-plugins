@@ -227,7 +227,7 @@ A technique for modeling interactions collaboratively after Design-Level EventSt
 
 - **Humans** take the role of Users, Aggregates, Processes, and Projections (decision makers in the system)
 - **Cards** represent Commands, Domain Events, and UIs (carrying information)
-- Each human can produce output only based on available information
+- Each human can produce output only based on available information <!-- ai-slop-ignore: literal statement about workshop information flow, not assistant-frame residue -->
 - "Tell don't ask" — humans can tell, not ask
 - This sketches the communication patterns needed for event-based solutions
 

@@ -4,6 +4,17 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.1]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** `ai-slop-ignore` markers only, no
+  prose rewrites survived the semantic-diff guard: the boris orchestration spec
+  listings and a changelog entry mention "knowledge cutoff" as a factual model-spec <!-- ai-slop-ignore: names the spec field it documents -->
+  field, and the fable-5 debugging rules keep their quoted "what could possibly <!-- ai-slop-ignore: quotes the tell it documents -->
+  happen" discriminator and the "values and shapes, not just checkpoints" contrast,
+  both of which the guard ruled load-bearing.
+
 ## [0.9.0]
 
 ### Added
@@ -166,7 +177,7 @@ only after that version increases.
   Reference and in Sections 17 and 34. Section 2 gains the pack's own supersession-note pattern
   pointing at Section 94, leaving Boris's historical text intact.
 - **`boris`: the orchestration snapshot disclaimer now covers Section 94's specs sentence.** Model
-  id, context window, max output, and knowledge cutoff sat outside the framing that already covered
+  id, context window, max output, and knowledge cutoff sat outside the framing that already covered <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
   benchmark and pricing figures; they are verified still current 2026-08-08 against the models
   overview, which owns them.
 - **`boris`: Section 113 no longer reads as retiring rule-writing.** What auto-memory replaces is

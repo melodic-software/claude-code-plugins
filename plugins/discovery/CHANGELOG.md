@@ -1,5 +1,13 @@
 # Changelog — discovery plugin
 
+## [0.16.6]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** A negative parallelism in an old
+  changelog entry restated positively, and "in order to dodge the gate" in
+  `explore/SKILL.md` tightened to "to dodge the gate".
+
 ## [0.16.5]
 
 ### Fixed
@@ -465,7 +473,7 @@
   "Tool honesty" section asserted "`Edit` is absent from your tool list" and "`Agent` is listed."
   Both sentences are false there. The paragraph is a verbatim copy from `agents/explorer.md`, where
   the `tools:` allowlist at line 4 makes both of them true; it was carried into a file whose
-  frontmatter inverts them. Inheritance was not only derivable but observed — the agent's own
+  frontmatter inverts them. Inheritance was derivable from the missing keys and observed directly: the agent's own
   transcript shows it calling `ToolSearch` and `WebFetch`, neither of which appears in the
   explorer's allowlist.
 

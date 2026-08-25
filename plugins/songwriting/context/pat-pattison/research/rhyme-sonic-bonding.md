@@ -542,9 +542,8 @@ friendly fire
 ```
 
 "Straightforward enough." Then he extends it through voice leading, so that
-repetition of consonant sounds counts not only at the beginnings of words but
-also inside them (**medial alliteration**) and at their ends (**terminal
-alliteration**).
+repetition of consonant sounds counts at the beginnings of words, inside them
+(**medial alliteration**), and at their ends (**terminal alliteration**).
 
 His demonstration line, from Eliot's finale to *Prufrock*:
 

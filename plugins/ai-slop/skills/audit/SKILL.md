@@ -33,6 +33,11 @@ rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from W
 2. **Judgment rubric**: the catalog's `v1: rubric` tells, applied by reading the prose. Rubric
    findings reach the human report only, never the findings file.
 
+Both layers sit behind the catalog's policy-level **quotation exemption**: wording rules never
+scan blockquotes, double-quoted spans, or inline code spans (typography rules still do), so a
+document that quotes a tell to document it, and a changelog that backticks the phrase a fix
+removed, stay marker-free by construction.
+
 ## Action router
 
 | Argument | Action |
@@ -51,9 +56,12 @@ rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from W
    `detect.sh --paths-file <list> --offset N --limit M` per chunk (one process per chunk, no
    per-file shell loop; roughly 200 files per chunk keeps each call under a minute).
 3. **Apply the rubric** to the highest-priority files (instruction surfaces always; further files
-   as budget allows, saying which were rubric-covered). The rubric tells and their boundaries are
-   the catalog entries marked `v1: rubric`; cite the entry when reporting. Counter-signs
-   (the catalog's "Signs of human writing") temper a verdict, never generate findings.
+   as budget allows, saying which were rubric-covered). The rubric pass is independent of the
+   detector: a file with zero script findings still gets its rubric read when it is in the
+   priority set — a fix pass that only revisits detector hits has not covered the rubric. The
+   rubric tells and their boundaries are the catalog entries marked `v1: rubric`; cite the
+   entry when reporting. Counter-signs (the catalog's "Signs of human writing") temper a
+   verdict, never generate findings.
 4. **Report.** Group findings by file in priority order: for script findings quote the rule id,
    line, and fired condition; for rubric findings quote the offending text and name the catalog
    entry. State the declined counts (marker/config/code-fence exemptions) and any disabled rules
@@ -80,21 +88,29 @@ Never runs on bare invocation. Requires the user's explicit `fix` (or a chained
 "detect and rewrite" request). Per file, worst-first:
 
 1. **Apply** the file's findings per [`reference/rewrite-guide.md`](reference/rewrite-guide.md)
-   (read it first; it owns the replacement forms, the plain-speech target, and the voice
-   guidance): rewrite each flagged line (em dashes to commas, periods, or restructured
-   sentences — never parentheses or en dashes, which swap one tell for another; deflate stock
-   phrases; collapse parallelisms; delete filler and chat residue; strip `utm_*` params; delete
-   or source residue artifacts) and the rubric rewrites for tells the audit reported. Preserve
-   meaning over style: when a rewrite would change what a sentence asserts, skip it and record
-   why. **Triads collapse toward one**: for a `rule-of-three` finding, prefer the single
+   (read it first; it owns the replacement forms, the plain-speech target, the legitimate-hit
+   taxonomy, the risky-class disambiguation rules, and the voice guidance): rewrite each
+   flagged line (em dashes to commas, periods, or restructured sentences — never parentheses
+   or en dashes, which swap one tell for another; deflate stock phrases; collapse
+   parallelisms; delete filler and chat residue; strip `utm_*` params; delete or source
+   residue artifacts) and the rubric rewrites for tells the audit reported. Preserve meaning
+   over style: when a rewrite would change what a sentence asserts, skip it and record why.
+   **Triads collapse toward one**: for a rule-of-three rubric finding, prefer the single
    strongest item and cut the rest — keep all three only when each is load-bearing (a complete
-   set the reader needs, not rhetorical rhythm; enumerating three actual things is not a tell).
-   Fewer parallel items is also less to maintain. Close each file with the guide's self-audit
-   pass ("what still makes this read machine-written?") before handing it to verification.
-2. **Verify** with a fresh-context semantic-diff subagent (the compress model): hand it the
-   before/after pair, blind to the rewrite rationale; it flags SEMANTIC LOSS (a qualifier,
-   threshold, or claim dropped) and AMBIGUITY (a reading the original excluded). Revert every
-   flagged hunk before moving on.
+   set the reader needs, not rhetorical rhythm; enumerating three actual things is not a
+   tell), and never collapse when the survivors would not entail the deleted items. Fewer
+   parallel items is also less to maintain. Then run the guide's **voice pass** (its "Adding
+   voice" section) on the file's authored-register prose — README narrative, changelog
+   rationale, design tradeoffs; never operative instructions or reference tables — and close
+   each file with the guide's self-audit pass ("what still makes this read machine-written?")
+   before handing it to verification.
+2. **Verify** with a fresh-context semantic-diff subagent: hand it the before/after pair,
+   blind to the rewrite rationale; it flags SEMANTIC LOSS (a qualifier, threshold, or claim
+   dropped), AMBIGUITY (a reading the original excluded), and QUOTE CORRUPTION (any changed
+   byte inside quoted text), with the guide's risky classes called out for adversarial
+   attention: a negative-parallelism restatement must preserve which reading the original
+   meant, and a collapsed triad must still entail its deleted items. Revert every flagged
+   hunk before moving on.
 3. **Close** the file: findings fixed, explicitly suppressed (in-file marker with a reason), or
    reverted-with-reason. Report per file as you go on long runs.
 

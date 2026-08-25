@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.5]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The "not only at the interview
+  boundary" construction in `interview/context/session-config.md` restated
+  positively: the two signals keep mattering mid-task, past the interview boundary.
+
 ## [0.34.4]
 
 ### Changed

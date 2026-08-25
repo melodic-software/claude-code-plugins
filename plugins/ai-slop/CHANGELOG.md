@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.4.0]
+
+Shaped by the first full repo-wide `fix` dogfood (PR 3359: 82 findings, 45 files, ~40 closed
+as markers), a plugin-quality audit of the skill, and three verified research runs against the
+catalog's Wikipedia source, prior-art suppression design, and humanization craft.
+
+### Added
+
+- **Policy-level quotation exemption.** Every detector rule now carries a `wording` or
+  `typography` class. Wording rules never scan blockquote lines or double-quoted spans (inline
+  code was already exempt); typography rules (em dash, curly artifacts, emoji formatting,
+  citation tokens, tracking parameters) still do, because byte residue is a defect wherever it
+  sits. The design follows Wikipedia's MOS minimal-change split for quoted material. Quoted
+  source text and mentions of a tell (style guides, forbidden-phrase lists, changelog entries
+  citing a removed phrase) are now marker-free by construction; on the dogfood corpus the
+  exemption replaced roughly thirty hand-written markers. Known limitation, recorded in the
+  catalog: the quoted-span exemption is per-line.
+- **`rule_allowed_paths` config key.** Per-rule path exemptions for every rule, generalizing
+  `em_dash_allowed_paths` (which stays as an alias): the proportionate closure for a density
+  verdict no line marker can quiet. Declines are counted per rule, never silent.
+- **Knowledge-cutoff rule covers its whole source section.** The ERE previously matched
+  roughly one of the six words-to-watch families and missed the source's own example "as of my
+  last knowledge update"; it now covers both the cutoff half and the source-gap (RAG-era)
+  half of the section's words-to-watch: the limited-details, not-widely-documented,
+  provided-sources, and available-information phrase families.
+- **Rewrite guide: non-evasion posture, legitimate-hit taxonomy, risky rewrite classes.** The
+  guide now states the honesty boundary (the source's own descriptive-not-prescriptive warning
+  plus the test "would this edit improve the prose if AI detection did not exist?"), names the
+  five legitimate-hit classes a fix pass must not rewrite, and requires disambiguation before
+  rewriting the three classes that produced or nearly produced semantic regressions in the
+  dogfood PR: negative parallelism ("X alone insufficient" vs "X excluded"), triad collapse
+  (survivors must entail deleted items), and quoted operative phrases (never edit inside).
+- **Voice pass wired into the fix flow.** The guide's "Adding voice" section is now an explicit
+  register-gated step of fix step 1, enriched with the researched craft constraints (Google's
+  global-audience limits on sentence-length variation and terminology drift) and an explicit
+  refusal of perplexity/burstiness as writing targets. The rationale for dropping Cursor's
+  "Let some mess in" bullet is recorded so it is not re-added.
+- **Catalog: source Caveats mined.** New false-positive-posture section (signs are descriptive;
+  the source's 1-in-10 expert false-positive figure; combination over isolation), the em-dash
+  spacing qualifier, and the recorded "in order to" divergence from the source's uncited
+  human-counter-sign bullet.
+
+### Changed
+
+- **`rule-rule-of-three` demoted from script to judgment rubric**, per its own calibration
+  clause: the dogfood pass ended with 18 of 18 residual findings on load-bearing enumerations,
+  the ERE matched only single-word triads, and a verified survey of comparable prose linters
+  (Vale, textlint, proselint, write-good, alex, markdownlint) found no tricolon implementation
+  anywhere. The crosswalk row is now a no-row disposition; the script roster is 14.
+- **`rule-elegant-variation` demoted to recorded-only**, following the live source page moving
+  lexical diversity to its Historical indicators.
+- The audit flow states that the rubric pass is independent of detector hits (a file with zero
+  script findings still gets its rubric read when it is in the priority set), and the
+  semantic-diff verifier's contract names QUOTE CORRUPTION and the risky classes for
+  adversarial attention.
+
 ## [0.3.9]
 
 - **Three directory-expansion defects survived 0.3.8.** A tracked file

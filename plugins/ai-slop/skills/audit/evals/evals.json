@@ -87,9 +87,10 @@
       "id": 7,
       "name": "triads-collapse-toward-the-strongest-item",
       "prompt": "/ai-slop:audit fix evals/fixtures/triads.md relative to the skill directory. Work on a copy so the committed fixture stays byte-identical.",
-      "expected_output": "The fixture trips rule-rule-of-three as one density finding (3 hits in 69 words, 43.5/1000 against a 3.0 threshold), and all three triads reach the fix flow together. The two rhetorical triads — 'fast, simple, and reliable' and 'clean, tight, and portable' — collapse toward their single strongest item rather than being reworded into three-item lists with different punctuation. The cascade enumeration 'user, team, and local' is KEPT intact, with that judgment stated: dropping one names a resolution order that does not exist.",
+      "expected_output": "rule-rule-of-three is a rubric tell (demoted from the script roster 2026-08-25), so the detector emits no finding for it; the rubric pass reads the file and reports the triad tell with the catalog entry cited. The two rhetorical triads — 'fast, simple, and reliable' and 'clean, tight, and portable' — collapse toward their single strongest item rather than being reworded into three-item lists with different punctuation. The cascade enumeration 'user, team, and local' is KEPT intact, with that judgment stated: dropping one names a resolution order that does not exist, and the survivors would not entail the deleted item.",
       "files": ["evals/fixtures/triads.md"],
       "expectations": [
+        "Reports the triad tell as a rubric finding citing the catalog entry, not as a detector Finding row",
         "Collapses the two rhetorical triads toward one item rather than preserving all three in a reworded form",
         "Keeps the 'user, team, and local' triad because each element is load-bearing, and says why it was kept",
         "Does not treat every three-item enumeration as a tell — enumerating three actual things is not slop",

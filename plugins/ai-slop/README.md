@@ -50,12 +50,18 @@ overlay; later layers refine earlier ones per key):
 {
   "excluded_paths": ["docs/legacy/**"],
   "em_dash_allowed_paths": ["docs/style-guide.md"],
+  "rule_allowed_paths": { "rule-ai-vocabulary": ["docs/marketing/**"] },
   "vocab_add": ["utilize"],
   "vocab_remove": ["landscape"],
-  "disabled_rules": ["rule-rule-of-three"],
-  "thresholds": { "ai_vocabulary": 3.0, "copulative_avoidance": 4.0, "rule_of_three": 3.0 }
+  "disabled_rules": ["rule-emoji-formatting"],
+  "thresholds": { "ai_vocabulary": 3.0, "copulative_avoidance": 4.0 }
 }
 ```
+
+`rule_allowed_paths` exempts ONE rule on the named globs and counts the file as declined for
+that rule — the proportionate closure when a whole document legitimately trips a single rule
+(a density verdict especially, which no line marker can quiet). `em_dash_allowed_paths` is the
+older spelling of the same thing for `rule-em-dash` and stays supported.
 
 In-file opt-outs: `<!-- ai-slop-ignore -->` on a line exempts that line;
 `<!-- ai-slop-ignore-start -->` and `<!-- ai-slop-ignore-end -->` fence a block;
@@ -63,3 +69,10 @@ In-file opt-outs: `<!-- ai-slop-ignore -->` on a line exempts that line;
 optional `: reason` (`<!-- ai-slop-ignore: quotes the tell it documents -->`),
 which the fix flow's suppression outcome expects; a reason may not contain `>`.
 Exempted candidates are counted as declined, never silently dropped.
+
+Markers are the LAST resort, not the first: the detector's quotation exemption already keeps
+wording rules out of blockquotes, double-quoted spans, and inline code spans, so quoted source
+text and mentions of a tell need no marker — writing about the phrase `in order to` in
+backticks or quotes never fires the filler rule. Typography rules (em dash, curly artifacts,
+emoji formatting, citation tokens, tracking parameters) still scan quoted material, because
+byte residue is a defect wherever it sits.

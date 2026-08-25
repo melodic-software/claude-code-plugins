@@ -3,6 +3,20 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The simulation-evaluation pushback
+  criterion now excludes only facilitator-authored hot spots; persona disagreements
+  the facilitator prompted for still count.
+  The quoted participant testimonial in `big-picture-workshop.md` and the quoted
+  definition in `design-level.md` are covered marker-free by the detector's
+  quotation exemption (ai-slop 0.4.0); the glossary's "Fuzzy by design" sentence
+  keeps its marker (its "in order to" is likely verbatim source wording sitting
+  outside quote marks), and one literal statement about workshop information flow
+  gained a marker after the extended source-gap phrase families landed.
+
 ## [0.6.4]
 
 ### Changed

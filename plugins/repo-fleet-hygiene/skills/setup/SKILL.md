@@ -196,7 +196,7 @@ GitHub remote identity on both sides first.
   the project it was authored in. Two cases collapse this warning, and `check` should say which one
   applies rather than repeating a caution that cannot bite: when the project directory *is* the home
   directory both rungs name the same file, and when no project directory reaches the audit (the
-  session did not supply one) the project rung is not merely aliased but unreachable, leaving the
+  session did not supply one) the project rung is unreachable outright, leaving the
   user-global path the only one that can be consumed.
 - **Config-supplied scope is additive to the audit's CLI scope.** A configured root is walked even
   when the audit is invoked with an explicit `--repo`, so a persisted fleet config widens every later

@@ -3,6 +3,14 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.11]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The `setup/SKILL.md` phrase
+  "not merely aliased but unreachable" tightened to "unreachable outright"; the
+  aliasing case is carried by the surrounding two-case structure.
+
 ## [0.23.10]
 
 ### Changed

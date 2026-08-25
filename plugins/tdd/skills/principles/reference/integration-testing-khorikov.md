@@ -286,7 +286,7 @@ The asymmetry between reads and writes is fundamental to database testing strate
 
 **Writes — always test thoroughly:**
 
-- Mistakes in write operations lead to data corruption, which can affect not only your database but also external applications that depend on it
+- Mistakes in write operations lead to data corruption, which can affect both your database and external applications that depend on it
 - Tests covering writes are highly valuable because the protection they provide is proportional to the stakes
 
 **Reads — higher threshold for testing:**

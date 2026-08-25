@@ -3,6 +3,15 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** `shape/SKILL.md` now fences its
+  weak-example line and forbidden-phrase lists with `ai-slop-ignore` markers: the
+  chatbot-artifact phrases there are quoted as the tells the skill bans, not prose
+  to rewrite.
+
 ## [0.4.2]
 
 ### Changed

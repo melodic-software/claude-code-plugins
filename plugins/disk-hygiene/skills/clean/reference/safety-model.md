@@ -259,7 +259,7 @@ non-overridable scope, an explicitly configured value there **wins over the user
 organization can enforce audit-only mode; the sibling `managed-settings.d/` drop-in directory is merged
 over it (later files win). The one honored source the guard cannot read is a session's `--settings` file
 (a runtime CLI flag no hook observes); a value supplied only there is not enforced. When the value
-resolves `false` (audit-only mode), `false` is guard-enforced — denied outright, not merely prompted — but
+resolves `false` (audit-only mode), `false` is guard-enforced as an outright deny with no prompt fallback, but
 the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by

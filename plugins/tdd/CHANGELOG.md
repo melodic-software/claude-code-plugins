@@ -3,6 +3,16 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** A digest bullet in
+  `integration-testing-khorikov.md` reworded to "both your database and external
+  applications"; the verbatim Khorikov quote in `anti-patterns-khorikov.md` stays
+  untouched, covered marker-free by the detector's blockquote exemption
+  (ai-slop 0.4.0).
+
 ## [0.4.3]
 
 ### Changed

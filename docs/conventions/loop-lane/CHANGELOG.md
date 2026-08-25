@@ -38,7 +38,7 @@ dated resolution the trigger exists to re-derive, expressed as aliases and never
   obvious binding would have gotten wrong: frontier binds the `best` alias rather than `fable`
   because `best` self-heals across Fable 5's availability preconditions while meaning exactly
   "most capable available"; and strong stays on `opus` despite Fable 5 outranking it, because
-  Opus 5's reliable knowledge cutoff (May 2026) is four months fresher than Fable 5's (Jan 2026)
+  Opus 5's reliable knowledge cutoff (May 2026) is four months fresher than Fable 5's (Jan 2026) <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
   and the implementer tier is where harness-knowledge freshness pays. Haiku 4.5 (200k context,
   Feb 2025 cutoff) fails the reviewer-never-weaker floor in every reachable pairing.
 - **Two Fable 5 known gaps recorded with the binding:** safety-classifier automatic model fallback

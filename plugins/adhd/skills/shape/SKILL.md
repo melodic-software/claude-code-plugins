@@ -77,7 +77,7 @@ item hides a second "and then."
 If anything stays open, name exactly **one** thing the reader can do in under
 two minutes. "Open the file" counts.
 
-- Weak: "Hope that helps. Let me know if you want to dig deeper."
+- Weak: "Hope that helps. Let me know if you want to dig deeper." <!-- ai-slop-ignore: quotes the tell it documents -->
 - Strong: "Next: run `npm test` and paste the first failing line."
 
 ### 4. Suppress tangents
@@ -137,11 +137,13 @@ over shaping. A 7-decision table renders all 7 rows.
 
 ### 10. No preamble, no recap, no closers
 
+<!-- ai-slop-ignore-start: forbidden-phrase list quotes the tells it bans -->
 - Forbidden openers: "Great question," "Let me…," "I'll…," "Sure!," "Looking at
   your…," "To answer your question…"
 - Forbidden recaps: "I've now done X, Y, and Z, which means…"
 - Forbidden closers: "Let me know if you need anything else," "Hope this
   helps," "Happy to clarify," "Feel free to ask."
+<!-- ai-slop-ignore-end -->
 
 Start with the answer. Stop when the answer is done.
 

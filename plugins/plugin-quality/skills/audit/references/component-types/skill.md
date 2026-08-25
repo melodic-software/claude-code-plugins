@@ -24,6 +24,9 @@ contract gate) when installed, and lean on its findings; absent, this file is th
   `~/.claude/skills/` is not read there; plugin or repo skills are.
 - **Determinism vs prose** — does it rely on the model obeying instructions where a deterministic
   mechanism (script) would be more reliable?
+- **Gotcha harvest** — what did the evidence packet's real usage hit that the skill's own docs do
+  not carry (improvised workarounds, undocumented escapes, repeatable failure triggers)? General,
+  non-situational ones are candidate doc additions; name where each belongs.
 
 ## Reproduce
 

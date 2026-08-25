@@ -3,6 +3,14 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.22]
+
+### Changed
+
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The "denied outright, not merely
+  prompted" construction in `clean/reference/safety-model.md` restated positively as
+  "an outright deny with no prompt fallback", which also drops a dash pair.
+
 ## [0.20.21]
 
 ### Changed

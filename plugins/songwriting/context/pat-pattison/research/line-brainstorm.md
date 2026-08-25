@@ -98,7 +98,7 @@ familiar words up front — is what put `silt` in front of the writer
 1. **Pass 1 — generate from the common stock.** Draw first on the plain
    everyday words and the idiom stock a person would use telling this scene
    out loud ("time to kill", "sit still", "the bill"), plus the song's own
-   developed world. Do not reach past the common words in order to avoid a
+   developed world. Do not reach past the common words to avoid a
    cliche.
 2. **Pass 2 — reframe what pass 1 turned up.** Now run the cliche scan, and
    answer a flagged candidate the way Pat does: put it "in a context that

@@ -183,7 +183,7 @@ Each variant must respect:
 
 **Variants must be structurally different and visually distinct**. Different layout, different
 information hierarchy, different primary affordance; a recolor alone is not a variant. Three
-slightly-tweaked card grids isn't a UI prototype, it's wallpaper. Structure is the floor, not the
+slightly-tweaked card grids isn't a UI prototype, it's wallpaper. <!-- ai-slop-ignore: deliberate voice; the contrast is the operative point --> Structure is the floor, not the
 whole exercise: on the real stack the project's styling system carries the visual axis, and where
 it leaves room (and always on the HTML mockup substrate) each variant also declares its own visual
 direction rather than sharing one default aesthetic. If two drafts come out too similar, redo one

@@ -335,7 +335,7 @@ IDs — the alias tracks the current recommended model and a pinned ID rots.
 - **Attended queue — `opus`.** Human in the loop, and where
   classification proposals are made.
 - **Dispatched implementers — `opus`.** Strong tier, and the freshest
-  knowledge cutoff of the four.
+  knowledge cutoff of the four. <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
 - **Conflict and security subagents — `fable`.** Frontier tier, which
   babysit-loop requires for conflict workers unconditionally.
 - **Mechanical greps and log pulls — `haiku`.** Per-dispatch override
@@ -343,7 +343,7 @@ IDs — the alias tracks the current recommended model and a pinned ID rots.
   never for a question about current harness behavior.
 
 The per-model figures behind those two rationales — context window and
-knowledge cutoff — are upstream-owned
+knowledge cutoff — are upstream-owned <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
 ([models overview](https://platform.claude.com/docs/en/about-claude/models/overview))
 and are not restated here. Both orderings resolved as written against that
 page on 2026-08-04. Both are *derived* comparisons rather than quoted

@@ -60,8 +60,8 @@ and takes effect only once promoted. Every reported entry names its contributing
 makes both rules auditable rather than merely declared.
 
 The cross-consumer key contract is published separately, as the **finding-suppression** convention in
-this marketplace. This section states what the pass itself needs in order to run, so the skill
-resolves nothing by reaching outside the plugin.
+this marketplace. This section states what the pass itself needs in order to run, <!-- ai-slop-ignore: purposive in-order-to; the shorter form reads as a list of things the pass must run -->
+so the skill resolves nothing by reaching outside the plugin.
 
 The record is **excluded from the scan set** — otherwise suppressing a finding changes the tree and
 perturbs the next run.

@@ -379,7 +379,7 @@ recheck trigger re-derives. Sourced from live fetches of
   non-interactive mode a Fable 5 request that would bill usage credits bills them without a consent
   prompt, which is the shape every unattended lane runs in.
 - **strong binds `opus`.** The docs' own starting recommendation "for complex agentic coding and
-  enterprise work" — and Opus 5's reliable knowledge cutoff (May 2026) is four months *fresher*
+  enterprise work" — and Opus 5's reliable knowledge cutoff (May 2026) is four months *fresher* <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
   than Fable 5's (Jan 2026). For lanes whose subject matter is fast-moving harness behavior, the
   implementer tier benefits most from the fresher model, so raw capability order (Fable above
   Opus) deliberately does not decide this binding alone.

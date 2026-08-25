@@ -215,8 +215,11 @@ desire
 fire
 ```
 
+<!-- ai-slop-ignore-start: verbatim quote from Pat Pattison -->
 "Not only do these ideas connect, but so do their sounds, creating a 'double
-whammy' — a connection between ideas plus a sonic connection." The catch:
+whammy' — a connection between ideas plus a sonic connection."
+<!-- ai-slop-ignore-end -->
+The catch:
 `fire/desire` is a cliché rhyme, "used so much that its power to provoke vivid
 ideas is gone."
 
