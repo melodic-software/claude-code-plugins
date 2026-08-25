@@ -6,7 +6,7 @@ It covers consistency, drift, standards conformance, and cost control.
 
 Everything is grounded at runtime: live state comes from the consumer's own `gh` CLI session, and
 mechanics come from freshly fetched official GitHub documentation. The plugin ships **zero vendored
-GitHub knowledge**, not even an endpoint table, so it cannot go stale against
+GitHub knowledge**: no endpoint tables, scope lists, or prices, so it cannot go stale against
 GitHub's weekly-moving surface. Where a fetch fails or an area is out of the current credential's
 reach, the skills say so honestly instead of guessing.
 
