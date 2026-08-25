@@ -7,8 +7,9 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 
 ### Changed
 
-- **Repo-wide `/ai-slop:audit fix` pass (#3359).** A simulation-evaluation criterion
-  reworded from "(not just facilitator)" to "(facilitator-raised ones do not count)".
+- **Repo-wide `/ai-slop:audit fix` pass (#3359).** The simulation-evaluation pushback
+  criterion now excludes only facilitator-authored hot spots; persona disagreements
+  the facilitator prompted for still count.
   `ai-slop-ignore` markers protect the quoted participant testimonial in
   `big-picture-workshop.md`, the quoted definition in `design-level.md`, and the
   glossary's "Fuzzy by design" sentence, which keeps its original "in order to" <!-- ai-slop-ignore: quotes the tell it documents -->
