@@ -12,8 +12,10 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   failures visible. Step 7 requires every requested provider bucket to appear in the markdown
   briefing even when the window produced no items for it, orders the seen-item registry write
   after successful markdown emission, and states that re-running the same window is idempotent by
-  canonical event identity. All four rules existed only in `context/execution-flow.md`, which
-  nothing loaded, so the behaviour they describe was unreachable doctrine.
+  the same normalized event identity step 5 deduplicates on. Three of the four existed only in
+  `context/execution-flow.md`, which nothing loaded, so the behaviour they describe was unreachable
+  doctrine. The fourth was half-present: `SKILL.md` already said partial collection stays visible,
+  but not that outbound requests carry an explicit timeout.
 
 ### Removed
 

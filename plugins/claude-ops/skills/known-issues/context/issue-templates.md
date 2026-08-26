@@ -10,8 +10,11 @@ gh api repos/anthropics/claude-code/contents/.github/ISSUE_TEMPLATE/<template>.y
 ```
 
 `context/action-create.md` owns the fetch protocol: the type-to-filename mapping, the rule to stop
-and tell the user when the fetch fails, and the auto-detection table for the fields the session can
-fill without asking.
+and tell the user when the fetch fails, and the auto-detection table covering platform, version and
+the other fields the session reads from its own context.
+
+One auto-detected field is not in that table, because its answer comes from this plugin rather than
+from the session. It is below.
 
 ## Local to this plugin
 

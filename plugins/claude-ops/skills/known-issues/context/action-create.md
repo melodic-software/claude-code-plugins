@@ -35,7 +35,7 @@ gh api repos/{repo}/contents/.github/ISSUE_TEMPLATE/{template_file} --jq '.conte
 | `bug` | `bug_report.yml` |
 | `feature` | `feature_request.yml` |
 
-If template can't be fetched (repo inaccessible, template renamed/removed), STOP and inform user. Template structure may change at any time and this repo keeps no cached copy to fall back on; `context/issue-templates.md` names the live source only.
+If template can't be fetched (repo inaccessible, template renamed/removed), STOP and inform user. Template structure may change at any time and this repo keeps no cached copy to fall back on; `context/issue-templates.md` names the live source and this plugin's local field rule.
 
 **Gate 2: Version check** — verify user is on latest Claude Code version:
 

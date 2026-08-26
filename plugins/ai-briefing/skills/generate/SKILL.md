@@ -108,7 +108,8 @@ A profile may contain:
    omitting it silently. Update the seen-item registry under the selected profile's
    `${CLAUDE_PLUGIN_DATA}` state directory only after the markdown is emitted successfully.
    Keep tracked profile configuration in the project; never write curated configuration into
-   plugin data. Re-running the same window is idempotent: merge by canonical event identity
+   plugin data. Re-running the same window is idempotent: merge by the same normalized event
+   identity step 5 deduplicates on
    and do not emit duplicate items.
 8. For `--format html` or `--format slides`, require the optional build tree installed by
    `/ai-briefing:setup apply install-build-deps`. Run the staged build pipeline against the emitted
