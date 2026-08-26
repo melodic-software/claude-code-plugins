@@ -3,6 +3,17 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.8]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** The ten
+  `biome-ignore` explanations citing "SDK 1.29" (stale since the dependabot bump to 1.30)
+  are reworded version-agnostic across nine source files; the machine-read directive prefix
+  is untouched. Comment-only: all nine files minify byte-identically to their previous
+  versions, `verify-bundle` confirms the tracked dist needs no regeneration, and
+  typecheck/lint/32 tests are green.
+
 ## [0.3.7]
 
 ### Changed
