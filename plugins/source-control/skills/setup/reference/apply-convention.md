@@ -13,7 +13,7 @@ above it is the linear `apply` interview, walked as bolded numbered steps (0 thr
 than headings. Find a step directly with:
 
 ```shell
-grep -n '^[0-9]\. \*\*' apply-convention.md
+grep -n '^[0-9]\. \*\*' "${CLAUDE_PLUGIN_ROOT}/skills/setup/reference/apply-convention.md"
 ```
 
 - Layer selection (`layer=`) and the non-interactive `subject_pattern=` write: immediately below,

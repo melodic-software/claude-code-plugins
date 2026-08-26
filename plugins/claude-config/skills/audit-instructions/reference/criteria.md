@@ -7,7 +7,8 @@ last-updated: 2026-08-09
 
 ## Contents
 
-Look up a specific check by ID: `grep -n '^### I<N>:' reference/criteria.md`.
+Look up a specific check by ID:
+`grep -n '^### I<N>:' "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/reference/criteria.md"`.
 
 - [Sources](#sources)
 - Checks
