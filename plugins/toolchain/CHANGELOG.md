@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.6]
+
+### Changed
+
+- **`check`'s .NET gotcha scopes the `--project` requirement to the opt-in MTP runner.** Under VSTest — still the .NET 10 default — a bare positional project path is accepted; the rejection only occurs under Microsoft.Testing.Platform (enabled via `global.json`/`dotnet.config`). `--project` works in both, so the recipe still prefers it (re-checked against Microsoft's dotnet-test docs, 2026-08-26). From the repo-wide derivability/point-dont-copy audit (PR #3387).
+
 ## [0.13.5]
 
 ### Changed

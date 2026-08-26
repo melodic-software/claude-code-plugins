@@ -27,7 +27,7 @@ dotnet build "$REPO_ROOT/path/to/Project.csproj" \
 # All tests via solution
 dotnet test "$REPO_ROOT/<solution>" --no-build
 
-# Single test project (.NET 10 requires --project flag)
+# Single test project (--project works under both VSTest and MTP; required under MTP)
 dotnet test --project "$REPO_ROOT/path/to/Project.Tests.csproj"
 ```
 
@@ -49,7 +49,7 @@ dotnet format "$REPO_ROOT/<solution>"
 
 ## Gotchas
 
-- **`--project` is required** for test project paths in .NET 10 SDK (10.0.1xx+). Bare positional paths are rejected: `dotnet test path/to/Project.csproj` fails with "Specifying a project for 'dotnet test' should be via '--project'"
+- **`--project` is required** for test project paths **under the opt-in Microsoft.Testing.Platform (MTP) runner** (enabled via `global.json` / `dotnet.config`), where bare positional paths are rejected: `dotnet test path/to/Project.csproj` fails with "Specifying a project for 'dotnet test' should be via '--project'". Under VSTest — still the .NET 10 default — a bare positional project path is accepted. `--project` works in both, so prefer it either way (re-checked against Microsoft's dotnet-test-mtp/vstest docs, 2026-08-26)
 - **`--nologo` breaks xUnit v3** MTP runner. The flag passes through to the xUnit executable which rejects it as "Unknown option". Result: zero tests ran, exit code 5. Same issue with `-v q`. Use plain `dotnet test` or `-v n`
 - **`TreatWarningsAsErrors` repos** — when the repo turns warnings into errors globally, every warning is build-breaking; don't dismiss a warning as cosmetic
 - **VS locks analyzer DLLs** — if `dotnet build` fails with MSB3021 while Visual Studio is open, close VS or skip analyzers for quick iteration

@@ -1,5 +1,11 @@
 # Changelog — session-flow plugin
 
+## [0.34.7]
+
+### Changed
+
+- **`retro`'s ecosystem-improvement catalog points at the hook-events docs instead of copying them.** The ~25-row Hook Events table (a capability list the official docs own, and one that grows faster than a copy can track) is replaced by a pointer to <https://code.claude.com/docs/en/hooks>. From the repo-wide derivability/point-dont-copy audit (PR #3387).
+
 ## [0.34.6]
 
 ### Changed

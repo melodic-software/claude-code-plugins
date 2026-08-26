@@ -1,5 +1,5 @@
 ---
-description: "Live E2E browser automation via Microsoft's @playwright/cli: named sessions, accessibility-ref snapshots, click/fill by ref, screenshots, console and network capture, network mocking, tracing, video, and auth state, with artifacts written to disk so only paths enter context (roughly 4x fewer tokens than Playwright MCP). Use when: 'E2E test', 'browser automation', 'take a screenshot', 'test the UI flow', 'click element', 'fill form', 'mock network', 'record a video', 'check console errors', 'playwright'."
+description: "Live E2E browser automation via Microsoft's @playwright/cli: named sessions, accessibility-ref snapshots, click/fill by ref, screenshots, console and network capture, network mocking, tracing, video, and auth state, with artifacts written to disk so only paths enter context (far fewer tokens than Playwright MCP). Use when: 'E2E test', 'browser automation', 'take a screenshot', 'test the UI flow', 'click element', 'fill form', 'mock network', 'record a video', 'check console errors', 'playwright'."
 when_to_use: "live browser testing, UI smoke tests, snapshot the page, auth state persistence, `/playwright:playwright update` (maintainers)"
 argument-hint: "[update] [--check|--apply]"
 user-invocable: true
@@ -17,7 +17,7 @@ metadata:
 
 # Playwright CLI, live browser automation
 
-Wraps Microsoft's [`@playwright/cli`](https://github.com/microsoft/playwright-cli) for token-efficient browser automation. Snapshots and screenshots write to disk; only paths come back into context, roughly a 4x token reduction versus Playwright MCP (27K vs 114K per workflow in upstream's measurement).
+Wraps Microsoft's [`@playwright/cli`](https://github.com/microsoft/playwright-cli) for token-efficient browser automation. Snapshots and screenshots write to disk; only paths come back into context, a substantial token reduction versus Playwright MCP's in-context payloads.
 
 Requires `playwright-cli` on PATH (`npm install -g @playwright/cli`). If it is missing, tell the user to install it rather than substituting a different automation surface.
 

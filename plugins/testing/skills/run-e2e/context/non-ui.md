@@ -39,34 +39,14 @@ When unit tests pass but the server fails to register, the gap is the JSON-RPC `
 3. Read one line from stdout; parse as JSON-RPC response
 4. Assert `result.protocolVersion`, `result.serverInfo.name`, and `result.capabilities` match expected shape
 
-**Initialize request shape** (per MCP spec [modelcontextprotocol.io/specification/2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18)):
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "initialize",
-  "params": {
-    "protocolVersion": "2025-06-18",
-    "capabilities": {},
-    "clientInfo": {"name": "smoke-test", "version": "0.0.0"}
-  }
-}
-```
-
-**Expected response shape:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "protocolVersion": "2025-06-18",
-    "capabilities": { "tools": {} },
-    "serverInfo": { "name": "<server-name>", "version": "<server-version>" }
-  }
-}
-```
+**Request/response shapes:** the MCP spec owns the `initialize` request and response schemas —
+read them there rather than from a copy here (the protocol is versioned; a restated shape drifts
+when it revs). This recipe was written against the pinned `2025-06-18` revision
+(<https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle>); check the current
+revision via <https://modelcontextprotocol.io/specification/latest> and match the recipe to the
+revision your server SDK actually implements — revisions after `2025-11-25` replace the
+`initialize` handshake with per-request metadata, so this handshake smoke test applies to
+legacy/dual-era servers only (verified 2026-08-26).
 
 **Per-runtime spawn:**
 
