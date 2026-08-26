@@ -305,10 +305,8 @@ function repairTextCompiled(text, entries, maxWordCount) {
  * @returns {RepairResult}
  */
 export function repairProperNouns(text, lexicon) {
-  const entries = compileLexicon(lexicon);
-  if (entries.length === 0) return { text, replacementCount: 0 };
-  const maxWordCount = Math.max(...entries.map((entry) => entry.wordCount));
-  return repairTextCompiled(text, entries, maxWordCount);
+  const { cues, replacementCount } = repairCues([{ text }], lexicon);
+  return { text: cues[0].text, replacementCount };
 }
 
 /**
