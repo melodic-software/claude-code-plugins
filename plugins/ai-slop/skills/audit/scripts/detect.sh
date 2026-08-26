@@ -210,7 +210,13 @@ declare -A RULE_ALLOWED_GLOBS
 cfg_scalar() {
   local path="$1" layer v out=""
   for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    v="$(jq -r "$path // empty" "$layer" 2>/dev/null | tr -d '\r')" && [[ -n "$v" ]] && out="$v"
+    # Capture, then strip: a `| tr -d '\r'` inside the substitution would hand
+    # this guard tr's exit status instead of jq's, and a layer that parses to a value
+    # and then meets malformed trailing bytes emits that value while exiting nonzero.
+    # That partial read must not become the effective setting.
+    v="$(jq -r "$path // empty" "$layer" 2>/dev/null)" || continue
+    v="${v//$'\r'/}"
+    [[ -n "$v" ]] && out="$v"
   done
   printf '%s' "$out"
 }

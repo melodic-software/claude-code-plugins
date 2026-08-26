@@ -14,7 +14,9 @@
   more carried the same defect from the same source: `rule_allowed_paths`, the
   per-rule exemption added in 0.4.0, reads jq through `read`, which splits on
   the line feed, so the CR landed on the last glob of every entry and that key
-  never applied on Windows either; and `cfg_scalar`, which Git Bash masks —
+  never applied on Windows either — this suite's own `rule_allowed_paths` cases
+  already fail on a Windows workstation against the released 0.4.0, with no shim
+  involved, and go green here; and `cfg_scalar`, which Git Bash masks —
   its command substitution strips one trailing CRLF pair — but which on a bash
   that strips only the line feed carries the CR into the emitted threshold text,
   in `--show-config` and in the density finding's label. CI cannot observe any
@@ -24,6 +26,12 @@
   failed to select it fails loudly instead of reporting vacuous passes. The
   array and `rule_allowed_paths` cases reproduce on both platforms; the scalar
   case discriminates on Linux only, and says so where it sits.
+  The strip is applied to `cfg_scalar`'s captured value rather than inside its
+  command substitution, so jq's exit status still reaches the guard that reads
+  it: a layer that parses to a value and then meets malformed trailing bytes
+  emits that value while exiting nonzero, and a pipeline would have handed the
+  guard `tr`'s unconditional success and let the half-read layer set the
+  threshold.
 
 ## [0.4.0]
 
