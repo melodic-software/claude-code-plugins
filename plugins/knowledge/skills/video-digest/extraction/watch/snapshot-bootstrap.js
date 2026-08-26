@@ -54,7 +54,7 @@ export function snapshotBootstrapContactSheets(sliceDir) {
     sourceDir: serializeTempPath(contactSheetsDir),
   };
   fs.writeFileSync(
-    lanePath(absSlice, LANES.keyFrames, "contact-sheets", "snapshot-meta.json"),
+    path.join(destDir, "snapshot-meta.json"),
     `${JSON.stringify(meta, null, 2)}\n`,
     "utf8",
   );
@@ -62,11 +62,11 @@ export function snapshotBootstrapContactSheets(sliceDir) {
   return { copied: sheets.length, destDir };
 }
 
-const sliceDir = process.argv[2];
 const isMain =
   process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
+  const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/snapshot-bootstrap.js <slice-dir>\n");
     process.exit(2);

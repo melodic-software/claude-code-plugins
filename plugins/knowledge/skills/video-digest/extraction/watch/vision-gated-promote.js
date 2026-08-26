@@ -96,17 +96,16 @@ export async function visionGatedPromote(sliceDir, { dryRun = false } = {}) {
   };
 }
 
-const sliceDir = process.argv[2];
-const dryRun = process.argv.includes("--dry-run");
 const isMain =
   process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
+  const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/vision-gated-promote.js <slice-dir> [--dry-run]\n");
     process.exit(2);
   }
-  visionGatedPromote(sliceDir, { dryRun })
+  visionGatedPromote(sliceDir, { dryRun: process.argv.includes("--dry-run") })
     .then((result) => {
       writeStdout(`${JSON.stringify(result, null, 2)}\n`);
     })

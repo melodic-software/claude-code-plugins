@@ -97,7 +97,6 @@ function makeVisionSliceDir(options = {}) {
   const batchesDir = path.join(dir, "key-frames", "triage", "batches");
   fs.mkdirSync(batchesDir, { recursive: true });
   fs.writeFileSync(path.join(batchesDir, "sheet_001.json"), JSON.stringify(sheet, null, 2));
-  fs.mkdirSync(path.join(dir, "key-frames", "triage"), { recursive: true });
   fs.writeFileSync(
     path.join(dir, "key-frames", "triage", "manifest.json"),
     JSON.stringify(manifest, null, 2),
@@ -202,14 +201,9 @@ describe("visionGatedPromote", () => {
 
 describe("mergeTriageJson", () => {
   it("merges batch files into manifest.json", () => {
+    // makeVisionSliceDir already writes key-frames/triage/batches/sheet_001.json.
     const { dir } = makeVisionSliceDir();
-    const batchesDir = path.join(dir, "key-frames", "triage", "batches");
-    fs.mkdirSync(batchesDir, { recursive: true });
-    const batchPath = path.join(batchesDir, "sheet_001.json");
-    const sheet = JSON.parse(
-      fs.readFileSync(path.join(dir, "key-frames", "triage", "manifest.json"), "utf8"),
-    ).sheets[0];
-    fs.writeFileSync(batchPath, JSON.stringify(sheet));
+    const batchPath = path.join(dir, "key-frames", "triage", "batches", "sheet_001.json");
 
     const manifestPath = mergeTriageJson(dir, [batchPath]);
     expect(manifestPath).toContain("manifest.json");
