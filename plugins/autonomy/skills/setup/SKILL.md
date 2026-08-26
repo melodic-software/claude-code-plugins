@@ -95,9 +95,9 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
    pointing at the org's endpoint. Paid/hosted stack → advisory with cost surfaced before any
    opt-in.
 2. **No stack → the file-artifact free default** (zero paid dependencies):
-   - CI pipeline spans via the OTLP JSON-lines writer snippet in
-     [`templates/ci-otlp-artifact.md`](templates/ci-otlp-artifact.md), uploading the artifact
-     directory per run;
+   - CI pipeline spans via the OTLP JSON-lines writer snippet. Read
+     [`templates/ci-otlp-artifact.md`](templates/ci-otlp-artifact.md) when `apply` reaches this
+     step for the snippet, uploading the artifact directory per run;
    - agent-session signals via the ephemeral per-job collector in the same template (single
      static OSS collector binary + file-exporter config writing JSON-lines into the same
      artifact directory. Per-job, no standing infrastructure);
@@ -132,10 +132,11 @@ reply-triggered attestation handlers via the close-triggered snippet in
 [`templates/return-capture.md`](templates/return-capture.md) where machine-editable (the
 marker-keyed comment floor, or provenance-verifiable native fields), ADVISE where GUI-only or
 entitlement-gated, and record the
-`capture` section of the repo-local autonomy binding. The autonomous-class capture gate, the
-record-integrity rule, the attestation-routing rule, and every serialized `capture` key are
-specified in [`context/capture-slice.md`](context/capture-slice.md). Agents prompt and aggregate;
-they never estimate the two human-attested return fields.
+`capture` section of the repo-local autonomy binding. Read
+[`context/capture-slice.md`](context/capture-slice.md) when `apply` reaches the capture slice: it
+owns the autonomous-class capture gate, the record-integrity rule, the attestation-routing rule,
+and every serialized `capture` key. Agents prompt and aggregate; they never estimate the two
+human-attested return fields.
 
 ## Trigger/dispatch slice
 
@@ -147,10 +148,11 @@ plan-gated integrations, and record the `triggers` section (the `surfaces` map +
 the repo-local autonomy binding. Vendor event names and invocation flags live in this slice's
 [`templates/trigger-adapters.md`](templates/trigger-adapters.md) (adapter shapes) and
 [`templates/ack-reply.md`](templates/ack-reply.md) (acknowledgment shape), never the contract.
-The per-surface adapter obligations, the execution-surface
-attestation caveat, the admission fail-closed rule, every serialized `triggers` key, and the
-[`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs) conformance step are
-specified in [`context/trigger-dispatch-slice.md`](context/trigger-dispatch-slice.md).
+Read [`context/trigger-dispatch-slice.md`](context/trigger-dispatch-slice.md) when `apply`
+reaches the trigger/dispatch slice: it owns the per-surface adapter obligations, the
+execution-surface attestation caveat, the admission fail-closed rule, every serialized `triggers`
+key, and the [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs) conformance
+step.
 
 ## Guardrail binding resolution
 
@@ -170,9 +172,15 @@ contract-owned and ships at
 document (schema shape + the semantic rules the schema cannot express) and, with
 `--evidence`, resolves each promotion cell's EFFECTIVE state against a promotion-evidence
 source, the bound state is a ceiling contrary evidence lowers without writing the
-binding. Non-security axes remap in the additive `guardrails` section of the repo-local
-binding: class→label strings (which local label means which work class) and
-cost-tier→model names. Vocabulary remaps only, never policy content.
+binding. Read the
+[admission-policy leaf](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/admission-policy.md) directly
+when binding admission rules and caps: it owns the decision table, the wildcard precedence rule,
+and the `override_justification` floor those caps enforce. Non-security axes remap in the
+additive `guardrails` section of the repo-local binding: class→label strings (which local label
+means which work class; read the
+[work-classes leaf](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/work-classes.md) directly when
+resolving what a label maps to; it owns the risk-property bundles and promotion discipline behind
+each class) and cost-tier→model names. Vocabulary remaps only, never policy content.
 
 **A third home that is not a governance surface.** Two axes of the
 [verification-topology leaf](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/verification-topology.md)
@@ -211,8 +219,9 @@ no security axis ever resolves from a documented default or a repo-local surface
 
 ## Guardrail slice
 
-Wires the enforced state of the [guardrail contract](${CLAUDE_PLUGIN_ROOT}/reference/guardrails.md):
-detect, bind, live-validate, fail-closed, always detect-diff-reconciling against the org's EXISTING
+Wires the enforced state of the [guardrail contract](${CLAUDE_PLUGIN_ROOT}/reference/guardrails.md)
+(open it, then the `guardrails/<leaf>.md` it routes to, for whatever axis is in question): detect,
+bind, live-validate, fail-closed, always detect-diff-reconciling against the org's EXISTING
 guardrail surfaces. The [resolution section above](#guardrail-binding-resolution) owns how bound
 policy resolves; this slice is the action that produces the security binding it resolves. Read
 [`context/guardrail-slice.md`](context/guardrail-slice.md) when `apply` reaches the guardrail
@@ -224,7 +233,8 @@ not select it never needs the file.
 ## Routine slice
 
 Wires the standing-routine state of the
-[routine catalog](${CLAUDE_PLUGIN_ROOT}/reference/routines.md): a routine is a scheduled
+[routine catalog](${CLAUDE_PLUGIN_ROOT}/reference/routines.md) (read it to pick a routine; each
+recipe is a leaf under `routines/`): a routine is a scheduled
 `temporal`-class signal adapter behind the governed queue, never a private execution or merge path.
 Like the [guardrail slice](#guardrail-slice) it PREPARES the security surface and never writes it.
 Read [`context/routine-slice.md`](context/routine-slice.md) when `apply` reaches the routine slice:
@@ -237,8 +247,10 @@ that does not select it never needs the file.
 
 Extends this skill per its own extension model for
 [routine prerequisite resolution](${CLAUDE_PLUGIN_ROOT}/reference/prerequisite-resolution.md).
-Detail lives in
-[`context/prerequisite-resolution-slice.md`](context/prerequisite-resolution-slice.md).
+Read
+[`context/prerequisite-resolution-slice.md`](context/prerequisite-resolution-slice.md) when
+`apply` reaches the prerequisite-resolution slice: it owns the binding-section JSON shape and
+the wrapper scripts' non-interactive flags.
 
 **Liveness.** The slice `check` is an engine health-check surface: it invokes
 [`scripts/resolve-prerequisites.mjs`](scripts/resolve-prerequisites.mjs) end-to-end and
@@ -274,7 +286,14 @@ options through the security binding's `escalation_severity`, `escalation_severi
 security axis, never repo-local. The route set, its two-step severity resolution, and the
 per-class default severities are specified by the
 [runner escalation leaf](${CLAUDE_PLUGIN_ROOT}/reference/runner/escalation.md); this note points
-there rather than restating them.
+there rather than restating them. The full lifecycle state model and each transition's telemetry
+are specified by the
+[runner lifecycle leaf](${CLAUDE_PLUGIN_ROOT}/reference/runner/lifecycle.md); read it directly
+when tracing how a leased item moves through its states, since this note does not restate the
+state machine. The ownership-seam map assigning each part of the runner to its owning home is
+specified by the [runner topology leaf](${CLAUDE_PLUGIN_ROOT}/reference/runner/topology.md); read
+it directly when placing a runner obligation on its home, since this note does not re-derive the
+split.
 
 ## Gotchas
 
