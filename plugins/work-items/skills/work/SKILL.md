@@ -131,7 +131,11 @@ preflight has resolved and before the first tracker query: it owns the query for
 ladder above, the in-flight exclusion that keeps a candidate with an open linked PR out of the
 frontier tiers, the recurring-issue cross-reference, and the standing-item precondition gate that
 decides whether a recurring candidate is eligible at all. Step 3 below assumes one surviving
-candidate from it.
+candidate from it. That precondition gate reads a schedule row's `precondition` field per
+[`${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md),
+and the frontier-tier query excludes items by the resolved human-gated role label per
+[`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
+"Canonical roles"; read both before relying on either exclusion.
 
 ### Step 3: Present and confirm
 

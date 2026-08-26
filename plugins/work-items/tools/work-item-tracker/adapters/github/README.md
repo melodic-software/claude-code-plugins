@@ -1,5 +1,21 @@
 # GitHub adapter — operations reference
 
+## Contents
+
+- [Available `--json` fields](#available---json-fields)
+- [Resolve item ID](#resolve-item-id)
+- [List items](#list-items)
+- [Search items](#search-items)
+- [View item](#view-item)
+- [List item comments](#list-item-comments)
+- [Close item](#close-item)
+- [Edit labels / assignees](#edit-labels--assignees)
+- [Comment on item / edit a comment](#comment-on-item--edit-a-comment)
+- [PR closing-keyword mechanics](#pr-closing-keyword-mechanics)
+- [Open linked PRs](#open-linked-prs)
+- [Aggregate / count (dashboard + hygiene)](#aggregate--count-dashboard--hygiene)
+- [Gotchas](#gotchas)
+
 Concrete `gh` mechanics for the `/work-items` skill's **non-coordination** operations against
 the GitHub provider. Coordination (create / claim / lease / link / frontier) runs through the
 seam verbs (`work-item-tracker.sh <verb>`, see `../../CONTRACT.md`); the operations below —
