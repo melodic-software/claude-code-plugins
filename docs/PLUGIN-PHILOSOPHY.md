@@ -342,6 +342,21 @@ A bare `context/…`-style path is reserved for a skill's OWN supporting files; 
 the citing skill's directory, so a cross-skill citation written that way points at a file that is
 not there.
 
+This permission stops at the plugin boundary. It exists because a plugin is the unit that ships:
+one `plugin.json`, one version, one marketplace entry, and skills that always travel together, so
+a citation between two skills in the same plugin cannot arrive at an absent file. **Do not path-cite
+into a skill in a different plugin.** Plugins install independently, so that path can genuinely be
+missing at runtime; cite the other plugin's skill by its `/plugin:skill` invocation instead, or
+promote the shared content to a convention doc both plugins can cite. The same limit applies to
+anything outside `plugins/`: `docs/**` and `.claude/rules/**` cite skills by slash invocation, never
+by path.
+
+Heading anchors are never a citation target, in either direction. A heading is body structure, and
+renaming one is exactly the refactor a skill must stay free to make.
+
+The full public-surface contract this narrows is
+`/docs-hygiene:audit-encapsulation`'s, which audits against it.
+
 ## Setup is explicit and repeatable
 
 A plugin requires a `setup` skill iff it has (a) a consumer-project configuration surface, (b) an

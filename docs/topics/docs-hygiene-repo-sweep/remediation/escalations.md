@@ -144,9 +144,64 @@ Two follow-on edits this ruling requires, both in wave 3:
    does not re-raise the same 30 findings. The contract's own "consuming repo may layer" sentence is
    the hook to hang it on.
 
-The precise INTRA / CROSS split of all 89 is being measured rather than assumed; it lands in
-`e1-classification.md`. Wave 3 remediates the CROSS set and the bare-relative set, and dissolves the
-intra-plugin anchored set.
+### Amendment, after the classification pass
+
+The measurement in `e1-classification.md` checked the ruling instead of confirming it, and found
+four things wrong with it. Three are corrections to this section's reasoning and one changes what
+wave 3 actually does. The conclusion survives; several of the arguments given for it did not.
+
+**The distribution-unit argument stands, and is now evidenced.** 71 plugins, 71
+`plugins/<p>/.claude-plugin/plugin.json` manifests carrying exactly one `version` each, 71
+`marketplace.json` entries sourced at `./plugins/<name>`, no per-skill manifest anywhere, and no
+`.claude/skills/` directory in this repo at all. Skills here do not ship or version independently.
+
+**Correction 1. The reason given for rejecting bare relative paths was a category error.** This
+section claimed a bare relative cross-skill path "stays a defect on the philosophy doc's own
+reasoning". It does not. The doctrine condemns one specific shape, `context/x.md` written with no
+`../` prefix from inside a skill, and **zero of the 89 violations use that shape**. All 33 relative
+intra-plugin citations use a correctly computed `../` path and every one resolves on disk. They are
+not defects and wave 3 leaves them alone.
+
+What is genuinely broken is a different shape the ruling never named: 8 citations in `plugin-root`
+form, `skills/<s>/<path>` written from a plugin-level `reference/` directory, where the implied base
+is the plugin root but the real base is the citing file's own directory. Those do not resolve. They
+are defects on their own merits, not on doctrine, and wave 3 fixes them.
+
+**Correction 2. The contract's licence was quoted selectively.** This section cited "A consuming
+repo may layer its own conventions on top" as authorizing the ruling. The full sentence continues
+"but the surfaces and carve-outs below are what the detector implements", which reasserts the
+detector against whatever is layered. The sentence permits the ruling; it does not authorize it, and
+quoting half of it overstated the case. The ruling rests on the distribution-unit evidence above,
+not on that sentence.
+
+**Correction 3. The blast radius was understated by more than half.** This section said the decision
+blocks 30 violations and leaves 59 unaffected. The real split is **65 INTRA, 24 CROSS**. `INTRA`
+covers every plugin README and plugin-level doc citing its own plugin's skills, which this section
+had counted among the unaffected. In particular **16 plugin README citations become legal in one
+move**, and the contract names READMEs explicitly as external consumers. That consequence was never
+discussed here and is the substantive thing this ruling does. It is stated now so it is chosen
+rather than inherited.
+
+**Correction 4. The corpus contains no instance of the harm the contract predicts.** Across 89
+violations and 35 leaked skills, no cited path is missing. No skill here has yet renamed a private
+file out from under an external citation. This cuts both ways and is recorded rather than argued
+from: it weakens the urgency of remediating what survives, and equally weakens any claim that the
+65 dissolved citations were doing damage. Note also that 8 of the 10 unresolvable citations are
+intra-plugin, so proximity did not prevent them.
+
+### What wave 3 does, restated
+
+- **Dissolve 65 INTRA citations.** No edit. This includes the 16 plugin READMEs.
+- **Remediate 24 CROSS citations**, including 4 sibling-skill reaches that cross a plugin boundary
+  and which the roll-up files under the dissolved class: `V-sc-15`, `V-ops-01`, `V-auto-01`,
+  `V-ct-01`.
+- **Fix 8 unresolvable `plugin-root`-form citations** regardless of classification, because a path
+  that does not resolve is broken whatever the doctrine says.
+- **Treat the 2 heading anchors separately.** They stay private even intra-plugin, so `V-dh-01`
+  comes out of the dissolved README list.
+- **Edit both doctrine documents** so the next audit does not re-raise the dissolved 65:
+  `PLUGIN-PHILOSOPHY.md` gains the cross-plugin limit it omits, and the contract records the
+  layered convention.
 
 ## E2. Both L1 deletion verdicts are provisional
 

@@ -30,6 +30,21 @@ This guarantees skills are rip-and-paste portable: moving `.claude/skills/<name>
 
 A skill's `scripts/` directory is its declared entry surface. Harness surfaces, CI workflows, git hooks, and automation registries MAY path-cite `scripts/` entry scripts directly. **Sibling skills may NOT** — skill-to-skill stays slash-only. That outbound half of the asymmetry is out of scope for this inbound audit; a consuming repo that wants it enforced wires its own outbound gate.
 
+### Layered convention. Plugin monorepos where the plugin is the shipping unit
+
+A consuming repo whose shipping unit is the PLUGIN rather than the individual skill may treat
+intra-plugin sibling-skill citation as legal, because the portability this contract protects is not
+at risk between two skills that always ship together. The repo must actually be built that way:
+one manifest and one version per plugin, no per-skill manifest, and no installation path that
+separates two skills in the same plugin.
+
+The relaxation is intra-plugin only. Cross-plugin path citation stays a violation, since plugins
+install independently and the cited path can be genuinely absent. Heading anchors stay private in
+both cases, because a heading is body structure whatever ships alongside it.
+
+This repository layers exactly that convention; `docs/PLUGIN-PHILOSOPHY.md` states it and bounds it.
+A repo that has not declared such a convention gets the unrelaxed contract above.
+
 A skill MAY expose a `scripts/<name>.sh` entry as a declared public facade (delegating to a private backend directory) that hooks/CI invoke directly — the encapsulation-respecting alternative to vendoring a copy of the logic. A meta-tooling consumer that only READS a skill-internal path as data — a version-drift gate reading a pinned-version file, a path-scoped trigger naming the file it watches — cites that path under the KIND-2 forced-cite exemption (see the filter taxonomy in SKILL.md): it names a path structurally, it does not invoke skill logic. Logic invocation goes through the facade; data/path reference is KIND-2.
 
 ## Carve-out — data files at skill root

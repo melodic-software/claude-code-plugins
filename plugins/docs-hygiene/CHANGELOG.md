@@ -1,5 +1,21 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.15]
+
+### Changed
+
+- **`audit-encapsulation`'s public-surface contract now describes the plugin-monorepo
+  case.** A repo whose shipping unit is the plugin rather than the individual skill
+  may treat intra-plugin sibling-skill citation as legal, because two skills that
+  always ship together cannot produce the absent-path breakage the contract exists
+  to prevent. The relaxation is bounded: cross-plugin path citation stays a
+  violation, heading anchors stay private either way, and a repo that has not
+  declared such a convention gets the unrelaxed contract.
+
+  Without this, the audit reports 65 findings against this repository that its own
+  `docs/PLUGIN-PHILOSOPHY.md` instructs authors to write, and re-reports them after
+  every remediation.
+
 ## [0.21.14]
 
 ### Fixed
