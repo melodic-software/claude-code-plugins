@@ -3,7 +3,7 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.9]
+## [0.7.10]
 
 ### Changed
 
@@ -24,6 +24,20 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   `SKILL.md`. A fresh-context spot-test found four rules with no counterpart anywhere in the skill;
   those were folded into `SKILL.md` before the file went, and the rest was already stated there.
   The `context/` directory held nothing else and was removed with it.
+
+## [0.7.9]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Removed the dead
+  `collectLinks()` helper from `output/build/lib/parse-briefing.js` (defined, never called);
+  removed a false sentence from `output/build/lib/emit-slides.js`'s `balanceTiers` doc comment
+  that described a nonexistent explicit-tier-marker override; deduplicated `output/build/validate.js`'s
+  twice-inlined render-settle and section-overflow-scan snippets into shared `settleRender` and
+  `collectSectionOverflows` helpers passed to `page.evaluate`, and corrected its stale
+  `Screenshots:` summary line to name the `section-*.png` / `responsive-*.png` files it actually
+  writes. No artifact bytes, exit codes, or contracts changed; suite 35/35 green, plus an
+  independent refutation pass with a live Playwright smoke of the serialized helpers.
 
 ## [0.7.8]
 

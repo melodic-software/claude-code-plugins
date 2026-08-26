@@ -159,7 +159,6 @@ fs.writeFileSync(p, JSON.stringify(b, null, 2) + "\n");
 if node "$ENVELOPE" "$tmp/envelope.md" --binding "$tmp/repo/.claude/autonomy/binding.json" >/dev/null 2>"$tmp/env.err"; then
   ok "envelope: binding with prerequisite_resolution section passes"
 else
-  # Print for diagnosis but still allow known work_class-related failures?
   fail "envelope: $(cat "$tmp/env.err")"
 fi
 

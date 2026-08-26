@@ -27,6 +27,21 @@ git -C "$R" branch -u main >/dev/null 2>&1
 
 run_reset() { bash -c "cd '$R' && bash '$RESET' $*"; }
 
+# mk_feat_repo <dir> <branch> — a committed repo on feature <branch> tracking
+# local main: the shared starting shape for the shim/failure cases below.
+mk_feat_repo() {
+  local dir="$1" branch="$2"
+  git init "$dir" >/dev/null 2>&1
+  git -C "$dir" config user.email "t@example.com"
+  git -C "$dir" config user.name "Test"
+  echo tracked >"$dir/tracked.txt"
+  git -C "$dir" add -A
+  git -C "$dir" commit -m "init" >/dev/null
+  git -C "$dir" branch -M main
+  git -C "$dir" checkout -b "$branch" >/dev/null 2>&1
+  git -C "$dir" branch -u main >/dev/null 2>&1
+}
+
 # Create a reparse point at $1 pointing to dir $2 (junction on Windows, symlink
 # on Unix). Echoes kind, or nothing when no primitive is available.
 make_reparse() {
@@ -119,15 +134,7 @@ assert_contains "blocked reason" "$out" "default-branch"
 # must survive, and no AppliedClean success line may be emitted.
 REAL_GIT="$(command -v git)"
 R2="$TEST_TMPDIR/repo-reset-fail"
-git init "$R2" >/dev/null 2>&1
-git -C "$R2" config user.email "t@example.com"
-git -C "$R2" config user.name "Test"
-echo tracked >"$R2/tracked.txt"
-git -C "$R2" add -A
-git -C "$R2" commit -m "init" >/dev/null
-git -C "$R2" branch -M main
-git -C "$R2" checkout -b feat/reset-fail >/dev/null 2>&1
-git -C "$R2" branch -u main >/dev/null 2>&1
+mk_feat_repo "$R2" feat/reset-fail
 echo untracked >"$R2/scratch.txt"
 
 SHIM="$TEST_TMPDIR/git-shim"
@@ -203,15 +210,7 @@ assert_file_exists "unresolvable upstream skips clean (untracked survives)" "$R3
 # alongside AppliedClean: failed. The faked clean never runs, so an untracked file a
 # real clean would have removed must survive (proving no silent success).
 R4="$TEST_TMPDIR/repo-clean-fail"
-git init "$R4" >/dev/null 2>&1
-git -C "$R4" config user.email "t@example.com"
-git -C "$R4" config user.name "Test"
-echo tracked >"$R4/tracked.txt"
-git -C "$R4" add -A
-git -C "$R4" commit -m "init" >/dev/null
-git -C "$R4" branch -M main
-git -C "$R4" checkout -b feat/clean-fail >/dev/null 2>&1
-git -C "$R4" branch -u main >/dev/null 2>&1
+mk_feat_repo "$R4" feat/clean-fail
 echo untracked >"$R4/scratch.txt"
 
 CLEAN_SHIM="$TEST_TMPDIR/git-clean-shim"
@@ -246,15 +245,7 @@ assert_file_exists "clean failure leaves untracked intact (clean did not silentl
 # tracked file and THEN exits non-zero, so `git ls-files --deleted` reports it and
 # the restore guard recovers it (RESTORED>0) on the failure path.
 R5="$TEST_TMPDIR/repo-clean-fail-restore"
-git init "$R5" >/dev/null 2>&1
-git -C "$R5" config user.email "t@example.com"
-git -C "$R5" config user.name "Test"
-echo tracked >"$R5/tracked.txt"
-git -C "$R5" add -A
-git -C "$R5" commit -m "init" >/dev/null
-git -C "$R5" branch -M main
-git -C "$R5" checkout -b feat/clean-fail-restore >/dev/null 2>&1
-git -C "$R5" branch -u main >/dev/null 2>&1
+mk_feat_repo "$R5" feat/clean-fail-restore
 
 RESTORE_SHIM="$TEST_TMPDIR/git-clean-restore-shim"
 mkdir -p "$RESTORE_SHIM"
@@ -280,15 +271,7 @@ assert_file_exists "restore guard recovered the tracked file on the failure path
 
 # --- 13. mixed locked-file warning + unrelated clean error exits 7 (#602) ---
 R6="$TEST_TMPDIR/repo-mixed-clean-fail"
-git init "$R6" >/dev/null 2>&1
-git -C "$R6" config user.email "t@example.com"
-git -C "$R6" config user.name "Test"
-echo tracked >"$R6/tracked.txt"
-git -C "$R6" add -A
-git -C "$R6" commit -m "init" >/dev/null
-git -C "$R6" branch -M main
-git -C "$R6" checkout -b feat/mixed-clean-fail >/dev/null 2>&1
-git -C "$R6" branch -u main >/dev/null 2>&1
+mk_feat_repo "$R6" feat/mixed-clean-fail
 echo untracked >"$R6/scratch.txt"
 
 MIXED_SHIM="$TEST_TMPDIR/git-mixed-clean-shim"
@@ -315,15 +298,7 @@ assert_file_exists "mixed clean failure leaves untracked intact" "$R6/scratch.tx
 
 # --- 14. silent nonzero clean exit with empty stderr exits 7 (#602) ---
 R7="$TEST_TMPDIR/repo-silent-clean-fail"
-git init "$R7" >/dev/null 2>&1
-git -C "$R7" config user.email "t@example.com"
-git -C "$R7" config user.name "Test"
-echo tracked >"$R7/tracked.txt"
-git -C "$R7" add -A
-git -C "$R7" commit -m "init" >/dev/null
-git -C "$R7" branch -M main
-git -C "$R7" checkout -b feat/silent-clean-fail >/dev/null 2>&1
-git -C "$R7" branch -u main >/dev/null 2>&1
+mk_feat_repo "$R7" feat/silent-clean-fail
 echo untracked >"$R7/scratch.txt"
 
 SILENT_SHIM="$TEST_TMPDIR/git-silent-clean-shim"

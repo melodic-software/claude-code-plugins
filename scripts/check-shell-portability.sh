@@ -1561,7 +1561,7 @@ scan_file() {
     # shipped list, or in a caller override, silently disable a whole class
     # while the run still reported clean — the one outcome the contract of this
     # gate forbids everywhere else.
-    # Pass 1: load the token list. It arrives PRE-FILTERED — trimmed, no blanks,
+    # The list arrives PRE-FILTERED — trimmed, no blanks,
     # no comment lines — because scripts/lib/read-list.sh resolved it in the
     # shell (#3161). Only the `!class` dispatch, which is scanner-specific rather
     # than list-format, stays here.

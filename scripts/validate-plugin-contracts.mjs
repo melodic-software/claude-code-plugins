@@ -246,17 +246,17 @@ for (const path of setupContractFiles) {
   if (/pluginConfigs\s*\[\s*["'][^"']+@/i.test(content)) {
     fail(path, "must not write marketplace-qualified pluginConfigs keys");
   }
-  if (orgTokens.setup && orgTokens.setup.test(content)) {
+  if (orgTokens.setup?.test(content)) {
     fail(path, "must not bind setup behavior to a marketplace name");
   }
 }
 
 for (const path of pluginFiles.filter((path) => /[\\/]skills[\\/].*\.md$/.test(path))) {
   const content = read(path);
-  if (orgTokens.fleetId && orgTokens.fleetId.test(content)) {
+  if (orgTokens.fleetId?.test(content)) {
     fail(path, "reusable skill content must not require publisher-specific runtime identifiers");
   }
-  if (orgTokens.fleetKey && orgTokens.fleetKey.test(content)) {
+  if (orgTokens.fleetKey?.test(content)) {
     fail(path, "reusable skill content must not introduce publisher-prefixed configuration");
   }
 }
@@ -429,7 +429,7 @@ if (existsSync(autonomyRoot)) {
       delete manifest.author;
       content = JSON.stringify(manifest);
     }
-    if (fleetTokens && fleetTokens.test(content)) {
+    if (fleetTokens?.test(content)) {
       fail(path, "autonomy plugin must not name the org or fleet repos (binding-seam owns instances)");
     }
     if (path.startsWith(autonomyReference) && vendorTokens.test(content)) {

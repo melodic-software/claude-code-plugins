@@ -86,7 +86,7 @@ cr_comment_text() {
 
 # TODO(#issue) and its kin are the sanctioned back-reference — never flag their ticket ref.
 cr_is_sanctioned_todo() {
-  [[ "$1" =~ (TODO|FIXME|HACK|XXX)([[:space:]]*\(#?[A-Za-z0-9_-]+\))? ]]
+  [[ "$1" =~ (TODO|FIXME|HACK|XXX) ]]
 }
 
 # Emit zero or more shape names (one per line on stdout). Return 1 if any emitted (cosmetic;

@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.16]
+## [0.55.17]
 
 ### Changed
 
@@ -44,7 +44,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   shape stays in the spoke; only the gate moved back. Docs-hygiene sweep,
   L2-progressive-disclosure.
 
-## [0.55.15]
+## [0.55.16]
 
 ### Changed
 
@@ -52,7 +52,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the section that already documents configuration. The generated table itself is unchanged; only
   its placement moved. Docs-hygiene sweep, L8-write-for-humans.
 
-## [0.55.14]
+## [0.55.15]
 
 ### Changed
 
@@ -76,6 +76,40 @@ All notable changes to the `source-control` plugin are documented here. Format f
   Each pointer states when to read the spoke rather than only that it exists, so the split does
   not trade an oversize body for a blind pointer. No content was dropped; the spokes gained only
   a title and enough opening context to read on their own when opened directly.
+
+## [0.55.14]
+
+### Changed
+
+- **Repo-wide behavior-preserving simplification sweep (batch-simplify).**
+  Every change was adversarially verified by a fresh-context refutation
+  pass; one proposed change was refuted and reverted.
+
+  **Gate hooks:** pr-body-linkage-gate.sh's "three residuals" comment now
+  counts its four residuals; worktree-add-claim-gate.sh drops three dead
+  pre-initializations.
+
+  **Babysit engine:** request_review.py's existing_trigger uses the shared
+  babysit_gh.fetch_paginated_api instead of hand-building the same gh argv,
+  and its local flatten_pages wrapper is gone (argv proven byte-identical).
+  Docstring punctuation normalizes to the dominant "--" idiom in four
+  modules; this also normalizes babysit_resolve_thread.py's --help
+  description prose (nothing pins that text). Test suites hoist the
+  _raw_run harness to module level, replace a 35-line inline duplicate of
+  it, and drop nine suppressions proven dead against the pinned linter.
+
+  **Scripts:** two test harnesses reuse the SCRIPT_DIR they already
+  computed; reap-project-plugin-records.sh feeds its loops with
+  herestrings instead of single-expansion heredocs;
+  worktree-claim.sh's find_worktree_index drops a re-canonicalization of
+  an argument every caller already canonicalizes (proven idempotent).
+
+  **pull-request:** fetch-annotations.sh collapses the FILTERED
+  accumulation to a single pass and drops a stale else comment; its
+  test's stale Covers list is corrected. A proposed removal of
+  nesting-invariant-ssot.test.sh's explicit FAILED=0/CASE_NUM=0 inits was
+  refuted (the shared helpers deliberately preserve environment-inherited
+  values) and reverted.
 
 ## [0.55.13]
 

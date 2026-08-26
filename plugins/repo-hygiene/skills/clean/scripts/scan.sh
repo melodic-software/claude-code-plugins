@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2154
 # Read-only repo hygiene inventory for the clean scan tier.
 #
 # Output contract (stable labels):
@@ -15,7 +14,7 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/clean-common.sh source=lib/cleanup-paths.sh
+# shellcheck source=lib/clean-common.sh
 source "$SCRIPT_DIR/lib/clean-common.sh"
 
 usage() {

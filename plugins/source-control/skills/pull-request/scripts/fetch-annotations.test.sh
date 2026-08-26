@@ -10,6 +10,8 @@
 #   4. Missing PR number — exits 1
 #   5. gh pr view failure — exits 2
 #   6. JSONL output schema — every line is valid JSON with required fields
+#   7. check-runs API failure — exits 2
+#   8. per-check-run annotations API failure — exits 2
 
 set -uo pipefail
 

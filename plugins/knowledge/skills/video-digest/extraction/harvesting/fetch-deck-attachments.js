@@ -95,12 +95,12 @@ export async function fetchDeckAttachments(
 
   for (const link of links) {
     const kind = link.type ?? link.kind ?? "other";
+    const url = link.url ?? link.href;
     if (!FETCHABLE_KINDS.has(kind)) {
-      skipped.push(`${link.url ?? link.href}: type ${kind}`);
+      skipped.push(`${url}: type ${kind}`);
       continue;
     }
 
-    const url = link.url ?? link.href;
     if (!url) {
       skipped.push("missing url");
       continue;

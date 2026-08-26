@@ -16,14 +16,16 @@ MIN_PYTHON = (3, 9)
 
 CLAIM_LABEL = re.compile(r"^\*\*C(\d+)\.\*\*(.*)$")
 ATX_H2 = re.compile(r"^##[ \t]+(.+?)\s*$")
-NONE_MARKERS = frozenset({
-    "none",
-    "n/a",
-    "(none)",
-    "no prompt snippets",
-    "no snippets",
-    "none.",
-})
+NONE_MARKERS = frozenset(
+    {
+        "none",
+        "n/a",
+        "(none)",
+        "no prompt snippets",
+        "no snippets",
+        "none.",
+    }
+)
 
 
 class Failures:
@@ -103,7 +105,7 @@ def iter_h2_sections(text: str) -> Iterator[Tuple[str, str, int]]:
             starts.append((idx, match.group(1)))
     for i, (idx, title) in enumerate(starts):
         end = starts[i + 1][0] if i + 1 < len(starts) else len(lines)
-        body = "\n".join(lines[idx + 1:end])
+        body = "\n".join(lines[idx + 1 : end])
         yield title, body, idx + 1
 
 
@@ -182,7 +184,7 @@ def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
         match = CLAIM_LABEL.match(lines[idx])
         assert match is not None
         end = label_idxs[n + 1] if n + 1 < len(label_idxs) else len(lines)
-        block = "\n".join(lines[idx + 1:end])
+        block = "\n".join(lines[idx + 1 : end])
         block_start = start_line + idx + 1
         try:
             fences = extract_fences(block, start_line=block_start)
@@ -199,15 +201,25 @@ def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
         has_inline = bool(re.search(r"(?<!`)`[^`\n]+`(?!`)", prose))
         if unclosed:
             fence = None
-        claims.append(Claim(
-            number=int(match.group(1)),
-            label_line=start_line + idx,
-            rest=match.group(2),
-            fence=fence,
-            unfenced_blockquote=has_bq,
-            unfenced_inline_code=has_inline,
-        ))
+        claims.append(
+            Claim(
+                number=int(match.group(1)),
+                label_line=start_line + idx,
+                rest=match.group(2),
+                fence=fence,
+                unfenced_blockquote=has_bq,
+                unfenced_inline_code=has_inline,
+            )
+        )
     return claims
+
+
+def preview_payload(payload: str) -> str:
+    """First 80 chars of a payload with newlines escaped, for failure text."""
+    shown = payload.replace("\n", "\\n")
+    if len(shown) > 80:
+        shown = shown[:80] + "…"
+    return shown
 
 
 def is_none_section(body: str) -> bool:
@@ -231,7 +243,7 @@ def payload_in_source(payload: str, source: str) -> bool:
         idx = source.find(payload, start)
         if idx < 0:
             return False
-        rest_of_line = source[idx + len(payload):].split("\n", 1)[0]
+        rest_of_line = source[idx + len(payload) :].split("\n", 1)[0]
         lost_trailing = (
             bool(rest_of_line)
             and rest_of_line.strip(" \t") == ""

@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.40.5]
+## [0.40.6]
 
 ### Changed
 
@@ -15,7 +15,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   and two subsections away, past other tables above and below it. It now names `1.2 Structure
   inventory`. Docs-hygiene sweep, L7-write-for-agents.
 
-## [0.40.4]
+## [0.40.5]
 
 ### Changed
 
@@ -25,6 +25,21 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   Phase B and B2 key off, and the exclusions. `audit-pass` moved its argument reference to
   `reference/arguments.md`. Both pointers say when to read the spoke, not just that it exists.
   No content was dropped in either move.
+
+## [0.40.4]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** In
+  `skills/audit/scripts/check-hook-coverage.sh`, replaced seven 3-line heredocs feeding a
+  variable with the equivalent herestrings (byte-identical output proven by differential runs
+  on crafted and live inputs); removed duplicate `also`/`into`/`than` entries from
+  `skills/audit-instructions/scripts/restatement-scan.py`'s STOPWORDS literal (set unchanged,
+  whole-file AST otherwise identical modulo formatter rewraps); fixed a mid-clause comment
+  wrap in `instruction-scan.sh`; retargeted a dead cleanup `chmod` in
+  `skills/audit-permission-grants/scripts/permission-rule-check.test.sh` to the fixture path
+  that actually exists. Canonical sync sources in `lib/` untouched. Suites green
+  (39/92/18/119/139 checks) plus independent refutation passes.
 
 ## [0.40.3]
 

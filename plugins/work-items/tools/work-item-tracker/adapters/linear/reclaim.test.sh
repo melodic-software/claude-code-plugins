@@ -124,7 +124,6 @@ assert_eq "the other assignee is left in place" "0" "$UNASSIGNED"
 # The activity read round-trips, so a concurrent claimer can renew or supersede in
 # between. Revalidation before the mutation narrows that window: here the lease comes
 # back LIVE on the third read, and reclaim declines.
-seed_reclaim "$(lease_node "$HANDLE" kyle "$LONG_AGO" 24)" '[]'
 lin_reset
 lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
 lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'

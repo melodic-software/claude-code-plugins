@@ -7,7 +7,7 @@ Synthesizes a CheckResult for a catalog entry that failed Assert-CatalogEntry.
 .DESCRIPTION
 When the orchestrator continues past one bad catalog entry (so a typo does not
 take down the whole run), the skip must still be visible in the report,
-latest.json, and severity_counts — not only in the run log. This helper builds
+latest.json, and severity_counts -- not only in the run log. This helper builds
 a schema-valid UNKNOWN result for that path:
 
 - id: the entry's id when present and kebab-valid; otherwise a reserved

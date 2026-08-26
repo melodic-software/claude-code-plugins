@@ -972,7 +972,6 @@ resolve_configured_worktree_root() {
   return 1
 }
 
-
 # directory_has_non_git_entries <dir>: true when <dir> still looks like a former non-bare
 # checkout left with core.bare=true. Real `git init --bare` hubs store HEAD/config/objects/refs
 # at the repository root and never have an in-tree `.git`; the anomaly this finding targets keeps
@@ -1069,7 +1068,6 @@ discovery_skip_reason() {
     printf '%s\n' "$fallback"
   fi
 }
-
 
 TARGETS=()
 TARGET_COMMON_KEYS=()
@@ -1246,7 +1244,6 @@ add_target() {
   TARGET_COMMON_KEYS+=("$common_key")
 }
 
-
 repo_index=0
 for repo in "${REPO_ARGS[@]:-}"; do
   if [[ -n "$repo" ]]; then
@@ -1305,7 +1302,6 @@ discover_repositories() {
     discover_repositories "$child" $((depth + 1))
   done
 }
-
 
 ROOT_LABELS=()
 ROOT_COUNTS=()
@@ -1563,12 +1559,6 @@ mark_repo_counted() {
   R_COUNTED[CURRENT_REPO_IDX]="true"
 }
 
-update_repo_canonical() {
-  local canonical="$1"
-  [[ "$CURRENT_REPO_IDX" -ge 0 ]] || return 0
-  R_CANONICAL[CURRENT_REPO_IDX]="$canonical"
-}
-
 emit_finding() {
   local confidence="$1" kind="$2" target="$3" evidence="$4" disposition="$5" handoff="$6"
   REPO_FINDING_COUNT=$((REPO_FINDING_COUNT + 1))
@@ -1586,17 +1576,6 @@ emit_finding() {
   F_DISP+=("$disposition")
   F_HANDOFF+=("$handoff")
   F_REPO_IDX+=("$CURRENT_REPO_IDX")
-}
-
-print_finding_block() {
-  local confidence="$1" kind="$2" target="$3" evidence="$4" disposition="$5" handoff="$6"
-  print_field Finding "$kind"
-  print_field Confidence "$confidence"
-  print_field Target "$target"
-  print_field Evidence "$evidence"
-  print_field Disposition "$disposition"
-  print_field Handoff "$handoff"
-  printf '%s\n' '---'
 }
 
 # Actionable fleet-batch handoff kinds. Manual-review and informational findings stay in the
@@ -1747,7 +1726,6 @@ print_collapsed_target_detail() {
   done
 }
 
-
 analyze_repo() {
   local discovered="$1" discovered_remote="" discovered_url="" discovered_key="" discovered_slug=""
   local canonical="$discovered" canonical_remote="" canonical_url="" canonical_key="" canonical_slug=""
@@ -1805,7 +1783,6 @@ analyze_repo() {
   }
 
   begin_repo_record "$discovered" "$canonical" "${discovered_key:-unknown}" "$override_source"
-
 
   if [[ -z "$discovered_key" ]]; then
     emit_finding UNKNOWN github-identity-unavailable "$discovered" \
@@ -2246,7 +2223,10 @@ analyze_repo() {
         [[ "$remote_branch_short" =~ [[:cntrl:]] ]] && continue
         already=false
         for existing in "${GQL_BRANCHES[@]:-}"; do
-          [[ "$existing" == "$remote_branch_short" ]] && { already=true; break; }
+          [[ "$existing" == "$remote_branch_short" ]] && {
+            already=true
+            break
+          }
         done
         [[ "$already" == "true" ]] || GQL_BRANCHES+=("$remote_branch_short")
       done

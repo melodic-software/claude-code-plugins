@@ -33,22 +33,13 @@ class HookTelemetryTests(unittest.TestCase):
 
     def test_relative_sink_resolved_against_project_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            sink_path = Path(tmp) / "sink.sh"
-            sink_path.write_text("#!/bin/sh\ncat >\"$1\"\n", encoding="utf-8")
-            sink_path.chmod(0o755)
             out_file = Path(tmp) / "events.jsonl"
-            wrapper = Path(tmp) / "wrapper.sh"
-            wrapper.write_text(
-                f"#!/bin/sh\ncat >\"{out_file}\"\n",
-                encoding="utf-8",
-            )
-            wrapper.chmod(0o755)
             project = Path(tmp) / "repo"
             project.mkdir()
             rel_sink = ".claude/hooks/sink.sh"
             (project / ".claude" / "hooks").mkdir(parents=True)
             target = project / rel_sink
-            target.write_text(f"#!/bin/sh\ncat >\"{out_file}\"\n", encoding="utf-8")
+            target.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
             target.chmod(0o755)
             with mock.patch.dict(
                 os.environ,
@@ -81,14 +72,16 @@ class HookTelemetryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out_file = Path(tmp) / "event.json"
             sink = Path(tmp) / "sink.sh"
-            sink.write_text(f"#!/bin/sh\ncat >\"{out_file}\"\n", encoding="utf-8")
+            sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
             sink.chmod(0o755)
             with mock.patch.dict(
                 os.environ,
                 {"HOOK_TELEMETRY_SINK": str(sink)},
                 clear=True,
             ):
-                telemetry.emit("guard-launch-monitor", "Stop", "ok", time.perf_counter())
+                telemetry.emit(
+                    "guard-launch-monitor", "Stop", "ok", time.perf_counter()
+                )
             deadline = time.perf_counter() + 2.0
             while time.perf_counter() < deadline and not out_file.exists():
                 time.sleep(0.05)

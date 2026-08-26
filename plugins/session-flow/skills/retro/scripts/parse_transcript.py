@@ -409,6 +409,12 @@ def _emit_and_exit(
     sys.exit(code)
 
 
+def _emit_multi_and_exit(session_ids: list[str], base_path: Path) -> NoReturn:
+    output = build_multi_session_output(session_ids, base_path)
+    print(json.dumps(output, indent=2))
+    sys.exit(0 if output["status"] in {"pass", "warning"} else 2)
+
+
 def build_session_data(
     session_id: str, metrics: dict[str, Any], subagents: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -821,15 +827,11 @@ def main() -> None:
         if ns.current_session and ns.current_session not in chain_sids:
             all_sids.append(ns.current_session)
         all_sids.extend(chain_sids)
-        output = build_multi_session_output(all_sids, ns.base)
-        print(json.dumps(output, indent=2))
-        sys.exit(0 if output["status"] in {"pass", "warning"} else 2)
+        _emit_multi_and_exit(all_sids, ns.base)
 
     # Multi-session: --sessions
     if ns.sessions:
-        output = build_multi_session_output(list(ns.sessions), ns.base)
-        print(json.dumps(output, indent=2))
-        sys.exit(0 if output["status"] in {"pass", "warning"} else 2)
+        _emit_multi_and_exit(list(ns.sessions), ns.base)
 
     # Single-session: legacy positional path
     session_id = ns.session_id

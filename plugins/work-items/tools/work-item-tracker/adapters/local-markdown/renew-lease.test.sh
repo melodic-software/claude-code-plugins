@@ -32,19 +32,15 @@ expired_number="${EXPIRED_ID##*#}"
 expired_file="$STORAGE/${expired_number}.md"
 before_marker="$(grep -F 'work-item-lease' "$expired_file")"
 
-set +e
 bash "$TRACKER" renew-lease "$EXPIRED_ID" --lease-comment-id "$EXPIRED_CID" >/dev/null 2>&1
 expired_rc=$?
-set +e
 assert_eq "renew-lease returns conflict (7) for a ttl-0 expired lease" "7" "$expired_rc"
 
 after_marker="$(grep -F 'work-item-lease' "$expired_file")"
 assert_eq "renew-lease does NOT revive the ttl-0 lease (marker unchanged)" "$before_marker" "$after_marker"
 
-set +e
 LIVE_OUT="$(bash "$TRACKER" renew-lease "$LIVE_ID" --lease-comment-id "$LIVE_CID")"
 live_rc=$?
-set +e
 assert_eq "renew-lease succeeds (0) for a live lease" "0" "$live_rc"
 assert_eq "renew-lease emits the live item id" "$LIVE_ID" "$(jq -r '.id' <<<"$LIVE_OUT")"
 

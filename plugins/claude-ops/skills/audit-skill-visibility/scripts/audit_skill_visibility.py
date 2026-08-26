@@ -242,8 +242,6 @@ def collect_fleet(plugins_root: str) -> list[dict]:
     skills it finds; it does not re-implement enablement, which stays `None` ->
     `unknown` until a source can answer it.
     """
-    import os
-
     entries: list[dict] = []
     if not os.path.isdir(plugins_root):
         return entries
@@ -260,8 +258,6 @@ def collect_fleet_at(plugin_root: str, plugin: str) -> list[dict]:
     paths rather than sitting side by side under a single parent, so there is
     no one directory to walk for a real installation.
     """
-    import os
-
     entries: list[dict] = []
     skills_dir = os.path.join(plugin_root, "skills")
     if not os.path.isdir(skills_dir):
@@ -1265,8 +1261,6 @@ def main(argv: list[str] | None = None) -> int:
         # Live collection. Each source is optional: a missing one narrows the
         # tier rather than failing the run, which is the same honesty the
         # verdicts themselves apply.
-        import os
-
         clock = _parse_ts(args.now) if args.now else datetime.now(tz=UTC)
         if args.installed is not None:
             plugins_dir = args.installed or os.path.expanduser("~/.claude/plugins")
@@ -1334,8 +1328,6 @@ def main(argv: list[str] | None = None) -> int:
         }
 
     if args.write:
-        import os
-
         stamp = clock.strftime("%Y%m%dT%H%M%SZ")
         try:
             path = report_path(args.write, args.state_key or "", stamp)

@@ -107,6 +107,4 @@ else
   bad "only $fired_count of ${#seen_keys[@]} guardrails hook keys fired independently — cross-hook notice_once key collision (or another regression). Fire log: $(cat "$TEST_TMPDIR/fire-log" 2>/dev/null)"
 fi
 
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-((FAIL == 0))
+report

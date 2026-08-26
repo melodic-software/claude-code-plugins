@@ -3,7 +3,7 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.3]
+## [0.20.4]
 
 ### Changed
 
@@ -11,7 +11,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   generated table itself is unchanged; a `## Configuration` heading was added above it. Docs-hygiene
   sweep, L8-write-for-humans.
 
-## [0.20.2]
+## [0.20.3]
 
 ### Changed
 
@@ -19,6 +19,20 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   phrase `in order to` from its shared options template, per the repo's own
   write-for-humans style rule that the phrase is just `to`. The generated options
   block in `README.md` regenerated with the shorter wording; no other change.
+
+## [0.20.2]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** `check-skill.sh`'s
+  `usage()` replaces its desynced hardcoded `sed -n '2,38p'` range (which clipped `--help`
+  mid-sentence at 37 lines) with the derived-range awk idiom its sibling checkers use;
+  `--help` now prints the complete 109-line header. Verdict-path output proven
+  byte-identical old-vs-new across 18 real skill directories and both error paths; nothing
+  in the repo pins the old clipped help bytes. `skill-frontmatter.sh`'s header now names its
+  real consumers (the previously cited `skill-contract-check.sh` does not exist). All three
+  suites plus the summary-reader parity test green; live listing-budget and evals-quality
+  runs byte-identical pre/post.
 
 ## [0.20.1]
 

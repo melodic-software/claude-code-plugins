@@ -41,7 +41,6 @@ from __future__ import annotations
 
 import contextlib
 import functools
-import shutil
 import json
 import math
 import os
@@ -987,11 +986,12 @@ def is_exact_kill_switch_probe(command: str) -> bool:
 
 
 # Narrow belt-mode Bash allowlist for cleanup inspection (#2591). Bare names are
-# accepted only when ``shutil.which`` lands under a trusted system directory;
-# absolute paths under those same directories are accepted when the basename is
-# allowlisted. Relative path-qualified forms (``./ls``) fail closed. Every shape
-# still has to clear ``_literal_shell_words`` (no metacharacters, operators, or
-# redirections). Deletion authority remains the engine's own containment.
+# denied outright (exported shell functions shadow them; #2618); a head is
+# accepted only as an absolute path resolving under a trusted system directory
+# with an allowlisted basename. Relative path-qualified forms (``./ls``) fail
+# closed. Every shape still has to clear ``_literal_shell_words`` (no
+# metacharacters, operators, or redirections). Deletion authority remains the
+# engine's own containment.
 _READONLY_SUPPORTING_BASH_HEADS = frozenset(
     {
         "ls",

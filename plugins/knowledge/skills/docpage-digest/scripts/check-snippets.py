@@ -35,6 +35,7 @@ from digest_fences import (  # noqa: E402
     find_section,
     is_none_section,
     payload_in_source,
+    preview_payload,
     read_text,
 )
 
@@ -48,7 +49,8 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
     if found is None:
         failures.add(
             f"{path}: no '## Prompt snippets' heading. This is the section "
-            f"no prior gate parsed; absence is a failure, not a skip.")
+            f"no prior gate parsed; absence is a failure, not a skip."
+        )
         return 0
     _title, body, heading_line = found
     if is_none_section(body):
@@ -57,7 +59,8 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
         failures.add(
             f"{path}: Prompt snippets body is blank. A recognised "
             f"none-marker is the only legal empty form; silence is not "
-            f"an assertion.")
+            f"an assertion."
+        )
         return 0
     try:
         fences = extract_fences(body, start_line=heading_line + 1)
@@ -69,7 +72,8 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
             f"{path}: Prompt snippets has non-empty content but parsed "
             f"ZERO fences. Unparsed section content is the attack surface "
             f"(fabricated-from-recall snippets shipped here). Use a "
-            f"column-0 fence or a recognised none-marker.")
+            f"column-0 fence or a recognised none-marker."
+        )
         return 0
 
     exercised = 0
@@ -78,21 +82,22 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
         if fence.indented:
             failures.add(
                 f"{label}: opener is indented. Indented-fence corruption "
-                f"is a defect; this gate does not strip indent to pass.")
+                f"is a defect; this gate does not strip indent to pass."
+            )
             continue
         if fence.payload == "":
             failures.add(
                 f"{label}: payload is empty. An unfinished placeholder "
-                f"is not a snippet.")
+                f"is not a snippet."
+            )
             continue
         if not payload_in_source(fence.payload, source):
-            shown = fence.payload.replace("\n", "\\n")
-            if len(shown) > 80:
-                shown = shown[:80] + "…"
+            shown = preview_payload(fence.payload)
             failures.add(
                 f"{label}: payload is not an exact contiguous substring "
                 f"of the source (no strip applied). Payload starts "
-                f"{shown!r}.")
+                f"{shown!r}."
+            )
             continue
         exercised += 1
     return exercised
@@ -100,13 +105,18 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        prog=PROG,
-        description="Gate Prompt-snippets fence payloads against the source.")
-    parser.add_argument("--source", required=True,
-                        help="Immutable source.md / source.txt")
-    parser.add_argument("--digest", action="append", default=[],
-                        dest="digests",
-                        help="Digest file (repeatable)")
+        prog=PROG, description="Gate Prompt-snippets fence payloads against the source."
+    )
+    parser.add_argument(
+        "--source", required=True, help="Immutable source.md / source.txt"
+    )
+    parser.add_argument(
+        "--digest",
+        action="append",
+        default=[],
+        dest="digests",
+        help="Digest file (repeatable)",
+    )
     args = parser.parse_args(argv)
     if not args.digests:
         fail(PROG, 2, "no --digest given; nothing to parse is not a PASS.")
@@ -118,9 +128,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         exercised += check_digest(path, source, failures)
 
     if failures.items:
-        print(f"{PROG}: FAILED -- {len(failures.items)} failure(s) across "
-              f"{len(args.digests)} digest(s); {exercised} snippet fence(s) "
-              f"matched the source exactly.")
+        print(
+            f"{PROG}: FAILED -- {len(failures.items)} failure(s) across "
+            f"{len(args.digests)} digest(s); {exercised} snippet fence(s) "
+            f"matched the source exactly."
+        )
         return 1
 
     print(
@@ -129,15 +141,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         f"payload(s) compared as exact contiguous source substrings with "
         f"NO per-line strip. Checked: Prompt snippets heading present, "
         f"each fence column-0 and in-source (or a recognised none-marker). "
-        f"Nothing outside Prompt snippets / fence payloads was checked.")
+        f"Nothing outside Prompt snippets / fence payloads was checked."
+    )
     return 0
 
 
 if __name__ == "__main__":
     if sys.version_info < MIN_PYTHON:
         sys.stderr.write(
-            f"{PROG}: ERROR: Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ "
-            f"required.\n")
+            f"{PROG}: ERROR: Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required.\n"
+        )
         sys.exit(2)
     try:
         sys.exit(main())
@@ -146,5 +159,6 @@ if __name__ == "__main__":
     except Exception as exc:
         sys.stderr.write(
             f"{PROG}: ERROR: internal failure {type(exc).__name__}: {exc}. "
-            f"This is a gate bug; the run is NOT clean.\n")
+            f"This is a gate bug; the run is NOT clean.\n"
+        )
         sys.exit(3)

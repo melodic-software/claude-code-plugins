@@ -49,15 +49,12 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# guardrails-test-helpers.sh has no equality or skip primitive (it is built
-# around assert_exit / assert_contains / assert_absent). Two local wrappers over
-# ok/bad rather than a change to the shared, cross-plugin-duplicated helper file
-# for one suite's convenience.
+# guardrails-test-helpers.sh has no equality primitive (it is built around
+# assert_exit / assert_contains / assert_absent). A local wrapper over ok/bad
+# rather than a change to the shared, cross-plugin-duplicated helper file for
+# one suite's convenience.
 assert_eq() {
   if [[ "$3" == "$2" ]]; then ok "$1"; else bad "$1: expected '$2', got '$3'"; fi
-}
-skip_case() {
-  echo "SKIP: $*"
 }
 
 # ============================================================================

@@ -43,7 +43,6 @@ const PLATFORM_ASR_LADDER = /** @type {readonly CaptionRung[]} */ (
 
 const TLANG_TRANSLATE_PATTERN = /\.(tlang|translate)/;
 const EN_ORIG_PATTERN = /\.en-orig\.vtt$/;
-const EN_ORIG_LOCALIZED_PATTERN = /\.en\.[a-z]{2,3}\.en-orig\.vtt$/;
 const EN_AUTO_PATTERN = /\.en\.auto\.vtt$/;
 const MANUAL_EN_PATTERN = /\.en(?:-[a-z]{2,3})?\.vtt$/;
 const AUTO_TRANSLATE_EN_PATTERN = /\.en(?:-[a-z]{2,3})?\.[a-z]{2,3}\.vtt$/;
@@ -76,11 +75,7 @@ function classifyManualAndAuto(name) {
     return "auto-translate-en";
   }
 
-  if (EN_ORIG_PATTERN.test(name) || EN_ORIG_LOCALIZED_PATTERN.test(name)) {
-    return "auto-en";
-  }
-
-  if (EN_AUTO_PATTERN.test(name)) {
+  if (EN_ORIG_PATTERN.test(name) || EN_AUTO_PATTERN.test(name)) {
     return "auto-en";
   }
 

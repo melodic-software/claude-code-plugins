@@ -5,7 +5,7 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.12]
+## [0.6.13]
 
 ### Changed
 
@@ -13,7 +13,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   generated table itself is unchanged; a `## Configuration` heading was added above it. Docs-hygiene
   sweep, L8-write-for-humans.
 
-## [0.6.11]
+## [0.6.12]
 
 ### Changed
 
@@ -21,6 +21,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   phrase `in order to` from its shared options template, per the repo's own
   write-for-humans style rule that the phrase is just `to`. The generated options
   block in `README.md` regenerated with the shorter wording; no other change.
+
+## [0.6.11]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Corrected the
+  `hooks/settings-write-ask.mjs` header comment's tool list to the code's actual
+  Write/Edit/MultiEdit/NotebookEdit match set; in `skills/audit/scripts/measure.mjs`,
+  deduplicated the twice-computed script-directory constant into one `SCRIPT_DIR` and moved a
+  misplaced section divider to where the main section actually starts. Byte-identical output
+  verified old-vs-new on the modes consuming the changed constants; suites green (12 + 61 + 3).
 
 ## [0.6.10]
 

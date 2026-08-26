@@ -124,8 +124,8 @@ def _cache_is_trusted(cache_root: Path) -> bool:
         stat_result = os.stat(cache_root)
     except OSError:
         return False
-    owner_id = getattr(os, "getuid", None)
-    if owner_id is not None and stat_result.st_uid != owner_id():
+    getuid = getattr(os, "getuid", None)
+    if getuid is not None and stat_result.st_uid != getuid():
         return False
     return True
 
@@ -189,11 +189,10 @@ def parse_reset(text: str, *, now: datetime | None = None) -> datetime:
         zone = local if local is not None else resolve_zone("UTC")
     current = now.astimezone(zone) if now is not None else datetime.now(zone)
     reset_at = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if reset_at > current:
-        # After midnight, an evening reset already passed yesterday; an early-morning
-        # reset is still ahead on today's calendar.
-        if ampm == "pm" and current.hour < 12:
-            reset_at -= timedelta(days=1)
+    # After midnight, an evening reset already passed yesterday; an early-morning
+    # reset is still ahead on today's calendar.
+    if reset_at > current and ampm == "pm" and current.hour < 12:
+        reset_at -= timedelta(days=1)
     return reset_at
 
 
@@ -221,7 +220,11 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 — CLI boundary
         print(f"unparsed: {exc}", file=sys.stderr)
         return 2
-    current = now.astimezone(reset_at.tzinfo) if now is not None else datetime.now(reset_at.tzinfo)
+    current = (
+        now.astimezone(reset_at.tzinfo)
+        if now is not None
+        else datetime.now(reset_at.tzinfo)
+    )
     if current >= reset_at:
         print(f"lifted: reset was {reset_at.isoformat()}; now is {current.isoformat()}")
         return 0

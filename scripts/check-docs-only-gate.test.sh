@@ -431,10 +431,11 @@ else
 fi
 
 # An unwritable $GITHUB_OUTPUT is the case the workflow comment names. The
-# script's own header claims a non-zero exit here; it does not in fact exit
-# non-zero, because emit() does not check its redirect. That is why the
-# workflow's guarantee is built on the output being UNSET rather than on the
-# script's exit status: the assertion below is the one the contract rests on.
+# script's own header records it as deliberate: emit() does not check its
+# redirect, so the script still exits 0 and the flag simply never reaches the
+# consumer. That is why the workflow's guarantee is built on the output being
+# UNSET rather than on the script's exit status: the assertion below is the one
+# the contract rests on.
 unwritable="$scratch/no-such-dir/output"
 GITHUB_OUTPUT="$unwritable" bash "$DETECTOR" "origin/main" >/dev/null 2>&1
 if [[ -e "$unwritable" ]]; then

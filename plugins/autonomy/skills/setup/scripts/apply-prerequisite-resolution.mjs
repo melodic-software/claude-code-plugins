@@ -255,22 +255,22 @@ function main() {
     const proposals = proseProposals(args.repo);
     const orgStops = orgRungStops(check);
     const enablement = narrowingAdvice(check);
+    const nonInteractive = args.nonInteractive || !process.stdin.isTTY;
 
     const report = {
       schema_version: 1,
       action: "apply-propose",
-      non_interactive: args.nonInteractive || !process.stdin.isTTY,
+      non_interactive: nonInteractive,
       reconcile_findings: findings,
       prose_proposals: proposals,
       org_rung_stops: orgStops,
       enablement_advice: enablement,
       security_binding_writes: false,
-      assumptions:
-        args.nonInteractive || !process.stdin.isTTY
-          ? [
-              "non-interactive context: skipped ask-and-persist rungs; proposals reported as assumptions",
-            ]
-          : [],
+      assumptions: nonInteractive
+        ? [
+            "non-interactive context: skipped ask-and-persist rungs; proposals reported as assumptions",
+          ]
+        : [],
       note: "Human must ratify via --ratify --proposal; slice never auto-writes org-rung or security axes",
       check,
     };

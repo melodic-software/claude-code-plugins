@@ -14,6 +14,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import tempfile
 import time
 import unittest
@@ -140,7 +141,9 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         if root is not None:
             argv = ["--data-root", str(root)]
         stdout = io.StringIO()
-        with mock.patch.object(monitor.sys, "stdin", io.StringIO(json.dumps(hook_input))):
+        with mock.patch.object(
+            monitor.sys, "stdin", io.StringIO(json.dumps(hook_input))
+        ):
             with redirect_stdout(stdout):
                 exit_code = monitor.main(argv)
         self.assertEqual(0, exit_code)
@@ -297,7 +300,9 @@ class GuardLaunchMonitorTests(unittest.TestCase):
             def flush(self) -> None:
                 raise BrokenPipeError("hook runner closed the pipe")
 
-        with mock.patch.object(monitor.sys, "stdin", io.StringIO(json.dumps(hook_input))):
+        with mock.patch.object(
+            monitor.sys, "stdin", io.StringIO(json.dumps(hook_input))
+        ):
             with redirect_stdout(_BrokenStdout()):
                 self.assertEqual(0, monitor.main(argv))
 
@@ -318,9 +323,7 @@ class GuardLaunchMonitorTests(unittest.TestCase):
             monitor.sys, "stdin", io.StringIO(json.dumps(hook_input))
         ):
             with redirect_stdout(stdout):
-                exit_code = monitor.main(
-                    ["--data-root", "${CLAUDE_PLUGIN_DATA}"]
-                )
+                exit_code = monitor.main(["--data-root", "${CLAUDE_PLUGIN_DATA}"])
         self.assertEqual(0, exit_code)
         text = stdout.getvalue().strip()
         self.assertTrue(text)
@@ -436,7 +439,7 @@ class GuardLaunchMonitorTests(unittest.TestCase):
     def _make_telemetry_sink(self) -> tuple[Path, str]:
         out_file = Path(self.tmp.name) / f"telemetry-{id(self)}.json"
         sink = Path(self.tmp.name) / f"sink-{id(self)}.sh"
-        sink.write_text(f"#!/bin/sh\ncat >\"{out_file}\"\n", encoding="utf-8")
+        sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
         sink.chmod(0o755)
         return out_file, str(sink)
 
@@ -453,8 +456,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.fail(f"timed out waiting for telemetry at {path}")
 
     def test_clean_scan_emits_ok_telemetry_when_sink_wired(self) -> None:
-        import os
-
         out_file, sink = self._make_telemetry_sink()
         self.transcript_path.write_text("", encoding="utf-8")
         with mock.patch.dict(
@@ -470,8 +471,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertEqual("ok", envelope["status"])
 
     def test_failure_scan_emits_error_telemetry_with_count(self) -> None:
-        import os
-
         out_file, sink = self._make_telemetry_sink()
         self.write_transcript(
             [
@@ -491,8 +490,6 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertEqual(2, envelope["data"]["failure_count"])
 
     def test_short_circuit_emits_no_telemetry(self) -> None:
-        import os
-
         out_file, sink = self._make_telemetry_sink()
         hook_input = {"session_id": "telemetry-short"}
         stdout = io.StringIO()

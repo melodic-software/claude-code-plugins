@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## [0.21.16]
+## [0.21.17]
 
 ### Changed
 
@@ -8,7 +8,7 @@
   ran 75 words with a three-item apposition and no colon marking it; the `write-for-humans` row ran
   61. Content unchanged. Docs-hygiene sweep, L8-write-for-humans.
 
-## [0.21.15]
+## [0.21.16]
 
 ### Changed
 
@@ -24,7 +24,7 @@
   `docs/PLUGIN-PHILOSOPHY.md` instructs authors to write, and re-reports them after
   every remediation.
 
-## [0.21.14]
+## [0.21.15]
 
 ### Fixed
 
@@ -41,7 +41,7 @@
   broken path never ran. The new case uses a hub with backtick citations and
   nothing else.
 
-## [0.21.13]
+## [0.21.14]
 
 ### Fixed
 
@@ -55,7 +55,7 @@
   Swept every other `BASH_REMATCH` read in the plugin's detectors; the rest read
   consecutively with no intervening call and are unaffected.
 
-## [0.21.12]
+## [0.21.13]
 
 ### Fixed
 
@@ -65,6 +65,21 @@
   `BASH_REMATCH`. Under `set -u` the stale read killed the whole invocation, so a
   repo-wide scan stopped at the first such file and silently reported partial
   coverage. The delimiter is now captured before the flush. Regression test added.
+
+## [0.21.12]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** In
+  `skills/compress/scripts/audit-scan.sh`, removed the dead `kw` computation (never read;
+  the "/kw" in output rows is literal format text) and a stale placeholder comment; in
+  `skills/audit-encapsulation/scripts/detect.sh`, deduplicated the two byte-identical
+  scope-scan grep blocks into one `scan_scope()` helper (grep failure semantics preserved
+  by the per-grep `|| true`). A third candidate, replacing `audit-noise/scripts/detect.sh`'s
+  chunk loop with array slicing, was refuted by the run's verifier (offset/limit digit
+  strings ≥ 2^63 wrap negative past the regex validation and diverge) and was NOT shipped;
+  that file is unchanged. Suites green (3/77/193/35); differential runs byte-identical on
+  the shipped changes.
 
 ## [0.21.11]
 

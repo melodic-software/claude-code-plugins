@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.6]
+## [0.38.7]
 
 ### Changed
 
@@ -16,7 +16,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   evidence and verdict routing to the skill body, which already documents both. Docs-hygiene sweep,
   L8-write-for-humans.
 
-## [0.38.5]
+## [0.38.6]
 
 ### Changed
 
@@ -30,6 +30,23 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   the registry's last known working state when the issue reached `create` through
   `/claude-ops:known-issues search`. Both `action-create.md` citations were reworded, since they
   described a snapshot that no longer exists.
+
+## [0.38.5]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Hooks: the
+  duplicated 44-line skill-usage second-store block in `skill-usage-audit.sh` and
+  `skill-usage-expansion-audit.sh` is extracted into a shared
+  `claude_ops::record_skill_use` in `claude-ops-paths.sh` (notice strings, JSONL key order,
+  and marker keys byte-identical; a proposed `hook::jq_fields` fold in the same hooks was
+  refuted by the run's verifier on degenerate-envelope semantics and NOT shipped). Skills:
+  11 redundant local imports removed from `audit-skill-visibility` scripts and a dead
+  truncate from `known-issues/check-all.sh`; `observability/clean.sh`'s twice-repeated
+  GNU/BSD date-cutoff block deduplicated into `cutoff_iso_days_ago()` with its stale
+  "Two layers" header corrected; `morning-brief.sh`'s help header gains the implemented but
+  undocumented `--merged-json` line. All 11 hook suites plus the skill suites green;
+  independent refutation passes on every shipped change.
 
 ## [0.38.4]
 

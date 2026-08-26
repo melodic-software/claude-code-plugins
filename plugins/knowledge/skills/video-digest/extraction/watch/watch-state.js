@@ -53,8 +53,6 @@ import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-ses
  * @property {boolean} [frameSelection.highVolume]
  * @property {boolean} [frameSelection.overCap]
  * @property {number} [frameSelection.candidateCount]
- * @property {number} [frameSelection.targetMinFrames]
- * @property {boolean} [frameSelection.highVolume]
  * @property {object} [artifactPaths]
  * @property {string} [artifactPaths.selectionPath]
  * @property {string} [artifactPaths.coveragePlanPath]

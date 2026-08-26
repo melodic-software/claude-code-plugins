@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## [0.13.11]
+## [0.13.12]
 
 ### Changed
 
@@ -13,7 +13,7 @@ only after that version increases.
   phase heading and the reason the phase is not optional, and points at the spoke for both passes.
   Docs-hygiene sweep, L2-progressive-disclosure.
 
-## [0.13.10]
+## [0.13.11]
 
 ### Changed
 
@@ -21,6 +21,33 @@ only after that version increases.
   phrase `in order to` from its shared options template, per the repo's own
   write-for-humans style rule that the phrase is just `to`. The generated options
   block in `README.md` regenerated with the shorter wording; no other change.
+
+## [0.13.10]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** course-digest:
+  stale classifyLesson comment corrected in `generate-manifests.js`; auth test helper's
+  `first()` delegates to the full mock locator (recorded actions byte-identical);
+  `validate-extraction.js` reuses the PASS/WARN/FAIL constants from `lib/validators.js`;
+  `setup-deps.mjs` drops a per-directory sort provably dead with respect to the vendor
+  stamp. docpage-digest: shared `preview_payload()` extracted across the two gates
+  (escape-then-truncate order proven identical); dead `extra_args` harness parameter
+  removed. video-digest: dead `EN_ORIG_LOCALIZED_PATTERN` subset regex removed from
+  `select-caption.js` with its adjacent auto-en blocks merged (165k+ differential
+  comparisons, zero mismatches). Also across video-digest: dead export
+  `outcomeFloorsForSlice` and an unused destructured option removed from
+  `check-watch-outcomes.js`; `run-harvest.js` and `run-source-liveness.js` adopt the shared
+  `isMainModule` guard; a shadowed duplicate branch removed from `temp-session-paths.js`; a
+  redundant guard dropped in `watch-vision-validation.js`; `proper-noun-repair.js` delegates
+  to `repairCues` (6k differential cases); a never-injected deps parameter removed from
+  `write-watching-manifest.js`; watch-tree cleanups (duplicate JSDoc lines, argv reads moved
+  into main guards, fixture dedups, a duplicate prompt build folded into
+  `writeContinuationPrompt`, shared `writeStderr` usage lines). map-corpus: a provably-dead
+  fallback removed from `check_linkmap.py` and a fixture context-manager reuse in
+  `test_extract_nodes.py`. All suites green (36 + 55 + 39 vitest targeted, 494 full
+  video-digest, 19 + 11 + 30 + 28 + 29 unittest); every change independently
+  refutation-verified.
 
 ## [0.13.9]
 

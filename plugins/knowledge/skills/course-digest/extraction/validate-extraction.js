@@ -25,6 +25,7 @@ import {
   checkSchema,
   checkTranscripts,
   FAIL,
+  PASS,
   WARN,
 } from "./lib/validators.js";
 import { loadCourseDir, parseCliArgs, resolveLogLevel } from "./utils.js";
@@ -35,9 +36,9 @@ const log = createLogger(resolveLogLevel(args));
 function summarize(checks) {
   return {
     total: checks.length,
-    passed: checks.filter((c) => c.severity === "pass").length,
-    warnings: checks.filter((c) => c.severity === "warn").length,
-    failed: checks.filter((c) => c.severity === "fail").length,
+    passed: checks.filter((c) => c.severity === PASS).length,
+    warnings: checks.filter((c) => c.severity === WARN).length,
+    failed: checks.filter((c) => c.severity === FAIL).length,
   };
 }
 

@@ -3,7 +3,7 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.5]
+## [0.11.6]
 
 ### Changed
 
@@ -11,7 +11,7 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   about the plugin's own Pester suite. The generated table itself is unchanged; only its placement
   moved. Docs-hygiene sweep, L8-write-for-humans.
 
-## [0.11.4]
+## [0.11.5]
 
 ### Changed
 
@@ -19,6 +19,26 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   phrase `in order to` from its shared options template, per the repo's own
   write-for-humans style rule that the phrase is just `to`. The generated options
   block in `README.md` regenerated with the shorter wording; no other change.
+
+## [0.11.4]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Checks:
+  `Test-EnvironmentHealth.ps1` loses four unreachable INFO-upgrade arms, a duplicated
+  infoBits append, and a dead initializer; one emitted notes string aligns its em dash to
+  the repo's `--` idiom (a conscious output-byte deviation; a repo-wide census found no
+  consumer pinning the old bytes). Lib: four comment-only corrections
+  (`ConvertTo-TopMetrics`, `Get-RunDelta`, `Invoke-AllowlistedWeb`,
+  `New-InvalidCatalogEntryResult` plus `Assert-CatalogEntry`), proven token-stream-identical
+  outside comments. Tests: dead `-Human` branches removed from two suites' local helpers,
+  provably-unreachable pad/trim branches and write-only script-scope variables dropped from
+  the environment-health suite, a stale helper comment fixed, mock/fixture factories
+  introduced in the KEV-cache and finding-correlation suites (mutation probes confirm the
+  folded assertions still discriminate), a single-use splat inlined, and 14 repeated
+  Should-Contain lines folded into a canonical-field loop. All Linux-runnable Pester suites
+  green at baseline counts; Windows-only suites reported unrunnable rather than passing;
+  every change independently refutation-verified.
 
 ## [0.11.3]
 

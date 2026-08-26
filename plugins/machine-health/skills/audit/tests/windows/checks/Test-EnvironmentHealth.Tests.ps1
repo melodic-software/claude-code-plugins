@@ -33,9 +33,8 @@ BeforeAll {
             $padTo = [int]$Spec.pad_to
         }
         if ($padTo -gt $value.Length) {
+            # Appending ';' plus (padTo - len - 1) filler lands on exactly padTo.
             $value = $value + ';' + ('x' * ($padTo - $value.Length - 1))
-            if ($value.Length -gt $padTo) { $value = $value.Substring(0, $padTo) }
-            elseif ($value.Length -lt $padTo) { $value += ('x' * ($padTo - $value.Length)) }
         }
         return $value
     }
@@ -95,11 +94,9 @@ BeforeAll {
 
     function Install-EnvironmentMocks {
         param($Fixture)
-        $script:UserKey = $Fixture.UserKey
-        $script:MachineKey = $Fixture.MachineKey
         # GetNewClosure: MockWith runs in the mocked command's scope, so
-        # $script:UserKey would resolve against the check script (unset,
-        # StrictMode UNKNOWN) rather than this test file.
+        # a $script:-scoped variable would resolve against the check script
+        # (unset, StrictMode UNKNOWN) rather than this test file.
         $userKey = $Fixture.UserKey
         $machineKey = $Fixture.MachineKey
         Mock Get-Item -ParameterFilter { $LiteralPath -eq 'HKCU:\Environment' } -MockWith (
@@ -313,7 +310,6 @@ Describe 'Test-EnvironmentHealth' -Tag 'check' {
         It 'continues with User-scope findings when HKLM Environment is unreadable' {
             $fx = Import-EnvironmentFixture -Name 'disable-autoupdater' -TempRoot $script:tmpDir
             $env:PATH = $fx.ProcessPath
-            $script:UserKey = $fx.UserKey
             $userKey = $fx.UserKey
             Mock Get-Item -ParameterFilter { $LiteralPath -eq 'HKCU:\Environment' } -MockWith (
                 { $userKey }.GetNewClosure()

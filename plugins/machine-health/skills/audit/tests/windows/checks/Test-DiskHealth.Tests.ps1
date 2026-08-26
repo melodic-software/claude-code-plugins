@@ -35,14 +35,7 @@ BeforeAll {
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
     . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
-    function Invoke-DiskHealthAsObject {
-        param([switch]$Human)
-        if ($Human) {
-            $raw = & $script:ScriptPath -Human
-            return $raw
-        }
-        return ConvertFrom-CheckOutput (& $script:ScriptPath)
-    }
+    function Invoke-DiskHealthAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
 }
 
 Describe 'Test-DiskHealth -- volume filter' -Tag 'check' {

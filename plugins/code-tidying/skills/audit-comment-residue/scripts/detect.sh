@@ -57,10 +57,8 @@ while [[ $# -gt 0 ]]; do
     ;;
   --)
     shift
-    while [[ $# -gt 0 ]]; do
-      TARGETS+=("$1")
-      shift
-    done
+    TARGETS+=("$@")
+    break
     ;;
   -*)
     echo "detect.sh: unknown arg '$1'" >&2

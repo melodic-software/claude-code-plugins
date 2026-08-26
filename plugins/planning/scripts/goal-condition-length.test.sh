@@ -59,14 +59,10 @@ expect_exit "trailing newline stripped -> 0" 0 $'abcde\n' --limit 5
 
 # 10. Reads condition from --file.
 printf 'abcdef' >"$TMP/cond.txt"
-bash "$SUT" --limit 5 --file "$TMP/cond.txt" >/dev/null 2>&1
-rc=$?
-if [[ $rc -eq 1 ]]; then pass "--file over limit -> 1"; else fail "--file over limit -> wrong code ($rc)"; fi
+expect_exit "--file over limit -> 1" 1 "" --limit 5 --file "$TMP/cond.txt"
 
 # 11. Missing --file target -> exit 2.
-bash "$SUT" --limit 5 --file "$TMP/nope.txt" >/dev/null 2>&1
-rc=$?
-if [[ $rc -eq 2 ]]; then pass "missing --file -> 2"; else fail "missing --file -> wrong code ($rc)"; fi
+expect_exit "missing --file -> 2" 2 "" --limit 5 --file "$TMP/nope.txt"
 
 # 12. stdout is greppable and reports the count and status.
 out="$(printf 'abcdef' | bash "$SUT" --limit 5 2>/dev/null)"

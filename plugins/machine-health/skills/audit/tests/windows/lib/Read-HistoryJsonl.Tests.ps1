@@ -131,12 +131,8 @@ Describe 'Read-HistoryJsonl' -Tag 'lib' {
             Set-Content -LiteralPath $script:historyPath -Value $lines -Encoding utf8
 
             $warnings = @()
-            $readParams = @{
-                Path            = $script:historyPath
-                WarningVariable = 'warnings'
-                WarningAction   = 'SilentlyContinue'
-            }
-            $null = Read-HistoryJsonl @readParams
+            $null = Read-HistoryJsonl -Path $script:historyPath `
+                -WarningVariable warnings -WarningAction SilentlyContinue
             $warnings.Count | Should -BeGreaterOrEqual 2
         }
     }

@@ -5,7 +5,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCHER="$SCRIPT_DIR/work-item-tracker.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tests/lib.sh"
+source "$SCRIPT_DIR/tests/lib.sh"
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not on PATH"
 

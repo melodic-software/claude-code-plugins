@@ -65,6 +65,16 @@ run() (
     bash scripts/check-changed-skills.sh "$2"
 )
 
+# stage_checker <repo> — copy the REAL skill-quality checker into a fixture,
+# for the integration cases that run it instead of the stub.
+stage_checker() {
+  mkdir -p "$1/plugins/skill-quality/scripts"
+  cp "$SELF_DIR/../plugins/skill-quality/scripts/check-skill.sh" \
+    "$SELF_DIR/../plugins/skill-quality/scripts/skill-frontmatter.sh" \
+    "$1/plugins/skill-quality/scripts/"
+  chmod +x "$1/plugins/skill-quality/scripts/"*.sh
+}
+
 # --- no changed skills passes (nothing to gate) ----------------------------
 r="$(mk_repo)"
 add_skill "$r" p1 alpha
@@ -221,10 +231,7 @@ rm -rf "$r"
 
 # --- integration: a new skill without evals fails the gate ------------------
 r="$(mk_repo)"
-mkdir -p "$r/plugins/skill-quality/scripts"
-cp "$SELF_DIR/../plugins/skill-quality/scripts/check-skill.sh" "$r/plugins/skill-quality/scripts/"
-cp "$SELF_DIR/../plugins/skill-quality/scripts/skill-frontmatter.sh" "$r/plugins/skill-quality/scripts/"
-chmod +x "$r/plugins/skill-quality/scripts/"*.sh
+stage_checker "$r"
 printf 'base\n' >"$r/README.md"
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
@@ -254,10 +261,7 @@ rm -rf "$r"
 
 # --- integration: a touched legacy skill without evals fails the gate --------
 r="$(mk_repo)"
-mkdir -p "$r/plugins/skill-quality/scripts"
-cp "$SELF_DIR/../plugins/skill-quality/scripts/check-skill.sh" "$r/plugins/skill-quality/scripts/"
-cp "$SELF_DIR/../plugins/skill-quality/scripts/skill-frontmatter.sh" "$r/plugins/skill-quality/scripts/"
-chmod +x "$r/plugins/skill-quality/scripts/"*.sh
+stage_checker "$r"
 mkdir -p "$r/plugins/p1/skills/legacy"
 cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
 ---
@@ -286,10 +290,7 @@ rm -rf "$r"
 
 # --- integration: a touched legacy skill with evals passes the gate --------
 r="$(mk_repo)"
-mkdir -p "$r/plugins/skill-quality/scripts"
-cp "$SELF_DIR/../plugins/skill-quality/scripts/check-skill.sh" "$r/plugins/skill-quality/scripts/"
-cp "$SELF_DIR/../plugins/skill-quality/scripts/skill-frontmatter.sh" "$r/plugins/skill-quality/scripts/"
-chmod +x "$r/plugins/skill-quality/scripts/"*.sh
+stage_checker "$r"
 mkdir -p "$r/plugins/p1/skills/legacy/evals"
 cat >"$r/plugins/p1/skills/legacy/SKILL.md" <<'EOF'
 ---

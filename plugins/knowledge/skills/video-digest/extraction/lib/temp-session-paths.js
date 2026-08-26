@@ -35,9 +35,7 @@ export function normalizePortableTempPath(value) {
   if (idx > 0) {
     return value.slice(idx).replace(/\\/g, "/");
   }
-  if (value.startsWith(TEMP_PATH_PREFIX)) {
-    return value.replace(/\\/g, "/");
-  }
+  // idx === 0 (already portable) is serializeTempPath's own first branch.
   return serializeTempPath(value);
 }
 

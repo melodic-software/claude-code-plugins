@@ -44,14 +44,7 @@ BeforeAll {
             'Defender module required for Test-Defender.Tests.ps1.')
     }
 
-    function Invoke-DefenderAsObject {
-        param([switch]$Human)
-        if ($Human) {
-            $raw = & $script:ScriptPath -Human
-            return $raw
-        }
-        return ConvertFrom-CheckOutput (& $script:ScriptPath)
-    }
+    function Invoke-DefenderAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
 }
 
 Describe 'Test-Defender -- healthy baseline' -Tag 'check' {

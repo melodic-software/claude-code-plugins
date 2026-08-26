@@ -113,8 +113,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The header range is derived from the comment block itself (same idiom as the
+# sibling checkers), so adding header lines can never desync the help output —
+# the previous hardcoded line range had already drifted to clip mid-paragraph.
 usage() {
-  sed -n '2,38p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 }
 
 REQUIRE_EVALS="${CHECK_SKILL_REQUIRE_EVALS:-0}"

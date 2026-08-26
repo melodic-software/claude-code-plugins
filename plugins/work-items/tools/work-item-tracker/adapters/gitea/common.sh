@@ -40,9 +40,9 @@ wit_gitea_require_seam_lib() {
 # The `shellcheck source=` hints name the RELATIVE seam path rather than /dev/null:
 # where a vendored or bundled seam sits there, ShellCheck follows it and every
 # WIT_ID_* / WIT_SCHEMA_VERSION reference in this adapter's verb scripts resolves.
-# Where it does not (a consumer-local adapter beside no vendored seam), ShellCheck
-# resolves. Where it does not, SC1091 is disabled so the absence is quiet rather than
-# an info per source line — the runtime check above is what actually enforces presence.
+# Where it does not (a consumer-local adapter beside no vendored seam), SC1091 is
+# disabled so the absence is quiet rather than an info per source line — the runtime
+# check above is what actually enforces presence.
 wit_gitea_require_seam_lib "$WIT_GITEA_SEAM_LIB/id.sh"
 # shellcheck source=../../lib/id.sh disable=SC1091
 source "$WIT_GITEA_SEAM_LIB/id.sh"

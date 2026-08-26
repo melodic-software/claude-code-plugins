@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.34.3]
+## [0.34.4]
 
 ### Changed
 
@@ -12,7 +12,7 @@
   and rungs 4 to 6 are the confirmation gate and the handoff every path reaches. Docs-hygiene
   sweep, L2-progressive-disclosure.
 
-## [0.34.2]
+## [0.34.3]
 
 ### Changed
 
@@ -20,7 +20,7 @@
   reader reached a verb they could act on. The `fourteen skills` count is unchanged. Docs-hygiene
   sweep, L8-write-for-humans.
 
-## [0.34.1]
+## [0.34.2]
 
 ### Changed
 
@@ -28,6 +28,20 @@
   phrase `in order to` from its shared options template, per the repo's own
   write-for-humans style rule that the phrase is just `to`. The generated options
   block in `README.md` regenerated with the shorter wording; no other change.
+
+## [0.34.1]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** keep-going:
+  `check-usage-limit-reset.py`'s nested day-rollback conditional flattened (equivalent by
+  construction, both branches else-less; a 553k-case brute-force sweep over reset strings,
+  zones, and DST-transition days found zero mismatches) and a misleading `owner_id` local
+  renamed `getuid`; its test file splits a mislabeled assertion into its own test (13 tests).
+  retro: `parse_transcript.py`'s two byte-identical emit-and-exit branches fold into
+  `_emit_multi_and_exit()`; a test reuses the existing `_run_script` helper. running-retro:
+  `arm_observer.py`'s function-body imports hoisted to module level. Suites green
+  (13 + 37 + 72); every change AST-diff-verified.
 
 ## [0.34.0]
 

@@ -243,7 +243,7 @@ fi
 # --- 2) Confirmation stop: --apply without --yes on non-tty -----------------
 stop_out="$TMP/stop.txt"
 rc=0
-bash "$SCRIPT" --plan-file "$PLAN" --apply < /dev/null >"$stop_out" 2>&1 || rc=$?
+bash "$SCRIPT" --plan-file "$PLAN" --apply </dev/null >"$stop_out" 2>&1 || rc=$?
 if [[ "$rc" -eq 3 ]] && grep -Fq "non-interactive session without --yes" "$stop_out"; then
   pass "confirmation stop without --yes (exit 3)"
 else
@@ -286,7 +286,7 @@ else
     "$(git -C "$REPO_A" show-ref --verify --quiet refs/heads/feat/wt && echo yes || echo no)" >&2
 fi
 
-# --- 4) Interactive decline via stdin ---------------------------------------
+# --- 4) Confirmation stop on a fresh plan; --yes positive control ------------
 # Rebuild a small plan with one remaining branch (feat/alpha still present, drifted —
 # use a fresh matching branch).
 OID_C="$(add_merged_branch "$REPO_B" "feat/gamma")"
@@ -338,12 +338,9 @@ write_plan "$PLAN2" <<EOF
 }
 EOF
 
-# Simulate a tty confirmation decline is hard without a pty; the non-tty path
-# already covered the gate. Exercise explicit "n" by forcing the tty path only when
-# possible — otherwise skip with a note. Use a FIFO trick: the script checks -t 0,
-# so plain printf 'n' still hits the non-interactive stop. Assert branch survives
-# a declined path by invoking with --apply and empty stdin (already tested) plus
-# a successful --yes apply on a copy for positive control later.
+# An interactive "n" decline needs a pty (the script checks -t 0, so piped stdin
+# hits the non-interactive stop instead). Re-assert that stop on this fresh plan,
+# then a --yes apply as the positive control that the same plan would mutate.
 
 decline_rc=0
 bash "$SCRIPT" --plan-file "$PLAN2" --apply </dev/null >/dev/null 2>&1 || decline_rc=$?

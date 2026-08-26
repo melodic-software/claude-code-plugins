@@ -3,13 +3,26 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.7]
+## [0.7.8]
 
 ### Changed
 
 - **The `run-e2e` playwright pointer front-loads its subject.** Its bolded lead was the routing verb
   rather than the payload, and the sentence carried an em dash the house style does not allow on an
   instruction surface. Docs-hygiene sweep, L7-write-for-agents.
+
+## [0.7.7]
+
+### Changed
+
+- **audit:** behavior-preserving simplification from the repo-wide
+  batch-simplify sweep. cant-fail-scan.awk's `taut_scan` drops a dead
+  `p > 0` guard that sat immediately after a successful `match()` call
+  (a successful match guarantees `RSTART >= 1`), de-indenting the
+  enclosed block; the later `index()`-based guard, which is genuinely
+  fallible, stays. Verified by a fresh-context refutation pass:
+  byte-identical output across the 92-check suite, crafted
+  failed-inner-match inputs, and a 14,000-line fuzz differential.
 
 ## [0.7.6]
 

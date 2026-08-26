@@ -1,6 +1,6 @@
 # Changelog — discovery plugin
 
-## [0.16.8]
+## [0.16.9]
 
 ### Changed
 
@@ -21,12 +21,28 @@
   those claims and checks them against that agent's own frontmatter, and it cannot follow a
   pointer. Recorded here so the next sweep does not re-propose it.
 
-## [0.16.7]
+## [0.16.8]
 
 ### Changed
 
 - **The Phase 3 fallback pointer front-loads its subject (`research`).** It was the file's one
   deviation from its own dominant pointer shape. Docs-hygiene sweep, L7-write-for-agents.
+
+## [0.16.7]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** In
+  `scripts/check-coverage-complete.py`, the USAGE literal's first 17 lines (a byte-for-byte
+  copy of the module docstring) now derive from `__doc__`; `--help` output is byte-identical.
+  One accepted theoretical divergence, verified unreachable: under `python -OO` or
+  `PYTHONOPTIMIZE=2` (which strip docstrings and which nothing in this repo or its CI
+  invokes) the script now fails at import on every invocation instead of running; the
+  failure direction is safe for the gate (exit 1, never a false "complete"). Also removed a
+  dead `-v OFS=' '` from `check-coverage-complete.sh`'s awk (no multi-arg print or `$0`
+  rebuild reads OFS) and an inert shellcheck directive from its test. Suites green apart
+  from one pre-existing root-container failure (chmod 000 does not block root) confirmed
+  identical at HEAD.
 
 ## [0.16.6]
 

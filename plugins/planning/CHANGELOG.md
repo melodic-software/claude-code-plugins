@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.8]
+## [0.34.9]
 
 ### Changed
 
@@ -16,7 +16,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   Both skill bodies were near the recommended body size while under the line ceiling.
   Docs-hygiene sweep, L2-progressive-disclosure.
 
-## [0.34.7]
+## [0.34.8]
 
 ### Changed
 
@@ -25,7 +25,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   coordinating on slashes, which reads as separate things rather than values of one field.
   Docs-hygiene sweep, L8-write-for-humans.
 
-## [0.34.6]
+## [0.34.7]
 
 ### Changed
 
@@ -33,6 +33,16 @@ All notable changes to the `planning` plugin are documented here. Format follows
   phrase `in order to` from its shared options template, per the repo's own
   write-for-humans style rule that the phrase is just `to`. The generated options
   block in `README.md` regenerated with the shorter wording; no other change.
+
+## [0.34.6]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Two hand-rolled
+  run-then-check-rc cases in `scripts/goal-condition-length.test.sh` now use the suite's own
+  `expect_exit` helper (invocation, labels, and failure plumbing proven identical; the
+  helper's empty-stdin pipe is unreachable in the `--file` paths; mutation probes killed
+  with matching labels). Suite green 14/14.
 
 ## [0.34.5]
 

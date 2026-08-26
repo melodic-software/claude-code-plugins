@@ -47,8 +47,8 @@ if [[ ! -f "$SKILL" ]]; then
 fi
 
 seal_dir="$(mktemp -d)"
-probe_out="$(mktemp)"
-trap 'rm -rf "$seal_dir" "$probe_out"' EXIT
+probe_out="$seal_dir/probe.out"
+trap 'rm -rf "$seal_dir"' EXIT
 mkdir -p "$seal_dir/home" "$seal_dir/xdg" "$seal_dir/project" "$seal_dir/probe"
 
 # Seal config/project env so probes never reach a maintainer fleet config or an
@@ -206,8 +206,7 @@ rejected | ignored)
   ;;
 esac
 
-tokens_tmp="$(mktemp)"
-trap 'rm -rf "$seal_dir" "$probe_out" "$tokens_tmp"' EXIT
+tokens_tmp="$seal_dir/tokens"
 probe_no_scope_and_collect_tokens "$tokens_tmp"
 
 while IFS= read -r token; do

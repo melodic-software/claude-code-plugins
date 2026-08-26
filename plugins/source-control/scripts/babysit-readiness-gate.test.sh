@@ -12,7 +12,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 CASE_NUM=0
 # shellcheck source=test-helpers.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/test-helpers.sh"
+source "$SCRIPT_DIR/test-helpers.sh"
 
 # run_gate <fixture-json> [extra args...] — emits stdout then "EXIT:<code>".
 run_gate() {

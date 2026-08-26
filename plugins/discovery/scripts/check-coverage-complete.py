@@ -27,24 +27,11 @@ from pathlib import Path
 REQUIRED = ("#", "corpus item", "depth criterion", "done")
 MARKED = re.compile(r"^\[[xX]\]\s*$")
 UNMARKED = re.compile(r"^\[[ \t]*\]\s*$")
-USAGE = """Deterministic gate for a /discovery:research coverage ledger.
-
-Python twin of check-coverage-complete.sh — same CLI, same exit codes, same
-greppable summary. Use when the Bash tool cannot run the .sh form (for example a
-sibling PreToolUse belt) but python3 is reachable from an open lane.
-
-Exit 0 = every row's Done box is marked (status=complete)
-Exit 1 = at least one row is unmarked (status=incomplete)
-Exit 2 = the ledger cannot be graded — missing, empty, unreadable (I/O or
-         non-UTF-8), no table, no rows, no Done column, a short row, or a Done
-         cell that is neither marked nor unmarked — plus usage errors. FAIL
-         CLOSED: a ledger this gate cannot read is never reported as complete.
-
-Usage:
-  python3 check-coverage-complete.py <ledger-path>
-  python3 check-coverage-complete.py --help
-  ./check-coverage-complete.py <ledger-path>
-
+# --help output: the module docstring verbatim (single source, like the shell
+# twin printing its own header), plus the caller-facing sections below it.
+USAGE = (
+    __doc__
+    + """
 Ledger shape (the Done column is located by header name, not by position):
 
   | # | Corpus item | Depth criterion | Done |
@@ -54,6 +41,7 @@ Ledger shape (the Done column is located by header name, not by position):
 Output (stdout, greppable): rows=<n> unmarked=<m> status=<complete|incomplete>
 On status=incomplete each unmarked row is named on stderr.
 """
+)
 
 
 def cells(line: str) -> list[str]:
@@ -148,15 +136,13 @@ def grade(ledger_path: Path) -> int:
             continue
         if UNMARKED.match(box):
             unmarked += 1
-            item = (
-                row_cells[1]
-                if header_cols >= 2 and done_col != 2
-                else row_cells[0]
-            )
+            item = row_cells[1] if header_cols >= 2 and done_col != 2 else row_cells[0]
             print(f"unmarked: row {rows} — {item}", file=sys.stderr)
             continue
         label = "<empty>" if box == "" else box
-        print(f"error: row {rows} has an ungradeable Done cell: {label}", file=sys.stderr)
+        print(
+            f"error: row {rows} has an ungradeable Done cell: {label}", file=sys.stderr
+        )
         return 2
 
     if not header_seen:

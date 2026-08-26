@@ -32,6 +32,9 @@
 #   --pr-json FILE            array as emitted by `gh pr list --json ...`
 #   --decisions-json FILE     array of {number,title,url,body,comments:[{body}]}
 #   --telemetry-json FILE     array of {body} (the telemetry issue's comments)
+#   --merged-json FILE        array of merged-PR GraphQL page documents, as
+#                             emitted by `gh api graphql --paginate` (the
+#                             stranded-findings section)
 #
 # Exit codes:
 #   0  brief rendered (a data source degrading gracefully is not a failure)

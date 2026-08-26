@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.13]
+## [0.7.14]
 
 ### Changed
 
@@ -11,7 +11,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   the section that already documents configuration. The generated table itself is unchanged; only
   its placement moved. Docs-hygiene sweep, L8-write-for-humans.
 
-## [0.7.12]
+## [0.7.13]
 
 ### Changed
 
@@ -19,6 +19,20 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   phrase `in order to` from its shared options template, per the repo's own
   write-for-humans style rule that the phrase is just `to`. The generated options
   block in `README.md` regenerated with the shorter wording; no other change.
+
+## [0.7.12]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** `bench/bench-load.sh`
+  reads the sample files once into a variable feeding both aggregation passes (equivalence
+  rests on the sole writer's `printf '%s\n'` newline termination, verified; empty-glob and
+  blank-line cases proven identical), `bench/lib-bench.sh`'s median collapses its
+  sorted-string plus manual re-read into `mapfile -t` (17-case differential corpus, zero
+  diffs), and `scripts/statusline-tee.test.sh` drops a constant-false `sess-gate` disjunct
+  (the id appears nowhere as an input; removal moves the DIFFERS cluster further from
+  convergence). Suites green (13 + 96); cross-plugin drift gate green; live hook and
+  statusline sources untouched.
 
 ## [0.7.11]
 

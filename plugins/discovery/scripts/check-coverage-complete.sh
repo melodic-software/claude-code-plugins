@@ -81,7 +81,7 @@ fi
 # corpus item or a depth criterion is prose, not an unmarked row.
 #
 # awk exit codes mirror this script's: 0 complete, 1 incomplete, 2 ungradeable.
-awk -v OFS=' ' '
+awk '
 BEGIN {
   # The mandated ledger header, lowercased. Every one must appear exactly once
   # before a table is accepted as the coverage ledger.

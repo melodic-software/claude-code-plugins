@@ -32,14 +32,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-    *"$3"*) fail "$1" "unexpected substring: $3" ;;
-    *) pass "$1" ;;
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
   esac
 }
 
@@ -516,7 +516,7 @@ else
     "No fragile permission grants found."
   assert_contains "an unreadable-only root names the blocked inputs" "$OUT" "COULD NOT BE READ"
 fi
-chmod u+rw "$D10BE/SKILL.md" 2>/dev/null
+chmod u+rw "$D10BE/.claude/skills/u/SKILL.md" 2>/dev/null
 
 # 10c: a settings file that is present but not valid JSON was skipped in silence,
 # so its rules were never read and the run still printed a clean bill. The skip
@@ -598,7 +598,7 @@ assert_eq "portable anchors produce no P2 finding" "0" "$(run "$D8C" --count)"
 # scan_agent(). Each rule below must produce its own P2 finding.
 D8D="$TEST_TMPDIR/issue-2282-tools"
 mkdir -p "$D8D/.claude"
-jq -n --arg wf "WebFetch(${WF_MP})" --arg gl "Glob(${GLOB_MP})"   --arg nb "NotebookEdit(${NB_MP})" --arg mc "mcp__srv__tool(${MCP_MP})"   '{permissions:{allow:[$wf,$gl,$nb,$mc]}}' >"$D8D/.claude/settings.json"
+jq -n --arg wf "WebFetch(${WF_MP})" --arg gl "Glob(${GLOB_MP})" --arg nb "NotebookEdit(${NB_MP})" --arg mc "mcp__srv__tool(${MCP_MP})" '{permissions:{allow:[$wf,$gl,$nb,$mc]}}' >"$D8D/.claude/settings.json"
 OUT_TOOLS=$(run "$D8D")
 assert_contains "P2 sees WebFetch rules" "$OUT_TOOLS" "WebFetch(${WF_MP})"
 assert_contains "P2 sees Glob rules" "$OUT_TOOLS" "Glob(${GLOB_MP})"

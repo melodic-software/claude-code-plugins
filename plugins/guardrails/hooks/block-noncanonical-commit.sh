@@ -635,7 +635,7 @@ alias_reexpand_admit() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
-  local gi sub sub_idx nseg k word next stdin_form=0 exempt=0 saw_commit=0
+  local gi sub sub_idx nseg k word next stdin_form=0 exempt=0
   # Set when a `-m`/`--message` value carries an actual newline — the mangling
   # hazard this guard blocks — or is a blanked PowerShell here-string (content
   # multi-line by construction of the form, uninspectable here: fail closed).
@@ -846,7 +846,6 @@ check_segment() {
   fi
 
   [[ "$sub" == "commit" ]] || return 0
-  saw_commit=1
 
   # Scan only the words AFTER the subcommand: a top-level `git -c foo=bar` is
   # config, while `-c` after `commit` is --reedit-message.
@@ -915,7 +914,6 @@ check_segment() {
     esac
   done
 
-  ((saw_commit)) || return 0
   ((stdin_form || exempt)) && return 0
   # The narrowed verdict (#2021): only a `-m` whose message ACTUALLY carries a
   # newline is the mangling hazard. A single-line `-m`, a bare `git commit`,

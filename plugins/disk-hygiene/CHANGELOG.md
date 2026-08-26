@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.24]
+## [0.20.25]
 
 ### Changed
 
@@ -21,7 +21,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   means citations in every other plugin README here. The generated table itself is unchanged; a
   `## Configuration` heading was added above it. Docs-hygiene sweep, L8-write-for-humans.
 
-## [0.20.23]
+## [0.20.24]
 
 ### Changed
 
@@ -30,6 +30,20 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   exact path list, moved to `reference/unsupported-platform-handoff.md`. That condition is now
   the pointer's when-to-read clause, so the body carries the rule and the spoke carries the
   procedure. No content was dropped.
+
+## [0.20.23]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Removed the dead
+  `import shutil` from `skills/clean/scripts/destructive_guard.py` (ruff F401; only comment
+  mentions remained) and corrected the stale comment above `_READONLY_SUPPORTING_BASH_HEADS`
+  to the code's actual contract (bare names denied outright; absolute trusted-path heads
+  only); retargeted the one `guard.shutil` mock in `test_hygiene.py` to the same module
+  object; removed two provably unreachable fixtures from `lib/test_hook_telemetry.py`;
+  hoisted three method-local `import os` statements in `test_guard_launch_monitor.py`.
+  AST comparison confirms exactly these four semantic deltas plus formatting. Suites green
+  (317 + 23 + 3 + 17); no guard predicate touched.
 
 ## [0.20.22]
 

@@ -89,7 +89,37 @@ def _thread(
 def _run(threads: list[dict[str, object]], argv: list[str]) -> dict[str, object]:
     buffer = io.StringIO()
     with contextlib.ExitStack() as stack:
-        stack.enter_context(mock.patch.object(rt, "fetch_threads", return_value=threads))
+        stack.enter_context(
+            mock.patch.object(rt, "fetch_threads", return_value=threads)
+        )
+        if "--autonomous" in argv or "--independent-resolver" in argv:
+            stack.enter_context(
+                mock.patch.object(
+                    rt, "fetch_pull_request_author", return_value="someone-else"
+                )
+            )
+        stack.enter_context(
+            mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv])
+        )
+        stack.enter_context(redirect_stdout(buffer))
+        rt.main()
+    return json.loads(buffer.getvalue())
+
+
+def _raw_run(record: dict[str, object], argv: list[str]) -> dict[str, object]:
+    # Mocks one level deeper than `_run`/`fetch_threads`, at the shared
+    # paginator, so the REAL `project_thread` runs over the raw record --
+    # exercising the CLI's `--self-logins` parsing together with the
+    # classifier fix, not a pre-projected fixture that bypasses both.
+    buffer = io.StringIO()
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(
+            mock.patch.object(
+                rt,
+                "fetch_review_threads",
+                side_effect=lambda repo, number, **kw: [kw["projection"](record)],
+            )
+        )
         if "--autonomous" in argv or "--independent-resolver" in argv:
             stack.enter_context(
                 mock.patch.object(
@@ -341,7 +371,9 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
         projected = rt.project_thread(record, self_logins=frozenset({"worker-bot"}))
         self.assertFalse(projected["botOnly"])
 
-    def test_self_classification_reply_does_not_re_strand_under_autonomous(self) -> None:
+    def test_self_classification_reply_does_not_re_strand_under_autonomous(
+        self,
+    ) -> None:
         # The second half of the bug: fixing botOnly alone is not enough. The
         # mandated classification-reply table (review-discipline.md) restates
         # the source finding's own severity word as one of its columns, e.g.
@@ -396,33 +428,6 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
         projected = rt.project_thread(record, self_logins=frozenset({"worker-bot"}))
         self.assertTrue(projected["severityFlagged"])
 
-    def _raw_run(self, record: dict[str, object], argv: list[str]) -> dict[str, object]:
-        # Mocks one level deeper than `_run`/`fetch_threads`, at the shared
-        # paginator, so the REAL `project_thread` runs over the raw record --
-        # exercising the CLI's `--self-logins` parsing together with the
-        # classifier fix, not a pre-projected fixture that bypasses both.
-        buffer = io.StringIO()
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(
-                mock.patch.object(
-                    rt,
-                    "fetch_review_threads",
-                    side_effect=lambda repo, number, **kw: [kw["projection"](record)],
-                )
-            )
-            if "--autonomous" in argv or "--independent-resolver" in argv:
-                stack.enter_context(
-                    mock.patch.object(
-                        rt, "fetch_pull_request_author", return_value="someone-else"
-                    )
-                )
-            stack.enter_context(
-                mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv])
-            )
-            stack.enter_context(redirect_stdout(buffer))
-            rt.main()
-        return json.loads(buffer.getvalue())
-
     def test_end_to_end_self_reply_strands_the_thread_without_the_flag(self) -> None:
         record = {
             "id": "T1",
@@ -432,7 +437,7 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
             "comments_total_count": 2,
             "comments_truncated": False,
         }
-        result = self._raw_run(record, ["owner/repo#1", "--allowed-owners", "owner"])
+        result = _raw_run(record, ["owner/repo#1", "--allowed-owners", "owner"])
         self.assertEqual(result["threads"][0]["action"], "skipped-human-thread")
         self.assertEqual(result["eligibleCount"], 0)
 
@@ -447,9 +452,15 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
             "comments_total_count": 2,
             "comments_truncated": False,
         }
-        result = self._raw_run(
+        result = _raw_run(
             record,
-            ["owner/repo#1", "--allowed-owners", "owner", "--self-logins", "worker-bot"],
+            [
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--self-logins",
+                "worker-bot",
+            ],
         )
         self.assertEqual(result["threads"][0]["action"], "would-resolve")
         self.assertEqual(result["eligibleCount"], 1)
@@ -479,7 +490,7 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
             "comments_total_count": 2,
             "comments_truncated": False,
         }
-        result = self._raw_run(
+        result = _raw_run(
             record,
             [
                 "owner/repo#1",
@@ -591,7 +602,6 @@ class BotOnlyRequiresABotOpener(unittest.TestCase):
         # The exploit path end to end, through the REAL projection: an
         # outdated self-opened thread with a bot reply, under the worker
         # tier's own flags, must be refused without --include-human.
-        buffer = io.StringIO()
         record = {
             "id": "T1",
             "isResolved": False,
@@ -603,33 +613,18 @@ class BotOnlyRequiresABotOpener(unittest.TestCase):
             "comments_total_count": 2,
             "comments_truncated": False,
         }
-        with (
-            mock.patch.object(
-                rt,
-                "fetch_review_threads",
-                side_effect=lambda repo, number, **kw: [kw["projection"](record)],
-            ),
-            mock.patch.object(
-                rt, "fetch_pull_request_author", return_value="someone-else"
-            ),
-            mock.patch.object(
-                sys,
-                "argv",
-                [
-                    "babysit_resolve_thread.py",
-                    "owner/repo#1",
-                    "--allowed-owners",
-                    "owner",
-                    "--self-logins",
-                    "worker-bot",
-                    "--autonomous",
-                    "--only-outdated",
-                ],
-            ),
-            redirect_stdout(buffer),
-        ):
-            rt.main()
-        result = json.loads(buffer.getvalue())
+        result = _raw_run(
+            record,
+            [
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--self-logins",
+                "worker-bot",
+                "--autonomous",
+                "--only-outdated",
+            ],
+        )
         self.assertFalse(result["threads"][0]["botOnly"])
         self.assertEqual(result["threads"][0]["action"], "skipped-human-thread")
         self.assertEqual(result["eligibleCount"], 0)
@@ -646,7 +641,13 @@ class HumanThreadsActedExtraBotLogins(unittest.TestCase):
         # bot and exclude it from humanThreadsActed.
         result = _run(
             [_thread("T1", "svc-account", "User", bot_only=True)],
-            ["owner/repo#1", "--allowed-owners", "owner", "--extra-bot-logins", "svc-account"],
+            [
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--extra-bot-logins",
+                "svc-account",
+            ],
         )
         self.assertEqual(result["eligibleCount"], 1)
         self.assertEqual(result["humanThreadsActed"], 0)
@@ -780,14 +781,20 @@ class AutonomousSeverityGuard(unittest.TestCase):
         # Interactive judgment stays with the evaluating agent; the guard is an
         # unattended-mode bright line, not a new capability restriction.
         result = _run(
-            [_thread("T_sev", "codex[bot]", "Bot", bot_only=True, severity_flagged=True)],
+            [
+                _thread(
+                    "T_sev", "codex[bot]", "Bot", bot_only=True, severity_flagged=True
+                )
+            ],
             ["owner/repo#1", "--allowed-owners", "owner"],
         )
         self.assertEqual(result["threads"][0]["action"], "would-resolve")
 
 
 class SeverityProjection(unittest.TestCase):
-    def _record(self, bodies: list[str], *, truncated: bool = False) -> dict[str, object]:
+    def _record(
+        self, bodies: list[str], *, truncated: bool = False
+    ) -> dict[str, object]:
         return {
             "id": "T1",
             "isResolved": False,
@@ -828,9 +835,7 @@ class SeverityProjection(unittest.TestCase):
             "p1: blocking regression",
         ):
             record = self._record([body])
-            self.assertTrue(
-                rt.project_thread(record)["severityFlagged"], body
-            )
+            self.assertTrue(rt.project_thread(record)["severityFlagged"], body)
 
     def test_lowercase_bracketed_p1_flags(self) -> None:
         record = self._record(["[p1] lowercase marker"])
@@ -869,9 +874,15 @@ class NoAbbreviatedFlags(unittest.TestCase):
         # would let the written command and resolved behavior diverge.
         with (
             mock.patch.object(
-                sys, "argv",
-                ["babysit_resolve_thread.py", "owner/repo#1",
-                 "--allowed-owners", "owner", "--i"],
+                sys,
+                "argv",
+                [
+                    "babysit_resolve_thread.py",
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    "--i",
+                ],
             ),
             redirect_stdout(io.StringIO()),
             mock.patch("sys.stderr", new=io.StringIO()),
@@ -926,9 +937,7 @@ def _run_independent(
     buffer = io.StringIO()
     with (
         mock.patch.object(rt, "fetch_threads", return_value=threads),
-        mock.patch.object(
-            rt, "fetch_pull_request_author", return_value="someone-else"
-        ),
+        mock.patch.object(rt, "fetch_pull_request_author", return_value="someone-else"),
         mock.patch.object(rt, "gh_capture", side_effect=list(gh_results or [])),
         mock.patch.object(rt, "resolve_thread", return_value=(resolve_ok, "")),
         mock.patch.object(sys, "argv", ["babysit_resolve_thread.py", *argv]),
@@ -999,8 +1008,11 @@ class IndependentResolverUsageGates(unittest.TestCase):
         # merging worker wear the independent resolver's evidence exemption.
         payload = self._usage(
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--autonomous",
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--autonomous",
             ]
         )
         self.assertIn("--autonomous", str(payload["error"]))
@@ -1008,8 +1020,11 @@ class IndependentResolverUsageGates(unittest.TestCase):
     def test_include_human_combination_is_refused(self) -> None:
         payload = self._usage(
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--include-human",
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--include-human",
             ]
         )
         self.assertIn("--include-human", str(payload["error"]))
@@ -1017,8 +1032,11 @@ class IndependentResolverUsageGates(unittest.TestCase):
     def test_allow_unpinned_thread_combination_is_refused(self) -> None:
         payload = self._usage(
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--allow-unpinned-thread",
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--allow-unpinned-thread",
             ]
         )
         self.assertIn("--allow-unpinned-thread", str(payload["error"]))
@@ -1032,9 +1050,14 @@ class IndependentResolverUsageGates(unittest.TestCase):
     def test_bulk_is_refused_without_a_thread_id(self) -> None:
         payload = self._usage(
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--disposition", "incorrect",
-                "--counter-evidence", "the anchor is wrong",
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--disposition",
+                "incorrect",
+                "--counter-evidence",
+                "the anchor is wrong",
             ]
         )
         self.assertIn("--thread-id", str(payload["error"]))
@@ -1042,9 +1065,14 @@ class IndependentResolverUsageGates(unittest.TestCase):
     def test_disposition_without_its_evidence_is_refused(self) -> None:
         payload = self._usage(
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--disposition", "fixed",
-                "--thread-id", "T_bot",
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--disposition",
+                "fixed",
+                "--thread-id",
+                "T_bot",
             ]
         )
         self.assertIn("--fix-commit", str(payload["error"]))
@@ -1054,10 +1082,18 @@ class IndependentResolverUsageGates(unittest.TestCase):
         # script validate something other than the claim being made.
         payload = self._usage(
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--disposition", "fixed",
-                "--thread-id", "T_bot",
-                "--fix-commit", FIX_SHA, "--tracker-item", "#7",
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--disposition",
+                "fixed",
+                "--thread-id",
+                "T_bot",
+                "--fix-commit",
+                FIX_SHA,
+                "--tracker-item",
+                "#7",
             ]
         )
         self.assertIn("--tracker-item", str(payload["error"]))
@@ -1065,9 +1101,16 @@ class IndependentResolverUsageGates(unittest.TestCase):
     def test_unparsable_sha_is_refused_before_any_lookup(self) -> None:
         payload = self._usage(
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--disposition", "fixed",
-                "--thread-id", "T_bot", "--fix-commit", "not-a-sha",
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--disposition",
+                "fixed",
+                "--thread-id",
+                "T_bot",
+                "--fix-commit",
+                "not-a-sha",
             ]
         )
         self.assertIn("--fix-commit", str(payload["error"]))
@@ -1075,9 +1118,16 @@ class IndependentResolverUsageGates(unittest.TestCase):
     def test_unparsable_tracker_item_is_refused_before_any_lookup(self) -> None:
         payload = self._usage(
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--disposition", "deferred",
-                "--thread-id", "T_bot", "--tracker-item", "not/an/item",
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--disposition",
+                "deferred",
+                "--thread-id",
+                "T_bot",
+                "--tracker-item",
+                "not/an/item",
             ]
         )
         self.assertIn("--tracker-item", str(payload["error"]))
@@ -1090,10 +1140,18 @@ class IndependentResolverBrightLines(unittest.TestCase):
         # Dropping isOutdated does not widen authorship. --include-human is
         # refused in this mode, so nothing can lift the bot-only line here.
         code, payload = _run_independent(
-            [_thread("T_bot", "alice", "User", bot_only=False,
-                     last_updated=PINNED_UPDATED)],
-            _independent_argv("--disposition", "incorrect",
-                              "--counter-evidence", "anything"),
+            [
+                _thread(
+                    "T_bot",
+                    "alice",
+                    "User",
+                    bot_only=False,
+                    last_updated=PINNED_UPDATED,
+                )
+            ],
+            _independent_argv(
+                "--disposition", "incorrect", "--counter-evidence", "anything"
+            ),
         )
         threads = cast(list[dict[str, object]], payload["threads"])
         self.assertEqual(threads[0]["action"], "skipped-human-thread")
@@ -1105,8 +1163,9 @@ class IndependentResolverBrightLines(unittest.TestCase):
         # unconditional, so evidence cannot buy past it.
         code, payload = _run_independent(
             [_bot_thread(severity_flagged=True)],
-            _independent_argv("--disposition", "incorrect",
-                              "--counter-evidence", "anything"),
+            _independent_argv(
+                "--disposition", "incorrect", "--counter-evidence", "anything"
+            ),
         )
         threads = cast(list[dict[str, object]], payload["threads"])
         self.assertEqual(threads[0]["action"], "skipped-severity-marked")
@@ -1209,8 +1268,10 @@ class IndependentResolverEvidence(unittest.TestCase):
         code, payload = _run_independent(
             [_bot_thread(reply_bodies=["The anchor points at generated output."])],
             _independent_argv(
-                "--disposition", "incorrect",
-                "--counter-evidence", "anchor points at generated output",
+                "--disposition",
+                "incorrect",
+                "--counter-evidence",
+                "anchor points at generated output",
             ),
         )
         threads = cast(list[dict[str, object]], payload["threads"])
@@ -1224,8 +1285,10 @@ class IndependentResolverEvidence(unittest.TestCase):
         code, payload = _run_independent(
             [_bot_thread(reply_bodies=["Acknowledged."])],
             _independent_argv(
-                "--disposition", "incorrect",
-                "--counter-evidence", "anchor points at generated output",
+                "--disposition",
+                "incorrect",
+                "--counter-evidence",
+                "anchor points at generated output",
             ),
         )
         threads = cast(list[dict[str, object]], payload["threads"])
@@ -1238,7 +1301,10 @@ class IndependentResolverEvidence(unittest.TestCase):
         code, payload = _run_independent(
             [_bot_thread(reply_bodies=[])],
             _independent_argv(
-                "--disposition", "incorrect", "--counter-evidence", "a.py",
+                "--disposition",
+                "incorrect",
+                "--counter-evidence",
+                "a.py",
             ),
         )
         threads = cast(list[dict[str, object]], payload["threads"])
@@ -1251,9 +1317,16 @@ class IndependentResolverEvidence(unittest.TestCase):
         _, payload = _run_independent(
             [_bot_thread(reply_bodies=["Acknowledged."])],
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--thread-id", "T_bot",
-                "--disposition", "incorrect", "--counter-evidence", "not present",
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--thread-id",
+                "T_bot",
+                "--disposition",
+                "incorrect",
+                "--counter-evidence",
+                "not present",
             ],
         )
         threads = cast(list[dict[str, object]], payload["threads"])
@@ -1269,9 +1342,7 @@ class OutageIsNotARejection(unittest.TestCase):
     world answering "not there".
     """
 
-    def _tracker(
-        self, proc: subprocess.CompletedProcess[str]
-    ) -> tuple[bool, str]:
+    def _tracker(self, proc: subprocess.CompletedProcess[str]) -> tuple[bool, str]:
         with mock.patch.object(rt, "gh_capture", return_value=proc):
             return rt.verify_tracker_item("owner/repo", "#42")
 
@@ -1327,12 +1398,8 @@ class OutageIsNotARejection(unittest.TestCase):
                 (True, ""),
             )
 
-    def _compare(
-        self, compare: subprocess.CompletedProcess[str]
-    ) -> tuple[bool, str]:
-        with mock.patch.object(
-            rt, "gh_capture", side_effect=[_pr_view_ok(), compare]
-        ):
+    def _compare(self, compare: subprocess.CompletedProcess[str]) -> tuple[bool, str]:
+        with mock.patch.object(rt, "gh_capture", side_effect=[_pr_view_ok(), compare]):
             return rt.verify_fix_commit("owner/repo", 1, FIX_SHA)
 
     def test_compare_404_is_the_not_on_head_refusal(self) -> None:
@@ -1357,9 +1424,7 @@ class OutageIsNotARejection(unittest.TestCase):
 
     def test_last_reported_status_wins_over_an_earlier_retry(self) -> None:
         # gh prints one line per attempt; the final one is the outcome.
-        self.assertEqual(
-            rt.gh_http_status(_proc(1, stderr=GH_500 + GH_404)), 404
-        )
+        self.assertEqual(rt.gh_http_status(_proc(1, stderr=GH_500 + GH_404)), 404)
 
     def test_no_status_at_all_reports_none(self) -> None:
         self.assertIsNone(rt.gh_http_status(_proc(1, stderr=GH_NO_RESPONSE)))
@@ -1463,9 +1528,7 @@ class CompareUrlFieldsAreValidated(unittest.TestCase):
 
     def test_unparsable_sha_is_refused_at_the_function_boundary(self) -> None:
         # `main` validates --fix-commit, but the function owns its own contract.
-        with mock.patch.object(
-            rt, "gh_capture", side_effect=[_pr_view_ok()]
-        ):
+        with mock.patch.object(rt, "gh_capture", side_effect=[_pr_view_ok()]):
             self.assertEqual(
                 rt.verify_fix_commit("owner/repo", 1, "../../etc"),
                 (False, "refused-evidence-unverifiable"),
@@ -1498,7 +1561,9 @@ class CounterEvidenceExcludesTheFindingsAuthor(unittest.TestCase):
         projected = rt.project_thread(
             self._record(
                 self._comment("codex", "The anchor points at generated output."),
-                self._comment("codex", "Status: the anchor points at generated output."),
+                self._comment(
+                    "codex", "Status: the anchor points at generated output."
+                ),
             )
         )
         self.assertEqual(projected["replyBodies"], [])
@@ -1557,7 +1622,9 @@ class CounterEvidenceExcludesTheFindingsAuthor(unittest.TestCase):
         projected = rt.project_thread(
             self._record(
                 self._comment("codex", "The anchor points at generated output."),
-                self._comment("codex", "Status: the anchor points at generated output."),
+                self._comment(
+                    "codex", "Status: the anchor points at generated output."
+                ),
             )
         )
         self.assertEqual(projected["replyBodies"], [])
@@ -1575,8 +1642,10 @@ class CounterEvidenceExcludesTheFindingsAuthor(unittest.TestCase):
                 )
             ],
             _independent_argv(
-                "--disposition", "incorrect",
-                "--counter-evidence", "the anchor points at generated output",
+                "--disposition",
+                "incorrect",
+                "--counter-evidence",
+                "the anchor points at generated output",
             ),
         )
         threads = cast(list[dict[str, object]], payload["threads"])
@@ -1723,8 +1792,12 @@ class MultiFindingThreadsAreRefused(unittest.TestCase):
         result = _run(
             [
                 _thread(
-                    "T_bot", "codex[bot]", "Bot",
-                    bot_only=True, is_outdated=True, finding_count=4,
+                    "T_bot",
+                    "codex[bot]",
+                    "Bot",
+                    bot_only=True,
+                    is_outdated=True,
+                    finding_count=4,
                 )
             ],
             ["owner/repo#1", "--allowed-owners", "owner", "--autonomous"],
@@ -1742,11 +1815,20 @@ class ListModePredictsTheResolve(unittest.TestCase):
         _, payload = _run_independent(
             [_bot_thread(last_updated="2026-07-29T00:00:00Z")],
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--thread-id", "T_bot",
-                "--disposition", "fixed", "--fix-commit", FIX_SHA,
-                "--expected-comment-count", "2",
-                "--expected-last-updated", PINNED_UPDATED,
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--thread-id",
+                "T_bot",
+                "--disposition",
+                "fixed",
+                "--fix-commit",
+                FIX_SHA,
+                "--expected-comment-count",
+                "2",
+                "--expected-last-updated",
+                PINNED_UPDATED,
             ],
         )
         threads = cast(list[dict[str, object]], payload["threads"])
@@ -1756,11 +1838,20 @@ class ListModePredictsTheResolve(unittest.TestCase):
         _, payload = _run_independent(
             [_bot_thread()],
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--thread-id", "T_bot",
-                "--disposition", "fixed", "--fix-commit", FIX_SHA,
-                "--expected-comment-count", "9",
-                "--expected-last-updated", PINNED_UPDATED,
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--thread-id",
+                "T_bot",
+                "--disposition",
+                "fixed",
+                "--fix-commit",
+                FIX_SHA,
+                "--expected-comment-count",
+                "9",
+                "--expected-last-updated",
+                PINNED_UPDATED,
             ],
         )
         threads = cast(list[dict[str, object]], payload["threads"])
@@ -1770,15 +1861,25 @@ class ListModePredictsTheResolve(unittest.TestCase):
         result = _run(
             [
                 _thread(
-                    "T_bot", "codex[bot]", "Bot", bot_only=True,
-                    is_outdated=True, last_updated="2026-07-29T00:00:00Z",
+                    "T_bot",
+                    "codex[bot]",
+                    "Bot",
+                    bot_only=True,
+                    is_outdated=True,
+                    last_updated="2026-07-29T00:00:00Z",
                 )
             ],
             [
-                "owner/repo#1", "--allowed-owners", "owner", "--autonomous",
-                "--thread-id", "T_bot",
-                "--expected-comment-count", "2",
-                "--expected-last-updated", PINNED_UPDATED,
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--autonomous",
+                "--thread-id",
+                "T_bot",
+                "--expected-comment-count",
+                "2",
+                "--expected-last-updated",
+                PINNED_UPDATED,
             ],
         )
         threads = cast(list[dict[str, object]], result["threads"])
@@ -1788,11 +1889,20 @@ class ListModePredictsTheResolve(unittest.TestCase):
         _, payload = _run_independent(
             [_bot_thread()],
             [
-                "owner/repo#1", "--allowed-owners", "owner",
-                "--independent-resolver", "--thread-id", "T_bot",
-                "--disposition", "fixed", "--fix-commit", FIX_SHA,
-                "--expected-comment-count", "2",
-                "--expected-last-updated", PINNED_UPDATED,
+                "owner/repo#1",
+                "--allowed-owners",
+                "owner",
+                "--independent-resolver",
+                "--thread-id",
+                "T_bot",
+                "--disposition",
+                "fixed",
+                "--fix-commit",
+                FIX_SHA,
+                "--expected-comment-count",
+                "2",
+                "--expected-last-updated",
+                PINNED_UPDATED,
             ],
             gh_results=[
                 _pr_view_ok(),

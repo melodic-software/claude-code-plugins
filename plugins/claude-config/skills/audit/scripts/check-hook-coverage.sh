@@ -214,9 +214,7 @@ emit_rows() {
   local line
   while IFS= read -r line; do
     [[ -n "$line" ]] && ROWS+=("$src	$line")
-  done <<EOF
-$out
-EOF
+  done <<<"$out"
 }
 
 i=0
@@ -378,9 +376,7 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     printf '  "hooks": ['
     sep=""
     for r in ${ROWS+"${ROWS[@]}"}; do
-      IFS=$'\t' read -r src event matcher cmd <<EOF
-$r
-EOF
+      IFS=$'\t' read -r src event matcher cmd <<<"$r"
       printf '%s\n    ' "$sep"
       jq -cn --arg s "$src" --arg e "$event" --arg m "$matcher" --arg c "$cmd" \
         '{source:$s,event:$e,matcher:$m,command:$c}'
@@ -390,9 +386,7 @@ EOF
     printf '  "plugins": ['
     sep=""
     for p in ${PLUGIN_STATUS+"${PLUGIN_STATUS[@]}"}; do
-      IFS=$'\t' read -r pk st note <<EOF
-$p
-EOF
+      IFS=$'\t' read -r pk st note <<<"$p"
       printf '%s\n    ' "$sep"
       jq -cn --arg k "$pk" --arg s "$st" --arg n "$note" '{plugin:$k,status:$s,note:$n}'
       sep=","
@@ -401,9 +395,7 @@ EOF
     printf '  "levers": ['
     sep=""
     for l in ${LEVERS+"${LEVERS[@]}"}; do
-      IFS=$'\t' read -r sc lk lv <<EOF
-$l
-EOF
+      IFS=$'\t' read -r sc lk lv <<<"$l"
       printf '%s\n    ' "$sep"
       jq -cn --arg s "$sc" --arg k "$lk" --arg v "$lv" '{scope:$s,key:$k,value:$v}'
       sep=","
@@ -431,9 +423,7 @@ else
     echo "Hooks (${#ROWS[@]}):"
     printf '  %-28s %-22s %-12s %s\n' "SOURCE" "EVENT" "MATCHER" "COMMAND"
     for r in "${ROWS[@]}"; do
-      IFS=$'\t' read -r src event matcher cmd <<EOF
-$r
-EOF
+      IFS=$'\t' read -r src event matcher cmd <<<"$r"
       printf '  %-28s %-22s %-12s %s\n' "$src" "$event" "$matcher" "$cmd"
     done
   fi
@@ -441,9 +431,7 @@ EOF
   if [[ ${#PLUGIN_STATUS[@]} -gt 0 ]]; then
     echo "Enabled plugins (${#PLUGIN_STATUS[@]}):"
     for p in "${PLUGIN_STATUS[@]}"; do
-      IFS=$'\t' read -r pk st note <<EOF
-$p
-EOF
+      IFS=$'\t' read -r pk st note <<<"$p"
       printf '  %-8s %-40s %s\n' "$st" "$pk" "$note"
     done
     echo
@@ -451,9 +439,7 @@ EOF
   if [[ ${#LEVERS[@]} -gt 0 ]]; then
     echo "Hook-suppression levers set:"
     for l in "${LEVERS[@]}"; do
-      IFS=$'\t' read -r sc lk lv <<EOF
-$l
-EOF
+      IFS=$'\t' read -r sc lk lv <<<"$l"
       printf '  %-8s %-32s %s\n' "$sc" "$lk" "$lv"
     done
     echo

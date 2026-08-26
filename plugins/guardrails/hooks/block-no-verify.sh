@@ -215,48 +215,46 @@ check_segment() {
   # In a short-option bundle, `n` counts only when it precedes the first
   # argument-taking short (m/F/c/C/t/u/S/G) — so `-nm msg` blocks but `-mn`
   # (m takes value "n") does not.
-  if [[ "$sub" == "commit" || "$sub" == "push" ]]; then
-    k=$((sub_idx + 1))
-    while ((k < nseg)); do
-      x="${w[k]}"
-      case "$x" in
-      -m | --message | -F | --file | -t | --template | -c | -C | --author | --date)
-        ((k += 2))
-        continue
-        ;;
-      --message=* | --file=* | --template=* | --author=* | --date=*)
-        ((k++))
-        continue
-        ;;
-      *) ;;
-      esac
-      [[ "$x" == "--no-verify" ]] && block "no-verify" \
-        "BLOCKED: --no-verify / -n flags are not allowed with git $sub." \
-        "Fix the issues that caused the hook failure instead of bypassing."
-      if [[ "$sub" == "commit" && "$x" =~ ^-[A-Za-z]+$ ]]; then
-        rest="${x#-}"
-        for ((ch = 0; ch < ${#rest}; ch++)); do
-          case "${rest:ch:1}" in
-          n) block "no-verify" \
-            "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
-            "Fix the issues that caused the hook failure instead of bypassing." ;;
-          m | F | c | C | t | u | S | G)
-            if ((ch + 1 < ${#rest})); then
-              ((k++))
-            elif ((k + 1 < nseg)); then
-              ((k += 2))
-            else
-              ((k++))
-            fi
-            continue 2
-            ;;
-          *) ;;
-          esac
-        done
-      fi
+  k=$((sub_idx + 1))
+  while ((k < nseg)); do
+    x="${w[k]}"
+    case "$x" in
+    -m | --message | -F | --file | -t | --template | -c | -C | --author | --date)
+      ((k += 2))
+      continue
+      ;;
+    --message=* | --file=* | --template=* | --author=* | --date=*)
       ((k++))
-    done
-  fi
+      continue
+      ;;
+    *) ;;
+    esac
+    [[ "$x" == "--no-verify" ]] && block "no-verify" \
+      "BLOCKED: --no-verify / -n flags are not allowed with git $sub." \
+      "Fix the issues that caused the hook failure instead of bypassing."
+    if [[ "$sub" == "commit" && "$x" =~ ^-[A-Za-z]+$ ]]; then
+      rest="${x#-}"
+      for ((ch = 0; ch < ${#rest}; ch++)); do
+        case "${rest:ch:1}" in
+        n) block "no-verify" \
+          "BLOCKED: --no-verify / -n flags are not allowed with git commit." \
+          "Fix the issues that caused the hook failure instead of bypassing." ;;
+        m | F | c | C | t | u | S | G)
+          if ((ch + 1 < ${#rest})); then
+            ((k++))
+          elif ((k + 1 < nseg)); then
+            ((k += 2))
+          else
+            ((k++))
+          fi
+          continue 2
+          ;;
+        *) ;;
+        esac
+      done
+    fi
+    ((k++))
+  done
 
   return 0
 }
