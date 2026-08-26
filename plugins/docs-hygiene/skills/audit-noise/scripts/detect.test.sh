@@ -468,6 +468,24 @@ tilde_out="$(bash "$DETECT" "$TILDE_FENCE")"
 assert_not_contains "ordinary tilde fence body stays exempt" "$tilde_out" "inside a tilde fence"
 assert_contains "prose after a tilde fence still flags" "$tilde_out" "real prose"
 
+# A fence opening directly after paragraph text flushes the pending negation
+# buffer, and that flush runs its own [[ =~ ]] matches. Reading BASH_REMATCH
+# for the fence delimiter after the flush aborts the whole run under set -u.
+FENCE_AFTER_PROSE="$TEST_TMPDIR/fence-after-prose.md"
+cat >"$FENCE_AFTER_PROSE" <<'EOF'
+<!-- marker:v1 -->
+```json
+{ "schema_version": "1.0" }
+```
+EOF
+fence_after_prose_out="$(bash "$DETECT" "$FENCE_AFTER_PROSE" 2>&1)"
+fence_after_prose_exit=$?
+assert_exit "fence opening after prose does not abort" 0 "$fence_after_prose_exit"
+assert_contains "fence opening after prose still summarises" \
+  "$fence_after_prose_out" "Summary file: $FENCE_AFTER_PROSE"
+assert_not_contains "fence delimiter capture survives the negation flush" \
+  "$fence_after_prose_out" "BASH_REMATCH"
+
 INLINE_FIXTURE="$TEST_TMPDIR/inline-code.md"
 cat >"$INLINE_FIXTURE" <<'EOF'
 # Inline fixture

@@ -1,5 +1,16 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.12]
+
+### Fixed
+
+- **`audit-noise` aborted mid-run on any fence opening directly after paragraph text.**
+  `detect.sh` read `BASH_REMATCH[1]` for the fence delimiter *after* calling
+  `flush_negation`, which runs its own `[[ =~ ]]` matches and overwrites
+  `BASH_REMATCH`. Under `set -u` the stale read killed the whole invocation, so a
+  repo-wide scan stopped at the first such file and silently reported partial
+  coverage. The delimiter is now captured before the flush. Regression test added.
+
 ## [0.21.11]
 
 ### Changed
