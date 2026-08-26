@@ -1,0 +1,71 @@
+# Instruction surfaces the de-slop campaign (#2891) has already purged of em
+# dashes, and which must therefore stay purged. Consumed by
+# scripts/check-purged-em-dashes.sh.
+#
+# ALLOWLIST, NOT A REPO-WIDE RULE, and that is the design rather than a
+# concession. 29,649 em-dash prose lines across 1,074 tracked markdown files
+# remained when this list was seeded, so a corpus-wide check could only have
+# been merged switched off. Listing what is already clean inverts the problem:
+# adopting the gate breaks nothing, because every path below passes the moment
+# it is added, and enforcement then grows with the campaign rather than waiting
+# for it.
+#
+# The same argument, and the same fail-safe direction, as
+# scripts/docs-only-paths.txt: a path NOT on this list is merely unenforced,
+# whereas a blocklist would let a surface fall silently out of enforcement the
+# day someone widened an exclusion.
+#
+# ADDING AN ENTRY is the last step of purging a surface, in the same pull
+# request that purges it. Two conditions, both checked:
+#
+#   1. The entry must match at least one tracked file. A glob matching nothing
+#      fails the gate rather than passing vacuously, so a renamed or deleted
+#      surface cannot leave a dead line here claiming coverage.
+#   2. Every file it matches must be free of em dashes in prose, as
+#      plugins/ai-slop/skills/audit/scripts/detect.sh judges prose: fenced code
+#      blocks, inline code spans, and ai-slop-ignore-marked regions are exempt,
+#      because those legitimately carry the character as data.
+#
+# THE SEED IS STRICTER THAN THE GATE, deliberately. Every path in the seed
+# contains no em dash ANYWHERE, not merely none in prose. That makes the whole
+# list auditable without running the detector: expand it with
+# `scripts/check-purged-em-dashes.sh --list` and grep the named files for the
+# character, and nothing should match. A later entry is free to rely on the
+# detector's prose rule instead, and to carry the character inside a code fence
+# or an ignore-marked region; it simply cannot be spot-checked that cheaply.
+#
+# WHAT IS NOT HERE. Plugin surfaces still carrying em dashes are absent by
+# definition, and are the campaign's remaining work. Also absent on purpose:
+# docs/adr/** (decision records are a historical account, not prose to restyle),
+# docs/upstream/** and plugins/*/skills/*/vendor/** (third-party text, which the
+# repo's own vendor-docs-are-not-style rule puts out of scope), and the eval
+# fixtures under plugins/ai-slop/skills/audit/evals/, which contain the tells
+# they exist to test.
+
+# Root README, purged in #3265.
+README.md
+
+# Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
+# skills glob is intentionally open: a NEW skill added to one of these plugins
+# is covered from the moment it lands, which is the cheapest possible time to
+# keep it clean.
+plugins/adhd/README.md
+plugins/adhd/skills/*/SKILL.md
+plugins/codebase-health/README.md
+plugins/codebase-health/skills/*/SKILL.md
+plugins/debugging/README.md
+plugins/debugging/skills/*/SKILL.md
+plugins/implementation/README.md
+plugins/implementation/skills/*/SKILL.md
+plugins/naming/README.md
+plugins/naming/skills/*/SKILL.md
+plugins/overengineering/README.md
+plugins/overengineering/skills/*/SKILL.md
+plugins/playwright/README.md
+plugins/playwright/skills/*/SKILL.md
+plugins/prototype/README.md
+plugins/prototype/skills/*/SKILL.md
+plugins/verification/README.md
+plugins/verification/skills/*/SKILL.md
+plugins/wizard/README.md
+plugins/wizard/skills/*/SKILL.md
