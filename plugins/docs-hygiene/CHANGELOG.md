@@ -1,5 +1,27 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.18]
+
+### Fixed
+
+- **`audit-noise` no longer reports its own sibling's prescribed spoke-index shape as `enum-list`
+  noise.** `audit_noise_section_exempt` exempted `## Cross-references` but not
+  `## Reference index. Load on demand`, `## Context ladder (read on demand)`, or
+  `## Maintenance. Load on demand`, which are the headings
+  `audit-progressive-disclosure` rewrites blind pointers INTO. So applying one lane's fix converted
+  it into another lane's finding, and the exemplar the doctrine itself points at,
+  `plugin-quality:audit`'s `SKILL.md`, was already reporting `enum-list` against its own reference
+  index. A two-column path-and-condition table is a routing table, not the consumer roster
+  `enum-list` looks for. Found while applying the blind-pointer remediations across ten skills.
+
+### Changed
+
+- **`audit-encapsulation`, `compress` and `extract-ssot` carry a `Reference index. Load on demand`
+  table instead of a `## Cross-references` bullet list.** Each row now states when to open the
+  spoke, not only what it holds. All six audit skills' shared clean-tree pointer says when to open
+  `context/clean-tree-fallback.md`, split by whether the skill states its own unattended branch
+  locally. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.21.17]
 
 ### Changed

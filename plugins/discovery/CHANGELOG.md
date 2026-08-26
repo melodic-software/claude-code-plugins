@@ -1,5 +1,14 @@
 # Changelog — discovery plugin
 
+## [0.16.11]
+
+### Changed
+
+- **`research-deep`'s `## See also` rows carry read conditions.** The shared discipline file now
+  names the moments it is needed (grading a returned payload's tiers, recency and falsification, or
+  a Tier 3 inline run) rather than only its subject. Docs-hygiene sweep,
+  L2-progressive-disclosure.
+
 ## [0.16.10]
 
 ### Changed

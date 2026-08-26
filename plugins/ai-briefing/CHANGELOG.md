@@ -3,6 +3,16 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.11]
+
+### Changed
+
+- **`generate`'s trailing `## References` list is a `Reference index. Load on demand` table.** Each
+  row states the load condition rather than only the spoke's contents, so a reading agent can
+  decide whether to spend the context without opening the file. The index also named a `--format`
+  value the skill does not accept (`pptx`, which is an artifact of the `slides` path, not a flag
+  value); it now names the real ones. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.7.10]
 
 ### Changed

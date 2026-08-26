@@ -67,6 +67,8 @@ on-demand/unknown and the split lane still applies.
 ## Auto-detect default
 
 Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+The rules below are what this skill runs; open the shared file only when editing them, for the
+sibling divergences it owns.
 
 1. Empty arg AND clean tree → OFFER a repo-wide audit (never auto-start). Prescribed defaults
    (overridable): corpus = all tracked agent-facing instruction `.md` (CLAUDE.md/AGENTS.md,

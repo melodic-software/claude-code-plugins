@@ -3,6 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.8]
+
+### Changed
+
+- **`changelog` and `plugins` carry a `Reference index. Load on demand` table**, one load condition
+  per spoke, instead of a `## Cross-references` bullet list that named only contents. `lanes`'
+  `context/refresh.md` pointer now names the situation that sends you there (a merged fix to a
+  plugin a running lane uses). The `changelog` index also claimed its body carries only `apply`,
+  which a section three lines above the table contradicts; corrected. Docs-hygiene sweep,
+  L2-progressive-disclosure.
+
+  `morning-brief` and `observability` were audited and **declined**: neither `## Cross-references`
+  section points at an on-demand file at all. `morning-brief` ships no `context/` or `reference/`
+  directory, so there is no spoke to attach a condition to, and `observability`'s real spoke index
+  is its `## Context ladder (read on demand)` section, already one of the three shapes this
+  remediation copies.
+
 ## [0.38.7]
 
 ### Changed

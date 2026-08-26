@@ -81,6 +81,8 @@ severity-crosswalk row; the other five stay in the human report and are counted 
 ## Auto-detect default
 
 Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+The rules below are what this skill runs; open the shared file only when editing them, for the
+sibling divergences it owns.
 
 1. Empty arg AND clean tree → OFFER the repo-wide audit instead of silently no-opping; run only on
    the user's confirmation. The offer carries prescribed defaults (overridable): corpus = all

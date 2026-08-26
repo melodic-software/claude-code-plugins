@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.30]
+
+### Changed
+
+- **`onboard-adapter`'s `## Related` becomes a `Reference index. Load on demand` table**, each row
+  keyed to the step that needs that reference. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.39.29]
 
 ### Changed

@@ -281,9 +281,11 @@ report it as an invalid value. Only a rendered value that is a real word other t
 flagging. Sync's Step 4 branches on the **Configured value** line's rendered value, or on the `ask`
 default when that render is still the placeholder token, not on the option's name or description above.
 
-## Cross-references
+## Reference index. Load on demand
 
-- [context/sync.md](context/sync.md). Full `sync` algorithm
-- [context/converge.md](context/converge.md). Scope-consolidation flow, confirm gate, autonomous-session abort
-- [context/scope-semantics.md](context/scope-semantics.md). Verified CC scope/version/reload facts this skill depends on
-- [context/gotchas.md](context/gotchas.md). Known failure modes and how this skill avoids them
+| File | Load when |
+|---|---|
+| [context/sync.md](context/sync.md) | Running `sync` or `audit`; it is the step sequence both actions execute. |
+| [context/converge.md](context/converge.md) | Running `converge`, the only action that may rewrite a committed settings file. |
+| [context/scope-semantics.md](context/scope-semantics.md) | A scope, version, or reload claim needs its verified source before you act on it. |
+| [context/gotchas.md](context/gotchas.md) | A run failed in a way the steps do not explain, or a safeguard looks removable. |

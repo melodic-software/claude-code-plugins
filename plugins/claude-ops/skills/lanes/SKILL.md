@@ -310,9 +310,9 @@ succeeds while storing the previous body still verifies, and the read-back prove
 
 ## Cross-references
 
-- [context/refresh.md](context/refresh.md). Why a running lane can't hot-reload a
-  merged fix to its own skills, the git staleness probe, and the restart cadence
-  (#514).
+- [context/refresh.md](context/refresh.md). Read it when a fix has merged to a plugin a
+  lane is running on and you must decide whether to restart that lane: the git staleness
+  probe and the restart cadence (#514).
 - `/claude-ops:plugins`, the authoritative, richer plugin-fleet sync (scope
   divergence, new-catalog installs). This skill's marketplace refresh is the light
   `claude plugin marketplace update` step of a launch, not a substitute.

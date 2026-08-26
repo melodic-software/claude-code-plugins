@@ -73,7 +73,7 @@ Flags (apply to both actions):
 
 ## Auto-detect default
 
-Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md). The rules below are what this skill runs; open the shared file only when editing them, for the sibling divergences it owns.
 
 1. Empty arg AND clean tree → interactive session: repo-wide interview fallback (next section); non-interactive context (subagent, headless/CI): friendly no-op exit 0 ("No uncommitted .md files. Pass file/dir target.")
 2. Empty arg AND uncommitted `.md` files → batch default action over those files
@@ -146,10 +146,12 @@ Observed failure points. Each traces to a real incident; grown iteratively.
 - Always-loaded instruction-file yield bound (2-3%): authoring-repo baseline, 3/3 compression attempts reverted, all flavor-only, 0 semantic loss
 - Self-audit expansion drift: authoring-repo batch compression wave, 2026-05-23. 4/4 reverse-direction edits from self-audit (`context/fan-out-orchestration.md` ## History)
 
-## Cross-references
+## Reference index. Load on demand
 
-- `context/semantic-diff-prompt.md`. Subagent dispatch template (Agent tool prompt + return-format contract)
-- `context/flavor-vs-content-matrix.md`. Canonical FLAVOR / CONTENT taxonomy + per-content-type variants
-- `context/target-types.md`. Per-action argument shapes + author-time-signal heuristic
-- `context/fan-out-orchestration.md`. Multi-phase batch fan-out recipe; read when compressing N files via parallel subagents (keeps the semantic-diff in a separate fresh-context auditor)
-- `context/integration.md`. Composition contract with sibling skills and consumer workflows
+| File | Load when |
+|---|---|
+| `context/semantic-diff-prompt.md` | Dispatching the semantic-diff subagent; it is the prompt body and the return contract. |
+| `context/flavor-vs-content-matrix.md` | Judging whether a specific span is FLAVOR or CONTENT, and during the revert pass. |
+| `context/target-types.md` | Resolving what an argument points at, or classifying SKIP / COMPRESS / UNCERTAIN in `audit`. |
+| `context/fan-out-orchestration.md` | Compressing N files across parallel subagents, so the semantic diff stays in a separate context. |
+| `context/integration.md` | Another skill, lint job, or gate wants to call this one, and you need the invocation form it may use. |

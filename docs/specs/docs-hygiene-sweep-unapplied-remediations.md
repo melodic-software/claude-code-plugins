@@ -220,12 +220,43 @@ the repository already contains three correct versions of the section:
 | `plugins/discovery/skills/research-deep/SKILL.md:120` | `## See also` | 1 |
 | `plugins/source-control/skills/babysit-prs/SKILL.md:409` | `## References` | 1 |
 | `plugins/kindle-dedrm/skills/manage/SKILL.md:154` | `## Cross-references` | 1 |
-| `plugins/planning/skills/interview/SKILL.md` | spoke listed under `## What this skill does NOT do` | 1 |
+| `plugins/planning/skills/interview/SKILL.md` | spoke listed under `## What this skill does NOT do`. **Open, and deliberately left standing. See below** | 1 |
 | `plugins/work-items/skills/onboard-adapter/SKILL.md:203` | `## Related` | 1 |
 | `docs/topics/ai-adoption-ladder/design/design-threads.md` | nine bare-name citations, awareness only | 1 |
 
 Three of L7's P3 pointer findings overlap this shape. Where both fire on one line, take the
 blind-pointer rewrite, which is fuller, and drop the P3 fix rather than applying both.
+
+**Correction, 2026-08-26.** That cross-lane note has no referent. It and the L7 note that
+`B-1` through `B-4` "also fail L2's blind-pointer shape" both point at
+`plugins/claude-ops/skills/audit-install-state/SKILL.md`, which the table above never listed: its
+eleven rows sum to exactly 22 without it. The two notes also disagree with each other on the count,
+three against four. Independently, all four `B-1` through `B-4` replacements are already present in
+that file, so those findings are closed under the decay rule, and they were never the trailing-index
+shape anyway: each is a one-line pointer closing a numbered phase section, where the enclosing
+heading supplies the *when* and the P3 fix supplied the *what*. Converting them to a table would
+move phase-local routing away from the phase it routes.
+
+**Applied 2026-08-26: 18 of 22, in ten trailing-index rewrites and eight inline when-clauses.**
+Three sites were declined as no longer holding. `claude-ops` `morning-brief` ships no `context/` or
+`reference/` directory at all, so its `## Cross-references` names two sibling-skill boundaries and
+no spoke; `claude-ops` `observability`'s `## Cross-references` is a single disambiguation line, and
+its real spoke index is the `## Context ladder (read on demand)` section this remediation copies as
+a model. The `audit-encapsulation` shared-fallback sentence was fixed too, though the table counted
+only five skills carrying it, so the sentence does not drift across the six.
+
+**`plugins/planning/skills/interview/SKILL.md` is the one site left standing, and the reason is a
+cost, not a doubt about the finding.** The blind pointer is real. It sits inside
+`## What this skill does NOT do`, and `plugins/planning/tests/interview-defenses.test.sh` pins that
+exact section by content digest, under the assertion `SKILL.md "does NOT do" section is unchanged
+(the fudge prohibition lives here)`. Any fix re-baselines that digest, including the structurally
+better fix of moving the misfiled reference row out of a prohibitions section, because removing the
+line changes the digest too. The pin exists to make an unreviewed edit to a safety prohibition
+fail loudly. Spending it on a pointer's when-clause trades a standing defense for a Tier 3 prose
+improvement, so the finding stays open rather than being paid for at that price. **Re-opening it is
+a human's call**: either accept a digest re-baseline for a cosmetic fix, or leave the pointer as it
+is. The underlying misfiling, a reference row living under a prohibitions heading, is the more
+useful thing to fix if anyone touches that section for another reason.
 
 ### `deep-nesting`, 6
 

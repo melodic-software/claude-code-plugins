@@ -3,6 +3,15 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4]
+
+### Changed
+
+- **`scan`'s `## Cross-references` becomes a `Reference index. Load on demand` table**, each row
+  keyed to the pipeline step that sends you to that spoke. `write`'s `context/template.md` pointer
+  now says when to read it. Both were blind pointers: they named what each file held and never when
+  to open it. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.9.3]
 
 ### Changed

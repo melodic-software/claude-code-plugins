@@ -119,5 +119,5 @@ This variant tracks `/discovery:research`'s conventions. Same discipline file, s
 
 ## See also
 
-- `/discovery:research`, the canonical 3-phase workflow (Tiers 2 + 3 run it; a Tier-1 engine supersets it)
-- `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`, the shared discipline file
+- `/discovery:research`, the canonical 3-phase workflow. Invoke it instead when the topic is a single small lookup; Tiers 2 and 3 run it, and a Tier-1 engine supersets it
+- `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`, the shared discipline file. Read it when grading a returned payload's source tiers, recency, or falsification, or when Tier 3 runs the research inline here

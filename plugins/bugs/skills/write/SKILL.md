@@ -139,5 +139,5 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 
 ## Cross-references
 
-- [`context/template.md`](context/template.md). Full Markdown template, worked example, `--file` frontmatter, and the "No bug confirmed" form
+- [`context/template.md`](context/template.md). Read it before emitting a report: the full Markdown template, one worked example, the `--file` frontmatter, and the "No bug confirmed" form
 - Consumer conventions (naming, areas, priority labels, tracker choice) come from the consuming project's own `CLAUDE.md` / rules. This skill reads them rather than imposing its own

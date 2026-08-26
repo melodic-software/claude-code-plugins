@@ -408,24 +408,20 @@ Failure patterns observed in real babysit sessions:
   bootstrap of that fix PR; no tier automates it. Surface it as a blocker needing that bootstrap,
   never as a reason to route around the gate
 
-## References
+## Reference index. Load on demand
 
-- [reference/loop.md](reference/loop.md), the safe-tier iteration loop (also the Python-free
-  degrade path): discovery, checkout, freshness, checklist, and the §5.3 cadence contract.
-- [reference/orchestration.md](reference/orchestration.md), fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution (the resolve/push split and the conflict-worker prompt delta), cleanup.
-- [reference/cadence.md](reference/cadence.md), active/normal/quiet/idle cadence states,
-  real-elapsed-time detection, bounded full-sweep interval, persisted counters.
-- [reference/freshness.md](reference/freshness.md). Guarded refresh for behind-base branches,
-  BLOCKED compare fallback, async-update terminality.
-- [reference/stuck-checks.md](reference/stuck-checks.md), the `checks.stuck` signal (checks holding `mergeStateStatus` at UNSTABLE without completing) and its escalation routing; report, never auto-fix. Also the inverse under `DIRTY`: checks never scheduled at all, where the list is short rather than stuck.
-- [reference/review-trigger.md](reference/review-trigger.md), generalized AI-review trigger +
-  gate semantics; dormant when unconfigured.
-- [reference/autopilot.md](reference/autopilot.md), the autopilot tier's per-PR steps, its
-  deterministic-only exclusions, draft handling, and the scopes it widens.
-- [reference/worktrees.md](reference/worktrees.md), ephemeral worktree policy and prune commands.
-- [reference/safety.md](reference/safety.md), the two gates and which one owns merge-readiness, role
-  boundaries, verify-before-escalate, the harness permission layer (pinned-command degradation), stop-ask and never-do lists.
-- [reference/feedback.md](reference/feedback.md). Feedback classification, dispositions,
-  advisory cap, bot-PR taxonomy, human-feedback policy.
-- [`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../reference/review-discipline.md)
-  the plugin-scope per-PR review discipline shared with `/source-control:pull-request`.
+| File | Load when |
+|---|---|
+| [reference/safety.md](reference/safety.md) | Before any mutating action, in every tier. The two gates, role boundaries, stop-ask and never-do lists. |
+| [reference/runbook-cycle.md](reference/runbook-cycle.md) | Starting an engine-backed queue or worker cycle; it is the numbered sequence that cycle follows. |
+| [reference/loop.md](reference/loop.md) | Running the safe tier, or the engine is unavailable and every tier degrades to the Python-free loop. |
+| [reference/orchestration.md](reference/orchestration.md) | An acting cycle is about to dispatch workers or resolve a conflict: gate arms, concurrency cap, leases, prompt template. |
+| [reference/cadence.md](reference/cadence.md) | Deciding the next wake interval, or a `recommended_cadence` reading needs its state and threshold. |
+| [reference/freshness.md](reference/freshness.md) | The snapshot reports `branch_freshness.state == "behind"` for a PR. |
+| [reference/stuck-checks.md](reference/stuck-checks.md) | The snapshot reports a non-empty `checks.stuck` array, **or** `branch_freshness.state == "conflicting"` and the check list is short. Report and escalate, never auto-fix. |
+| [reference/review-trigger.md](reference/review-trigger.md) | An external AI reviewer is configured and a PR needs summoning or its gate read. |
+| [reference/autopilot.md](reference/autopilot.md) | Running the autopilot tier: its per-PR steps, exclusions, draft handling, widened scopes. |
+| [reference/worktrees.md](reference/worktrees.md) | Creating, reusing, or pruning a per-PR worktree before dispatching a worker. |
+| [reference/feedback.md](reference/feedback.md) | A PR carries review comments needing classification and disposition, or the PR is a bot's and its taxonomy decides the handling. |
+| [reference/independent-resolution.md](reference/independent-resolution.md) | A current bot thread is addressed but this context may not retire it. |
+| [`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../reference/review-discipline.md) | Running the per-PR checklist for real, or briefing a worker: the compact checklist above is a skeleton over this. |

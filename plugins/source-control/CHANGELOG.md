@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.19]
+
+### Changed
+
+- **`babysit-prs`' `## References` becomes a `Reference index. Load on demand` table**, ordered by
+  when each spoke is needed, with `reference/runbook-cycle.md` and
+  `reference/independent-resolution.md` added: both were reachable only from mid-body prose.
+  `reference/stuck-checks.md`'s row states **both** entry conditions, a non-empty `checks.stuck`
+  array **or** a conflicting branch with a short check list. The second limb is the one 0.54.13
+  added, for the case where checks were never scheduled at all and `checks.stuck` is empty by
+  construction; a row gating on the array alone would have silently reverted that fix while looking
+  correct. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.55.18]
 
 ### Fixed

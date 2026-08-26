@@ -45,6 +45,8 @@ One action per response.
 ### No inherited scope. Confirm before a repo-wide run
 
 Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+Read it when the bare invocation is unattended or non-interactive, the case the rules below leave
+unstated, or when editing those rules.
 This skill's trigger is "no inherited scope" (not only "clean tree"), a dirty tree with unrelated
 edits still needs the confirm when nothing names the detect surface.
 
@@ -200,13 +202,15 @@ A surfaced violation is never silently ignored: fix it, capture it as a side not
 - File work items without classification. Path A vs Path B must be picked first
 - Auto-fix without user review. Each Path B route changes call-site invocation; the user inspects the diff
 
-## Cross-references
+## Reference index. Load on demand
 
-- `context/public-surface-contract.md`. Canonical definition of what's public vs private, both carve-outs, the violation-shape table, and the CI / git-hook consumption techniques
-- `/docs-hygiene:extract-ssot verify`. 6-gate refuse-fast check for Path A "promote out" decisions
-- `/docs-hygiene:extract-ssot execute`. Writes the SSOT and sweeps citations after a Path A migration
-- `/docs-hygiene:extract-ssot`. Duplication-skill counterpart; an encapsulation violation is one of its failure modes (cross-cite)
-- `/docs-hygiene:rename-references`. Load-bearing multi-pattern sweep after any heading change
+| Reference | Load when |
+|---|---|
+| `context/public-surface-contract.md` | Classifying a detect hit as legal or illegal, or wiring the detector into CI or a git hook. |
+| `/docs-hygiene:extract-ssot verify` | Before committing to a Path A promote-out, to refuse a bad extraction cheaply. |
+| `/docs-hygiene:extract-ssot execute` | Carrying out an approved Path A migration: writes the SSOT, sweeps the citations. |
+| `/docs-hygiene:extract-ssot` | The hit is really duplication rather than a boundary breach. |
+| `/docs-hygiene:rename-references` | A remediation renamed a heading, and every citing form still needs sweeping. |
 
 ## Recheck triggers
 

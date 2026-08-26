@@ -98,6 +98,8 @@ Bare invocation (no flags) stays read-only: it reports the buckets and stops, ma
 ## Bare invocation: confirm scope first
 
 Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+The rules below are what this skill runs; open the shared file only
+when editing them, for the sibling divergences it owns.
 
 A bare `/docs-hygiene:extract-ssot` with no working notes to resume, no
 argument, and no scope implied by the conversation does **not**
@@ -217,17 +219,19 @@ Per-phase checklist: `context/execution-checklist.md`.
 - Cross-language type sharing where the answer is codegen, not text dedup
 - **Replace a workspace-wide verification pass**, the `verify` action here is a per-cluster refuse-fast pre-extraction gate, not a build+test+lint run; run the consuming repository's own verification after `execute`
 
-## Cross-references
+## Reference index. Load on demand
 
-- `context/decision-framework.md`. 6+5 gate, Pre-extraction Tier 0 checklist, output-type table, worked examples
-- `context/citation-form.md`. Full citation contract for markdown call sites
-- `context/anti-patterns.md`. 13-pattern taxonomy with mitigations
-- `context/execution-checklist.md`. Per-phase checks for the `execute` action
-- `context/lessons.md`. Append-only empirical lessons from batch executions; consumed by the `verify` action and `context/decision-framework.md`
-- `context/orchestrated-mode.md`. Whole-repo batch defaults: worker tiering, static concurrency cap, rate-limit-guard consumption, wave-committed cadence
-- `actions/identify.md`, `actions/verify.md`, `actions/batch.md`. Action bodies (private surface)
-- `/docs-hygiene:rename-references`. Load-bearing 10-pattern sweep after any heading change (owns the syntactic-form set)
-- `/docs-hygiene:audit-encapsulation`. Encapsulation detection + remediation (separate concern)
+| Reference | Load when |
+|---|---|
+| `context/decision-framework.md` | Running the 6+5 gate on a candidate, or choosing its output type. |
+| `context/citation-form.md` | Writing or repairing a call-site citation, line-wrap edge case included. |
+| `context/anti-patterns.md` | Diagnosing a symptom the gate did not catch (stale citation, chained link, bifurcated source), or writing a REFUSE reason. |
+| `context/execution-checklist.md` | Running `execute`, one checklist per phase. |
+| `context/lessons.md` | Running `verify`, and before a batch that repeats a shape an earlier batch already hit. |
+| `context/orchestrated-mode.md` | The user confirmed a whole-repo batch: worker tiering, concurrency cap, wave cadence. |
+| `actions/identify.md`, `actions/verify.md`, `actions/batch.md` | Running that action; the router table above is only its summary. Private surface. |
+| `/docs-hygiene:rename-references` | An extraction renamed a heading, and every citing form still needs sweeping. |
+| `/docs-hygiene:audit-encapsulation` | The duplication turns out to sit across a skill boundary. |
 
 ## Recheck triggers
 

@@ -234,15 +234,12 @@ Recommend, do not auto-invoke:
 - **A lane with no verified findings is a result.** Report it, advance the cursor, do not refill past
   the cap looking for something to say.
 
-## Cross-references
+## Reference index. Load on demand
 
-- [`context/lenses.md`](context/lenses.md), the five hunter lens contracts, the evidence-quote and
-  no-candidate rules, and the bundled generic default lanes
-- [`context/verification-gate.md`](context/verification-gate.md), the default-refute gate prompt and
-  the retained-refuted output contract
-- [`context/findings-report.md`](context/findings-report.md). Report format, evidence labels, refuted
-  tail, cursor metadata block
-- [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). `.claude/bugs.md`
-  keys, layers, and merge semantics
-- [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md), the five-field report shape, the
-  duplicate scan, and the persistence path precedence this skill reuses
+| File | Load when |
+|---|---|
+| [`context/lenses.md`](context/lenses.md) | Step 2, sizing the fan-out and writing each hunter's dispatch prompt; also holds the bundled default lanes. |
+| [`context/verification-gate.md`](context/verification-gate.md) | Step 3, before dispatching the refute gate on a candidate. |
+| [`context/findings-report.md`](context/findings-report.md) | Step 4, emitting the report, and the ladder's middle rung reading a prior cursor back. |
+| [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md) | A `.claude/bugs.md` key decides the run (lane, rotation, filing posture) and its layer is unclear. |
+| [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md) | Emitting a finding in the five-field shape, running the duplicate scan, or resolving where `--track` persists. |
