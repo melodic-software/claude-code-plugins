@@ -125,6 +125,10 @@ So the parent does the writing, which it can — this is the checkout-not-proces
 4. Proceed only on exit 0. A non-zero second run drops through to the rungs below — the exception
    is to the halt, never to the gate, and `persistence: by-value` grades nothing on its own.
 
+Two conditions bind that write, both spelled out in the ladder. **Filenames are checked before anything is written**. This is the only place a name the worker produced becomes a write the parent performs, at the parent's wider permission, so only `EXPLORE.md` and `EXPLORE-<section>.md` are accepted, as bare filenames, and anything carrying a directory separator, a `..` segment or a leading `/` is a failed dispatch rather than a name to sanitize. **And the collision rule still applies**, a slice root already holding an unrelated `EXPLORE.md` gets a parent-assigned sub-slice here exactly as it would for a worker that could write, because overwriting the index that rule protects would be a silent, unrecoverable loss arriving through the recovery path.
+
+Nothing in the payload is ever accepted *in place of* the gate passing. `persistence: by-value` routes the parent; it does not grade anything, and it is never a reason to believe a run. A by-value payload carrying a summary of findings rather than the artifact bodies is a **failed dispatch**, not a fallback, the whole discipline rests on the artifact being real, and a claim the gate is invited to accept on trust is the laundering this skill exists to refuse. Why the mode exists and where its boundary sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to
 take. It is not an acceptance value, and treating it as one would let a run be believed on the

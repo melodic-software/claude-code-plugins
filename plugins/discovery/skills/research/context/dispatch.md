@@ -207,6 +207,10 @@ already draws, finally reachable from the failure that needs it:
    rungs below — the exception is to the halt, never to the gate, and `persistence: by-value` grades
    nothing on its own.
 
+Two conditions bind that write and both are spelled out in the ladder. **filenames are checked before anything reaches disk** (only `RESEARCH.md`, `RESEARCH-<section>.md` and `research-checklist.md`, as bare filenames), and **step 3's unbounded-corpus rule is unchanged**.
+
+Nothing in the payload is ever accepted *in place of* a gate passing. `persistence: by-value` routes the parent; it grades nothing. A by-value payload carrying a summary of findings rather than the artifact bodies is a **failed dispatch**, not a fallback: research the gate is invited to accept on the agent's word is the Tier-3 laundering this skill forbids everywhere else. Why the mode exists and where its boundary sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to take.
 It is not an acceptance value. Letting the gate grade a claim the agent makes about its own research,

@@ -65,9 +65,7 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 
 **One named exception, and it is an exception to the halt, not to the gate.** Exit 1 with `persistence: by-value` in the payload means the agent finished and its environment refused every write. There the parent **writes the slice itself** from the artifact bodies the payload carries verbatim, into the memory-slice path it resolved before dispatch, and then **re-runs the identical checks above, the artifact gate always, and the coverage-ledger gate whenever a ledger was owed.** The workflow proceeds only when every check that applied comes back 0; otherwise the halt stands and the ladder resumes at the rung it was on.
 
-Two conditions bind that write and both are spelled out in the ladder. **filenames are checked before anything reaches disk** (only `RESEARCH.md`, `RESEARCH-<section>.md` and `research-checklist.md`, as bare filenames), and **step 3's unbounded-corpus rule is unchanged**. Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md).
-
-Nothing in the payload is ever accepted *in place of* a gate passing. `persistence: by-value` routes the parent; it grades nothing. A by-value payload carrying a summary of findings rather than the artifact bodies is a **failed dispatch**, not a fallback: research the gate is invited to accept on the agent's word is the Tier-3 laundering this skill forbids everywhere else. Why the mode exists and where its boundary sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md). It carries the two conditions that bind the write (filename checking and the unchanged unbounded-corpus rule) and why a by-value payload of findings rather than artifact bodies is a failed dispatch rather than a fallback.
 
 ## Topic
 

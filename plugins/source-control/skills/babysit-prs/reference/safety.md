@@ -439,9 +439,22 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 
 - Both wrappers **fail closed**: invoked without `--allowed-owners`, they exit `3` and refuse to
   act. The read-only forms are `source-control-babysit-merge owner/repo#42 --allowed-owners
-  <watched-owners>` (merge-readiness gate) and `source-control-babysit-resolve-thread
+  <watched-owners> --self-logins @me,<self-logins>` (merge-readiness gate) and
+  `source-control-babysit-resolve-thread
   owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>
   --self-logins @me,<self-logins>` (thread list).
+- **What the merge gate actually evaluates.** It gates on GitHub's own `mergeStateStatus == CLEAN`
+  plus explicit cross-checks of its own: branch rules, review decision, unresolved threads, the
+  check rollup keyed by check type and name, and head match. It reports the exact `blockers` list.
+  React to those blockers; never bypass the gate. One reading caveat: a `ready: false` immediately
+  following a `ready: true` on the same expected head is often GitHub's own mergeability recompute
+  lag, so re-run the read-only check once before treating it as a real block.
+- **`--self-logins @me,<self-logins>` rides on every merge form too**, read-only and mutating
+  alike. `@me` resolves to your own `gh` login and the `babysit_self_logins` extras follow it; drop
+  the trailing `,<self-logins>` when that value is empty. On the merge gate this flag is what
+  exempts your own PRs from the unprotected-base hold, and only **on the default branch** (see the
+  unprotected-base bullet below). Without it your own PR is classified as a non-self author and
+  held.
 - **`--extra-bot-logins <extra-bot-logins>` rides on every resolve-thread form**, listing and
   mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification is what
   decides which threads the resolver may touch at all, and structural detection cannot see a
@@ -475,14 +488,20 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   worker itself opened stays out of scope even after a bot replies to it (`review-discipline.md`
   D7.5 forbids resolving your own threads). Omit the flag only when `babysit_self_logins` is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
-  <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
-  expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
+  <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. A
+  missing pin, or a pin that no longer matches the live head, refuses the merge: re-snapshot and
+  reassess the new head rather than reaching for an override, so no unattended unpinned merge
+  exists. The pin is carried through to GitHub's own server-side match-head-commit guard, so the
+  refusal holds on GitHub's side as well as in the wrapper.
+- The merge wrapper never uses `--admin`, and it cannot resolve threads, post replies, or
+  force-push. It merges or it refuses.
 - The merge CLI refuses a dependency-manager-authored PR absent `--allow-dependency`, and refuses
   to merge on an unprotected base — zero required reviews AND zero required status contexts
   — when the PR author is not one of `<self-logins>`, or when a `<self-logins>` author's base is not
   the repository's default branch, absent `--allow-unprotected`. The self exemption covers the
   solo-owner repository whose default branch carries no rules; it does not cover a merge onto
-  another branch, where the default branch's required checks never ran. Both
+  another branch (a stack layer, or any other feature-onto-feature merge), where the default
+  branch's required checks never governed the merge. Both
   overrides are human decisions, never passed autonomously. The held dependency-manager set is the
   built-in dependabot/renovate bots plus, when `babysit_extra_dependency_manager_logins` is
   configured (non-empty, not a literal unexpanded token), the logins appended via
@@ -498,7 +517,12 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - The resolve wrapper's mutating forms are `--autonomous --resolve` (worker tier, constrained by
   the pre-push-outdated rule in `orchestration.md`), `--resolve --include-human` (autopilot's
   addressed-thread widening), and `--independent-resolver --resolve` (the evidence-gated third
-  mode below).
+  mode below). `--autonomous` admits only threads GitHub marks `isOutdated`. The worker must
+  additionally confine its resolves to threads already outdated in the PRE-push snapshot; that
+  pre-push-outdated rule is agent discipline, not machine-enforced, so a thread a worker's own push
+  merely displaced (`isOutdated` flipped while both comment pins still match) is still resolvable by
+  the script. The machine-enforced fix for that displacement bypass is tracked in #571. Under
+  `--resolve --include-human` the script still cannot merge, post replies, or dismiss reviews.
 - **`--independent-resolver` is a third mode, not a widening of `--autonomous`.** `--autonomous`
   admits only `isOutdated` threads, and `isOutdated` means the referenced code MOVED — so on a
   prose or documentation PR, where a finding is normally addressed by rewriting elsewhere in the
@@ -567,14 +591,21 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   either pin, so a reply added or a comment edited after vetting blocks that thread instead of
   being silently swept in. A thread id alone is never enough (the live thread is re-fetched at
   execution time), and a comment count alone is never enough (an edit leaves the count
-  unchanged).
+  unchanged). The pins enforce **comment state only**: drift in the comment count or the latest
+  comment-edit timestamp blocks the thread, and nothing else about the thread is pinned. A
+  `--resolve --thread-id` missing either pin is refused before anything is fetched or resolved,
+  unless the caller supplies the explicit `--allow-unpinned-thread` override, which belongs to no
+  unattended path (`--independent-resolver` refuses it outright).
 - **Parse JSON, never trust exit codes alone.** Both wrappers emit structured JSON; confirm what
   actually happened from each target's `action` field. For a resolve, exit `10` is a reliable
   "nothing was resolved" signal (a stale pin refused, the thread was skipped, or the mutation
   failed), but exit `0` is not by itself proof of success for a given thread — it also covers
   list mode and a multi-thread run where some other thread resolved while this one did not.
   Treat a thread as cleared only when its own entry shows `"action": "resolved"`, and a merge as
-  performed only when the merge output's `action` field says so.
+  performed only when the merge output's `action` field says so. The resolve action vocabulary is
+  `resolved` against `skipped-*`, the `refused-*` family (`refused-stale-pin` and the evidence
+  refusals above), and `resolve-failed`; read the run's `resolvedCount`/`eligibleCount` summary
+  alongside the per-thread entries before reporting or re-checking the merge gate.
 
 ### Lane-pinned merge authorization: report, don't re-pin
 
