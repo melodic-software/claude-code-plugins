@@ -7,7 +7,7 @@ Shared "run a check script and read its JSON back" helper for the Pester suites.
 Every check script emits one compact JSON document on stdout. Reading it back
 takes the same three steps in every suite: invoke the script, drop the empty
 elements PowerShell leaves in the collected output stream, and parse the join as
-JSON. Both steps live here so the shape is defined once.
+JSON. All three live here so the shape is defined once.
 
 Dot-source this file from a BeforeAll block -- do NOT convert it to a module.
 Pester installs mocks into the test file's session state, and a check script
