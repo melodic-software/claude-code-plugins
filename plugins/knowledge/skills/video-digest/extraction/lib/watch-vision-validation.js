@@ -150,9 +150,7 @@ export function validateTriageManifest(manifest, expectedCounts = new Map()) {
     const sheetId = readSheetId(sheet);
     const expected = expectedCounts.get(sheetId ?? "") ?? 16;
     const sheetErrors = validateTriageSheet(sheet, expected);
-    if (sheetErrors.length > 0) {
-      errors.push(...sheetErrors.map((e) => `${sheetId ?? "?"}: ${e}`));
-    }
+    errors.push(...sheetErrors.map((e) => `${sheetId ?? "?"}: ${e}`));
     if (sheetId !== null) {
       if (seenIds.has(sheetId)) errors.push(`duplicate sheetId ${sheetId}`);
       seenIds.add(sheetId);
