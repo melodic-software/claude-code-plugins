@@ -78,6 +78,12 @@ file before proceeding.
 Follow the selected context file. Each mode has its own phases, outputs, and interactive
 checkpoints.
 
+### Reference index. Load on demand
+
+| File | Load when |
+|---|---|
+| [reference/ecosystem-improvement-catalog.md](reference/ecosystem-improvement-catalog.md) | Before filling session mode's Phase 3 recommendation table, and any other time a finding has to be mapped to an ecosystem target. It owns the project-vs-personal placement decision tree and the per-target recommendation format for memory, rules, hooks, skills, agents, MCP servers, and settings. |
+
 ## Step 2: Handoff
 
 After the retrospective:

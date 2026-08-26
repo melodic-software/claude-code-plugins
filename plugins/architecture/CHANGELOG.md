@@ -3,6 +3,17 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.6]
+
+### Changed
+
+- **`improve`'s five `research/deepening/` files are reachable in one hop from the hub.** They were
+  reachable only through `actions/deepening.md`, which put required reading two levels from
+  `SKILL.md` while the citing line calls the target load-bearing for scan quality. A
+  `Reference index. Load on demand` section now links each of the five directly, with a read
+  condition per row; `actions/deepening.md` keeps all six of its own citations, so a reader arriving
+  mid-chain loses nothing. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.6.5]
 
 ### Changed

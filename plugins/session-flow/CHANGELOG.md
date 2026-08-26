@@ -1,5 +1,13 @@
 # Changelog — session-flow plugin
 
+## [0.34.5]
+
+### Changed
+
+- **`retro`'s ecosystem improvement catalog is linked from `SKILL.md` with its read condition.** It
+  was reachable only from `context/session.md`, which put it two levels from the hub. The
+  `context/session.md` pointer is unchanged. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.34.4]
 
 ### Changed

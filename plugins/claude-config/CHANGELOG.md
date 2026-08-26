@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.8]
+
+### Changed
+
+- **`audit-pass` reaches `reference/terms.md` and `reference/finding-identity.md` in one hop.** Both
+  were reachable only through `reference/run-contract.md`, and every other leaf opens by assuming
+  `terms.md`, so the file furthest from the hub was the one every other file depended on. A
+  `Reference index. Load on demand` section now links both directly with a read condition per row;
+  `run-contract.md` keeps its own pointers. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.40.7]
 
 ### Changed

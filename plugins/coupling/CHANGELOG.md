@@ -3,6 +3,16 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.3]
+
+### Fixed
+
+- **`reduce`'s coupling model has a working table of contents.** Its `## Contents` section listed
+  all six headings as plain bullets with no links at all, so a reader of a 130-line reference could
+  see the sections but not jump to one. Each row now links its heading and keeps the descriptive
+  gloss as a when-to-read cue. Found while validating the sweep's table-of-contents pass, not by the
+  audit itself. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.1.2]
 
 ### Changed

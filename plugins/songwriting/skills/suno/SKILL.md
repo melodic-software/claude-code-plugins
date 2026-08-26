@@ -228,6 +228,16 @@ When generating prompts, default to HIGH-confidence techniques. Surface MEDIUM-c
 
 ---
 
+## Maintenance. Load on demand
+
+Nothing below is needed to write a prompt. It is the maintainer surface for this skill's own claims.
+
+| File | Load when |
+|---|---|
+| [reference/suno-drift-audit-ledger.md](reference/suno-drift-audit-ledger.md) | Re-rating a claim in a context spoke, answering whether a claim was ever audited, or shipping any change to a spoke. It is the committed record of which claims have been audited, which are unsourced, and which release last touched each. A row that moves is updated in the same PR as the claim |
+
+---
+
 ## What this skill does NOT do
 
 - **Generate audio**. Suno does that. This skill produces text prompts.

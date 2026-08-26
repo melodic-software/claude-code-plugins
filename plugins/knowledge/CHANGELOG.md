@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.13]
+
+### Changed
+
+- **`course-digest` links `reference/screenshot-strategy.md` directly from the hub.** It was
+  reachable only through `context/workflow.md`, two levels from `SKILL.md`. A
+  `Reference index. Load on demand` section now carries it with a read condition; the
+  `context/workflow.md` citation is unchanged. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.13.12]
 
 ### Changed

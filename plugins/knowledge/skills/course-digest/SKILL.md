@@ -212,6 +212,16 @@ Repo-applicability analysis follows the template in [reference/analysis-template
 - **`repo-candidates.md`**. Specific patterns/practices from the course that could improve the repository, with references to where in the course they're taught
 - **`action-items.md`**. Concrete next steps: rule candidates, skill suggestions, architecture patterns, testing practices, work-item candidates
 
+## Reference index. Load on demand
+
+| File | Load when |
+|------|-----------|
+| [reference/screenshot-strategy.md](reference/screenshot-strategy.md) | Before capturing frames in Phase 2 or curating them in Phase 2b. What earns a screenshot and what never does, the ffmpeg scene-detection pipeline with its threshold calibration, vision classification, and manifest generation |
+| [reference/analysis-template.md](reference/analysis-template.md) | Writing the Phase 5 repo-applicability analysis |
+| [reference/adapters/discovery-checklist.md](reference/adapters/discovery-checklist.md) | Adding a platform adapter, or an existing adapter broke and needs the same systematic walk as a regression guide |
+| [reference/adapters/dometrain.md](reference/adapters/dometrain.md) | Working on Dometrain extraction: selectors, auth, player specifics |
+| [reference/adapters/teachable.md](reference/adapters/teachable.md) | Working on Teachable or Hotmart-video extraction: selectors, auth, player specifics |
+
 ## Storage
 
 Generated course output lands under the invoking project's `library_dir` seam (or `${CLAUDE_PLUGIN_DATA}` when no library dir is configured), one self-contained directory per course slug. See [context/storage-schema.md](context/storage-schema.md) for the full directory structure.

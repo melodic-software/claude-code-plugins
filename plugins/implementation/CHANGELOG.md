@@ -3,6 +3,19 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.6]
+
+### Changed
+
+- **`implement`'s gotcha reminders moved into `context/gotchas.md`, which no pointer reached.** The
+  spoke was dead within its own skill: its three siblings are cited from the Step 0 mode table and
+  it was not, while `SKILL.md` carried a `## Gotchas` heading inline instead. The eight bullets moved
+  byte-identical, and `SKILL.md` now points at the spoke with a read condition. One of the eight did
+  not move down: "config/docs changes still need verification" restated no owning step, and Config
+  is the one mode whose dispatch row loads no context file, so demoting it to on-demand would have
+  weakened it. That rule folded up into the Step 0 Config row instead, where the Config path
+  necessarily reads it. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.15.5]
 
 ### Changed

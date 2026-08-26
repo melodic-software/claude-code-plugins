@@ -3,6 +3,28 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.12]
+
+### Changed
+
+- **`suno`'s drift audit ledger is reachable.** The maintenance ledger at
+  `reference/suno-drift-audit-ledger.md` had no inbound pointer from anywhere. A
+  `Maintenance. Load on demand` section in `SKILL.md` now carries it with a read condition, and
+  states that it is a maintainer surface rather than prompt-craft. It stays inside the skill rather
+  than moving to plugin scope because every row in it cites a file inside this skill, and nothing
+  else in the plugin consumes it. Docs-hygiene sweep, L2-progressive-disclosure.
+- **Two pointers in `context/troubleshoot.md` front-load their subject.** Both read
+  `See [SKILL.md](../SKILL.md) on where first-hand observations sit...`, naming the target
+  contentlessly, which is the shape `write-for-agents` gives as its own counter-example. They now
+  lead with the question and name the section. Docs-hygiene sweep, L7-write-for-agents.
+
+  The wider 104-site `See <link> for <payload>` batch under `context/pat-pattison/` and
+  `skills/suno/context/` was adjudicated and **declined**, recorded in
+  `docs/specs/docs-hygiene-sweep-unapplied-remediations.md`. Roughly half those sites are bare
+  pointers whose link text is already the domain term, so the prescribed rewrite yields a tautology
+  (`Hook: see [hook](hook.md).`); applying only the payload-bearing remainder would leave two
+  competing pointer styles in one densely cross-referenced reading path.
+
 ## [1.4.11]
 
 ### Changed
