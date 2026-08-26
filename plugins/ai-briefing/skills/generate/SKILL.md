@@ -94,6 +94,8 @@ A profile may contain:
 3. Search official vendor publications and GitHub releases first. Read configured feeds and
    permitted user-supplied non-X URLs. Use reputable secondary reporting to fill gaps and
    corroborate claims. Record source URL, publisher, publication date, and retrieval date.
+   Set an explicit timeout on every outbound request, and keep partial failures visible
+   instead of dropping the source silently.
 4. For every item, require at least one working source URL. Prefer the primary announcement;
    label claims that remain secondary-only. Exclude content outside the requested window.
 5. Deduplicate by canonical URL and normalized event identity. Merge corroborating sources
@@ -101,9 +103,13 @@ A profile may contain:
 6. Categorize into provider buckets and rank by practical impact, availability, novelty,
    source confidence, and relevance to `audience.md`. Never invent details or silently turn
    rumors into facts.
-7. Write the current markdown briefing and update the seen-item registry under the selected
-   profile's `${CLAUDE_PLUGIN_DATA}` state directory. Keep tracked profile configuration in
-   the project; never write curated configuration into plugin data.
+7. Write the current markdown briefing. Every requested provider bucket appears in it,
+   including one the window produced no items for; say that the bucket is empty rather than
+   omitting it silently. Update the seen-item registry under the selected profile's
+   `${CLAUDE_PLUGIN_DATA}` state directory only after the markdown is emitted successfully.
+   Keep tracked profile configuration in the project; never write curated configuration into
+   plugin data. Re-running the same window is idempotent: merge by canonical event identity
+   and do not emit duplicate items.
 8. For `--format html` or `--format slides`, require the optional build tree installed by
    `/ai-briefing:setup apply install-build-deps`. Run the staged build pipeline against the emitted
    markdown with `AI_BRIEFING_PROFILE="$PROFILE"` set on the launched process. Playwright may

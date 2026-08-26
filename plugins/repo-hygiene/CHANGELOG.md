@@ -3,6 +3,18 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.12]
+
+### Removed
+
+- **`skills/clean/reference/ecosystems.md` (docs-hygiene repo sweep, L1-derivability).** The v0.10.4
+  conversion left a file whose entire body was four links, and whose only inbound citation was a
+  back-reference from the file it pointed at. `SKILL.md` never cited it, so no session entered the
+  loop. A fresh-context spot-test rebuilt the whole cleanup surface, tier membership, protected-path
+  classes, and sweep semantics, from `reference/cleanup-config.md` and the `scripts/` tree alone,
+  which is what the indirection layer was standing in front of. `cleanup-config.md`'s opening
+  paragraph now names the action scripts directly instead of routing through the deleted file.
+
 ## [0.10.11]
 
 ### Changed

@@ -3,6 +3,26 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.9]
+
+### Changed
+
+- **generate: four run invariants now live in `SKILL.md` (docs-hygiene repo sweep, L1-derivability).**
+  `## Default run` step 3 sets an explicit timeout on every outbound request and keeps partial
+  failures visible. Step 7 requires every requested provider bucket to appear in the markdown
+  briefing even when the window produced no items for it, orders the seen-item registry write
+  after successful markdown emission, and states that re-running the same window is idempotent by
+  canonical event identity. All four rules existed only in `context/execution-flow.md`, which
+  nothing loaded, so the behaviour they describe was unreachable doctrine.
+
+### Removed
+
+- **generate: `context/execution-flow.md`.** A second, unsynchronized copy of the run procedure
+  that no routing table, reference list, or script cited, and that no gate compared against
+  `SKILL.md`. A fresh-context spot-test found four rules with no counterpart anywhere in the skill;
+  those were folded into `SKILL.md` before the file went, and the rest was already stated there.
+  The `context/` directory held nothing else and was removed with it.
+
 ## [0.7.8]
 
 ### Changed

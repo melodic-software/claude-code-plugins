@@ -1,6 +1,6 @@
 # clean cleanup configuration
 
-Concrete per-tier cleanup targets and the protected-paths list. The Workflow (§1–§5 in `SKILL.md`) iterates these lists; `reference/ecosystems.md` points here and at the action scripts. Targets are generic across ecosystems and detected at runtime — no repo-specific layout is baked in.
+Concrete per-tier cleanup targets and the protected-paths list. The Workflow (§1–§5 in `SKILL.md`) iterates these lists, and the action scripts under `../scripts/` carry the sweep mechanics and their rationale. Targets are generic across ecosystems and detected at runtime — no repo-specific layout is baked in.
 
 Any file tracked by git (`git ls-files`) is off-limits regardless of glob match. Universal `find` exclusions for every scan/clean step: `-not -path '*/.git/*' -not -path '*/.venv/*' -not -path '*/node_modules/*'`.
 
