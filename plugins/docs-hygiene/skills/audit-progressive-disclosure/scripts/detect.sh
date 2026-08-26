@@ -170,7 +170,12 @@ has_toc() {
 # #anchor suffix from the target. Inline-code spans are not stripped — the
 # judgment layer sees ctx and can dismiss code-fenced examples.
 md_links() {
-  grep -n -o '\][(][^)#][^)]*[)]' "$1" 2>/dev/null |
+  # `|| true` on the leading grep: a file with no markdown links is the normal
+  # case, not an error, but grep exits 1 for it. Under `set -euo pipefail` that
+  # status propagates and kills the caller mid-function, so ref_candidates never
+  # reaches its backtick branch and reports every backtick-cited spoke as an
+  # orphan.
+  { grep -n -o '\][(][^)#][^)]*[)]' "$1" 2>/dev/null || true; } |
     sed -E 's/^([0-9]+):\]\(([^)]*)\)$/\1\t\2/' |
     while IFS=$'\t' read -r ln target; do
       case "$target" in

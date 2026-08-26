@@ -171,6 +171,25 @@ assert_contains "disconnected cycle member B is orphaned" "$out" "orphan	$d3/ski
 assert_contains "spoke-to-spoke chain detected" "$out" "chain	$d3/skill/context/linked.md	3	deep.md"
 assert_contains "summary counts orphans and chains" "$out" "orphans=3	chains=3"
 
+# The backtick assertion above runs against a hub that also carries markdown
+# links, so md_links succeeds and the backtick branch is reached. A hub citing
+# its spokes ONLY in backticks is the case that broke: grep exits 1, and under
+# `set -euo pipefail` that killed ref_candidates before the backtick branch ran,
+# so every spoke of such a hub reported as an orphan. Corpus-wide this was 82 of
+# 133 reported orphans.
+d3b="$(fixture_dir)"
+mkdir -p "$d3b/skill/context"
+{
+  printf -- '---\ndescription: "b"\n---\n\n# Hub\n\n'
+  # shellcheck disable=SC2016  # literal backticks are the citation form under test
+  printf 'Detail lives in `context/ticked-only.md`, cited in backticks alone.\n'
+} >"$d3b/skill/SKILL.md"
+printf '# Ticked only\n\nBody.\n' >"$d3b/skill/context/ticked-only.md"
+out3b="$(bash "$SCRIPT" "$d3b/skill/SKILL.md")"
+assert_not_contains "backtick-only hub does not orphan its spoke" \
+  "$out3b" "orphan	$d3b/skill/context/ticked-only.md"
+assert_contains "backtick-only hub reports zero orphans" "$out3b" "orphans=0"
+
 # --- TOC heuristic -----------------------------------------------------------
 
 d4="$(fixture_dir)"

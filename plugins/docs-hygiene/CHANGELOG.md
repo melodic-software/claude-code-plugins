@@ -1,5 +1,22 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.14]
+
+### Fixed
+
+- **`audit-progressive-disclosure` reported 82 spokes as orphans that were cited
+  all along.** `md_links()` opens with a `grep` that exits 1 when a file has no
+  markdown links, which is the normal case, not an error. Under `set -euo
+  pipefail` that status killed `ref_candidates()` before it reached its
+  backtick branch, so every hub citing its spokes only in backticks had all of
+  them reported unreachable. Measured over all 243 `SKILL.md` files, orphans
+  drop from 133 to 51 with the `|| true` in place.
+
+  The suite already asserted that a backtick-cited spoke is not orphaned, but
+  its fixture hub also carried markdown links, so `md_links` succeeded and the
+  broken path never ran. The new case uses a hub with backtick citations and
+  nothing else.
+
 ## [0.21.13]
 
 ### Fixed
