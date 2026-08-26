@@ -7,18 +7,31 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **`setup` is no longer split, and this plugin's skills are now a documented poor split
-  target.** The `reference/babysit-config.md` extraction carried the lane-script reachability
-  canary out of `SKILL.md`, and `skills/babysit-prs/scripts/tests/test_guards.py` pins the exact
-  canary invocation there in three assertions. Reverted.
+- **`worktree` and `setup` are no longer split, and this plugin's skills are now a documented
+  poor split target.**
 
-  That is the third revert in this plugin for one reason, after `babysit-prs` and `babysit-loop`
-  below. The pattern is worth stating rather than rediscovering: `source-control` pins a large
-  share of its skill-body prose by test, on purpose, because the pinned statements are safety
-  gates and reachability contracts that an agent must have loaded rather than one link away. A
-  line-count audit cannot see those pins. **Before splitting any skill in this plugin, grep its
-  `scripts/tests/` for assertions reading `SKILL.md`.** Where a pin covers the content, the line
-  count is the weaker consideration and the split does not happen.
+  `worktree`'s `context/nesting-invariant.md` extraction carried the upstream-drift verification
+  stamp out of `SKILL.md`. `skills/worktree/nesting-invariant-ssot.test.sh` declares
+  `OWNER_REL="skills/worktree/SKILL.md"` and asserts that body is the single owner of the measured
+  claim. Its header states the reason: the defect being prevented was the same statement drifting
+  across thirteen sites, and "one owner and twelve pointers" is the fix. Moving the claim into a
+  spoke recreates the drift the test exists to stop.
+
+  `setup`'s `reference/babysit-config.md` extraction carried the lane-script reachability canary
+  out of `SKILL.md`, and `skills/babysit-prs/scripts/tests/test_guards.py` pins the exact canary
+  invocation there in three assertions.
+
+  Those are the third and fourth reverts in this plugin for one reason, after `babysit-prs` and
+  `babysit-loop` below. The pattern is worth stating rather than rediscovering: `source-control`
+  pins a large share of its skill-body prose by test, on purpose, because the pinned statements
+  are safety gates, reachability contracts, and single-owner claims that an agent must have loaded
+  rather than one link away. A line-count audit cannot see a pin.
+
+  **Before splitting any skill in this plugin, grep the whole plugin, not just that skill's own
+  directory, for a test that reads the target `SKILL.md`.** The `worktree` pin lives in a
+  `*.test.sh` beside the skill; the `setup` pin lives under a different skill entirely
+  (`babysit-prs/scripts/tests/`). Where a pin covers the content, the line count is the weaker
+  consideration and the split does not happen.
 
 - **`babysit-loop` gets its promotion-evidence gate back in the body.** The 0.55.11 cycle-shape
   split moved the merge-eligibility partition into `reference/cycle-shape.md`, and
