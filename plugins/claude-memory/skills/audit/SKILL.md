@@ -38,6 +38,10 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
 | Settings, hooks, MCP, agents, skills | Various | Various | No. Use `claude-config`'s `audit` / `automation-gaps` |
 
+Auto memory's effective enabled/disabled state must be resolved before auditing it, not assumed
+from a single scope: [`${CLAUDE_PLUGIN_ROOT}/skills/stateless/context/status.md`](../stateless/context/status.md),
+"Resolve the effective state".
+
 The two user-scope rows are in scope because they load in every session regardless of where it starts.
 Discovery tags every file with its scope so project-scoped criteria (C9) skip personal files rather
 than reporting a repo-scoped finding against one. **C6 Consistency** owns instruction-content

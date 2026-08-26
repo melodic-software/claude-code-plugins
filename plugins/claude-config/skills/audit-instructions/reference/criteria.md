@@ -5,6 +5,44 @@ last-updated: 2026-08-09
 
 # Instruction-Audit Criteria
 
+## Contents
+
+Look up a specific check by ID: `grep -n '^### I<N>:' reference/criteria.md`.
+
+- [Sources](#sources)
+- Checks
+  - [I1: Line-necessity bar](#i1-line-necessity-bar)
+  - [I2: Length and skimmability](#i2-length-and-skimmability)
+  - [I3: Broad-applicability placement](#i3-broad-applicability-placement)
+  - [I4: Inferable or redundant content](#i4-inferable-or-redundant-content)
+  - [I5: Rule-to-hook or delete](#i5-rule-to-hook-or-delete)
+  - [I6: Bare prohibition to positive reframing](#i6-bare-prohibition-to-positive-reframing)
+  - [I7: Reason with the request](#i7-reason-with-the-request)
+  - [I8: Model-era re-audit](#i8-model-era-re-audit)
+  - [I9: Example hygiene](#i9-example-hygiene)
+  - [I10: Reasoning-echo directives](#i10-reasoning-echo-directives)
+  - [I11: CLI over MCP where equivalent](#i11-cli-over-mcp-where-equivalent)
+  - [I12: Stale or misattributed harness-capability claim](#i12-stale-or-misattributed-harness-capability-claim)
+  - [I13: Citation form that does not load](#i13-citation-form-that-does-not-load)
+  - [I14: Retrieval of an already-loaded surface](#i14-retrieval-of-an-already-loaded-surface)
+  - [I15: Cross-surface instruction conflict](#i15-cross-surface-instruction-conflict)
+  - [I16: Definition-site locality](#i16-definition-site-locality)
+  - [I17: Thinking disabled where the model forbids it](#i17-thinking-disabled-where-the-model-forbids-it)
+  - [I18: Thinking blocks altered on the way back to the model](#i18-thinking-blocks-altered-on-the-way-back-to-the-model)
+  - [I19: Restated external benchmark figure with no recheck trigger](#i19-restated-external-benchmark-figure-with-no-recheck-trigger)
+  - [I20: Prefilled assistant response](#i20-prefilled-assistant-response)
+  - [I21: Effort level pinned across a model change with no re-sweep](#i21-effort-level-pinned-across-a-model-change-with-no-re-sweep)
+  - [I22: Model-routing doctrine with no baseline named](#i22-model-routing-doctrine-with-no-baseline-named)
+  - [I23: Context-budget directive to stop, summarize, or hand off](#i23-context-budget-directive-to-stop-summarize-or-hand-off)
+  - [I24: Instruction relying on silent generalization](#i24-instruction-relying-on-silent-generalization)
+  - [I25: Sampling parameter prescribed where the model rejects it](#i25-sampling-parameter-prescribed-where-the-model-rejects-it)
+  - [I26: Generic negative steering on open-ended design briefs](#i26-generic-negative-steering-on-open-ended-design-briefs)
+  - [I27: Effort lowered to shorten the response](#i27-effort-lowered-to-shorten-the-response)
+  - [I28: Over-aggressive trigger emphasis and blanket tool defaults](#i28-over-aggressive-trigger-emphasis-and-blanket-tool-defaults)
+  - [I29: Body prose that restates the always-in-context description, or a sibling section](#i29-body-prose-that-restates-the-always-in-context-description-or-a-sibling-section)
+- [Stopping condition](#stopping-condition)
+- [Output format](#output-format)
+
 The checks the `audit-instructions` skill runs, seeded from current official prompting doctrine.
 Each check carries an evidence tier, an authority tag, a default severity, its surface
 applicability, and one decisive source line (point-don't-copy — the full doctrine lives at the
