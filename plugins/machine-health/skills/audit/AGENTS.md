@@ -17,3 +17,11 @@ Before writing or editing a check script, read
 single JSON object on stdout for Claude (schema in `references/shared/output-schema.md`) and
 takes `-Human` for readable output, using `Write-Host` in that mode so structured emitters keep
 working over pipelines.
+
+## Checks are stateless; the orchestrator owns state
+
+Before touching a check's inputs or anything involving `state/history.jsonl`, read
+[README.md, "Stateless checks, stateful orchestrator"](README.md#stateless-checks-stateful-orchestrator):
+checks take a current reading and return it, never reading `history.jsonl` directly; the
+orchestrator (`Invoke-MachineHealthCheck.ps1`) hands them a history slice over stdin and owns all
+trend, severity, timeout, remediation, and reporting logic.
