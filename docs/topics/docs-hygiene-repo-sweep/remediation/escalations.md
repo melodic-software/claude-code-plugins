@@ -64,6 +64,80 @@ reversible where deletion is not.
 Affected: `plugins/ai-briefing/skills/generate/context/execution-flow.md`,
 `plugins/repo-hygiene/skills/clean/reference/ecosystems.md`.
 
+### Spot-test result: `repo-hygiene/skills/clean/reference/ecosystems.md`
+
+**Verdict: passes. The `delete` stands.**
+
+A fresh agent, told only not to open the file, was asked to reconstruct the per-ecosystem cleanup
+definitions from everything else. It answered "yes, complete and confident" and produced a full
+account: tier membership for `caches`, `build`, `git` and `tree`, all three protected-path classes,
+sweep semantics down to the manifest flow and the submodule and symlink handling, each claim cited
+to a line in `reference/cleanup-config.md`, `scripts/lib/cleanup-paths.sh`,
+`scripts/lib/clean-common.sh` or `SKILL.md`.
+
+It also surfaced corroboration nobody pointed it at: `plugins/repo-hygiene/CHANGELOG.md:85-90`
+records that in v0.10.4 this file was already converted to "a pointer, not teaching tables" after a
+fresh-context agent reproduced "the full tier membership, protected classes, and the 'no `dotnet
+clean`' rationale" from the same sources. The deletion finishes a conversion the repo started.
+
+**Caveat, and it is the orchestrator's error, not the agent's.** The brief excluded the subject
+file but not this sweep's own findings directory, so the agent read L1's `delete` verdict and the
+quoted opening line before finishing. The test was therefore not fully blind. Two things keep the
+result usable: the substantive re-derivation is sourced to primary files with line numbers, none of
+which the findings note supplied, and the CHANGELOG corroboration is independent of both. A future
+spot-test brief must exclude `docs/topics/docs-hygiene-repo-sweep/**` as well as the subject file.
+
+### Spot-test result: `ai-briefing/skills/generate/context/execution-flow.md`
+
+**Verdict: fails. The `delete` is overturned. Salvage first, then remove.**
+
+The fresh agent answered "partially", and named in advance several things it could not recover from
+any other source. Checking the file against that list afterwards, four of its rules appear nowhere
+else in the skill. `grep -ic` over `SKILL.md` and all of `references/` returns zero for each:
+
+- **Re-run idempotency.** "Re-running the same window is idempotent: merge by canonical event
+  identity and do not emit duplicate items." The agent flagged this exact gap: "Nothing reachable
+  states what a second identical run does to state."
+- **Outbound failure policy.** "Set explicit timeouts for outbound requests and make partial
+  failures visible." The agent noted eval 6 requires visible degradation while no reachable file
+  says so.
+- **Empty-bucket emission.** "Empty requested provider buckets are explicit rather than silently
+  omitted."
+- **State-write ordering.** "Update the seen-item registry only after successful markdown emission."
+
+So the document is not subsumed by `SKILL.md`, and a bare deletion drops four behavioral rules.
+This is precisely the failure the rubric's fresh-context gate exists to catch, and without the gate
+the sweep would have deleted them.
+
+The agent's own hypothesis was wrong in an instructive way. It supposed the undefined stage
+vocabulary (`S4`, `Step 4.5`, `Step 5`, used in `references/audience-defaults.md:4,42` and
+`references/build-pipeline.md:253,255`) was defined in this file. It is not: the file numbers its
+stages 0 to 7, `SKILL.md` numbers its own 1 to 9, and neither defines the `S`-prefixed scheme. That
+vocabulary is dangling everywhere, which is a separate finding routed to L5 as a `ghost-ref` class.
+
+**Revised remediation, replacing L1's:**
+
+1. Salvage the four rules into `SKILL.md` at the steps they govern.
+2. Then delete the file, or wire a pointer to it from `SKILL.md`. It is genuinely unreachable today,
+   nothing in the plugin references it, so the orphan half of L1's finding stands.
+
+L1's own note said "two lines must be salvaged into `SKILL.md` first", so it saw the shape of this.
+The count was low and the verdict was too strong.
+
+### Two further defects surfaced by the spot-tests
+
+Neither is this sweep's to fix; both are recorded so they are not lost.
+
+- `plugins/ai-briefing/skills/generate/references/providers.md` **does not exist** but is cited
+  twice, at `references/build-pipeline.md:5` ("For provider buckets / query templates, see
+  `providers.md`") and `:172` ("13-bucket schema per SKILL.md / providers.md"). `SKILL.md` carries
+  no bucket list either, so the 13 buckets are recoverable only from
+  `references/slide-generation.md:113-130`. A live `ghost-ref`.
+- `*.sln.docstates.suo` is matched by `clean_path_is_protected` at
+  `scripts/lib/clean-common.sh:86`, but the protected-paths prose at
+  `reference/cleanup-config.md:71` lists only `**/*.csproj.user` and `**/*.suo`. Whether that is
+  intentional shorthand or real drift needs the drift test's expectations, not this sweep.
+
 ## E3. `compress` cannot run its own safety gate
 
 **Raised by:** the orchestrator, on dispatching L6. **Blocks:** every compression edit.

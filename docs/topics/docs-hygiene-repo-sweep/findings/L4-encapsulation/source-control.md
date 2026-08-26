@@ -120,8 +120,8 @@ replacement text above is the route-only form; pick per cite once the content is
 
 | # | `path:line` | Verbatim | Replacement text |
 |---|---|---|---|
-| V-sc-09 | `plugins/source-control/skills/babysit-prs/reference/loop.md:124` | ``   [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.05)`` | ``   the push-channel check `/source-control:pull-request monitor` performs first)`` |
-| V-sc-10 | `plugins/source-control/skills/babysit-prs/reference/loop.md:127` | ``   [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.1)`` | ``   the Monitor-tool fallback `/source-control:pull-request monitor` uses)`` |
+| V-sc-09 | `plugins/source-control/skills/babysit-prs/reference/loop.md:124` | ``[pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.05)`` | ``the push-channel check `/source-control:pull-request monitor` performs first)`` |
+| V-sc-10 | `plugins/source-control/skills/babysit-prs/reference/loop.md:127` | ``[pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.1)`` | ``the Monitor-tool fallback `/source-control:pull-request monitor` uses)`` |
 | V-sc-11 | `plugins/source-control/skills/babysit-prs/reference/loop.md:386` | ``[pull-request readiness.md](../../pull-request/reference/readiness.md) "Expected PR actors":`` | ``the expected-PR-actors list `/source-control:pull-request` resolves:`` |
 | V-sc-12 | `plugins/source-control/skills/babysit-prs/reference/loop.md:395` | ``[pull-request monitor.md](../../pull-request/reference/monitor.md) §3.2. Max 3 CI fix`` | ```/source-control:pull-request monitor`. Max 3 CI fix`` |
 | V-sc-13 | `plugins/source-control/skills/babysit-prs/reference/loop.md:404` | ``([pull-request monitor.md](../../pull-request/reference/monitor.md) §3.3.1 step 4), which`` | ``(the CI-fix step of `/source-control:pull-request monitor`), which`` |

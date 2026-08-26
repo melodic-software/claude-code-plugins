@@ -2,13 +2,18 @@
 
 Slice audited: 95 `AGENT` rows (28 `T2`). Predicates emitted here: P7.
 
+Verbatim source quotes and proposed replacements are in fenced `text` blocks so wave 3 can match
+them against the real files.
+
 ## P7 · a step defers a fact it needs to an unnamed location
 
 ### D-1 · `plugins/implementation/skills/implement/SKILL.md:71` (T2, S1)
 
 Verbatim, step 4 of the Execution cadence:
 
-> 4. **Commit checkpoint**. Commit after tests pass. Each commit should represent a green state. See below for commit discipline
+```text
+4. **Commit checkpoint**. Commit after tests pass. Each commit should represent a green state. See below for commit discipline
+```
 
 The step commits. The rules governing how it commits are in `### Commit discipline` at line 83,
 below the `### When to break the cadence` section that separates them. "See below" names neither
@@ -18,7 +23,9 @@ away."
 
 Replacement for line 71:
 
-> 4. **Commit checkpoint**. Commit after tests pass. Each commit represents a green state; message shape and granularity are in "Commit discipline" below
+```text
+4. **Commit checkpoint**. Commit after tests pass. Each commit represents a green state; message shape and granularity are in "Commit discipline" below
+```
 
 Severity S1: `T2` surface, and the deferred fact governs an action the step takes.
 

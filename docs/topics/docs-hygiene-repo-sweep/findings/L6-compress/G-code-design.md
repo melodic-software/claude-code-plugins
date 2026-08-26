@@ -29,9 +29,9 @@ After:
 own audit will later walk, judge on carry cost, and possibly recommend retiring. Wire it
 ```
 
-The line is 94 characters before the cut and 88 after. Both sit under this repo's markdownlint
-line-length ceiling, so no reflow is needed and none should be applied: the semantic-diff gate then
-sees one word removed and nothing else.
+The line is 94 characters before the cut and 88 after. `.markdownlint-cli2.jsonc` sets
+`"MD013": false`, so there is no line-length rule to satisfy either way. No reflow is needed and
+none should be applied: the semantic-diff gate then sees one word removed and nothing else.
 
 ## Not proposed in this group
 
