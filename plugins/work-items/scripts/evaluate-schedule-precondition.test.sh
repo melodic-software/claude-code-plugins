@@ -28,7 +28,10 @@ JSON
 
 FAILED=0
 pass() { printf 'PASS: %s\n' "$1"; }
-fail() { FAILED=$((FAILED + 1)); printf 'FAIL: %s\n' "$1" >&2; }
+fail() {
+  FAILED=$((FAILED + 1))
+  printf 'FAIL: %s\n' "$1" >&2
+}
 
 chmod +x "$EVAL"
 out="$("$EVAL" "$TMP" plain)"
@@ -38,7 +41,6 @@ else
   fail "plain row"
 fi
 
-rc=0
 "$EVAL" "$TMP" demo >/dev/null 2>&1
 rc=$?
 if [[ "$rc" -eq 2 ]]; then
@@ -47,7 +49,6 @@ else
   fail "confirmation precondition exit=$rc"
 fi
 
-rc=0
 out="$("$EVAL" "$TMP" demo --operator-confirmed)"
 rc=$?
 if [[ "$rc" -eq 0 && "$out" == "met" ]]; then

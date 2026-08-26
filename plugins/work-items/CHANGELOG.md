@@ -3,6 +3,27 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.24]
+
+### Changed
+
+- **Repo-wide behavior-preserving simplification sweep (batch-simplify).**
+  Every change was adversarially verified by a fresh-context refutation
+  pass; one proposed change was refuted and reverted.
+
+  The gitea adapter's garbled ShellCheck-hints comment in common.sh
+  collapses to one sentence stating the actual behavior. The linear
+  reclaim suite drops a fixture seeding that the very next reset erased
+  before any request could read it. The local-markdown renew-lease suite
+  drops four dead `set +e` lines (errexit is never enabled on its
+  execution path). The tracker's own suite sources its helpers via the
+  SCRIPT_DIR it already computed. evaluate-schedule-precondition.test.sh
+  drops two dead rc initializations. A proposed printf-pipe to
+  herestring conversion in evaluate-schedule-precondition.sh was refuted
+  (it shifted the line number inside a jq stderr diagnostic on a
+  reachable error path) and reverted. The github, jira, and remaining
+  linear/local-markdown adapter files were reviewed with no changes.
+
 ## [0.39.23]
 
 ### Changed
