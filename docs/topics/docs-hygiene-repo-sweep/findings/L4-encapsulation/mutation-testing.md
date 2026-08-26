@@ -13,7 +13,7 @@
 | # | `path:line` | Verbatim |
 |---|---|---|
 | V-mut-01 | `plugins/mutation-testing/skills/setup/SKILL.md:41` | ``[`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/suppression.md`](../audit/context/suppression.md).`` |
-| V-mut-02 | `plugins/mutation-testing/skills/setup/SKILL.md:74` | ``   [`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/suppression.md`](../audit/context/suppression.md), not a subset of it:`` |
+| V-mut-02 | `plugins/mutation-testing/skills/setup/SKILL.md:74` | ``[`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/suppression.md`](../audit/context/suppression.md), not a subset of it:`` |
 
 V-mut-02's phrasing ("not a subset of it") shows this is a content dependency: `setup` is asserting
 that the suppression vocabulary it writes must match `audit`'s exactly. That is shared vocabulary
@@ -24,14 +24,12 @@ have `audit` and `setup` both cite it.
 **Replacement text, V-mut-01 (post-promotion):**
 
 ```text
-[`${CLAUDE_PLUGIN_ROOT}/reference/suppression-contract.md`](../../reference/suppression-contract.md).
-```
+[`${CLAUDE_PLUGIN_ROOT}/reference/suppression-contract.md`](../../reference/suppression-contract.md).```
 
 **Replacement text, V-mut-02 (post-promotion):**
 
 ```text
-   [`${CLAUDE_PLUGIN_ROOT}/reference/suppression-contract.md`](../../reference/suppression-contract.md), not a subset of it:
-```
+   [`${CLAUDE_PLUGIN_ROOT}/reference/suppression-contract.md`](../../reference/suppression-contract.md), not a subset of it:```
 
 **Route-only alternative, V-mut-01:** ``the suppression contract `/mutation-testing:audit` enforces.``
 
@@ -42,7 +40,7 @@ have `audit` and `setup` both cite it.
 
 | # | `path:line` | Verbatim | Replacement text |
 |---|---|---|---|
-| V-mut-03 | `plugins/mutation-testing/skills/audit/SKILL.md:224` | ``  [`scaling-and-suppression.md`](../principles/reference/scaling-and-suppression.md) "The node-kind`` | ``  `/mutation-testing:principles` ("The node-kind`` |
+| V-mut-03 | `plugins/mutation-testing/skills/audit/SKILL.md:224` | ``[`scaling-and-suppression.md`](../principles/reference/scaling-and-suppression.md) "The node-kind`` | ```/mutation-testing:principles` ("The node-kind`` |
 | V-mut-04 | `plugins/mutation-testing/skills/audit/SKILL.md:240` | ``skill's [`${CLAUDE_PLUGIN_ROOT}/skills/principles/reference/metrics.md`](../principles/reference/metrics.md), and this skill does not restate it:`` | ``skill (`/mutation-testing:principles`), and this skill does not restate it:`` |
 
 V-mut-04 is the good case for routing: the citing line already says the content is not restated
@@ -57,8 +55,7 @@ here, which is precisely what a slash invocation expresses.
 Verbatim (the cite inside a long table cell):
 
 ```text
-The `<node-kind>` vocabulary is enumerated in full in the `principles` skill's [`scaling-and-suppression.md`](../../principles/reference/scaling-and-suppression.md) ("The node-kind vocabulary") — that table is the whole list, and a survivor fitting none of it **is not arid** and must not be suppressed.
-```
+The `<node-kind>` vocabulary is enumerated in full in the `principles` skill's [`scaling-and-suppression.md`](../../principles/reference/scaling-and-suppression.md) ("The node-kind vocabulary") — that table is the whole list, and a survivor fitting none of it **is not arid** and must not be suppressed.```
 
 This is the strongest content dependency in the plugin: a validation rule ("validation is membership
 in that table") binds one skill's correctness to a table inside another skill's private reference.
@@ -71,14 +68,12 @@ A rename there silently turns a hard validation rule into a dangling pointer.
 **Replacement text (post-promotion):**
 
 ```text
-The `<node-kind>` vocabulary is enumerated in full in [`${CLAUDE_PLUGIN_ROOT}/reference/node-kind-vocabulary.md`](../../../reference/node-kind-vocabulary.md), that table is the whole list, and a survivor fitting none of it **is not arid** and must not be suppressed.
-```
+The `<node-kind>` vocabulary is enumerated in full in [`${CLAUDE_PLUGIN_ROOT}/reference/node-kind-vocabulary.md`](../../../reference/node-kind-vocabulary.md), that table is the whole list, and a survivor fitting none of it **is not arid** and must not be suppressed.```
 
 **Route-only alternative:**
 
 ```text
-The `<node-kind>` vocabulary is enumerated in full by `/mutation-testing:principles` ("The node-kind vocabulary"), that table is the whole list, and a survivor fitting none of it **is not arid** and must not be suppressed.
-```
+The `<node-kind>` vocabulary is enumerated in full by `/mutation-testing:principles` ("The node-kind vocabulary"), that table is the whole list, and a survivor fitting none of it **is not arid** and must not be suppressed.```
 
 Both replacements drop an em dash present in the original, which brings the line into line with the
 house prose style. Flag to reconciliation so the L5/L6 in-file lane does not count it twice.

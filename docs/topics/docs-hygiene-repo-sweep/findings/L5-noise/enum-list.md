@@ -25,8 +25,14 @@ source line. Assignment is complete over all 4568, not sampled.
 All three read in full. None is a live roster.
 
 - `plugins/docs-hygiene/skills/audit-noise/SKILL.md:56` is the shape's own definition row, quoting
-  `"the following five skills…"` as the pattern it looks for. Self-match, covered by the skill's
-  own dismissal ground for a shape definition matching its own pattern.
+  its own pattern. Self-match, covered by the skill's dismissal ground for a shape definition
+  matching its own pattern. The matching fragment:
+
+  ```text
+  Tables/lists hardcoding N specific consumers that drift on every add/remove ("the following
+  five skills…", bulleted `/skill — role` rosters)
+  ```
+
 - `plugins/docs-hygiene/skills/audit-noise/evals/fixtures/noisy-rule-snippet.md:18` and
   `.../recall-paraphrases.md:15` are the detector's own test fixtures, authored to trip it. The
   skill's prescribed corpus for a repo-wide run excludes `**/evals/fixtures/**` for this reason.
@@ -43,14 +49,18 @@ corpus in its canonical form.
 
 Cue: `^\s*[-*+]\s+\*\*[^*]+\s*—`, a bullet whose bolded lead is followed by an em dash. That is
 this repo's standard glossary and criteria bullet, used everywhere a term is named and then
-defined. Examples from the sample:
+defined. Three from the sample, verbatim:
 
-- `plugins/docs-hygiene/skills/rename-references/context/patterns.md:35` reads
-  `- **Form name** — the syntactic shape it catches`
-- `plugins/review/agents/security-reviewer.md:36` reads
-  `- **SQL injection** — ORM parameterization, no raw SQL string concatenation`
-- `plugins/event-storming/skills/methodology/reference/process-modeling.md:27` reads
-  `- **User Happy** — involved users are aware of the process completion (they see the outcome somewhere)`
+```text
+plugins/docs-hygiene/skills/rename-references/context/patterns.md:35
+- **Form name** — the syntactic shape it catches
+
+plugins/review/agents/security-reviewer.md:36
+- **SQL injection** — ORM parameterization, no raw SQL string concatenation
+
+plugins/event-storming/skills/methodology/reference/process-modeling.md:27
+- **User Happy** — involved users are aware of the process completion (they see the outcome somewhere)
+```
 
 Discriminating census over the whole form, not a sample: **17 of 1625** contain a
 `plugin:skill` slash-command token at all. The other 1608 name no consumer of any kind, so they
@@ -74,10 +84,14 @@ The 754 F4a rows decompose by owning file into four kinds, none of which is the 
 
 1. **Generated catalog, 161 rows.** All 161 rows from `docs/SKILL-CHEAT-SHEET.md` are machine
    output. `plugins/session-flow/skills/show-options/context/candidate-ladder.md:57` states it:
-   "docs/SKILL-CHEAT-SHEET.md is generated from skill frontmatter by
-   `scripts/generate-cheatsheet.mjs`", and `scripts/check-docs-only.test.sh:86` confirms a
-   `--check` gate reads it. The prescribed treatment for this shape is "replace with a runtime
-   derivation". That treatment is already applied.
+
+   ```text
+   `docs/SKILL-CHEAT-SHEET.md` is generated from skill frontmatter by `scripts/generate-cheatsheet.mjs`
+   ```
+
+   and `scripts/check-docs-only.test.sh:86` confirms a `--check` gate reads it. The prescribed
+   treatment for this shape is to replace the roster with a runtime derivation. That treatment is
+   already applied.
 2. **Plugin README own-skill table.** A plugin README listing the plugin's own skills is the
    plugin's only self-describing surface. L3-ssot established the repo's written doctrine that
    plugin contracts are carried inline at every adopting site because plugins ship without the
@@ -90,8 +104,12 @@ The 754 F4a rows decompose by owning file into four kinds, none of which is the 
    and the "hardcoded N consumers" framing does not apply because the rows are not consumers of
    the file they sit in.
 4. **Incidental single-cell mention.** A table about something else that names a skill in one cell,
-   for example `plugins/coupling/skills/reduce/SKILL.md:163`,
-   `| Shipping a PR | /source-control:pull-request create when installed; else the repo's own PR convention |`.
+   for example `plugins/coupling/skills/reduce/SKILL.md:163`:
+
+   ```text
+   | Shipping a PR | `/source-control:pull-request create` when installed; else the repo's own PR convention |
+   ```
+
    One mention is not a roster.
 
 ## Recall check
@@ -108,9 +126,14 @@ adopting sites
 these ... (skills|plugins) (use|consume|adopt)
 ```
 
-returns exactly one hit, `plugins/context-guard/skills/setup/SKILL.md:426`
-("consumers of this file must parse it as"), which states a parsing requirement and enumerates
-nothing. The defect is absent from the corpus, not merely unmatched by the cue.
+returns exactly one hit, `plugins/context-guard/skills/setup/SKILL.md:426`:
+
+```text
+spellings may normalize (`"blue"` → `"blue"`); consumers of this file must parse it as
+```
+
+That states a parsing requirement and enumerates nothing. The defect is absent from the corpus,
+not merely unmatched by the cue.
 
 ## Detector defect worth reporting
 
@@ -123,10 +146,15 @@ a slash command at all; requiring a leading word boundary and a `plugin:skill` s
 
 ## Cross-lane observations
 
-- **L3-ssot.** `Do not set the CLAUDE_PLUGIN_OPTION_* variables yourself. They are how Claude Code
-  hands a configured value to a hook process; the value comes from the routes above.` appears
-  verbatim in at least `plugins/actionlint/README.md:139`, `plugins/ai-briefing/README.md:144`, and
-  `plugins/powershell-format/README.md:175`. Cross-file duplication is L3's call, not this lane's.
+- **L3-ssot.** This paragraph appears verbatim in at least `plugins/actionlint/README.md:139`,
+  `plugins/ai-briefing/README.md:144`, and `plugins/powershell-format/README.md:175`:
+
+  ```text
+  Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+  hands a configured value to a hook process; the value comes from the routes above.
+  ```
+
+  Cross-file duplication is L3's call, not this lane's.
 - **L6-compress.** Nothing. The F3 definition bullet is compact already.
 - **L1-derivability.** `docs/SKILL-CHEAT-SHEET.md` is generated, so its existence question belongs
   to whoever owns generated artifacts, not to a noise pass.

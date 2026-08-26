@@ -51,8 +51,7 @@ plugin`).
 
 ```text
 220ba0b7792935f5389ecc42f0b47686  plugins/context-guard/scripts/statusline-shim.sh
-5ea9e869da9affd461c21e61ff6e717e  plugins/rate-limit-guard/scripts/statusline-shim.sh
-```
+5ea9e869da9affd461c21e61ff6e717e  plugins/rate-limit-guard/scripts/statusline-shim.sh```
 
 Some of that difference is legitimate (each plugin tees a different payload). What is not
 legitimate is that the prose describing the *shared* durable-wiring mechanic has no owner and no
@@ -77,8 +76,7 @@ rate-limit floor that three other skills inline.
 ```text
 The durable-wiring rule below is the canonical statement for every plugin in this fleet that wires
 a statusline shim. A sibling plugin carrying the same mechanic carries this text byte-identical and
-varies only the plugin name and tee payload.
-```
+varies only the plugin name and tee payload.```
 
 2. In `plugins/context-guard/skills/setup/SKILL.md`, add immediately before the same paragraph at
    line 19:
@@ -87,8 +85,7 @@ varies only the plugin name and tee payload.
 The durable-wiring rule below is inlined **verbatim** from its canonical statement
 (`plugins/rate-limit-guard/skills/setup/SKILL.md` "Why the shim exists (the durable-wiring rule)"
 in the marketplace repository), cited for provenance only, since an installed plugin cannot read a
-sibling plugin's files at runtime. Only the plugin name and the tee payload vary.
-```
+sibling plugin's files at runtime. Only the plugin name and the tee payload vary.```
 
 3. Bring the five shared blocks to byte-identity, taking the `rate-limit-guard` wording where they
    differ. Apply the same treatment to the README pair, naming
@@ -138,8 +135,7 @@ the 407-word overlap in a mechanical report.
 REMOTE="" DEFAULT_BRANCH=""
 TRACKED=$(git config "branch.$(git branch --show-current | tr -d '\r').remote" 2>/dev/null | tr -d '\r')
 [[ "$TRACKED" == "." ]] && TRACKED=""
-CANDIDATES=$( { [[ -n "$TRACKED" ]] && echo "$TRACKED"; git remote | grep -qx origin && echo origin; git remote; } | awk 'NF && !seen[$0]++' )
-```
+CANDIDATES=$( { [[ -n "$TRACKED" ]] && echo "$TRACKED"; git remote | grep -qx origin && echo origin; git remote; } | awk 'NF && !seen[$0]++' )```
 
 **Declared owner.** None.
 
@@ -160,8 +156,7 @@ at runtime. Recommended shape:
 ```text
 The block below is inlined **verbatim** from `SKILL.md` of `/toolchain:check`
 ("Resolving the remote and default branch"), cited for provenance only. A second wording is a
-second contract.
-```
+second contract.```
 
 That requires the heading to exist in the check skill. If `check` does not carry an H2 over that
 block, add one reading exactly `### Resolving the remote and default branch` and cite that.
@@ -199,8 +194,7 @@ wording is most costly. Declare `plugins/prototype/skills/explore-directions/SKI
 ```text
 The throwaway-prototype constraints below are inlined **verbatim** from their canonical statement
 in `/prototype:explore-directions`, cited for provenance only. A second wording is a second
-contract.
-```
+contract.```
 
 If `plugins/prototype/README.md` carries a section stating these constraints, prefer that as owner
 instead: a plugin-root README is reachable from both skills and is the more natural home for a
@@ -246,8 +240,7 @@ then replace the restatement at both sites with:
 
 ```text
 When the method ladder lands on a UI-only surface, the browser-automation offer follows
-[`reference/browser-automation.md`](../../reference/browser-automation.md) "<exact heading>".
-```
+[`reference/browser-automation.md`](../../reference/browser-automation.md) "<exact heading>".```
 
 For the read-only posture, declare `plugins/github/skills/audit/SKILL.md` canonical (the audit skill
 is the one whose whole contract is read-only) and add the provenance line to

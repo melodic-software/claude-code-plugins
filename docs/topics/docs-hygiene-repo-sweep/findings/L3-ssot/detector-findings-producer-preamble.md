@@ -32,8 +32,8 @@ Byte-identical spine, present in all four:
 > [SLOT] decides for itself and cites the contract for the rest. Where the two disagree, the
 > contract wins and this file is the defect.
 
-The `[SLOT]` is genuinely per-instance (`an ai-slop run`, `an \`audit-instructions\` run`,
-`an \`audit-noise\` run`, `a mutation run`), so this is identify form (e), shared framing with
+The `[SLOT]` is genuinely per-instance (``an ai-slop run``, ``an `audit-instructions` run``,
+``an `audit-noise` run``, ``a mutation run``), so this is identify form (e), shared framing with
 per-instance data.
 
 ## The four drift points
@@ -116,8 +116,7 @@ contract wins and this file is the defect.
 **If the contract cannot be fetched, do not write.** Report that the destination and the guard
 could not be resolved from their owner, and stop. Inventing a destination is the one failure the
 contract's own resolution section exists to prevent: a plausible guess reports success while the
-consumer never scans that path.
-```
+consumer never scans that path.```
 
 Per-site slot values:
 
@@ -148,8 +147,7 @@ their own per-file lead-in sentence:
 ```text
 The script owns the mechanical half: cell assembly and escaping, tier lookup (a mirror of the
 crosswalk, where the crosswalk row is authoritative), rank ordering, the non-overwrite suffix, and
-the `## Surfaces` counts.
-```
+the `## Surfaces` counts.```
 
 `audit-noise` prepends `the fence recomputation, ` to that list, which is its real extra item.
 `ai-slop` keeps its lead-in sentence about repo-scale row counts. Note the em dash inside the

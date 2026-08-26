@@ -184,7 +184,7 @@ Three supported routes, in the order most people want them:
    `sensitive` value on an already-installed plugin has not been verified (the
    Claude Code 2.1.240 observation behind that claim covered a non-sensitive option at
    `user` scope), so do not rely on this command to rotate a credential. Do **not**
-   `claude plugin uninstall` in order to reconfigure either: uninstalling drops this
+   `claude plugin uninstall` to reconfigure either: uninstalling drops this
    plugin's whole stored `pluginConfigs` entry, resetting every option in the table
    above to its default.
 

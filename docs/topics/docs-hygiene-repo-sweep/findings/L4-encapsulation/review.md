@@ -41,11 +41,11 @@ Path B route. The shape belongs in the convention doc's own owner directory (or 
 | # | `path:line` | Verbatim | Replacement text |
 |---|---|---|---|
 | V-review-01 | `docs/conventions/detector-findings/README.md:9` | ``[`plugins/review/skills/fanout/context/default-mode.md`](../../../plugins/review/skills/fanout/context/default-mode.md)`` | ``[`findings-file-shape.md`](findings-file-shape.md)`` |
-| V-review-02 | `docs/conventions/detector-findings/README.md:79` | ``  [`plugins/review/skills/fanout/context/fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md)`` | ``  [`findings-file-shape.md`](findings-file-shape.md) "Consumer algorithm"`` |
-| V-review-03 | `docs/conventions/detector-findings/README.md:83` | ``  [`findings-normalization.md`](../../../plugins/review/skills/fanout/context/findings-normalization.md)`` | ``  [`findings-file-shape.md`](findings-file-shape.md) "Rank order"`` |
-| V-review-04 | `docs/conventions/detector-findings/README.md:109` | ``   ([`findings-normalization.md:72`](../../../plugins/review/skills/fanout/context/findings-normalization.md)),`` | ``   ([`findings-file-shape.md`](findings-file-shape.md) "Rank order"),`` |
+| V-review-02 | `docs/conventions/detector-findings/README.md:79` | ``[`plugins/review/skills/fanout/context/fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md)`` | ``[`findings-file-shape.md`](findings-file-shape.md) "Consumer algorithm"`` |
+| V-review-03 | `docs/conventions/detector-findings/README.md:83` | ``[`findings-normalization.md`](../../../plugins/review/skills/fanout/context/findings-normalization.md)`` | ``[`findings-file-shape.md`](findings-file-shape.md) "Rank order"`` |
+| V-review-04 | `docs/conventions/detector-findings/README.md:109` | ``([`findings-normalization.md:72`](../../../plugins/review/skills/fanout/context/findings-normalization.md)),`` | ``([`findings-file-shape.md`](findings-file-shape.md) "Rank order"),`` |
 | V-review-05 | `docs/conventions/detector-findings/README.md:261` | ``([`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 2"), so`` | ``([`findings-file-shape.md`](findings-file-shape.md) "Consumer algorithm, step 2"), so`` |
-| V-review-06 | `docs/conventions/detector-findings/README.md:303` | ``  ([`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 2") has`` | ``  ([`findings-file-shape.md`](findings-file-shape.md) "Consumer algorithm, step 2") has`` |
+| V-review-06 | `docs/conventions/detector-findings/README.md:303` | ``([`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 2") has`` | ``([`findings-file-shape.md`](findings-file-shape.md) "Consumer algorithm, step 2") has`` |
 | V-review-07 | `docs/conventions/detector-findings/README.md:482` | ``[`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 1: Build`` | ``[`findings-file-shape.md`](findings-file-shape.md) "Consumer algorithm, step 1: Build`` |
 | V-review-08 | `docs/conventions/detector-findings/README.md:497` | ``[`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 5" owns`` | ``[`findings-file-shape.md`](findings-file-shape.md) "Consumer algorithm, step 5" owns`` |
 | V-review-09 | `docs/conventions/detector-findings/README.md:506` | ``[`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 1" — meet`` | ``[`findings-file-shape.md`](findings-file-shape.md) "Consumer algorithm, step 1", meet`` |
@@ -67,8 +67,7 @@ load-bearing, but a reader is expected to open it, and the path is the only addr
 Verbatim:
 
 ```text
-(`plugins/review/skills/quality-gate/context/pr.md`, `plugins/review/skills/fanout/SKILL.md`):
-```
+(`plugins/review/skills/quality-gate/context/pr.md`, `plugins/review/skills/fanout/SKILL.md`):```
 
 **Public surface element:** the `pr` mode of `/review:quality-gate` (its documented action router
 lists `pr` among the modes), plus `plugins/review/skills/fanout/SKILL.md` which is already a legal
@@ -77,8 +76,7 @@ bare-`SKILL.md` cite.
 **Replacement text:**
 
 ```text
-(`/review:quality-gate pr` and `plugins/review/skills/fanout/SKILL.md`):
-```
+(`/review:quality-gate pr` and `plugins/review/skills/fanout/SKILL.md`):```
 
 ## V-review-14. `docs/conventions/native-references/README.md:183` adopter registry row
 
@@ -89,16 +87,14 @@ content dependency, but the row goes stale silently when the skill refactors.
 Verbatim:
 
 ```text
-| `plugins/review/skills/quality-gate/context/pr.md`, `plugins/review/skills/fanout/SKILL.md` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
-```
+| `plugins/review/skills/quality-gate/context/pr.md`, `plugins/review/skills/fanout/SKILL.md` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |```
 
 **Public surface element:** the skill identity, not a file inside it.
 
 **Replacement text:**
 
 ```text
-| `/review:quality-gate` (`pr` mode), `plugins/review/skills/fanout/SKILL.md` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
-```
+| `/review:quality-gate` (`pr` mode), `plugins/review/skills/fanout/SKILL.md` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |```
 
 ## V-review-15. `plugins/review/README.md:83` reaches into its own plugin's skill
 
@@ -110,16 +106,14 @@ names explicitly.
 Verbatim:
 
 ```text
-  [`skills/quality-gate/context/pr.md`](skills/quality-gate/context/pr.md) and
-```
+  [`skills/quality-gate/context/pr.md`](skills/quality-gate/context/pr.md) and```
 
 **Public surface element:** `/review:quality-gate pr`.
 
 **Replacement text:**
 
 ```text
-  `/review:quality-gate pr` and
-```
+  `/review:quality-gate pr` and```
 
 ## V-review-16. `plugins/review/skills/fanout/SKILL.md:112` sibling-skill reach
 
@@ -130,16 +124,14 @@ citation stays slash-only; this is the plain-prose form of the same reach.
 Verbatim (the cite within the line):
 
 ```text
-[`quality-gate/context/pr.md`](../quality-gate/context/pr.md)'s "Boundary" section describes all three surfaces and what each one mutates; that description is not repeated here.
-```
+[`quality-gate/context/pr.md`](../quality-gate/context/pr.md)'s "Boundary" section describes all three surfaces and what each one mutates; that description is not repeated here.```
 
 **Public surface element:** `/review:quality-gate pr`.
 
 **Replacement text:**
 
 ```text
-`/review:quality-gate pr` describes all three surfaces and what each one mutates; that description is not repeated here.
-```
+`/review:quality-gate pr` describes all three surfaces and what each one mutates; that description is not repeated here.```
 
 ## Cross-lane observations
 
