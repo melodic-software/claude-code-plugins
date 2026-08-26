@@ -5,6 +5,14 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.18]
+
+### Changed
+
+- **The plugin README carries a `## Contents` index.** The 461-line README's per-skill sections
+  and configuration subsections are now anchor-linked from the top. Purely additive.
+  Progressive-disclosure audit, missing-toc treatment.
+
 ## [0.12.17]
 
 ### Changed

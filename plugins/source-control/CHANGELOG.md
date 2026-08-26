@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.21]
+
+### Changed
+
+- **`babysit-prs`'s flag documentation has one home.** The Guarded mutations section keeps the
+  operative invariants and per-tier mode selection plus one conditioned pointer; exact wrapper
+  flag documentation deduped into `skills/babysit-prs/reference/safety.md`, which first gained the
+  semantics it was missing (merge-form self-logins composition, the `--admin` capability bound,
+  the merge-gate evaluation set, the per-thread action vocabulary). No semantics changed.
+- **Long files carry a `## Contents` index.** The 401-line README and 337-line
+  reference/review-discipline.md gained Contents sections; the heading-less 394-line
+  skills/setup/reference/apply-convention.md gained an orientation block with a grep recipe.
+  Progressive-disclosure audit, tier-mismatch and missing-toc treatments.
+
 ## [0.55.20]
 
 ### Changed

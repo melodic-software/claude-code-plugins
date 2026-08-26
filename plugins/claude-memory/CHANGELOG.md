@@ -3,6 +3,15 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.4]
+
+### Changed
+
+- **`audit` reaches its cross-skill dependency directly.** The hub gained a direct conditioned
+  pointer to `skills/stateless/context/status.md`, which reference/criteria.md names as the only
+  correct resolution path; the 449-line criteria.md gained a `## Contents` index. Behavior
+  unchanged. Progressive-disclosure audit, deep-nesting and missing-toc treatments.
+
 ## [0.11.3]
 
 ### Changed

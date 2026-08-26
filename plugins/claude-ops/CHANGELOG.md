@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.10]
+
+### Changed
+
+- **`observability`'s operator-setup leaves are one hop from the hub.** The context ladder gained
+  direct conditioned rows for operator-setup-collector-daemon.md, operator-setup-retention.md, and
+  operator-setup-emission-privacy.md, previously reachable only through intermediate spokes; the
+  363-line plugin README gained a `## Contents` index. Behavior unchanged. Progressive-disclosure
+  audit, deep-nesting and missing-toc treatments.
+
 ## [0.38.9]
 
 ### Changed
