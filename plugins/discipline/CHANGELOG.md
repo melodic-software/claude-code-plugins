@@ -5,6 +5,39 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.17]
+
+### Changed
+
+- **`sweep-all`'s preflight and batched pass move to spokes.** The two sections were 300 of the
+  body's 469 lines and neither executes in session-start digest mode, which is the default and the
+  cheap one. They are now `skills/sweep-all/reference/inheritance-preflight.md` and
+  `reference/batched-pass.md`, each cited with the condition that sends a reader there. The
+  member-human-gates carve-out stays in the body, where a batched run cannot miss it. Docs-hygiene
+  sweep, L2-progressive-disclosure.
+
+## [0.12.16]
+
+### Changed
+
+- **Six README parentheticals repaired.** Each ended a sentence inside itself, leaving a fragment on
+  one side of the period: the simpler-code convention gloss, both divergence classes in
+  `recheck-against-upstream`, the `reason-dont-recite` cross-reference, the
+  `research_deep_verification` option row, and the `setup check` read-only note. Docs-hygiene sweep,
+  L8-write-for-humans.
+- **The lead paragraph drops its own scope-decision provenance.** How this plugin's scope came to be
+  widened is a changelog fact and is already recorded as one here. The widened scope itself stays.
+  Docs-hygiene sweep, L8-write-for-humans.
+
+## [0.12.15]
+
+### Changed
+
+- **Options-reference regeneration.** `scripts/sync-plugin-options-docs.py` dropped the
+  phrase `in order to` from its shared options template, per the repo's own
+  write-for-humans style rule that the phrase is just `to`. The generated options
+  block in `README.md` regenerated with the shorter wording; no other change.
+
 ## [0.12.14]
 
 ### Changed

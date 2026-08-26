@@ -1,5 +1,33 @@
 # Changelog — discovery plugin
 
+## [0.16.9]
+
+### Changed
+
+- **All three of this plugin's progressive-disclosure splits audited and deliberately not applied.**
+  The audit proposed lifting the routing section out of `research` and `explore` and the Tool
+  honesty section out of `agents/intent-tracer.md`. Both routing sections carry lines
+  `scripts/contract.test.sh` pins by path in `skills/<skill>/SKILL.md`: the token-is-file-identity
+  demotion and the structured `preload:` field (#2895), the inline-is-not-an-escape-hatch rule, and
+  the fail-closed coverage rule on the inline path. Each pin exists because the same statement once
+  drifted across three files, and a pin cannot follow a pointer. The splits were applied, the suite
+  went red on five assertions, and they were reverted rather than the pins relaxed. Docs-hygiene
+  sweep, L2-progressive-disclosure.
+- **`agents/intent-tracer.md` audited and deliberately not split.** The audit proposed lifting its
+  Tool honesty section into a plugin-scope spoke shared with `researcher` and `explorer`. The
+  section is per-agent by construction: it states that this definition declares no `tools:`
+  allowlist, enumerates what that inherits, and ends by telling the reader that none of the three
+  agents describes the others. `agents/tool-honesty.test.sh` also reads each agent body for exactly
+  those claims and checks them against that agent's own frontmatter, and it cannot follow a
+  pointer. Recorded here so the next sweep does not re-propose it.
+
+## [0.16.8]
+
+### Changed
+
+- **The Phase 3 fallback pointer front-loads its subject (`research`).** It was the file's one
+  deviation from its own dominant pointer shape. Docs-hygiene sweep, L7-write-for-agents.
+
 ## [0.16.7]
 
 ### Changed

@@ -3,6 +3,14 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Changed
+
+- **The blind-generator paragraph splits into four sentences.** A 45-word sentence packed a five-item
+  list and an unrelated reject-list rule into one parenthetical, and `only` sat before the whole
+  predicate rather than beside the brief it modifies. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.5.1]
 
 ### Changed

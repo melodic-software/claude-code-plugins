@@ -67,8 +67,8 @@ The common case: content keyed to a file kind moves to `.claude/rules/<topic>.md
 6. **Verify.** The glob still resolves, the index reports `IN-SYNC`, and the source no longer
    contains the moved text.
 
-**Never** put an `@import` in the body of a path-scoped rule. The import inlines at session start and
-defeats the scoping — the move would read as a saving and not be one.
+**Cite** the shared file from a path-scoped rule by path, never with an `@import`: the import
+inlines at session start and defeats the scoping, so the move would read as a saving and not be one.
 
 ## Recipe B — nested AGENTS.md plus shim
 

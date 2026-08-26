@@ -62,9 +62,9 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
   `git checkout --`, and recursive `Remove-Item`; the confirmed command runs only
   through the skill's own gate. Kill switch: the `clean_destructive_guard_enabled`
   userConfig option set to `false` (`/plugin configure repo-hygiene@<marketplace>`, or
-  `claude plugin install repo-hygiene@<marketplace> --config clean_destructive_guard_enabled=false`;
-  user-scoped. Per-repository disable means disabling the plugin in that
-  project's `enabledPlugins`).
+  `claude plugin install repo-hygiene@<marketplace> --config clean_destructive_guard_enabled=false`),
+  both user-scoped. To disable per repository, disable the plugin in that project's
+  `enabledPlugins`.
 - **Autonomous sessions abort** the destructive tiers rather than deleting
   unattended.
 
@@ -124,7 +124,7 @@ Three supported routes, in the order most people want them:
    for a non-sensitive option at `user` scope, by writing a non-default value to an
    installed plugin and restoring it. The short-circuit message is about the install,
    not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   `project`/`local` scope. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
    so pass the scope `claude plugin list` reports for this plugin.

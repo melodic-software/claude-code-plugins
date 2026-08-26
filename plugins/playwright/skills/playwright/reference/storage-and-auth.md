@@ -50,7 +50,7 @@ playwright-cli run-code "async page => {
 }"
 ```
 
-See [running-code.md](running-code.md).
+Running arbitrary page code: see [running-code.md](running-code.md).
 
 ## localStorage
 

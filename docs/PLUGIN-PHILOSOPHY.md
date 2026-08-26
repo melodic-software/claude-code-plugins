@@ -212,7 +212,7 @@ re-deriving a row.
 | [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter — `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once` — adopted case-by-case through the adoption gate. | 2026-07-17 |
 | [`commands/`](https://code.claude.com/docs/en/plugins-reference) | Prohibited | Officially merged into skills; docs direct "use `skills/` for new plugins". Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/sub-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction) — design within that limit rather than working around it. | 2026-07-17 |
-| [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint — workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](MIGRATION-PLAYBOOK.md#deferred-surfaces--decision-record-2026-07-12) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
+| [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint — workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
 | [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears — shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns real executables only (no `.cmd`/`.bat` shims): use `"command": "node", "args": [...]`, a `${CLAUDE_PLUGIN_ROOT}`-rooted path, or shell form with `"shell": "bash"` — never a bare `bash`/`sh` (WSL relay) or `python`/`python3` (WindowsApps alias stub), whose launch fails non-blockingly and leaves a guard hook silently enforcing nothing. Prose cannot self-verify, so `scripts/check-hook-exec-form.sh` turns that rule into a mechanical check across hook configs and skill/agent frontmatter alike. | 2026-07-17 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search ([actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache), verified 2026-08-10). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
@@ -341,6 +341,21 @@ relative markdown link target for browsing on GitHub — for example
 A bare `context/…`-style path is reserved for a skill's OWN supporting files; it resolves against
 the citing skill's directory, so a cross-skill citation written that way points at a file that is
 not there.
+
+This permission stops at the plugin boundary. It exists because a plugin is the unit that ships:
+one `plugin.json`, one version, one marketplace entry, and skills that always travel together, so
+a citation between two skills in the same plugin cannot arrive at an absent file. **Do not path-cite
+into a skill in a different plugin.** Plugins install independently, so that path can genuinely be
+missing at runtime; cite the other plugin's skill by its `/plugin:skill` invocation instead, or
+promote the shared content to a convention doc both plugins can cite. The same limit applies to
+anything outside `plugins/`: `docs/**` and `.claude/rules/**` cite skills by slash invocation, never
+by path.
+
+Heading anchors are never a citation target, in either direction. A heading is body structure, and
+renaming one is exactly the refactor a skill must stay free to make.
+
+The full public-surface contract this narrows is
+`/docs-hygiene:audit-encapsulation`'s, which audits against it.
 
 ## Setup is explicit and repeatable
 
@@ -543,7 +558,7 @@ prerequisite-absence rules are one slice of that contract, specialized here for 
 
 Hooks follow the event's official control contract. Use a blocking result only when the event can still
 be blocked and the hook is enforcing a policy. Advisory hooks surface a visible non-blocking diagnostic.
-Do not swallow errors or claim success when the promised result was not produced.
+Surface every error, and report the result the run actually produced.
 
 ## Convention registry
 

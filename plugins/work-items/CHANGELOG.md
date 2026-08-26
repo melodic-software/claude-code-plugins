@@ -3,6 +3,47 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.28]
+
+### Changed
+
+- **`decompose`'s `re-decompose.md` spoke now links its sibling instead of naming it.** The
+  container-lifecycle drift doctrine was cited by name with no link, while every other
+  cross-file reference in the same batch of new spokes uses markdown link syntax. Review catch.
+
+## [0.39.27]
+
+### Changed
+
+- **Six skill bodies split hub-and-spoke.** `setup`, `work-loop`, `work`, `triage`,
+  `attend-queue`, and `decompose` each held on-demand material in an invocation-loaded body, which
+  every later turn of a triggered session pays for. Each moved block now sits in a spoke behind a
+  pointer that states the condition for opening it. Two of the audit's ranges were narrowed on
+  inspection: `setup`'s autonomous-invocation range would have carried the general twelve-step
+  `apply` flow out with it, and `work-loop`'s would have carried the admission gate's dispositions
+  and hard gates, so only the C3 ratification write mechanics moved and the fail-closed gate stays
+  in the body. `work`'s Step 5 was audited and deliberately not split: it carries
+  claim-before-dispatch, the high-blast-radius diff gate, and the never-merge boundary, and an
+  agent that never opened the spoke could act on any of the three. Docs-hygiene sweep,
+  L2-progressive-disclosure.
+
+## [0.39.26]
+
+### Changed
+
+- **The work-item-tracker seam paragraph splits into five sentences.** 58 words with a parenthesis
+  nested inside a parenthesis, so a reader three levels deep could not tell which clause the closing
+  parens returned them to. Docs-hygiene sweep, L8-write-for-humans.
+
+## [0.39.25]
+
+### Changed
+
+- **Options-reference regeneration.** `scripts/sync-plugin-options-docs.py` dropped the
+  phrase `in order to` from its shared options template, per the repo's own
+  write-for-humans style rule that the phrase is just `to`. The generated options
+  block in `README.md` regenerated with the shorter wording; no other change.
+
 ## [0.39.24]
 
 ### Changed

@@ -41,9 +41,9 @@ green build into confirmed outcomes.
 
 ## Configuration
 
-Artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern file
-(`/verification:setup` interviews for and persists it. `check` reports the effective
-concern read-only, `apply` writes it). This plugin declares no userConfig options.
+The tracked `.claude/topic-docs.yaml` concern file governs artifact placement.
+`/verification:setup` interviews for that file and persists it: `check` reports the effective
+concern read-only, and `apply` writes it. This plugin declares no userConfig options.
 
 ## License
 

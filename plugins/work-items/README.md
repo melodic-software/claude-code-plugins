@@ -102,13 +102,13 @@ enough that one skill no longer predicts its contents.
   ([download](https://jqlang.org/download/)). `jq` is required for
   correctness: when it is missing, stop and surface that remediation instead
   of improvising a parse.
-- **The work-item-tracker seam.** The plugin **ships** the seam (dispatcher,
-  `lib/`, and the `github`, `local-markdown`, `jira`, `gitea`, and `linear` adapters) under
-  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`; the consuming repo only declares
-  its active provider in `.work-item-tracker.json` at the repo root (run
-  `/work-items:setup`; per-user lease TTL and per-provider auth identity
-  (jira `auth_email`/`auth_env`, linear `auth_env`, gitea `auth_env`) may ride a
-  gitignored `.work-item-tracker.local.json` overlay beside it). A repo
+- **The work-item-tracker seam.** The plugin **ships** the seam under
+  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`: the dispatcher, `lib/`, and the `github`,
+  `local-markdown`, `jira`, `gitea`, and `linear` adapters. The consuming repo declares only its
+  active provider, in `.work-item-tracker.json` at the repo root. Run `/work-items:setup` to write
+  that file. A gitignored `.work-item-tracker.local.json` overlay beside it may carry the per-user
+  lease TTL and the per-provider auth identity: `auth_email` and `auth_env` for jira, `auth_env`
+  for linear, and `auth_env` for gitea. A repo
   may add or shadow an adapter consumer-local at
   `<repo root>/tools/work-item-tracker/adapters/<provider>/` (the root being
   `${CLAUDE_PROJECT_DIR}`, else the git toplevel). `/work-items:onboard-adapter`
@@ -206,7 +206,7 @@ Three supported routes, in the order most people want them:
    for a non-sensitive option at `user` scope, by writing a non-default value to an
    installed plugin and restoring it. The short-circuit message is about the install,
    not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   `project`/`local` scope. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
    so pass the scope `claude plugin list` reports for this plugin.

@@ -106,8 +106,8 @@ session refreshes the statusline; `context_window` fields can be `null` early in
 right after `/compact`, per the
 [statusline reference](https://code.claude.com/docs/en/statusline). Readers own null handling.
 
-Cost: the tee adds roughly 0.6–0.9 s per statusline refresh on Windows/Git Bash (process-spawn
-bound. `jq` and `date`), and correspondingly less on native POSIX shells. The statusline is not on
+Cost: the tee adds roughly 0.6–0.9 s per statusline refresh on Windows under Git Bash, where the
+cost is process-spawn bound on `jq` and `date`, and correspondingly less on native POSIX shells. The statusline is not on
 the input path, so this is display latency, not typing latency; `refreshInterval` in your settings
 governs how often it runs.
 
@@ -123,12 +123,6 @@ the writer from its readers. Band numbers are the one tunable. Via
 statusline display may read too, so display and consumers never drift. Disabling the tee is the
 operator's edit (remove or unwrap the statusline command); disabling everything is
 `enabledPlugins` / uninstall.
-
-## Consumers
-
-The plugin's own zone-crossing hooks are the first shipped consumer. Next: the `plugin-quality`
-audit skill (zone-informed dispatch and evidence-flush decisions, conservative on `unknown`). Any
-session or tool on the machine may read the same files under the same contract.
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -163,7 +157,7 @@ Three supported routes, in the order most people want them:
    for a non-sensitive option at `user` scope, by writing a non-default value to an
    installed plugin and restoring it. The short-circuit message is about the install,
    not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   `project`/`local` scope. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
    so pass the scope `claude plugin list` reports for this plugin.
@@ -206,6 +200,12 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Consumers
+
+The plugin's own zone-crossing hooks are the first shipped consumer. Next: the `plugin-quality`
+audit skill (zone-informed dispatch and evidence-flush decisions, conservative on `unknown`). Any
+session or tool on the machine may read the same files under the same contract.
 
 ## License
 

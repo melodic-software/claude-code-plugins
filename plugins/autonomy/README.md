@@ -85,8 +85,8 @@ state and records that binding.
 
 ## Roadmap (deferred, trigger-gated)
 
-Each capability below lands with its own work package; none ships before its contracts are
-locked (no step-skipping. Trust before scale).
+Each capability below lands with its own work package. None ships before its contracts are locked:
+no step-skipping, and trust before scale.
 
 | Capability | Trigger |
 |---|---|
@@ -152,8 +152,8 @@ merge:
 3. **User `settings.json`**, located from the hook's own install path, a *persistent* enable that
    also gates interactive sessions, which defeats the default-OFF design; prefer the launcher.
 
-A `--settings`-only `lane_stop_gate_enabled=true` (the pre-0.12.0 opt-in) is **no longer honored**.
-That value reaches the hook only as the forgeable env mirror. The gate says so with a visible
+A `--settings`-only `lane_stop_gate_enabled=true` is **not honored**; arm a lane through the
+launcher instead. That value reaches the hook only as the forgeable env mirror. The gate says so with a visible
 once-per-session notice instead of disengaging silently, which is also how a stale (pre-arming)
 lane launcher surfaces. A `--plugin-dir` checkout install has no trusted user-settings or record
 location, so only managed settings can enable the gate there.
@@ -180,8 +180,8 @@ The payload is a fixed vocabulary, never the sentinel token, marker path, cwd, o
 
 ## Configuration
 
-Setup writes tracked config to `.claude/autonomy/` in the consuming repo (concern-named. The
-config outlives any plugin restructure). Personal overlays follow the marketplace overlay
+Setup writes tracked config to `.claude/autonomy/` in the consuming repo, named for the concern so
+the config outlives any plugin restructure. Personal overlays follow the marketplace overlay
 convention: `.claude/autonomy/**/*.local.*` stays gitignored; layers resolve per the
 binding-seam ladder: user-global → org binding (when pointed) → project → local overlay, additively.
 
@@ -224,7 +224,7 @@ Three supported routes, in the order most people want them:
    for a non-sensitive option at `user` scope, by writing a non-default value to an
    installed plugin and restoring it. The short-circuit message is about the install,
    not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   `project`/`local` scope. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
    so pass the scope `claude plugin list` reports for this plugin.

@@ -3,6 +3,37 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.9]
+
+### Changed
+
+- **`plan`'s PLAN.md skeleton moves to a template spoke, and `interview` stops restating its own
+  spoke.** The PLAN.md file skeleton and its status-tag grammar are artifact shape, read when the
+  file is written and when a phase tag changes, so they now live in
+  `skills/plan/templates/plan-md-anatomy.md`. `interview`'s session-config section carried
+  reference detail that `context/session-config.md` already owns, down to the same framing
+  paragraph in both files; the hub keeps the timing rule and points at the spoke for the rest.
+  Both skill bodies were near the recommended body size while under the line ceiling.
+  Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.34.8]
+
+### Changed
+
+- **The `audit-answers` skills-table cell splits into four sentences.** 57 words in one glance
+  surface, with `confirmed / challenged / reclassified` and `hand-answered or auto-accepted` both
+  coordinating on slashes, which reads as separate things rather than values of one field.
+  Docs-hygiene sweep, L8-write-for-humans.
+
+## [0.34.7]
+
+### Changed
+
+- **Options-reference regeneration.** `scripts/sync-plugin-options-docs.py` dropped the
+  phrase `in order to` from its shared options template, per the repo's own
+  write-for-humans style rule that the phrase is just `to`. The generated options
+  block in `README.md` regenerated with the shorter wording; no other change.
+
 ## [0.34.6]
 
 ### Changed

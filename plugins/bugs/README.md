@@ -106,31 +106,6 @@ Project-specific conventions, naming, areas, tracker choice, priority labels, ar
 read from the **consuming project's own `CLAUDE.md` / rules**; the plugin imposes
 none of its own.
 
-## Filing a report
-
-`--file` persists the report; filing is an explicit, separate hand-off. In a GitHub
-repository with the `gh` CLI available:
-
-```shell
-gh issue create --type Bug --body-file <report-path>
-```
-
-Let `gh` prompt for the title interactively. `--type Bug` sets the native GitHub Issue
-Type (org repos; omit on repos without native Issue Types, adding a `type: bug` label instead). If filing non-interactively, never paste
-the reporter's title text into the command string. Write it to a file and pass
-`--title "$(cat <title-file>)"`: the substitution result is a quoted argument value and
-is not re-parsed, so backticks or `$( )` in reporter text cannot execute.
-
-If a work-item tracker MCP tool is available, the skill can hand off to that instead.
-Otherwise the emitted report is the deliverable. Copy it into your tracker.
-
-## Install
-
-```shell
-/plugin marketplace add melodic-software/claude-code-plugins
-/plugin install bugs@<marketplace>
-```
-
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -162,7 +137,7 @@ Three supported routes, in the order most people want them:
    for a non-sensitive option at `user` scope, by writing a non-default value to an
    installed plugin and restoring it. The short-circuit message is about the install,
    not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   `project`/`local` scope. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
    so pass the scope `claude plugin list` reports for this plugin.
@@ -205,6 +180,31 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Filing a report
+
+`--file` persists the report; filing is an explicit, separate hand-off. In a GitHub
+repository with the `gh` CLI available:
+
+```shell
+gh issue create --type Bug --body-file <report-path>
+```
+
+Let `gh` prompt for the title interactively. `--type Bug` sets the native GitHub Issue
+Type (org repos; omit on repos without native Issue Types, adding a `type: bug` label instead). If filing non-interactively, never paste
+the reporter's title text into the command string. Write it to a file and pass
+`--title "$(cat <title-file>)"`: the substitution result is a quoted argument value and
+is not re-parsed, so backticks or `$( )` in reporter text cannot execute.
+
+If a work-item tracker MCP tool is available, the skill can hand off to that instead.
+Otherwise the emitted report is the deliverable. Copy it into your tracker.
+
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install bugs@<marketplace>
+```
 
 ## License
 

@@ -90,83 +90,14 @@ State the first and third in the run's opening line, immediately after the home 
 the audit is invoked: *"Read-only pass; realign is never entered. Files written: the spine baseline
 at `<resolved path>`, at the end of this cycle, plus whatever the composed audit writes."*
 
-## The load-bearing mechanic: the baseline is the PREVIOUS cycle's post-audit spine
+## The baseline: the PREVIOUS cycle's post-audit spine
 
-Two independent things have to be right here, and each fails silently on its own.
-
-**First: a spine must be persisted, because the artifact is rewritten in place on every re-run.** A
-re-audit merges into the existing file by stable finding id rather than depositing a timestamped
-sibling (`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`, "Where it lives" and "Re-run merge
-semantics"), and the audit writes **per layer as it walks**, so the prior content begins disappearing
-at the first layer, not at the end of the run. There is therefore **no previous artifact left to diff
-against after the audit has run**, and this lane can never be "run the audit, then diff the file". A
-separately persisted spine is mandatory. That reason is unchanged and still load-bearing.
-
-**Second: the persisted spine has to be captured at the *end* of a cycle, not the start.** A cycle
-that captures its baseline from the artifact as it stands at the start of the run captures a file a
-human may already have edited. `Status` is exactly that field: realign writes it, a human runs
-realign **between** cycles, and the audit only ever writes `OPEN` on a newly-seen id and carries every
-other status forward untouched. So a start-of-cycle capture already contains the new status, the
-audit carries that same status through, and baseline and post-audit spine agree on `Status` for every
-pre-existing finding, the status-change class is dead by construction, in precisely the case it
-exists to catch.
-
-The mechanic is therefore:
-
-1. Resolve the home and the branch identity.
-2. **Read the stored `spine-baseline.md`, the *previous* cycle's post-audit spine.** That, and
-   nothing captured this cycle, is what the comparison measures from.
-3. Invoke `overengineering:audit`.
-4. Compare **this run's post-audit spine** against the stored baseline.
-5. **Capture this run's post-audit spine over the stored baseline**, for the next cycle to compare
-   against.
-
-The pre-audit capture survives in exactly one place: **the bootstrap cycle** below, where no stored
-baseline exists yet and a pre-audit capture is the only baseline obtainable.
-
-**A maintainer who breaks either half does not get an error, they get a silently useless lane.**
-Collapse step 5 into step 2 and the comparison never sees a status change, while every other class
-still reports plausibly, so the loss is invisible. Drop the persistence entirely and every cycle
-reports "no baseline, this run establishes one" forever and every cycle looks like a first run. Both
-failures are invisible from the report, which is why the mechanic is stated here as a contract rather
-than left as an implementation detail.
-
-## The bootstrap cycle. The one pre-audit capture
-
-A home can hold a findings artifact and no `spine-baseline.md`: audits were run manually here before
-this lane ever ran. That first delta cycle **captures the artifact's spine pre-audit** so it has
-something to compare against, and it says so in the report.
-
-**A bootstrap cycle cannot detect a status change, and it says that too.** Its baseline is the
-artifact as it stands *after* whatever realign runs already happened, and the audit carries those same
-statuses forward, so both sides of the comparison hold the identical `Status` for every pre-existing
-finding. The class is not suppressed; it is unobservable this once. **The next cycle can see one**,
-because its baseline is this cycle's post-audit spine, taken before any later realign ran.
-
-Every other delta class works normally on a bootstrap cycle: a verdict really can move between the
-artifact's stored judgment and this run's fresh one.
-
-## The spine baseline
-
-`spine-baseline.md`, beside the findings artifact in the same resolved home. Its frontmatter, what
-its body may and may not carry, its deliberately-not-`overengineering-findings` type, and why it is a
-snapshot rather than a second record are owned by
-`${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md` under "The spine-capture obligation". **This
-skill does not restate them.** Two rules bind the run directly:
-
-**A capture never replaces a baseline this cycle did not consume.** The end-of-cycle capture is
-earned by having completed the comparison, and nothing else earns it. If the cycle stopped short
-for any of these reasons, the stored baseline stays exactly as it is and this run writes none:
-the audit was never invoked, the audit failed, the schema was unrecognized, the homes disagreed,
-or the branch identity was unresolved.
-Overwriting it would move the comparison's origin silently forward past a cycle nobody ever compared,
-and whatever moved in between would then be reported by no cycle at all.
-
-**A baseline older than one cycle widens the span rather than being discarded.** When the stored
-baseline's `source-date` predates the immediately preceding cycle, an interrupted cycle left it
-unconsumed, or a cycle consumed it and died before capturing its own, compare against it anyway and
-say so: the report's span then covers more than one cycle and names the `source-date` it is measuring
-from.
+The delta is computed against the previous cycle's post-audit spine, stored as `spine-baseline.md`
+beside the findings artifact in the same resolved home. Read
+[context/baseline-model.md](context/baseline-model.md) before the first run against a home you have
+not seen this session: it owns the two things that must both be right, the bootstrap cycle for a
+home with an artifact but no baseline, and the baseline file's frontmatter and fields. Both failure
+modes are silent, so do not infer the model from the run steps below.
 
 ## Arguments
 
@@ -234,76 +165,14 @@ unchanged**:
 cycle, name both paths, and leave the stored baseline untouched.** Two homes are two histories, and
 diffing across them manufactures change. This is a resolution defect to fix, not a delta to report.
 
-## A detached checkout has no branch identity
+## Run states that are not errors
 
-`git rev-parse --abbrev-ref HEAD` answers `HEAD` on a detached checkout. That is a string, not an
-identity, and treating it as one breaks this lane twice over: every ref keys to the same
-`<branch-slug>` home, and the branch-match check in step 2 compares `HEAD` to `HEAD`, passes, and
-accepts some other ref's spine as this ref's baseline, after which the lane reports the difference
-between two refs as a delta. Scheduled runners very commonly check out detached, so this is the
-ordinary case for the mode this lane was built for, which is why the precompute uses
-`git symbolic-ref` and refuses to invent a name.
-
-When the branch identity does not resolve:
-
-- **Prefer a logical ref where the environment supplies one.** Some execution environments hand the
-  run the ref it was launched for even though the checkout is detached. Where such a value is present
-  and names a branch, use it as the branch identity for both the home key and the match check, and
-  name in the report where it came from. **No vendor's variables are named here or assumed**. This
-  plugin is consumer-agnostic, and hardcoding one CI system's environment would be a claim about the
-  consumer's toolchain that the rest of this plugin refuses to make.
-- **Otherwise, treat the run as no baseline and say why**. "detached checkout, no logical ref
-  supplied; no branch identity, so nothing is compared". Do not fall back to `HEAD`, to the commit
-  sha, or to whatever home the slug happens to produce, and do not compare.
-- **Capture no baseline either.** With no branch identity, a capture would land in a home keyed by
-  something every ref shares, where the next detached run of a *different* ref would read it as its
-  own. This is the one no-baseline state that does **not** establish a baseline for the next cycle,
-  and the report says so rather than implying the next run will have one.
-
-The audit still runs and still reports; what is declined here is the comparison and the capture, not
-the pass. **It does not, however, persist an artifact on such a cycle**. `audit` declines its own
-write on an unresolved identity for the same reason this lane declines its capture, so step 4 below
-has no post-run artifact to read and the audit's inline summary is the cycle's whole output. That is
-the expected shape, not a fault: with nothing compared and nothing captured, a persisted artifact
-would be a file keyed by something every ref shares and read by no later cycle.
-
-## No baseline. A first-class state, not an error
-
-No stored baseline and no artifact, a branch mismatch, an unresolved branch identity, or a fresh
-container, worktree, or branch means there is **no prior spine**. Both files are ephemeral by design
-and losing them is expected, not a fault.
-
-In that state the lane:
-
-- says, in one line, **"No baseline; this run establishes one"**, naming the reason (absent /
-  branch mismatch, with both branches named). Except under an unresolved branch identity, which
-  establishes nothing and says so instead, per the section above;
-- runs the audit exactly as it otherwise would, and captures its post-audit spine at the end of the
-  cycle as the baseline for the next one;
-- **reports nothing as a delta**. Not the findings, not the counts, not "everything is new". A
-  first-run surface is not a change;
-- **does not restate the surface.** The composed audit already printed its own inline summary, and
-  that summary is the full-surface view. Producing a second one here would be the duplicate record
-  the report contract forbids, point at it instead.
-
-## Layers that were not walked
-
-Merge rule 4 carries a finding in an unwalked layer forward **untouched**, marked not re-evaluated
-and stamped with the date of the run that produced it. Two obligations follow, and both are
-load-bearing:
-
-- **Every finding in a layer absent from this run's `scope` is excluded from the comparison
-  entirely.** It is not unchanged-and-checked, and it is emphatically not closed. It contributes to
-  no delta class.
-- **The report names the unwalked layers once, as a coverage line, with the count of findings held
-  in them**. Never as findings. A layer-scoped cycle that read as a clean bill of health for the
-  whole surface would be worse than no cycle at all.
-
-The converse case is real too. A layer walked **this** run but absent from the **baseline** run's
-`scope` carries baseline rows that are themselves stale carry-forwards. A verdict move there is
-genuine, but its "since" is the older run's stamped date, not the baseline artifact's `date`. Take
-the per-finding stamp merge rule 4 wrote where one exists, and the baseline's `date` otherwise, so
-the report's span is honest per finding rather than per run.
+A detached checkout, a missing baseline, a branch mismatch, and a layer the audit did not walk are
+all first-class states with defined handling, not failures. Read
+[context/run-states.md](context/run-states.md) whenever the run resolves into one of them: it owns
+branch-identity resolution on a detached `HEAD`, the no-baseline disposition, and merge rule 4's
+carry-forward for unwalked layers. Reporting any of these as an error is the defect this file
+prevents.
 
 ## Delta classes. What the merge already computes, and what this lane computes
 

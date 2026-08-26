@@ -107,8 +107,13 @@ the positive alternative in the same sentence.
 
 ## What this skill does NOT do
 
-- **Does not author skills**, a SKILL.md is `playbooks:skill-authoring` + `skill-quality:check`
-  territory; this skill's doctrine reaches skill authors through those surfaces.
+- **Does not author skills.** Deciding a skill should exist, what it triggers on, what its
+  frontmatter declares, how its actions are shaped, and how its body is structured is
+  `playbooks:skill-authoring` + `skill-quality:check` territory. Prose inside an already-authored
+  SKILL.md is still this skill's: a SKILL.md is agent-consumed markdown, which is exactly and only
+  what this doctrine governs. Read the boundary as authorship against wording, not as a whole file
+  this skill may not look at, or the largest agent-facing surface most repos have ends up governed
+  by no authoring doctrine at all.
 - **Does not audit existing docs**, the audit siblings own read-only findings; this skill fires
   at the writing moment only.
 - **Does not write human-facing docs**. End-user READMEs, changelogs, and marketing prose have

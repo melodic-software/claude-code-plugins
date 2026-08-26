@@ -3,6 +3,13 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3]
+
+### Changed
+
+- **The hardened-template guarantees are a list.** 99 words and eight clause interrupters, already
+  punctuated as a list with semicolons. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.2.2]
 
 ### Changed

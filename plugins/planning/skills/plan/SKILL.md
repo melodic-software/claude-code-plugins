@@ -268,45 +268,11 @@ This is complementary to `/planning:devils-advocate`. Review checks completeness
 
 After the user approves the plan in Step 5, update the draft `<contract_dir>/<topic-slug>/PLAN.md` (default `docs/topics/`; persisted at Step 4.7) with any approval-round changes. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:prd`, `/planning:interview`, `/planning:design`); roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PLAN.md is a contract document: under `contract_tier: branch` (the default), commit it on the task branch as it locks, so worktrees, clones, and reviewers see it, and let each implementation phase's plan updates ride the same commit as that phase's source changes; under `contract_tier: local` it lives in the self-ignored memory slice and is never staged. The PR-description paste is its only publication surface. It is the **living source of truth** for the stage. A fresh cleared session must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `<memory_dir>/<topic-slug>/`, default `.work/`).
 
-**PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`):
-
-```markdown
-## Brief
-<from /planning:interview if applicable — task restatement, scope boundaries, success criteria>
-
-## Plan
-
-### Phase 1: <name> [TODO]
-<file-by-file changes, rationale, per-phase sanity-check criteria>
-
-### Phase N: <name> [TODO]
-<...>
-
-## Blast radius
-<LOW / MEDIUM / HIGH with reasoning>
-
-## Stress-test summary
-<Step 4 output, or "Skipped: blast radius LOW, no triggers matched">
-
-## Execution shape
-<Step 4.5 output — Wave A/B shape with ALLOWED/FORBIDDEN scope-fencing tables + cost note, OR "fully sequential — phase X gates phase Y" one-liner, PLUS the per-phase routing table (Phase | Surface | Basis). Skipped for single-phase plans>
-
-## Open questions
-<anything unresolved at approval time>
-
-## Handoff to implementation
-
-### User-approval gates
-<actions implementation MUST surface for confirmation before executing: any [FALLBACK] tags, any scope-expansion proposals, any mid-flight pivots that change acceptance criteria. At each gate, ask or stop + flag. An empty section is valid — small tasks may have zero gates beyond the initial plan approval>
-
-### Execution shape ([EXEC-SHAPE] tagged)
-<orchestration choices /planning:plan made: parallel waves OR sequential, the per-phase routing table, agent rosters, ALLOWED/FORBIDDEN scope-fencing tables, sub-topic promotion, sanity-check criteria per phase>
-
-### Mechanical work
-<commit boundaries, verification checkpoints, sequential fallback path (when parallel recommended). Standard implementation boilerplate — rarely needs user-specific override>
-```
-
-Advance the phase tag (`[TODO]` → `[DOING]` → `[DONE]`) as implementation completes each phase. The tags are what a resuming session reads to know where to continue.
+**PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` /
+`[DOING]` / `[DONE]`), never in a separate status block. Copy the skeleton from
+[`templates/plan-md-anatomy.md`](templates/plan-md-anatomy.md) when writing the file at this step,
+and read it again when a phase tag changes: it owns the section order, the tag grammar, and what
+each section must contain for a cleared session to execute the plan from this file alone.
 
 PLAN.md is a multi-turn shared artifact: re-read it from disk before every write. Another turn or agent may have modified it. Prefer appending or refining sections over wholesale rewrites.
 

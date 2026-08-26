@@ -103,8 +103,11 @@ Or invoke the skill (the agent applies the filter taxonomy below):
 | **Glob-config** | Skill-internal path used as a glob/filter in an exclusion list, hooks allowlist, or `.gitignore`, not a content `Read` cite | Path is structural filter syntax, not progressive-disclosure content (overlaps KIND-2; named separately for grading) |
 | **Plugin cache** | `~/.claude/plugins/cache/<plugin>/...` | Upstream territory; foreign contract. These paths never match the detector PATTERN (not under a skill root), so `--apply-filters` has no cache branch. Classify as legal if they appear in a manual/agent sweep |
 | **Worktree path** | `<worktree-root>/<n>/.claude/skills/<X>/...` (per the repo's worktree convention, e.g. `.worktrees/`, `.claude/worktrees/`, `.git/worktrees/`) | Worktrees share the tracked tree; same rules apply at the root path |
+| **Intra-plugin cite** (only where the consuming repo has declared the plugin-monorepo convention) | A file under `plugins/<p>/` cites `plugins/<p>/skills/<s>/<private-path>`, same `<p>`. Covers a sibling skill body, a plugin-level `context/`, `reference/` or `agents/` doc, and the plugin `README.md` | The plugin, not the skill, is the shipping unit there: one manifest, one version, skills that never travel apart, so the absent-path breakage this contract prevents cannot occur. See `context/public-surface-contract.md`, "Layered convention". **Cross-plugin cites stay illegal**, and heading anchors stay illegal either way |
 
 Hits that survive ALL filters = illegal. Report.
+
+The intra-plugin filter is off unless the consuming repo has actually declared that convention and is built that way: one manifest and one version per plugin, no per-skill manifest, and no install path that separates two skills in one plugin. Check before applying it; the unrelaxed taxonomy is the default. A path that does not resolve as written is still a defect even when this filter would otherwise make it legal.
 
 ## Remediation paths
 

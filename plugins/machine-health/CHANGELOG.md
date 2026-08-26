@@ -3,6 +3,23 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6]
+
+### Changed
+
+- **The generated options block sits under `## Configuration`.** It was under `## Tests`, a section
+  about the plugin's own Pester suite. The generated table itself is unchanged; only its placement
+  moved. Docs-hygiene sweep, L8-write-for-humans.
+
+## [0.11.5]
+
+### Changed
+
+- **Options-reference regeneration.** `scripts/sync-plugin-options-docs.py` dropped the
+  phrase `in order to` from its shared options template, per the repo's own
+  write-for-humans style rule that the phrase is just `to`. The generated options
+  block in `README.md` regenerated with the shorter wording; no other change.
+
 ## [0.11.4]
 
 ### Changed

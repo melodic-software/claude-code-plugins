@@ -342,8 +342,11 @@ audit_file() {
     # A bare toggle keyed on "line starts with 3+" treats the inner fence as
     # the outer close and then scans the remaining example as prose.
     if [[ "$line" =~ ^(\`{3,}|~{3,}) ]]; then
-      flush_negation
+      # Capture before flushing: flush_negation runs its own [[ =~ ]] matches,
+      # which overwrite BASH_REMATCH. Reading it afterwards aborts under set -u
+      # whenever a fence closes a paragraph that had pending negation text.
       fence_delim="${BASH_REMATCH[1]}"
+      flush_negation
       fence_dchar="${fence_delim:0:1}"
       fence_dlen=${#fence_delim}
       if [[ $in_fence -eq 0 ]]; then
@@ -366,9 +369,10 @@ audit_file() {
     # an exempt ## Sources followed by an H1 stay exempt to EOF, and ### Sources
     # was never recognized).
     if [[ "$line" =~ ^(#{1,6})[[:space:]]+(.*)$ ]]; then
+      # Capture before flushing, for the same reason as the fence branch above.
+      heading_text="${BASH_REMATCH[2]}"
       flush_negation
       is_heading=1
-      heading_text="${BASH_REMATCH[2]}"
       heading_text="${heading_text%%$'\r'*}"
       if audit_noise_section_exempt "$heading_text"; then
         in_exempt=1

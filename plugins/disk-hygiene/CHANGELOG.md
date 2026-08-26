@@ -3,6 +3,34 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.25]
+
+### Changed
+
+- **`## Requirements and platform support` is a requirements section again.** It had grown to 81
+  lines of design rationale and regression history under a heading that promises what you need in
+  order to run this. Registration mechanics, the two guard surfaces, the kill-switch read, the Stop
+  detector, the hook-lifetime caveat, and the Windows `python3` stub gotcha moved into a new
+  `## How the guard is registered`. Six version deltas this file already carries were dropped rather
+  than moved. Docs-hygiene sweep, L8-write-for-humans.
+- **`## Plugin-acceptance security review` is now `## Security posture`.** The heading named the
+  review that was conducted rather than the property a reader wants, and the section now opens by
+  stating the posture. Every fact, measurement, date, and host detail survives. Docs-hygiene sweep,
+  L8-write-for-humans.
+- **The generated options block sits under `## Configuration`.** It was under `## Sources`, which
+  means citations in every other plugin README here. The generated table itself is unchanged; a
+  `## Configuration` heading was added above it. Docs-hygiene sweep, L8-write-for-humans.
+
+## [0.20.24]
+
+### Changed
+
+- **`clean` split against the progressive-disclosure audit.** The unsupported-platform handoff,
+  reachable only when `--execute` is requested on Windows or macOS and a human has approved an
+  exact path list, moved to `reference/unsupported-platform-handoff.md`. That condition is now
+  the pointer's when-to-read clause, so the body carries the rule and the spoke carries the
+  procedure. No content was dropped.
+
 ## [0.20.23]
 
 ### Changed

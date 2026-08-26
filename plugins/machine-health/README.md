@@ -73,15 +73,6 @@ One plugin option: `report_dir` (directory), where dated reports land; unset mea
 `Documents\MachineHealth` under the user profile. Everything else is machine-local state managed
 by `/machine-health:setup`. No hooks, no MCP servers.
 
-## Tests
-
-A Pester 5.7+ suite ships with the plugin (`skills/audit/tests/`). Windows-only. It
-mocks Win32/MSFT CIM types that resolve only there:
-
-```powershell
-pwsh -NoProfile -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
-```
-
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -113,7 +104,7 @@ Three supported routes, in the order most people want them:
    for a non-sensitive option at `user` scope, by writing a non-default value to an
    installed plugin and restoring it. The short-circuit message is about the install,
    not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   `project`/`local` scope. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
    so pass the scope `claude plugin list` reports for this plugin.
@@ -156,6 +147,15 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Tests
+
+A Pester 5.7+ suite ships with the plugin (`skills/audit/tests/`). Windows-only. It
+mocks Win32/MSFT CIM types that resolve only there:
+
+```powershell
+pwsh -NoProfile -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
+```
 
 ## License
 

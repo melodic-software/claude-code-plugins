@@ -468,6 +468,45 @@ tilde_out="$(bash "$DETECT" "$TILDE_FENCE")"
 assert_not_contains "ordinary tilde fence body stays exempt" "$tilde_out" "inside a tilde fence"
 assert_contains "prose after a tilde fence still flags" "$tilde_out" "real prose"
 
+# A fence opening directly after paragraph text flushes the pending negation
+# buffer, and that flush runs its own [[ =~ ]] matches. Reading BASH_REMATCH
+# for the fence delimiter after the flush aborts the whole run under set -u.
+FENCE_AFTER_PROSE="$TEST_TMPDIR/fence-after-prose.md"
+cat >"$FENCE_AFTER_PROSE" <<'EOF'
+<!-- marker:v1 -->
+```json
+{ "schema_version": "1.0" }
+```
+EOF
+fence_after_prose_out="$(bash "$DETECT" "$FENCE_AFTER_PROSE" 2>&1)"
+fence_after_prose_exit=$?
+assert_exit "fence opening after prose does not abort" 0 "$fence_after_prose_exit"
+assert_contains "fence opening after prose still summarises" \
+  "$fence_after_prose_out" "Summary file: $FENCE_AFTER_PROSE"
+assert_not_contains "fence delimiter capture survives the negation flush" \
+  "$fence_after_prose_out" "BASH_REMATCH"
+
+# The heading branch has the same match-then-flush-then-read shape. A multi-line
+# HTML comment followed immediately by a heading is the shape that hits it in
+# real content: the comment fills the negation buffer, the heading flushes it,
+# and the flush leaves BASH_REMATCH with fewer than two groups.
+HEADING_AFTER_PROSE="$TEST_TMPDIR/heading-after-prose.md"
+cat >"$HEADING_AFTER_PROSE" <<'EOF'
+<!-- markdownlint-disable MD056 -->
+<!-- Annotation rows are single-cell paragraph asides within tables; padding
+     them with empty pipes would obscure the prose. -->
+# Taxonomy
+
+Some trailing prose.
+EOF
+heading_after_prose_out="$(bash "$DETECT" "$HEADING_AFTER_PROSE" 2>&1)"
+heading_after_prose_exit=$?
+assert_exit "heading opening after prose does not abort" 0 "$heading_after_prose_exit"
+assert_contains "heading opening after prose still summarises" \
+  "$heading_after_prose_out" "Summary file: $HEADING_AFTER_PROSE"
+assert_not_contains "heading text capture survives the negation flush" \
+  "$heading_after_prose_out" "BASH_REMATCH"
+
 INLINE_FIXTURE="$TEST_TMPDIR/inline-code.md"
 cat >"$INLINE_FIXTURE" <<'EOF'
 # Inline fixture

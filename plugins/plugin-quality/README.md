@@ -6,12 +6,14 @@ whether it actually does what it claims. `/plugin-quality:audit <plugin>[:<compo
 six-step audit and ends with a work item in the plugin maintainers' lap, never with you patching
 their repo mid-session.
 
-- **Audit skill** (`skills/audit`), the six-step hub: (1) evidence capture on the main thread
-  into a durable, compaction-proof packet; (2) map + ground in the fresh `auditor` subagent, with
-  every load-bearing harness-behavior claim verified against current official docs; (3) persist-check
-  on the returned findings, then blindspot pass + candidates; (4) interactive contract lock (scope, severity, assumptions,
-  written into the packet); (5) presence-gated review seams with stated fallbacks; (6) emit to
-  the resolved sink behind an unconditional draft+confirm gate.
+- **Audit skill** (`skills/audit`), the six-step hub:
+  1. Evidence capture on the main thread, into a durable, compaction-proof packet.
+  2. Map and ground in the fresh `auditor` subagent, with every load-bearing harness-behavior claim
+     verified against current official docs.
+  3. Persist-check on the returned findings, then a blindspot pass and candidates.
+  4. Interactive contract lock: scope, severity, and assumptions, written into the packet.
+  5. Presence-gated review seams with stated fallbacks.
+  6. Emit to the resolved sink behind an unconditional draft+confirm gate.
 - **Auditor agent** (`agents/auditor.md`), the fresh-context specialist for steps 2–3. Tools:
   Read/Grep/Glob/WebFetch plus Bash. Named honestly: Bash is there for `claude plugin validate`,
   config-resolution probes, and the fetch ladder's rung-1 `curl` of the raw-markdown docs channel,

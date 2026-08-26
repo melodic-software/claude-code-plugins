@@ -32,7 +32,7 @@ Before ANY live testing, verify tool availability. The e2e orchestrator and any 
 | **Playwright MCP** | Opt-in for stateful exploratory flows needing a continuous in-context browser (check how the consuming project enables/disables it in its MCP config) | ~114K tokens/workflow |
 | **Orchestrator MCP + curl** | API-only verification, health checks, structured log inspection | Minimal |
 
-**See `/playwright:playwright`** (when the playwright plugin is installed) for CLI mechanics — commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks. This skill (`/testing:run-e2e`) owns the broader orchestrator + API + UI story.
+**CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks): see `/playwright:playwright`, when the playwright plugin is installed. This skill (`/testing:run-e2e`) owns the broader orchestrator + API + UI story.
 
 ## Browser-tool fit triage
 

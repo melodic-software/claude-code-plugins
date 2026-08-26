@@ -1,10 +1,11 @@
 # session-flow
 
-A Claude Code plugin bundling fourteen skills for one cohesive capability: managing the lifecycle of a
-working session, where you are in the work, how to pause and resume it, how to recover it after an
-interruption, how to leave it durable before the machine goes away, how to retire finished work and
-reconcile the task ledger, where things stand and why, whether its assumptions are still current,
-what to learn from it while it runs and after, and how to arm it for delegation-heavy tasks.
+A Claude Code plugin bundling fourteen skills for one cohesive capability: managing the lifecycle of
+a working session. The skills answer where you are in the work, how to pause and resume it, how to
+recover it after an interruption, how to leave it durable before the machine goes away, how to
+retire finished work and reconcile the task ledger, where things stand and why, whether the
+session's assumptions are still current, what to learn from it while it runs and after, and how to
+arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
@@ -392,7 +393,7 @@ Three supported routes, in the order most people want them:
    for a non-sensitive option at `user` scope, by writing a non-default value to an
    installed plugin and restoring it. The short-circuit message is about the install,
    not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` in order to
+   `project`/`local` scope. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
    so pass the scope `claude plugin list` reports for this plugin.

@@ -3,6 +3,80 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.17]
+
+### Changed
+
+- **`worktree` and `setup` are no longer split, and this plugin's skills are now a documented
+  poor split target.**
+
+  `worktree`'s `context/nesting-invariant.md` extraction carried the upstream-drift verification
+  stamp out of `SKILL.md`. `skills/worktree/nesting-invariant-ssot.test.sh` declares
+  `OWNER_REL="skills/worktree/SKILL.md"` and asserts that body is the single owner of the measured
+  claim. Its header states the reason: the defect being prevented was the same statement drifting
+  across thirteen sites, and "one owner and twelve pointers" is the fix. Moving the claim into a
+  spoke recreates the drift the test exists to stop.
+
+  `setup`'s `reference/babysit-config.md` extraction carried the lane-script reachability canary
+  out of `SKILL.md`, and `skills/babysit-prs/scripts/tests/test_guards.py` pins the exact canary
+  invocation there in three assertions.
+
+  Those are the third and fourth reverts in this plugin for one reason, after `babysit-prs` and
+  `babysit-loop` below. The pattern is worth stating rather than rediscovering: `source-control`
+  pins a large share of its skill-body prose by test, on purpose, because the pinned statements
+  are safety gates, reachability contracts, and single-owner claims that an agent must have loaded
+  rather than one link away. A line-count audit cannot see a pin.
+
+  **Before splitting any skill in this plugin, grep the whole plugin, not just that skill's own
+  directory, for a test that reads the target `SKILL.md`.** The `worktree` pin lives in a
+  `*.test.sh` beside the skill; the `setup` pin lives under a different skill entirely
+  (`babysit-prs/scripts/tests/`). Where a pin covers the content, the line count is the weaker
+  consideration and the split does not happen.
+
+- **`babysit-loop` gets its promotion-evidence gate back in the body.** The 0.55.11 cycle-shape
+  split moved the merge-eligibility partition into `reference/cycle-shape.md`, and
+  `skills/babysit-prs/scripts/tests/test_skill_contract.py` had been failing four assertions since:
+  it requires the promotion-evidence gate, the `effective-promoted` state, the
+  `promotion-evidence-resolution.md` citation, and the `--merge human-only` launch-line rule to be
+  present in `skills/babysit-loop/SKILL.md`. Same reason the `babysit-prs` split was reverted at
+  0.55.12: the condition decides whether anything merges at all, and a loop that never opens the
+  spoke could resolve a cell as promoted on evidence the seam would refuse. The rest of the cycle
+  shape stays in the spoke; only the gate moved back. Docs-hygiene sweep,
+  L2-progressive-disclosure.
+
+## [0.55.16]
+
+### Changed
+
+- **The generated options block sits under `## Configuration`.** It was under `## Security`, below
+  the section that already documents configuration. The generated table itself is unchanged; only
+  its placement moved. Docs-hygiene sweep, L8-write-for-humans.
+
+## [0.55.15]
+
+### Changed
+
+- **Four skill bodies split against the progressive-disclosure audit.** `babysit-loop`,
+  `pull-request`, `setup` and `worktree` each sat near the 500-line ceiling with on-demand material
+  inlined, which a `SKILL.md` pays for across the rest of a session once it triggers. The
+  sometimes-only content moved to a spoke and the body kept what every invocation needs:
+  - `babysit-loop` to `reference/cycle-shape.md`
+  - `pull-request` to `reference/full-lifecycle.md`
+  - `setup` to `reference/babysit-config.md`
+  - `worktree` to `context/nesting-invariant.md`
+
+  `babysit-prs` was audited as a fifth candidate and deliberately **not** split. Its oversize
+  content is the guarded-mutation gate catalog, and `scripts/tests/test_skill_contract.py` asserts
+  three times that the merge-readiness paragraph lives in `SKILL.md` itself, citing #601: the body
+  must name the merge gate's `ready` field as the sole authority for a merge-ready claim. Moving
+  that behind a pointer would let an agent that never opens the spoke call a PR merge-ready on the
+  finding-classification gate's signal, which is the exact failure #601 closed. Line count is the
+  weaker consideration when the inlined content is the safety contract.
+
+  Each pointer states when to read the spoke rather than only that it exists, so the split does
+  not trade an oversize body for a blind pointer. No content was dropped; the spokes gained only
+  a title and enough opening context to read on their own when opened directly.
+
 ## [0.55.14]
 
 ### Changed

@@ -87,7 +87,7 @@ Read all config files and validate basic structure.
 
 Record the installed Claude Code version (`claude --version`). Phase 3.2 compares issue-fix versions
 against it. Then run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh"`
-before the table below.
+before filling the `1.2 Structure inventory` table.
 
 ### 1.0 Hook inventory
 

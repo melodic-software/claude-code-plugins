@@ -52,7 +52,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 ## Finding your way
 
 - Not sure which skill to invoke? Start at the [skill cheat sheet](docs/SKILL-CHEAT-SHEET.md). A
-  scan-and-go map from what you're doing to the skill to use.
+  scan-and-go map from what you are doing to the skill that does it.
 - [Plugin catalog](docs/CATALOG.md). Every plugin by category, generated from the manifests and
   kept in sync by CI. New plugins clear the per-plugin migration gate in
   [`docs/MIGRATION-PLAYBOOK.md`](docs/MIGRATION-PLAYBOOK.md).

@@ -3,6 +3,25 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.7]
+
+### Changed
+
+- **`teach`'s pedagogy model moves to `context/pedagogy.md`.** The three layers, the
+  fluency-versus-storage-strength distinction, the research grounding, and the zone of proximal
+  development shape how every action behaves but are not themselves actions, in a body that was
+  over the recommended size. The hub keeps the one-paragraph model and says when to read the rest.
+  Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.8.6]
+
+### Changed
+
+- **Options-reference regeneration.** `scripts/sync-plugin-options-docs.py` dropped the
+  phrase `in order to` from its shared options template, per the repo's own
+  write-for-humans style rule that the phrase is just `to`. The generated options
+  block in `README.md` regenerated with the shorter wording; no other change.
+
 ## [0.8.5]
 
 ### Changed

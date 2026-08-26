@@ -3,6 +3,15 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Changed
+
+- **The working-memory rule states the positive (`shape`).** The bare prohibition ("Never ask the
+  reader to 'keep in mind' something stated earlier") is replaced by the instruction it implies:
+  restate any earlier state the reader needs, in the current response. Same constraint, now with a
+  disposition attached. Docs-hygiene sweep, L5-noise.
+
 ## [0.4.3]
 
 ### Changed

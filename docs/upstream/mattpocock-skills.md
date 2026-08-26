@@ -11,7 +11,7 @@ baseline in `review`) are not provenance records and stay in place.
 *what was audited*.
 
 **Recheck trigger:** a mattpocock/skills release whose changeset names any skill in the
-attribution table below — re-audit the affected row(s). Release notes name skills explicitly
+attribution table below. Re-audit every affected row. Release notes name skills explicitly
 (`gh release view <tag> -R mattpocock/skills`).
 
 ## Attribution table

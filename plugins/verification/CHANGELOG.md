@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.7]
+
+### Changed
+
+- **The artifact-placement sentence names its actor first.** It opened passive with no actor, where
+  the actor is named two words later, and its parenthetical closed after a second independent
+  sentence. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.5.6]
 
 ### Changed

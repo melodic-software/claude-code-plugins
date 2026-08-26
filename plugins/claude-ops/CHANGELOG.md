@@ -3,6 +3,34 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.7]
+
+### Changed
+
+- **Four `audit-install-state` pointers front-load their subject.** Each phase section closed with a
+  bare `See <link>.`, so the term a reader matches on arrived only inside the filename. Each now
+  leads with what following the pointer gets you. Docs-hygiene sweep, L7-write-for-agents.
+- **Two README parentheticals repaired, and the `audit-performance` cell is scannable.** Both
+  parentheticals ended a sentence inside themselves. The `audit-performance` skills-table cell named
+  its four suspects across a 100-word sentence; it now names them plainly and leaves the per-suspect
+  evidence and verdict routing to the skill body, which already documents both. Docs-hygiene sweep,
+  L8-write-for-humans.
+
+## [0.38.6]
+
+### Changed
+
+- **known-issues: `context/issue-templates.md` is a pointer, not a snapshot (docs-hygiene repo
+  sweep, L1-derivability).** The file carried a 2026-03-29 copy of
+  `anthropics/claude-code/.github/ISSUE_TEMPLATE/` with no regeneration path and no recorded
+  recheck trigger, while `context/action-create.md` told its only reader twice never to trust it.
+  Templates that change without notice cannot be cached honestly, so the body now names the live
+  source, the `gh api` command that fetches it, and `action-create.md` as owner of the fetch
+  protocol. The one fact that was local rather than copied stays: resolve the regression field from
+  the registry's last known working state when the issue reached `create` through
+  `/claude-ops:known-issues search`. Both `action-create.md` citations were reworded, since they
+  described a snapshot that no longer exists.
+
 ## [0.38.5]
 
 ### Changed

@@ -1,5 +1,71 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.17]
+
+### Changed
+
+- **Two skills-table cells split at the point that made a reader backtrack.** The `extract-ssot` row
+  ran 75 words with a three-item apposition and no colon marking it; the `write-for-humans` row ran
+  61. Content unchanged. Docs-hygiene sweep, L8-write-for-humans.
+
+## [0.21.16]
+
+### Changed
+
+- **`audit-encapsulation`'s public-surface contract now describes the plugin-monorepo
+  case.** A repo whose shipping unit is the plugin rather than the individual skill
+  may treat intra-plugin sibling-skill citation as legal, because two skills that
+  always ship together cannot produce the absent-path breakage the contract exists
+  to prevent. The relaxation is bounded: cross-plugin path citation stays a
+  violation, heading anchors stay private either way, and a repo that has not
+  declared such a convention gets the unrelaxed contract.
+
+  Without this, the audit reports 65 findings against this repository that its own
+  `docs/PLUGIN-PHILOSOPHY.md` instructs authors to write, and re-reports them after
+  every remediation.
+
+## [0.21.15]
+
+### Fixed
+
+- **`audit-progressive-disclosure` reported 82 spokes as orphans that were cited
+  all along.** `md_links()` opens with a `grep` that exits 1 when a file has no
+  markdown links, which is the normal case, not an error. Under `set -euo
+  pipefail` that status killed `ref_candidates()` before it reached its
+  backtick branch, so every hub citing its spokes only in backticks had all of
+  them reported unreachable. Measured over all 243 `SKILL.md` files, orphans
+  drop from 133 to 51 with the `|| true` in place.
+
+  The suite already asserted that a backtick-cited spoke is not orphaned, but
+  its fixture hub also carried markdown links, so `md_links` succeeded and the
+  broken path never ran. The new case uses a hub with backtick citations and
+  nothing else.
+
+## [0.21.14]
+
+### Fixed
+
+- **`audit-noise` had the same stale-`BASH_REMATCH` defect in its heading branch.**
+  The fence fix in 0.21.12 left the ATX-heading branch reading `BASH_REMATCH[2]`
+  after `flush_negation`. A repo-wide scan got 1024 files in before dying on a
+  multi-line HTML comment followed by a heading. Where the clobbering match does
+  leave two groups bound, the branch does not abort at all: it silently applies
+  the wrong heading text to the section-exemption check. Captured before the
+  flush, with a regression test built from the file that actually crashed.
+  Swept every other `BASH_REMATCH` read in the plugin's detectors; the rest read
+  consecutively with no intervening call and are unaffected.
+
+## [0.21.13]
+
+### Fixed
+
+- **`audit-noise` aborted mid-run on any fence opening directly after paragraph text.**
+  `detect.sh` read `BASH_REMATCH[1]` for the fence delimiter *after* calling
+  `flush_negation`, which runs its own `[[ =~ ]]` matches and overwrites
+  `BASH_REMATCH`. Under `set -u` the stale read killed the whole invocation, so a
+  repo-wide scan stopped at the first such file and silently reported partial
+  coverage. The delimiter is now captured before the flush. Regression test added.
+
 ## [0.21.12]
 
 ### Changed
