@@ -1,9 +1,9 @@
 # L2 progressive disclosure: `B-cc-config-ops`
 
 130 files, 29 `T2`. Plugins: `claude-config`, `claude-memory`, `claude-ops`, `context-guard`,
-`context-guard`, `guardrails`, `rate-limit-guard`.
+`context-budget`, `guardrails`, `rate-limit-guard`.
 
-Totals: T1=9, T2=14, T3=2.
+Totals: T1=9, T2=9, T3=2.
 
 ## Split lane
 
@@ -12,7 +12,7 @@ Totals: T1=9, T2=14, T3=2.
 462 lines, 4,715 words, **zero spokes**. Highest-value split in this group: an invocation-loaded
 body at 92% of the 500-line ceiling with no hierarchy layer at all.
 
-`## `check` (read-only)` spans **lines 37 to 371, 335 lines, 72% of the file**. Within it, numbered
+`##`check`(read-only)` spans **lines 37 to 371, 335 lines, 72% of the file**. Within it, numbered
 step 7 alone spans **lines 186 to 365, 180 lines**.
 
 `plugins/context-guard/skills/setup/SKILL.md:186`:
@@ -105,8 +105,8 @@ Resulting `SKILL.md`: 487 - 158 + 8 = **337 lines**.
 
 | Path | Lines | Words | Note |
 |---|---|---|---|
-| `plugins/claude-ops/skills/lanes/SKILL.md` | 323 | 2,791 | under both ceilings on words; line-count only, no treatment |
-| `plugins/claude-config/skills/audit-permission-state/SKILL.md` | 302 | 2,662 | same |
+| `plugins/claude-ops/skills/lanes/SKILL.md` | 323 | 2,884 | under both ceilings on words; line-count only, no treatment |
+| `plugins/claude-config/skills/audit-permission-state/SKILL.md` | 302 | 2,660 | same |
 
 Neither fires. Recorded so the roll-up's counts are reproducible.
 
@@ -176,8 +176,10 @@ any finding. [reference/run-contract.md](reference/run-contract.md) remains the 
 
 Sample rows, `plugins/claude-ops/skills/changelog/SKILL.md:175-176`:
 
-> `- `context/repo-surfaces.md`. Surface categories to check per changelog item`
-> `- `context/classification-rubric.md`. P1/P2/P3 classification criteria`
+```text
+- `context/repo-surfaces.md`. Surface categories to check per changelog item
+- `context/classification-rubric.md`. P1/P2/P3 classification criteria
+```
 
 Each row states what the spoke holds and not when to open it. The same plugin already carries the
 correct shape at `plugins/claude-ops/skills/observability/SKILL.md:36`
@@ -212,5 +214,5 @@ always fetch live)`), so the chain is an alternate, not a required reading path.
   `audit-native-overlap` each restate the "reports, never mutates" contract in their own words.
   Cross-file duplication is L3.
 - `plugins/context-guard/skills/setup/SKILL.md:31-36` says the consumer-facing constants are owned
-  by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`, and step 5 (line 156) restates the zone
-  bands anyway. L3.
+  by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`, and step 5 (line 156) reports
+  `zones.json` state with the default bands restated inline. L3.

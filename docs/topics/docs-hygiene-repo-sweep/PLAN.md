@@ -10,9 +10,9 @@ corpus in one change set.
 
 1302 files, ~17.0 MB. Scope is every tracked `.md` **except**:
 
-- `plugins/*/skills/*/vendor/**` (22 files) — upstream reference material, excluded by
+- `plugins/*/skills/*/vendor/**` (22 files). Upstream reference material, excluded by
   `.claude/rules/vendor-docs-are-not-style.md`.
-- Everything under `docs/topics/docs-hygiene-repo-sweep/` — this sweep's own artifacts. A lane
+- Everything under `docs/topics/docs-hygiene-repo-sweep/`, this sweep's own artifacts. A lane
   that audited its own findings would feed on itself.
 
 ### Load tier
@@ -90,32 +90,32 @@ conformance fixes to their own audience slice.
 Eight agents editing 1302 shared files at once collide, and several lanes have real ordering
 dependencies on each other. So the sweep audits first and applies second.
 
-### Wave 1 — audit, all eight lanes in parallel, read-only
+### Wave 1. Audit, all eight lanes in parallel, read-only
 
 Every lane covers the full corpus and writes findings to `findings/<lane>/`. **No lane edits a
 source file in wave 1.** A lane that wants an edit records it as a remediation spec.
 
-### Wave 2 — reconcile
+### Wave 2. Reconcile
 
 The orchestrator merges the eight findings sets into `remediation/per-file-plan.md`: one ordered
 edit list per file, with exactly one owning agent. Cross-lane conflicts resolve by the wave 3
 order below.
 
-### Wave 3 — apply, in dependency order
+### Wave 3. Apply, in dependency order
 
 Order is a real dependency chain, not a preference. Compressing a doc that a later lane deletes
 wastes the work; rewriting a citation before a split targets a path that is about to move.
 
-1. **`L1-derivability`** — deletions and pointer conversions. Removing a file moots every other
+1. **`L1-derivability`**. Deletions and pointer conversions. Removing a file moots every other
    lane's findings against it.
-2. **`L2-progressive-disclosure`** — splits. Creates the file structure the next lanes cite.
-3. **`L3-ssot`** — dedup, over the post-split structure.
-4. **`L4-encapsulation`** — citation rewrites, over the final paths.
-5. **In-file prose pass** — `L5`–`L8` merged into one pass, partitioned by file so exactly one
+2. **`L2-progressive-disclosure`**. Splits. Creates the file structure the next lanes cite.
+3. **`L3-ssot`**. Dedup, over the post-split structure.
+4. **`L4-encapsulation`**. Citation rewrites, over the final paths.
+5. **In-file prose pass**. `L5` to `L8` merged into one pass, partitioned by file so exactly one
    editor touches any given file. Each editor applies that file's noise, compress, and
    audience-appropriate write-for-* findings together.
 
-### Wave 4 — verify and ship
+### Wave 4. Verify and ship
 
 Fresh-context verifiers semantic-diff the edited files against their pre-sweep state. Then
 `markdownlint-cli2`, `typos`, `editorconfig-checker`, and link checking. Then commit.
@@ -125,7 +125,7 @@ Fresh-context verifiers semantic-diff the edited files against their pre-sweep s
 - **Latitude is full.** Deletions, splits, and new SSOT artifacts are all authorized. What is not
   authorized is an edit you cannot justify from the skill's own rubric.
 - **Dedup prefers rule-of-one.** Report duplication at every multiplicity. Remedy single-consumer
-  and pair cases **in place**, by citing the existing owner — that is the preferred outcome. Mint a
+  and pair cases **in place**, by citing the existing owner. That is the preferred outcome. Mint a
   new SSOT artifact only at three or more instances and only when you judge the artifact genuinely
   better than an in-place fix.
 - **Never invent a finding to fill a quota.** A group with no findings reports none. Padding a
@@ -136,8 +136,16 @@ Fresh-context verifiers semantic-diff the edited files against their pre-sweep s
   edit it.
 - **This repo's prose style** is `plugins/ai-slop/skills/audit/reference/rewrite-guide.md`. No em
   dashes in this repo's own instruction surfaces.
-- **Nesting.** Spawn your own workers freely, up to five levels. Do not author a tree that
-  *requires* more than three: reliability degrades with depth, and a level that fails must be
-  absorbable by its parent.
-- **Concurrency.** This is a cloud session with no rate-limit telemetry, so headroom is thin by
-  default. Cap yourself at four concurrent workers and prefer short waves to a wide tree.
+- **No fan-out is available.** Lane leads cannot spawn subagents. No `Agent` or `Task` tool exists
+  in a subagent's context here and `ToolSearch` will not find one; `create_session` spawns a
+  separate container with no access to this checkout, so it is not a substitute. Four lanes
+  confirmed this independently before it was written down. The tree is two levels: orchestrator,
+  then one lead per lane.
+
+  Substitute corpus-wide mechanical detectors for fan-out, then apply judgment to the candidates.
+  Every lane that has finished did exactly this and reached all 1302 files.
+- **State recall honestly.** With no fan-out, every lane has one adjudicator for the whole corpus,
+  so partial coverage is the expected outcome, not a failure. Name what you sampled rather than
+  read, and what your mechanical pass could not reach. A silent cap reads as full coverage and
+  corrupts the reconciliation. Sampling and saying so is good work; sampling and implying
+  completeness is not.

@@ -236,9 +236,9 @@ form (g). `REFUSE-already-cites-canonical`.
 `plugins/verification/skills/setup/SKILL.md:24` share 684 words across 6 blocks, and both open with:
 
 > `<!-- Maintainer note: the rules below restate the topic-docs and marketplace setup contracts as this`
-> `     skill's own runtime instructions. Matching a sibling plugin's setup skill byte-for-byte is a`
-> `     coincidence of scope, not a shared artifact, the topic-docs contract's "Implementers restate`
-> `     the rules" section records why this is not extracted, and what would reopen that. -->`
+> `skill's own runtime instructions. Matching a sibling plugin's setup skill byte-for-byte is a`
+> `coincidence of scope, not a shared artifact, the topic-docs contract's "Implementers restate`
+> `the rules" section records why this is not extracted, and what would reopen that. -->`
 
 A prior refusal, recorded in the files themselves with its reopening condition. `REFUSE-intentional`.
 This is the pattern every other cluster in this lane should imitate.
@@ -255,9 +255,10 @@ This is the pattern every other cluster in this lane should imitate.
 
 Sites: `plugins/actionlint/README.md:32`, `plugins/bash-format/README.md:53`,
 `plugins/biome-format/README.md:40`, `plugins/eol-normalizer/README.md:34`,
-`plugins/go-format/README.md:49`, `plugins/powershell-format/README.md:68`, plus two more in the
-same family. Twelve further READMEs state the same requirement in plugin-specific wording, which is
-form (h), domain-specific application.
+`plugins/go-format/README.md:49`, `plugins/powershell-format/README.md:68`,
+`plugins/ruff-format/README.md:46`, `plugins/typos-format/README.md:76`. Twelve further READMEs
+state the same requirement in plugin-specific wording, which is form (h), domain-specific
+application.
 
 **Refusal.** A README Requirements section is an EXPOSE surface under this skill's own role
 classification: it MAY restate when onboarding clarity outweighs maintenance cost. The text is one

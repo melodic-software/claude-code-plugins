@@ -30,9 +30,9 @@ Verbatim:
 | `${CLAUDE_PLUGIN_ROOT}/skills/trace-intent/context/dispatch.md` | intent-only: the reason-per-skip check that stands in for a coverage ledger, why a thin tier census is a pass, that family's ladder |
 ```
 
-The table header on line 11 reads `| File | Owns |`, which has to change with the rows.
+The table header on line 12 reads `| File | Owns |`, which has to change with the rows.
 
-**Replacement text** (lines 11 and 15-17; line 13's `**this file**` row keeps its cell unchanged):
+**Replacement text** (line 12, then lines 15-17; line 14's `**this file**` row keeps its cell unchanged):
 
 ```text
 | Surface | Owns |

@@ -161,7 +161,7 @@ cited for provenance only, since an installed plugin cannot read a sibling skill
 Only `MARKER` and this lane's resolution rungs vary.
 ```
 
-2. Bring the prose around the block onto the canonical wording, same substitutions as call site A.
+1. Bring the prose around the block onto the canonical wording, same substitutions as call site A.
    Keep `MARKER="work-items:attend-queue@$INSTANCE"`.
 
 **Call site C: the owner itself.** No text change. Add nothing.
@@ -182,6 +182,13 @@ existing mechanism that would have caught it.
 
 ## Cross-lane observations
 
+- The canonical text carries two em dashes: one in the resolution paragraph
+  (`the lane type — per the convention's`) and one in the heading
+  `## Gotcha — compound-shell classifier and isolated-calls fallback`. The replacement text above
+  reproduces them so the three sites stay byte-identical. Both are house-style defects under
+  `plugins/ai-slop/skills/audit/reference/rewrite-guide.md`. They must be fixed **in the owner and
+  all three sites in one edit**, not site by site, or the normalization is undone. Sequence that
+  after this cluster, not before.
 - No encapsulation violation. `attend-queue/SKILL.md` cites the loop-lane convention and
   `claude-ops`, both public surfaces. The proposed provenance line points at a sibling skill's
   `reference/` file, which is that skill's private body: L4 should confirm whether a
