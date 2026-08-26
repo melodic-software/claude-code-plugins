@@ -347,7 +347,8 @@ run_mutated_self_test() {
   mkdir -p "$scratch/scripts/lib"
   copied_h="$scratch/scripts/lib/test-harness.sh"
   copied_t="$scratch/scripts/lib/test-harness.test.sh"
-  cp "$HARNESS" "$copied_h"
+  # $copied_h is written fresh by the mutation branches below; only the test
+  # file is copied verbatim.
   cp "${BASH_SOURCE[0]}" "$copied_t"
   chmod +x "$copied_t"
 

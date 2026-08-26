@@ -302,8 +302,8 @@ if [[ "$KIND" != dir ]]; then
     UNPUSHED_REFS=$((UNPUSHED_REFS + 1)) # detached HEAD — commits may be unreachable elsewhere
   fi
 else
-  # Plain leftover directory: none of the repo guards above run, but the PR
-  # supports deleting such dirs, so a leftover secret-class file or skill-owned
+  # Plain leftover directory: none of the repo guards above run, but this
+  # script deletes such dirs, so a leftover secret-class file or skill-owned
   # data/ would otherwise be discarded silently. Walk descendants and gate on the
   # same SECRETS and SKILLDATA classes, passing target-relative paths so the
   # dir-prefix patterns (.aws/, .vscode/, .claude/skills/*/data/…) match too.

@@ -100,7 +100,7 @@ is_symlink() {
   [[ -L "$1/$2" ]]
 }
 
-# GNU coreutils ships sha256sum; macOS ships shasum. Emits `<digest>  <name>`.
+# GNU coreutils ships sha256sum; macOS ships shasum. Emits the bare hex digest.
 digest_of() {
   local file="$1"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -154,7 +154,7 @@ manifest="$packet/$MANIFEST_NAME"
 if [[ "$action" == record ]]; then
   count=0
   # Enumerate BEFORE creating the temp manifest: a temp file inside the packet
-  # is itself a packet file, and a glob that walks it would seal the manifest
+  # is itself a packet file, and a walk that sees it would seal the manifest
   # into itself under a name that vanishes on `mv`.
   files=()
   while IFS= read -r name; do

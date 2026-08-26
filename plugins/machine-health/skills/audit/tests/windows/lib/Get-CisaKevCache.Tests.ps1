@@ -17,6 +17,18 @@ BeforeAll {
     $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
     . (Join-Path $script:LibRoot 'Get-CisaKevCache.ps1')
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+
+    function Set-KevFetchMock {
+        # Mocks Invoke-WebRequest to write a one-vulnerability KEV payload to
+        # the .download temp file the atomic-rename fetch path requests. The
+        # payload rides in a script-scope variable because a GetNewClosure
+        # body would hide the $OutFile parameter Pester injects at call time.
+        param([Parameter(Mandatory)] [string] $CveId)
+        $script:KevFetchPayload = @{ vulnerabilities = @(@{ cveID = $CveId }) } | ConvertTo-Json
+        Mock Invoke-WebRequest {
+            Set-Content -LiteralPath $OutFile -Value $script:KevFetchPayload -Encoding utf8
+        } -ParameterFilter { $OutFile -like '*.download' }
+    }
 }
 
 Describe 'Get-CisaKevCache' -Tag 'lib' {
@@ -32,10 +44,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
 
     Context 'refresh decisions' {
         It 'fetches when the cache file is missing' {
-            Mock Invoke-WebRequest {
-                $payload = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0001' }) } | ConvertTo-Json
-                Set-Content -LiteralPath $OutFile -Value $payload -Encoding utf8
-            } -ParameterFilter { $OutFile -like '*.download' }
+            Set-KevFetchMock -CveId 'CVE-2024-0001'
 
             $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath
             $result.vulnerabilities.Count | Should -Be 1
@@ -47,10 +56,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
             $stub = '{"_comment":"placeholder","vulnerabilities":[]}'
             Set-Content -LiteralPath $script:cachePath -Value $stub -Encoding utf8
 
-            Mock Invoke-WebRequest {
-                $payload = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0002' }) } | ConvertTo-Json
-                Set-Content -LiteralPath $OutFile -Value $payload -Encoding utf8
-            } -ParameterFilter { $OutFile -like '*.download' }
+            Set-KevFetchMock -CveId 'CVE-2024-0002'
 
             $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath
             $result.vulnerabilities.Count | Should -Be 1
@@ -62,10 +68,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
             Set-Content -LiteralPath $script:cachePath -Value $fresh -Encoding utf8
             (Get-Item -LiteralPath $script:cachePath).LastWriteTime = (Get-Date).AddDays(-10)
 
-            Mock Invoke-WebRequest {
-                $payload = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0099' }) } | ConvertTo-Json
-                Set-Content -LiteralPath $OutFile -Value $payload -Encoding utf8
-            } -ParameterFilter { $OutFile -like '*.download' }
+            Set-KevFetchMock -CveId 'CVE-2024-0099'
 
             $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath -MaxAgeDays 7
             $result.vulnerabilities[0].cveID | Should -Be 'CVE-2024-0099'
@@ -87,10 +90,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
             $fresh = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0005' }) } | ConvertTo-Json
             Set-Content -LiteralPath $script:cachePath -Value $fresh -Encoding utf8
 
-            Mock Invoke-WebRequest {
-                $payload = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-9999' }) } | ConvertTo-Json
-                Set-Content -LiteralPath $OutFile -Value $payload -Encoding utf8
-            } -ParameterFilter { $OutFile -like '*.download' }
+            Set-KevFetchMock -CveId 'CVE-2024-9999'
 
             $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath -ForceRefresh
             $result.vulnerabilities[0].cveID | Should -Be 'CVE-2024-9999'
@@ -151,10 +151,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
 
     Context 'egress logging' {
         It 'appends a GET line to the log when a refresh is attempted' {
-            Mock Invoke-WebRequest {
-                $payload = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0006' }) } | ConvertTo-Json
-                Set-Content -LiteralPath $OutFile -Value $payload -Encoding utf8
-            } -ParameterFilter { $OutFile -like '*.download' }
+            Set-KevFetchMock -CveId 'CVE-2024-0006'
 
             Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath | Out-Null
 
@@ -175,10 +172,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
         }
 
         It 'writes a GET line Read-EgressLog can parse (single timestamp, canonical shape)' {
-            Mock Invoke-WebRequest {
-                $payload = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0007' }) } | ConvertTo-Json
-                Set-Content -LiteralPath $OutFile -Value $payload -Encoding utf8
-            } -ParameterFilter { $OutFile -like '*.download' }
+            Set-KevFetchMock -CveId 'CVE-2024-0007'
 
             Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath | Out-Null
 

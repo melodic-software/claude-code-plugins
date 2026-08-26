@@ -51,8 +51,9 @@ function computeStamp() {
   // them), so they live at the plugin root, not under this skill.
   const vendorRoot = path.join(here, "..", "..", "..", "vendor");
   if (fs.existsSync(vendorRoot)) {
+    // Walk order is irrelevant: files.sort() below fixes the hash order.
     const walk = (dir) => {
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const abs = path.join(dir, entry.name);
         if (entry.isDirectory()) walk(abs);
         else files.push(path.relative(here, abs).split(path.sep).join("/"));

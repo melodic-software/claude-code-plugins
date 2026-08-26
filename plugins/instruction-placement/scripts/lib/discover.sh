@@ -145,12 +145,8 @@ ip_discover_rules() {
   local root="${1:-.}"
   [[ -d "$root" ]] || return 0
 
-  local rules_dir found_file real seen_file emitted
+  local rules_dir found_file real seen_file
   seen_file="$(mktemp)" || return 1
-  emitted="$(mktemp)" || {
-    rm -f "$seen_file"
-    return 1
-  }
 
   # Every `.claude/rules` directory at any depth, not just the root one.
   while IFS= read -r rules_dir; do
@@ -185,10 +181,9 @@ ip_discover_rules() {
       }
     }
     END { for (k in best) print best[k] }
-  ' | LC_ALL=C sort >"$emitted"
+  ' | LC_ALL=C sort
 
-  cat "$emitted"
-  rm -f "$seen_file" "$emitted"
+  rm -f "$seen_file"
 }
 
 # ---------------------------------------------------------------------------

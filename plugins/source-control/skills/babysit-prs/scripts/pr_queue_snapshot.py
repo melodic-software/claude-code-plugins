@@ -96,9 +96,7 @@ def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
     )
 
 
-def resolve_self_logins(
-    self_csv: str | None, extra_self_csv: str | None
-) -> list[str]:
+def resolve_self_logins(self_csv: str | None, extra_self_csv: str | None) -> list[str]:
     """Resolve the posting identities whose comments self-classification suppresses.
 
     Independent of the `--author` discovery filter (#511): which authors' PRs to
@@ -110,7 +108,7 @@ def resolve_self_logins(
     `--extra-self`, so configured extra identities still survive, and a discovery
     `--author` never leaks in. Structural parity, not exact on one edge: an
     unresolvable `@me` raises here (via `resolve_author`) rather than degrading to the
-    extras as the gate does — fail-loud on broken auth; parity tracked in #881.
+    extras as the gate does -- fail-loud on broken auth; parity tracked in #881.
     """
     if self_csv is not None:
         source = _csv_list(self_csv)
@@ -160,9 +158,7 @@ def substantive_errors(errors: list[str]) -> list[str]:
     hydration or discovery failures) do. The single source of truth for the
     advisory predicate is ``babysit_delta.is_head_ref_alias_error``.
     """
-    return [
-        message for message in errors if not delta.is_head_ref_alias_error(message)
-    ]
+    return [message for message in errors if not delta.is_head_ref_alias_error(message)]
 
 
 def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
@@ -228,9 +224,7 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
                     repo,
                     number,
                     reviews=pr["reviews"],
-                    review_comments=gh.fetch_pull_request_review_comments(
-                        repo, number
-                    ),
+                    review_comments=gh.fetch_pull_request_review_comments(repo, number),
                     config=trigger_config,
                 )
                 if not trigger.has_current_head_review(
@@ -270,9 +264,7 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
                 prev_unique=delta.prev_head_ref_unique(prs[0], previous_prs),
             )
         except Exception as exc:
-            errors.append(
-                f"{prs[0]['key']} {delta.HEAD_REF_ALIAS_ERROR_MARKER} {exc}"
-            )
+            errors.append(f"{prs[0]['key']} {delta.HEAD_REF_ALIAS_ERROR_MARKER} {exc}")
             delta.apply_head_ref_guard(
                 prs[0],
                 checked=False,

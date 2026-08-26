@@ -445,7 +445,6 @@ for idx in "${!PATTERNS[@]}"; do
     else
       # A read loop rather than `mapfile`: mapfile is bash 4+, and macOS still
       # ships bash 3.2 as /bin/bash, where this script must still run.
-      expansions=()
       while IFS= read -r one_expansion; do
         expansions+=("$one_expansion")
       done <<<"$expansions_raw"

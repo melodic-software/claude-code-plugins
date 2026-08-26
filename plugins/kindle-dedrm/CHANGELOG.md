@@ -3,6 +3,19 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.5]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** In
+  `skills/manage/scripts/check-drift.sh`, folded the glob-free one-element `DEDRM_MATCHES`
+  array into a direct scalar assignment (the word contained no unquoted glob characters, so
+  it never underwent pathname expansion; sandbox differential runs across present, absent,
+  wrong-SHA, glob-character-tag, and BASHOPTS-injection cases were byte-identical); in
+  `sync-finalize.sh`, corrected the stale SC2154 parenthetical to name `LOCALAPPDATA`, the
+  variable the script actually expands. These scripts have no test suites; verification was
+  differential sandbox execution plus shellcheck and bash -n.
+
 ## [0.7.4]
 
 ### Changed

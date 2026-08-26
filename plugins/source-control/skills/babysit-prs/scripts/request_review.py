@@ -15,7 +15,7 @@ import babysit_lease as leases
 from babysit_delta import compute_branch_freshness, head_repository_scope
 from babysit_feedback import fetch_current_human_stop, human_stop_blocks_automation
 from babysit_gh import (
-    flatten_paginated_items,
+    fetch_paginated_api,
     gh_json,
     parse_repo_number,
     view_pr,
@@ -71,10 +71,6 @@ def allowed_owners_from_policy(policy: dict[str, Any]) -> frozenset[str]:
     """
     owners = {str(policy.get(key) or "") for key in ("base_owner", "head_owner")}
     return frozenset(owner for owner in owners if owner)
-
-
-def flatten_pages(value: Any) -> list[dict[str, Any]]:
-    return flatten_paginated_items(value, "PR issue comments")
 
 
 def validate_current_candidate(
@@ -179,15 +175,10 @@ def existing_trigger(
     known_comment_ids: set[str] | None = None,
 ) -> dict[str, Any] | None:
     """Return an exact trigger that durable state cannot already attribute."""
-    pages = gh_json(
-        [
-            "api",
-            f"repos/{repo}/issues/{number}/comments?per_page=100",
-            "--paginate",
-            "--slurp",
-        ]
+    comments = fetch_paginated_api(
+        f"repos/{repo}/issues/{number}/comments?per_page=100", "PR issue comments"
     )
-    for comment in flatten_pages(pages):
+    for comment in comments:
         if not recognizer.fullmatch(str(comment.get("body") or "")):
             continue
         if str(comment.get("id")) in (known_comment_ids or set()):

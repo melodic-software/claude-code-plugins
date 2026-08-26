@@ -95,10 +95,8 @@ while [[ $# -gt 0 ]]; do
     ;;
   --)
     shift
-    while [[ $# -gt 0 ]]; do
-      TARGETS+=("$1")
-      shift
-    done
+    TARGETS+=("$@")
+    break
     ;;
   -*)
     echo "dead-code-scan.sh: unknown arg '$1'" >&2
@@ -540,7 +538,10 @@ lane_gopls() {
     degraded=0
     foreign=0
     nested_roots "$root_rel" roots root_nested
-    nfiles="$(count_owned "$root_rel" root_nested GO_FILES)"
+    # Only the files this module OWNS are handed to gopls; a nested go.mod's
+    # files belong to that module's own run.
+    files_owned "$root_rel" root_nested GO_FILES mod_files
+    nfiles="${#mod_files[@]}"
     if [[ "$nfiles" -eq 0 ]]; then
       lane_line gopls "$root_rel" scanned-zero-files 0 \
         'no .go file owned by this module in candidate scope (files under a NESTED go.mod belong to that module) — a scan of nothing, not a clean bill'
@@ -556,9 +557,6 @@ lane_gopls() {
         "located at $bin but invocation failed — presence is proven by invocation, never by command -v"
       continue
     fi
-    # Only the files this module OWNS are handed to gopls; a nested go.mod's
-    # files belong to that module's own run.
-    files_owned "$root_rel" root_nested GO_FILES mod_files
     (cd "$root_abs" && "$bin" check -severity=hint -- "${mod_files[@]}") \
       >"$WORK/gopls.out" 2>"$WORK/gopls.err" || true
     # Health is decided BEFORE a single record is made, the same order the knip

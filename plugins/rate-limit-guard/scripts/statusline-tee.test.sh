@@ -572,8 +572,7 @@ if [[ -f "$HOME_ASYNC/$TEE_REL" ]]; then
 else
   fail "async: no snapshot appeared within 10s"
 fi
-if [[ "$(jq -r '.session_id' <"$HOME_ASYNC/$TEE_REL" 2>/dev/null)" == "sess-gate" ]] ||
-  jq -e '.rate_limits' <"$HOME_ASYNC/$TEE_REL" >/dev/null 2>&1; then
+if jq -e '.rate_limits' <"$HOME_ASYNC/$TEE_REL" >/dev/null 2>&1; then
   ok "async: the detached snapshot carries the session's windows"
 else
   fail "async: snapshot body wrong: $(cat "$HOME_ASYNC/$TEE_REL" 2>/dev/null)"

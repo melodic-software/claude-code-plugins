@@ -19,7 +19,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=test-helpers.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/test-helpers.sh"
+source "$SCRIPT_DIR/test-helpers.sh"
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 

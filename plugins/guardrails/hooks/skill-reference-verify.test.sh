@@ -240,7 +240,6 @@ assert_silent "CHANGELOG.md is historical by contract → silent" "$OUT"
 # The exclusion is basename-scoped, not a substring: a file merely mentioning the
 # word must still be adjudicated.
 NOTCL="$REPO/docs-CHANGELOG-notes.md"
-mkdir -p "$(dirname "$NOTCL")"
 : >"$NOTCL"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NOTCL" 'Run `/alpha:nonexistent`.')" 2>&1)
 assert_contains "CHANGELOG-in-name but not a CHANGELOG → still adjudicated" "$OUT" \

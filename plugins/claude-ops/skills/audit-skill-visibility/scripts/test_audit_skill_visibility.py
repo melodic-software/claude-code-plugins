@@ -281,7 +281,6 @@ class ReachabilityFixtureTest(unittest.TestCase):
     """
 
     def test_four_skill_fixture_resolves_one_of_each(self):
-        import json
         import pathlib
 
         fixture = (
@@ -605,7 +604,6 @@ class ChurnGitReaderTest(unittest.TestCase):
     def setUp(self):
         import shutil
         import subprocess
-        import tempfile
 
         if not shutil.which("git"):
             self.skipTest("git not available")
@@ -647,7 +645,6 @@ class ChurnGitReaderTest(unittest.TestCase):
         )
 
     def test_authored_at_is_committer_date_not_filesystem_mtime(self):
-        import os
         import time
 
         self._write("a.md", "one")
@@ -722,9 +719,7 @@ class ReportPathTest(unittest.TestCase):
             engine.report_path(data_root="", state_key="k", stamp="s")
 
     def test_history_line_is_appended_not_overwritten(self):
-        import json
         import pathlib
-        import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             hist = pathlib.Path(tmp, "history.jsonl")
@@ -905,7 +900,6 @@ class CollectFleetTest(unittest.TestCase):
 
     def test_walks_plugins_into_qualified_names(self):
         import pathlib
-        import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             skill = pathlib.Path(tmp, "myplugin", "skills", "myskill")
@@ -922,7 +916,6 @@ class CollectFleetTest(unittest.TestCase):
         """The filesystem cannot answer enablement, and guessing it would libel
         a disabled plugin's skills as reachable."""
         import pathlib
-        import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
             skill = pathlib.Path(tmp, "p", "skills", "s")

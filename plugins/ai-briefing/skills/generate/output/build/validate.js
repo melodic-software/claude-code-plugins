@@ -50,6 +50,24 @@ await fs.mkdir(SHOTS_DIR, { recursive: true });
 
 const issues = { blocking: [], warnings: [] };
 
+// Runs inside the page: settle web fonts + two rAFs so layout is stable.
+const settleRender = async () => {
+  await document.fonts.ready;
+  await new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  );
+};
+
+// Runs inside the page: sections with horizontal overflow.
+// Skips decorative orb-overflow sections (open, qa) — orb gradients are intentionally
+// transform-translated past edges; overflow:hidden clips them visually but scrollWidth
+// still reports the layout extent. Pure cosmetic, no scrollbar appears.
+const collectSectionOverflows = () =>
+  [...document.querySelectorAll("main#deck > section.section")]
+    .filter((s) => !["open", "qa"].includes(s.id))
+    .filter((s) => s.scrollWidth > s.clientWidth + 4)
+    .map((s) => ({ id: s.id, sw: s.scrollWidth, cw: s.clientWidth }));
+
 // ────────────────────────────────────────────────────────────────────
 // Gate 1: Zod schema
 // ────────────────────────────────────────────────────────────────────
@@ -81,12 +99,7 @@ await page.route(/^https?:\/\//, (route) => {
 
 await page.goto(pathToFileURL(HTML).href, { waitUntil: "load" });
 await page.waitForSelector("main#deck");
-await page.evaluate(async () => {
-  await document.fonts.ready;
-  await new Promise((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(resolve)),
-  );
-});
+await page.evaluate(settleRender);
 
 // Section-based audit (sectioned-scroll deck). One screenshot per <section>.
 // Page-wide URL/headline coverage check (vs old per-slide approach).
@@ -113,15 +126,9 @@ const pageData = await page.evaluate(() => {
   return {
     urls: Array.from(document.querySelectorAll(".news-url")).map((a) => a.href),
     headlines: Array.from(document.querySelectorAll(".news-headline, .flair-headline, .pattern-headline")).map((s) => s.innerText.trim()),
-    // Skip decorative orb-overflow sections (open, qa) — orb gradients are intentionally
-    // transform-translated past edges; overflow:hidden clips them visually but scrollWidth
-    // still reports the layout extent. Pure cosmetic, no scrollbar appears.
-    sectionOverflows: [...document.querySelectorAll("main#deck > section.section")]
-      .filter((s) => !["open", "qa"].includes(s.id))
-      .filter((s) => s.scrollWidth > s.clientWidth + 4)
-      .map((s) => ({ id: s.id, sw: s.scrollWidth, cw: s.clientWidth })),
   };
 });
+pageData.sectionOverflows = await page.evaluate(collectSectionOverflows);
 
 await browser.close();
 
@@ -263,20 +270,10 @@ try {
     await p2.goto(pathToFileURL(HTML).href, { waitUntil: "load" });
     await p2.waitForSelector("main#deck");
     await p2.evaluate((z) => { document.documentElement.style.zoom = String(z); }, m.zoom);
-    await p2.evaluate(async () => {
-      await document.fonts.ready;
-      await new Promise((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(resolve)),
-      );
-    });
+    await p2.evaluate(settleRender);
 
     // Per-section overflow check
-    const overflows = await p2.evaluate(() => {
-      return [...document.querySelectorAll("main#deck > section.section")]
-        .filter((s) => !["open", "qa"].includes(s.id))
-        .filter((s) => s.scrollWidth > s.clientWidth + 4)
-        .map((s) => ({ id: s.id, sw: s.scrollWidth, cw: s.clientWidth }));
-    });
+    const overflows = await p2.evaluate(collectSectionOverflows);
 
     // Single full-page screenshot per matrix combo (decks can be long; cap height)
     const shotPath = path.join(SHOTS_DIR, `responsive-${m.name}.png`);
@@ -328,7 +325,7 @@ issues.blocking.forEach((m) => console.log(`    ✗ ${m}`));
 console.log(`  Warnings:        ${issues.warnings.length}`);
 issues.warnings.forEach((m) => console.log(`    ⚠ ${m}`));
 console.log(`  Audit JSON:      ${path.join(SHOTS_DIR, "audit.json")}`);
-console.log(`  Screenshots:     ${SHOTS_DIR}/slide-*.png`);
+console.log(`  Screenshots:     ${SHOTS_DIR}/section-*.png + responsive-*.png`);
 
 if (issues.blocking.length) {
   console.log(`\n✗ VALIDATION FAILED — blocking issues present.`);

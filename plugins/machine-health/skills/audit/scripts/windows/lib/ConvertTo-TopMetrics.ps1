@@ -40,9 +40,9 @@ function ConvertTo-TopMetric {
             $value = $p.Value
             if ($null -eq $value) { continue }
 
-            # Filter to scalars. Known-safe types: bool, string, numeric
-            # primitives (int, long, double, float, byte, sbyte, short, etc.).
-            # Reject arrays, hashtables, PSCustomObjects (nested structures).
+            # Filter to scalars. Known-safe types: bool, string, and the
+            # numeric primitives tested below. Reject arrays, hashtables,
+            # PSCustomObjects (nested structures).
             $isScalar = $value -is [bool] -or
             $value -is [string] -or
             $value -is [int] -or

@@ -141,27 +141,6 @@ export function detectContentClass(visionPlanBody) {
 }
 
 /**
- * Outcome floors from slice artifacts (vision-plan class + selection duration + session count).
- *
- * @param {string} sliceDir
- */
-export function outcomeFloorsForSlice(sliceDir) {
-  const absSlice = path.resolve(sliceDir);
-  const selectionPath = lanePath(absSlice, LANES.keyFrames, "selection.json");
-  const selection = fs.existsSync(selectionPath)
-    ? JSON.parse(fs.readFileSync(selectionPath, "utf8"))
-    : { durationSec: 0 };
-  const visionPlanPath = lanePath(absSlice, LANES.keyFrames, "vision-plan.md");
-  const visionPlan = fs.existsSync(visionPlanPath) ? fs.readFileSync(visionPlanPath, "utf8") : "";
-  const claimPath = lanePath(absSlice, LANES.research, "claim-inventory.md");
-  const sessions = fs.existsSync(claimPath)
-    ? parseSessionsFromClaimInventory(fs.readFileSync(claimPath, "utf8"))
-    : [];
-  const contentClass = visionPlan.length > 100 ? detectContentClass(visionPlan) : "unknown";
-  return outcomeFloors(contentClass, selection.durationSec ?? 0, sessions.length || 1);
-}
-
-/**
  * @param {string} frameTriageLogBody
  * @returns {number}
  */
@@ -171,18 +150,12 @@ export function countTriageSheetsLogged(frameTriageLogBody) {
 
 /**
  * @param {object} params
- * @param {number} params.durationSec
  * @param {{ startSec: number, endSec: number, densityMultiplier?: number }[]} params.windows
  * @param {number[]} params.promotedTimestampsSec
  * @param {string} params.visualGapsBody
  * @returns {{ covered: number, total: number }}
  */
-export function densificationCoverage({
-  durationSec: _durationSec,
-  windows,
-  promotedTimestampsSec,
-  visualGapsBody,
-}) {
+export function densificationCoverage({ windows, promotedTimestampsSec, visualGapsBody }) {
   let covered = 0;
   for (const window of windows) {
     const inWindow = promotedTimestampsSec.some(
@@ -347,7 +320,6 @@ function pushArtifactAndFloorChecks(checks, slice) {
 function pushSessionCoverageChecks(checks, slice) {
   const { durationSec, windows, promotedTs, visualGapsBody, floors, sessions } = slice;
   const dens = densificationCoverage({
-    durationSec,
     windows,
     promotedTimestampsSec: promotedTs,
     visualGapsBody,
@@ -393,7 +365,6 @@ function pushSessionCoverageChecks(checks, slice) {
   });
 
   const densPromotedOnly = densificationCoverage({
-    durationSec,
     windows,
     promotedTimestampsSec: promotedTs,
     visualGapsBody: "",

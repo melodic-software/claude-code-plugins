@@ -39,13 +39,6 @@ function flattenInline(nodes) {
   return out;
 }
 
-/** Collect all link nodes inside a subtree. */
-function collectLinks(node) {
-  const urls = [];
-  visit(node, "link", (n) => urls.push(n.url));
-  return urls;
-}
-
 function stripMetadataLabel(text, label) {
   return text.replace(new RegExp(`^${label}:\\s*`, "i"), "").trim();
 }

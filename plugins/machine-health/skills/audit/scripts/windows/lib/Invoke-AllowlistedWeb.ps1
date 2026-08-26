@@ -132,10 +132,9 @@ function Write-EgressLogLine {
 function Read-EgressLog {
     <#
     .SYNOPSIS
-    Parse the run log for egress GET/FAIL/DENY lines emitted by the wrapper
-    OR by legacy callers (Get-CisaKevCache writes matching "egress GET/FAIL"
-    lines directly). Returns an array of {timestamp, kind, uri, message} for
-    the orchestrator to populate `urls_called` in the run snapshot.
+    Parse the run log for egress GET/FAIL/DENY lines emitted via
+    Write-EgressLogLine. Returns an array of {timestamp, kind, uri, message}
+    for the orchestrator to populate `urls_called` in the run snapshot.
     #>
     [CmdletBinding()]
     [OutputType([object[]])]

@@ -59,10 +59,8 @@ median() { # median of the integers on stdin
     printf '0'
     return
   }
-  local sorted
-  sorted="$(printf '%s\n' "${v[@]}" | sort -n)"
   local -a s=()
-  while read -r x; do s+=("$x"); done <<<"$sorted"
+  mapfile -t s < <(printf '%s\n' "${v[@]}" | sort -n)
   printf '%s' "${s[$((${#s[@]} / 2))]}"
 }
 

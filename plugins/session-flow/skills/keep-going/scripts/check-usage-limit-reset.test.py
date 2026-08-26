@@ -65,6 +65,7 @@ class CheckUsageLimitResetTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("blocked", result.stdout)
 
+    def test_no_reset_clause_is_unparsed(self) -> None:
         result = self.invoke("session limit reached")
         self.assertEqual(result.returncode, 2, result.stderr)
 
@@ -101,9 +102,7 @@ class CheckUsageLimitResetTests(unittest.TestCase):
         with mock.patch.object(
             mod,
             "resolve_zone",
-            side_effect=mod.TimezoneUnavailableError(
-                "No time zone found with key X"
-            ),
+            side_effect=mod.TimezoneUnavailableError("No time zone found with key X"),
         ):
             code = mod.main(
                 [

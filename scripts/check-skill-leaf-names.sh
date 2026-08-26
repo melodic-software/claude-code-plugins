@@ -56,21 +56,19 @@ done
 
 # Collisions only: a leaf name owned by 2+ plugins.
 #
-# `collision_leaves` and `collision_count` shadow the associative array on
-# purpose: under `set -u` an associative array that was declared but never
-# assigned is UNBOUND, so `${#collisions[@]}` and `${!collisions[@]}` abort the
-# script in the zero-collision case -- which is exactly the state the stale-entry
-# guard is meant to shepherd the repo into.
+# `collision_leaves` shadows the associative array on purpose: under `set -u`
+# an associative array that was declared but never assigned is UNBOUND, so
+# `${#collisions[@]}` and `${!collisions[@]}` abort the script in the
+# zero-collision case -- which is exactly the state the stale-entry guard is
+# meant to shepherd the repo into.
 declare -A collisions
 collision_leaves=()
-collision_count=0
 for leaf in "${!leaf_owners[@]}"; do
   # shellcheck disable=SC2206  # plugin names are kebab-case; word-splitting is the intent
   owners=(${leaf_owners[$leaf]})
   ((${#owners[@]} >= 2)) || continue
   collisions["$leaf"]="${leaf_owners[$leaf]}"
   collision_leaves+=("$leaf")
-  collision_count=$((collision_count + 1))
 done
 
 # leaf name -> accepted owner set: a sorted comma-separated plugin list, or `*`
@@ -116,7 +114,7 @@ discover | --check) ;;
 esac
 
 if [[ "$mode" == "discover" ]]; then
-  if ((collision_count == 0)); then
+  if ((${#collision_leaves[@]} == 0)); then
     echo "No cross-plugin skill leaf-name collisions."
     exit 0
   fi
@@ -138,7 +136,7 @@ if [[ "$mode" == "discover" ]]; then
       fi
     fi
     printf '%-14s %-14s %d plugins: %s\n' \
-      "$leaf" "$state" "${#owners[@]}" "$(printf '%s ' "${owners[@]}" | sed 's/ $//')"
+      "$leaf" "$state" "${#owners[@]}" "${owners[*]}"
   done
   exit 0
 fi
@@ -198,4 +196,4 @@ if ((failed)); then
   exit 1
 fi
 
-printf 'All %d cross-plugin skill leaf-name collisions are registered.\n' "$collision_count"
+printf 'All %d cross-plugin skill leaf-name collisions are registered.\n' "${#collision_leaves[@]}"

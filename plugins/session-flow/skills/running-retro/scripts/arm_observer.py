@@ -12,9 +12,12 @@ the running-retro `arm` action; only the trigger differs.
 Prints the spawned observer PID (or a reason it declined) to stdout and exits 0
 -- callers fire-and-forget and never block on it.
 """
+
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -47,7 +50,6 @@ def _observer_mod():
     """Load the sibling observer.py module once (to reuse its liveness check)."""
     global _OBSERVER_MOD
     if _OBSERVER_MOD is None:
-        import importlib.util
         path = Path(__file__).with_name("observer.py")
         spec = importlib.util.spec_from_file_location("observer_mod", str(path))
         mod = importlib.util.module_from_spec(spec)
@@ -62,7 +64,6 @@ def live_observer_pid(work_dir: str, session_id: str) -> int | None:
     Reuses observer.py's `_pid_alive` and its `observer-<sid>.lock` path convention
     so the launcher and the observer agree on liveness.
     """
-    import json
     lock = Path(work_dir) / f"observer-{session_id}.lock"
     try:
         pid = int(json.loads(lock.read_text(encoding="utf-8")).get("pid", -1))
@@ -119,24 +120,42 @@ def main() -> int:
     sid = args.session_id or transcript.stem
     existing = live_observer_pid(work_dir, sid)
     if existing is not None:
-        print(f"observer: already live for {sid} (pid {existing}); overrides NOT "
-              f"applied -- stop it (or let it finish) to re-arm with new settings")
+        print(
+            f"observer: already live for {sid} (pid {existing}); overrides NOT "
+            f"applied -- stop it (or let it finish) to re-arm with new settings"
+        )
         return 0
 
-    cmd = [sys.executable, str(observer_py),
-           "--transcript", str(transcript),
-           "--work-dir", work_dir,
-           "--ledger-dir", ledger_dir,
-           "--session-id", args.session_id,
-           "--plugin-root", args.plugin_root,
-           "--topic", args.topic,
-           "--previous-running-retro", args.previous_running_retro,
-           "--previous-session-id", args.previous_session_id,
-           "--model", args.model,
-           "--poll-seconds", str(args.poll_seconds),
-           "--idle-seconds", str(args.idle_seconds),
-           "--max-seconds", str(args.max_seconds),
-           "--analysis-timeout-seconds", str(args.analysis_timeout_seconds)]
+    cmd = [
+        sys.executable,
+        str(observer_py),
+        "--transcript",
+        str(transcript),
+        "--work-dir",
+        work_dir,
+        "--ledger-dir",
+        ledger_dir,
+        "--session-id",
+        args.session_id,
+        "--plugin-root",
+        args.plugin_root,
+        "--topic",
+        args.topic,
+        "--previous-running-retro",
+        args.previous_running_retro,
+        "--previous-session-id",
+        args.previous_session_id,
+        "--model",
+        args.model,
+        "--poll-seconds",
+        str(args.poll_seconds),
+        "--idle-seconds",
+        str(args.idle_seconds),
+        "--max-seconds",
+        str(args.max_seconds),
+        "--analysis-timeout-seconds",
+        str(args.analysis_timeout_seconds),
+    ]
     if args.analysis:
         cmd.append("--analysis")
     if args.bare:

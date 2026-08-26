@@ -578,25 +578,15 @@ function probeMcp(repoRoot) {
     }
   }
   return {
-    presence: presence
-      ? {
-          result: "present",
-          ran: true,
-          provenance: {
-            kind: "probe",
-            probe_class: "harness-context",
-            path: ".mcp.json",
-          },
-        }
-      : {
-          result: "absent",
-          ran: true,
-          provenance: {
-            kind: "probe",
-            probe_class: "harness-context",
-            path: ".mcp.json",
-          },
-        },
+    presence: {
+      result: presence ? "present" : "absent",
+      ran: true,
+      provenance: {
+        kind: "probe",
+        probe_class: "harness-context",
+        path: ".mcp.json",
+      },
+    },
     enablement: {
       result: enablement.result,
       ran: enablement.ran,
@@ -817,7 +807,6 @@ function resolveNeed(need, identity, ctx) {
     need: need.id,
     probe_class: need.probe_class,
     result: effective,
-    ran: probe.ran,
     provenance,
     findings,
   };

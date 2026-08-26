@@ -320,22 +320,19 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, names, i, p, 
   # line — masking is length-preserving, so the columns align, and an earlier
   # "expect" inside a string cannot shadow the real call site.
   if (LANG_ID == "js" && match(masked_line, /expect[[:space:]]*\(/) > 0) {
-    p = RSTART
-    if (p > 0) {
-      m = p + 6
-      while (substr(raw_line, m, 1) ~ /[[:space:]]/) m++
-      if (extract_parens(raw_line, m)) {
-        a = EXTRACT
-        rest = substr(raw_line, EXTEND + 1)
-        if (match(rest, /^[[:space:]]*\.[[:space:]]*(toBe|toEqual|toStrictEqual)[[:space:]]*\(/) > 0) {
-          p = index(rest, "(")
-          if (p > 0 && extract_parens(rest, p)) {
-            b = EXTRACT
-            expr = norm(a)
-            if (expr != "" && expr == norm(b)) {
-              emit(tkind, "recomputed-expectation", FNR, "expect(" expr ") compared to itself")
-              return
-            }
+    m = RSTART + 6
+    while (substr(raw_line, m, 1) ~ /[[:space:]]/) m++
+    if (extract_parens(raw_line, m)) {
+      a = EXTRACT
+      rest = substr(raw_line, EXTEND + 1)
+      if (match(rest, /^[[:space:]]*\.[[:space:]]*(toBe|toEqual|toStrictEqual)[[:space:]]*\(/) > 0) {
+        p = index(rest, "(")
+        if (p > 0 && extract_parens(rest, p)) {
+          b = EXTRACT
+          expr = norm(a)
+          if (expr != "" && expr == norm(b)) {
+            emit(tkind, "recomputed-expectation", FNR, "expect(" expr ") compared to itself")
+            return
           }
         }
       }

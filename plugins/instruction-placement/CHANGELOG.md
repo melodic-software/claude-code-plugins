@@ -3,6 +3,21 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Corrected
+  `hooks/index-drift.sh`'s header to the kill switch's real
+  `CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED` spelling; removed dead `tier` plumbing
+  from `scripts/detect.sh`'s `emit_file_facts` (the awk program never read it); removed a
+  redundant array re-initialization in `scripts/glob-tools.sh`; `scripts/lib/discover.sh`'s
+  rule emitter streams to stdout instead of staging through a temp file (all consumers read
+  to EOF and no caller runs errexit, so failure semantics are unchanged); dropped
+  doubly-redundant `|| true` at two `branch()` call sites in `scripts/precompute.sh`.
+  All seven suites green (38/40/56/23/61/18/17); independent refutation pass including a
+  mid-failure streaming experiment found no counterexample reachable in this codebase.
+
 ## [0.11.5]
 
 ### Changed

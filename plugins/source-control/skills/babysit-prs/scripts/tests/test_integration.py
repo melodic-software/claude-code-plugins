@@ -13,8 +13,8 @@ import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_delta as delta  # noqa: E402
-import babysit_state as state_store  # noqa: E402
+import babysit_delta as delta
+import babysit_state as state_store
 
 
 def pr_view(repo, number, merge_state="CLEAN"):
@@ -67,7 +67,8 @@ class ClassifyToStateRoundTrip(unittest.TestCase):
             state_dir = state_store.resolve_state_dir(td)
             path = state_store.state_path_for(state_dir)
             state_store.save_state(
-                path, snapshot("queue", prs, "2026-07-17T10:00:00+00:00"),
+                path,
+                snapshot("queue", prs, "2026-07-17T10:00:00+00:00"),
                 recommend_cadence=delta.recommend_cadence,
             )
             loaded = state_store.load_state(path)
@@ -93,11 +94,13 @@ class ScopedRunPreservesOutOfScope(unittest.TestCase):
             state_dir = state_store.resolve_state_dir(td)
             path = state_store.state_path_for(state_dir)
             state_store.save_state(
-                path, snapshot("queue", initial, "2026-07-17T10:00:00+00:00"),
+                path,
+                snapshot("queue", initial, "2026-07-17T10:00:00+00:00"),
                 recommend_cadence=delta.recommend_cadence,
             )
             state_store.save_state(
-                path, snapshot("queue", rescoped, "2026-07-17T10:05:00+00:00"),
+                path,
+                snapshot("queue", rescoped, "2026-07-17T10:05:00+00:00"),
                 recommend_cadence=delta.recommend_cadence,
                 scope_repos=["owner/repoa"],
             )

@@ -71,7 +71,6 @@ kind_asserted() {
   grep -Eq -- "Finding: ${kind}([^a-z-]|$)" "$TEST"
 }
 
-: >"$missing_tmp"
 while IFS= read -r kind; do
   [[ -n "$kind" ]] || continue
   if ! kind_asserted "$kind"; then

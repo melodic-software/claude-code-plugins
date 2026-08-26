@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// PreToolUse checkpoint: any Write/Edit/NotebookEdit aimed at a Claude Code
+// PreToolUse checkpoint: any Write/Edit/MultiEdit/NotebookEdit aimed at a Claude Code
 // settings surface returns permissionDecision "ask", forcing a prompt even in
 // auto mode (the classifier may still deny; it cannot silently approve).
 //

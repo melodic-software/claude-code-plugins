@@ -50,7 +50,6 @@ describe("countTriageSheetsLogged", () => {
 describe("densificationCoverage", () => {
   it("counts promoted frames inside windows", () => {
     const result = densificationCoverage({
-      durationSec: 3600,
       windows: [{ startSec: 100, endSec: 200 }],
       promotedTimestampsSec: [150],
       visualGapsBody: "",

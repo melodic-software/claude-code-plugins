@@ -227,9 +227,7 @@ if [[ "$dry_run" -eq 1 ]]; then
   while IFS= read -r id; do
     [[ -n "$id" ]] || continue
     printf 'info: would reap %s\n' "$id"
-  done <<EOF
-$matches
-EOF
+  done <<<"$matches"
   printf 'ok: dry run — no record was removed.\n'
   exit 0
 fi
@@ -252,9 +250,7 @@ while IFS= read -r id; do
       "$id" "$rc" "$(printf '%s' "$out" | tr '\r\n' '  ')"
     printf 'info:   this is a report, not an escalation — do NOT retry it with the user scope.\n'
   fi
-done <<EOF
-$matches
-EOF
+done <<<"$matches"
 
 # The post-reap pass is the only thing that turns "the uninstall calls returned
 # 0" into "the records are gone". A failure here therefore means UNVERIFIED, not

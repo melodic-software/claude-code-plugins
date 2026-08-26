@@ -876,12 +876,7 @@ def test_chain_from_nonexistent_file_errors(tmp_path):
 def test_legacy_positional_still_works(tmp_path):
     """Positional form preserves existing single-session output shape."""
     _write_assistant_event(tmp_path, "legacy-sid")
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), "legacy-sid", str(tmp_path)],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
+    result = _run_script("legacy-sid", str(tmp_path))
     result.check_returncode()
     output = json.loads(result.stdout)
     # Single-session shape has "data" key (NOT "sessions" + "aggregate")

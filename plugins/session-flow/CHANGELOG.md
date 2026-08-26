@@ -1,5 +1,19 @@
 # Changelog — session-flow plugin
 
+## [0.34.1]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** keep-going:
+  `check-usage-limit-reset.py`'s nested day-rollback conditional flattened (equivalent by
+  construction, both branches else-less; a 553k-case brute-force sweep over reset strings,
+  zones, and DST-transition days found zero mismatches) and a misleading `owner_id` local
+  renamed `getuid`; its test file splits a mislabeled assertion into its own test (13 tests).
+  retro: `parse_transcript.py`'s two byte-identical emit-and-exit branches fold into
+  `_emit_multi_and_exit()`; a test reuses the existing `_run_script` helper. running-retro:
+  `arm_observer.py`'s function-body imports hoisted to module level. Suites green
+  (13 + 37 + 72); every change AST-diff-verified.
+
 ## [0.34.0]
 
 ### Added

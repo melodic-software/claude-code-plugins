@@ -80,16 +80,12 @@ class _DuplicateKeyCollector:
         self.duplicates: list[str] = []
 
     def __call__(self, pairs: list[tuple[str, object]]) -> dict[str, object]:
+        # dict insertion order (guaranteed at MIN_PYTHON) is first-seen order.
         counts: dict[str, int] = {}
-        first_seen: list[str] = []
         for key, _value in pairs:
-            if key in counts:
-                counts[key] += 1
-            else:
-                counts[key] = 1
-                first_seen.append(key)
-        for key in first_seen:
-            if counts[key] > 1 and key not in self.duplicates:
+            counts[key] = counts.get(key, 0) + 1
+        for key, count in counts.items():
+            if count > 1 and key not in self.duplicates:
                 self.duplicates.append(key)
         return dict(pairs)
 

@@ -29,8 +29,8 @@ from datetime import UTC, datetime, timedelta
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_resolve_thread  # noqa: E402
-import guard_contract as contract  # noqa: E402
+import babysit_resolve_thread
+import guard_contract as contract
 
 BASH = shutil.which("bash")
 
@@ -183,7 +183,9 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                 self.assertEqual(
                     proc.returncode,
                     row.exit_code,
-                    because(row.id, row.claim, f"exit {proc.returncode}: {combined[:400]}"),
+                    because(
+                        row.id, row.claim, f"exit {proc.returncode}: {combined[:400]}"
+                    ),
                 )
                 for token in row.error_contains:
                     self.assertIn(
@@ -191,7 +193,9 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                     )
                 for key, value in row.envelope_fields:
                     self.assertIn(
-                        key, payload, because(row.id, row.claim, f"no `{key}` in the envelope")
+                        key,
+                        payload,
+                        because(row.id, row.claim, f"no `{key}` in the envelope"),
                     )
                     self.assertEqual(
                         payload[key],
@@ -215,7 +219,9 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                         self.assertNotEqual(
                             payload,
                             {},
-                            because(row.id, row.claim, "no JSON envelope: bash refused"),
+                            because(
+                                row.id, row.claim, "no JSON envelope: bash refused"
+                            ),
                         )
 
     def test_the_recording_shim_is_reachable(self) -> None:
@@ -288,7 +294,11 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                 self.assertEqual(
                     proc.returncode,
                     row.exit_code,
-                    because(row.id, row.claim, f"exit {proc.returncode}: {proc.stderr[:400]}"),
+                    because(
+                        row.id,
+                        row.claim,
+                        f"exit {proc.returncode}: {proc.stderr[:400]}",
+                    ),
                 )
                 payload = envelope(proc)
                 for key, value in row.envelope_fields:
@@ -303,7 +313,9 @@ class PredicatesHoldOverRuntimeData(unittest.TestCase):
     def test_every_predicate_row(self) -> None:
         for row in contract.PREDICATES:
             with self.subTest(row=row.id):
-                observed = babysit_resolve_thread.classify(dict(row.thread), **row.flags)
+                observed = babysit_resolve_thread.classify(
+                    dict(row.thread), **row.flags
+                )
                 self.assertEqual(
                     observed,
                     row.expected,
@@ -338,7 +350,11 @@ class EffectsReachDiskAsClaimed(unittest.TestCase):
                 self.assertEqual(
                     proc.returncode,
                     row.exit_code,
-                    because(row.id, row.claim, f"exit {proc.returncode}: {proc.stderr[:400]}"),
+                    because(
+                        row.id,
+                        row.claim,
+                        f"exit {proc.returncode}: {proc.stderr[:400]}",
+                    ),
                 )
                 self.assertEqual(
                     delta,
@@ -351,10 +367,14 @@ class MechanismsMatchTheSource(unittest.TestCase):
     def test_every_mechanism_row(self) -> None:
         for row in contract.MECHANISMS:
             with self.subTest(row=row.id):
-                source = contract.plugin_path(row.entry_point).read_text(encoding="utf-8")
+                source = contract.plugin_path(row.entry_point).read_text(
+                    encoding="utf-8"
+                )
                 for token in row.must_contain:
                     self.assertIn(
-                        token, source, because(row.id, row.claim, f"{token!r} is absent")
+                        token,
+                        source,
+                        because(row.id, row.claim, f"{token!r} is absent"),
                     )
                 for token in row.must_not_contain:
                     self.assertNotIn(
@@ -484,7 +504,9 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
             "entry points with no guard-contract classification; add them to"
             " ENTRY_POINTS in scripts/tests/guard_contract.py",
         )
-        self.assertEqual(catalogued - present, set(), "classified scripts that no longer exist")
+        self.assertEqual(
+            catalogued - present, set(), "classified scripts that no longer exist"
+        )
 
     def test_every_wrapper_is_classified(self) -> None:
         wrappers = {
@@ -506,7 +528,9 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
         for entry in contract.ENTRY_POINTS:
             for row_id in entry.backed_by:
                 with self.subTest(entry=entry.path, row=row_id):
-                    self.assertIn(row_id, known, "backed_by names a row that does not exist")
+                    self.assertIn(
+                        row_id, known, "backed_by names a row that does not exist"
+                    )
 
     def test_row_ids_are_unique(self) -> None:
         ids = [
@@ -538,7 +562,9 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
         # points whose mutation is a GitHub write, because every row here runs
         # without network access; the generated doc's "Not covered here" section
         # states that gap rather than letting the column read as proven.
-        moves_state = {row.id for row in contract.EFFECTS if row.delta != contract.UNCHANGED}
+        moves_state = {
+            row.id for row in contract.EFFECTS if row.delta != contract.UNCHANGED
+        }
         moves_state |= {row.id for row in contract.MECHANISMS}
         for entry in contract.ENTRY_POINTS:
             if entry.mutation != contract.READ_ONLY:
@@ -625,7 +651,9 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
             commands = documented_commands(text)
             self.assertTrue(
                 commands,
-                because(row.id, row.claim, f"no wrapper command lines found in {row.doc}"),
+                because(
+                    row.id, row.claim, f"no wrapper command lines found in {row.doc}"
+                ),
             )
             for wrapper, tail in commands:
                 with self.subTest(doc=row.doc, wrapper=wrapper):

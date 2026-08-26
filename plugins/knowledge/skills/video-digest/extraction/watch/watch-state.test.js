@@ -30,6 +30,24 @@ const sampleTalk = () =>
 // resolved dir, not from the storage constant.
 const SLICE_DIR = path.join("/custom-root", ".work", "any-epic", "talk-abc");
 
+// In-memory fs fakes seeded with a fresh sample watch.json, for runMarkPhase tests.
+function seededStore() {
+  const sliceDir = "/tmp/slice";
+  const store = new Map([
+    [watchStatePath(sliceDir), `${JSON.stringify(sampleTalk(), null, 2)}\n`],
+  ]);
+  const readFile = vi.fn(async (p) => {
+    const value = store.get(p);
+    if (value === undefined) throw new Error("ENOENT");
+    return value;
+  });
+  const writeFile = vi.fn(async (p, data) => {
+    store.set(p, data);
+  });
+  const mkdir = vi.fn(async () => {});
+  return { sliceDir, store, readFile, writeFile, mkdir };
+}
+
 describe("watch state phase map", () => {
   it("creates empty phase map", () => {
     const state = sampleTalk();
@@ -348,27 +366,6 @@ describe("watch state temp-path tokenization", () => {
 });
 
 describe("mark-phase CLI (idempotent)", () => {
-  function seededStore() {
-    const sliceDir = "/tmp/slice";
-    const state = createWatchState({
-      videoId: "abc",
-      videoSlug: "talk-abc",
-      sourceUrl: "https://youtube.com/watch?v=abc",
-      title: "Talk",
-    });
-    const store = new Map([[watchStatePath(sliceDir), `${JSON.stringify(state, null, 2)}\n`]]);
-    const readFile = vi.fn(async (p) => {
-      const value = store.get(p);
-      if (value === undefined) throw new Error("ENOENT");
-      return value;
-    });
-    const writeFile = vi.fn(async (p, data) => {
-      store.set(p, data);
-    });
-    const mkdir = vi.fn(async () => {});
-    return { sliceDir, store, readFile, writeFile, mkdir };
-  }
-
   it("marks an unset phase complete", async () => {
     const { sliceDir, store, readFile, writeFile, mkdir } = seededStore();
     const code = await runMarkPhase(sliceDir, "research", { readFile, writeFile, mkdir });
@@ -408,22 +405,6 @@ describe("mark-phase CLI (idempotent)", () => {
 });
 
 describe("companion phase (optional side-marker)", () => {
-  function seededStore() {
-    const sliceDir = "/tmp/slice";
-    const state = sampleTalk();
-    const store = new Map([[watchStatePath(sliceDir), `${JSON.stringify(state, null, 2)}\n`]]);
-    const readFile = vi.fn(async (p) => {
-      const value = store.get(p);
-      if (value === undefined) throw new Error("ENOENT");
-      return value;
-    });
-    const writeFile = vi.fn(async (p, data) => {
-      store.set(p, data);
-    });
-    const mkdir = vi.fn(async () => {});
-    return { sliceDir, store, readFile, writeFile, mkdir };
-  }
-
   it("accepts mark-phase companion", async () => {
     const { sliceDir, store, readFile, writeFile, mkdir } = seededStore();
     const code = await runMarkPhase(sliceDir, "companion", { readFile, writeFile, mkdir });

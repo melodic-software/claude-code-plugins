@@ -10,11 +10,10 @@
  */
 
 import fs from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter, supportedHosts } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
@@ -94,10 +93,7 @@ export async function runHarvestCli(argv) {
   return 0;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   runHarvestCli(process.argv)
     .then((code) => {
       process.exitCode = code;

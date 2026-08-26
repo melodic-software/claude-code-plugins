@@ -13,7 +13,7 @@ Returns $true on success; throws on violation with a message that names the
 offending entry by id (or a stable index when id is missing/invalid).
 Callers typically wrap in try/catch, continue past the bad entry so a single
 typo does not take down the run, and synthesize an UNKNOWN CheckResult via
-New-InvalidCatalogEntryResult so the skip is visible in the report — not only
+New-InvalidCatalogEntryResult so the skip is visible in the report -- not only
 in the run log.
 #>
 

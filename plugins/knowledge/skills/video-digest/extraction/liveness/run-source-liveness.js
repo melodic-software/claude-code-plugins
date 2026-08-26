@@ -21,6 +21,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnAsync } from "@melodic/video-digestion/shared/process";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PROBES_PATH = path.join(HERE, "probes.json");
 const ADAPTERS_REGISTRY_PATH = path.join(HERE, "..", "adapters", "registry.js");
@@ -457,10 +459,7 @@ export async function main(argv = process.argv.slice(2)) {
   return summary.failed > 0 ? 1 : 0;
 }
 
-const isDirect =
-  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-
-if (isDirect) {
+if (isMainModule(import.meta.url)) {
   main().then((code) => {
     process.exitCode = code;
   });

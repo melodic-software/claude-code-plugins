@@ -64,7 +64,7 @@
 # vendored here; `gh api …/pulls` direct API calls; `gh pr edit` invocations
 # that change no body (`--title`, `--add-label` alone) — the CI gate re-runs on
 # `edited`, but such an edit leaves the body it already validated untouched; any
-# invocation carrying `--repo`/`-R` or following a directory change; and three
+# invocation carrying `--repo`/`-R` or following a directory change; and four
 # residuals, each a MISS or a contrivance, never a false block:
 #   - the validator strips a comment span spanning a line break and JOINS what
 #     surrounds it, so `## Rel<!--\n-->ated` is a heading to CI and two lines

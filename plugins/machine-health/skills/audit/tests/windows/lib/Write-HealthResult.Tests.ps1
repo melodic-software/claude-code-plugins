@@ -25,20 +25,12 @@ Describe 'New-HealthResult' -Tag 'lib' {
                 -Severity 'OK' -Summary 'all good'
 
             $names = $result.PSObject.Properties.Name
-            $names | Should -Contain 'id'
-            $names | Should -Contain 'category'
-            $names | Should -Contain 'os'
-            $names | Should -Contain 'ran_at'
-            $names | Should -Contain 'severity'
-            $names | Should -Contain 'summary'
-            $names | Should -Contain 'detail'
-            $names | Should -Contain 'commands'
-            $names | Should -Contain 'needs_admin'
-            $names | Should -Contain 'ran_successfully'
-            $names | Should -Contain 'duration_ms'
-            $names | Should -Contain 'trend'
-            $names | Should -Contain 'notes'
-            $names | Should -Contain 'error'
+            $canonicalFields = @(
+                'id', 'category', 'os', 'ran_at', 'severity', 'summary', 'detail',
+                'commands', 'needs_admin', 'ran_successfully', 'duration_ms',
+                'trend', 'notes', 'error'
+            )
+            foreach ($field in $canonicalFields) { $names | Should -Contain $field }
         }
 
         It 'defaults detail and commands to empty collections' {

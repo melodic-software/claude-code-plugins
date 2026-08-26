@@ -36,7 +36,6 @@ if [[ ! -f "$SNAPSHOT" ]]; then
   exit 1
 fi
 
-: >"$OUT"
 : >"$LOG"
 echo "number	repo	tracked_status	current_state	state_reason	closed_at	transition" >"$OUT"
 

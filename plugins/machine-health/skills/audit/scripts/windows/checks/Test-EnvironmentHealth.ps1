@@ -187,7 +187,7 @@ function Test-ScopeLowerThanExpected {
     .DESCRIPTION
     Persisted composition is User then Machine, so User is the higher
     precedence scope. A Machine (or unknown) winner while a User copy also
-    exists means the live search order disagrees with that expectation —
+    exists means the live search order disagrees with that expectation --
     typically a process PATH that lists a system directory first.
     'both' counts as User-precedence (the directory is on the User Path).
     #>
@@ -213,7 +213,6 @@ function New-FindingList {
 }
 
 try {
-    $userVars = @()
     $machineVars = @()
     $machineReadable = $true
     $machineError = $null
@@ -418,7 +417,6 @@ try {
 
     if ($userPathKind -eq 'String') {
         if ($severity -eq 'OK') { $severity = 'WARN' }
-        elseif ($severity -eq 'INFO') { $severity = 'WARN' }
         $reasons.Add('User Path is REG_SZ (breaks %TOKEN% expansion)')
     }
 
@@ -428,7 +426,6 @@ try {
     }
     if ($truthyDisable.Count -gt 0) {
         if ($severity -eq 'OK') { $severity = 'WARN' }
-        elseif ($severity -eq 'INFO') { $severity = 'WARN' }
         $scopes = [System.Collections.Generic.List[string]]::new()
         foreach ($d in $truthyDisable) { $scopes.Add($d.scope) }
         $reasons.Add("DISABLE_AUTOUPDATER set ($($scopes -join ', '))")
@@ -436,7 +433,6 @@ try {
 
     if ($credentialFindings.Count -gt 0) {
         if ($severity -eq 'OK') { $severity = 'WARN' }
-        elseif ($severity -eq 'INFO') { $severity = 'WARN' }
         $reasons.Add("$($credentialFindings.Count) credential-named variable(s)")
     }
 
@@ -446,7 +442,6 @@ try {
     }
     if ($shadowWarns.Count -gt 0) {
         if ($severity -eq 'OK') { $severity = 'WARN' }
-        elseif ($severity -eq 'INFO') { $severity = 'WARN' }
         $reasons.Add("$($shadowWarns.Count) shadowed executable(s) with lower-precedence winner")
     }
 
@@ -461,10 +456,8 @@ try {
     }
     if ($falsyDisable.Count -gt 0) { $infoBits.Add('DISABLE_AUTOUPDATER set but not truthy') }
 
-    if ($severity -eq 'OK' -and $infoBits.Count -gt 0) {
-        $severity = 'INFO'
-        foreach ($b in $infoBits) { $reasons.Add($b) }
-    } elseif ($infoBits.Count -gt 0) {
+    if ($infoBits.Count -gt 0) {
+        if ($severity -eq 'OK') { $severity = 'INFO' }
         foreach ($b in $infoBits) { $reasons.Add($b) }
     }
 
@@ -475,7 +468,7 @@ try {
         if ($summary.Length -gt 240) { $summary = $summary.Substring(0, 237) + '...' }
     }
 
-    $notes = 'Detect-only. No remediation — registry writes are never authorized.'
+    $notes = 'Detect-only. No remediation -- registry writes are never authorized.'
     if (-not $machineReadable) {
         $notes = "$notes Machine Environment unreadable; User-scope findings only."
     }

@@ -3,6 +3,18 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.12]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Removed two
+  never-called functions from `skills/audit/scripts/audit-fleet.sh`
+  (`update_repo_canonical`, `print_finding_block`; no literal, fragment, dynamic, or
+  test-sourced reference anywhere in the repo, and the arrays they touched keep their live
+  data paths), and corrected `skills/apply/scripts/apply-plan.test.sh`'s stale section-4
+  comments to describe the actual non-tty confirmation-stop flow. Both suites, both fleet
+  CI gates (doc grammar, 40-kind finding coverage), and shellcheck green.
+
 ## [0.23.11]
 
 ### Changed

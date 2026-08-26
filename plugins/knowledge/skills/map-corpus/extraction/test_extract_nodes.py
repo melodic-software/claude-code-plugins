@@ -15,12 +15,12 @@ SCRIPT = os.path.join(HERE, "extract_nodes.py")
 
 
 def run_cli(args, expect_code=0):
-    proc = subprocess.run(
-        [sys.executable, SCRIPT] + args, capture_output=True)
+    proc = subprocess.run([sys.executable, SCRIPT] + args, capture_output=True)
     if proc.returncode != expect_code:
         raise AssertionError(
             f"exit {proc.returncode}, expected {expect_code}; "
-            f"stderr: {proc.stderr.decode('utf-8', 'replace')}")
+            f"stderr: {proc.stderr.decode('utf-8', 'replace')}"
+        )
     return proc
 
 
@@ -53,7 +53,7 @@ def assert_partition(test, manifest, data: bytes):
     for node in nodes:
         test.assertEqual(node["start_byte"], cursor, f"gap/overlap at {node['id']}")
         test.assertGreater(node["end_byte"], node["start_byte"])
-        span = data[node["start_byte"]:node["end_byte"]]
+        span = data[node["start_byte"] : node["end_byte"]]
         test.assertEqual(node["content_sha256"], hashlib.sha256(span).hexdigest())
         test.assertEqual(node["byte_length"], len(span))
         cursor = node["end_byte"]
@@ -102,8 +102,8 @@ class TestMarkdown(unittest.TestCase):
         self.assertTrue(all(k == "section" for k in kinds[2:]))
         titles = [n["title"] for n in m["nodes"] if n["kind"] == "section"]
         self.assertEqual(
-            titles,
-            ["Top", "Sub A", "Deep", "Sub B", "Setext One", "Setext Two"])
+            titles, ["Top", "Sub A", "Deep", "Sub B", "Setext One", "Setext Two"]
+        )
         levels = [n["level"] for n in m["nodes"] if n["kind"] == "section"]
         self.assertEqual(levels, [1, 2, 3, 2, 1, 2])
 
@@ -122,7 +122,8 @@ class TestMarkdown(unittest.TestCase):
         self.assertEqual(by_title["Sub B"]["parent_id"], by_title["Top"]["id"])
         self.assertIsNone(by_title["Setext One"]["parent_id"])
         self.assertEqual(
-            by_title["Setext Two"]["parent_id"], by_title["Setext One"]["id"])
+            by_title["Setext Two"]["parent_id"], by_title["Setext One"]["id"]
+        )
 
     def test_crlf_offsets(self):
         data = MD_FULL.replace(b"\n", b"\r\n")
@@ -176,13 +177,15 @@ class TestMarkdown(unittest.TestCase):
 
 class TestHtml(unittest.TestCase):
     def test_basic_partition(self):
-        data = (b"<html><body>intro"
-                b"<h1 class='x'>One</h1><p>a</p>"
-                b"<h2>Two <em>em</em></h2><p>b</p>"
-                b"<!-- <h2>ghost</h2> -->"
-                b"<pre><h3>preformatted</h3></pre>"
-                b"<script>var s = '<h4>js</h4>';</script>"
-                b"</body></html>")
+        data = (
+            b"<html><body>intro"
+            b"<h1 class='x'>One</h1><p>a</p>"
+            b"<h2>Two <em>em</em></h2><p>b</p>"
+            b"<!-- <h2>ghost</h2> -->"
+            b"<pre><h3>preformatted</h3></pre>"
+            b"<script>var s = '<h4>js</h4>';</script>"
+            b"</body></html>"
+        )
         m = extract(data, suffix=".html")
         assert_partition(self, m, data)
         titles = [n["title"] for n in m["nodes"] if n["kind"] == "section"]
@@ -195,8 +198,9 @@ class TestHtml(unittest.TestCase):
         self.assertEqual(m["nodes"][0]["kind"], "document")
 
     def test_unclosed_comment_masks_to_eof(self):
-        data = (b"<h1>Real</h1><p>a</p>"
-                b"<!-- unclosed <h2>Fake heading inside comment</h2>")
+        data = (
+            b"<h1>Real</h1><p>a</p><!-- unclosed <h2>Fake heading inside comment</h2>"
+        )
         m = extract(data, suffix=".html")
         assert_partition(self, m, data)
         titles = [n["title"] for n in m["nodes"] if n["kind"] == "section"]
@@ -282,19 +286,16 @@ class TestDeterminism(unittest.TestCase):
             self.assertGreater(len(out1), 0)
 
     def test_out_file_matches_stdout(self):
-        with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as src:
-            src.write(MD_FULL)
-            spath = src.name
-        opath = spath + ".manifest.json"
-        try:
-            stdout = run_cli([spath]).stdout
-            run_cli([spath, "--out", opath])
-            with open(opath, "rb") as fh:
-                self.assertEqual(fh.read(), stdout)
-        finally:
-            os.unlink(spath)
-            if os.path.exists(opath):
-                os.unlink(opath)
+        with temp_snapshot(MD_FULL) as spath:
+            opath = spath + ".manifest.json"
+            try:
+                stdout = run_cli([spath]).stdout
+                run_cli([spath, "--out", opath])
+                with open(opath, "rb") as fh:
+                    self.assertEqual(fh.read(), stdout)
+            finally:
+                if os.path.exists(opath):
+                    os.unlink(opath)
 
     def test_id_shape(self):
         m = extract(MD_FULL)

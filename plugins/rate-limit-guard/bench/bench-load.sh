@@ -50,14 +50,15 @@ fi
 
 FLOOR_AFTER="$(spawn_floor)"
 
+SAMPLES="$(cat "$OUT"/s*.txt 2>/dev/null)"
 TOTAL=0
 SUM=0
 while read -r x; do
   [[ -n "$x" ]] || continue
   TOTAL=$((TOTAL + 1))
   SUM=$((SUM + x))
-done < <(cat "$OUT"/s*.txt 2>/dev/null)
-MED="$(cat "$OUT"/s*.txt 2>/dev/null | median)"
+done <<<"$SAMPLES"
+MED="$(median <<<"$SAMPLES")"
 printf 'load sessions=%s secs=%s floor_before=%s floor_after=%s renders=%s median=%s mean=%s\n' \
   "$SESSIONS" "$SECS" "$FLOOR_BEFORE" "$FLOOR_AFTER" "$TOTAL" "$MED" \
   "$((TOTAL > 0 ? SUM / TOTAL : 0))"
