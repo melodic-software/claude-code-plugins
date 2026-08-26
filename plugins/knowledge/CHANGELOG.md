@@ -17,8 +17,19 @@ only after that version increases.
   (escape-then-truncate order proven identical); dead `extra_args` harness parameter
   removed. video-digest: dead `EN_ORIG_LOCALIZED_PATTERN` subset regex removed from
   `select-caption.js` with its adjacent auto-en blocks merged (165k+ differential
-  comparisons, zero mismatches). All suites green (36 + 55 + 39 vitest targeted, 494 full
-  video-digest, 19 + 11 unittest); every change independently refutation-verified.
+  comparisons, zero mismatches). Also across video-digest: dead export
+  `outcomeFloorsForSlice` and an unused destructured option removed from
+  `check-watch-outcomes.js`; `run-harvest.js` and `run-source-liveness.js` adopt the shared
+  `isMainModule` guard; a shadowed duplicate branch removed from `temp-session-paths.js`; a
+  redundant guard dropped in `watch-vision-validation.js`; `proper-noun-repair.js` delegates
+  to `repairCues` (6k differential cases); a never-injected deps parameter removed from
+  `write-watching-manifest.js`; watch-tree cleanups (duplicate JSDoc lines, argv reads moved
+  into main guards, fixture dedups, a duplicate prompt build folded into
+  `writeContinuationPrompt`, shared `writeStderr` usage lines). map-corpus: a provably-dead
+  fallback removed from `check_linkmap.py` and a fixture context-manager reuse in
+  `test_extract_nodes.py`. All suites green (36 + 55 + 39 vitest targeted, 494 full
+  video-digest, 19 + 11 + 30 + 28 + 29 unittest); every change independently
+  refutation-verified.
 
 ## [0.13.9]
 
