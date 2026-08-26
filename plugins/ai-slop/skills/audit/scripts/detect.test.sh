@@ -319,6 +319,9 @@ assert_contains "cutoff families: all five source-gap lines fire" "$out" "rule=a
 
 # rule_allowed_paths: the generalized per-rule exemption (em_dash_allowed_paths
 # stays as the rule-em-dash alias, asserted in the config cascade section).
+# $RAP and this fixture are consumed again by the CRLF-jq section below; moving
+# or deleting this block aborts the suite there under `set -u` rather than
+# quietly vacating those cases.
 RAP="$TEST_TMPDIR/rap-repo"
 mkdir -p "$RAP/.claude"
 cat >"$RAP/.claude/ai-slop.json" <<'EOF'
@@ -400,6 +403,115 @@ out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/repo" bash "$DETECT" --show-config 2>&1)
 assert_contains "show-config: names the supplying layer" "$out" "$cfgdir/ai-slop.json"
 assert_contains "show-config: effective threshold shown" "$out" "threshold_ai_vocabulary=999"
 assert_contains "show-config: disabled rules shown" "$out" "disabled_rules=rule-significance-inflation"
+
+# --- Config parsing against a CRLF-emitting jq (#3343) ---------------------------
+
+# The Windows build of jq terminates output lines with CRLF, and all three
+# config readers took it. `cfg_array` piped jq through `tr '\n' ' '`, which
+# converts only the line feed, so every array element arrived carrying a
+# trailing carriage return and matched nothing: `excluded_paths`,
+# `em_dash_allowed_paths` and `disabled_rules` silently stopped applying on a
+# Windows workstation while CI, which runs on Linux and sees LF, agreed with the
+# config. `rule_allowed_paths` reads jq through `read`, which splits on the line
+# feed, so the CR landed on the last glob of every entry. `cfg_scalar` carries
+# the CR into the emitted threshold text — `--show-config` and the density
+# finding's label — but not into the comparison: gawk and mawk both read a
+# CR-suffixed threshold as a strnum and compare numerically, so only BusyBox awk
+# would diverge there. CI cannot observe any of the three, so the condition is
+# forced here: a shim ahead of the real jq on PATH appends a CR to every output
+# line. The array and `rule_allowed_paths` cases reproduce on both platforms;
+# the scalar case at the end discriminates on Linux only, for the reason
+# recorded there.
+CRLF_BIN="$TEST_TMPDIR/bin-crlf-jq"
+mkdir -p "$CRLF_BIN"
+REAL_JQ="$(command -v jq)"
+cat >"$CRLF_BIN/jq" <<EOF
+#!/usr/bin/env bash
+# pipefail so a jq failure stays a failure: awk's exit status would otherwise
+# mask it and change the meaning of cfg_scalar's \`v="\$(jq ...)" &&\` guard.
+set -o pipefail
+"$REAL_JQ" "\$@" | awk '{ printf "%s\r\n", \$0 }'
+EOF
+chmod +x "$CRLF_BIN/jq"
+
+# Pin the shim itself. Without this every case below is green on a Linux
+# runner whether or not the shim is ever selected — an unset exec bit or a
+# PATH-resolution surprise would leave the regression gate decorative, and no
+# Windows workstation can observe that, because its own jq already emits CRLF.
+shim_out="$(PATH="$CRLF_BIN:$PATH" jq -rn '"x"' | od -c)"
+assert_contains "crlf jq: the shim is on PATH and emits a carriage return" "$shim_out" '\r'
+
+crlfdir="$TEST_TMPDIR/crlf-repo/.claude"
+mkdir -p "$crlfdir"
+cp "$SLOP" "$TEST_TMPDIR/crlf-repo/allowed.md"
+cp "$SLOP" "$TEST_TMPDIR/crlf-repo/vendored.md"
+cat >"$crlfdir/ai-slop.json" <<'EOF'
+{
+  "excluded_paths": ["vendored.md"],
+  "em_dash_allowed_paths": ["allowed.md"],
+  "thresholds": { "ai_vocabulary": 999, "copulative_avoidance": 999 },
+  "disabled_rules": ["rule-significance-inflation"]
+}
+EOF
+
+out="$(cd "$TEST_TMPDIR/crlf-repo" && PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/crlf-repo" \
+  bash "$DETECT" "$TEST_TMPDIR/crlf-repo/vendored.md" 2>&1)"
+assert_contains "crlf jq: excluded_paths still declines the file" "$out" "Declined: file=vendored.md cause=excluded-glob"
+
+out="$(cd "$TEST_TMPDIR/crlf-repo" && PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/crlf-repo" \
+  bash "$DETECT" "$TEST_TMPDIR/crlf-repo/allowed.md" 2>&1)"
+assert_not_contains "crlf jq: em_dash_allowed_paths still exempts the document" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
+# Positive pin alongside the absence check: on its own, `assert_not_contains`
+# would also be satisfied by an accidental whole-file exclusion.
+assert_contains "crlf jq: the em-dash exemption is a decline, not a dropped file" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 disabled=0"
+assert_contains "crlf jq: disabled_rules still applies" "$out" "rule=ai-slop/audit/rule-significance-inflation findings=0 declined=0 disabled=1"
+
+# rule_allowed_paths reads jq through `read`, not through cfg_array, so the CR
+# lands on the LAST glob of each entry rather than on every element. Its own
+# fixture is reused under the shim.
+out="$(PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" "$RAP/plain.md" 2>&1)"
+assert_not_contains "crlf jq: rule_allowed_paths still declines the listed path" "$out" "file=quirks/doc.md"
+assert_contains "crlf jq: rule_allowed_paths decline still counted" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=1"
+
+# Anchored on the text that FOLLOWS the value: a bare `=999` substring match
+# passes against `999\r` and would not discriminate.
+#
+# This case discriminates on Linux ONLY. Under Git Bash the unfixed reader never
+# emitted the CR to begin with — MSYS command substitution strips one trailing
+# CRLF pair, and cfg_scalar reads a single line — so the case is green either way
+# on a Windows workstation. It is the array cases above that carry the Windows
+# reproduction; this one is here for the runner.
+out="$(PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/crlf-repo" bash "$DETECT" --show-config 2>&1)"
+assert_contains "crlf jq: scalar threshold parses without the carriage return" "$out" "threshold_ai_vocabulary=999 (rule"
+
+# The CR strip must not swallow jq's verdict on the layer. jq emits the values it
+# parsed before it meets malformed bytes and then exits nonzero; cfg_scalar's guard
+# reads that status, so a `| tr -d` inside the substitution would replace it with
+# tr's unconditional success and let a half-read layer set the threshold. The
+# fixture is a valid object followed by a truncated one, which is what a config
+# file caught mid-write looks like.
+truncdir="$TEST_TMPDIR/trunc-repo/.claude"
+mkdir -p "$truncdir"
+printf '%s
+' '{ "thresholds": { "ai_vocabulary": 999 } }' '{bad' >"$truncdir/ai-slop.json"
+
+out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-repo" bash "$DETECT" --show-config 2>&1)"
+assert_contains "malformed layer: the partially parsed threshold is refused" "$out" "threshold_ai_vocabulary=3.0 (rule"
+
+# Same fixture under the CRLF shim: the strip and the status check have to hold at
+# once, which is the combination the pipeline lost.
+out="$(PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-repo" bash "$DETECT" --show-config 2>&1)"
+assert_contains "malformed layer: refused under a CRLF-emitting jq too" "$out" "threshold_ai_vocabulary=3.0 (rule"
+
+# Pin the fixture's premise: a well-formed layer carrying the same value is still
+# honoured, so the two cases above are discriminating on the malformation and not
+# on the key going unread for some unrelated reason.
+okdir="$TEST_TMPDIR/trunc-ok-repo/.claude"
+mkdir -p "$okdir"
+printf '%s
+' '{ "thresholds": { "ai_vocabulary": 999 } }' >"$okdir/ai-slop.json"
+out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-ok-repo" bash "$DETECT" --show-config 2>&1)"
+assert_contains "malformed layer: the same value from a well-formed layer still applies" "$out" "threshold_ai_vocabulary=999 (rule"
 
 # --- Portability -----------------------------------------------------------------
 
