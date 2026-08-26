@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.11]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#3383): `@biomejs/biome` 2.5.8→2.5.9, `@vitest/coverage-v8` 4.1.10→4.1.11, `vitest` 4.1.10→4.1.11. Development dependencies only; the tracked bundle is unaffected.
+
 ## [0.3.10]
 
 ### Changed
