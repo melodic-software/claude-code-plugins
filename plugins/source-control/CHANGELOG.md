@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.14]
+
+### Changed
+
+- **Five skill bodies split against the progressive-disclosure audit.** `babysit-loop`,
+  `babysit-prs`, `pull-request`, `setup` and `worktree` each sat near the 500-line ceiling with
+  on-demand material inlined, which a `SKILL.md` pays for across the rest of a session once it
+  triggers. The sometimes-only content moved to a spoke and the body kept what every invocation
+  needs:
+  - `babysit-loop` to `reference/cycle-shape.md`
+  - `babysit-prs` to `reference/guarded-mutations.md`
+  - `pull-request` to `reference/full-lifecycle.md`
+  - `setup` to `reference/babysit-config.md`
+  - `worktree` to `context/nesting-invariant.md`
+
+  Each pointer states when to read the spoke rather than only that it exists, so the split does
+  not trade an oversize body for a blind pointer. No content was dropped; the spokes gained only
+  a title and enough opening context to read on their own when opened directly.
+
 ## [0.55.13]
 
 ### Changed

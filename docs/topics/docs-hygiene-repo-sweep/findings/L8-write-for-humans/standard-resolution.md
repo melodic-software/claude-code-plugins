@@ -66,7 +66,7 @@ of those is the same interruption wearing a different mark. If the thought needs
 sentence."*
 
 `ai-slop:audit` owns the em-dash axis and this lane does not duplicate it. This lane owns the
-**consequence**: twelve places in the corpus where a sentence has been ended *inside* a
+**consequence**: eighteen places in the corpus where a sentence has been ended *inside* a
 parenthetical, leaving a fragment on one side of the period and text that does not parse. That is
 the exact shape the guardrail produces when "end the sentence" is applied between parentheses, which
 is the one case the guardrail does not cover. Predicate `Am1` covers it, and it is this lane's
@@ -89,8 +89,8 @@ instruction surfaces (`SKILL.md`, plugin READMEs, `AGENTS.md`, `CLAUDE.md`,
 ```
 
 `docs/**` is not in that list. So the 130 files under `docs/` that carry em dashes are in policy,
-not in violation, and this lane treats them as such. Every one of the twelve `Am1` findings is in a
-plugin README, which is inside the rule's declared scope.
+not in violation, and this lane treats them as such. Every one of the eighteen `Am1` findings is in
+a plugin README, which is inside the rule's declared scope, and none is anywhere else.
 
 ### 2. Semicolons: not adopted
 

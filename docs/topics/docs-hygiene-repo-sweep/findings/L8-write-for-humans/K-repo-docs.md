@@ -227,9 +227,15 @@ The group's document genres and their modes:
 
 Two root files were checked closely and cleared:
 
-- `docs/GLOSSARY.md` is pure reference and describes without instructing, including the entry that
-  declines to define a term (`sycophancy | nothing — a generic LLM-behavior term with no distinct
-  project meaning`). Declining to define is still describing. Correct.
+- `docs/GLOSSARY.md` is pure reference and describes without instructing, including the entry at
+  line 88 that declines to define a term:
+
+  ```text
+  | sycophancy | nothing — a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is simply not project vocabulary |
+  ```
+
+  Declining to define is still describing. Correct. The `simply` in that row is the "merely" sense,
+  not a procedure, so predicate `A2` does not reach it.
 - `docs/specs/d1-model-already-knows-measurement.md` leads with `## Verdict` before `## Method`,
   which is the address layer's "put the common case first" applied to a research record. It is the
   best-structured document in the group.
@@ -238,7 +244,7 @@ Two root files were checked closely and cleared:
 
 `M2`, `M3`, `A1`, `A2`, `Am1`, `Am4`, `N1`, `C1`.
 
-On `Am1`: zero broken parentheticals in 89 files, against twelve in 71 plugin READMEs. See
+On `Am1`: zero broken parentheticals in 89 files, against eighteen in 71 plugin READMEs. See
 `standard-resolution.md` for why the two populations differ.
 
 On `A1` and `A2`: the mechanical proxies fired 34 and 21 times respectively in this group and

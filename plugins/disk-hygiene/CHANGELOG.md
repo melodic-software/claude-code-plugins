@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.23]
+
+### Changed
+
+- **`clean` split against the progressive-disclosure audit.** The unsupported-platform handoff,
+  reachable only when `--execute` is requested on Windows or macOS and a human has approved an
+  exact path list, moved to `reference/unsupported-platform-handoff.md`. That condition is now
+  the pointer's when-to-read clause, so the body carries the rule and the spoke carries the
+  procedure. No content was dropped.
+
 ## [0.20.22]
 
 ### Changed

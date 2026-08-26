@@ -11,7 +11,7 @@ The 7 CHANGELOGs are judged as a class in `README.md`, not file by file.
 | # | Path | Predicate | Severity |
 |---|---|---|---|
 | B1 | `plugins/claude-ops/README.md:40` | `Am1` | S1 |
-| B2 | `plugins/claude-ops/README.md:40` | `Am1` | S1 |
+| B2 | `plugins/claude-ops/README.md:60` | `Am1` | S1 |
 | B3 | `plugins/context-guard/README.md:109` | `Am1` | S1 |
 | B4 | `plugins/guardrails/README.md:213` | `Am1` | S2 |
 | B5 | `plugins/context-budget/README.md:78` | `M3` | S2 |
@@ -22,7 +22,7 @@ The 7 CHANGELOGs are judged as a class in `README.md`, not file by file.
 | B10 | `plugins/claude-config/README.md:157` | `L1` | S2 |
 | B11 | `plugins/claude-ops/README.md:29` | `L1` | S2 |
 
-### B1 and B2. Two broken parentheticals in one sentence
+### B1. A fragment inside the opening parenthetical of `## The audit hooks`
 
 `plugins/claude-ops/README.md:40`, verbatim:
 
@@ -30,16 +30,16 @@ The 7 CHANGELOGs are judged as a class in `README.md`, not file by file.
 Eight advisory `*-audit` hooks (across nine hook scripts. `skill-usage-audit` has two producers, see below) emit the marketplace
 ```
 
-And the second, four lines later in the same section:
+`across nine hook scripts` is a fragment, and the period after it forces the reader to reparse the
+whole sentence to work out that the parenthetical has not ended. Predicate `Am1`.
+
+The contrast is four lines down in the same paragraph, where the same author gets it right:
 
 ```text
-Each is independently toggleable via its own `userConfig`
 boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
 ```
 
-The second is correct. The first is not: `across nine hook scripts` is a fragment, and the period
-after it forces the reader to reparse the whole sentence to work out that the parenthetical has not
-ended. Predicate `Am1`.
+That one uses a semicolon inside the parenthesis and stays one grammatical unit.
 
 Replacement for line 40:
 
@@ -50,6 +50,25 @@ producers, emit the marketplace
 
 The `see below` pointer is redundant with the `Per-hook kill switches` link four lines down and is
 dropped.
+
+### B2. The same shape in the `hook-failure-audit` paragraph
+
+`plugins/claude-ops/README.md:60`, verbatim:
+
+```text
+failing hook registration (`hookName` plus registered command. Several plugins
+share an event+matcher), re-warning when a new registration starts failing.
+```
+
+Predicate `Am1`. `` `hookName` plus registered command `` is a noun phrase, not a sentence, and what
+follows the period is the reason for it.
+
+Replacement:
+
+```text
+failing hook registration, keyed on `hookName` plus the registered command because several plugins
+share an event and matcher, re-warning when a new registration starts failing.
+```
 
 ### B3. Cost sentence with a fragment inside the parenthetical
 

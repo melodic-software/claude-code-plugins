@@ -3,7 +3,7 @@
 Lane `L8-write-for-humans`, wave 1, read-only. Audience slice: 11 `HUMAN` rows (5 plugin READMEs,
 5 CHANGELOGs, plus `plugins/adhd/README.md`). The 5 CHANGELOGs are judged as a class in `README.md`.
 
-This is the densest group for predicate `Am1`. Seven of the twelve broken parentheticals in the
+This is the densest group for predicate `Am1`. Eight of the eighteen broken parentheticals in the
 whole corpus are here, six of them in `plugins/discipline/README.md` alone.
 
 ## Findings

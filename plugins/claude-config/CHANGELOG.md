@@ -3,6 +3,17 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.4]
+
+### Changed
+
+- **`audit-instructions` and `audit-pass` split against the progressive-disclosure audit.**
+  `audit-instructions` moved its Phase A surface-discovery procedure to
+  `context/phase-a-inventory.md`, which owns the discovery order, the per-surface record fields
+  Phase B and B2 key off, and the exclusions. `audit-pass` moved its argument reference to
+  `reference/arguments.md`. Both pointers say when to read the spoke, not just that it exists.
+  No content was dropped in either move.
+
 ## [0.40.3]
 
 ### Changed
