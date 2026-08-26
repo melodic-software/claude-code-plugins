@@ -39,7 +39,7 @@ from what it does not.
 2. **The v2.1.205 behavior cutover.** "Before v2.1.205, `/doctor` opened a read-only diagnostics
    screen and pressing `f` sent the report to Claude to fix" (same page). A pass that assumes the
    pre-cutover shape on a current install is checking for the wrong thing.
-3. **`DISABLE_DOCTOR_COMMAND` — documented, and it targets exactly this skill.** "Set to `1` to hide
+3. **`DISABLE_DOCTOR_COMMAND` — documentation unstable; treat as unconfirmed.** "Set to `1` to hide
    the `/doctor` setup checkup skill and its `/checkup` alias. Useful for managed deployments where
    users shouldn't run setup diagnostics from a session. Doesn't affect the `claude doctor` terminal
    command. Before v2.1.205, this variable hid the `/doctor` diagnostics screen command"
@@ -55,9 +55,10 @@ from what it does not.
    Treat it as *unconfirmed*: the detection-over-prediction posture below already covers this — name
    it only as a suspected cause, never as a documented basis, until a fetch shows the row again.
 
-**Suppression channels — one is now documented, one is still not.** Item 3 and a `skillOverrides`
+**Suppression channels — both unconfirmed, for different reasons.** Item 3 and a `skillOverrides`
 settings key were both carried in from this skill's design phase, and the 2026-07-24 read recorded
-both as absent from the official pages. Item 3 is no longer absent. `skillOverrides` still is: no
+both as absent from the official pages. Item 3's documentation has since flipped twice (see its
+re-check note above), so it stays unconfirmed. `skillOverrides` is unconfirmed the simpler way: no
 such key appeared in [settings](https://code.claude.com/docs/en/settings) as of 2026-07-24, and that
 read has **not** been refreshed here — this pass re-derived the `env-vars` half only, so treat it as
 UNVERIFIED and probe. It may be real but undocumented, or stale.
