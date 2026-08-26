@@ -112,7 +112,7 @@ def ordered_advisory_rounds(rounds: Any) -> list[tuple[str, dict[str, Any]]]:
 
     The sequence is the chronology: the ledger serializes with sorted keys, so
     after a reload the mapping order is head-SHA order, and a timestamp can tie
-    or be unreadable — neither survives as write order. Rounds recorded before
+    or be unreadable -- neither survives as write order. Rounds recorded before
     sequences were persisted have only their write-ahead timestamp; they sort
     before every sequenced round, which is when they were written, with equal
     or unreadable timestamps left to the stable sort.
@@ -139,8 +139,8 @@ def _advisory_round_summary(entry: tuple[str, dict[str, Any]]) -> dict[str, Any]
 def advisory_non_convergence_tripwire(rounds: Any) -> dict[str, Any]:
     """Evaluate `safety.md`'s second-consecutive-all-(c) tripwire from the ledger.
 
-    The test is over consecutive ADVISORY rounds — the only rounds the ledger
-    records — and it fails closed on an unclassified predecessor, so a round
+    The test is over consecutive ADVISORY rounds -- the only rounds the ledger
+    records -- and it fails closed on an unclassified predecessor, so a round
     recorded before classification was persisted arms the tripwire rather than
     silently resetting the count.
     """

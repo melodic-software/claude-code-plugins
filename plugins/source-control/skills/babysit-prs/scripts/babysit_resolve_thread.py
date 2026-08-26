@@ -52,7 +52,7 @@ Deterministic guards encoded here:
   a forbidden-class severity marker: a structured P0/P1 marker (shields badge
   `/badge/P0-` or `/badge/P1-`, or bracketed `[P0]` / `[P1]`), the word CRITICAL,
   or the word "security" in any case. Prose that merely *mentions* P0/P1 does not
-  count — the morning-brief sweep adopted the same structured-marker rule after
+  count -- the morning-brief sweep adopted the same structured-marker rule after
   misclassifying P2 threads whose bodies discussed P1 properties (#1939).
   The permission grants that cover this helper state "never a security or P1
   thread" as an absolute condition; this guard is the code behind that
@@ -228,7 +228,7 @@ def append_resolve_thread_audit(record: dict[str, object]) -> None:
         fh.write(json.dumps(stamped, separators=(",", ":"), sort_keys=True) + "\n")
 
 
-# Deterministic proxies for "a security or P1 thread" — deliberately NARROWER
+# Deterministic proxies for "a security or P1 thread" -- deliberately NARROWER
 # than the shared P0-P3 vocabulary in babysit_classify: the permission grants
 # forbid the unattended path only for security/P1-class findings, while
 # advisory P2/P3 threads are exactly what the worker is documented to resolve
@@ -238,10 +238,10 @@ def append_resolve_thread_audit(record: dict[str, object]) -> None:
 # avoid false READINESS counts, but the grant names it); uppercase CRITICAL is
 # the word-form of the same forbidden class. A false positive only routes the
 # thread to interactive judgment.
-# Structured P0/P1 markers only — shields badge (/badge/P0- or /badge/P1-) or
-# bracketed [P0]/[P1] — not bare prose mentions such as "P1/P4 defect" in a P2
+# Structured P0/P1 markers only -- shields badge (/badge/P0- or /badge/P1-) or
+# bracketed [P0]/[P1] -- not bare prose mentions such as "P1/P4 defect" in a P2
 # thread's body (#1939). Line-leading `P1:` / `P0:` declarations and explicit
-# `P1 must fix` forms remain blocking — bots emit them as severity labels.
+# `P1 must fix` forms remain blocking -- bots emit them as severity labels.
 # Vetted `--resolve --thread-id` mode applies no severity screen; it trusts the
 # calling agent's vetting. That asymmetry is intentional.
 FORBIDDEN_P01_BADGE_RE = re.compile(r"/badge/P[01]-", re.IGNORECASE)
@@ -479,18 +479,18 @@ def project_thread(
             else None
         ),
         "replyBodies": [
-            body
-            for c in comments[1:]
-            if (body := _reply_body(c)) is not None
+            body for c in comments[1:] if (body := _reply_body(c)) is not None
         ],
         "humanDeferred": (
             truncated
             or (
-                (human_reply := _most_recent_human_reply_body(
-                    comments,
-                    extra_bot_logins=extra_bot_logins,
-                    self_logins=self_logins,
-                ))
+                (
+                    human_reply := _most_recent_human_reply_body(
+                        comments,
+                        extra_bot_logins=extra_bot_logins,
+                        self_logins=self_logins,
+                    )
+                )
                 is not None
                 and _has_human_deferral_marker(human_reply)
             )
@@ -529,7 +529,9 @@ def resolve_thread(thread_id: str) -> tuple[bool, str]:
         "mutation($id:ID!){resolveReviewThread(input:{threadId:$id})"
         "{thread{isResolved}}}"
     )
-    proc = gh_capture(["api", "graphql", "-f", f"query={mutation}", "-f", f"id={thread_id}"])
+    proc = gh_capture(
+        ["api", "graphql", "-f", f"query={mutation}", "-f", f"id={thread_id}"]
+    )
     if proc.returncode != 0:
         return False, proc.stderr.strip()
     try:
@@ -579,11 +581,7 @@ def classify(
         # other participant is a bot too (checked across all comments, not just
         # the first), unless autopilot opts in
         return "skipped-human-thread"
-    if (
-        include_human
-        and not pinned_thread
-        and thread.get("humanDeferred", True)
-    ):
+    if include_human and not pinned_thread and thread.get("humanDeferred", True):
         # Bulk `--include-human` must not sweep a thread a human deliberately
         # parked pending a ruling (#671). A pinned `--thread-id` call is an
         # explicit per-thread vet and may still proceed.
@@ -649,6 +647,8 @@ def gh_http_status(proc: subprocess.CompletedProcess[str]) -> int | None:
     """
     matches = GH_HTTP_STATUS_RE.findall(proc.stderr or "")
     return int(matches[-1]) if matches else None
+
+
 # owner/repo#N, #N, or a bare N (bare and #N default to the PR's own repo).
 TRACKER_ITEM_RE = re.compile(
     r"\A(?:(?P<repo>[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)#|#)?(?P<number>[0-9]+)\Z"
@@ -1095,7 +1095,9 @@ def main() -> int:
                 f"remove {', '.join(surplus)}. Evidence is paired to its claim so "
                 "the script validates what was actually asserted"
             )
-        if args.fix_commit is not None and not FIX_COMMIT_RE.match(args.fix_commit.strip()):
+        if args.fix_commit is not None and not FIX_COMMIT_RE.match(
+            args.fix_commit.strip()
+        ):
             return _usage_error(
                 f"--fix-commit {args.fix_commit!r} is not a 7-40 character hex "
                 "commit SHA; an unparsable SHA is refused, never looked up"
@@ -1351,7 +1353,11 @@ def main() -> int:
                     [r for r in results if r["action"] == "skipped-severity-marked"]
                 ),
                 "skippedMultiFinding": len(
-                    [r for r in results if r["action"] == "skipped-multi-finding-thread"]
+                    [
+                        r
+                        for r in results
+                        if r["action"] == "skipped-multi-finding-thread"
+                    ]
                 ),
                 # Independent-resolver refusals, rolled up alongside the other
                 # skip counters so a caller sees "the evidence did not hold"

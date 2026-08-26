@@ -196,9 +196,7 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]]:
         first = comments[0] if isinstance(comments, list) and comments else {}
         first_object = cast(dict[str, Any], first) if isinstance(first, dict) else {}
         author = first_object.get("author")
-        author_object = (
-            cast(dict[str, Any], author) if isinstance(author, dict) else {}
-        )
+        author_object = cast(dict[str, Any], author) if isinstance(author, dict) else {}
         return {
             "author": author_object.get("login"),
             "path": first_object.get("path"),
@@ -370,7 +368,9 @@ def evaluate_required_signatures(
     blockers = [
         f"base branch requires signed commits; verified:false reason={reason} "
         f"on {', '.join(shas)} -- "
-        + SIGNATURE_REMEDIES.get(reason, f"GitHub reports verification reason {reason!r}")
+        + SIGNATURE_REMEDIES.get(
+            reason, f"GitHub reports verification reason {reason!r}"
+        )
         for reason, shas in sorted(by_reason.items())
     ]
     return blockers, record
@@ -411,7 +411,7 @@ def find_distinct_bot_approval(
     head SHA unchanged since review. An approval is eligible only when its author
     is a bot (structural `[bot]`/`Bot` type, or a caller-named approver login), is
     not the PR author (normalized login compare), and was submitted against the
-    exact live head commit — a stale approval left on a since-superseded commit is
+    exact live head commit -- a stale approval left on a since-superseded commit is
     not "unchanged since review". Reviews arrive oldest-first; the last eligible
     one wins so a re-approval on the current head is honored.
     """
@@ -611,9 +611,7 @@ def evaluate_autopilot_tier(
 
     label_names = {str(name).casefold() for name in labels if name}
     blocking_labels = sorted(
-        label
-        for label in tier.block_labels
-        if label.casefold() in label_names
+        label for label in tier.block_labels if label.casefold() in label_names
     )
     if blocking_labels:
         blockers.append(
@@ -636,7 +634,9 @@ def evaluate_autopilot_tier(
     # approval: a bot that approved and then submitted CHANGES_REQUESTED (or had
     # its approval dismissed) on the same head must no longer count as the
     # approver, even when another approval keeps the base reviewDecision APPROVED.
-    decisive_reviews = latest_reviews_by_author({"reviews": reviews}, decisive_only=True)
+    decisive_reviews = latest_reviews_by_author(
+        {"reviews": reviews}, decisive_only=True
+    )
     approval = find_distinct_bot_approval(
         decisive_reviews, author_login, head, tier.approver_bot_logins
     )
@@ -762,7 +762,9 @@ def head_committed_at(repo: str, head_sha: str) -> datetime | None:
     committer = cast(dict[str, Any], commit).get("committer")
     if not is_json_object(committer):
         return None
-    return parse_github_timestamp(str(cast(dict[str, Any], committer).get("date") or ""))
+    return parse_github_timestamp(
+        str(cast(dict[str, Any], committer).get("date") or "")
+    )
 
 
 def latest_check_activity(status_rollup: Any) -> datetime | None:
@@ -880,7 +882,9 @@ def evaluate_review_settle(
     if recency_floor is not None:
         result["reviewRecencyFloor"] = recency_floor.isoformat()
     if has_current_head_review(
-        {}, head, review_evidence,
+        {},
+        head,
+        review_evidence,
         config=ReviewTriggerConfig(reviewer_logins=settle.reviewer_logins),
         not_before=recency_floor,
     ):
@@ -899,7 +903,9 @@ def evaluate_review_settle(
             "clock; re-run to retry"
         ], result
 
-    age_seconds = int(((now or datetime.now(timezone.utc)) - appeared_at).total_seconds())
+    age_seconds = int(
+        ((now or datetime.now(timezone.utc)) - appeared_at).total_seconds()
+    )
     result["headAgeSeconds"] = age_seconds
     if age_seconds < settle.settle_seconds:
         result["state"] = "settling"
@@ -967,7 +973,9 @@ def evaluate(
     # Reconcile each required status-check context against the deduped rollup.
     required_contexts = rules.get("requiredContexts")
     required_context_list = (
-        cast(list[Any], required_contexts) if isinstance(required_contexts, list) else []
+        cast(list[Any], required_contexts)
+        if isinstance(required_contexts, list)
+        else []
     )
     required_check_status: list[dict[str, object]] = []
     for raw_context in required_context_list:
@@ -976,7 +984,8 @@ def evaluate(
             (
                 check
                 for key, check in checks_by_key.items()
-                if key[1] and (key[1] == ctx or ctx.endswith(key[1]) or key[1].endswith(ctx))
+                if key[1]
+                and (key[1] == ctx or ctx.endswith(key[1]) or key[1].endswith(ctx))
             ),
             None,
         )
@@ -1060,9 +1069,7 @@ def evaluate(
     # A dependency-manager PR is held in every tier unless explicitly allowed:
     # its update should be reviewed, not auto-merged on a green gate alone.
     if (
-        is_dependency_author(
-            str(author_login or ""), extra_dependency_manager_logins
-        )
+        is_dependency_author(str(author_login or ""), extra_dependency_manager_logins)
         and not allow_dependency
     ):
         blockers.append(
@@ -1079,9 +1086,7 @@ def evaluate(
             "login -- held (pass --allow-unprotected to override)"
         )
 
-    closing_issues = cast(
-        list[Any], pr.get("closingIssuesReferences") or []
-    )
+    closing_issues = cast(list[Any], pr.get("closingIssuesReferences") or [])
     # Fetch the review corpus at most once per run, and only when something
     # needs it: the settle hold and the tier both read it, and an unconfigured
     # gate must make no request it did not make before.
@@ -1096,7 +1101,10 @@ def evaluate(
             str(head) if head else None,
             settle,
             fetch_review_evidence(
-                repo, number, reviews, review_comments,
+                repo,
+                number,
+                reviews,
+                review_comments,
                 config=ReviewTriggerConfig(reviewer_logins=settle.reviewer_logins),
             ),
             pr.get("statusCheckRollup"),
@@ -1106,8 +1114,15 @@ def evaluate(
     tier_result: dict[str, Any] = {"enabled": False}
     if tier is not None:
         tier_blockers, tier_result = evaluate_autopilot_tier(
-            repo, number, str(head) if head else None, author_login, labels,
-            closing_issues, tier, reviews, review_comments,
+            repo,
+            number,
+            str(head) if head else None,
+            author_login,
+            labels,
+            closing_issues,
+            tier,
+            reviews,
+            review_comments,
         )
         blockers.extend(tier_blockers)
 
@@ -1125,7 +1140,12 @@ def evaluate(
     # COMPLETE set: the lookup below is a network call, and a PR already held for
     # any other reason cannot be made ready by this hold, so the fleet loop must
     # never pay that call per cycle for a PR it already knows is ineligible.
-    if not blockers and base_is_unprotected and author_is_self and not allow_unprotected:
+    if (
+        not blockers
+        and base_is_unprotected
+        and author_is_self
+        and not allow_unprotected
+    ):
         base_ref = str(pr.get("baseRefName") or "")
         default_branch = repository_default_branch(repo)
         if default_branch and base_ref and base_ref != default_branch:
@@ -1430,7 +1450,8 @@ def main() -> int:
             )
             return 2
         settle = ReviewSettleConfig(
-            reviewer_logins=reviewer_logins, settle_seconds=settle_seconds,
+            reviewer_logins=reviewer_logins,
+            settle_seconds=settle_seconds,
         )
 
     # Build the autopilot-merge-tier config before any network access, failing
@@ -1470,9 +1491,7 @@ def main() -> int:
             approver_bot_logins=frozenset(approver),
             block_labels=frozenset(block),
         )
-    elif any(
-        (args.lane_logins, args.approver_bot_logins, args.block_labels)
-    ):
+    elif any((args.lane_logins, args.approver_bot_logins, args.block_labels)):
         print(
             json.dumps(
                 {
