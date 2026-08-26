@@ -3,6 +3,20 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.2]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** `check-skill.sh`'s
+  `usage()` replaces its desynced hardcoded `sed -n '2,38p'` range (which clipped `--help`
+  mid-sentence at 37 lines) with the derived-range awk idiom its sibling checkers use;
+  `--help` now prints the complete 109-line header. Verdict-path output proven
+  byte-identical old-vs-new across 18 real skill directories and both error paths; nothing
+  in the repo pins the old clipped help bytes. `skill-frontmatter.sh`'s header now names its
+  real consumers (the previously cited `skill-contract-check.sh` does not exist). All three
+  suites plus the summary-reader parity test green; live listing-budget and evals-quality
+  runs byte-identical pre/post.
+
 ## [0.20.1]
 
 ### Changed

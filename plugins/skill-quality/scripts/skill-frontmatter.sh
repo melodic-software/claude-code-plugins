@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 # Shared SKILL.md frontmatter helpers for skill gates.
-# Source from check-skill.sh, skill-contract-check.sh, and future skill validators.
+# Sourced by check-skill.sh (and the repo's summary-reader parity test); source
+# it from future skill validators too.
 
 if [[ -n "${SKILL_FRONTMATTER_LIB_LOADED:-}" ]]; then
   # shellcheck disable=SC2317  # reachable via source (return) or direct exec (exit); standalone lint can't see the sourced context
