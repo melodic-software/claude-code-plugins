@@ -11,11 +11,20 @@ a whole.**
 
 The authority chain:
 
-1. `.claude/rules/vendor-docs-are-not-style.md` (a `T1` always-loaded rule) ends with the
-   declaration: *"Write this repo's prose to
-   `plugins/ai-slop/skills/audit/reference/rewrite-guide.md`."*
-2. `PLAN.md` restates it as a standing rule for every agent in this sweep: *"**This repo's prose
-   style** is `plugins/ai-slop/skills/audit/reference/rewrite-guide.md`."*
+1. `.claude/rules/vendor-docs-are-not-style.md` (a `T1` always-loaded rule) ends with this
+   declaration:
+
+   ```text
+   Write this repo's prose to
+   `plugins/ai-slop/skills/audit/reference/rewrite-guide.md`.
+   ```
+
+2. `PLAN.md` restates it as a standing rule for every agent in this sweep:
+
+   ```text
+   **This repo's prose style** is `plugins/ai-slop/skills/audit/reference/rewrite-guide.md`. No em
+   dashes in this repo's own instruction surfaces.
+   ```
 
 So the resolved standard is **`plugins/ai-slop/skills/audit/reference/rewrite-guide.md`**, with four
 supporting repo surfaces that carry parts of the same contract:
@@ -56,10 +65,32 @@ guardrail the bundled rule lacks: *"Never parentheses, never en dashes, never a 
 of those is the same interruption wearing a different mark. If the thought needs separation, end the
 sentence."*
 
-`ai-slop:audit` owns the em-dash axis and this lane does not duplicate it. This lane does own the
-**consequence**: the repo-wide de-slop at `36356429` applied the substitution, and where it ended
-the sentence inside a parenthetical it left text that no longer parses. Predicate `Am1` covers that,
-and it is this lane's highest-confidence finding class.
+`ai-slop:audit` owns the em-dash axis and this lane does not duplicate it. This lane owns the
+**consequence**: twelve places in the corpus where a sentence has been ended *inside* a
+parenthetical, leaving a fragment on one side of the period and text that does not parse. That is
+the exact shape the guardrail produces when "end the sentence" is applied between parentheses, which
+is the one case the guardrail does not cover. Predicate `Am1` covers it, and it is this lane's
+highest-confidence finding class.
+
+Two limits on that reading, both stated because the causal story is suggestive rather than proven.
+This lane did not check the sites against git history, so it cannot say which commit produced them.
+And the substitution has not been applied uniformly: 427 em dashes remain in plugin READMEs outside
+the generated marker blocks, so a straightforward "the de-slop did this everywhere" account does not
+hold. The findings stand on the text as it is; the mechanism is offered as the likely explanation,
+not as a claim.
+
+Note also that the rule's own scope is narrower than the corpus. `.claude/rules/vendor-docs-are-not-style.md`
+names the surfaces it governs:
+
+```text
+Do not copy their formatting, including em dashes, into this repo's own
+instruction surfaces (`SKILL.md`, plugin READMEs, `AGENTS.md`, `CLAUDE.md`,
+`.claude/rules/**`).
+```
+
+`docs/**` is not in that list. So the 130 files under `docs/` that carry em dashes are in policy,
+not in violation, and this lane treats them as such. Every one of the twelve `Am1` findings is in a
+plugin README, which is inside the rule's declared scope.
 
 ### 2. Semicolons: not adopted
 

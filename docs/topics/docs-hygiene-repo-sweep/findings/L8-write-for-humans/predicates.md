@@ -121,18 +121,23 @@ where this lane's highest-confidence findings sit.
 - **Source**: `reference/sentence-rules.md`, "Make text in parentheses a full grammatical unit or its
   own sentence."
 - **Decidable**: mechanical + adjudicated. Find a parenthetical containing an internal sentence
-  boundary (`. ` followed by a capital), then rule on whether the span before that boundary is a
-  complete clause.
+  boundary (a period, whitespace, then a capital letter), then rule on whether the span before that
+  boundary is a complete clause.
 - **Owner**: this lane, exclusively. `ai-slop:audit` cannot see it: the em dash it was told to remove
   is already gone.
-- **Why this class exists**: the repo-wide de-slop at `36356429` applied the resolved guide's
-  substitution guardrail ("If the thought needs separation, end the sentence") *inside* parentheses.
-  Ending a sentence inside a parenthetical leaves a fragment on one side of the period. This is the
-  guardrail working exactly as written and producing text that does not parse, which is precisely
-  the case the resolved guide's own preamble reserves judgment for.
+- **Why this class exists**: the resolved guide's substitution guardrail says "If the thought needs
+  separation, end the sentence." Applied *inside* parentheses, that leaves a fragment on one side of
+  the period. Every instance found is in a plugin README, which is inside the em-dash rule's
+  declared scope, and none is in `docs/**`, which is outside it. That distribution is consistent
+  with the guardrail being the cause, but this lane did not check the sites against git history and
+  427 em dashes remain in plugin READMEs outside generated blocks, so the mechanism is offered as
+  the likely explanation rather than as a verified claim. The findings stand on the text either way.
 - **Pass**: a parenthetical holding two complete sentences, capitalised and punctuated as such, is
-  correct. `plugins/adhd/README.md:105` is the model: `(There is no runtime coupling between the
-  plugins to enforce this. It is a usage guideline.)`
+  correct. `plugins/adhd/README.md:105` is the model:
+
+```text
+(There is no runtime coupling between the plugins to enforce this. It is a usage guideline.)
+```
 
 ### `Am2` No `(s)` plurals in prose
 
