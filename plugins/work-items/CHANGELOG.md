@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.27]
+
+### Changed
+
+- **`decompose`'s `re-decompose.md` spoke now links its sibling instead of naming it.** The
+  container-lifecycle drift doctrine was cited by name with no link, while every other
+  cross-file reference in the same batch of new spokes uses markdown link syntax. Review catch.
+
 ## [0.39.26]
 
 ### Changed

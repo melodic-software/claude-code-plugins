@@ -51,7 +51,8 @@ edited spec, never hand-patched into meaning something the spec no longer says.
 
 **When NOT to reroute.** A spec that turns out wrong **after ship** is a new idea, not a routing
 error: open a new spec (a new container or a new topic), never patch the closed one, the
-container-lifecycle drift doctrine applies (a closed container is never edited into a living doc).
+[container-lifecycle.md](container-lifecycle.md) drift doctrine applies (a closed container is
+never edited into a living doc).
 And small drift, wording, a stale count, one acceptance criterion sharpened, is an ordinary body
 edit to the spec or slice, not a reroute: rerouting is for destination changes that obsolete
 slices.
