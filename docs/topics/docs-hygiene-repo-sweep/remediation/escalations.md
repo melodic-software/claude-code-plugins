@@ -5,8 +5,9 @@ remediations can be applied. Each blocks a specific set of wave 3 edits.
 
 ## E1. `PLUGIN-PHILOSOPHY.md` prescribes what the public-surface contract forbids
 
-**Raised by:** L4-encapsulation. **Blocks:** 30 of that lane's 89 violations, the whole
-sibling-skill-reach class.
+**Raised by:** L4-encapsulation. **Blocks:** 65 of that lane's 89 violations. It was raised as 30,
+the sibling-skill-reach class; measuring it afterwards showed the ruling reaches more than twice
+that. See the corrections below.
 
 `docs/PLUGIN-PHILOSOPHY.md:337-342` instructs authors to write a cross-skill citation like this:
 
@@ -66,12 +67,74 @@ So:
 - **Cross-plugin citation into another plugin's skill privates remains a violation.** Plugins install
   independently, so the cited path can genuinely be absent at runtime. This is the case the contract
   is actually about.
-- **A bare relative cross-skill path stays a defect either way.** `PLUGIN-PHILOSOPHY.md:341-342` says
-  so itself: a bare `context/…` path "resolves against the citing skill's directory, so a cross-skill
-  citation written that way points at a file that is not there." The philosophy doc legalises the
-  anchored form only.
+- **A citation that does not resolve from its own base is a defect, whatever its form.** This
+  replaces an earlier clause that said bare relative paths stay defects. That clause was wrong, see
+  the corrections below.
 - **Heading anchors stay private even intra-plugin.** They are body structure, not a file the plugin
   ships as a unit; renaming a heading is exactly the refactor the contract protects.
+
+### Three corrections to this ruling, from the measurement that tested it
+
+The classification pass was told to say if the evidence contradicted the ruling. It did, on three
+points, and it was right on all three.
+
+**The bare-relative clause was factually wrong and is withdrawn.** `PLUGIN-PHILOSOPHY.md:341-342`
+condemns a bare `context/…` path written with **no** `../` prefix, which resolves against the citing
+skill's own directory and therefore misses. **Zero of the 89 citations use that shape.** The 33
+relative intra-plugin citations all compute a correct `../` path and all 33 resolve, verified
+individually. The ruling originally leaned on that clause to keep 49 findings alive; it cannot.
+
+**This ruling narrows the contract, it does not merely read it.** The sentence licensing a consuming
+repo's conventions has a second half that was omitted: "A consuming repo may layer its own
+conventions on top, **but the surfaces and carve-outs below are what the detector implements**"
+(`public-surface-contract.md:3`). And the portability guarantee is stated at the skill-directory
+level, not the plugin level: "moving `.claude/skills/<name>/` into another repo carries every
+implementation detail with it" (`:27`). The ruling stands on the repo's real distribution shape, 71
+plugin manifests each with one version, 71 marketplace entries each pointing at a plugin directory,
+no per-skill manifest, and no `.claude/skills/` tree in this repo at all. But it is a deliberate
+narrowing of a stated guarantee and is recorded as one.
+
+**The blast radius is 65, not 30.** The ruling was written as if it touched only the 30
+sibling-skill reaches. Intra-plugin as defined also legalises 16 plugin-README citations and 23
+plugin-level doc citations, which the escalation had listed as unaffected. The READMEs matter most:
+the contract names READMEs explicitly as external consumers. Under the distribution-unit reasoning
+they are not external, because a plugin's README ships with the plugin, and that consequence is
+accepted deliberately rather than absorbed unnoticed. Four of the 30 sibling reaches cross a plugin
+boundary and stay violations.
+
+### What the measurement found that nobody predicted
+
+**Not one cited path is missing from disk.** All 89 targets exist, both heading anchors included.
+The silent-breakage failure the contract exists to prevent has not occurred anywhere in this corpus.
+That is the strongest evidence the escalation expected to find and it is absent, which argues the
+contract is protecting against a risk this repo's actual practice already contains.
+
+**Ten citations do not resolve from the base their own form implies.** The target exists; the
+address does not reach it. All ten are bare code spans, so none renders as a broken link and nothing
+greps red, but an agent told to open the path fails on all ten. This is the real defect class, and
+it is what the revised form clause above now catches.
+
+The sharpest case: `plugins/discovery` cites the same three targets twice, correctly anchored at
+`reference/parent-contract.md:15-17` and unresolvably bare at `reference/topic-docs.md:88-89`. One
+plugin, two forms, one broken. That is direct evidence that legalising intra-plugin citation without
+also requiring a resolvable form produces drift inside a single plugin, which is why the form clause
+is not optional.
+
+**`docs/PLUGIN-PHILOSOPHY.md` breaks its own rule twice**, at `:581` and `:1056`, and one is a live
+Convention-registry row other plugins consult. Defective under any reading; fixed in wave 3.
+
+### Settled remediation set
+
+Of the 89: **55 dissolve, 34 remain.** The 34 are 24 cross-plugin, 8 non-resolving intra-plugin, and
+2 heading anchors. A further 57 intra-plugin citations would benefit from normalising to the
+anchored form; that is a tidy-up, not a defect, and is not part of this sweep.
+
+**Where the convention gets written down matters.** Not in
+`public-surface-contract.md`: that file ships inside a plugin to other repositories and claims
+general applicability, so editing it would export this repo's relaxation to everyone who installs
+`docs-hygiene`. The correct home is a `docs/conventions/` entry, which is precisely the "layer on
+top" the contract's own line 3 describes. `PLUGIN-PHILOSOPHY.md` gains the cross-plugin limit it
+currently omits.
 
 Two follow-on edits this ruling requires, both in wave 3:
 

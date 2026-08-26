@@ -90,10 +90,14 @@ this costs nothing.
 
 Both live in `escalations.md` with their full reasoning.
 
-- **E1**: the plugin, not the skill, is this repo's unit of distribution. Intra-plugin sibling-skill
-  citation in the anchored form is legal here; cross-plugin citation into skill privates is not;
-  bare relative cross-skill paths stay defects; heading anchors stay private. Dissolves part of
-  `L4`'s 89 and requires a clarifying edit to both documents in wave 3.
+- **E1**: the plugin, not the skill, is this repo's unit of distribution. Intra-plugin citation is
+  legal here; cross-plugin citation into skill privates is not; a citation that does not resolve
+  from its own base is a defect whatever its form; heading anchors stay private. Measured against
+  all 89 violations: **55 dissolve, 34 remain** (24 cross-plugin, 8 non-resolving intra-plugin, 2
+  heading anchors). The measurement corrected the ruling on three points, including withdrawing a
+  clause that rested on a misreading, and it is recorded as a deliberate narrowing of the contract
+  rather than a reading of it. The convention gets written to `docs/conventions/`, not into the
+  contract file, which ships to other repositories.
 - **E4**: `write-for-agents` disclaims skill *authorship*, not prose inside an authored skill body.
   Releases `L7`'s 8 disputed findings. Applied.
 
