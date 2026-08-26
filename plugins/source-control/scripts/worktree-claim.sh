@@ -257,7 +257,6 @@ parse_worktrees() {
 # be canonicalized (absolute, `.`/`..` collapsed, symlinks resolved).
 find_worktree_index() {
   local target="$1" i best=-1 best_len=0
-  target="$(canonicalize_path "$target")"
   for i in "${!WT_PATHS[@]}"; do
     local wt="${WT_PATHS[i]}"
     if [[ "$target" == "$wt" || "$target" == "$wt"/* ]]; then
