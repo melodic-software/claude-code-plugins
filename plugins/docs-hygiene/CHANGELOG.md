@@ -1,5 +1,19 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.13]
+
+### Fixed
+
+- **`audit-noise` had the same stale-`BASH_REMATCH` defect in its heading branch.**
+  The fence fix in 0.21.12 left the ATX-heading branch reading `BASH_REMATCH[2]`
+  after `flush_negation`. A repo-wide scan got 1024 files in before dying on a
+  multi-line HTML comment followed by a heading. Where the clobbering match does
+  leave two groups bound, the branch does not abort at all: it silently applies
+  the wrong heading text to the section-exemption check. Captured before the
+  flush, with a regression test built from the file that actually crashed.
+  Swept every other `BASH_REMATCH` read in the plugin's detectors; the rest read
+  consecutively with no intervening call and are unaffected.
+
 ## [0.21.12]
 
 ### Fixed

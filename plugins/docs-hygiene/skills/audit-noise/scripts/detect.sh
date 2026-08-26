@@ -369,9 +369,10 @@ audit_file() {
     # an exempt ## Sources followed by an H1 stay exempt to EOF, and ### Sources
     # was never recognized).
     if [[ "$line" =~ ^(#{1,6})[[:space:]]+(.*)$ ]]; then
+      # Capture before flushing, for the same reason as the fence branch above.
+      heading_text="${BASH_REMATCH[2]}"
       flush_negation
       is_heading=1
-      heading_text="${BASH_REMATCH[2]}"
       heading_text="${heading_text%%$'\r'*}"
       if audit_noise_section_exempt "$heading_text"; then
         in_exempt=1
