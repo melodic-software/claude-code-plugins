@@ -1,5 +1,42 @@
 # Context engineering for Claude 5 — source absorption and rightsizing pass
 
+## Contents
+
+- [Brief](#brief)
+  - [TLDR](#tldr)
+  - [The design documents](#the-design-documents)
+  - [Goal](#goal)
+  - [Settled](#settled)
+  - [Coordination](#coordination)
+  - [Constraints](#constraints)
+  - [Shape — decided](#shape--decided)
+  - [Open](#open)
+  - [Acceptance criteria](#acceptance-criteria)
+- [Plan](#plan)
+  - [Standards grounding](#standards-grounding)
+  - [Phase 1: Finish the fresh-docs sweep [DONE]](#phase-1-finish-the-fresh-docs-sweep-done)
+  - [Phase 2: Resolve the cross-plugin criteria seam [DONE]](#phase-2-resolve-the-cross-plugin-criteria-seam-done)
+  - [Phase 2.5: Proportionality gate — which detectors survive [DONE]](#phase-25-proportionality-gate--which-detectors-survive-done)
+  - [Phase 3: Specify the criteria edits [SPECIFIED — execution moves to Phase 8]](#phase-3-specify-the-criteria-edits-specified--execution-moves-to-phase-8)
+  - [Phase 4: Define the re-run contract [DONE]](#phase-4-define-the-re-run-contract-done)
+  - [Phase 5: Map each check to its owning plugin [DONE]](#phase-5-map-each-check-to-its-owning-plugin-done)
+  - [Phase 6: Design the detectors and the sweep [PARTIALLY SHIPPED]](#phase-6-design-the-detectors-and-the-sweep-partially-shipped--run-contract--suppression-landed-in-audit-pass-detector-catalog-still-open)
+  - [Gate — re-evaluate before implementation [TODO]](#gate--re-evaluate-before-implementation-todo)
+  - [Phase 7: Bring the setup-skill corpus to its owner doc [AUDITED]](#phase-7-bring-the-setup-skill-corpus-to-its-owner-doc-audited)
+  - [Phase 8: Implement the checks in their owning plugins [PARTIALLY SHIPPED]](#phase-8-implement-the-checks-in-their-owning-plugins-partially-shipped--audit-pass-run-contract-shipped-per-check-detectors-still-open)
+  - [Phase 9: Implement the sweep [PARTIALLY SHIPPED]](#phase-9-implement-the-sweep-partially-shipped--audit-pass-skill--run-contract-shipped-cross-plugin-sweep-wiring-still-open)
+  - [Phase 10: Reconcile, then run against this repository [TODO]](#phase-10-reconcile-then-run-against-this-repository-todo)
+  - [Phase 11: Acceptance gate and PR [TODO]](#phase-11-acceptance-gate-and-pr-todo)
+- [Test strategy](#test-strategy)
+- [Alternatives considered](#alternatives-considered)
+- [Risks and mitigations](#risks-and-mitigations)
+- [Blast radius](#blast-radius)
+- [Open questions](#open-questions)
+- [Handoff to implementation](#handoff-to-implementation)
+  - [User-approval gates](#user-approval-gates)
+  - [Execution shape](#execution-shape)
+  - [Mechanical work](#mechanical-work)
+
 ## Brief
 
 Status: **in progress** — shape decided (a component, not a runbook), seam resolved, proportionality

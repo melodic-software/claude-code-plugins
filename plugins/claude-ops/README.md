@@ -1,5 +1,15 @@
 # claude-ops
 
+## Contents
+
+- [Skills](#skills)
+- [The audit hooks](#the-audit-hooks)
+- [Install](#install)
+- [How the skills adapt to your repo](#how-the-skills-adapt-to-your-repo)
+- [Requirements](#requirements)
+- [Configuration](#configuration)
+- [License](#license)
+
 A Claude Code plugin for running Claude Code well over time. One cohesive
 capability across twelve skills and a family of telemetry-emitter hooks, including diagnosing why
 most of an installed skill fleet never gets used.

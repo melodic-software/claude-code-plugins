@@ -1,5 +1,15 @@
 # Design threads — ai-adoption-ladder
 
+## Contents
+
+- [T1: Autonomous-kickoff trigger layer (#240) — RESOLVED 2026-07-17](#t1-autonomous-kickoff-trigger-layer-240--resolved-2026-07-17)
+- [T2: Runtime sandbox bar for autonomy (#245) — RESOLVED 2026-07-17](#t2-runtime-sandbox-bar-for-autonomy-245--resolved-2026-07-17)
+- [T3: Per-work-class guardrail matrix (#243) — RESOLVED 2026-07-17](#t3-per-work-class-guardrail-matrix-243--resolved-2026-07-17)
+- [T4: Autonomous-runner charter (#244) — RESOLVED 2026-07-17](#t4-autonomous-runner-charter-244--resolved-2026-07-17)
+- [T5: Return accounting (#246) — RESOLVED 2026-07-17](#t5-return-accounting-246--resolved-2026-07-17)
+- [T6: Telemetry unification (#247) — RESOLVED 2026-07-17](#t6-telemetry-unification-247--resolved-2026-07-17)
+- [T7: Standing scheduled routines (#242) — RESOLVED 2026-07-17](#t7-standing-scheduled-routines-242--resolved-2026-07-17)
+
 ## T1: Autonomous-kickoff trigger layer (#240) — RESOLVED 2026-07-17
 
 Decision: the trigger layer is a CONTRACT, not a place — thin per-source signal adapters, each

@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.32]
+
+### Changed
+
+- **Every hub reaches its shared reference files directly.** The setup, track, triage, and work
+  hubs gained direct conditioned pointers to the reference files their spokes require
+  (tracker-seam, capability-tier-labels, label-taxonomy, issue-conventions, agent-brief,
+  standing-item-preconditions, work-class-labels), removing the audited 2-hop required-reading
+  chains; track's label-taxonomy condition also names `list --category`. The 769-line tracker
+  CONTRACT.md and 422-line github adapter README gained `## Contents` indexes. Behavior unchanged.
+  Progressive-disclosure audit, deep-nesting and missing-toc treatments.
+
 ## [0.39.31]
 
 ### Changed

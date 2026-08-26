@@ -174,7 +174,10 @@ When the question precedes an actual change, close with a Preserve / Change / Av
 constraint set the planning stage can consume.
 
 **Persist it as `INTENT.md` plus `INTENT-<section>.md` sidecars** in the memory slice, so a fresh
-session can resume from the artifact alone. The index is the entry point at every size, and **Sources
+session can resume from the artifact alone. Destination, slug, and runtime guards resolve per the
+plugin's topic-docs binding
+([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+The index is the entry point at every size, and **Sources
 consulted** lives in it rather than in a sidecar, a reader who takes the answer and stops must still
 meet the shape of the record behind it. Header schema, and why neither sibling family's header fits:
 [`context/artifact-shape.md`](context/artifact-shape.md).

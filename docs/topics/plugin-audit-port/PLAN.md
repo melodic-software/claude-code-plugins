@@ -1,5 +1,16 @@
 # plugin-audit-port
 
+## Contents
+
+- [Brief](#brief)
+- [Plan](#plan)
+- [Blast radius](#blast-radius)
+- [Stress-test summary](#stress-test-summary)
+- [Execution shape](#execution-shape)
+- [Decisions made (gate-passed)](#decisions-made-gate-passed)
+- [Open questions](#open-questions)
+- [Handoff to implementation](#handoff-to-implementation)
+
 ## Brief
 
 ### TLDR

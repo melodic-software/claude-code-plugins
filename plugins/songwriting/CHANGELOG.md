@@ -3,6 +3,16 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.14]
+
+### Changed
+
+- **`suno`'s claim-audit history lives in the drift ledger.** The Confidence flags section keeps
+  the rung definitions, each item's current label with a one-line basis, and the generation rule;
+  the dated search records and revision narratives merged into
+  `reference/suno-drift-audit-ledger.md` (S11 updated, S19 and S20 added) behind a hub pointer.
+  No content lost. Progressive-disclosure audit, tier-mismatch treatment.
+
 ## [1.4.13]
 
 ### Changed

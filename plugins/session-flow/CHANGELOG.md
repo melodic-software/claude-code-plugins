@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## [0.34.8]
+
+### Changed
+
+- **Long files carry a `## Contents` index.** The 438-line plugin README and the 442-line
+  reference/structure.md gained Contents sections, including the handoff document's own body
+  sections as lookup targets. Purely additive. Progressive-disclosure audit, missing-toc
+  treatment.
+
 ## [0.34.7]
 
 ### Changed

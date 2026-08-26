@@ -124,7 +124,10 @@ Example (`github`; `local-markdown` adds `"storage_dir": ".work-items"`):
 `check` inspects and reports; it writes nothing. Read [reference/check.md](reference/check.md)
 when invoked with `check` or with no action, and again at the start of `apply`, which runs the same
 probes first: it owns the probe order, every PASS/FAIL/INFO row, and the remediation line each FAIL
-prints. `apply` below consumes those probe results and never re-derives them.
+prints. `apply` below consumes those probe results and never re-derives them. The `jq` and
+tracker-binding entry gates that check.md's probe 1 tests are defined in
+[`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+"entry-point presence checks"; read it for what each gate enforces and its remediation.
 
 ## `apply` (idempotent)
 
@@ -183,9 +186,11 @@ unambiguous; ask only where an item genuinely needs the user.
    It discovers missing canonical members and provisions them when authorized. When any member is still
    missing after this pass, stop. Triage and the work-loop admission gate cannot operate correctly.
 4. **Migrate the capability-tier label axis.** Run the procedure in
-   [reference/capability-tier-axis-migration.md](reference/capability-tier-axis-migration.md). When the
-   canonical member is still missing after this pass, stop. Triage cannot stamp frontier-tier quota
-   guard and the work-loop reader fails closed to general tier.
+   [reference/capability-tier-axis-migration.md](reference/capability-tier-axis-migration.md), which
+   provisions the canonical `capability-tier: frontier` member defined in
+   [`${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md).
+   When the canonical member is still missing after this pass, stop. Triage cannot stamp frontier-tier
+   quota guard and the work-loop reader fails closed to general tier.
 5. **Backfill legacy frontier-tier body stamps.** Run the procedure in
    [reference/capability-tier-backfill.md](reference/capability-tier-backfill.md). This pass is
    load-bearing on upgrade (#1716): items already triaged with only a body prose frontier-tier stamp

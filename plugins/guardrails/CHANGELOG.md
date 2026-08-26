@@ -3,6 +3,17 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.16]
+
+### Changed
+
+- **`setup`'s two opt-in install procedures are on-demand spokes.** `apply install-commit-msg` and
+  `apply install-pre-commit-content` moved verbatim to `context/install-commit-msg.md` and
+  `context/install-pre-commit-content.md`; the hub keeps each procedure's summary, its
+  never-from-bare-`apply` guard, and a conditioned pointer. The 451-line plugin README gained a
+  `## Contents` index. Behavior unchanged. Progressive-disclosure audit, mixed-concerns and
+  missing-toc treatments.
+
 ## [0.29.15]
 
 ### Changed

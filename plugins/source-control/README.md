@@ -5,6 +5,27 @@ composable skills. Commit mechanics, the single-PR lifecycle, the tiered
 babysit fleet loop, worktree lifecycle management, convention setup, and
 merge-conflict resolution.
 
+## Contents
+
+- [Skills](#skills)
+  - [`/source-control:commit`](#source-controlcommit)
+  - [`/source-control:pull-request`](#source-controlpull-request)
+  - [`/source-control:babysit-prs`](#source-controlbabysit-prs)
+  - [`/source-control:worktree`](#source-controlworktree)
+  - [`/source-control:setup`](#source-controlsetup)
+  - [`/source-control:resolve-conflicts`](#source-controlresolve-conflicts)
+- [Hooks](#hooks)
+  - [`pr-body-linkage-gate`](#pr-body-linkage-gate)
+  - [`pr-linkage-mcp-gate`](#pr-linkage-mcp-gate)
+  - [`worktree-add-claim-gate`](#worktree-add-claim-gate)
+- [Works in any repo](#works-in-any-repo)
+- [Install](#install)
+- [Configuration](#configuration)
+  - [Options reference](#options-reference)
+  - [How to set these](#how-to-set-these)
+  - [Upstream documentation](#upstream-documentation)
+- [Security](#security)
+
 ## Skills
 
 ### `/source-control:commit`

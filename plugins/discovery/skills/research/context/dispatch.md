@@ -211,7 +211,8 @@ already draws, finally reachable from the failure that needs it:
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to take.
 It is not an acceptance value. Letting the gate grade a claim the agent makes about its own research,
 in place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids — arriving
-through the recovery path instead of the front door.
+through the recovery path instead of the front door. Why the mode exists and where its boundary
+sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
 **Exit 1 with the agent still live — resume it; do not re-dispatch it.** A resume costs one message; a
 re-dispatch pays all the phases over again. Address the agent by its **agent ID**, not by name, and ask

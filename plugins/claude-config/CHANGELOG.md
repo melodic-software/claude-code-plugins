@@ -3,6 +3,15 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.11]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** `audit-instructions`'s 1,741-line
+  criteria.md gained a Contents section with its per-ID catalog entries and a grep recipe for
+  lookup by ID; `audit-pass`'s run-state-and-resumability.md gained a Contents section. Purely
+  additive. Progressive-disclosure audit, missing-toc treatment.
+
 ## [0.40.10]
 
 ### Changed

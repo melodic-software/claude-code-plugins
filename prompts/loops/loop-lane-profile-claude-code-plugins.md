@@ -8,7 +8,12 @@ worked example of what a completed profile looks like.
 ## Contents
 
 - [Variable values](#variable-values)
+  - [Tier is not the rung](#tier-is-not-the-rung)
 - [Ready to paste](#ready-to-paste)
+  - [Worker lane — launch from a checkout of the repo](#worker-lane--launch-from-a-checkout-of-the-repo)
+  - [Merge lane — any machine except the attended one](#merge-lane--any-machine-except-the-attended-one)
+  - [Attended queue — melo-desk-001](#attended-queue--melo-desk-001)
+  - [Parked-decision burn-down — melo-desk-001, after the queue drains](#parked-decision-burn-down--melo-desk-001-after-the-queue-drains)
 
 ## Variable values
 

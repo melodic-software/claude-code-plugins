@@ -1,5 +1,12 @@
 # Memory Health Criteria
 
+## Contents
+
+- [Checks for CLAUDE.md and CLAUDE.local.md](#checks-for-claudemd-and-claudelocalmd)
+- [Checks for .claude/rules/ files](#checks-for-clauderules-files)
+- [Checks for auto-memory (MEMORY.md + topic files)](#checks-for-auto-memory-memorymd--topic-files)
+- [Audit output format](#audit-output-format)
+
 Version: 1.6.0
 Last updated: 2026-08-19
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)

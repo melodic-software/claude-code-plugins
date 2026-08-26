@@ -3,6 +3,15 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.9]
+
+### Changed
+
+- **The orphaned shared references are reachable from the audit README.** The maintainer README
+  gained pointers to `references/shared/correlation-rules.md` (how the orchestrator applies
+  correlation rules) and `references/shared/testing.md` (Pester test conventions). Purely
+  additive. Progressive-disclosure audit, orphan-spoke treatment.
+
 ## [0.11.8]
 
 ### Added

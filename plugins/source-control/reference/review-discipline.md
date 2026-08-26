@@ -26,6 +26,12 @@ The deterministic companion scripts live beside this file:
 - `${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <pr>` — mechanical under-decomposition
   gate (§2).
 
+## Contents
+
+- [1. Evidence-based comment state](#1-evidence-based-comment-state)
+- [2. Structured finding extraction](#2-structured-finding-extraction)
+- [3. Per-finding D1–D7 verification gates](#3-per-finding-d1d7-verification-gates)
+
 ## 1. Evidence-based comment state
 
 GitHub is the source of truth — not model memory, not prior-iteration state, not comment counts.

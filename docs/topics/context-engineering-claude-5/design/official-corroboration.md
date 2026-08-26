@@ -6,6 +6,15 @@ reference documentation. Every rule it states is checked here against official d
 Where no doc confirms it, the rule is `OPINION`-tier under the authority axis already defined in
 `claude-config/skills/audit-instructions/reference/criteria.md`.
 
+## Contents
+
+- [The authority axis, written out](#the-authority-axis-written-out)
+- [Official material the source omits, relevant to this work](#official-material-the-source-omits-relevant-to-this-work)
+- [Phase 1 sweep — what the eleven pages settled](#phase-1-sweep--what-the-eleven-pages-settled)
+- [Path scoping — verified empirically, not just read](#path-scoping--verified-empirically-not-just-read)
+- [Pages the plan's list missed](#pages-the-plans-list-missed)
+- [`llms.txt` walk — falsifiability check](#llmstxt-walk--falsifiability-check)
+
 Pages fetched this session:
 
 - <https://code.claude.com/docs/en/commands> — `/doctor`
