@@ -3,6 +3,17 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.8]
+
+### Added
+
+- **The audit skill's directory carries a nested `AGENTS.md` with its `CLAUDE.md` shim.** Three
+  contributor conventions from the human-only skill README (semantics-vs-implementation layout,
+  dual-invocation script contract, stateless-checks invariant) now load for Claude on any read
+  under `skills/audit/`, as pointers back to the README rather than copies. Applied from an
+  instruction-placement audit (findings IP-005 through IP-007); the README remains the single
+  source of truth.
+
 ## [0.11.7]
 
 ### Changed
