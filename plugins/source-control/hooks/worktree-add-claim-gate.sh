@@ -228,10 +228,7 @@ for target in "${CLAIM_TARGETS[@]}"; do
   if [[ -n "$SESSION" ]]; then
     args+=(--session-id "$SESSION")
   fi
-  err_file=""
   err_file="$(mktemp "${TMPDIR:-/tmp}/worktree-add-claim.XXXXXX")" || continue
-  claim_out=""
-  claim_err=""
   claim_rc=0
   claim_out="$(bash "$CLAIM" "${args[@]}" 2>"$err_file")" || claim_rc=$?
   claim_err="$(cat "$err_file" 2>/dev/null || true)"
