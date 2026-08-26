@@ -14,7 +14,6 @@
     // Build, dependency, and cache trees — not authored markdown.
     "**/node_modules/**",
     "**/.venv/**",
-    "**/.pytest_cache/**",
     "**/bin/**",
     "**/obj/**"
   ],
