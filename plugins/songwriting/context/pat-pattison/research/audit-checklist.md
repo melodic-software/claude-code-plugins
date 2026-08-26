@@ -1,5 +1,16 @@
 # Audit Checklist — Pre-Lock Review Tools
 
+## Contents
+
+- [When to run](#when-to-run)
+- [Section type diagnosis (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)](#section-type-diagnosis-essential-guide-to-lyric-form-and-structure-1991-chapter-5)
+- [Per-line checklist](#per-line-checklist)
+- [Per-section checklist](#per-section-checklist)
+- [Pre-lock-title checklist](#pre-lock-title-checklist)
+- [Pre-lock-form checklist](#pre-lock-form-checklist)
+- [Coach posture when running an audit](#coach-posture-when-running-an-audit)
+- [Cross-references](#cross-references)
+
 **"There are no rules, only tools."** — *Writing Better Lyrics* (2009),
 Chapter 18. (Pat prints the same stance in *Essential Guide to Rhyming*
 (2014), Chapter 4: "there are no rules. Only tools.") Every box below is a

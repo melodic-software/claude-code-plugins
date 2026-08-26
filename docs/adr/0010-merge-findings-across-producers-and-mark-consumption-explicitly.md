@@ -6,7 +6,7 @@
 ## Context
 
 `review:fanout`'s findings file is a documented stable contract —
-`plugins/review/skills/fanout/context/default-mode.md:48` titles the section "Findings-file shape
+`plugins/review/reference/findings-file-shape.md` titles the section "Findings-file shape
 (stable contract — the fix action consumes it)". The fix action locates its input **purely by
 frontmatter**, never by provenance (`context/fix-pass-mode.md:7`): the newest `*.md` declaring
 `type: review-findings` whose `branch:` matches exactly. Nothing authenticates the writer.
@@ -40,7 +40,7 @@ one. Three options were weighed:
 - **Merge inside the fix action.** Chosen: the contract's owner extends its own consumer, adding no
   new surface and no new coordination primitive.
 
-Coverage fields are **unioned, not picked**. `default-mode.md:77` declares `tier`, `## By dimension`,
+Coverage fields are **unioned, not picked**. `findings-file-shape.md` declares `tier`, `## By dimension`,
 `## Unparsed`, and `## Surfaces` required "to keep the report honest about coverage". Reporting one
 producer's `## Surfaces` line would hide a surface that ran and returned nothing — moving the
 hidden-findings failure up one layer instead of closing it. Each consumed file's `tier:` is reported

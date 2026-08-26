@@ -168,8 +168,9 @@ under-decomposed in practice. So enforcement is a gate:
 your replies) and exits non-zero when rows < findings. The subagent-dispatch rule above tells
 you HOW to decompose; the gate enforces THAT you did — an iteration cannot be completed while it
 reports `READINESS_BLOCKED`. It says nothing about whether the PR can merge; that is the merge
-gate's `ready` field alone (`skills/babysit-prs/reference/safety.md` "Two Gates, One Merge-Ready
-Authority").
+gate's `ready` field alone
+(`${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/safety.md`
+"Two Gates, One Merge-Ready Authority").
 
 ## 3. Per-finding D1–D7 verification gates
 
@@ -268,9 +269,9 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   thread drops every comment it carries out of the readiness denominator
   (`babysit_classify.py::thread_is_open`), so a still-unaddressed finding inside it disappears
   from the classification gate and the PR can merge over it. This is what
-  `skills/babysit-prs/reference/safety.md`'s Never Do Automatically entry "Resolve any thread over
-  a live, unaddressed finding" means operationally: *addressed* is one of those three records for
-  every finding present, never the absence of one.
+  `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/safety.md`'s Never Do Automatically entry
+  "Resolve any thread over a live, unaddressed finding" means operationally: *addressed* is one of
+  those three records for every finding present, never the absence of one.
   <!-- contract-restatement-end: D7.5-thread-eligibility -->
   **What a tier may act on is bounded by its own
   tooling, and this list never overrides that** — a disposition making a thread eligible here does
@@ -300,12 +301,12 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 resolution on a PR the same session intends to merge is not that session's call. The requirement
 is a property, not one mechanism: the context adjudicating the deferral must not be the context
 trying to merge. Where the invocation has an independent resolution dispatch, it goes there —
-`skills/babysit-prs/reference/independent-resolution.md` owns that contract, and two invocations
-reach it: any `babysit-prs` run whose orchestrator can dispatch a fresh subagent, and
-`babysit-loop`'s explicit `autopilot` + `--merge c3-this-run` widening
-(`skills/babysit-loop/reference/pre-escalation-dispatch.md`). Where it has none — no subagent
-tools, or a bound the dispatch cannot cross — the session neither resolves the thread nor merges on
-it: report the PR with
+`${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/independent-resolution.md` owns that contract,
+and two invocations reach it: any `babysit-prs` run whose orchestrator can dispatch a fresh
+subagent, and `babysit-loop`'s explicit `autopilot` + `--merge c3-this-run` widening
+(`${CLAUDE_PLUGIN_ROOT}/skills/babysit-loop/reference/pre-escalation-dispatch.md`).
+Where it has none — no subagent tools, or a bound the dispatch cannot cross — the session neither
+resolves the thread nor merges on it: report the PR with
 the grounded deferral named and leave the call to the user. Fail closed — a path with no
 independent authorization available has no self-authorized route to merge over its own deferral.
 Outside a merge-capable tier the classification stands alone, because nothing merges on it.

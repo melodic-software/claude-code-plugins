@@ -1,5 +1,16 @@
 # *Essential Guide to Lyric Form and Structure* (1991) Song-Form Worked Examples
 
+## Contents
+
+- ["This Bottle and Me" — Verse/Refrain (Chapter 6)](#this-bottle-and-me--verserefrain-chapter-6)
+- ["Southern Comfort" — Verse/Chorus (Chapter 6)](#southern-comfort--versechorus-chapter-6)
+- ["Teddy Doesn't Live Here Anymore" — Verse/Trans-Bridge/Chorus (Chapter 6)](#teddy-doesnt-live-here-anymore--versetrans-bridgechorus-chapter-6)
+- ["You Never Let Me Down" — Verse/Trans-Bridge/Refrain (Chapter 6)](#you-never-let-me-down--versetrans-bridgerefrain-chapter-6)
+- [Common threads across all four](#common-threads-across-all-four)
+- [Addendum — "SEEING SOMEONE ELSE" (Chapter 7, not Chapter 6)](#addendum--seeing-someone-else-chapter-7-not-chapter-6)
+- [Cross-references](#cross-references)
+- [When to load this file](#when-to-load-this-file)
+
 Pat Pattison - *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 6. These are the densest pedagogy in the book — four worked
 mechanism analyses on Pat's own demonstration lyrics, covering verse/refrain

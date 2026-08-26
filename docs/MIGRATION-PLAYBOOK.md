@@ -1,5 +1,30 @@
 # Migration playbook
 
+## Contents
+
+- [Organization — one plugin per cohesive concern](#organization--one-plugin-per-cohesive-concern)
+- [Naming](#naming)
+- [Extensibility model — what works today](#extensibility-model--what-works-today)
+- [Extensibility contract v2.1 — the four seams](#extensibility-contract-v21--the-four-seams)
+- [Convention-resolution ladder](#convention-resolution-ladder)
+- [Setup action — required iff the criteria hold](#setup-action--required-iff-the-criteria-hold)
+- [Upstream sync — every upstream-sourced plugin ships an update path](#upstream-sync--every-upstream-sourced-plugin-ships-an-update-path)
+- [Evals — warrant policy and consumer-verify recipe](#evals--warrant-policy-and-consumer-verify-recipe)
+- [Shared tools and scripts seam](#shared-tools-and-scripts-seam)
+- [Version pinning and update delivery](#version-pinning-and-update-delivery)
+- [Retiring a published plugin](#retiring-a-published-plugin)
+- [Persistence, configuration & external integration](#persistence-configuration--external-integration)
+- [MCP servers as a plugin component — carry decision](#mcp-servers-as-a-plugin-component--carry-decision)
+- [Plugin-form caveats (works in-repo, breaks as a plugin)](#plugin-form-caveats-works-in-repo-breaks-as-a-plugin)
+- [Per-plugin migration gate](#per-plugin-migration-gate)
+- [Migration order, PRs & parallelization](#migration-order-prs--parallelization)
+- [Plugin-acceptance security review](#plugin-acceptance-security-review)
+- [Local development loop](#local-development-loop)
+- [Fresh-consumer onboarding](#fresh-consumer-onboarding)
+- [Reintegration — a consumer adopts the published plugin](#reintegration--a-consumer-adopts-the-published-plugin)
+- [What to wait on / avoid for now](#what-to-wait-on--avoid-for-now)
+- [Decision records](#decision-records)
+
 How skills, hooks, and agents become reusable plugins in this marketplace. One plugin is migrated at a
 time: lift it out, make it work in plugin form and in any repo, build in configuration and extensibility,
 vet it against best practices, then publish.

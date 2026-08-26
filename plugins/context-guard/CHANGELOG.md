@@ -5,6 +5,20 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.24]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** 1 reference file in this plugin gained one.
+
+  The predicate is `audit-progressive-disclosure`'s own: a reference file over 300 lines with no
+  table of contents, which both official sources agree on by that length. Scope came from the
+  detector's tier classification rather than a line count, so `SKILL.md` files are excluded by
+  construction: they are invocation tier, not the on-demand reference tier the rule names. Files
+  with fewer than five H2s were held out, because a three-row index on a long file earns nothing and
+  the doctrine offers a grep recipe instead. Purely additive, with anchors generated from each
+  file's own headings and verified to resolve. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.7.23]
 
 ### Changed

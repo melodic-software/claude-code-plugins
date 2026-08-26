@@ -1,5 +1,36 @@
 # Rhyme Fundamentals
 
+## Contents
+
+- [2014 Preface](#2014-preface)
+- [Image inventory](#image-inventory)
+- [The five structural areas](#the-five-structural-areas)
+- [Anchor stance — sonic roadmap](#anchor-stance--sonic-roadmap)
+- [Introduction — "Do I Have To Rhyme?"](#introduction--do-i-have-to-rhyme)
+- [Core idea](#core-idea)
+- [What counts as rhyme](#what-counts-as-rhyme)
+- [Identity is not rhyme](#identity-is-not-rhyme)
+- [Perfect rhyme — Pat prefers "fully resolved"](#perfect-rhyme--pat-prefers-fully-resolved)
+- ["Shaking Hands" — what the heading actually means](#shaking-hands--what-the-heading-actually-means)
+- [Masculine / feminine / mosaic](#masculine--feminine--mosaic)
+- [Secondary stress — the "appreciate" case](#secondary-stress--the-appreciate-case)
+- [Finding vs. using — the fundamentals claim](#finding-vs-using--the-fundamentals-claim)
+- [Masculine rhyme](#masculine-rhyme)
+- [Feminine rhyme](#feminine-rhyme)
+- [Rhyme scheme notation](#rhyme-scheme-notation)
+- [Rhyme and balance](#rhyme-and-balance)
+- [Rhyme and pace](#rhyme-and-pace)
+- [Rhyme and flow](#rhyme-and-flow)
+- [Open and closed systems](#open-and-closed-systems)
+- [Closure types](#closure-types)
+- [Exercises to preserve](#exercises-to-preserve)
+- [Revision moves](#revision-moves)
+- [Identity vs rhyme — the three-condition test](#identity-vs-rhyme--the-three-condition-test)
+- [Sound repetition vs order repetition — two forces](#sound-repetition-vs-order-repetition--two-forces)
+- [The accelerator metaphor](#the-accelerator-metaphor)
+- [Ambiguity as a craft tool (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4)](#ambiguity-as-a-craft-tool-essential-guide-to-lyric-form-and-structure-1991-chapter-4)
+- [Cross-references](#cross-references)
+
 Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 4.
 Extended by *Essential Guide to Rhyming* (2014), Introduction and Chapters 1-2.
 

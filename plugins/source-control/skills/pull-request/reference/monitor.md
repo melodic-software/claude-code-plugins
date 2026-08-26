@@ -1,5 +1,20 @@
 # Phase 3: Monitor (CI + comments + fixes)
 
+## Contents
+
+- [3.0 Expected PR actors and merge readiness](#30-expected-pr-actors-and-merge-readiness)
+- [3.0.0 Cloud session baseline poll](#300-cloud-session-baseline-poll)
+- [3.0.05 Push-channel primary path (local CLI sessions, optional)](#3005-push-channel-primary-path-local-cli-sessions-optional)
+- [3.0.1 Auto-watch setup (Monitor tool)](#301-auto-watch-setup-monitor-tool)
+- [3.0.5 Loop-aware monitoring (self-termination support)](#305-loop-aware-monitoring-self-termination-support)
+- [3.0.6 Multi-PR scan (after readiness-pass, merge, or close)](#306-multi-pr-scan-after-readiness-pass-merge-or-close)
+- [3.1 Monitoring loop (per-push)](#31-monitoring-loop-per-push)
+- [3.1.5 Security scan evaluation (MANDATORY)](#315-security-scan-evaluation-mandatory)
+- [3.2 CI failure resolution (RESEARCH-GATED)](#32-ci-failure-resolution-research-gated)
+- [3.3 PR comment evaluation (WORKFLOW-GATED)](#33-pr-comment-evaluation-workflow-gated)
+- [3.4 Final monitoring report (readiness-gated)](#34-final-monitoring-report-readiness-gated)
+- [3.5 Monitor integration](#35-monitor-integration)
+
 Phase 3 is an **async event loop**, not a sequential pipeline. After every push (initial PR creation, CI fix, comment fix), monitor CI status AND process comments concurrently as they arrive. Don't wait for all CI checks to complete before reading comments — bots post at different times.
 
 ## 3.0 Expected PR actors and merge readiness

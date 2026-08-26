@@ -3,6 +3,43 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.9]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** 2 reference files in this plugin gained one.
+
+  The predicate is `audit-progressive-disclosure`'s own: a reference file over 300 lines with no
+  table of contents, which both official sources agree on by that length. Scope came from the
+  detector's tier classification rather than a line count, so `SKILL.md` files are excluded by
+  construction: they are invocation tier, not the on-demand reference tier the rule names. Files
+  with fewer than five H2s were held out, because a three-row index on a long file earns nothing and
+  the doctrine offers a grep recipe instead. Purely additive, with anchors generated from each
+  file's own headings and verified to resolve. Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.40.8]
+
+### Changed
+
+- **`audit-pass` reaches `reference/terms.md` and `reference/finding-identity.md` in one hop.** Both
+  were reachable only through `reference/run-contract.md`, and every other leaf opens by assuming
+  `terms.md`, so the file furthest from the hub was the one every other file depended on. A
+  `Reference index. Load on demand` section now links both directly with a read condition per row;
+  `run-contract.md` keeps its own pointers. Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.40.7]
+
+### Changed
+
+- **Two reaches into another plugin's skill internals now route through the owning skill.**
+  `audit-pass`'s `reference/run-state-and-resumability.md` cited
+  `plugins/claude-ops/skills/lanes/context/restart-consumer.md` for the lease-staleness precedent,
+  and `audit-instructions`' `reference/criteria.md` cited
+  `plugins/code-tidying/skills/tidy/reference/tidyings.md` as the canonical restraint-clause shape.
+  Both now name `/claude-ops:lanes` and `/code-tidying:tidy`. Plugins install independently, so a
+  path into another plugin's private surface can be genuinely absent at read time (ADR 0018).
+  Docs-hygiene sweep, L4-encapsulation.
+
 ## [0.40.6]
 
 ### Changed

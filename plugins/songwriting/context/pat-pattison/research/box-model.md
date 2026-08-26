@@ -1,5 +1,19 @@
 # Box Model — Verse Development Across Time
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Box weight rule](#box-weight-rule)
+- [Put separate ideas in separate boxes](#put-separate-ideas-in-separate-boxes)
+- [Division-of-labor strategies](#division-of-labor-strategies)
+- [A sagging middle box: "Unanswered Prayers"](#a-sagging-middle-box-unanswered-prayers)
+- [The "what came before?" diagnostic](#the-what-came-before-diagnostic)
+- [Travelogue vs same-color](#travelogue-vs-same-color)
+- [Box weight failure modes](#box-weight-failure-modes)
+- [Repaintable chorus across boxes](#repaintable-chorus-across-boxes)
+- [Cross-references](#cross-references)
+- [When to load this file](#when-to-load-this-file)
+
 Pat Pattison - *Writing Better Lyrics* (2009), Chapters 6-9. Boxes are
 introduced in Chapter 6 (Productive Repetition) and carried through Chapters
 7-9. The model governs verse development, repetition strategy, second-verse

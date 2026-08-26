@@ -72,7 +72,7 @@ written, so these counts are a floor on what has since shipped, not a ceiling:
 | L4 encapsulation | 0 of 34. Sampled 16 of the 34 citations at the stamp and all 16 were still open |
 | L5 noise | 7 of 10 had landed. Still open: the two `babysit-prs` `negation` findings and the `babysit-prs` `plan-reference` finding |
 | L6 compression | 0 of 1 |
-| L7 write-for-agents | 9 of 13 had landed. Still open at the stamp: `H-1`, the `I-1` batch of 31 that the lane recommends declining, and the `write-for-agents` doctrine edit |
+| L7 write-for-agents | 9 of 13 had landed. Still open at the stamp: `H-1` and the `write-for-agents` doctrine edit. The `I-1` batch is settled and closed as of 2026-08-26: declined, with its count corrected from 31 across 16 files to 104 across 26 |
 | L8 write-for-humans | Partly landed; not individually re-measured, because the class fixes (`Am1`, `M3`) are mechanical enough that a match against the quoted shape settles each site faster than a stale status column would |
 | L2 structure, L3 | Not observed to move |
 
@@ -220,12 +220,43 @@ the repository already contains three correct versions of the section:
 | `plugins/discovery/skills/research-deep/SKILL.md:120` | `## See also` | 1 |
 | `plugins/source-control/skills/babysit-prs/SKILL.md:409` | `## References` | 1 |
 | `plugins/kindle-dedrm/skills/manage/SKILL.md:154` | `## Cross-references` | 1 |
-| `plugins/planning/skills/interview/SKILL.md` | spoke listed under `## What this skill does NOT do` | 1 |
+| `plugins/planning/skills/interview/SKILL.md` | spoke listed under `## What this skill does NOT do`. **Open, and deliberately left standing. See below** | 1 |
 | `plugins/work-items/skills/onboard-adapter/SKILL.md:203` | `## Related` | 1 |
 | `docs/topics/ai-adoption-ladder/design/design-threads.md` | nine bare-name citations, awareness only | 1 |
 
 Three of L7's P3 pointer findings overlap this shape. Where both fire on one line, take the
 blind-pointer rewrite, which is fuller, and drop the P3 fix rather than applying both.
+
+**Correction, 2026-08-26.** That cross-lane note has no referent. It and the L7 note that
+`B-1` through `B-4` "also fail L2's blind-pointer shape" both point at
+`plugins/claude-ops/skills/audit-install-state/SKILL.md`, which the table above never listed: its
+eleven rows sum to exactly 22 without it. The two notes also disagree with each other on the count,
+three against four. Independently, all four `B-1` through `B-4` replacements are already present in
+that file, so those findings are closed under the decay rule, and they were never the trailing-index
+shape anyway: each is a one-line pointer closing a numbered phase section, where the enclosing
+heading supplies the *when* and the P3 fix supplied the *what*. Converting them to a table would
+move phase-local routing away from the phase it routes.
+
+**Applied 2026-08-26: 18 of 22, in ten trailing-index rewrites and eight inline when-clauses.**
+Three sites were declined as no longer holding. `claude-ops` `morning-brief` ships no `context/` or
+`reference/` directory at all, so its `## Cross-references` names two sibling-skill boundaries and
+no spoke; `claude-ops` `observability`'s `## Cross-references` is a single disambiguation line, and
+its real spoke index is the `## Context ladder (read on demand)` section this remediation copies as
+a model. The `audit-encapsulation` shared-fallback sentence was fixed too, though the table counted
+only five skills carrying it, so the sentence does not drift across the six.
+
+**`plugins/planning/skills/interview/SKILL.md` is the one site left standing, and the reason is a
+cost, not a doubt about the finding.** The blind pointer is real. It sits inside
+`## What this skill does NOT do`, and `plugins/planning/tests/interview-defenses.test.sh` pins that
+exact section by content digest, under the assertion `SKILL.md "does NOT do" section is unchanged
+(the fudge prohibition lives here)`. Any fix re-baselines that digest, including the structurally
+better fix of moving the misfiled reference row out of a prohibitions section, because removing the
+line changes the digest too. The pin exists to make an unreviewed edit to a safety prohibition
+fail loudly. Spending it on a pointer's when-clause trades a standing defense for a Tier 3 prose
+improvement, so the finding stays open rather than being paid for at that price. **Re-opening it is
+a human's call**: either accept a digest re-baseline for a cosmetic fix, or leave the pointer as it
+is. The underlying misfiling, a reference row living under a prohibitions heading, is the more
+useful thing to fix if anyone touches that section for another reason.
 
 ### `deep-nesting`, 6
 
@@ -575,6 +606,24 @@ own audit will later walk, judge on carry cost, and quite possibly recommend ret
 Drop `quite`. This is the only proposed cut in the whole sweep that is a plain markdown edit, and it
 still needs the semantic-diff gate that `docs-hygiene:compress` makes mandatory.
 
+**Settled disposition, 2026-08-26: declined, and this row is closed rather than open.** Two gates
+were run against it and both decline it.
+
+`compress`'s own ship rule is `<3% AND 0 semantic-loss → REVERT` (`SKILL.md` "Flags", where `--force`
+exists precisely so a user can own a sub-3% diff). Dropping `quite` is 6 bytes against a file of
+several kilobytes, roughly 0.1%, and carries no semantic loss by construction. So the skill that
+proposed the cut is the same skill that reverts it. Nothing in the sweep's scope supplied the
+`--force` that would override that.
+
+The second gate was the independent one. `ai-slop`'s `rule-stacked-hedging` detector was run
+directly against the file and returned zero findings across all fourteen of its rules. So "quite
+possibly" is not a hedge this repo's own prose standard recognises, and the finding has no
+justification outside `compress` either.
+
+Applying it anyway would have meant a one-word commit that the proposing skill's ship gate rejects,
+justified by a prose rule that does not fire. Re-opening this row needs a new argument, not a
+re-reading of the old one.
+
 Two more were held at SKIP and are flagged for `write-for-humans` rather than compression, because
 the shorter form needs the surrounding clause re-punctuated, which is a rewrite rather than a word
 drop: `plugins/architecture/skills/improve/actions/deepening.md:56` and
@@ -600,7 +649,7 @@ text exactly.
 | J-1 | `plugins/playwright/skills/playwright/reference/storage-and-auth.md:53` | T3 | `See [running-code.md](running-code.md).` | `Running arbitrary page code: see [running-code.md](running-code.md).` |
 | J-2 | `plugins/playwright/skills/playwright/reference/commands.md:52` | T3 | `See [snapshots-and-refs.md](snapshots-and-refs.md) for ref system.` | `Ref system: see [snapshots-and-refs.md](snapshots-and-refs.md).` |
 | J-3 | `plugins/playwright/skills/playwright/reference/commands.md:129` | T3 | see below | see below |
-| I-1 | 31 pointers across 16 files under `plugins/songwriting/context/pat-pattison/` and `plugins/songwriting/skills/suno/context/` | T3 | House `See <link> for <payload>` pattern | **Recommended disposition: do not apply.** One house pattern applied consistently, not 31 defects. Severity S3 on all 31, and this sub-tree is cross-referenced densely enough that a partial rewrite leaves two competing pointer styles in one reading path. Apply all 31 in one edit or none |
+| I-1 | **104** pointers across **26** files under `plugins/songwriting/context/pat-pattison/` and `plugins/songwriting/skills/suno/context/`. Recorded as 31 across 16; that count was wrong, corrected below | T3 | Routing verb opens the unit, in two sub-shapes | **Settled 2026-08-26: declined. The files are left untouched.** Grounds and the corrected census are held out of the table below, along with a two-site residual that this decline does **not** cover and that stays open |
 
 B-1 through B-4 also fail L2's blind-pointer shape. If L2's fuller rewrite is applied, drop these
 four rather than applying both.
@@ -632,6 +681,124 @@ Both halves state their payload, so only the opening routing verb fails. Replace
 ```text
 Session isolation with `-s=<name>`: see [sessions.md](sessions.md). `--headed` on Windows: see [windows-quirks.md](windows-quirks.md).
 ```
+
+**I-1, settled 2026-08-26: declined.** The files are left untouched and this row is closed. What
+follows is the whole basis, including a corrected census, so that re-opening it needs a new argument
+rather than a re-reading.
+
+**The recorded count was wrong, and so was the first correction of it.** A paragraph-first census of
+both trees (soft-wrapped lines joined into logical units, code fences and `>` blockquotes stripped,
+requiring a link or a cited `.md` target immediately after the verb) finds **104** sites where a
+routing verb opens the reading unit or the sentence, across **26** files. Not 31 across 16. An
+earlier pass that matched verb and target on the same physical line reported 72 across 23, and was
+wrong for a reason worth recording: roughly a quarter of these pointers wrap, with `See` ending one
+line and its link opening the next. Any re-run must join wrapped lines before counting.
+
+Two anchors make the census checkable without re-implementing it. Both are exact:
+
+- **110.** Occurrences of capital `See` outside `>` blockquotes across the two trees. That is the
+  ceiling; the census keeps 104 of them and drops the rest as parenthetical or mid-sentence.
+- **52.** `research/workflows.md` holds 52 sites, exactly half the population, and that equals every
+  capital `See` in the file. No judgment call moves that number.
+
+| Sub-shape | Sites | Files | Example |
+|---|---:|---:|---|
+| `See <link> for <payload>` | ~32 | 20 | `See [meter](meter.md) for the stress notation this depends on.` |
+| Bare pointer, no payload to move | ~72 | 17 | `See [hook](hook.md).` |
+
+The headline 104 and the two-way split carry about a site or two of method sensitivity at the
+margin: an independent re-count landed at 105 and split it 34 / 71, differing only on a handful of
+table-cell and bolded-lead boundaries where "does the unit start here" is a judgment call. Treat 104
+as accurate to plus or minus 2 and the two anchors above as exact. Nothing in the disposition turns
+on the difference. Also deliberately outside the count, so a re-run does not re-add them: 8
+parenthetical citations of the form `(see point-of-view.md)`, which already front-load their payload
+and are the correct form rather than the defect; mid-sentence uses where the payload precedes the
+verb; and every hit inside quoted book text under `>`.
+
+**Half the population has no payload to front-load, and its reading unit is already correct.** 72 of
+the 104 are bare pointers, and 52 sit in `research/workflows.md`, a numbered checklist where every
+step opens on a bolded term that carries the routing decision by itself:
+
+```text
+9. **Hook check** — is the title in a hot spot? Has hook rhythm been
+   established before the title arrives? See [hook](hook.md).
+```
+
+The prescribed transform, `<payload>: see <link>.`, yields `Hook: see [hook](hook.md).`: a tautology
+that front-loads nothing `**Hook check**` did not front-load two lines earlier, and that discards
+the step's question in the process. The reading unit here is the numbered step, not the sentence,
+and the step already satisfies the doctrine. Applying the transform to these would mean inventing
+payload text, which is a content edit rather than a formatting one, inside a tree whose `README.md`
+declares fidelity to a third party's printed material.
+
+**All-or-none is therefore none.** The lane's own condition was "apply all in one edit or none". 52
+of the 104 cannot take the transform at all, so "apply all" is not an available option. Applying
+only the 32 `for <payload>` sites produces exactly the outcome the lane warned against, two competing
+pointer styles inside one reading path, because `workflows.md` is the hub that routes into
+`prosody.md`, `hook.md`, `five-compositional-elements.md` and the rest, and those are where most of
+the 32 live. The lane's structural instinct was right even though its facts were not.
+
+**On the doctrine itself.**
+`plugins/docs-hygiene/skills/write-for-agents/SKILL.md`, "Write pointers that cover their branches",
+states the rationale P3 serves: "A pointer is a routing instruction; the reader decides whether to
+follow it from the pointer text alone, without opening the target." Its rule, verbatim:
+
+```text
+- **Front-load the leading word.** Open with the term the reader is matching on ("Deploys:
+  see…", never "See the following doc for information about deploys").
+```
+
+Taken literally, a pointer opening `See` on a bracketed link fails that rule; that much is
+conceded, and this decline does not rest on arguing otherwise. What it rests on is the rationale.
+The doctrine's own counter-example names its target contentlessly ("the following doc") and buries
+the term at the end, so a reader cannot route without opening it. Here the link text *is* the domain
+term (`hook`, `cliche`, `meter`, `rhyme types`) and it sits in word two, or else the bolded step
+label above it carries the term. The routing decision is available from the pointer text in every
+one of the 104. The letter is violated; the purpose is not. That is a real but low-grade defect, and
+it is what S3 means.
+
+**Not vendor material, and that cuts against the row rather than for it.**
+`plugins/songwriting/context/pat-pattison/` is not under `plugins/*/skills/*/vendor/**`, so
+`.claude/rules/vendor-docs-are-not-style.md` grants it no exemption, and `.claude/ai-slop.json`'s
+`excluded_paths` does not list it either: the tree is audited as this repository's own prose. The
+decline therefore rests on the doctrine's purpose being met, never on an exemption. What the tree
+does carry is a standing owner ruling against zero-content sweeps of this kind, at
+`plugins/songwriting/context/pat-pattison/research/book-references.md:18`: "Do not sweep, measure,
+audit, or open work items on punctuation glyphs ... Spend the effort on missing content, invented
+content, and wrong citations instead." That ruling is scoped to glyphs and does not itself decide
+word order, but the cost it records does apply: per `.claude/ai-slop.json`, the changelog-parity gate
+treats any edit under `plugins/<name>/` as version reuse, so this batch would publish a `songwriting`
+release for a reordering that adds no information to any pointer.
+
+**Tier.** Both trees are on-demand (T3) per
+`plugins/docs-hygiene/skills/audit-progressive-disclosure/context/tier-model.md`, "The three tiers",
+where bundled `context/` and `reference/` files are "Zero cost until read". `write-for-agents` grades
+its own force by that cost: "the auto-read surfaces (CLAUDE.md scopes, `.claude/rules`, auto-memory,
+and their kin) are the high-value core because their cost recurs every session ... Write differently
+for an always-loaded surface than for an on-demand one." The doctrine applies at T3, but not with
+T2's force, and nothing in these 104 clears the lower bar.
+
+**The residual: two sites that are not covered by this decline, and are now APPLIED.** Two sites
+matched the doctrine's counter-example rather than merely its letter, because the target was named
+contentlessly and the payload trailed it: `plugins/songwriting/skills/suno/context/troubleshoot.md`
+at `:65` and `:158`. Both opened `See` on a link whose text was the bare filename `SKILL.md`, then
+trailed the payload ("on where first-hand observations sit relative to the ladder"). Unlike the
+other 102, there was a real payload to move, so front-loading them was a clean, meaning-preserving
+transform.
+
+Both shipped in the same change set as this record, reading:
+
+```text
+Where a first-hand observation sits relative to the confidence ladder: see [Confidence flags](../SKILL.md).
+```
+
+The link text names the target section rather than the file, which is the half the counter-example
+was actually about.
+
+They were never declined. They were adjudicated inside a 104-site batch they do not belong to, and
+the cost argument that governs the batch never governed them: `plugins/songwriting/` was already
+being bumped for the `suno` orphan-spoke fix in the same change set, so the release these two would
+have "cost" was already being published.
 
 ### P7, a step defers a fact it needs to an unnamed location, 2
 

@@ -1,5 +1,18 @@
 # LSP viability for `code-tidying:audit-dead-code`
 
+## Contents
+
+- [Verdict, in one paragraph](#verdict-in-one-paragraph)
+- [1. Can the algorithm be built from LSP primitives?](#1-can-the-algorithm-be-built-from-lsp-primitives)
+- [2 + 3. Per-server capability table](#2--3-per-server-capability-table)
+- [4. The build/restore question — per server](#4-the-buildrestore-question--per-server)
+- [5. Claude Code's LSP support — is it reachable from a skill?](#5-claude-codes-lsp-support--is-it-reachable-from-a-skill)
+- [6. Practicality](#6-practicality)
+- [7. Prior art](#7-prior-art)
+- [Recommendation against `PLAN.md` revision 4](#recommendation-against-planmd-revision-4)
+- [Reproduction](#reproduction)
+- [Sources](#sources)
+
 > **Graduated** from the `dead-code-detection-skill` contract slice when
 > `/code-tidying:audit-dead-code` shipped. Its decision-relevant outcomes, now reflected in the
 > shipped skill: the `LSP` tool is model-callable only and has no batch mode, so it is an optional

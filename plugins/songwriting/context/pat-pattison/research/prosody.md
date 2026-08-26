@@ -1,5 +1,36 @@
 # Prosody
 
+## Contents
+
+- [Image inventory](#image-inventory)
+- [Core idea](#core-idea)
+- [Stable vs unstable](#stable-vs-unstable)
+- [Five structural elements](#five-structural-elements)
+- [Motion notation](#motion-notation)
+- [Number of lines](#number-of-lines)
+- [Length of lines](#length-of-lines)
+- [Rhythm of lines](#rhythm-of-lines)
+- [Rhyme scheme](#rhyme-scheme)
+- [Rhyme type](#rhyme-type)
+- [The five elements across one whole song](#the-five-elements-across-one-whole-song)
+- [Motion tools](#motion-tools)
+- [Closure across whole sections](#closure-across-whole-sections)
+- [Targeting the next section](#targeting-the-next-section)
+- [Stability reference](#stability-reference)
+- [Sequence](#sequence)
+- [The Structural Pentad — the 1991 frame under all of this](#the-structural-pentad--the-1991-frame-under-all-of-this)
+- [The Pentad carried onto rhyme (*Essential Guide to Lyric Form and Structure* (1991), Chapter 4)](#the-pentad-carried-onto-rhyme-essential-guide-to-lyric-form-and-structure-1991-chapter-4)
+- [Analysis workflow](#analysis-workflow)
+- [Coaching prompts](#coaching-prompts)
+- [Revision moves](#revision-moves)
+- [Motion creates e-motion — the motion controllers](#motion-creates-e-motion--the-motion-controllers)
+- [Greedy spots — the anti-pattern](#greedy-spots--the-anti-pattern)
+- [Ordinary-language preservation](#ordinary-language-preservation)
+- [Tone of voice as a stability lever](#tone-of-voice-as-a-stability-lever)
+- [Origin note — *Essential Guide to Lyric Form and Structure* (1991), Chapter 2](#origin-note--essential-guide-to-lyric-form-and-structure-1991-chapter-2)
+- [Three phrasing types (Berklee Online OSONG-525)](#three-phrasing-types-berklee-online-osong-525)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Writing Better Lyrics* (2009), Chapters 18-19; extended via
 *Essential Guide to Lyric Form and Structure* (1991) Chapters 3-4
 (Structural Pentad); Berklee Online "Prosody in Music and Songwriting"

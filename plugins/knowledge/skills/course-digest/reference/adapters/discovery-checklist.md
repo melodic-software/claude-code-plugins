@@ -1,5 +1,18 @@
 # Provider Discovery Checklist
 
+## Contents
+
+- [Phase 1: Platform Identification](#phase-1-platform-identification)
+- [Phase 2: Lesson Content Survey](#phase-2-lesson-content-survey)
+- [Phase 3: Transcript Extraction](#phase-3-transcript-extraction)
+- [Phase 4: Video Frame Extraction](#phase-4-video-frame-extraction)
+- [Phase 5: Resource Extraction](#phase-5-resource-extraction)
+- [Phase 6: Authentication Persistence](#phase-6-authentication-persistence)
+- [Phase 7: URL Patterns](#phase-7-url-patterns)
+- [Phase 8: Verification Matrix](#phase-8-verification-matrix)
+- [Phase 9: Platform-Specific Gotchas](#phase-9-platform-specific-gotchas)
+- [Regression Checklist (for existing providers)](#regression-checklist-for-existing-providers)
+
 Systematic exploration process for adding a new course platform provider to the extraction pipeline, or re-verifying an existing one after platform updates.
 
 **When to use**: before writing any adapter code for a new platform, or when extraction starts failing on an existing platform (DOM changes, auth changes, new content types).

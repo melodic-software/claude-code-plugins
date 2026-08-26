@@ -1,5 +1,14 @@
 # Rightsize instruction surfaces by incumbent-first arbitration, not blanket constraint deletion
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+- [Consequences](#consequences)
+- [Execution status and errata](#execution-status-and-errata)
+- [The conflict definition D-4 ships against](#the-conflict-definition-d-4-ships-against)
+- [Addendum (2026-08-15): C6 population widened — user↔project now operationally covered](#addendum-2026-08-15-c6-population-widened--userproject-now-operationally-covered)
+
 - Status: accepted
 - Date: 2026-07-25
 

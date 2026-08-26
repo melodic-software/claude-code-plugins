@@ -49,11 +49,12 @@ fi
 awk -v want_header="$header" -v mode="$mode" -v doc="$doc" '
 BEGIN { in_table = 0; seen_header = 0; rows = 0; errors = 0 }
 
-# The findings-file table belongs to default-mode.md. Restating it here is the
+# The findings-file table belongs to plugins/review/reference/findings-file-shape.md.
+# Restating it here is the
 # pointer-not-copy failure this convention is most likely to commit, because the
 # crosswalk sits beside it.
 /^\| Rank \| Tier \| Confidence/ {
-  printf "RESTATED: %s:%d reproduces the findings-file table header, which default-mode.md owns.\n", doc, NR > "/dev/stderr"
+  printf "RESTATED: %s:%d reproduces the findings-file table header, which findings-file-shape.md owns.\n", doc, NR > "/dev/stderr"
   errors++
 }
 

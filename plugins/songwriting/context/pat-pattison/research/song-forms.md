@@ -1,5 +1,38 @@
 # Song Forms
 
+## Contents
+
+- [Image inventory](#image-inventory)
+- [Core idea](#core-idea)
+- [Potent and impotent packages](#potent-and-impotent-packages)
+- [V/V/Ch Risk Repair](#vvch-risk-repair)
+- [Repetition risk audit](#repetition-risk-audit)
+- [Three-System Verse/Chorus Risk](#three-system-versechorus-risk)
+- [Bridge Validity](#bridge-validity)
+- [Home base principle](#home-base-principle)
+- [Verse / Refrain](#verse--refrain)
+- [Verse / Refrain with Bridge](#verse--refrain-with-bridge)
+- [AABA](#aaba)
+- [Verse / Chorus](#verse--chorus)
+- [Verse / Chorus with Bridge](#verse--chorus-with-bridge)
+- [Internally shifting verse / chorus](#internally-shifting-verse--chorus)
+- [Verse / Transitional Bridge / Chorus](#verse--transitional-bridge--chorus)
+- [Verse / Transitional Bridge / Refrain](#verse--transitional-bridge--refrain)
+- [ABAB as complete punch](#abab-as-complete-punch)
+- [Second verse strategy](#second-verse-strategy)
+- [Hook setup by form](#hook-setup-by-form)
+- [Parallel sections](#parallel-sections)
+- [Exercises to preserve](#exercises-to-preserve)
+- [Revision workflow](#revision-workflow)
+- [Common fixes](#common-fixes)
+- [Limerick principle — home base at section level](#limerick-principle--home-base-at-section-level)
+- [Form potency — when delivery matches package](#form-potency--when-delivery-matches-package)
+- ["Four times is a lot" — V/V/Ch/V/V/Ch risk](#four-times-is-a-lot--vvchvvch-risk)
+- [Third-system risk — V/Ch/V/Ch/V/Ch](#third-system-risk--vchvchvch)
+- [Song system](#song-system)
+- [*Essential Guide to Lyric Form and Structure* (1991) worked examples](#essential-guide-to-lyric-form-and-structure-1991-worked-examples)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Essential Guide to Lyric Form and Structure*
 (1991), Chapter 6. Pat Pattison - *Writing Better Lyrics* (2009),
 Chapters 22-23.

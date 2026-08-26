@@ -97,7 +97,7 @@ Run the 5-stage pipeline in [context/findings-normalization.md](context/findings
 
 ## Step 3: Persist findings
 
-Run the self-ignore guard ("Shared inputs"), then write the ranked report into the resolved findings location as `<UTC-timestamp>-<topic>.md`, with `<topic>` sanitized to `[a-z0-9._-]`. The timestamp format is the binding's ("Shared inputs"), not restated here. Relativize machine paths BEFORE writing. Findings cite `file:line` repo-relative only. File-name collision rule and file shape contract: [context/default-mode.md](context/default-mode.md) "Findings-writer contract" and "Findings-file shape".
+Run the self-ignore guard ("Shared inputs"), then write the ranked report into the resolved findings location as `<UTC-timestamp>-<topic>.md`, with `<topic>` sanitized to `[a-z0-9._-]`. The timestamp format is the binding's ("Shared inputs"), not restated here. Relativize machine paths BEFORE writing. Findings cite `file:line` repo-relative only. File-name collision rule and file shape contract: [`${CLAUDE_PLUGIN_ROOT}/reference/findings-file-shape.md`](../../reference/findings-file-shape.md) "Findings-writer contract" and "Findings-file shape".
 
 ## Orchestrator plugins
 

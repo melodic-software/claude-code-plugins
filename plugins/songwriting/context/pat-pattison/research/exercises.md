@@ -1,5 +1,18 @@
 # Exercises — *Essential Guide to Lyric Form and Structure* (1991) and *Essential Guide to Rhyming* (2014)
 
+## Contents
+
+- [How to use](#how-to-use)
+- [*Essential Guide to Lyric Form and Structure* (1991) — Phrasing exercises (Chapters 1-2)](#essential-guide-to-lyric-form-and-structure-1991--phrasing-exercises-chapters-1-2)
+- [*Essential Guide to Lyric Form and Structure* (1991) — Meter exercises (Chapter 3)](#essential-guide-to-lyric-form-and-structure-1991--meter-exercises-chapter-3)
+- [*Essential Guide to Lyric Form and Structure* (1991) — Rhyme exercises (Chapter 4)](#essential-guide-to-lyric-form-and-structure-1991--rhyme-exercises-chapter-4)
+- [*Essential Guide to Lyric Form and Structure* (1991) — Form exercises (Chapter 5)](#essential-guide-to-lyric-form-and-structure-1991--form-exercises-chapter-5)
+- [*Essential Guide to Lyric Form and Structure* (1991) — Song forms exercises (Chapter 6)](#essential-guide-to-lyric-form-and-structure-1991--song-forms-exercises-chapter-6)
+- [*Essential Guide to Lyric Form and Structure* (1991) — Hook exercises (Chapter 7)](#essential-guide-to-lyric-form-and-structure-1991--hook-exercises-chapter-7)
+- [*Essential Guide to Rhyming* (2014) — Rhyme search exercises (Chapters 4-6)](#essential-guide-to-rhyming-2014--rhyme-search-exercises-chapters-4-6)
+- [Coaching the exercises](#coaching-the-exercises)
+- [Cross-references](#cross-references)
+
 Pat Pattison — preserves the numbered exercise series from
 *Essential Guide to Lyric Form and Structure* (1991), Chapters 1-7 and
 *Essential Guide to Rhyming* (2014), Chapters 4-6.

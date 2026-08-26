@@ -62,7 +62,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 4. Join no more than the phrasing needs, then regenerate and compare against the version without the joins — every join gives up a melodic boundary you may have wanted
 5. Do not "fix" this by cutting words or shortening the section
 
-**Evidence:** the line-break mechanism is established at MEDIUM and is not in question. The **failure edge** — that short-line stacks over-separate, and that joining at the prompt layer fixes it — is `writer-observed, single session (2026-08-12), n=1 — not externally corroborated`: one five-line clipped bridge on v5.5, fixed on regeneration by joining lines in the Suno field while the page lyric kept its lineation. See [SKILL.md](../SKILL.md) on where first-hand observations sit relative to the confidence ladder. Full mechanism statement: [lyrics.md](lyrics.md) "Line breaks cut both ways".
+**Evidence:** the line-break mechanism is established at MEDIUM and is not in question. The **failure edge** — that short-line stacks over-separate, and that joining at the prompt layer fixes it — is `writer-observed, single session (2026-08-12), n=1 — not externally corroborated`: one five-line clipped bridge on v5.5, fixed on regeneration by joining lines in the Suno field while the page lyric kept its lineation. Where a first-hand observation sits relative to the confidence ladder: see [Confidence flags](../SKILL.md). Full mechanism statement: [lyrics.md](lyrics.md) "Line breaks cut both ways".
 
 ### "BPM is off by 20+"
 
@@ -155,7 +155,7 @@ Expected — the title has minimal or no known effect on musical output; communi
 
 The observed correlate is a **tag-only section directly adjacent to a lyric-bearing section**. That adjacency is what was seen — a candidate cause, not a demonstrated mechanism. One run cannot show that tag-only repeats always fail, only that they can, which is why this is recorded as a failure mode rather than rated on the confidence ladder.
 
-**Evidence:** `writer-observed, single session (2026-08-12), n=1 — not externally corroborated`. See [SKILL.md](../SKILL.md) on where first-hand observations sit relative to the ladder.
+**Evidence:** `writer-observed, single session (2026-08-12), n=1 — not externally corroborated`. Where a first-hand observation sits relative to the ladder: see [Confidence flags](../SKILL.md).
 
 **Untested:** whether a tag-only section is safe as the *final* section before `[Outro]`/`[End]`, with no lyric-bearing section after it. Neither endorsed nor ruled out — check the output if you try it. Distinct from the `Lyrics > 60 lines` row above, which is a length failure; this was observed at normal length.
 

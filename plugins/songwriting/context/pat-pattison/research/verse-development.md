@@ -1,5 +1,29 @@
 # Verse Development
 
+## Contents
+
+- [Core idea](#core-idea)
+- [The chapter's worked lyric — "Child Again"](#the-chapters-worked-lyric--child-again)
+- [Travelogue warning](#travelogue-warning)
+- [Travelogue test](#travelogue-test)
+- [Chain reaction model](#chain-reaction-model)
+- [Natural continuity](#natural-continuity)
+- [Distance control](#distance-control)
+- [Verse responsibility](#verse-responsibility)
+- [Power positions](#power-positions)
+- [Trigger position](#trigger-position)
+- [Subsection power](#subsection-power)
+- [Placement changes meaning](#placement-changes-meaning)
+- [Opening position](#opening-position)
+- [Closing position](#closing-position)
+- [Surprise positions](#surprise-positions)
+- [Verse-development diagnosis](#verse-development-diagnosis)
+- [Chapter 8's exercise](#chapter-8s-exercise)
+- [Skill workflow](#skill-workflow)
+- [Colored spotlight metaphor (*Writing Better Lyrics* (2009), Chapter 7)](#colored-spotlight-metaphor-writing-better-lyrics-2009-chapter-7)
+- [Ibsen's gun principle (*Writing Better Lyrics* (2009), Chapter 10)](#ibsens-gun-principle-writing-better-lyrics-2009-chapter-10)
+- [Cross-references (continued)](#cross-references-continued)
+
 Pat Pattison - *Writing Better Lyrics* (2009), Chapters 7-8. The Ibsen's-gun
 section at the foot of the file is Chapter 10's, and is cited as such there.
 

@@ -1,5 +1,26 @@
 # Rhyme Sonic Bonding
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Internal rhyme](#internal-rhyme)
+- [Voice leading](#voice-leading)
+- [Assonance as voice leading](#assonance-as-voice-leading)
+- [Simple assonance](#simple-assonance)
+- [Hidden assonance](#hidden-assonance)
+- [The Vowel Triangle (geometry)](#the-vowel-triangle-geometry)
+- [Family assonance](#family-assonance)
+- [Alliteration](#alliteration)
+- [Horizontal and vertical consonant families](#horizontal-and-vertical-consonant-families)
+- [Concealed alliteration](#concealed-alliteration)
+- [Juncture](#juncture)
+- [Voice leading and prosody](#voice-leading-and-prosody)
+- [Exercises as coaching prompts](#exercises-as-coaching-prompts)
+- [Chapter 8 skill workflow](#chapter-8-skill-workflow)
+- [Juncture — sound at word boundaries](#juncture--sound-at-word-boundaries)
+- [Sonic fabric — the section-wide texture](#sonic-fabric--the-section-wide-texture)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Essential Guide to Rhyming*
 (2014), Chapter 8.
 

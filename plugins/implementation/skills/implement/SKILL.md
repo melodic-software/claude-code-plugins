@@ -43,7 +43,7 @@ Parse conversation context to determine execution mode. Mode shapes which contex
 | Approved plan from a planning pass exists | **Feature** | [context/feature.md](context/feature.md) |
 | Bug report, error diagnosis, or "fix" in conversation | **Bugfix** | [context/bugfix.md](context/bugfix.md) |
 | Structural change, "refactor", "rename", "reorganize" | **Refactor** | [context/refactor.md](context/refactor.md) |
-| Non-code changes (docs, config, YAML, markdown) | **Config** | Lighter workflow, no context file needed |
+| Non-code changes (docs, config, YAML, markdown) | **Config** | Lighter workflow, no context file needed. Verification is not lighter: even non-code changes break builds (`.editorconfig` changes, project-file modifications, markdown lint), so invoke `/verification:confirm` via the Skill tool for these too |
 
 If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `config`), use that. Otherwise infer from context. If ambiguous, ask.
 
@@ -209,11 +209,4 @@ When all planned work is done:
 
 ## Gotchas
 
-- **Don't skip the branch check.** Writing code on the default branch in a PR-based workflow means rewriting history later. Catch the mistake before the first edit
-- **Don't implement the entire plan before testing.** Incremental cadence exists because large batches of untested code hide compounding errors. Build and test after each logical block
-- **Divergence is not failure.** Plans are hypotheses. Detecting that an approach won't work and replanning is the skill working correctly, pushing through despite signals is the failure
-- **NEVER declare "impossible" without exhausting alternatives.** When an approach fails, research deeper before giving up. Check GitHub Issues for workaround flags, search for bypass options, try alternative APIs. Proper solution often exists one investigation level beyond where you'd normally stop
-- **Commit checkpoints are save points, not polish points.** Don't agonize over commit messages on feature branches when the workflow squash-merges, commit freely
-- **Config/docs changes still need verification.** Even non-code changes can break builds (`.editorconfig` changes, project-file modifications, markdown lint). Invoke `/verification:confirm` via the Skill tool for these too
-- **Scope-fence drift detector at every decision boundary (Step 3.5).** Phase boundaries, agent returns, and anomaly-handoff moments are where invented work creeps in disguised as plan-anticipated work. Classify before announcing
-- **Over-correction guard on user pushback.** When the user pushes back on N proposed actions (≥2), ask per-category. Never silently drop all. The pushback identifies a problem with at least one action, not necessarily all
+Every observed failure pattern for this skill, plus the one-line reminders keyed to the steps above, is in [context/gotchas.md](context/gotchas.md). Read it before the first edit of an implementation session, and again at any stall point: a second workaround, a build error you are about to defer, a commit about to mix concerns. Add an entry there, in its what-happens / why-it-is-bad / how-to-avoid shape, whenever a new pattern bites.

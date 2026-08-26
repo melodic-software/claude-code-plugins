@@ -1,5 +1,15 @@
 # Safety model
 
+## Contents
+
+- [Trust boundaries](#trust-boundaries)
+- [Non-overridable checks](#non-overridable-checks)
+- [Live agent scratchpads](#live-agent-scratchpads)
+- [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
+- [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Outcome vocabulary](#outcome-vocabulary)
+- [Primary references](#primary-references)
+
 ## Trust boundaries
 
 The target path, optional policy, model-authored plan, filesystem metadata, Git output, and process

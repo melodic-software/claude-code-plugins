@@ -1,5 +1,18 @@
 # Variations — Labeled Alternates
 
+## Contents
+
+- [When to load](#when-to-load)
+- [Axes for variation](#axes-for-variation)
+- [Step 1 — Pick the axis](#step-1--pick-the-axis)
+- [Step 2 — Generate 4-6 labeled variations](#step-2--generate-4-6-labeled-variations)
+- [Presenting the candidates — chat vs file (writer-requested, 2026-08-12)](#presenting-the-candidates--chat-vs-file-writer-requested-2026-08-12)
+- [Step 3 — Highlight the trade-offs](#step-3--highlight-the-trade-offs)
+- [Step 4 — Do NOT pick a winner](#step-4--do-not-pick-a-winner)
+- [Artifact pattern](#artifact-pattern)
+- [Common failure modes](#common-failure-modes)
+- [Cross-references](#cross-references)
+
 When the writer asks for "5 versions of this line" / "another way to say
 this" / "what else could verse 2 be" — generate variations along a chosen
 axis with explicit labels so the writer compares deliberately.

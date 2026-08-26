@@ -1,5 +1,21 @@
 # Safety Rules
 
+## Contents
+
+- [Role Boundaries](#role-boundaries)
+- [Checkout And Push Invariants](#checkout-and-push-invariants)
+- [Allowed Without Asking](#allowed-without-asking)
+- [Stop And Ask](#stop-and-ask)
+- [Verify Before Escalating Non-Convergence](#verify-before-escalating-non-convergence)
+- [Two Gates, One Merge-Ready Authority](#two-gates-one-merge-ready-authority)
+- [Review-Settle Hold](#review-settle-hold)
+- [Guarded Mutation Wrappers](#guarded-mutation-wrappers)
+- [Autopilot Merge Tier: Enabled-Path Mechanics](#autopilot-merge-tier-enabled-path-mechanics)
+- [Harness Permission Layer](#harness-permission-layer)
+- [Never Do Automatically](#never-do-automatically)
+- [Human Comments](#human-comments)
+- [Comment Policy](#comment-policy)
+
 Use these rules before any mutating action, in every tier. Angle-bracket slots
 (`<watched-owners>`, `<self-logins>`, `<merge-method>`) are filled from the
 effective-configuration block in this skill's `SKILL.md`, which renders every key's resolved

@@ -1,5 +1,22 @@
 # Rhyme Spotlight And Connection
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Rhyme positions are spotlight positions](#rhyme-positions-are-spotlight-positions)
+- [Important words belong in rhyme positions](#important-words-belong-in-rhyme-positions)
+- [Empty rhymes](#empty-rhymes)
+- [Spotlight-word exercise](#spotlight-word-exercise)
+- [Cliche rhymes](#cliche-rhymes)
+- [Rhyme connects ideas](#rhyme-connects-ideas)
+- [Common-idea exercise](#common-idea-exercise)
+- [Rhyme as idea generator](#rhyme-as-idea-generator)
+- [Mismatch can become comedy](#mismatch-can-become-comedy)
+- [Going deeper than the first dictionary page](#going-deeper-than-the-first-dictionary-page)
+- [Feminine mosaic problem](#feminine-mosaic-problem)
+- [Do not pick weak friends](#do-not-pick-weak-friends)
+- [Revision workflow](#revision-workflow)
+
 Pat Pattison — *Essential Guide to Rhyming* (2014), Chapter 2, "Exchanging
 Business Cards" (printed pp. 9–17).
 

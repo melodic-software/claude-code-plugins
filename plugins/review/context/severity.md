@@ -25,6 +25,11 @@ Independent of severity — how sure the reviewer is that the finding is real:
 | `low` | Suspicious pattern, unverified |
 | `unscored` | The emitting surface reported no confidence — absence of a score is NOT low confidence |
 
+**Rank order: `high` > `medium` > `unscored` > `low`.** Ranking reads the axis in that order, which
+puts `low` BELOW an absent score: a surface that emits `low` to express uncertainty ranks its
+finding under one nobody reported. Emit `high` or omit the field. This file owns the order; every
+consumer that ranks on confidence reads it here rather than restating it.
+
 ## Vocabulary
 
 **In this plugin, "axis" means one of the two above — severity or confidence.** They are the two

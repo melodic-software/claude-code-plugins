@@ -1,5 +1,21 @@
 # Power-user tips & undocumented techniques
 
+## Contents
+
+- [Tag order](#tag-order)
+- [Genre fusion — anchor and accent](#genre-fusion--anchor-and-accent)
+- [Stem-loop refinement (Premier)](#stem-loop-refinement-premier)
+- [Two-pass vocal isolation](#two-pass-vocal-isolation)
+- [Persona-as-draft-mode](#persona-as-draft-mode)
+- [Punctuation for vocal cadence](#punctuation-for-vocal-cadence)
+- [Bracket-only structural gaps](#bracket-only-structural-gaps)
+- [Genre-adjacency fallback](#genre-adjacency-fallback)
+- [The "describe THIS song" technique](#the-describe-this-song-technique)
+- [Empirical Custom Model trick](#empirical-custom-model-trick)
+- [Bonus: rotating prompt synonyms across regenerations](#bonus-rotating-prompt-synonyms-across-regenerations)
+- [v5.5-specific empirical findings (post-March 2026)](#v55-specific-empirical-findings-post-march-2026)
+- [Confidence note](#confidence-note)
+
 Techniques here are community-reported and **not Suno-documented**. Exact magnitudes vary by prompt.
 
 **Confidence is per section, not per file** — read the flag on the section you are using. This file's blanket "community-validated through empirical testing" header was removed in 1.1.2: it asserted validation the file cannot back, while two sections inside it are explicitly flagged unverified. A section carrying no flag has not been audited.

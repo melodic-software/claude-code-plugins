@@ -1,5 +1,19 @@
 # Cliche
 
+## Contents
+
+- [Core idea](#core-idea)
+- [The sleeping puppy](#the-sleeping-puppy)
+- [Four cliche families](#four-cliche-families)
+- [Cliche phrases](#cliche-phrases)
+- [Cliche rhymes](#cliche-rhymes)
+- [Cliche images](#cliche-images)
+- [Cliche metaphors](#cliche-metaphors)
+- [Friendly cliches](#friendly-cliches)
+- [Draft-stage tolerance](#draft-stage-tolerance)
+- [Chapter 5 exercise as coaching prompt](#chapter-5-exercise-as-coaching-prompt)
+- [Skill workflow](#skill-workflow)
+
 Pat Pattison - *Writing Better Lyrics* (2009), Chapter 5; one ruling from
 *Songwriting Without Boundaries* (2011), Challenge 2, Day 2.
 

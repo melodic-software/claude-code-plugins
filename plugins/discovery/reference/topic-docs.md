@@ -85,8 +85,9 @@ the memory slice.
 file; it is `persistence: by-value` in the return payload (`agents/explorer.md`,
 `agents/researcher.md`, `agents/intent-tracer.md`), and the parent acts on it at the
 `persistence: by-value` rung of each family's recovery ladder —
-`skills/explore/reference/dispatch.md`, `skills/research/context/dispatch.md` and
-`skills/trace-intent/context/dispatch.md`.
+`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`,
+`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` and
+`${CLAUDE_PLUGIN_ROOT}/skills/trace-intent/context/dispatch.md`.
 The parent writes the slice from the payload's verbatim artifact bodies and then re-runs the
 acceptance gate against disk. The mode changes **who writes**, never **whether the gate passes**:
 findings returned in place of an artifact are a failed dispatch, not a fallback.

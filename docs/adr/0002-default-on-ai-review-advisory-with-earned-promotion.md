@@ -1,5 +1,16 @@
 # Default-on AI review: advisory lanes with earned promotion to blocking
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+- [Addendum (2026-07-21): #509 enforcement ruling](#addendum-2026-07-21-509-enforcement-ruling)
+- [Addendum (2026-07-21): ordering correction](#addendum-2026-07-21-ordering-correction)
+- [Addendum (2026-07-21): step 3 applied — required check live; skip-actor exception](#addendum-2026-07-21-step-3-applied--required-check-live-skip-actor-exception)
+- [Addendum (2026-08-03): mechanism correction — the exception moved to a reusable default](#addendum-2026-08-03-mechanism-correction--the-exception-moved-to-a-reusable-default)
+- [Addendum (2026-08-04): operator decision — Branch A ratified, four actors](#addendum-2026-08-04-operator-decision--branch-a-ratified-four-actors)
+- [Revisit triggers](#revisit-triggers)
+
 - Status: accepted
 - Date: 2026-07-20
 

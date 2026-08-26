@@ -1,5 +1,32 @@
 # Rhyme Worksheets
 
+## Contents
+
+- [Core idea](#core-idea)
+- [What a worksheet is for](#what-a-worksheet-is-for)
+- [Step 1: focus the idea](#step-1-focus-the-idea)
+- [Step 2: make a central word list](#step-2-make-a-central-word-list)
+- [Include title words](#include-title-words)
+- [Step 3: search actively](#step-3-search-actively)
+- [Filtering candidates](#filtering-candidates)
+- [Change the seed if needed](#change-the-seed-if-needed)
+- [When a seed should be dropped](#when-a-seed-should-be-dropped)
+- [Charted territory](#charted-territory)
+- [Exercise 3.1: matching rhymes and ideas](#exercise-31-matching-rhymes-and-ideas)
+- [Chapter 7: full rhyme search](#chapter-7-full-rhyme-search)
+- [Expand the worksheet after learning rhyme types](#expand-the-worksheet-after-learning-rhyme-types)
+- [Add high-value seeds before searching](#add-high-value-seeds-before-searching)
+- [Search all rhyme relationships, then identify how they work](#search-all-rhyme-relationships-then-identify-how-they-work)
+- [Keep the idea as the filter](#keep-the-idea-as-the-filter)
+- [Let rhymes suggest lyric direction](#let-rhymes-suggest-lyric-direction)
+- [Exercise 7.1: choose favorite perfect and imperfect rhymes](#exercise-71-choose-favorite-perfect-and-imperfect-rhymes)
+- [Exercise 7.2: rewrite from the expanded worksheet](#exercise-72-rewrite-from-the-expanded-worksheet)
+- [Chapter 7 skill workflow](#chapter-7-skill-workflow)
+- [Exercise 3.2: worksheet from a title](#exercise-32-worksheet-from-a-title)
+- [Exercise 3.3: write sections from the worksheet](#exercise-33-write-sections-from-the-worksheet)
+- [English is rhyme-poor](#english-is-rhyme-poor)
+- [Skill output format](#skill-output-format)
+
 Pat Pattison - *Essential Guide to Rhyming* (2014), Chapters 3 and 7.
 
 Use this with [rhyme dictionary practice](rhyme-dictionary-practice.md) and

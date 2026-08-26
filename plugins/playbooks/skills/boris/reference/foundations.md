@@ -1,5 +1,23 @@
 # Foundations (Sections 1–15)
 
+## Contents
+
+- [1. Parallel Execution](#1-parallel-execution)
+- [2. Model Selection](#2-model-selection)
+- [3. Plan Mode](#3-plan-mode)
+- [4. CLAUDE.md Best Practices](#4-claudemd-best-practices)
+- [5. Skills & Slash Commands](#5-skills--slash-commands)
+- [6. Subagents](#6-subagents)
+- [7. Hooks](#7-hooks)
+- [8. Permissions](#8-permissions)
+- [9. MCP Integrations](#9-mcp-integrations)
+- [10. Prompting Tips](#10-prompting-tips)
+- [11. Terminal Setup](#11-terminal-setup)
+- [12. Bug Fixing](#12-bug-fixing)
+- [13. Long-Running Tasks](#13-long-running-tasks)
+- [14. Verification (The #1 Tip)](#14-verification-the-1-tip)
+- [15. Learning with Claude](#15-learning-with-claude)
+
 Core workflow tips — Parts 1–2 (Jan 2, Jan 31, 2026).
 
 ---

@@ -151,13 +151,15 @@ The skill should NEVER offer to delete the user's Calibre Library. Those are the
 - Mock around with the cached installer at the Amazon binary level (we delete, we don't patch).
 - Run on Mac/Linux. KFXKeyExtractor + KFXArchiver are Windows binaries with hard-coded memory offsets.
 
-## Cross-references
+## Reference index. Load on demand
 
-- `references/workflow.md`: procedural detail (the long-form version of `setup`)
-- `references/sources.md`: URL inventory + drift baselines + page hashes
-- `references/versions.md`: version pins, SHA256 baselines, supported Kindle/tool matrix
-- `references/troubleshooting.md`: common errors and recovery paths
-- `scripts/`: executable helpers cited above
+| Reference | Load when |
+|---|---|
+| `references/workflow.md` | Walking a user through `setup`: the exact command, rationale, and check per step. |
+| `references/sources.md` | Running `update`, or an upstream URL stopped resolving and you need its drift baseline. |
+| `references/versions.md` | Verifying a downloaded artifact's SHA256, or checking whether an installed Kindle version is still supported. |
+| `references/troubleshooting.md` | A setup, sync, or cleanup step failed and you need the diagnosis and recovery path. |
+| `scripts/` | Running a helper named above; these are executed, not read. |
 
 ## Recheck triggers
 

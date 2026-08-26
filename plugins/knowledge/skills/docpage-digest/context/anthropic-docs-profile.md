@@ -1,5 +1,16 @@
 # Publisher profile — Anthropic docs
 
+## Contents
+
+- [Fetch channel](#fetch-channel)
+- [Archive-reading conventions](#archive-reading-conventions)
+- [Claude-Code-applicability filter (with teeth)](#claude-code-applicability-filter-with-teeth)
+- [Digest-agent model matching](#digest-agent-model-matching)
+- [Digest sections state mechanism, never operator instance](#digest-sections-state-mechanism-never-operator-instance)
+- [Doc queue](#doc-queue)
+- [Artifact targets](#artifact-targets)
+- [Hedge preservation, and the residual-risk footer](#hedge-preservation-and-the-residual-risk-footer)
+
 Publisher-specific configuration for `/knowledge:docpage-digest` runs against Anthropic
 documentation properties (`platform.claude.com`, `code.claude.com`, `claude.com/blog`,
 `anthropic.com/engineering` — hosts match with or without a leading `www.`; live engineering

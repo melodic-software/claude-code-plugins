@@ -200,9 +200,11 @@ them, that is a finding to raise, not a guard to delete.
   succeed, so no work-selection flow finds anything. Legitimate for a consume-only
   adapter; say it out loud when it is chosen.
 
-## Related
+## Reference index. Load on demand
 
-- `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`, the contract obeyed.
-- `reference/adapter-spec.md`, spec fields, validation rules, worked example.
-- `reference/live-exploration.md`, the probe checklist for step 2.
-- `/work-items:setup`, binds the repo to a provider once the adapter exists.
+| Reference | Load when |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` | Step 1 question 5, judging which verbs the provider supports honestly, and step 4 while filling each mapping. |
+| `reference/adapter-spec.md` | Writing the spec file at the end of step 1, or reading it back in step 3. |
+| `reference/live-exploration.md` | Step 2, running the probes against the consumer's real instance. |
+| `/work-items:setup` | The adapter exists and verifies, and the repo still has to be bound to it. |

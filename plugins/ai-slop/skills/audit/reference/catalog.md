@@ -1,5 +1,27 @@
 # AI-writing tell catalog
 
+## Contents
+
+- [Attribution and license](#attribution-and-license)
+- [Upstream-drift record](#upstream-drift-record)
+- [Inventory](#inventory)
+- [False-positive posture (source Caveats)](#false-positive-posture-source-caveats)
+- [Quotation exemption (policy-level)](#quotation-exemption-policy-level)
+- [Calibration record (V1)](#calibration-record-v1)
+- [Content](#content)
+- [Language and grammar](#language-and-grammar)
+- [Style](#style)
+- [Communication intended for the user](#communication-intended-for-the-user)
+- [Markup](#markup)
+- [Citations](#citations)
+- [Comment-specific indicators](#comment-specific-indicators)
+- [Edit summaries](#edit-summaries)
+- [Miscellaneous](#miscellaneous)
+- [Signs of human writing](#signs-of-human-writing)
+- [Ineffective indicators](#ineffective-indicators)
+- [Historical indicators](#historical-indicators)
+- [Cursor unslop additions](#cursor-unslop-additions)
+
 The rule inventory for `/ai-slop:audit`: every sign of AI writing catalogued by the Wikipedia page
 below, plus the additions in the "Cursor unslop additions" section. Each tell is classified for
 detectability and applicability, with its V1 disposition. Script rules are implemented in `../scripts/detect.sh`

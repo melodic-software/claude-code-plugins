@@ -1,5 +1,15 @@
 # Interview loop — depth-first Q&A detail
 
+## Contents
+
+- [Step 1 — Survey before you ask](#step-1--survey-before-you-ask)
+- [Step 1.5 — Auto-detect: gap analysis without asking](#step-15--auto-detect-gap-analysis-without-asking)
+- [Step 2 — Drive the decision tree](#step-2--drive-the-decision-tree)
+- [Relentless `me` mode mechanics](#relentless-me-mode-mechanics)
+- [The open-question register](#the-open-question-register)
+- [Step 3 — Recognize the stop condition](#step-3--recognize-the-stop-condition)
+- [Step 4 — Section guidance for the Brief](#step-4--section-guidance-for-the-brief)
+
 Reference detail extracted from `SKILL.md`. Read on demand when running the `me` action (full Q&A loop), executing the auto-detect Q&A branch, or designing follow-up questions for an existing Brief.
 
 ## Step 1 — Survey before you ask

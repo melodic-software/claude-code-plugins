@@ -170,8 +170,10 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 
 ---
 
-## Cross-references
+## Reference index. Load on demand
 
-- `context/repo-surfaces.md`. Surface categories to check per changelog item
-- `context/classification-rubric.md`. P1/P2/P3 classification criteria
-- `context/read-actions.md`. Full steps for the read-only actions
+| File | Load when |
+|---|---|
+| `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
+| `context/classification-rubric.md` | Assigning P1/P2/P3 to an item, and defending a downgrade. |
+| `context/read-actions.md` | Running `fetch`, `diff`, or `status`; the section above summarizes them, this file has the steps. |

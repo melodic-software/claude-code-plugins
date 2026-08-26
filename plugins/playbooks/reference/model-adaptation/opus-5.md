@@ -1,5 +1,22 @@
 # Running this playbook on Claude Opus 5
 
+## Contents
+
+- [Verification: you already self-verify — remove instructed re-checks, keep architected review](#verification-you-already-self-verify--remove-instructed-re-checks-keep-architected-review)
+- [Stated facts: more accurate and more confidently wrong at once](#stated-facts-more-accurate-and-more-confidently-wrong-at-once)
+- [Correction narration: fix the slip, announce only what changes a decision](#correction-narration-fix-the-slip-announce-only-what-changes-a-decision)
+- [Scope: deliver what was asked](#scope-deliver-what-was-asked)
+- [Review findings: report everything, filter separately](#review-findings-report-everything-filter-separately)
+- [Vision: re-validate prior-model workarounds; reach for tools before thinking](#vision-re-validate-prior-model-workarounds-reach-for-tools-before-thinking)
+- [Delegation: you spawn more readily — hold the floor](#delegation-you-spawn-more-readily--hold-the-floor)
+- [Output length: three separate dials, none of them effort](#output-length-three-separate-dials-none-of-them-effort)
+- [Effort: start at the default, move down liberally](#effort-start-at-the-default-move-down-liberally)
+- [Thinking controls (harness facts, live-verified 2026-07-26)](#thinking-controls-harness-facts-live-verified-2026-07-26)
+- [Destructive actions: an approval you believe you have is not an approval](#destructive-actions-an-approval-you-believe-you-have-is-not-an-approval)
+- [Injection robustness: better, not safe — and a routing note](#injection-robustness-better-not-safe--and-a-routing-note)
+- [Hard facts are pointers](#hard-facts-are-pointers)
+- [Sources](#sources)
+
 > **If you are not Claude Opus 5:** these deltas are calibrated for Opus 5 specifically — they do
 > not transfer to another model as written. Route to your own file under `model-adaptation/` when one
 > exists; otherwise apply the *method*: map your documented defaults against the author's Fable

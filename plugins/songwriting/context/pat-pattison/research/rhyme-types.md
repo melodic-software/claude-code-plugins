@@ -1,5 +1,39 @@
 # Rhyme Types
 
+## Contents
+
+- [Image inventory](#image-inventory)
+- [Why Rhyme Type Matters](#why-rhyme-type-matters)
+- [Stability Scale](#stability-scale)
+- [Song anchor: Warren Zevon, "Hasten Down the Wind"](#song-anchor-warren-zevon-hasten-down-the-wind)
+- [Fully Resolved Rhyme](#fully-resolved-rhyme)
+- [Family Rhyme Definition](#family-rhyme-definition)
+- [Phonetic Relationship Tests](#phonetic-relationship-tests)
+- [Family Rhyme Table](#family-rhyme-table)
+- [Plosives](#plosives)
+- [Persnickety G](#persnickety-g)
+- [Fricatives](#fricatives)
+- [Nasals](#nasals)
+- [Feminine Family Rhymes](#feminine-family-rhymes)
+- [Multiple Final Consonants](#multiple-final-consonants)
+- [L And R](#l-and-r)
+- [Friendly Relatives - Additive / Subtractive](#friendly-relatives---additive--subtractive)
+- [Additive Rhyme](#additive-rhyme)
+- [Family Additives](#family-additives)
+- [Subtractive Rhyme](#subtractive-rhyme)
+- [Kissin' Cousins - Most Remote Rhyme Types](#kissin-cousins---most-remote-rhyme-types)
+- [Exercises To Preserve](#exercises-to-preserve)
+- [Coaching Workflow](#coaching-workflow)
+- [Weak-syllable rhyme](#weak-syllable-rhyme)
+- [Partial rhyme — extended](#partial-rhyme--extended)
+- [Generate wide, then shortlist](#generate-wide-then-shortlist)
+- [Stability is a design tool — Barber anchor](#stability-is-a-design-tool--barber-anchor)
+- [Craft prepares creativity — Tiger Woods anchor](#craft-prepares-creativity--tiger-woods-anchor)
+- [The chord analogy — two sources, no slot-by-slot mapping](#the-chord-analogy--two-sources-no-slot-by-slot-mapping)
+- [Partners and companions — why the inversion](#partners-and-companions--why-the-inversion)
+- [Weak-syllable rhyme — source citation](#weak-syllable-rhyme--source-citation)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Essential Guide to Rhyming* (2014), Chapters 4-6.
 
 This file covers the rhyme-type scale from full resolution through the most remote rhyme types developed in *Essential Guide to Rhyming* (2014), Chapters 4-6.

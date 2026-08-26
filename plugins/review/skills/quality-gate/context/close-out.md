@@ -1,5 +1,17 @@
 # Close-out review mode
 
+## Contents
+
+- [Why it needs its own diff basis](#why-it-needs-its-own-diff-basis)
+- [Step 1: Resolve the container](#step-1-resolve-the-container)
+- [Step 2: Read the container body](#step-2-read-the-container-body)
+- [Step 3: Resolve the execution shape and derive the basis](#step-3-resolve-the-execution-shape-and-derive-the-basis)
+- [Step 4: Pre-flight gate](#step-4-pre-flight-gate)
+- [Step 5: Run the lens](#step-5-run-the-lens)
+- [Step 6: Report](#step-6-report)
+- [Provider degradation — stated, not papered over](#provider-degradation--stated-not-papered-over)
+- [Escalation](#escalation)
+
 Did the **whole** of a shipped spec container deliver its spec? One cumulative fidelity pass over
 everything the container shipped — across however many PRs, sessions, machines, and branches —
 against the container's own body, run once when the last sub-item closes and before the container

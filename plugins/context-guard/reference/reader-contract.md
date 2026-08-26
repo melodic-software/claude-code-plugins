@@ -1,5 +1,21 @@
 # Context guard — reader contract
 
+## Contents
+
+- [Operable floor (consumers inline these values verbatim)](#operable-floor-consumers-inline-these-values-verbatim)
+- [Snapshot file shape](#snapshot-file-shape)
+- [Capability detection (fail-open)](#capability-detection-fail-open)
+- [Occupancy and combination rule](#occupancy-and-combination-rule)
+- [Zone-crossing hooks (first shipped consumer)](#zone-crossing-hooks-first-shipped-consumer)
+- [Evidence-degraded marker](#evidence-degraded-marker)
+- [Zone is NOT a compaction indicator](#zone-is-not-a-compaction-indicator)
+- [Zones (machine-scope tuning, optional)](#zones-machine-scope-tuning-optional)
+- [Session-id discovery (how a consumer learns its own id)](#session-id-discovery-how-a-consumer-learns-its-own-id)
+- [Idle sessions](#idle-sessions)
+- [Cloud and headless sessions (`unknown` is structural)](#cloud-and-headless-sessions-unknown-is-structural)
+- [Invariants and boundaries](#invariants-and-boundaries)
+- [Consumers](#consumers)
+
 The consumer-facing contract for the per-session context-window snapshots this plugin produces.
 The writer is the plugin's `scripts/statusline-tee.sh`; `scripts/context-zone.sh` is the bundled
 resolver over the same data. Readers are sibling-plugin sessions (e.g. an audit skill deciding

@@ -403,6 +403,14 @@ audit_noise_section_exempt() {
   heading="${heading%"${heading##*[![:space:]]}"}"
   case "$heading" in
   "Recheck triggers" | "Cross-references" | "Sources" | "History" | "External authority") return 0 ;;
+  # The spoke-index headings this repo's own progressive-disclosure doctrine
+  # prescribes, and which `audit-progressive-disclosure` rewrites blind pointers
+  # INTO. Without these rows, adopting the prescribed shape converts one lane's
+  # fix into another lane's finding: the exemplar the doctrine points at,
+  # plugin-quality:audit's SKILL.md, already reports enum-list against its own
+  # reference index. A two-column path-and-condition table is a routing table,
+  # not the consumer roster enum-list looks for.
+  "Reference index. Load on demand" | "Context ladder (read on demand)" | "Maintenance. Load on demand") return 0 ;;
   *) ;;
   esac
   [[ "$heading" == *"amendment"* ]] && return 0

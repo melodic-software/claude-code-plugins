@@ -1,5 +1,15 @@
 # Babysit loop (safe-tier continuous iteration)
 
+## Contents
+
+- [5.0 Focus-first rule](#50-focus-first-rule)
+- [5.1 Per-PR processing](#51-per-pr-processing)
+- [5.2 Parking](#52-parking)
+- [5.3 Self-pacing (ScheduleWakeup)](#53-self-pacing-schedulewakeup)
+- [5.4 NEVER-do list](#54-never-do-list)
+- [5.5 Checklist-driven output format](#55-checklist-driven-output-format)
+- [5.6 Performance notes](#56-performance-notes)
+
 Multi-PR iteration layer wrapping the per-PR review discipline at the plugin-scope seam
 ([`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../../reference/review-discipline.md)).
 Designed for `/loop /source-control:babysit-prs` (dynamic, self-pacing via ScheduleWakeup).
@@ -53,7 +63,7 @@ authors' PRs — a dependency-manager PR with failing CI gets the same diagnose-
 attention as any other, but dependency-authored PRs are never merged autonomously in any tier
 (SKILL.md cross-tier invariants).
 
-**Draft policy (replaces the old blanket draft skip):** drafts stay in the discovery list in
+**Draft policy:** drafts stay in the discovery list in
 every tier. In the safe tier a draft is evaluated — terminal state, CI, unaddressed findings —
 and reported, never fixed, never marked ready. Worker/autopilot draft handling (zero-blocker
 drafts route through a worker; `gh pr ready` only in autopilot) is defined in SKILL.md.
@@ -626,7 +636,7 @@ with reason.
 
 ## 5.6 Performance notes
 
-- **Do not skip verification steps.** The D5/D6/D7 verification sub-steps exist because model
+- **Run the D5/D6/D7 verification sub-steps on every pass.** They exist because model
   memory is unreliable across compaction boundaries. One API call to confirm costs seconds;
   acting on false memory costs an entire re-processing cycle
 - **Quality over speed.** Processing 3 findings thoroughly with verified evidence is better

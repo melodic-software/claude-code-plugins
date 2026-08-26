@@ -75,7 +75,7 @@ One action per response; actions do not chain implicitly. `sweep` is the only re
 
 ## Auto-detect default
 
-Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
+Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md). Read it when the bare invocation is unattended or non-interactive, the case the rules below leave unstated, or when editing those rules.
 
 1. Empty arg AND clean tree → no default target exists. Report that, then OFFER escalation to a repo-wide corpus sweep, never start it unprompted. Confirm with the user first (via `AskUserQuestion` where available, a plain prose question otherwise), presenting the prescribed defaults below pre-filled so a bare "yes" suffices; the interview may adjust any knob. Declining, or no answer, ends as the friendly no-op exit 0 ("No uncommitted .md files. Pass a file/dir target, or `sweep <dir>` for a corpus.")
 2. Empty arg AND uncommitted `.md` files → audit those files

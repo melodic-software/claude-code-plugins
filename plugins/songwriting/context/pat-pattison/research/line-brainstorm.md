@@ -1,5 +1,16 @@
 # Line / Section Brainstorm — Narrow-Focus High-Volume Dump
 
+## Contents
+
+- [When the writer reaches for this](#when-the-writer-reaches-for-this)
+- [Two scope levels](#two-scope-levels)
+- [Discipline (filtered through response-filter.md)](#discipline-filtered-through-response-filtermd)
+- [Output format](#output-format)
+- [Section-level output additions](#section-level-output-additions)
+- [Coach posture during the dump](#coach-posture-during-the-dump)
+- [Anchor quotes](#anchor-quotes)
+- [Cross-references](#cross-references)
+
 Single line stuck. Single section thin. Writer needs RAW MATERIAL — many
 options, fast, filtered through Pat's discipline, before the revision pass.
 

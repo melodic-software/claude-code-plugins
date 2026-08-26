@@ -4,6 +4,29 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.14]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** 3 reference files in this plugin gained one.
+
+  The predicate is `audit-progressive-disclosure`'s own: a reference file over 300 lines with no
+  table of contents, which both official sources agree on by that length. Scope came from the
+  detector's tier classification rather than a line count, so `SKILL.md` files are excluded by
+  construction: they are invocation tier, not the on-demand reference tier the rule names. Files
+  with fewer than five H2s were held out, because a three-row index on a long file earns nothing and
+  the doctrine offers a grep recipe instead. Purely additive, with anchors generated from each
+  file's own headings and verified to resolve. Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.13.13]
+
+### Changed
+
+- **`course-digest` links `reference/screenshot-strategy.md` directly from the hub.** It was
+  reachable only through `context/workflow.md`, two levels from `SKILL.md`. A
+  `Reference index. Load on demand` section now carries it with a read condition; the
+  `context/workflow.md` citation is unchanged. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.13.12]
 
 ### Changed

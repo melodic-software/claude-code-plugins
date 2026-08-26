@@ -3,6 +3,14 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.6]
+
+### Changed
+
+- **`manage`'s `## Cross-references` becomes a `Reference index. Load on demand` table**, with a
+  load condition per row and a run-versus-read marker on the `scripts/` row, which a reader
+  previously had to open the target to learn. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.7.5]
 
 ### Changed

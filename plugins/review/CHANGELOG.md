@@ -3,6 +3,40 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.10]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** 1 reference file in this plugin gained one.
+
+  The predicate is `audit-progressive-disclosure`'s own: a reference file over 300 lines with no
+  table of contents, which both official sources agree on by that length. Scope came from the
+  detector's tier classification rather than a line count, so `SKILL.md` files are excluded by
+  construction: they are invocation tier, not the on-demand reference tier the rule names. Files
+  with fewer than five H2s were held out, because a three-row index on a long file earns nothing and
+  the doctrine offers a grep recipe instead. Purely additive, with anchors generated from each
+  file's own headings and verified to resolve. Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.26.9]
+
+### Changed
+
+- **The findings-file contract moved to plugin scope, at `reference/findings-file-shape.md`.** It
+  lived in `skills/fanout/context/default-mode.md`, a skill-private file, while the repo-level
+  detector-findings convention and every third-party detector had to read it to produce a file the
+  fix action would consume. A convention cannot legally cite into a skill's `context/` tree, and
+  routing a producer to `/review:fanout` hands it a command rather than the spec it needs, so the
+  citation had no legal form until the contract itself moved. `default-mode.md` keeps a pointer;
+  the section moved byte-for-byte, with only its relative links to `fix-pass-mode.md` re-based. It
+  stays inside the plugin rather than moving to `docs/**` because plugins ship without the
+  marketplace repository. Docs-hygiene sweep, L4-encapsulation.
+- **The confidence rank order has one owner.** `context/severity.md` "Confidence axis" now states
+  `high` > `medium` > `unscored` > `low` and why `low` ranks below an absent score;
+  `skills/fanout/context/findings-normalization.md` Stage 4 reads the order from there instead of
+  restating it, and the repo-level detector-findings convention cites that section rather than a
+  line number inside the fanout skill's private normalization file. One statement of the order,
+  reachable from outside the skill. Docs-hygiene sweep, L4-encapsulation.
+
 ## [0.26.8]
 
 ### Changed

@@ -1,5 +1,21 @@
 # Course Digest Workflow
 
+## Contents
+
+- [Phase 1: Discover](#phase-1-discover)
+- [Phase 2: Extract](#phase-2-extract)
+- [Phase 2b: Process Frames](#phase-2b-process-frames)
+- [Phase 2c-i: Download Course Resources](#phase-2c-i-download-course-resources)
+- [Phase 2c-ii: Analyze Code Repo](#phase-2c-ii-analyze-code-repo)
+- [Phase 2d: Validate](#phase-2d-validate)
+- [Phase 3: Synthesize](#phase-3-synthesize)
+- [Phase 4: Analyze](#phase-4-analyze)
+- [Phase 5: Recommend](#phase-5-recommend)
+- [Phase 6: Store (continuous)](#phase-6-store-continuous)
+- [Resuming](#resuming)
+- [Execution model: sequential vs parallel](#execution-model-sequential-vs-parallel)
+- [Freshness verification (Phase 5 prerequisite)](#freshness-verification-phase-5-prerequisite)
+
 Eight phases executed in order. Each phase produces artifacts consumed by subsequent phases.
 
 **Critical ordering rule:** ALL context must be gathered before summarization begins. Module

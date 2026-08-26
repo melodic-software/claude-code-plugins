@@ -1,5 +1,16 @@
 # Persisting survivors — this plugin's read of the detector-findings contract
 
+## Contents
+
+- [Where the file goes](#where-the-file-goes)
+- [Prove the destination is outside tracked space before writing to it](#prove-the-destination-is-outside-tracked-space-before-writing-to-it)
+- [What each cell says](#what-each-cell-says)
+- [Tier and Confidence come from the rule, and the rule from the verdict class](#tier-and-confidence-come-from-the-rule-and-the-rule-from-the-verdict-class)
+- [When the file is written at all](#when-the-file-is-written-at-all)
+- [Coverage the file does carry, and what it omits](#coverage-the-file-does-carry-and-what-it-omits)
+- [Re-running](#re-running)
+- [The tree after a persist run](#the-tree-after-a-persist-run)
+
 The mechanics of `--persist-findings` (SKILL.md "Phase 6 — Persist (opt-in)").
 
 **Read the producer contract before the first write** —

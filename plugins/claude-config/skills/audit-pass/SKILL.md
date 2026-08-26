@@ -18,6 +18,21 @@ yields none of: a three-scope inventory before any check runs, a run-time-derive
 stable finding identity, suppression memory, incremental persistence and resume, and one human gate
 for the pass. All of it is specified in [reference/run-contract.md](reference/run-contract.md).
 
+## Reference index. Load on demand
+
+| File | Load when |
+|---|---|
+| [reference/terms.md](reference/terms.md) | Before any other contract file. Every one of them uses run, target, lane, scan set, live surface and live surface set without redefining them. |
+| [reference/finding-identity.md](reference/finding-identity.md) | Emitting, comparing, or suppressing a finding: the `(check, claim, sites)` tuple, `surface`, `anchor`, and the derived `finding_id`. |
+| [reference/run-contract.md](reference/run-contract.md) | Deciding which contract file owns a rule, or resolving a `§N` cross-reference from inside one. |
+| [reference/arguments.md](reference/arguments.md) | A run is invoked with an argument whose precedence, default, or refusal is not settled by the `Arguments` table. |
+| [reference/exclusion-set.md](reference/exclusion-set.md) | Deriving the scan set, or justifying why a path was skipped. |
+| [reference/run-state-and-resumability.md](reference/run-state-and-resumability.md) | Starting, leasing, or resuming a run, and diagnosing a lock that outlived its holder. |
+| [reference/report-location-and-schema.md](reference/report-location-and-schema.md) | Writing the report, or judging what `--report-to` may target. |
+| [reference/determinism-tiers.md](reference/determinism-tiers.md) | Assigning a finding's tier, or running the self-check's comparison. |
+| [reference/suppression.md](reference/suppression.md) | Reading or writing the target's `.claude/audit-pass.md` record. |
+| [reference/doctor-handoff.md](reference/doctor-handoff.md) | Reaching the `/doctor` handoff, whether it is present or absent. |
+
 ## Read-only contract, and where mutation can reach
 
 Bare invocation reads and reports. `--fix` is the only mutation path, and it is bounded by scope:

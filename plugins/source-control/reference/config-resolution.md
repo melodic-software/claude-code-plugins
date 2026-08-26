@@ -1,5 +1,15 @@
 # Convention config resolution
 
+## Contents
+
+- [The config surface](#the-config-surface)
+- [Loop-lane keys (`babysit_loop_*`)](#loop-lane-keys-babysit_loop_)
+- [The three layers](#the-three-layers)
+- [Merge semantics: per-key override](#merge-semantics-per-key-override)
+- [Drafting vs enforcement](#drafting-vs-enforcement)
+- [Consumer `.gitignore`](#consumer-gitignore)
+- [Failure modes](#failure-modes)
+
 How the skills in this plugin resolve the layered `.claude/source-control.md` config surface. The
 surface carries two key families: the tracked commit-subject / PR-title convention keys, read by
 `/source-control:commit`, `/source-control:pull-request`, and `/source-control:setup`, and the
@@ -176,9 +186,9 @@ the lane reports why.
 before the rung partition admits a C2 or C3 PR, the lane resolves `C2-auto-merge` /
 `C3-auto-merge` effective state through the trusted promotion-evidence seam, fail-closing to
 unpromoted when evidence is unavailable or unqualified
-(`skills/babysit-loop/reference/promotion-evidence-resolution.md`). Until that seam qualifies,
-C2/C3 classes stay off the merge-eligible set regardless of `babysit_loop_merge`; operators keep
-`--merge human-only` on launch lines.
+(`${CLAUDE_PLUGIN_ROOT}/skills/babysit-loop/reference/promotion-evidence-resolution.md`).
+Until that seam qualifies, C2/C3 classes stay off the merge-eligible set regardless of
+`babysit_loop_merge`; operators keep `--merge human-only` on launch lines.
 
 **C4/C5 floor, unconditional.** No rung, no seam config, no invocation argument — including the
 explicit-`autopilot` exception above — ever grants merge authority over a `work-class: structural`

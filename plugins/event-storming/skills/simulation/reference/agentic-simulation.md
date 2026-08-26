@@ -1,5 +1,18 @@
 # Agentic EventStorming Simulation
 
+## Contents
+
+- [Why Simulate?](#why-simulate)
+- [LLM Behavioral Corrections — Making Agents Act Like Workshop Participants](#llm-behavioral-corrections--making-agents-act-like-workshop-participants)
+- [Step 1: Identify the Problem Space](#step-1-identify-the-problem-space)
+- [Step 2: Identify the WHO — Roles and Personas](#step-2-identify-the-who--roles-and-personas)
+- [Step 3: Build Agent Prompts](#step-3-build-agent-prompts)
+- [Step 4: Run the Simulated Session](#step-4-run-the-simulated-session)
+- [Step 5: Capture Outputs](#step-5-capture-outputs)
+- [Integration with Miro](#integration-with-miro)
+- [Tips for Effective Simulation](#tips-for-effective-simulation)
+- [Variation Modes — Execution Details](#variation-modes--execution-details)
+
 EventStorming is inherently a multi-person activity. When working solo or with an AI assistant, we can simulate the workshop dynamics by spinning up agents with assigned personas and domain-specific perspectives. This guide covers how to identify participants, assign roles, and run a simulated session.
 
 ---

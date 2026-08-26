@@ -1,12 +1,34 @@
 # Detector findings — reaching the apply relay from outside `review:fanout`
 
+## Contents
+
+- [Why the contract is format-only](#why-the-contract-is-format-only)
+- [Where the file goes](#where-the-file-goes)
+- [Boundary](#boundary)
+- [The four producer-owned fields](#the-four-producer-owned-fields)
+- [Rule ids and thresholds](#rule-ids-and-thresholds)
+- [The severity crosswalk](#the-severity-crosswalk)
+- [When the remediation is not at `Location`](#when-the-remediation-is-not-at-location)
+- [When the remediation is owned by the producer's own skill](#when-the-remediation-is-owned-by-the-producers-own-skill)
+- [Auto-applicability is settled per rule, at contract time](#auto-applicability-is-settled-per-rule-at-contract-time)
+- [A candidate that is not a finding](#a-candidate-that-is-not-a-finding)
+- [Coexisting with other producers](#coexisting-with-other-producers)
+- [Emitting more than once](#emitting-more-than-once)
+- [What a minimally conforming producer may omit](#what-a-minimally-conforming-producer-may-omit)
+- [Liveness](#liveness)
+- [Three emitters, one statement of each mechanic](#three-emitters-one-statement-of-each-mechanic)
+- [Enforceability](#enforceability)
+- [Adopters](#adopters)
+- [Versioning](#versioning)
+- [External authority](#external-authority)
+
 Owner doc for **how a component that is not `review:fanout` persists findings that the fanout `fix`
 action will consume**. One rule: a producer writes a file conforming to the findings-file shape into
 the current branch's findings directory, and nothing else. No fanout edit, no registration, no
 dispatch wiring.
 
 The shape is owned by
-[`plugins/review/skills/fanout/context/default-mode.md`](../../../plugins/review/skills/fanout/context/default-mode.md)
+[`plugins/review/reference/findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md)
 "Findings-file shape (stable contract — the fix action consumes it)". **This doc never restates it.**
 What this doc owns is everything the shape alone does not settle: which fields a non-fanout producer
 must compute for itself, what coexistence between producers means, and where the boundary sits.
@@ -72,16 +94,13 @@ What the binding leaves to a producer — consequences, not a second statement o
 
 This doc owns the **producer-side contract** for non-fanout findings. It does not own:
 
-- **The findings-file schema.** Owned by `default-mode.md` "Findings-file shape". Pointer, never a
-  copy — a second statement of a table is a second thing to drift.
+- **The findings-file schema.** Owned by `findings-file-shape.md` "Findings-file shape". Pointer,
+  never a copy — a second statement of a table is a second thing to drift.
 - **The consumer algorithm.** How the merge set is built, subtracted, deduplicated, and applied is
-  owned by
-  [`plugins/review/skills/fanout/context/fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md)
-  "Step 1: Build the merge set". A producer never needs to read it; it is named here so a reader
-  chasing consumption behavior lands in one place.
-- **Normalization and ranking.** The five-stage pipeline in
-  [`findings-normalization.md`](../../../plugins/review/skills/fanout/context/findings-normalization.md)
-  is fanout's own internal reduction. A detector emits final values, not pipeline inputs.
+  owned by `/review:fanout fix`, at its merge-set step. A producer never needs to read it; it is
+  named here so a reader chasing consumption behavior lands in one place.
+- **Normalization and ranking.** The five-stage pipeline `/review:fanout` runs before it writes is
+  that skill's own internal reduction. A detector emits final values, not pipeline inputs.
 - **Whether a detector should exist.** Candidate selection, guardrail class, and promotion are the
   `autonomy` plugin's routine-catalog concern.
 - **Findings that never reach a relay.** A component that only reports to a human is out of scope;
@@ -106,18 +125,18 @@ These four are therefore computed by the producer, and each has a failure mode t
    [`severity.md`](../../../plugins/review/context/severity.md) "Confidence axis", which already
    states the trap — `unscored` means "absence of a score is NOT low confidence". The *consequence*
    is what makes `low` actively harmful: the rank order is `high` > `medium` > `unscored` > `low`
-   ([`findings-normalization.md:72`](../../../plugins/review/skills/fanout/context/findings-normalization.md)),
-   so emitting `low` to express uncertainty ranks the finding *below* saying nothing at all. A
+   (that same section owns the order), so emitting `low` to express uncertainty ranks the finding
+   *below* saying nothing at all. A
    deterministic detector that fired is `high`; anything less certain omits the field.
    **`Confidence` is confidence-of-realness, not confidence in the fix.** A detector can be certain a
    defect is real while its remediation needs human judgment; say that in `Tier` and in the `Action`
    wording, never by downgrading `Confidence` — that would bury a real finding beneath one nobody
    reported.
 3. **`Location` is a repo-relative `file:line`.** The relativization rule is stated by
-   `default-mode.md` "Findings-writer contract". What is producer-specific is the reason it is
+   `findings-file-shape.md` "Findings-writer contract". What is producer-specific is the reason it is
    not optional: the fix action fences each remediation to its finding's `Location`, and an absolute
    path is not portable to the checkout that applies the fix.
-4. **Cell escaping is the producer's job.** Apply `default-mode.md`'s "Cell-escaping rule (required —
+4. **Cell escaping is the producer's job.** Apply `findings-file-shape.md`'s "Cell-escaping rule (required —
    the fix action parses this table)" as written there. It is called out here, without restating the
    characters, because detector output routinely contains pipes — shell pipelines, type unions, regex
    alternation — making this the single most likely way a first detector ships a file that parses
@@ -258,8 +277,8 @@ the row rather than in a footnote to it.
 
 `Location` names the **detection** site, always, and is never retargeted at the remediation. The key
 that collapses two producers' rows into one is identical `Location` plus identical `Finding`
-([`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 2"), so
-retargeting destroys the row's identity — and it asserts the detector fired somewhere it did not.
+(`/review:fanout fix`, at its merge-and-classify step), so retargeting destroys the row's
+identity — and it asserts the detector fired somewhere it did not.
 
 Detectors whose fix site differs from their detection site are ordinary rather than exotic: a
 surviving mutant is fixed in its covering test, a missing test for a changed function is written
@@ -300,7 +319,7 @@ already covers is pure cost.
 
 - **Off-site is a statement about the SITE.** Its producer obligation binds "a rule whose remediation
   can lie **outside `Location`'s file**", and the consumer's trigger
-  ([`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 2") has
+  (`/review:fanout fix`, at its merge-and-classify step) has
   two limbs that are both site limbs: the `Action` names a different file, or the producing
   detector's contract declares the rule off-site. A producer-owned rewrite is **at** `Location` —
   `testing:audit`'s adopter row says exactly that of its own rules — so claiming off-site to reach
@@ -479,8 +498,7 @@ failure to avoid:
 ## Coexisting with other producers
 
 Producers share one directory and the consumer merges across all of them —
-[`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 1: Build
-the merge set" owns how. Three obligations fall on a producer:
+`/review:fanout fix` owns how, at its merge-set step. Three obligations fall on a producer:
 
 - **Write your own file. Never append into another producer's.** Appending would need a
   write-ordering and locking convention that does not exist, and a partial write corrupts a file
@@ -494,17 +512,16 @@ the merge set" owns how. Three obligations fall on a producer:
 ## Emitting more than once
 
 An apply marks the files it consumed and the consumer subtracts them —
-[`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 5" owns
-the ledger. What binds a producer is one rule: **a detector re-runs and writes what it currently
-finds; it never replays.** Re-emitting a stale file re-injects findings that may already be fixed.
-How the ledger identifies what an apply consumed is "Step 5"'s to own and may change there; a
+`/review:fanout fix` owns the ledger, at its report-and-record step. What binds a producer is one
+rule: **a detector re-runs and writes what it currently finds; it never replays.** Re-emitting a
+stale file re-injects findings that may already be fixed.
+How the ledger identifies what an apply consumed is that action's to own and may change there; a
 producer owes the rule regardless and never leans on the ledger to catch a replay.
 
 ## What a minimally conforming producer may omit
 
-The admission test is stated by
-[`fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) "Step 1" — meet
-it and you are consumed. Beyond it, the coverage fields (`tier:`, `## By dimension`, `## Unparsed`,
+The admission test is stated by `/review:fanout fix` at its merge-set step — meet it and you are
+consumed. Beyond it, the coverage fields (`tier:`, `## By dimension`, `## Unparsed`,
 `## Surfaces`) are required of `review:fanout`'s own writer to keep its report honest; a detector
 with no analogue may omit them. **Omit rather than fabricate** — an invented `## Surfaces` line
 asserts coverage that was never attempted, which is the failure that field exists to prevent. `date:`
@@ -544,8 +561,8 @@ its own plugin's context file. A byte-identity check has no subject.
 
 | Mechanic | Owner |
 |---|---|
-| Table shape and cell escaping | `default-mode.md` "Findings-file shape" |
-| Path relativization and the colon-free timestamp | `default-mode.md` "Findings-writer contract" |
+| Table shape and cell escaping | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-file shape" |
+| Path relativization and the colon-free timestamp | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-writer contract" |
 | Findings home, rung order, branch sub-path, slug rule, self-ignore guard | [`topic-docs.md`](../../../plugins/review/reference/topic-docs.md) |
 | Which of those a non-fanout producer owes, and the fields it computes | this doc |
 | A rule's threshold, tier argument, disposition, and auto-applicability | this doc's crosswalk |
@@ -625,10 +642,10 @@ adopter row is a minor bump; docs-only clarification is a patch.
 
 ## External authority
 
-- [`plugins/review/skills/fanout/context/default-mode.md`](../../../plugins/review/skills/fanout/context/default-mode.md) — the findings-file shape this contract points at and never copies.
-- [`plugins/review/skills/fanout/context/fix-pass-mode.md`](../../../plugins/review/skills/fanout/context/fix-pass-mode.md) — the consumer algorithm, including merge-set construction and consumption marking.
+- [`plugins/review/reference/findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) — the findings-file shape this contract points at and never copies.
+- `/review:fanout fix` — the consumer algorithm, including merge-set construction and consumption marking.
 - [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md) — the severity-tier and confidence vocabularies a producer emits, and the consumer-precedence rule that overrides the baseline.
-- [`plugins/review/skills/fanout/context/findings-normalization.md`](../../../plugins/review/skills/fanout/context/findings-normalization.md) — the rank order that makes `low` worse than omission.
+- `/review:fanout` normalization — the five-stage reduction that applies the confidence rank order `severity.md` above owns.
 - [`plugins/review/reference/topic-docs.md`](../../../plugins/review/reference/topic-docs.md) — the findings-location binding `review:fanout` resolves through, carrying the rung order, branch sub-path, slug rule, and guard a producer therefore never restates.
 - [`docs/conventions/topic-docs/`](../topic-docs/README.md) — the tier semantics, guards, and invalid-root rule that resolver implements; not itself the pointer for where a producer writes.
 - [`docs/conventions/finding-suppression/`](../finding-suppression/README.md) — the operator-authored suppression record whose `check:` constituent a qualified rule id is, and the consent gate a producer proposes into rather than writes.

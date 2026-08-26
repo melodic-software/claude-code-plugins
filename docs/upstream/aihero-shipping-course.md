@@ -1,5 +1,21 @@
 # Upstream source — AI Hero "Shipping" course section (Matt Pocock)
 
+## Contents
+
+- [Spec container](#spec-container)
+- [Verdict table](#verdict-table)
+- [Candidate index (C1–C23)](#candidate-index-c1c23)
+- [Lane A (#2934)](#lane-a-2934)
+- [Lane B (#2935)](#lane-b-2935)
+- [Lane C (#2936)](#lane-c-2936)
+- [Lane D (#2937)](#lane-d-2937)
+- [Lane W (#2939)](#lane-w-2939)
+- [Lane X (#2940)](#lane-x-2940)
+- [Lane E (#2949)](#lane-e-2949)
+- [Decided at interview (2026-08-17, not per-lane)](#decided-at-interview-2026-08-17-not-per-lane)
+- [Adapter-track scope decision (2026-08-20)](#adapter-track-scope-decision-2026-08-20)
+- [Cross-links](#cross-links)
+
 Single source of truth for everything in this marketplace derived from the **Shipping** section
 (11 videos) of Matt Pocock's AI Hero crash course — a distinct upstream source from
 [mattpocock/skills](https://github.com/mattpocock/skills), whose SSOT is

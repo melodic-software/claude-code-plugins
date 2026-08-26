@@ -5,12 +5,12 @@ scanning; the scan's job is to emit findings typed against this model, not ad-ho
 
 ## Contents
 
-- What counts as coupling — the change-centric definition and the edge form
-- The strength ladder (structured design) — content through message coupling
-- Connascence — static and dynamic forms; the strength, degree, and locality axes
-- Volatility weighting — co-change evidence, blast radius, the ranking formula
-- Altitudes — the same model at code, module, application, repository, and document scale
-- What is NOT a finding — the carve-outs that keep the scan honest
+- [What counts as coupling](#what-counts-as-coupling). The change-centric definition and the edge form
+- [The strength ladder (structured design)](#the-strength-ladder-structured-design). Content through message coupling
+- [Connascence](#connascence--the-finer-instrument). Static and dynamic forms; the strength, degree, and locality axes
+- [Volatility weighting](#volatility-weighting--coupling-only-costs-where-change-happens). Co-change evidence, blast radius, the ranking formula
+- [Altitudes](#altitudes). The same model at code, module, application, repository, and document scale
+- [What is NOT a finding](#what-is-not-a-finding). The carve-outs that keep the scan honest
 
 ## What counts as coupling
 

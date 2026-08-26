@@ -1,5 +1,20 @@
 # Repo mode: repo-scale run machinery
 
+## Contents
+
+- [When this file applies](#when-this-file-applies)
+- [Precondition and exclusions](#precondition-and-exclusions)
+- [Grouping and canonical clusters](#grouping-and-canonical-clusters)
+- [Ordering](#ordering)
+- [Concurrency](#concurrency)
+- [Execution and spawn contract](#execution-and-spawn-contract)
+- [Refutation verifier](#refutation-verifier)
+- [Run state and resume](#run-state-and-resume)
+- [Confirmation gate](#confirmation-gate)
+- [Wave and union verification](#wave-and-union-verification)
+- [Deferred items](#deferred-items)
+- [Delivery](#delivery)
+
 Loaded only when `/code-tidying:batch-simplify repo` fires. Phases 2–8 of the main workflow are
 scope-agnostic and are inherited unchanged; everything below is the machinery a whole-repository
 sweep needs on top of them.

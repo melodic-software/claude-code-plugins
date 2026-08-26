@@ -1,5 +1,16 @@
 # Sources behind the orchestration brief
 
+## Contents
+
+- [Imperative 1 — DELEGATE / FAN OUT](#imperative-1--delegate--fan-out)
+- [Imperative 2 — SPEC EVERY SPAWN](#imperative-2--spec-every-spawn)
+- [Imperative 3 — FRESH-CONTEXT VERIFY](#imperative-3--fresh-context-verify)
+- [Imperative 4 — RUN WORKERS WELL](#imperative-4--run-workers-well)
+- [Imperative 5 — NESTED SUBAGENTS](#imperative-5--nested-subagents)
+- [Priming addendum — surface reachability](#priming-addendum--surface-reachability)
+- [Imperative 6 — SURFACE DRIFT](#imperative-6--surface-drift)
+- [Imperative 7 — CALIBRATE TO CONDITIONS](#imperative-7--calibrate-to-conditions)
+
 Official sources backing each imperative in the brief. **URLs are authoritative; fetch them to
 confirm.** Lines marked *(paraphrase)* are summarizer renderings captured during research
 (2026-06-14), concept-faithful but not byte-exact — re-fetch the URL for verbatim wording. Lines

@@ -1,5 +1,21 @@
 # Songwriter Workflows
 
+## Contents
+
+- [Why scenarios](#why-scenarios)
+- [Scenario 1 — Brand new song from scratch](#scenario-1--brand-new-song-from-scratch)
+- [Scenario 2 — Existing song revision (the song exists, something is off)](#scenario-2--existing-song-revision-the-song-exists-something-is-off)
+- [Scenario 3 — Writing from a title](#scenario-3--writing-from-a-title)
+- [Scenario 4 — Writing to an existing melody](#scenario-4--writing-to-an-existing-melody)
+- [Scenario 5 — Co-write session start](#scenario-5--co-write-session-start)
+- [Scenario 6 — Diagnose without rewrite](#scenario-6--diagnose-without-rewrite)
+- [Scenario 7 — Build a daily practice habit](#scenario-7--build-a-daily-practice-habit)
+- [Scenario 8 — Pure brainstorm (no seed yet)](#scenario-8--pure-brainstorm-no-seed-yet)
+- [Scenario 9 — Idea / seed but no title](#scenario-9--idea--seed-but-no-title)
+- [Scenario 10 — Fragment in hand](#scenario-10--fragment-in-hand)
+- [Scenario 11 — Demo at any stage](#scenario-11--demo-at-any-stage)
+- [Routing notes](#routing-notes)
+
 Pat Pattison — synthesized across all 4 books (1991, 2009, 2011, 2014) plus
 Berklee/Coursera teaching. Scenario-based router for real songwriting tasks.
 

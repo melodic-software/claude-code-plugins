@@ -42,7 +42,17 @@ A new improvement lens (e.g. `coupling`, `testability`, dependency-direction rev
 
 - `actions/<lens>.md`. The lens playbook (phases, gates, output shape)
 - `research/<lens>/`. Reference for that lens, loaded only when its action runs (per-action progressive disclosure)
-- one row in the Actions table above
+- one row in the Actions table above, plus one row per new reference file in the reference index below
+
+## Reference index. Load on demand
+
+| File | Load when |
+|------|-----------|
+| [research/deepening/scan-briefing.md](research/deepening/scan-briefing.md) | Before briefing the Phase 1 scan subagents. It is the canonical prompt (vocabulary primer, friction checklist, dependency categories, the two badge-acceptance heuristics, per-candidate return schema), so scan quality does not vary run-to-run |
+| [research/deepening/vocabulary.md](research/deepening/vocabulary.md) | Applying the deletion test, or naming anything in a candidate, report, or interview turn. The terms are used exactly, not paraphrased |
+| [research/deepening/dependencies.md](research/deepening/dependencies.md) | Classifying a candidate's dependencies, where the category chooses the testing strategy |
+| [research/deepening/html-report.md](research/deepening/html-report.md) | Writing the HTML report: scaffold, diagram patterns, and the escaping and no-remote-runtime rules it must hold to |
+| [research/deepening/interface-design.md](research/deepening/interface-design.md) | Entering the Design-It-Twice branch, or a single proposed shape is not converging in the interview loop |
 
 ## What this skill does NOT do
 
