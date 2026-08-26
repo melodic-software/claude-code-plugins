@@ -20,5 +20,6 @@ context, read the file directly.
 |---|---|---|
 | `.claude/rules/catalog-taxonomy.md` | `.claude-plugin/marketplace.json` | Where the marketplace category taxonomy lives; read before adding or changing a plugin's category |
 | `.claude/rules/hook-budget.md` | `plugins/*/hooks/**` | Marketplace-wide latency budget for always-on hooks; read before adding or widening a hook |
+| `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 
 <!-- END GENERATED: instruction-placement rules index -->
