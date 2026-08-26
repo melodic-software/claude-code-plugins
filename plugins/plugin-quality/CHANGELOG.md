@@ -5,6 +5,16 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Comment-only
+  corrections in `scripts/packet-seal.sh` (the `digest_of` doc now says it emits the bare
+  hex digest, which it does; the enumeration comment says find-walk, not glob) and a typo
+  fix in `packet-seal.test.sh`'s section header. Proven byte-identical outside comments
+  with `--help` output unchanged; all 52 contract checks green.
+
 ## [0.7.0]
 
 ### Added

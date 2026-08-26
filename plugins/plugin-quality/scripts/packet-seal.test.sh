@@ -60,7 +60,7 @@ fresh_packet() {
   printf '%s' "$p"
 }
 
-# --- record then verify a untouched packet ----------------------------------
+# --- record then verify an untouched packet ---------------------------------
 
 packet="$(fresh_packet)"
 run 0 "record seals the packet" record "$packet"
