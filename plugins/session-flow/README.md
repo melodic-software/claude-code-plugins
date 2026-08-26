@@ -24,6 +24,31 @@ arm it for delegation-heavy tasks.
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
 | `/session-flow:show-options` | Which skills fit this moment, and what am I forgetting I could run? |
 
+## Contents
+
+- [Output styles](#output-styles)
+- [What each skill does](#what-each-skill-does)
+  - [workflow](#workflow)
+  - [handoff](#handoff)
+  - [continue-in-background](#continue-in-background)
+  - [keep-going](#keep-going)
+  - [find-handoff](#find-handoff)
+  - [clean-stop](#clean-stop)
+  - [retro](#retro)
+  - [running-retro](#running-retro)
+  - [orient](#orient)
+  - [orchestrate](#orchestrate)
+  - [reanchor](#reanchor)
+  - [reconcile](#reconcile)
+  - [show-options](#show-options)
+  - [setup](#setup)
+- [Consumer conventions](#consumer-conventions)
+- [Install](#install)
+- [Configuration](#configuration)
+  - [Options reference](#options-reference)
+  - [How to set these](#how-to-set-these)
+  - [Upstream documentation](#upstream-documentation)
+
 ## Output styles
 
 - **`Brain fried`**. Opt-in simplified register for cognitively depleted sessions (short words,

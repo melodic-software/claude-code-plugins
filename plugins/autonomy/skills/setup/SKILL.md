@@ -128,8 +128,10 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
 Wires the capture-enabled state of
 [`${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md`](${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md),
 discovery-first: detect the tracker class and close-flow surface, WIRE the close- and
-reply-triggered attestation handlers where machine-editable (the marker-keyed comment floor, or
-provenance-verifiable native fields), ADVISE where GUI-only or entitlement-gated, and record the
+reply-triggered attestation handlers via the close-triggered snippet in
+[`templates/return-capture.md`](templates/return-capture.md) where machine-editable (the
+marker-keyed comment floor, or provenance-verifiable native fields), ADVISE where GUI-only or
+entitlement-gated, and record the
 `capture` section of the repo-local autonomy binding. The autonomous-class capture gate, the
 record-integrity rule, the attestation-routing rule, and every serialized `capture` key are
 specified in [`context/capture-slice.md`](context/capture-slice.md). Agents prompt and aggregate;
@@ -143,7 +145,9 @@ discovery-first: discover the four signal-surface classes and their transports, 
 (event kick + scheduled drain) as reviewable changes through the one queue-drain entrypoint, advise
 plan-gated integrations, and record the `triggers` section (the `surfaces` map + drain cadence) of
 the repo-local autonomy binding. Vendor event names and invocation flags live in this slice's
-templates, never the contract. The per-surface adapter obligations, the execution-surface
+[`templates/trigger-adapters.md`](templates/trigger-adapters.md) (adapter shapes) and
+[`templates/ack-reply.md`](templates/ack-reply.md) (acknowledgment shape), never the contract.
+The per-surface adapter obligations, the execution-surface
 attestation caveat, the admission fail-closed rule, every serialized `triggers` key, and the
 [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs) conformance step are
 specified in [`context/trigger-dispatch-slice.md`](context/trigger-dispatch-slice.md).
@@ -212,7 +216,8 @@ detect, bind, live-validate, fail-closed, always detect-diff-reconciling against
 guardrail surfaces. The [resolution section above](#guardrail-binding-resolution) owns how bound
 policy resolves; this slice is the action that produces the security binding it resolves. Read
 [`context/guardrail-slice.md`](context/guardrail-slice.md) when `apply` reaches the guardrail
-slice: it owns the per-layer wiring, the isolation-ladder probe, the security-binding schema and
+slice: it owns the per-layer wiring, the isolation-ladder probe (recipe in
+[`templates/isolation-probe.md`](templates/isolation-probe.md)), the security-binding schema and
 its validator, and the paid-SKU opt-in surface. The slice is argument-selected, so a run that does
 not select it never needs the file.
 
@@ -224,8 +229,9 @@ Wires the standing-routine state of the
 Like the [guardrail slice](#guardrail-slice) it PREPARES the security surface and never writes it.
 Read [`context/routine-slice.md`](context/routine-slice.md) when `apply` reaches the routine slice:
 it owns the discovery-first reconciliation against the org's existing schedulers and bots, the
-routine-definitions template, the CI-cron handler shape, and the signal-envelope verification. The
-slice is argument-selected, so a run that does not select it never needs the file.
+[`templates/routine-definitions.md`](templates/routine-definitions.md) template, the CI-cron
+handler shape, and the signal-envelope verification. The slice is argument-selected, so a run
+that does not select it never needs the file.
 
 ## Prerequisite-resolution slice
 

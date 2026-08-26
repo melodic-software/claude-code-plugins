@@ -13,6 +13,32 @@ Firing a corrector is a re-anchor, not an accusation. Reaching for one as a
 gentle reminder, before the work, or just to set posture, is a
 first-class use, and the audit may honestly return clean.
 
+## Contents
+
+- [What each skill does](#what-each-skill-does)
+  - [do-your-research](#do-your-research)
+  - [do-your-research-deep](#do-your-research-deep)
+  - [follow-our-standards](#follow-our-standards)
+  - [point-dont-copy](#point-dont-copy)
+  - [reason-dont-recite](#reason-dont-recite)
+  - [tighten-your-output](#tighten-your-output)
+  - [recheck-against-upstream](#recheck-against-upstream)
+  - [recheck-against-upstream-deep](#recheck-against-upstream-deep)
+  - [pick-for-the-problem](#pick-for-the-problem)
+  - [mind-your-maxims](#mind-your-maxims)
+  - [script-the-deterministic-work](#script-the-deterministic-work)
+  - [use-your-skills](#use-your-skills)
+  - [reuse-or-replace](#reuse-or-replace)
+  - [scrutinize-dont-coast](#scrutinize-dont-coast)
+  - [sweep-all (composed runbook)](#sweep-all-composed-runbook)
+  - [wait-what (one-shot communication repair)](#wait-what-one-shot-communication-repair)
+- [Consumer conventions](#consumer-conventions)
+- [Install](#install)
+- [Configuration](#configuration)
+  - [Options reference](#options-reference)
+  - [How to set these](#how-to-set-these)
+  - [Upstream documentation](#upstream-documentation)
+
 | Skill | Discipline it re-anchors |
 |---|---|
 | `/discipline:do-your-research` | Research and no-assumptions before assertion |

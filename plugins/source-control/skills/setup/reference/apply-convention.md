@@ -5,6 +5,29 @@ The full write path for the convention config: target-layer selection, the non-i
 post-write verification, and the effective-merge report. Loaded from [SKILL.md](../SKILL.md)
 "`apply` (idempotent)" — the hub owns *when* this runs; this spoke owns *how*.
 
+## Contents
+
+This reference carries one heading break in the body:
+[Neutral convention SSOT](#neutral-convention-ssot-convention_source) at the end. Everything
+above it is the linear `apply` interview, walked as bolded numbered steps (0 through 7) rather
+than headings. Find a step directly with:
+
+```shell
+grep -n '^[0-9]\. \*\*' apply-convention.md
+```
+
+- Layer selection (`layer=`) and the non-interactive `subject_pattern=` write: immediately below,
+  before the interview starts
+- Step 0, anchor at the repo root
+- Step 1, read the current config first
+- Step 2, infer before asking
+- Step 3, interview, one decision at a time
+- Step 4, settle the remaining fields
+- Step 5, write the config
+- Step 6, verify the write, per layer
+- Step 7, report the new effective merge
+- [Neutral convention SSOT (`convention_source`)](#neutral-convention-ssot-convention_source)
+
 **Pick the target layer first.** `layer=` selects it; `team` is the default when the argument is
 absent, since a convention is a team artifact until someone says otherwise.
 
