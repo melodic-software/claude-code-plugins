@@ -9,9 +9,10 @@ header. Cross-OS.
 Compares the current severity counts (per category) to the most recent
 history entry. Produces strings like:
 
-    "WARN +1 (event-log), INFO -1 (drivers improved), OK unchanged"
+    "WARN +1, INFO -1"
     "no prior runs"
     "no change vs 2026-04-22"
+    "WARN +1 (2 cadence-deferred checks not compared)"
 
 Best-effort: history stores severity_counts by category, not by check-id, so
 the delta message is category-level rather than per-check. The report's
