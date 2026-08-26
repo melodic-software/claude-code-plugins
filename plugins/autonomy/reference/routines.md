@@ -1,5 +1,17 @@
 # Routines
 
+## Contents
+
+- [What a routine is](#what-a-routine-is)
+- [Two families of repetition](#two-families-of-repetition)
+- [Trigger taxonomy](#trigger-taxonomy)
+- [Output contract](#output-contract)
+- [Mapping rules (catalog to matrix)](#mapping-rules-catalog-to-matrix)
+- [The catalog](#the-catalog)
+- [Precedent pointers (non-normative)](#precedent-pointers-non-normative)
+- [Instruction provenance](#instruction-provenance)
+- [Hosting stance](#hosting-stance)
+
 Normative contract for standing scheduled routines: what a routine is, the language that
 separates standing from session-scoped repetition, the contract-owned mapping rules that
 derive every routine class's guardrail row, and the class catalog as the glance layer. This

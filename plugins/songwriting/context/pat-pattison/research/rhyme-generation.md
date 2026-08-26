@@ -1,5 +1,16 @@
 # Rhyme Generation — Internal Discipline (Pat-Guided)
 
+## Contents
+
+- [Source](#source)
+- [When this file applies](#when-this-file-applies)
+- [The internal generation discipline](#the-internal-generation-discipline)
+- [Why the tier label carries the emotion — Pat's worked case](#why-the-tier-label-carries-the-emotion--pats-worked-case)
+- [Worksheet generation (*Essential Guide to Rhyming* (2014), Chapter 3 + Chapter 7)](#worksheet-generation-essential-guide-to-rhyming-2014-chapter-3--chapter-7)
+- [When to fall back to external data](#when-to-fall-back-to-external-data)
+- [Failure modes (and recovery)](#failure-modes-and-recovery)
+- [Cross-references](#cross-references)
+
 The model's internal phonetic vocabulary is broad and includes proper nouns,
 pop culture references, settings, slang, and contextual words that a generic
 rhyming dictionary misses. **Internal generation is primary.** External

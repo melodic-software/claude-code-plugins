@@ -1,5 +1,19 @@
 # Dead-Code Detection Tool Landscape (2025–2026)
 
+## Contents
+
+- [1. TypeScript / JavaScript](#1-typescript--javascript)
+- [2. Python](#2-python)
+- [3. .NET (C#) ecosystem](#3-net-c-ecosystem)
+- [4. Shell](#4-shell)
+- [5. Go](#5-go)
+- [6. Rust](#6-rust)
+- [7. Cross-language / generic approaches](#7-cross-language--generic-approaches)
+- [Summary comparison table](#summary-comparison-table)
+- [False-positive classes common to all ecosystems](#false-positive-classes-common-to-all-ecosystems)
+- [Prior art: LLM-assisted detection & verification-pass patterns](#prior-art-llm-assisted-detection--verification-pass-patterns)
+- [Key sources](#key-sources)
+
 > **Status:** durable measurement record, graduated from the `dead-code-detection-skill` contract
 > slice when `/code-tidying:audit-dead-code` shipped. It is the evidence base behind that skill's
 > lane roster and its exclusions — anything here that a later change contradicts needs new

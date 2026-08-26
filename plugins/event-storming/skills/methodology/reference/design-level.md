@@ -1,5 +1,17 @@
 # Design-Level EventStorming
 
+## Contents
+
+- [How Design-Level Differs from Big Picture and Process Modeling](#how-design-level-differs-from-big-picture-and-process-modeling)
+- [Working with the Big Picture Artifact](#working-with-the-big-picture-artifact)
+- [Design-Level Workshop Phases `\[SUPPLEMENTED\]`](#design-level-workshop-phases-supplemented)
+- [Discovering Aggregates](#discovering-aggregates)
+- [Design-Level Modeling Tips](#design-level-modeling-tips)
+- [From Paper Roll to Working Code](#from-paper-roll-to-working-code)
+- [From EventStorming to User Stories](#from-eventstorming-to-user-stories)
+- [Domain Events in Depth (Why They're Special)](#domain-events-in-depth-why-theyre-special)
+- [Relationship to Your Architecture](#relationship-to-your-architecture)
+
 Design-Level EventStorming bridges the gap between process understanding and software implementation. It focuses on implementing software features that solve a specific problem, working within a single bounded context.
 
 **Source note:** Core concepts from Alberto Brandolini's book (5-20% complete chapters). Sections marked with `[SUPPLEMENTED]` were enriched from authoritative external sources: Brandolini's blog/talks, EventStorming Journal (Philippe Bourgau), MrPicky.dev (Mariusz Gil), and DDD community practitioners.

@@ -1,5 +1,39 @@
 # Metaphor
 
+## Contents
+
+- [Anchor stance](#anchor-stance)
+- [Core idea](#core-idea)
+- [The two metaphor-finder questions](#the-two-metaphor-finder-questions)
+- [The three metaphor types](#the-three-metaphor-types)
+- [Expressed identity forms](#expressed-identity-forms)
+- [Playing in keys](#playing-in-keys)
+- [The two metaphor questions](#the-two-metaphor-questions)
+- [Accident exercises](#accident-exercises)
+- [Challenge 2 collision pipeline](#challenge-2-collision-pipeline)
+- [Sentence, then 90 seconds](#sentence-then-90-seconds)
+- [Collision quality checks](#collision-quality-checks)
+- [Finding terms from the opposite direction](#finding-terms-from-the-opposite-direction)
+- [Reversing expressed identity](#reversing-expressed-identity)
+- [Playing in keys through linking qualities](#playing-in-keys-through-linking-qualities)
+- [Challenge 3 — object writing with metaphor](#challenge-3--object-writing-with-metaphor)
+- [Simile as focus control](#simile-as-focus-control)
+- [Five-step metaphor practice (*Writing Better Lyrics* (2009), Chapter 3, Exercise 8)](#five-step-metaphor-practice-writing-better-lyrics-2009-chapter-3-exercise-8)
+- [Participles](#participles)
+- [Simile versus metaphor](#simile-versus-metaphor)
+- [Metaphor diagnosis](#metaphor-diagnosis)
+- [Chapter 3 exercises as coaching prompts](#chapter-3-exercises-as-coaching-prompts)
+- [Skill workflow](#skill-workflow)
+- [Eight metaphor moves — this repo's recipe card, not Pat's taxonomy](#eight-metaphor-moves--this-repos-recipe-card-not-pats-taxonomy)
+- [Productive ambiguity](#productive-ambiguity)
+- [Coaching prompts (extended)](#coaching-prompts-extended)
+- [Transitive vs intransitive — verbal metaphor construction (*Songwriting Without Boundaries* (2011), Challenge 2)](#transitive-vs-intransitive--verbal-metaphor-construction-songwriting-without-boundaries-2011-challenge-2)
+- [Tone center / diatonic vocabulary (*Songwriting Without Boundaries* (2011), Challenge 2)](#tone-center--diatonic-vocabulary-songwriting-without-boundaries-2011-challenge-2)
+- [Grounded metaphor rule (*Writing Better Lyrics* (2009), Chapter 24)](#grounded-metaphor-rule-writing-better-lyrics-2009-chapter-24)
+- [Simile — the energy-blocker model](#simile--the-energy-blocker-model)
+- [Failure mode — simile-only candidate](#failure-mode--simile-only-candidate)
+- [Cross-references](#cross-references)
+
 Pat Pattison — *Writing Better Lyrics* (2009), Chapter 3 ("Making
 Metaphors"), Chapter 24 ("Process"); Pat Pattison — *Songwriting Without
 Boundaries* (2011), Challenge 2 ("Metaphor," Days 1-14) and Challenge 3

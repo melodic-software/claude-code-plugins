@@ -1,5 +1,22 @@
 # Scrutiny method — evidence-earned keep
 
+## Contents
+
+- [Lane binding](#lane-binding)
+- [1. The economic frame: carry cost, never build cost](#1-the-economic-frame-carry-cost-never-build-cost)
+- [2. Evidence taxonomy — and what silence means](#2-evidence-taxonomy--and-what-silence-means)
+- [3. Liveness — three independent questions](#3-liveness--three-independent-questions)
+- [4. Intent reconstruction](#4-intent-reconstruction)
+- [5. Rediscovery — re-solve, do not critique](#5-rediscovery--re-solve-do-not-critique)
+- [6. The verdict ladder](#6-the-verdict-ladder)
+- [7. Protected classes and the FLAG-FOR-HUMAN cap](#7-protected-classes-and-the-flag-for-human-cap)
+- [8. UNPROVEN triage — never an undifferentiated wall](#8-unproven-triage--never-an-undifferentiated-wall)
+- [9. Analogical thresholds — every row is a transfer](#9-analogical-thresholds--every-row-is-a-transfer)
+- [10. The YAGNI scope boundary](#10-the-yagni-scope-boundary)
+- [11. The rollback ladder](#11-the-rollback-ladder)
+- [12. Ownership](#12-ownership)
+- [External authority](#external-authority)
+
 Shared method for every skill in this plugin. `audit` applies it to produce verdicts; `realign`
 applies its rollback ladder and its protected-class rules to execute them. **Neither SKILL.md
 restates any of it** — a second statement of a verdict definition is a second thing to drift.

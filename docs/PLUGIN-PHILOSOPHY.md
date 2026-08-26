@@ -1,5 +1,23 @@
 # Plugin philosophy
 
+## Contents
+
+- [Design boundary](#design-boundary)
+- [Naming](#naming)
+- [Native-first](#native-first)
+- [Component stances](#component-stances)
+- [Two-lane convention posture](#two-lane-convention-posture)
+- [Configuration ownership and scope](#configuration-ownership-and-scope)
+- [Setup is explicit and repeatable](#setup-is-explicit-and-repeatable)
+- [Prerequisites and failure behavior](#prerequisites-and-failure-behavior)
+- [Convention registry](#convention-registry)
+- [Cross-platform contract](#cross-platform-contract)
+- [Evidence and validation](#evidence-and-validation)
+- [Instruction economy](#instruction-economy)
+- [Fresh-eyes checkpoints](#fresh-eyes-checkpoints)
+- [Delegation mechanics](#delegation-mechanics)
+- [Authoritative references](#authoritative-references)
+
 This is the durable design policy for plugins in this marketplace. The
 [migration playbook](MIGRATION-PLAYBOOK.md) applies it to migration and release work; the
 [plugin artifact protocol](PLUGIN-ARTIFACT-PROTOCOL.md) defines the shared artifact seam used by

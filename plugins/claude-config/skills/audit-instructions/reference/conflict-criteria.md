@@ -1,5 +1,21 @@
 # Cross-Surface Conflict Criteria
 
+## Contents
+
+- [Sources](#sources)
+- [Boundary: what C6's population actually is](#boundary-what-c6s-population-actually-is)
+- [Prerequisite: co-residency](#prerequisite-co-residency)
+- [Prerequisite: effective liveness, which the tree does not determine](#prerequisite-effective-liveness-which-the-tree-does-not-determine)
+- [Known limit: Phase A does not reach the plugin-source tree](#known-limit-phase-a-does-not-reach-the-plugin-source-tree)
+- [Scope filters findings, never reads](#scope-filters-findings-never-reads)
+- [The five gates](#the-five-gates)
+- [Precedence: what the docs settle, and what they do not](#precedence-what-the-docs-settle-and-what-they-do-not)
+- [Running the pass](#running-the-pass)
+- [Must-not-flag set](#must-not-flag-set)
+- [Deterministic pre-scan](#deterministic-pre-scan)
+- [Worked examples](#worked-examples)
+- [Output format](#output-format)
+
 Version: 1.5.0
 Last updated: 2026-08-15
 

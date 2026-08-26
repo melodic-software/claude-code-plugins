@@ -1,5 +1,18 @@
 # Section Building
 
+## Contents
+
+- [Core idea](#core-idea)
+- [The starting section — BUILDING SECTIONS](#the-starting-section--building-sections)
+- [1. Number of phrases](#1-number-of-phrases)
+- [2. Length of phrases](#2-length-of-phrases)
+- [3. Rhythm of phrases](#3-rhythm-of-phrases)
+- [4. Rhyme scheme](#4-rhyme-scheme)
+- [Transitional bridge construction](#transitional-bridge-construction)
+- [Section-use decisions — Pat's own verdicts](#section-use-decisions--pats-own-verdicts)
+- [Exercises](#exercises)
+- [How the chapter closes](#how-the-chapter-closes)
+
 Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 5,
 the "BUILDING SECTIONS" half of the chapter. Everything below is Pat's printed
 text and his figures, transcribed.

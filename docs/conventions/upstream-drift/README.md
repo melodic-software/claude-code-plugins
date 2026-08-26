@@ -1,5 +1,20 @@
 # Upstream drift — verification stamps and recheck triggers
 
+## Contents
+
+- [Boundary](#boundary)
+- [A date is never authority](#a-date-is-never-authority)
+- [Required parts](#required-parts)
+- [The observability bar](#the-observability-bar)
+- [When a trigger fires](#when-a-trigger-fires)
+- [Reading the basis — the fetch route](#reading-the-basis--the-fetch-route)
+- [Drift signal — content hashing, deferred](#drift-signal--content-hashing-deferred)
+- [Enforceability](#enforceability)
+- [Adopters](#adopters)
+- [Why this name](#why-this-name)
+- [Versioning](#versioning)
+- [External authority](#external-authority)
+
 Owner doc for **how this repository records a fact or decision derived from a source it does not
 own** — an official doc page, an upstream issue thread, a probed platform behavior — so the record
 stays honest as the upstream moves. One name and one shape: a dated **verification stamp** paired

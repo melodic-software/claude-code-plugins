@@ -1,5 +1,22 @@
 # AI Response Filter — Pre-Flight Gate for Every Output
 
+## Contents
+
+- [Stance: Tools, Not Rules — applied to the AI itself](#stance-tools-not-rules--applied-to-the-ai-itself)
+- [How to use this file](#how-to-use-this-file)
+- [§1 Rhyme suggestion filter](#1-rhyme-suggestion-filter)
+- [§2 Line-writing filter](#2-line-writing-filter)
+- [§3 Critique filter](#3-critique-filter)
+- [§4 Coaching posture filter](#4-coaching-posture-filter)
+- [§5 Title + hook filter](#5-title--hook-filter)
+- [§6 Form filter](#6-form-filter)
+- [§7 Image filter (object writing + metaphor)](#7-image-filter-object-writing--metaphor)
+- [§8 Pre-lock filter](#8-pre-lock-filter)
+- [Cross-section drift checks (run periodically across a response)](#cross-section-drift-checks-run-periodically-across-a-response)
+- [Filter posture — quick reference](#filter-posture--quick-reference)
+- [Cross-references](#cross-references)
+- [Recheck triggers (when this filter needs revision)](#recheck-triggers-when-this-filter-needs-revision)
+
 **This file is mandatory.** When any `/songwriting` craft skill is active — explicitly or
 auto-routed — every AI response that suggests rhymes, writes a line, rewrites
 a lyric, critiques a draft, or coaches process MUST pass through the

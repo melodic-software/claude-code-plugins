@@ -1,5 +1,18 @@
 # Upstream source: AI Hero course lessons (Matt Pocock)
 
+## Contents
+
+- [Row schema (fixed at creation, per amendment A2)](#row-schema-fixed-at-creation-per-amendment-a2)
+- [Lane 1: handoff (issue #2899, decided 2026-08-17)](#lane-1-handoff-issue-2899-decided-2026-08-17)
+- [Lane 2: phase boundaries (issue #2900, decided 2026-08-17)](#lane-2-phase-boundaries-issue-2900-decided-2026-08-17)
+- [Lane 3: compaction doctrine (issue #2901, decided 2026-08-17)](#lane-3-compaction-doctrine-issue-2901-decided-2026-08-17)
+- [Lane 4: plan mode / asset rush (issue #2902, decided 2026-08-17)](#lane-4-plan-mode--asset-rush-issue-2902-decided-2026-08-17)
+- [Lane 5: grilling-interview parity (issue #2903, decided 2026-08-17)](#lane-5-grilling-interview-parity-issue-2903-decided-2026-08-17)
+- [Steering lanes 7–9 (issues #2909–#2911, decided 2026-08-17)](#steering-lanes-79-issues-29092911-decided-2026-08-17)
+- [Harness-claims verdicts (graduated durable record)](#harness-claims-verdicts-graduated-durable-record)
+- [Term adoption (lane 6, decided 2026-08-18)](#term-adoption-lane-6-decided-2026-08-18)
+- [Coverage index (the journey's completion gate)](#coverage-index-the-journeys-completion-gate)
+
 Provenance record for everything in this marketplace vetted against the AI Hero **crash course**
 lessons (Matt Pocock's course on working with coding agents): the original six lessons (handoff,
 phase boundaries, compaction, auto-compaction, plan mode, grilling) plus the course's nine

@@ -1,5 +1,19 @@
 # Save-point engine — produce the save-point and the resume prompt
 
+## Contents
+
+- [Where save-points live](#where-save-points-live)
+- [Locate the position first](#locate-the-position-first)
+- [Choosing the path: full save-point vs prompt-only](#choosing-the-path-full-save-point-vs-prompt-only)
+- [Redaction pass — mandatory on BOTH paths](#redaction-pass--mandatory-on-both-paths)
+- [Claim provenance — mandatory on BOTH paths](#claim-provenance--mandatory-on-both-paths)
+- [Original goal — mandatory on BOTH paths](#original-goal--mandatory-on-both-paths)
+- [The purpose argument tailors emphasis only](#the-purpose-argument-tailors-emphasis-only)
+- [Writing the handoff file (full path)](#writing-the-handoff-file-full-path)
+- [Emit the position panel](#emit-the-position-panel)
+- [Emit the copy/paste resume prompt](#emit-the-copypaste-resume-prompt)
+- [Detection contract — consumed by `/session-flow:find-handoff`](#detection-contract--consumed-by-session-flowfind-handoff)
+
 Shared by `/session-flow:handoff` and `/session-flow:continue-in-background`. This document owns
 delivery-agnostic machinery: locating the position, choosing the path, producing the (redacted)
 save-point, and emitting the rails resume prompt. The citing skill owns everything after the rails

@@ -1,5 +1,17 @@
 # Sync algorithm
 
+## Contents
+
+- [Concurrency](#concurrency)
+- [Version capture for the report](#version-capture-for-the-report)
+- [Marketplace scoping — Steps 2–5 are the per-marketplace loop body](#marketplace-scoping--steps-25-are-the-per-marketplace-loop-body)
+- [Step 1 — Marketplace refresh](#step-1--marketplace-refresh)
+- [Step 2 — In-repo update (the primary value path)](#step-2--in-repo-update-the-primary-value-path)
+- [Step 3 — User-scope update sweep](#step-3--user-scope-update-sweep)
+- [Step 4 — Install new catalog plugins (per `install_new` policy)](#step-4--install-new-catalog-plugins-per-install_new-policy)
+- [Step 5 — `enabledPlugins` completeness](#step-5--enabledplugins-completeness)
+- [Step 6 — Report](#step-6--report)
+
 `sync` is the default action: bring the effective fleet current where you stand. Every step below
 is CLI-mediated — never edit `installed_plugins.json`, `known_marketplaces.json`, or any
 `.claude/settings*.json` directly. `audit` runs this same sequence with every mutating call replaced

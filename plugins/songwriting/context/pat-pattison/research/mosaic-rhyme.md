@@ -1,5 +1,23 @@
 # Mosaic Rhyme — Multi-Word Combos Across Parts of Speech
 
+## Contents
+
+- [Pat's own mosaic examples](#pats-own-mosaic-examples)
+- [What mosaic rhyme is](#what-mosaic-rhyme-is)
+- [Cross-part-of-speech is the point](#cross-part-of-speech-is-the-point)
+- [Proper nouns are mosaic-rich](#proper-nouns-are-mosaic-rich)
+- [Hip-hop / rap craft tradition](#hip-hop--rap-craft-tradition)
+- [Where mosaic rhyme is generated in the worksheet](#where-mosaic-rhyme-is-generated-in-the-worksheet)
+- [Identity check for mosaic rhyme](#identity-check-for-mosaic-rhyme)
+- [Stress pattern preservation](#stress-pattern-preservation)
+- [Mosaic risk register](#mosaic-risk-register)
+- [When mosaic rhyme is the RIGHT call](#when-mosaic-rhyme-is-the-right-call)
+- [When mosaic rhyme is the WRONG call](#when-mosaic-rhyme-is-the-wrong-call)
+- [Surfacing mosaic to the writer](#surfacing-mosaic-to-the-writer)
+- [Examples by source type](#examples-by-source-type)
+- [Cross-references](#cross-references)
+- [Anchor stance](#anchor-stance)
+
 Pat Pattison — *Essential Guide to Rhyming*
 (2014), Chapter 1 — where mosaic rhyme is named and defined. Worked examples
 run through Chapter 2 (the "risky business" walkthrough), Chapter 4 (feminine

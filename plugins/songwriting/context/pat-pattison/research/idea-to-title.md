@@ -1,5 +1,13 @@
 # Idea to Title — Developing a Seed Toward a Title
 
+## Contents
+
+- [When to load](#when-to-load)
+- [Workflow](#workflow)
+- [Common failure modes](#common-failure-modes)
+- [Artifact pattern](#artifact-pattern)
+- [Cross-references](#cross-references)
+
 Pat Pattison — *Writing Better Lyrics* (2009), Chapter 4 ("Learning to
 Say No: Building Worksheets"), Chapter 19 ("Understanding Motion"),
 Chapter 24 ("Process").

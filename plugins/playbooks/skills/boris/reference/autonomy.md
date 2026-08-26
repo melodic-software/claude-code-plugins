@@ -1,5 +1,25 @@
 # Autonomy & Opus 4.7 Era — Sections 61–77
 
+## Contents
+
+- [61. Routines — Scheduled & Event-Driven Claude Code](#61-routines--scheduled--event-driven-claude-code)
+- [62. Rewind Over Correcting](#62-rewind-over-correcting)
+- [63. /compact vs /clear — Know the Difference](#63-compact-vs-clear--know-the-difference)
+- [64. Lower Your Auto-Compact Threshold](#64-lower-your-auto-compact-threshold)
+- [65. Delegation over Guidance (Opus 4.7)](#65-delegation-over-guidance-opus-47)
+- [66. Full Task Context Upfront](#66-full-task-context-upfront)
+- [67. xhigh — New Default Effort for Opus 4.7](#67-xhigh--new-default-effort-for-opus-47)
+- [68. Auto Mode + Parallel Claudes (Opus 4.7)](#68-auto-mode--parallel-claudes-opus-47)
+- [69. /fewer-permission-prompts — Tune Your Allowlist](#69-fewer-permission-prompts--tune-your-allowlist)
+- [70. Recaps — Know What Happened While You Were Away](#70-recaps--know-what-happened-while-you-were-away)
+- [71. Focus Mode — See Only the Final Result](#71-focus-mode--see-only-the-final-result)
+- [72. Effort Mastery — xhigh, max, and Adaptive Thinking](#72-effort-mastery--xhigh-max-and-adaptive-thinking)
+- [73. /go — Verify, Simplify, Ship](#73-go--verify-simplify-ship)
+- [74. What Changed from 4.6 — Three Behavioral Shifts](#74-what-changed-from-46--three-behavioral-shifts)
+- [75. Task Completion Notifications](#75-task-completion-notifications)
+- [76. Agent View — One List of All Your Sessions](#76-agent-view--one-list-of-all-your-sessions)
+- [77. /goal — Keep Claude Working Until the Condition Is Met](#77-goal--keep-claude-working-until-the-condition-is-met)
+
 Tips from Boris Cherny's Parts 10–12 threads (Apr 14 – May 12, 2026): Opus 4.7 launch, scheduled/event-driven runs, context hygiene, autonomous workflows, `claude agents` control plane, `/goal` Ralph-loop completion conditions.
 
 ## 61. Routines — Scheduled & Event-Driven Claude Code

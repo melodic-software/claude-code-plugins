@@ -1,5 +1,20 @@
 # Five Compositional Elements
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Why all five at once](#why-all-five-at-once)
+- [The diagnostic worksheet](#the-diagnostic-worksheet)
+- [Each element in turn](#each-element-in-turn)
+- [Reading the worksheet](#reading-the-worksheet)
+- [Worked example — "Some People's Lives"](#worked-example--some-peoples-lives)
+- [Worked example — row 4 alone (*Essential Guide to Rhyming* (2014), Chapter 6)](#worked-example--row-4-alone-essential-guide-to-rhyming-2014-chapter-6)
+- [Coaching prompts](#coaching-prompts)
+- [Anti-patterns](#anti-patterns)
+- [Related actions](#related-actions)
+- [Four-juggling-balls origin (*Essential Guide to Lyric Form and Structure* (1991) introduction)](#four-juggling-balls-origin-essential-guide-to-lyric-form-and-structure-1991-introduction)
+- [Cross-references](#cross-references)
+
 Pat Pattison — Coursera "Songwriting: Writing the Lyrics" specialization
 framing, synthesized from *Essential Guide to Lyric Form and
 Structure* (1991) Chapters 1-4 (where each element is named separately) and

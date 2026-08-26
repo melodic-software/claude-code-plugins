@@ -1,5 +1,43 @@
 # Rhyme Strategy
 
+## Contents
+
+- [Core idea](#core-idea)
+- [The five areas rhyme controls](#the-five-areas-rhyme-controls)
+- [The three rhyme strategies](#the-three-rhyme-strategies)
+- [Strategy 1: outline idea movement](#strategy-1-outline-idea-movement)
+- [Through-write when the idea should flow](#through-write-when-the-idea-should-flow)
+- [Fragment when the idea should divide](#fragment-when-the-idea-should-divide)
+- [Strategy 2: support meaning through prosody](#strategy-2-support-meaning-through-prosody)
+- [Accelerate strategically](#accelerate-strategically)
+- [Decelerate strategically](#decelerate-strategically)
+- [Closure as spotlight](#closure-as-spotlight)
+- [Strategy 3: relate sections](#strategy-3-relate-sections)
+- [Working from idea to scheme](#working-from-idea-to-scheme)
+- [Working from scheme to idea](#working-from-scheme-to-idea)
+- [Exercise patterns worth keeping](#exercise-patterns-worth-keeping)
+- [Diagnostic workflow](#diagnostic-workflow)
+- [Revision moves](#revision-moves)
+- [Rhyme types as strategy](#rhyme-types-as-strategy)
+- [Dominant and tonic positions](#dominant-and-tonic-positions)
+- [Stability scale for strategic use](#stability-scale-for-strategic-use)
+- [Perfect rhyme in stable schemes](#perfect-rhyme-in-stable-schemes)
+- [Family rhyme for softer stability](#family-rhyme-for-softer-stability)
+- [Assonance for drift](#assonance-for-drift)
+- [Consonance for open longing](#consonance-for-open-longing)
+- [Decision matrix](#decision-matrix)
+- [Repeated-section problem](#repeated-section-problem)
+- [Rhyme type placement workflow](#rhyme-type-placement-workflow)
+- [Chapter 9 exercises as coaching prompts](#chapter-9-exercises-as-coaching-prompts)
+- [Challenge 4 rhyme practice](#challenge-4-rhyme-practice)
+- [Why `abba` does not close](#why-abba-does-not-close)
+- [Choosing the rhyme type for a slot](#choosing-the-rhyme-type-for-a-slot)
+- [Shelley anchor — through-written without internal fragmentation](#shelley-anchor--through-written-without-internal-fragmentation)
+- [Sound vs order — the two forces](#sound-vs-order--the-two-forces)
+- [Paul Simon "50 Ways to Leave Your Lover" — strategic consonance (*Essential Guide to Rhyming* (2014), Chapter 6)](#paul-simon-50-ways-to-leave-your-lover--strategic-consonance-essential-guide-to-rhyming-2014-chapter-6)
+- [The full rhyme search (*Essential Guide to Rhyming* (2014), Chapter 7)](#the-full-rhyme-search-essential-guide-to-rhyming-2014-chapter-7)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Essential Guide to Lyric Form and Structure* (1991), Chapter 4.
 Extended with *Essential Guide to Rhyming* (2014), Chapters 7 and 9, and
 *Songwriting Without Boundaries* (2011), Challenge 4.

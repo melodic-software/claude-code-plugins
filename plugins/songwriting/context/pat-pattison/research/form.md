@@ -1,5 +1,44 @@
 # Form
 
+## Contents
+
+- [Image inventory](#image-inventory)
+- [Core idea](#core-idea)
+- [Central and developmental sections](#central-and-developmental-sections)
+- [Moving and stopping](#moving-and-stopping)
+- [Form follows function](#form-follows-function)
+- [Rhyme as accelerator](#rhyme-as-accelerator)
+- [Verse](#verse)
+- [Verse-only songs](#verse-only-songs)
+- [Chorus](#chorus)
+- [Contrast principle](#contrast-principle)
+- [Verse/chorus contrast audit](#versechorus-contrast-audit)
+- [Prosody and contrast](#prosody-and-contrast)
+- [Chorus balance can be composite](#chorus-balance-can-be-composite)
+- [Phrase-count balance](#phrase-count-balance)
+- [Spotlighting with balance](#spotlighting-with-balance)
+- [Pushing by imbalance](#pushing-by-imbalance)
+- [Expected balance and surprise](#expected-balance-and-surprise)
+- [Whole-system balance](#whole-system-balance)
+- [Song system](#song-system)
+- [Bridge](#bridge)
+- [Bridge in verse-chorus forms](#bridge-in-verse-chorus-forms)
+- [Transitional bridge](#transitional-bridge)
+- [Refrain](#refrain)
+- [Hook](#hook)
+- [Section construction](#section-construction)
+- [Exercises](#exercises)
+- [What Chapter 5 tells you to do](#what-chapter-5-tells-you-to-do)
+- [Common fixes](#common-fixes)
+- [Bridge — three functions](#bridge--three-functions)
+- [Four building levers — the candy bar discipline](#four-building-levers--the-candy-bar-discipline)
+- [Refrain is not a separate section](#refrain-is-not-a-separate-section)
+- [Transitional bridge — distinct from typical bridge](#transitional-bridge--distinct-from-typical-bridge)
+- [Transitional bridge — alternative-name list (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)](#transitional-bridge--alternative-name-list-essential-guide-to-lyric-form-and-structure-1991-chapter-5)
+- ["Song System" origin (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)](#song-system-origin-essential-guide-to-lyric-form-and-structure-1991-chapter-5)
+- [Painting / music — forward-movement framing (*Essential Guide to Lyric Form and Structure* (1991), Chapter 5)](#painting--music--forward-movement-framing-essential-guide-to-lyric-form-and-structure-1991-chapter-5)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Essential Guide to Lyric Form and Structure*
 (1991), Chapters 5-6. Pat Pattison - *Writing Better Lyrics* (2009),
 Chapters 20-21.

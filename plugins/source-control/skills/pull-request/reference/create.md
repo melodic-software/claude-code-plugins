@@ -1,5 +1,15 @@
 # Phase 2: Create (commit + push + PR)
 
+## Contents
+
+- [2.1 Pre-flight](#21-pre-flight)
+- [2.2 Rebase onto the latest default branch](#22-rebase-onto-the-latest-default-branch)
+- [2.3 Stage and commit](#23-stage-and-commit)
+- [2.4 Push, create PR, and persist PR number](#24-push-create-pr-and-persist-pr-number)
+- [2.5 Record expected CI workflows](#25-record-expected-ci-workflows)
+- [2.6 Report and stop](#26-report-and-stop)
+- [2.7 `create --pushed` — PR-only entry for an orchestrated flow](#27-create---pushed--pr-only-entry-for-an-orchestrated-flow)
+
 ## 2.1 Pre-flight
 
 1. **Prep completed?** Prep produces no state file — its outputs (verified findings + clean verify-gate results) live in conversation context. If neither has been run this session, suggest `/source-control:pull-request prep` first; in `full` mode this phase is preceded by prep automatically. Skip the review prompt for docs-only PRs (Phase 1.1 skips review/simplify).

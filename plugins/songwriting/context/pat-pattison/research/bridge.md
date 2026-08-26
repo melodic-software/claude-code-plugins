@@ -1,5 +1,20 @@
 # Bridge Writing
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Three bridge functions (*Essential Guide to Lyric Form and Structure* (1991), Chapter 6)](#three-bridge-functions-essential-guide-to-lyric-form-and-structure-1991-chapter-6)
+- [When a song needs a bridge](#when-a-song-needs-a-bridge)
+- [Bridge sourcing — the missing angle](#bridge-sourcing--the-missing-angle)
+- [Bridge mechanics — structure](#bridge-mechanics--structure)
+- [AABA homecoming principle (*Writing Better Lyrics* (2009), Chapter 23)](#aaba-homecoming-principle-writing-better-lyrics-2009-chapter-23)
+- [Transitional bridge vs full bridge](#transitional-bridge-vs-full-bridge)
+- [Bridge length](#bridge-length)
+- [Bridge writing workflow](#bridge-writing-workflow)
+- [Failure modes](#failure-modes)
+- [Cross-references](#cross-references)
+- [When to load this file](#when-to-load-this-file)
+
 Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapters
 5-6; *Writing Better Lyrics* (2009), Chapters 22-23. The source passages below
 preserve Pattison's printed wording for bridge definitions, functions,

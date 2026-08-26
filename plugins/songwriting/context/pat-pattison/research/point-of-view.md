@@ -1,5 +1,38 @@
 # Point of View
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Second-person narrative](#second-person-narrative)
+- [How second-person narrative works](#how-second-person-narrative-works)
+- [One test for second-person narrative](#one-test-for-second-person-narrative)
+- [The we turn](#the-we-turn)
+- [Internal second person](#internal-second-person)
+- [Third-person narrative](#third-person-narrative)
+- [First-person narrative](#first-person-narrative)
+- [Direct address](#direct-address)
+- [The hangman problem](#the-hangman-problem)
+- [Direct address — do the facts belong in the song?](#direct-address--do-the-facts-belong-in-the-song)
+- [Natural ways to include shared history](#natural-ways-to-include-shared-history)
+- [Hangman repair workflow](#hangman-repair-workflow)
+- [Natural information test](#natural-information-test)
+- [Rewrite is not pronoun replacement](#rewrite-is-not-pronoun-replacement)
+- [Duplication of function](#duplication-of-function)
+- [Dialogue and POV](#dialogue-and-pov)
+- [First-person dialogue](#first-person-dialogue)
+- [Direct-address dialogue](#direct-address-dialogue)
+- [Third-person dialogue](#third-person-dialogue)
+- [Dialogue structure note](#dialogue-structure-note)
+- [POV check](#pov-check)
+- [Exercises as coaching prompts](#exercises-as-coaching-prompts)
+- [Skill workflow](#skill-workflow)
+- [Close-up vs middle distance — the cinematic metaphor](#close-up-vs-middle-distance--the-cinematic-metaphor)
+- [Audience-centering — the song is about them](#audience-centering--the-song-is-about-them)
+- [Direct address + present tense = maximum intimacy](#direct-address--present-tense--maximum-intimacy)
+- [Pronoun-consistency anti-pattern](#pronoun-consistency-anti-pattern)
+- [You as flexible English pronoun](#you-as-flexible-english-pronoun)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Writing Better Lyrics* (2009), Chapters 10-13.
 
 Use this when a user asks who should be speaking in a lyric, whether a song

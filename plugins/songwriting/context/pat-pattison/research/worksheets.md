@@ -1,5 +1,19 @@
 # Lyric Worksheets
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Three-stage worksheet](#three-stage-worksheet)
+- [Stage 1: focus the idea](#stage-1-focus-the-idea)
+- [Objective correlatives](#objective-correlatives)
+- [Stage 2: idea-word list](#stage-2-idea-word-list)
+- [Stage 3: rhyme search](#stage-3-rhyme-search)
+- [Saying no](#saying-no)
+- [Rhyme as emotional stability](#rhyme-as-emotional-stability)
+- [Worksheet layout](#worksheet-layout)
+- [Chapter 4 exercise as coaching prompt](#chapter-4-exercise-as-coaching-prompt)
+- [Skill workflow](#skill-workflow)
+
 Pat Pattison - *Writing Better Lyrics* (2009), Chapter 4, with the show-before-you-tell
 rule from Chapter 2 and the cliché no-list from Chapter 5.
 

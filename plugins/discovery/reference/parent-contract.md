@@ -1,5 +1,13 @@
 # The parent's cross-family contract
 
+## Contents
+
+- [The pre-dispatch envelope](#the-pre-dispatch-envelope)
+- [The pre-dispatch baseline](#the-pre-dispatch-baseline)
+- [Scope and topic do not arrive by argument substitution](#scope-and-topic-do-not-arrive-by-argument-substitution)
+- [Running the acceptance gate](#running-the-acceptance-gate)
+- [Resume first, then decide about the slice](#resume-first-then-decide-about-the-slice)
+
 Everything the **parent** owes a dispatched `discovery:explorer`, `discovery:researcher` or
 `discovery:intent-tracer` run that is **identical across all three families**. It exists because it
 did not: five statements below were previously carried in two to six copies each, and every one of

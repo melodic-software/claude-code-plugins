@@ -1,5 +1,20 @@
 # Plan Template
 
+## Contents
+
+- [Full Template](#full-template)
+- [Abbreviated Template (for trivial/small tasks)](#abbreviated-template-for-trivialsmall-tasks)
+- [Choosing the Right Scale](#choosing-the-right-scale)
+- [Script Repeatable Operations (default deliverable)](#script-repeatable-operations-default-deliverable)
+- [Sanity-Check Format (per-phase)](#sanity-check-format-per-phase)
+- [Sub-Topic Promotion Trigger](#sub-topic-promotion-trigger)
+- [Execution-Shape Analysis](#execution-shape-analysis)
+- [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
+- [Phase Review tags (optional per phase)](#phase-review-tags-optional-per-phase)
+- [Phase-entry checks for tracker writes](#phase-entry-checks-for-tracker-writes)
+- [Checkbox inventory pattern](#checkbox-inventory-pattern)
+- [Domain-specialist skills during planning](#domain-specialist-skills-during-planning)
+
 Scale to the task — not every section is needed for every plan. A trivial fix needs 3-5 bullets. A cross-cutting change needs the full template.
 
 ## Full Template

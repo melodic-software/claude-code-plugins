@@ -1,5 +1,18 @@
 # Big Picture EventStorming Workshop
 
+## Contents
+
+- [Key Ingredients](#key-ingredients)
+- [Room Setup](#room-setup)
+- [Workshop Phases](#workshop-phases)
+- [Structure Summary (Quick Reference)](#structure-summary-quick-reference)
+- [The Problem Space (Why Big Picture Works)](#the-problem-space-why-big-picture-works)
+- [Discovering Bounded Contexts](#discovering-bounded-contexts)
+- [Value Exploration (Optional Step)](#value-exploration-optional-step)
+- [Big Picture Variations](#big-picture-variations)
+- [Workshop Aftermath](#workshop-aftermath)
+- [Facilitation Tips](#facilitation-tips)
+
 Big Picture EventStorming is a single large-scale workshop that involves all the key people expected to cooperate to solve critical business problems. It produces a behavioral model of an entire line of business, highlighting collaborations, boundaries, responsibilities, and different perspectives.
 
 **Outcomes:**

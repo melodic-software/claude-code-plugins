@@ -1,5 +1,20 @@
 # Build Pipeline — In-Tree Reference
 
+## Contents
+
+- [Pipeline files](#pipeline-files)
+- [Prerequisites — one-time setup](#prerequisites--one-time-setup)
+- [Per-meeting build sequence](#per-meeting-build-sequence)
+- [AI-in-loop checkpoints](#ai-in-loop-checkpoints)
+- [`slides-data.js` schema](#slides-datajs-schema)
+- [Slide types (11 total)](#slide-types-11-total)
+- [Per-meeting emit logic (slides-data.js generation)](#per-meeting-emit-logic-slides-datajs-generation)
+- [HTML deck features](#html-deck-features)
+- [PDF output](#pdf-output)
+- [validate.js gates](#validatejs-gates)
+- [Drift / recheck triggers](#drift--recheck-triggers)
+- [Slide/HTML/PDF generation (Step 5 detail)](#slidehtmlpdf-generation-step-5-detail)
+
 Canonical pipeline for `--format slides|html` reproducing the deck (brand tokens in `output/build/brand.js`). Lives at `output/build/` under the skill.
 
 This file documents the working pipeline schema + commands. For brand spec / slide order / split rules / provider logos, see `slide-generation.md`. For provider buckets / query templates, see `providers.md`.

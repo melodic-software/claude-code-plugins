@@ -1,5 +1,29 @@
 # Phrasing
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Phrase identity](#phrase-identity)
+- [Lyric phrases and musical phrases](#lyric-phrases-and-musical-phrases)
+- [Counting phrases](#counting-phrases)
+- [Balance and unbalance](#balance-and-unbalance)
+- [Spotlight the important idea](#spotlight-the-important-idea)
+- [Create forward motion](#create-forward-motion)
+- [Contrast sections](#contrast-sections)
+- [Phrase length controls speed](#phrase-length-controls-speed)
+- [Acceleration](#acceleration)
+- [Deceleration](#deceleration)
+- [Contrasting sections by length](#contrasting-sections-by-length)
+- [Prosody](#prosody)
+- [Practice method](#practice-method)
+- [Revision moves](#revision-moves)
+- [Phrase taxonomy](#phrase-taxonomy)
+- [Front-heavy and back-heavy phrases](#front-heavy-and-back-heavy-phrases)
+- [Body language](#body-language)
+- [Coaching prompts (extended)](#coaching-prompts-extended)
+- [Three-use balance taxonomy (*Essential Guide to Lyric Form and Structure* (1991), Chapter 1)](#three-use-balance-taxonomy-essential-guide-to-lyric-form-and-structure-1991-chapter-1)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Essential Guide to Lyric Form and Structure* (1991), Chapters 1-2;
 extended via patpattison.com "Art of Phrasing" and "Lyric and Melodic Phrases"
 articles for front-heavy/back-heavy framing and body-language metaphor.

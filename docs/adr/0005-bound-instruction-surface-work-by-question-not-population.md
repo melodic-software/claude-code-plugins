@@ -1,5 +1,13 @@
 # Bound instruction-surface work by the question it asks, not the files it reads
 
+## Contents
+
+- [Context](#context)
+- [Decision](#decision)
+- [Consequences](#consequences)
+- [Method](#method)
+- [Addendum (2026-08-15): C6 operational coverage now includes user↔project](#addendum-2026-08-15-c6-operational-coverage-now-includes-userproject)
+
 - Status: accepted
 - Date: 2026-07-25
 

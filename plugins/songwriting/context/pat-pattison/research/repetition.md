@@ -1,5 +1,31 @@
 # Repetition
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Repaintable repetition](#repaintable-repetition)
+- [Stripping tense](#stripping-tense)
+- [Stripping point of view](#stripping-point-of-view)
+- [Verses show, chorus tells](#verses-show-chorus-tells)
+- [Productive ambiguity](#productive-ambiguity)
+- [Chorus stripping workflow](#chorus-stripping-workflow)
+- [The box model](#the-box-model)
+- [Stagnant repetition](#stagnant-repetition)
+- [Separate jobs](#separate-jobs)
+- [Do not always ask "what next"](#do-not-always-ask-what-next)
+- [Chorus and refrain weight](#chorus-and-refrain-weight)
+- [Cutting a weak repeat](#cutting-a-weak-repeat)
+- [Productive repetition inside lines](#productive-repetition-inside-lines)
+- [Hidden questions](#hidden-questions)
+- [Hidden commands](#hidden-commands)
+- [Repetition diagnosis](#repetition-diagnosis)
+- [Chapter 6 exercise as coaching prompt](#chapter-6-exercise-as-coaching-prompt)
+- [Skill workflow](#skill-workflow)
+- [Named verse-development formulas (*Writing Better Lyrics* (2009), Chapter 6)](#named-verse-development-formulas-writing-better-lyrics-2009-chapter-6)
+- [Hidden questions and hidden commands (*Writing Better Lyrics* (2009), Chapter 6) — grammatical detail](#hidden-questions-and-hidden-commands-writing-better-lyrics-2009-chapter-6--grammatical-detail)
+- [Structural repetition — make the repeat necessary (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7)](#structural-repetition--make-the-repeat-necessary-essential-guide-to-lyric-form-and-structure-1991-chapter-7)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Writing Better Lyrics* (2009), Chapter 6 and Chapter 9, plus
 *Essential Guide to Lyric Form and Structure* (1991), Chapter 7 for structural
 repetition (the section at the foot of this file).

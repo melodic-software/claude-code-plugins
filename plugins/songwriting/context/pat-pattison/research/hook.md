@@ -1,5 +1,34 @@
 # Hook
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Strategy 1: hot spots](#strategy-1-hot-spots)
+- [Hot spots make meaning](#hot-spots-make-meaning)
+- [Strategy 2: point forward to the hook](#strategy-2-point-forward-to-the-hook)
+- [Lyric structure can help music](#lyric-structure-can-help-music)
+- [Strategy 3: repeat the hook](#strategy-3-repeat-the-hook)
+- [Make repetition necessary](#make-repetition-necessary)
+- [Strategy 4: target hook sounds](#strategy-4-target-hook-sounds)
+- [Strategy 5: use hook rhythm strategically](#strategy-5-use-hook-rhythm-strategically)
+- [Withholding the hook rhythm](#withholding-the-hook-rhythm)
+- [Irregular hook rhythms](#irregular-hook-rhythms)
+- [Deceptive cadence — spotlight the title by withholding the rhyme](#deceptive-cadence--spotlight-the-title-by-withholding-the-rhyme)
+- [Strategic positions can shift](#strategic-positions-can-shift)
+- [Worked diagnostics](#worked-diagnostics)
+- [Exercises to preserve](#exercises-to-preserve)
+- [Pat's chapter close](#pats-chapter-close)
+- [Revision workflow](#revision-workflow)
+- [Common fixes](#common-fixes)
+- [TARGETING — the named strategy](#targeting--the-named-strategy)
+- [Strategic position](#strategic-position)
+- [Motivic development analogy](#motivic-development-analogy)
+- [Know the hook rhythm before writing the lyric](#know-the-hook-rhythm-before-writing-the-lyric)
+- [Title generation — UNAUDITED, no book source](#title-generation--unaudited-no-book-source)
+- [Phrase-level hot spots (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 1)](#phrase-level-hot-spots-essential-guide-to-lyric-form-and-structure-1991-chapter-7-strategy-1)
+- [Conscious craft stance — "you can" (*Essential Guide to Lyric Form and Structure* (1991), Chapter 7 Strategy 5 close)](#conscious-craft-stance--you-can-essential-guide-to-lyric-form-and-structure-1991-chapter-7-strategy-5-close)
+- [Cross-references](#cross-references)
+
 Pat Pattison — *Essential Guide to Lyric Form and Structure* (1991), Chapter 7:
 "HOOK PLACEMENT AND FOCUS: TURNING THE LIGHTS ON."
 

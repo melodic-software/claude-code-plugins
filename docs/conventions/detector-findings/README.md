@@ -1,5 +1,27 @@
 # Detector findings — reaching the apply relay from outside `review:fanout`
 
+## Contents
+
+- [Why the contract is format-only](#why-the-contract-is-format-only)
+- [Where the file goes](#where-the-file-goes)
+- [Boundary](#boundary)
+- [The four producer-owned fields](#the-four-producer-owned-fields)
+- [Rule ids and thresholds](#rule-ids-and-thresholds)
+- [The severity crosswalk](#the-severity-crosswalk)
+- [When the remediation is not at `Location`](#when-the-remediation-is-not-at-location)
+- [When the remediation is owned by the producer's own skill](#when-the-remediation-is-owned-by-the-producers-own-skill)
+- [Auto-applicability is settled per rule, at contract time](#auto-applicability-is-settled-per-rule-at-contract-time)
+- [A candidate that is not a finding](#a-candidate-that-is-not-a-finding)
+- [Coexisting with other producers](#coexisting-with-other-producers)
+- [Emitting more than once](#emitting-more-than-once)
+- [What a minimally conforming producer may omit](#what-a-minimally-conforming-producer-may-omit)
+- [Liveness](#liveness)
+- [Three emitters, one statement of each mechanic](#three-emitters-one-statement-of-each-mechanic)
+- [Enforceability](#enforceability)
+- [Adopters](#adopters)
+- [Versioning](#versioning)
+- [External authority](#external-authority)
+
 Owner doc for **how a component that is not `review:fanout` persists findings that the fanout `fix`
 action will consume**. One rule: a producer writes a file conforming to the findings-file shape into
 the current branch's findings directory, and nothing else. No fanout edit, no registration, no

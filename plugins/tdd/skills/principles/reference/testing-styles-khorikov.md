@@ -1,5 +1,14 @@
 # Styles of Unit Testing (Khorikov)
 
+## Contents
+
+- [The Three Styles Defined](#the-three-styles-defined)
+- [Comparing the Styles (Four Pillars)](#comparing-the-styles-four-pillars)
+- [Functional Programming and Output-Based Testing](#functional-programming-and-output-based-testing)
+- [The Audit System Refactoring (3-Stage Example)](#the-audit-system-refactoring-3-stage-example)
+- [Drawbacks of Functional Architecture](#drawbacks-of-functional-architecture)
+- [Decision Framework](#decision-framework)
+
 Three unit testing styles — output-based, state-based, communication-based — evaluated against the Four Pillars, plus functional programming as a technique to maximize output-based tests (Ch 6). Builds on the Four Pillars framework (Ch 4) and mock/stub taxonomy (Ch 5).
 
 ## The Three Styles Defined

@@ -1,5 +1,31 @@
 # Daily Practice
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Practice session shape](#practice-session-shape)
+- [Days 1-14: object writing](#days-1-14-object-writing)
+- [Days 15-28: metaphor](#days-15-28-metaphor)
+- [Days 29-42: object writing with metaphor](#days-29-42-object-writing-with-metaphor)
+- [Linking quality workflow](#linking-quality-workflow)
+- [Reversing the lens](#reversing-the-lens)
+- [Days 43-56: writing in rhythm and rhyme](#days-43-56-writing-in-rhythm-and-rhyme)
+- [Full 56-day routing](#full-56-day-routing)
+- [Mining checklist](#mining-checklist)
+- [Skill workflow](#skill-workflow)
+- [Strict timer — stop mid-word](#strict-timer--stop-mid-word)
+- [Free association vs story mode](#free-association-vs-story-mode)
+- [Anti-patterns](#anti-patterns)
+- [Mining patterns Pat shows in writer samples](#mining-patterns-pat-shows-in-writer-samples)
+- [Day 15 — the collision pairs](#day-15--the-collision-pairs)
+- [Three-stage leap — source through target](#three-stage-leap--source-through-target)
+- [Stress-before-sound — why Days 43-44 forbid rhyme](#stress-before-sound--why-days-43-44-forbid-rhyme)
+- [Nashville stressed-vowel title brainstorming](#nashville-stressed-vowel-title-brainstorming)
+- [Withdrawing the scaffolding (*Songwriting Without Boundaries* (2011), Challenge 2, Days 1-3)](#withdrawing-the-scaffolding-songwriting-without-boundaries-2011-challenge-2-days-1-3)
+- [Critique-move vocabulary (*Songwriting Without Boundaries* (2011) — recurring across all four challenges)](#critique-move-vocabulary-songwriting-without-boundaries-2011--recurring-across-all-four-challenges)
+- [Tense-flip and POV-flip as named drills (*Songwriting Without Boundaries* (2011), Challenge 1, Days 8, 9, 13)](#tense-flip-and-pov-flip-as-named-drills-songwriting-without-boundaries-2011-challenge-1-days-8-9-13)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Songwriting Without Boundaries* (2011), Challenges 1-4.
 
 Use this when a user asks for a daily songwriting exercise, a practice plan,

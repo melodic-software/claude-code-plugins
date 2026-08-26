@@ -3,6 +3,24 @@
      within genre tables; padding them with empty pipes would obscure the prose. -->
 # Genre taxonomy
 
+## Contents
+
+- [1. Rock](#1-rock)
+- [2. Metal](#2-metal)
+- [3. Pop](#3-pop)
+- [4. Hip-hop](#4-hip-hop)
+- [5. R&B / Soul](#5-rb--soul)
+- [6. Electronic / Dance](#6-electronic--dance)
+- [7. Jazz](#7-jazz)
+- [8. Folk / Country / Americana / Blues](#8-folk--country--americana--blues)
+- [9. World / Regional](#9-world--regional)
+- [10. Classical / Cinematic](#10-classical--cinematic)
+- [11. Ambient / Experimental](#11-ambient--experimental)
+- [12. Niche / Modern / Internet-era](#12-niche--modern--internet-era)
+- [Bonus 1: Fusion patterns](#bonus-1-fusion-patterns)
+- [Bonus 2: Vibe → genre mapping](#bonus-2-vibe--genre-mapping)
+- [Cross-reference](#cross-reference)
+
 Static reference catalog of ~220 genres organized by 12-family tree. Used by the `/songwriting:suno genre` action when no template matches, and as a vibe-to-genre lookup for the `prompt` and `style` actions. Cross-link: when a family has an existing genre template, prefer it for the prompt skeleton — this file supplies the descriptor vocabulary. The complete template set is listed under Cross-reference below.
 
 **Format conventions**

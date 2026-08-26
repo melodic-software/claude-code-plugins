@@ -3,6 +3,20 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** 2 reference files in this plugin gained one.
+
+  The predicate is `audit-progressive-disclosure`'s own: a reference file over 300 lines with no
+  table of contents, which both official sources agree on by that length. Scope came from the
+  detector's tier classification rather than a line count, so `SKILL.md` files are excluded by
+  construction: they are invocation tier, not the on-demand reference tier the rule names. Files
+  with fewer than five H2s were held out, because a three-row index on a long file earns nothing and
+  the doctrine offers a grep recipe instead. Purely additive, with anchors generated from each
+  file's own headings and verified to resolve. Docs-hygiene sweep, L2-progressive-disclosure.
+
 ## [0.3.2]
 
 ### Changed

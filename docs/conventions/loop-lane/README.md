@@ -1,5 +1,15 @@
 # Loop-lane convention
 
+## Contents
+
+- [1. Three-session topology](#1-three-session-topology)
+- [2. Escalation contract](#2-escalation-contract)
+- [3. Capability tiers](#3-capability-tiers)
+- [4. Loop-layer invariants](#4-loop-layer-invariants)
+- [5. Consumers and launch surfaces](#5-consumers-and-launch-surfaces)
+- [6. Rate-limit guard binding](#6-rate-limit-guard-binding)
+- [Versioning](#versioning)
+
 Owner doc for the concerns shared by every **loop lane** — a session that wraps a single-pass
 mechanic in a self-paced drain loop over a repository's backlog. Three lanes adopt it: the
 `work-items` `work-loop` and `attend-queue` skills and the `source-control` `babysit-loop` skill.

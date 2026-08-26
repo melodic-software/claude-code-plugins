@@ -1,5 +1,19 @@
 # Orchestration
 
+## Contents
+
+- [Fan-Out Gate: `needs_worker`](#fan-out-gate-needs_worker)
+- [Concurrency Cap](#concurrency-cap)
+- [Concurrency Guard](#concurrency-guard)
+- [Cross-PR Dependency Signalling](#cross-pr-dependency-signalling)
+- [Main Agent Responsibilities](#main-agent-responsibilities)
+- [Fix-Round Cap](#fix-round-cap)
+- [Merge Conflict Resolution](#merge-conflict-resolution)
+- [Worker Contract](#worker-contract)
+- [Worker Prompt Template](#worker-prompt-template)
+- [Fallback](#fallback)
+- [Cleanup](#cleanup)
+
 This file governs acting cycles in every tier — safe (default), worker, and autopilot; the tier
 governs which mutations the workers and gates dispatched here may perform (see this skill's
 `SKILL.md`). Angle-bracket slots (`<watched-owners>`, `<self-logins>`, `<state-dir>`,

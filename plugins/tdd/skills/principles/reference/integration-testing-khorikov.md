@@ -1,5 +1,17 @@
 # Integration Testing, Mocking Best Practices, and Database Testing (Khorikov)
 
+## Contents
+
+- [What Is an Integration Test?](#what-is-an-integration-test)
+- [The Test Pyramid Revisited](#the-test-pyramid-revisited)
+- [Managed vs Unmanaged Dependencies](#managed-vs-unmanaged-dependencies)
+- [Interfaces: When and Why](#interfaces-when-and-why)
+- [Logging Testing](#logging-testing)
+- [Five Mocking Best Practices](#five-mocking-best-practices)
+- [Database Testing Prerequisites](#database-testing-prerequisites)
+- [Database Testing Best Practices](#database-testing-best-practices)
+- [Integration Test Best Practices](#integration-test-best-practices)
+
 Integration test role, managed vs unmanaged dependencies, the Test Pyramid revisited, Fail Fast principle, interfaces (only for unmanaged deps), logging testing (support vs diagnostic, DomainLogger), five mocking best practices, and database testing (migrations, transactions, UoW, avoid in-memory DBs, clean at start) (Ch 8-10). The practical application of everything from Part 2.
 
 ## What Is an Integration Test?

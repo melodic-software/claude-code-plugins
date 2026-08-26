@@ -1,5 +1,23 @@
 # Line-Edit Rubric — Pre-Emission Cycle for Every Candidate Line
 
+## Contents
+
+- [Standing operating rules](#standing-operating-rules)
+- [1. Positional fit (fixed-melody work only)](#1-positional-fit-fixed-melody-work-only)
+- [2. Word-repetition scan (three radii)](#2-word-repetition-scan-three-radii)
+- [3. Sonic-bonding pass (word repetition ≠ sound repetition)](#3-sonic-bonding-pass-word-repetition--sound-repetition)
+- [4. Rhyme audit (when the line sits in a rhyme position)](#4-rhyme-audit-when-the-line-sits-in-a-rhyme-position)
+- [5. Five-element delta](#5-five-element-delta)
+- [6. Content boxes (response filter §2 core)](#6-content-boxes-response-filter-2-core)
+- [7. Dependency re-verification](#7-dependency-re-verification)
+- [8. Register and tone](#8-register-and-tone)
+- [9. Metaphor validity (figurative lines only)](#9-metaphor-validity-figurative-lines-only)
+- [10. Spotlight content ("does it hit")](#10-spotlight-content-does-it-hit)
+- [11. Voiceprint match — "does this sound like THIS writer said it?"](#11-voiceprint-match--does-this-sound-like-this-writer-said-it)
+- [Then: sing-check](#then-sing-check)
+- [Where a rubric run goes](#where-a-rubric-run-goes)
+- [Cross-references](#cross-references)
+
 **This file is mandatory for line emission.** Before any candidate lyric line is
 shown to the writer, cycle every pass below and NAME each one pass / fail /
 skip-with-reason. Order matters — cheap kills first.

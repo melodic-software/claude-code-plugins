@@ -1,5 +1,19 @@
 # Effective-Permission Merge Criteria
 
+## Contents
+
+- [Scopes](#scopes)
+- [The one thing that is not a contest](#the-one-thing-that-is-not-a-contest)
+- [The one thing that is](#the-one-thing-that-is)
+- [`precedence_basis` vocabulary](#precedence_basis-vocabulary)
+- [Whole-tool rules](#whole-tool-rules)
+- [Bounds every run states](#bounds-every-run-states)
+- [The auto-mode entry diff](#the-auto-mode-entry-diff)
+- [The permission-plane lint](#the-permission-plane-lint)
+- [The `autoMode` block lane](#the-automode-block-lane)
+- [Open upstream discrepancy — carry this caveat on any `ask` finding](#open-upstream-discrepancy--carry-this-caveat-on-any-ask-finding)
+- [Managed policy, and what it does not buy](#managed-policy-and-what-it-does-not-buy)
+
 Version: 1.0.0
 Last updated: 2026-08-11
 

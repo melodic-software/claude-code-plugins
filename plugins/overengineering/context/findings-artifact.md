@@ -1,5 +1,26 @@
 # Findings artifact — the audit → realign contract
 
+## Contents
+
+- [Deliberately NOT `type: review-findings`](#deliberately-not-type-review-findings)
+- [Where it lives](#where-it-lives)
+- [Frontmatter](#frontmatter)
+- [No branch identity, no artifact](#no-branch-identity-no-artifact)
+- [Layer vocabulary](#layer-vocabulary)
+- [Document shape](#document-shape)
+- [Finding ids](#finding-ids)
+- [Ordering](#ordering)
+- [The stable spine / free prose split](#the-stable-spine--free-prose-split)
+- [The spine-capture obligation](#the-spine-capture-obligation)
+- [Aggregating containers — the container is the finding](#aggregating-containers--the-container-is-the-finding)
+- [Per-finding fields](#per-finding-fields)
+- [Status vocabulary](#status-vocabulary)
+- [Status transitions are owned by realign](#status-transitions-are-owned-by-realign)
+- [Re-run merge semantics](#re-run-merge-semantics)
+- [The durable judgment record](#the-durable-judgment-record)
+- [Obligations, by skill](#obligations-by-skill)
+- [External authority](#external-authority)
+
 One markdown file is the whole seam between this plugin's two skills. `overengineering:audit`
 produces it and is read-only on everything else; `overengineering:realign` is its **only mutating**
 consumer and its only writer of operator judgment. `overengineering:delta` reads it across runs and

@@ -1,5 +1,18 @@
 # Windows check catalog
 
+## Contents
+
+- [1. Windows Update + pending reboot](#1-windows-update--pending-reboot)
+- [2. Disk space + SMART health](#2-disk-space--smart-health)
+- [3. Event Log critical errors + BSODs](#3-event-log-critical-errors--bsods)
+- [4. Services + startup items](#4-services--startup-items)
+- [5. Defender status + threats](#5-defender-status--threats)
+- [6. winget app updates](#6-winget-app-updates)
+- [7. Battery + power report](#7-battery--power-report)
+- [8. Driver inventory](#8-driver-inventory)
+- [17. Claude Code temp root](#17-claude-code-temp-root)
+- [18. Environment and PATH health](#18-environment-and-path-health)
+
 Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc` and are
 load-bearing — each is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks
 those pointers. Sections 9–16 have not been written yet; their catalog entries point at anchors that

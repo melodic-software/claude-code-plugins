@@ -1,5 +1,15 @@
 # Babysit loop (safe-tier continuous iteration)
 
+## Contents
+
+- [5.0 Focus-first rule](#50-focus-first-rule)
+- [5.1 Per-PR processing](#51-per-pr-processing)
+- [5.2 Parking](#52-parking)
+- [5.3 Self-pacing (ScheduleWakeup)](#53-self-pacing-schedulewakeup)
+- [5.4 NEVER-do list](#54-never-do-list)
+- [5.5 Checklist-driven output format](#55-checklist-driven-output-format)
+- [5.6 Performance notes](#56-performance-notes)
+
 Multi-PR iteration layer wrapping the per-PR review discipline at the plugin-scope seam
 ([`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../../reference/review-discipline.md)).
 Designed for `/loop /source-control:babysit-prs` (dynamic, self-pacing via ScheduleWakeup).

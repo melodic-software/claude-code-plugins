@@ -1,5 +1,17 @@
 # Beyond the Books — Coursera, Berklee, Columns, Podcasts, Workshops
 
+## Contents
+
+- [Coursera — Songwriting (Berklee specialization)](#coursera--songwriting-berklee-specialization)
+- [Berklee Online — Pat's courses](#berklee-online--pats-courses)
+- [patpattison.com — Columns + tip series](#patpattisoncom--columns--tip-series)
+- [Podcasts and interviews](#podcasts-and-interviews)
+- [Workshops, retreats, masterclasses](#workshops-retreats-masterclasses)
+- [Famous students (with specific craft credit)](#famous-students-with-specific-craft-credit)
+- [When to load this file](#when-to-load-this-file)
+- [Distinctive catchphrases / teaching-moment quotes (≤25 words, attributed)](#distinctive-catchphrases--teaching-moment-quotes-25-words-attributed)
+- [Cross-references](#cross-references)
+
 Pat Pattison's published teaching extends well beyond his 4 books (1991,
 2009, 2011, 2014). This file catalogs the additional material — Coursera
 MOOC, Berklee Online courses, patpattison.com columns, podcast interviews,

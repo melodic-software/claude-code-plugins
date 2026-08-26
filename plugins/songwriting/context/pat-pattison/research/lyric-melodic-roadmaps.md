@@ -1,5 +1,19 @@
 # Lyric-Melodic Roadmaps
 
+## Contents
+
+- [Core idea](#core-idea)
+- [What a roadmap is](#what-a-roadmap-is)
+- [Ways out — Pat's options, with this file's decision aid layered on](#ways-out--pats-options-with-this-files-decision-aid-layered-on)
+- [How to diagnose](#how-to-diagnose)
+- [Greedy spots and roadmap mismatch](#greedy-spots-and-roadmap-mismatch)
+- [Front-heavy / back-heavy phrases as a roadmap variable](#front-heavy--back-heavy-phrases-as-a-roadmap-variable)
+- [Worked diagnostic](#worked-diagnostic)
+- [Coaching prompts](#coaching-prompts)
+- [Anti-patterns](#anti-patterns)
+- [When a roadmap mismatch is good](#when-a-roadmap-mismatch-is-good)
+- [Cross-references](#cross-references)
+
 Pat Pattison — *patpattison.com* "Lyric and Melodic Phrases" plus
 *Essential Guide to Lyric Form and Structure* (1991) Chapters 1-2 on
 phrasing. Books bracket the music; this file is the bridge between a lyric's

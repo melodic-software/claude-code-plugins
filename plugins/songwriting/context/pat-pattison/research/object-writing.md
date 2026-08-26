@@ -1,5 +1,39 @@
 # Object Writing
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Show before you tell](#show-before-you-tell)
+- [Rusty's collar rewrite pattern — this file's own, no book source](#rustys-collar-rewrite-pattern--this-files-own-no-book-source)
+- [Cliche substitution warning](#cliche-substitution-warning)
+- [The seven senses](#the-seven-senses)
+- [Ten-minute practice](#ten-minute-practice)
+- [The pivot chain — the mechanism behind "follow the senses"](#the-pivot-chain--the-mechanism-behind-follow-the-senses)
+- [Loyalty to the object](#loyalty-to-the-object)
+- [Specificity calibration](#specificity-calibration)
+- [Invention is licensed](#invention-is-licensed)
+- [What object writing is not](#what-object-writing-is-not)
+- [Group and remote practice](#group-and-remote-practice)
+- [Expanded object writing](#expanded-object-writing)
+- [Challenge 1 practice frame](#challenge-1-practice-frame)
+- [Strict timer and immediate access](#strict-timer-and-immediate-access)
+- [What, who, when, and where progression](#what-who-when-and-where-progression)
+- [Audition your verbs — Challenge 1, Day 4](#audition-your-verbs--challenge-1-day-4)
+- [Place as action organizer](#place-as-action-organizer)
+- [Post-write review](#post-write-review)
+- [Character observation](#character-observation)
+- [Cataloging the good stuff](#cataloging-the-good-stuff)
+- [Chapter 1 exercises as coaching prompts](#chapter-1-exercises-as-coaching-prompts)
+- [Skill workflow](#skill-workflow)
+- [Prompt template](#prompt-template)
+- [Mid-word stop — non-negotiable](#mid-word-stop--non-negotiable)
+- [Destination writing — partial-tell integration](#destination-writing--partial-tell-integration)
+- [Airport game — character observation](#airport-game--character-observation)
+- [Coaching prompts (extended)](#coaching-prompts-extended)
+- [Kami-kazi — 90-second speed round (*Writing Better Lyrics* (2009), Chapter 1)](#kami-kazi--90-second-speed-round-writing-better-lyrics-2009-chapter-1)
+- [Object Writing Parties — Gillian Welch / Nashville Sunday format](#object-writing-parties--gillian-welch--nashville-sunday-format)
+- [Cross-references](#cross-references)
+
 Pat Pattison - *Writing Better Lyrics* (2009), Chapters 1-2; Pat Pattison -
 *Songwriting Without Boundaries* (2011), Challenge 1.
 

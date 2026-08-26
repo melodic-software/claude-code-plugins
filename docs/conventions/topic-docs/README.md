@@ -1,5 +1,20 @@
 # Topic Documents Convention
 
+## Contents
+
+- [Why this exists](#why-this-exists)
+- [The two tiers (and their neighbors)](#the-two-tiers-and-their-neighbors)
+- [Visibility across execution contexts](#visibility-across-execution-contexts)
+- [The tracked concern file — `.claude/topic-docs.yaml`](#the-tracked-concern-file--claudetopic-docsyaml)
+- [Resolution order](#resolution-order)
+- [Runtime guards](#runtime-guards)
+- [Slug and filename spec](#slug-and-filename-spec)
+- [Contract-slice lifecycle (prune with pointer)](#contract-slice-lifecycle-prune-with-pointer)
+- [Graduation edges (provider-neutral seams)](#graduation-edges-provider-neutral-seams)
+- [Adoption (clean break)](#adoption-clean-break)
+- [Implementers](#implementers)
+- [Versioning](#versioning)
+
 A versioned, marketplace-wide contract for where plugin-generated task
 documents land in a consuming repository. One topic (a unit of work — a
 feature, investigation, or change effort) owns one **slug**; the slug

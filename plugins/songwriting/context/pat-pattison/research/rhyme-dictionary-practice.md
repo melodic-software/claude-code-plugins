@@ -1,5 +1,20 @@
 # Rhyme Dictionary Practice
 
+## Contents
+
+- [Core idea](#core-idea)
+- [Syllables, not printed words](#syllables-not-printed-words)
+- [Identity check](#identity-check)
+- [Masculine rhyme](#masculine-rhyme)
+- [Feminine rhyme](#feminine-rhyme)
+- [Mosaic rhyme](#mosaic-rhyme)
+- [Three-syllable options](#three-syllable-options)
+- [Rhyming dictionary workflow](#rhyming-dictionary-workflow)
+- [Cross-references: a column can be missing on purpose](#cross-references-a-column-can-be-missing-on-purpose)
+- [Alphabet-search failure](#alphabet-search-failure)
+- [Exercises to preserve](#exercises-to-preserve)
+- [Coaching checklist](#coaching-checklist)
+
 Pat Pattison - *Essential Guide to Rhyming* (2014), Chapter 1, with the cross-reference lesson from *Essential Guide to Rhyming*
 (2014), Chapter 3.
 

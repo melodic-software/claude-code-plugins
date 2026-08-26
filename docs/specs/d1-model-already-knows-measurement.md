@@ -1,5 +1,15 @@
 # d1-model-already-knows-measurement
 
+## Contents
+
+- [Verdict](#verdict)
+- [The proposed proxy](#the-proposed-proxy)
+- [Method](#method)
+- [Results](#results)
+- [Why it fails](#why-it-fails)
+- [Consequences](#consequences)
+- [Appendix — the adjudicated sample](#appendix--the-adjudicated-sample)
+
 Measurement record for [#3121](https://github.com/melodic-software/claude-code-plugins/issues/3121),
 the investigation deciding whether cut class D1 — *content the model already knows* — is a scanner
 shape, a judgment shape, or a routing finding. D1 is one of three detectors specced by

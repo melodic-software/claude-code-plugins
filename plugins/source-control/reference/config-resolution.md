@@ -1,5 +1,15 @@
 # Convention config resolution
 
+## Contents
+
+- [The config surface](#the-config-surface)
+- [Loop-lane keys (`babysit_loop_*`)](#loop-lane-keys-babysit_loop_)
+- [The three layers](#the-three-layers)
+- [Merge semantics: per-key override](#merge-semantics-per-key-override)
+- [Drafting vs enforcement](#drafting-vs-enforcement)
+- [Consumer `.gitignore`](#consumer-gitignore)
+- [Failure modes](#failure-modes)
+
 How the skills in this plugin resolve the layered `.claude/source-control.md` config surface. The
 surface carries two key families: the tracked commit-subject / PR-title convention keys, read by
 `/source-control:commit`, `/source-control:pull-request`, and `/source-control:setup`, and the

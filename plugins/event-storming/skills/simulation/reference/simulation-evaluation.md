@@ -1,5 +1,15 @@
 # Simulation Evaluation and Quality Framework
 
+## Contents
+
+- [Source Material Reference](#source-material-reference)
+- [Pre-Simulation Checklist](#pre-simulation-checklist)
+- [Phase-by-Phase Evaluation Rubric](#phase-by-phase-evaluation-rubric)
+- [Version Comparison Framework](#version-comparison-framework)
+- [Post-Simulation Retrospective Protocol](#post-simulation-retrospective-protocol)
+- [Visual Verification Checklist (live-board path)](#visual-verification-checklist-live-board-path)
+- [How to Run an Evaluation](#how-to-run-an-evaluation)
+
 This document defines the repeatable evaluation process for EventStorming simulation runs. Use it after every simulation to assess quality, compare against source material, and identify improvements for the next version.
 
 ---
