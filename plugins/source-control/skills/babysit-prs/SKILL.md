@@ -161,8 +161,11 @@ vocabulary. Never reconstruct one of these commands from memory; a silently drop
 silently dropped guard.
 
 - **Merge readiness**. `source-control-babysit-merge` is the gate. Safe tier runs it read-only and
-  reports; `worker` and `autopilot` add the merge form only on a vetted head, and an enabled
-  autopilot merge tier layers its own flags on ([reference/safety.md](reference/safety.md)). React
+  reports; `worker` and `autopilot` add `--merge --expected-head <vetted-head-sha>` only on a
+  vetted head, and an enabled autopilot merge tier layers its own flags on
+  ([reference/safety.md](reference/safety.md)). When the expected-head pin is missing, or the
+  pinned sha no longer matches the live head, the wrapper refuses: re-snapshot and reassess the new
+  head instead of using `--allow-unpinned-head`. React
   to the reported `blockers`; do not bypass the gate, and never reach for one of its override flags
   on an unattended path. **This gate's `ready` field is the sole authority for calling a PR merge-ready**, never the finding-classification gate's `READINESS_OK` ([reference/safety.md](reference/safety.md) "Two Gates, One Merge-Ready Authority").
 
