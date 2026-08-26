@@ -63,8 +63,8 @@ Two hazards, both verified on git 2.55 in #2610 and both silent:
    plugin can read the option while every consumer can read the key.
 4. The plugin data directory (`--data-root-file` → `<data-dir>/worktrees`).
 5. Absent all: refuse (exit 3). Never the in-repo `.claude/worktrees/` —
-   [the nesting invariant](../skills/worktree/SKILL.md#the-nesting-invariant-verified)
-   owns that claim.
+   [the nesting invariant](../skills/worktree/SKILL.md) the `worktree` skill
+   publishes owns that claim.
 
 Whatever rung supplies the root, the helper's containment guard then rejects
 a root that itself resolves inside a working tree or a git directory — a

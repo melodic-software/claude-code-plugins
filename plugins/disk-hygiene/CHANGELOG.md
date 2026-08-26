@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.26]
+
+### Changed
+
+- **The README no longer pins a section of the clean skill's safety model by heading anchor.** The
+  standalone-checkout handoff cited `skills/clean/reference/safety-model.md#standalone-git-checkout-evidence`;
+  that anchor no longer exists, and the link now points at the file. Heading anchors stay private
+  even for an intra-plugin cite, because renaming a heading is exactly the refactor the
+  encapsulation contract protects (ADR 0018). Docs-hygiene sweep, L4-encapsulation.
+
 ## [0.20.25]
 
 ### Changed

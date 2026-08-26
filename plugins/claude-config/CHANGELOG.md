@@ -3,6 +3,19 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.7]
+
+### Changed
+
+- **Two reaches into another plugin's skill internals now route through the owning skill.**
+  `audit-pass`'s `reference/run-state-and-resumability.md` cited
+  `plugins/claude-ops/skills/lanes/context/restart-consumer.md` for the lease-staleness precedent,
+  and `audit-instructions`' `reference/criteria.md` cited
+  `plugins/code-tidying/skills/tidy/reference/tidyings.md` as the canonical restraint-clause shape.
+  Both now name `/claude-ops:lanes` and `/code-tidying:tidy`. Plugins install independently, so a
+  path into another plugin's private surface can be genuinely absent at read time (ADR 0018).
+  Docs-hygiene sweep, L4-encapsulation.
+
 ## [0.40.6]
 
 ### Changed

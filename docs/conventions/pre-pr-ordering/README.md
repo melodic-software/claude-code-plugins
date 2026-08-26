@@ -1,9 +1,8 @@
 # Pre-PR ordering — where outcome verification sits
 
 Owner doc for the ordered pre-PR sequence that more than one plugin routes into. It owns the
-**order**; it does not own the checklist. `session-flow`'s
-[`workflow/context/pre-pr.md`](../../../plugins/session-flow/skills/workflow/context/pre-pr.md)
-is the human-facing sequence that implements this order, and remains the place to read *what*
+**order**; it does not own the checklist. `/session-flow:workflow` runs the human-facing
+pre-PR sequence that implements this order, and remains the place to read *what*
 each step does.
 
 This convention exists because the registry's own trigger fired: a second plugin adopted an

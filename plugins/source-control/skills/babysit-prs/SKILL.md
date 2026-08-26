@@ -317,8 +317,10 @@ declared prerequisite for `worker` and `autopilot` (and for engine-backed safe r
 is absent, `worker`/`autopilot` STOP at entry with a concise remediation message naming the
 prerequisite, and the safe tier degrades gracefully to the Python-free loop in
 [reference/loop.md](reference/loop.md). Discovery via `gh pr list`, finding classification via the
-plugin-scope gate script, cadence via the static ladder. The merge gate is itself Python, so that path cannot assess
-merge-readiness at all: report it unchecked, never inferred from the classification gate. Never block a safe iteration on the engine's absence.
+plugin-scope gate script, cadence via the static ladder. The merge gate is itself Python, so that
+path cannot assess merge-readiness at all: report it unchecked, never inferred from the
+classification gate. Let a safe iteration proceed when the engine is absent, reporting
+merge-readiness as unchecked.
 
 ## Per-PR checklist (safe core, each PR, every iteration)
 

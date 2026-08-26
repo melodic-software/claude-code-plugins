@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.29]
+
+### Changed
+
+- **`setup`'s overlay-ignore probes cite `/source-control:setup` instead of that plugin's private
+  `reference/apply-convention.md`.** The note records that a sibling plugin documents the same
+  gitignore trap for its local overlay; naming the skill survives a refactor on the other side of a
+  plugin boundary that a path does not. Docs-hygiene sweep, L4-encapsulation.
+
 ## [0.39.28]
 
 ### Changed

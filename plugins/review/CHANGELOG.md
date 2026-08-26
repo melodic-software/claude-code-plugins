@@ -3,6 +3,26 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.9]
+
+### Changed
+
+- **The findings-file contract moved to plugin scope, at `reference/findings-file-shape.md`.** It
+  lived in `skills/fanout/context/default-mode.md`, a skill-private file, while the repo-level
+  detector-findings convention and every third-party detector had to read it to produce a file the
+  fix action would consume. A convention cannot legally cite into a skill's `context/` tree, and
+  routing a producer to `/review:fanout` hands it a command rather than the spec it needs, so the
+  citation had no legal form until the contract itself moved. `default-mode.md` keeps a pointer;
+  the section moved byte-for-byte, with only its relative links to `fix-pass-mode.md` re-based. It
+  stays inside the plugin rather than moving to `docs/**` because plugins ship without the
+  marketplace repository. Docs-hygiene sweep, L4-encapsulation.
+- **The confidence rank order has one owner.** `context/severity.md` "Confidence axis" now states
+  `high` > `medium` > `unscored` > `low` and why `low` ranks below an absent score;
+  `skills/fanout/context/findings-normalization.md` Stage 4 reads the order from there instead of
+  restating it, and the repo-level detector-findings convention cites that section rather than a
+  line number inside the fanout skill's private normalization file. One statement of the order,
+  reachable from outside the skill. Docs-hygiene sweep, L4-encapsulation.
+
 ## [0.26.8]
 
 ### Changed

@@ -388,9 +388,8 @@ target model.
 - **Two fences, OWNED HERE (the scanner over-produces by contract; the model lane adjudicates):**
   1. **Restraint-clause shape** — a clause bounding when a TRANSFORMATION or action applies
      ("When NOT to apply…", "skip the change when…") is not a reporting gate; the canonical
-     non-finding shape is a tidying catalog's restraint text (in this monorepo:
-     `plugins/code-tidying/skills/tidy/reference/tidyings.md`; in a standalone install the shape,
-     not the path, is the fence).
+     non-finding shape is a tidying catalog's restraint text (in this monorepo, the catalog
+     `/code-tidying:tidy` loads; in a standalone install the shape, not the path, is the fence).
   2. **Quoted/meta surfaces** — a document that DISCUSSES the conservative-reporting pattern
      (this criteria file, a model-adaptation delta chapter, verification records quoting it) is
      not a finding. Judge at the level of the instruction's audience: quoted text embedded inside

@@ -15,7 +15,7 @@ reading that silence as the former makes `apply` append an ignore line that chan
 then announce it as the fix while a credential-bearing file stays in team history.
 
 Sibling `source-control` documents the same trap for its own local overlay
-(`plugins/source-control/skills/setup/reference/apply-convention.md`, `layer=local`).
+(`/source-control:setup`, its `layer=local` overlay).
 
 ## The probes
 

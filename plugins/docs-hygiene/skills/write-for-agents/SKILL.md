@@ -99,8 +99,10 @@ the positive alternative in the same sentence.
 - Repeated the same prose in another file. Even a second occurrence, or a recap of an SSOT that
   already exists? Invoke `/docs-hygiene:extract-ssot` via the Skill tool. Creating a new shared home
   still waits for the third occurrence; below that it remedies the repetition in place.
-- Resolved or coined a domain term? Invoke `/domain-driven-design:curate-language` via the
-  Skill tool (if that plugin is installed), never hand-write a glossary entry.
+- Resolved or coined a term in the **consuming project's** domain? Invoke
+  `/domain-driven-design:curate-language` via the Skill tool (if that plugin is installed) rather
+  than hand-writing the entry. A skill defining its own working vocabulary is out of that skill's
+  scope and stays where it is.
 - Editing exposed pre-existing problems in the surrounding doc? Invoke the fitting audit
   sibling via the Skill tool (`/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`,
   `/docs-hygiene:audit-progressive-disclosure`) rather than expanding this write into an audit.

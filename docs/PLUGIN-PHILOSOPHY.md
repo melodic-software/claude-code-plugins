@@ -593,7 +593,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
 | Liveness assertion (false-green / healthy-while-dead surfaces) | [`docs/conventions/liveness-assertion/`](conventions/liveness-assertion/README.md) |
 | Detector findings (non-fanout producers reaching the apply relay) | [`docs/conventions/detector-findings/`](conventions/detector-findings/README.md) |
-| Fresh-eyes declaration pattern contract | `skill-quality` plugin (`skills/check/reference/fresh-eyes-declarations.md`) |
+| Fresh-eyes declaration pattern contract | `/skill-quality:check`, which owns and enforces the declaration spec |
 | Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
 | Windows path emission across the Git Bash → native boundary | [`docs/conventions/windows-path-emit/`](conventions/windows-path-emit/README.md) |
 | Pre-PR step order (where outcome verification sits) | [`docs/conventions/pre-pr-ordering/`](conventions/pre-pr-ordering/README.md) |
@@ -1067,11 +1067,11 @@ Conformance is declared in the skill text itself, in one of two greppable forms:
 wording** (the POSIX ERE `fresh[- ]context` on a line that also names the worker or dispatch,
 plus the ladder conventions above) or an **exemption directive** (`<!-- fresh-eyes-exempt: <class> -- <reason> -->`, closed class set
 `deterministic-gate` | `external-input` | `deferred`). The mechanical contract — grammar, classes,
-canonical wording, check semantics — is owned by the `skill-quality` plugin
-(`skills/check/reference/fresh-eyes-declarations.md`), where the conformance check points third-party
-authors; this section carries the rationale and defers the spec there (convention-registry row
-above). The declaration anchors in each skill's own scanned files even when the judgment mechanics
-live in a plugin-level shared spoke — the generic checker cannot assume a plugin layout.
+canonical wording, check semantics — is owned by `/skill-quality:check`, whose conformance check
+points third-party authors at that spec; this section carries the rationale and defers the spec
+there (convention-registry row above). The declaration anchors in each skill's own scanned files
+even when the judgment mechanics live in a plugin-level shared spoke — the generic checker cannot
+assume a plugin layout.
 
 ## Authoritative references
 

@@ -67,7 +67,7 @@ target.
   reclaimable from then on. A
   lease that is missing or unreadable is treated as stale for this test — the absence of a heartbeat
   is not evidence of life. This is the shape `claude-ops`' restart-consumer settled for the same
-  defect class (`plugins/claude-ops/skills/lanes/context/restart-consumer.md`, "**age alone never
+  defect class (`/claude-ops:lanes`, whose rule for it is "**age alone never
   reclaims**"): without a start identity a live holder only **defers** the reclaim. The bound on that
   deferral differs by design — restart-consumer, whose holder publishes no lease, needs a hard
   24-hour ceiling; a lease-bearing run needs none, because a dead holder's heartbeat stops and the

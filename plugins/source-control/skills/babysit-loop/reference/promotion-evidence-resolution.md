@@ -5,8 +5,7 @@ This lane's binding of the guardrail contract's promotion-state ceiling for the 
 only** — consumers must resolve each promotable cell's **effective** state against live
 promotion-evidence telemetry before every autonomous merge decision, fail-closing to unpromoted
 when evidence is unavailable, untrusted, partial, or forgeable
-([`guardrails-security-binding.schema.json`](../../../../autonomy/skills/setup/schemas/guardrails-security-binding.schema.json)
-`promotion_state` description;
+(`/autonomy:setup` owns the security binding and the `promotion_state` field this reads;
 [`verification-topology.md`](../../../../autonomy/reference/guardrails/verification-topology.md)
 "Consumers resolve both"). Reading the bound state alone is non-conforming.
 

@@ -3,6 +3,30 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.18]
+
+### Fixed
+
+- **Five unresolvable citations, one heading anchor, and one cross-plugin schema reach.**
+  `reference/config-resolution.md` and `reference/review-discipline.md` cited
+  `skills/babysit-loop/...` and `skills/babysit-prs/...` in a form whose implied base is the plugin
+  root while the real base is `reference/`; all five now use the anchored
+  `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/<path>` form. `reference/worktree-root-convention.md` no
+  longer pins the `worktree` skill's nesting invariant by heading anchor.
+  `skills/babysit-loop/reference/promotion-evidence-resolution.md` no longer path-cites `autonomy`'s
+  `guardrails-security-binding.schema.json`; it names `/autonomy:setup` and keeps the plugin-level
+  `verification-topology.md` cite that already carries the obligation. Docs-hygiene sweep,
+  L4-encapsulation.
+
+### Changed
+
+- **Three `babysit-prs` rules restated in the positive.** Two negation-only rules and one that
+  narrated a superseded policy. The engine-absence rule now says what a safe iteration does
+  (proceed, reporting merge-readiness as unchecked) rather than only what it must not do; the
+  performance note now says to run the D5/D6/D7 verification sub-steps on every pass; and the draft
+  policy no longer opens by naming the blanket draft skip it replaced, which no current reader has
+  to compare against. Docs-hygiene sweep, L5-noise.
+
 ## [0.55.17]
 
 ### Changed

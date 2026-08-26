@@ -1,5 +1,31 @@
 # Changelog — discovery plugin
 
+## [0.16.10]
+
+### Changed
+
+- **The `intent-tracer` no-split record now names the pin that actually goes red.** 0.16.9 recorded
+  `agents/intent-tracer.md`'s Tool honesty section as deliberately not split, and cited
+  `agents/tool-honesty.test.sh`. That suite argues drift risk rather than breakage: it reads each
+  agent body for that agent's own tool claims, so lifting the prose into a spoke takes the claims
+  out of its window and the suite goes quiet instead of red. The harder pin went unnamed.
+  `scripts/contract.test.sh` asserts that `agents/intent-tracer.md` itself contains the string
+  `single write boundary`, which sits at line 125, inside the range the audit proposed moving, so
+  the split fails the assertion `agents/intent-tracer.md defers to the single write boundary`.
+  Measured by applying the split to a throwaway copy of the plugin and running both suites.
+  Recorded because the sweep's standing hazard is that a pin under `scripts/` is the one a split
+  lane misses, and a record naming only the quiet suite invites the re-proposal it exists to
+  prevent. No file in the shipped surface changed. Docs-hygiene sweep, L2-progressive-disclosure.
+
+### Fixed
+
+- **Three unresolvable citations in `reference/topic-docs.md`.** The by-value recovery-ladder rungs
+  were written as `skills/explore/reference/dispatch.md`, `skills/research/context/dispatch.md` and
+  `skills/trace-intent/context/dispatch.md`, whose implied base is the plugin root while the real
+  base is `reference/`, so none of the three resolved. All three now use the anchored
+  `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/<path>` form that `reference/parent-contract.md` already
+  uses correctly for the same targets. Docs-hygiene sweep, L4-encapsulation.
+
 ## [0.16.9]
 
 ### Changed

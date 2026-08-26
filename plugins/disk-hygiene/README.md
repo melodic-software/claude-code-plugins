@@ -188,7 +188,7 @@ hand-cleaning the zone.
   current repository's worktrees and take no target. `disk-hygiene` protects tracked content and `.git`
   metadata but does not manage worktree lifecycle. For a redundant standalone checkout, the manual
   handoff's optional VCS evidence mode can return `clear` only after all four proof gates in the
-  [safety model](skills/clean/reference/safety-model.md#standalone-git-checkout-evidence) pass.
+  [safety model](skills/clean/reference/safety-model.md) pass.
 - Use a product's own prune/GC/uninstall command for state it owns. This skill reports the handoff and
   records the native result but never makes managed state eligible for engine execution.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every
