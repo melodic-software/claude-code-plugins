@@ -2,6 +2,13 @@
 
 ## Contents
 
+<!-- spellchecker:off -->
+<!-- Anchor targets are GitHub's slugs, which strip apostrophes, so a heading
+     with a contraction yields a token the spell checker reads as a misspelling
+     ("They're" becomes "theyre"). The slug has to keep that form for the link
+     to resolve. Suppression is scoped to this generated block and costs no
+     coverage: each row echoes a heading that is still checked where it is
+     written, below. -->
 - [How Design-Level Differs from Big Picture and Process Modeling](#how-design-level-differs-from-big-picture-and-process-modeling)
 - [Working with the Big Picture Artifact](#working-with-the-big-picture-artifact)
 - [Design-Level Workshop Phases `\[SUPPLEMENTED\]`](#design-level-workshop-phases-supplemented)
@@ -11,6 +18,7 @@
 - [From EventStorming to User Stories](#from-eventstorming-to-user-stories)
 - [Domain Events in Depth (Why They're Special)](#domain-events-in-depth-why-theyre-special)
 - [Relationship to Your Architecture](#relationship-to-your-architecture)
+<!-- spellchecker:on -->
 
 Design-Level EventStorming bridges the gap between process understanding and software implementation. It focuses on implementing software features that solve a specific problem, working within a single bounded context.
 
