@@ -22,10 +22,10 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_delta as delta  # noqa: E402
-import babysit_feedback as feedback  # noqa: E402
-import babysit_gh as gh  # noqa: E402
-import pr_queue_snapshot as snapshot  # noqa: E402
+import babysit_delta as delta
+import babysit_feedback as feedback
+import babysit_gh as gh
+import pr_queue_snapshot as snapshot
 
 
 def _advisory_error(key="owner/repo#1"):
@@ -41,14 +41,10 @@ class ExitCodeTaxonomy(unittest.TestCase):
         self.assertEqual(snapshot.exit_code_for({"errors": []}), 0)
 
     def test_substantive_error_returns_one(self):
-        self.assertEqual(
-            snapshot.exit_code_for({"errors": [_substantive_error()]}), 1
-        )
+        self.assertEqual(snapshot.exit_code_for({"errors": [_substantive_error()]}), 1)
 
     def test_advisory_only_error_returns_three(self):
-        self.assertEqual(
-            snapshot.exit_code_for({"errors": [_advisory_error()]}), 3
-        )
+        self.assertEqual(snapshot.exit_code_for({"errors": [_advisory_error()]}), 3)
 
     def test_substantive_precedence_over_advisory(self):
         # A run carrying both must never be masked by the advisory split.
@@ -77,9 +73,7 @@ class SubstantiveErrors(unittest.TestCase):
 
     def test_substantive_error_is_retained(self):
         substantive = _substantive_error()
-        self.assertEqual(
-            snapshot.substantive_errors([substantive]), [substantive]
-        )
+        self.assertEqual(snapshot.substantive_errors([substantive]), [substantive])
 
     def test_mixed_keeps_only_substantive(self):
         substantive = _substantive_error()
@@ -105,11 +99,14 @@ class FatalRunReturnsTwo(unittest.TestCase):
                 "--state-dir",
                 td,
             ]
-            with mock.patch.object(sys, "argv", argv), mock.patch.object(
-                snapshot,
-                "build_snapshot",
-                side_effect=RuntimeError(
-                    "discovery exploded before any snapshot existed"
+            with (
+                mock.patch.object(sys, "argv", argv),
+                mock.patch.object(
+                    snapshot,
+                    "build_snapshot",
+                    side_effect=RuntimeError(
+                        "discovery exploded before any snapshot existed"
+                    ),
                 ),
             ):
                 self.assertEqual(snapshot.main(), 2)
@@ -124,9 +121,7 @@ class ResolveSelfLoginsTests(unittest.TestCase):
 
     def test_no_flags_yields_the_authenticated_login(self) -> None:
         with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"):
-            self.assertEqual(
-                snapshot.resolve_self_logins(None, None), ["kyle-sexton"]
-            )
+            self.assertEqual(snapshot.resolve_self_logins(None, None), ["kyle-sexton"])
 
     def test_extra_self_is_unioned_with_the_authenticated_login(self) -> None:
         with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"):
@@ -257,9 +252,7 @@ class ApproveWithNitsClassification(unittest.TestCase):
     still blocks.
     """
 
-    _CONFIG = delta.ClassifyConfig(
-        allowed_owners=frozenset({"melodic-software"})
-    )
+    _CONFIG = delta.ClassifyConfig(allowed_owners=frozenset({"melodic-software"}))
 
     def _classify(self, body: str) -> dict[str, object]:
         return delta.classify_pr(
@@ -291,9 +284,7 @@ class ApproveWithNitsClassification(unittest.TestCase):
         # Pins the arrival branch, not just the destination: the approval-verdict
         # downgrade, never the catch-all fallthrough that also lands in `ignored`.
         self.assertEqual(buckets["ignored"][0]["downgrade"], "approval_verdict")
-        self.assertNotIn(
-            "1 blocking bot feedback item(s)", result["blockers"]
-        )
+        self.assertNotIn("1 blocking bot feedback item(s)", result["blockers"])
         # Consistent with the gate's findings=0: a clean approval is fully
         # non-blocking, so a worker is never dispatched for it and the PR routes
         # straight to the direct merge gate.
@@ -364,14 +355,14 @@ class SinglePrScopeSelfLoginTests(unittest.TestCase):
             )
             # view_pr raises so the per-PR loop is a no-op; the assertion is
             # about the identity resolution that runs before it.
-            with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"), \
-                 mock.patch.object(gh, "resolve_authors", return_value=[]), \
-                 mock.patch.object(
-                     gh, "parse_repo_number", return_value=("owner/repo", 1)
-                 ), \
-                 mock.patch.object(
-                     gh, "view_pr", side_effect=RuntimeError("stop")
-                 ):
+            with (
+                mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"),
+                mock.patch.object(gh, "resolve_authors", return_value=[]),
+                mock.patch.object(
+                    gh, "parse_repo_number", return_value=("owner/repo", 1)
+                ),
+                mock.patch.object(gh, "view_pr", side_effect=RuntimeError("stop")),
+            ):
                 snapshot.build_snapshot(args)
             self.assertIn("kyle-sexton", args.resolved_self_logins)
 
@@ -391,11 +382,11 @@ class SelfIdentityDecouplingTests(unittest.TestCase):
     def _resolve_via_snapshot(self, args: argparse.Namespace) -> list[str]:
         # view_pr raises so the per-PR loop is a no-op; the assertion is about
         # the self-identity resolution that runs before it.
-        with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"), \
-             mock.patch.object(
-                 gh, "parse_repo_number", return_value=("owner/repo", 1)
-             ), \
-             mock.patch.object(gh, "view_pr", side_effect=RuntimeError("stop")):
+        with (
+            mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"),
+            mock.patch.object(gh, "parse_repo_number", return_value=("owner/repo", 1)),
+            mock.patch.object(gh, "view_pr", side_effect=RuntimeError("stop")),
+        ):
             snapshot.build_snapshot(args)
         return list(args.resolved_self_logins)
 
@@ -485,24 +476,22 @@ class SinglePrScopeClassifierConsumptionTests(unittest.TestCase):
                 state_dir=state_dir,
                 write_state=False,
             )
-            with mock.patch.object(gh, "resolve_author", return_value=self.SELF), \
-                 mock.patch.object(gh, "resolve_authors", return_value=[]), \
-                 mock.patch.object(
-                     gh, "parse_repo_number", return_value=("owner/repo", 1)
-                 ), \
-                 mock.patch.object(gh, "view_pr", return_value=pr), \
-                 mock.patch.object(
-                     gh, "fetch_issue_comments", return_value=comments
-                 ), \
-                 mock.patch.object(
-                     gh, "fetch_pull_request_reviews", return_value=[]
-                 ), \
-                 mock.patch.object(
-                     gh, "fetch_unresolved_review_comments", return_value=[]
-                 ), \
-                 mock.patch.object(
-                     gh, "find_open_prs_for_head_ref", return_value=["owner/repo#1"]
-                 ):
+            with (
+                mock.patch.object(gh, "resolve_author", return_value=self.SELF),
+                mock.patch.object(gh, "resolve_authors", return_value=[]),
+                mock.patch.object(
+                    gh, "parse_repo_number", return_value=("owner/repo", 1)
+                ),
+                mock.patch.object(gh, "view_pr", return_value=pr),
+                mock.patch.object(gh, "fetch_issue_comments", return_value=comments),
+                mock.patch.object(gh, "fetch_pull_request_reviews", return_value=[]),
+                mock.patch.object(
+                    gh, "fetch_unresolved_review_comments", return_value=[]
+                ),
+                mock.patch.object(
+                    gh, "find_open_prs_for_head_ref", return_value=["owner/repo#1"]
+                ),
+            ):
                 result = snapshot.build_snapshot(args)
         self.assertEqual(result["errors"], [])
         return result["prs"][0]

@@ -18,11 +18,13 @@ import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import manage_feedback_ledger as ledger  # noqa: E402
+import manage_feedback_ledger as ledger
 
 HEAD = "a" * 40
 OLDER = "b" * 40
-LEDGER_CLI = pathlib.Path(__file__).resolve().parent.parent / "manage_feedback_ledger.py"
+LEDGER_CLI = (
+    pathlib.Path(__file__).resolve().parent.parent / "manage_feedback_ledger.py"
+)
 
 
 def record(
@@ -32,9 +34,7 @@ def record(
     *,
     apply: bool = True,
 ) -> dict[str, object]:
-    args = argparse.Namespace(
-        finding_class=classes, fix_round_cap=100, apply=apply
-    )
+    args = argparse.Namespace(finding_class=classes, fix_round_cap=100, apply=apply)
     return ledger.record_advisory_round(args, "owner/repo#1", ledger_entry, head_sha)
 
 
@@ -69,9 +69,7 @@ class RecordAdvisoryRoundTests(unittest.TestCase):
             }
         }
         record(entry, HEAD, ["c"])
-        self.assertEqual(
-            entry["advisory_fix_rounds"]["rounds"][HEAD]["sequence"], 1
-        )
+        self.assertEqual(entry["advisory_fix_rounds"]["rounds"][HEAD]["sequence"], 1)
 
     def test_a_dry_run_persists_nothing_but_still_reports_the_tripwire(self) -> None:
         entry: dict[str, object] = {}
