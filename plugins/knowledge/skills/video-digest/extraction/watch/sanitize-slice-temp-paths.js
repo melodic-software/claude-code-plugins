@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { writeStdout } from "@melodic/video-digestion/shared/terminal";
+import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-session-paths.js";
@@ -126,7 +126,7 @@ const isMain =
 if (isMain) {
   const sliceDir = process.argv[2];
   if (!sliceDir) {
-    process.stderr.write("Usage: node watch/sanitize-slice-temp-paths.js <slice-dir>\n");
+    writeStderr("Usage: node watch/sanitize-slice-temp-paths.js <slice-dir>");
     process.exit(2);
   }
   writeStdout(`${JSON.stringify(sanitizeSliceTempPaths(sliceDir), null, 2)}\n`);

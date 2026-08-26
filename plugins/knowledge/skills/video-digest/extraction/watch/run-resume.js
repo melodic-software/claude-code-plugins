@@ -17,7 +17,6 @@ import {
   formatRecoverCommand,
 } from "./detect-recoverable-bootstrap.js";
 import {
-  buildContinuationPrompt,
   continuationPromptPath,
   findNextPhase,
   readWatchState,
@@ -43,8 +42,7 @@ export async function runResumeCli(argv) {
   }
 
   const nextPhase = findNextPhase(state.phases);
-  const continuationPrompt = buildContinuationPrompt(state, sliceDir);
-  await writeContinuationPrompt(sliceDir, state);
+  const continuationPrompt = await writeContinuationPrompt(sliceDir, state);
   const recovery = detectRecoverableBootstrap(sliceDir);
 
   writeStdout(
