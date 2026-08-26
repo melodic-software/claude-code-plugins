@@ -3,6 +3,19 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.12]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** clean:
+  `git-tree-reset.test.sh` folds five hash-proven-identical repo fixtures into a
+  `mk_feat_repo` helper (R3's differently-shaped fixture stays inline); `remove-path.sh`
+  drops a stale PR-narration comment; `scan.sh` loses a dead file-wide SC2154 disable and a
+  malformed dual `source=` directive (CI's pinned shellcheck invocation reproduced and
+  green). A proposed removal of `format_size`'s `|| printf '?'` fallback was refuted by the
+  run's verifier (reachable when awk itself is broken) and reverted. Suites green
+  (60 + 7 + 60); destructive scripts and shared libs deliberately untouched.
+
 ## [0.10.11]
 
 ### Changed
