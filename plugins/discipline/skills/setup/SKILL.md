@@ -67,8 +67,10 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    that an invocation argument to `do-your-research-deep` overrides this default per
    invocation.
 6. **Full-batch prerequisite.** INFO: the batch's mid-session pass dispatches
-   conversation-inheriting fork subagents, which need fork-spawning enabled
-   (`CLAUDE_CODE_FORK_SUBAGENT`, which a server-side staged rollout can also enable: <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>).
+   conversation-inheriting fork subagents. Fork mode is on by default in interactive sessions
+   on Claude Code >= v2.1.232 (off by default in non-interactive `-p` and Agent SDK sessions;
+   `CLAUDE_CODE_FORK_SUBAGENT` overrides either way:
+   <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>, re-checked 2026-08-26).
    `sweep-all` preflights this itself and degrades when the fan-out cannot inherit; that runbook owns the behavior; report the prerequisite here only so an unavailable
    fan-out reads as expected rather than as a misconfiguration, and do not restate what
    the degraded pass does.

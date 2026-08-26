@@ -139,8 +139,9 @@ last-wins picks it up) alongside the identity keys. Verified properties
   `.git/config`** — repo-local config is not cloned, so the exception
   vanishes on re-clone (twice, for a dotfiles repo with two peer clones).
 - **Version floors:** `gitdir:`/`gitdir/i:` 2.13, `onbranch:` 2.23,
-  `hasconfig:remote.*.url:` 2.36, `worktree:`/`worktree/i:` **2.56** — a
-  config authored for 2.56 degrades silently on 2.55.
+  `hasconfig:remote.*.url:` 2.36, `worktree:`/`worktree/i:` **2.56 — unreleased as of
+  2026-08-26** (latest tag v2.55.0; the 2.55 docs do not list the condition yet, so verify it
+  shipped before authoring for it) — a config authored for 2.56 degrades silently on 2.55.
 - **Per-worktree overrides need `config.worktree`** behind
   `extensions.worktreeConfig` — no `gitdir:` pattern can distinguish two
   worktrees of one repository.

@@ -58,17 +58,12 @@ Hooks ──▶ hook-events.jsonl
 5. Scope by `session_id`, `trace_id`, or time — one Collector file serves all worktrees.
 6. ccusage for cost — do not reconstruct billing from OTEL metrics when ccusage is available.
 
-## Retention (summary)
+## Retention
 
-| Store | Knob | Default |
-|---|---|---|
-| OTEL structure (logs + traces) | `CC_OTEL_RETENTION_DAYS` | 7 days |
-| OTEL API bodies (logs only) | `CC_OTEL_BODY_RETENTION_DAYS` | 2 days |
-| JSONL hook events | `/claude-ops:observability clean --keep-days N` | 30 days |
-| JSONL skill usage | `/claude-ops:observability clean --skill-usage-scope <scope>` | 365 days (opt-in; inert without the flag) |
-| Aspire RAM | none | restart to reclaim |
-
-Full prune mechanics: [operator-setup-retention.md](operator-setup-retention.md) "Pruning the store (retention) — two tiers".
+Retention knobs and their defaults are defined once in
+[operator-setup-retention.md](operator-setup-retention.md#retention-knobs); full prune
+mechanics in the same file, "Pruning the store (retention) — two tiers". (Aspire holds
+telemetry in RAM only — restart to reclaim.)
 
 ## Anti-patterns
 

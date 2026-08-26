@@ -113,34 +113,11 @@ matcher syntax, and environment variables against the current hooks documentatio
 - A quality gate was missed that could be enforced by a hook
 - A specific tool usage pattern should be blocked or warned about
 
-### Hook events (verify the current list before recommending)
+### Hook events
 
-| Hook Event | Use Case | Matcher |
-| --- | --- | --- |
-| SessionStart | One-time setup when a session begins or resumes | startup, resume, clear, compact |
-| Setup | Repo setup/maintenance runs (`--init`, `--init-only`, `--maintenance`) | init, maintenance |
-| UserPromptSubmit | Inject context or validate before Claude processes a prompt | (none) |
-| UserPromptExpansion | When a user-typed command expands into a prompt | command name |
-| PreToolUse | Block or warn before a tool executes | tool name |
-| PermissionRequest / PermissionDenied | Permission dialog appears / tool call auto-denied | tool name |
-| PostToolUse | Validate output after a tool succeeds (e.g., format check) | tool name |
-| PostToolUseFailure | React to failed tool calls | tool name |
-| PostToolBatch | After a batch of parallel tool calls resolves | (none) |
-| Notification | When Claude Code sends a notification | notification type |
-| MessageDisplay | While assistant message text is displayed | (none) |
-| SubagentStart / SubagentStop | When subagents spawn or finish | agent type |
-| TaskCreated / TaskCompleted | Task-list lifecycle — creation and completion | (none) |
-| TeammateIdle | When an agent-team teammate is about to go idle | (none) |
-| Stop | When Claude finishes responding | (none) |
-| StopFailure | When the turn ends due to an API error | error type |
-| InstructionsLoaded | When a CLAUDE.md or rules file loads into context | session_start, nested_traversal, path_glob_match, include, compact |
-| ConfigChange | When a config file changes during a session | config source |
-| CwdChanged | When the working directory changes | (none) |
-| FileChanged | When a watched file changes on disk | filenames to watch |
-| WorktreeCreate / WorktreeRemove | Worktree lifecycle — environment setup, cleanup | (none) |
-| PreCompact / PostCompact | Before / after context compaction | manual, auto (PreCompact only) |
-| Elicitation / ElicitationResult | MCP server user-input requests and responses | MCP server name |
-| SessionEnd | When a session terminates | termination reason |
+The hook-event catalog (event names, use cases, matchers) is owned by the official docs: read
+the current list at <https://code.claude.com/docs/en/hooks> before recommending — it grows and
+changes faster than any copy here could track, so no copy is kept here.
 
 ### Recommendation format
 

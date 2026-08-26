@@ -1,7 +1,7 @@
 # What lives in a Claude Code installation directory, and who owns it
 
 Basis for every row: <https://code.claude.com/docs/en/claude-directory> — read through the raw
-markdown endpoint (`.../claude-directory.md`), not a summarizing fetch. Verified 2026-08-11.
+markdown endpoint (`.../claude-directory.md`), not a summarizing fetch. Verified 2026-08-26.
 
 The distinction this file exists to make: **a path Claude Code already manages is not a cleanup
 candidate, however old its contents look.** Hand-pruning a swept path fights the product's own
@@ -33,7 +33,11 @@ Three facts about it that change how a finding should be read:
 | `file-history/<session>/` | Pre-edit snapshots for checkpoint restore |
 | `plans/` | Plan files written during plan mode |
 | `debug/` | Per-session debug logs (`--debug` / `/debug` only) |
-| `paste-cache/`, `image-cache/` | Large pastes and attached images |
+| `paste-cache/` | Large pastes |
+| `image-cache/` | Attached images. **Different sweep rule:** on each sweep the directories of all *other* sessions are removed whatever their age — so an old `image-cache/<session>/` disappearing immediately is expected, never an `age-exceeds-window` signal |
+| `uploads/<session>/` | Remote Control / web attachments |
+| `feedback/drafts/` | Feedback drafts — swept after `cleanupPeriodDays` **or** 30 days, whichever is shorter |
+| `usage-data/` | `/insights` reports and cached analysis data |
 | `session-env/` | Per-session environment metadata |
 | `tasks/` | Per-session task lists |
 | `shell-snapshots/` | Shell state captured at startup; removed on clean exit |

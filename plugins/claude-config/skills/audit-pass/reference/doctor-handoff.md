@@ -49,7 +49,11 @@ from what it does not.
    entry claiming it "does not appear in the environment variables list" is **superseded**: it rested
    on a read of a page long enough to truncate, and this row now confirms both the variable and the
    v2.1.205 cutover the point above states. Note the scope the row draws: the variable hides the
-   session skill, **not** `claude doctor` in the terminal.
+   session skill, **not** `claude doctor` in the terminal. **Re-checked 2026-08-26 (two fetch
+   routes): the row is absent from the current env-vars page again**, so the variable's documented
+   status has now flipped twice (absent 2026-07-24 → present 2026-08-10 → absent 2026-08-26).
+   Treat it as *unconfirmed*: the detection-over-prediction posture below already covers this — name
+   it only as a suspected cause, never as a documented basis, until a fetch shows the row again.
 
 **Suppression channels — one is now documented, one is still not.** Item 3 and a `skillOverrides`
 settings key were both carried in from this skill's design phase, and the 2026-07-24 read recorded
@@ -61,8 +65,8 @@ UNVERIFIED and probe. It may be real but undocumented, or stale.
 So the pass **detects absence rather than predicting it**: it checks whether `/doctor` actually
 resolves in this environment, and reports the outcome. If it does not resolve while the version floor
 is met, the run says so and names these channels as the suspected causes — `DISABLE_DOCTOR_COMMAND`
-now with a documented basis, `skillOverrides` still unconfirmed — rather than asserting either as the
-reason. Detecting beats predicting either way: the variable's presence in the list says an operator
+(documentation status unstable across fetches, see above) and `skillOverrides`, both unconfirmed —
+rather than asserting either as the reason. Detecting beats predicting either way: the variable's presence in the list says an operator
 *could* have set it, never that they did.
 
 **Recheck trigger:** any Claude Code minor release, or any change to how bundled skills are
