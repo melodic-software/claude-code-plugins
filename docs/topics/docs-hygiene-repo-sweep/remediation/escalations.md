@@ -44,10 +44,46 @@ citations would come back. The decision is which document is wrong:
   sites change, some of which cite genuinely cross-cutting content that has no action to route
   through, so Path A promotions would have to be authored.
 
-Both are defensible. The choice is the repository owner's, not a lane's and not the orchestrator's.
+### Ruling: the plugin, not the skill, is this repo's unit of distribution
 
-**Until this is decided, wave 3 applies none of the 30 sibling-skill-reach findings.** The other 59
-L4 violations are unaffected and proceed normally.
+Neither document is simply wrong. They disagree because they assume different units.
+
+The contract's whole rationale is rip-and-paste portability: "moving `.claude/skills/<name>/` into
+another repo carries every implementation detail with it; nothing outside the skill depends on
+internal layout." That protects a skill directory moved on its own. But nothing in this repository
+ships that way. The distribution unit here is the **plugin**: it carries a `plugin.json` with its
+own version, it is what a consumer enables, and its skills version and travel together. Two skills
+in one plugin cannot be separated by any installation a consumer can perform.
+
+The contract also anticipates exactly this. It says: "A consuming repo may layer its own conventions
+on top." `docs/PLUGIN-PHILOSOPHY.md` is that layer.
+
+So:
+
+- **Intra-plugin sibling-skill citation, in the anchored `${CLAUDE_PLUGIN_ROOT}/skills/<other>/<path>`
+  form, is legal in this repository.** It cannot produce the breakage the contract exists to
+  prevent, because the two skills are never distributed apart.
+- **Cross-plugin citation into another plugin's skill privates remains a violation.** Plugins install
+  independently, so the cited path can genuinely be absent at runtime. This is the case the contract
+  is actually about.
+- **A bare relative cross-skill path stays a defect either way.** `PLUGIN-PHILOSOPHY.md:341-342` says
+  so itself: a bare `context/…` path "resolves against the citing skill's directory, so a cross-skill
+  citation written that way points at a file that is not there." The philosophy doc legalises the
+  anchored form only.
+- **Heading anchors stay private even intra-plugin.** They are body structure, not a file the plugin
+  ships as a unit; renaming a heading is exactly the refactor the contract protects.
+
+Two follow-on edits this ruling requires, both in wave 3:
+
+1. `docs/PLUGIN-PHILOSOPHY.md` must state the cross-plugin limit it currently omits. As written it
+   reads as blanket permission, which is how 30 call sites came to exist.
+2. `public-surface-contract.md` must record that this repo layers that convention, so the next audit
+   does not re-raise the same 30 findings. The contract's own "consuming repo may layer" sentence is
+   the hook to hang it on.
+
+The precise INTRA / CROSS split of all 89 is being measured rather than assumed; it lands in
+`e1-classification.md`. Wave 3 remediates the CROSS set and the bare-relative set, and dissolves the
+intra-plugin anchored set.
 
 ## E2. Both L1 deletion verdicts are provisional
 
@@ -149,3 +185,42 @@ action instead.
 
 The orchestrator runs the semantic-diff gate in wave 4, from a context that can spawn subagents.
 No compression edit ships without passing it.
+
+## E4. `write-for-agents` disclaims the surface L7 was pointed at
+
+**Raised by:** L7-write-for-agents as its conflict C1. **Blocks:** 8 of that lane's 13 findings.
+
+`docs-hygiene:write-for-agents` says of itself that it "does not author skills, a SKILL.md is
+`playbooks:skill-authoring` + `skill-quality:check` territory." Every one of the 250 `T2` rows in
+the agent-audience slice is a `SKILL.md` (237) or an agent definition (13). Read at its widest, the
+skill disclaims the entire highest-cost stratum the lane exists to protect. L7 declined to rule and
+asked for `skill-quality:check` concurrence.
+
+### Ruling: the disclaimer is about authorship, not prose
+
+Authoring a skill means deciding that it should exist, what it triggers on, what its frontmatter
+declares, how its actions are shaped, and how its body is structured. That is genuinely
+`playbooks:skill-authoring` and `skill-quality:check` territory, and this lane must not touch it.
+
+It is a different thing from whether a sentence inside an already-authored skill reads well to the
+agent loading it. A `SKILL.md` is agent-consumed markdown, which is precisely and only what
+`write-for-agents` governs. Reading the disclaimer to cover prose quality would leave the repo's
+single largest agent-facing surface, 250 files whose cost recurs for the rest of a session once
+triggered, governed by no authoring doctrine at all. No reading that produces that gap is right.
+
+So the line is:
+
+- **In scope for L7**: prose inside an existing skill body. Pointer phrasing, a step deferring a fact
+  it needs, sentence-level clarity. All 8 disputed findings are of this kind; the predicate carrying
+  most of them is P3, front-loading a pointer's leading word.
+- **Out of scope for L7**: creating a skill, changing frontmatter or its description, adding or
+  reshaping actions, restructuring the body, splitting or merging sections. Structural splits belong
+  to L2, and `skill-quality:check` owns frontmatter.
+
+No concurrence is needed, because the ruling does not take anything from `skill-quality:check`.
+Wave 3 applies all 13 findings, and any that turn out to require a structural change rather than a
+prose change is reclassified to L2 at that point rather than applied here.
+
+`write-for-agents`'s own disclaimer sentence should be narrowed in wave 3 to say "does not author
+skills" rather than leaving "a SKILL.md is other territory" to be read as covering its prose. That
+edit is inside a `docs-hygiene` skill body and is in this sweep's scope.
