@@ -35,16 +35,9 @@ import { serializeTempSession } from "../lib/temp-session-paths.js";
  * @param {string} sliceDir
  * @param {WatchingSelectionState} watching
  * @param {TempSessionPaths} tempSession
- * @param {object} [deps]
- * @param {typeof fs.writeFile} [deps.writeFile]
  * @returns {Promise<WatchingManifestResult>}
  */
-export async function writeWatchingManifest(
-  sliceDir,
-  watching,
-  tempSession,
-  { writeFile = fs.writeFile } = {},
-) {
+export async function writeWatchingManifest(sliceDir, watching, tempSession) {
   const keyFramesDir = lanePath(sliceDir, LANES.keyFrames);
   await fs.mkdir(keyFramesDir, { recursive: true });
 
@@ -76,7 +69,7 @@ export async function writeWatchingManifest(
   };
 
   const selectionPath = path.join(keyFramesDir, "selection.json");
-  await writeFile(selectionPath, `${JSON.stringify(selection, null, 2)}\n`, "utf8");
+  await fs.writeFile(selectionPath, `${JSON.stringify(selection, null, 2)}\n`, "utf8");
 
   const coveragePlanPath = path.join(keyFramesDir, "coverage-plan.json");
   const coveragePayload = {
@@ -84,7 +77,7 @@ export async function writeWatchingManifest(
     actualFrameCount: watching.selectedFrames.length,
     highVolume: watching.highVolume ?? false,
   };
-  await writeFile(coveragePlanPath, `${JSON.stringify(coveragePayload, null, 2)}\n`, "utf8");
+  await fs.writeFile(coveragePlanPath, `${JSON.stringify(coveragePayload, null, 2)}\n`, "utf8");
 
   return {
     selectionPath: path.relative(sliceDir, selectionPath),
