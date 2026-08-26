@@ -6,8 +6,9 @@
 #   scripts/check-purged-em-dashes.sh --check    same (explicit form, matches sibling gates)
 #   scripts/check-purged-em-dashes.sh --list     list every declared path and its verdict
 #
-# Exit: 0 clean, 1 a violation or a stale allowlist entry, 2 usage or a
-# prerequisite this gate cannot verify around.
+# Exit: 0 clean, 1 a violation, a stale allowlist entry, or a declared path the
+# tracked config puts out of enforcement, 2 usage or a prerequisite this gate
+# cannot verify around.
 #
 # WHY (#2891). The de-slop campaign rewrites prose surface by surface, and each
 # landed shard is paid for by hand: a mechanical em-dash split changes meaning
@@ -47,12 +48,26 @@
 # (#2891, checkbox 4). So this gate does not touch that file, and running it
 # changes nothing about what /ai-slop:audit reports. It instead builds a
 # THROWAWAY config layer for its own detector invocation: the tracked config
-# copied verbatim, with rule-em-dash removed from disabled_rules and nothing else
-# altered. Copying rather than synthesizing is deliberate: excluded_paths,
-# em_dash_allowed_paths and every threshold stay whatever the tracked file says,
-# so the vendor, catalog and eval-fixture exclusions that exist precisely because
-# they contain em dashes as DATA keep applying here, and keep applying without a
-# second copy of that list to drift.
+# copied, with every switch that can quiet rule-em-dash removed and nothing else
+# altered. Copying rather than synthesizing is deliberate: excluded_paths and
+# every threshold stay whatever the tracked file says, so the vendor, catalog
+# and eval-fixture exclusions that exist precisely because they contain em
+# dashes as DATA keep applying here, and keep applying without a second copy of
+# that list to drift.
+#
+# WHAT THE THROWAWAY LAYER DOES OVERRIDE is exactly the set of keys that would
+# let a declared path pass without being judged: rule-em-dash's entry in
+# disabled_rules, em_dash_allowed_paths, and rule_allowed_paths["rule-em-dash"].
+# A path on the allowlist is a claim that the surface is purged; a per-rule
+# exemption on the same path is the opposite claim, and honouring it would let
+# the gate report the surface clean while no finding on it was ever possible,
+# because such a file is still opened and still counted as scanned.
+# excluded_paths is the one exclusion left standing, because its files are
+# never opened at all and are therefore visible in the run as declines that the
+# verdict names and fails on, rather than folded silently into the clean count.
+# A file on this allowlist that genuinely carries the character as data still
+# has the detector's in-file exemptions, an ignore marker or a code fence, and
+# failing those it belongs off the allowlist with the reason.
 #
 # REUSES THE DETECTOR RATHER THAN GREPPING. A bare grep for the em-dash byte
 # sequence would fire inside fenced code blocks, inline code spans, and
@@ -183,13 +198,29 @@ if [[ "$MODE" == list ]]; then
 fi
 
 # --- Throwaway detector config ----------------------------------------------
-# The tracked config verbatim, minus rule-em-dash's entry in disabled_rules. An
+# The tracked config with every switch that can quiet rule-em-dash removed. An
 # empty HOME keeps the user-global layer out: detect.sh cascades
 # $HOME/.claude/ai-slop.json under the repo layer, and a contributor who happens
 # to carry one must not be able to change this gate's verdict.
+#
+# Three keys can silence this rule and all three are stripped, because a path on
+# the allowlist declares the surface purged and a per-rule exemption claims it
+# need not be. `disabled_rules` turns the rule off outright.
+# `em_dash_allowed_paths` and `rule_allowed_paths["rule-em-dash"]` turn it off
+# per file, and those two are the quieter hazard: detect.sh still OPENS such a
+# file, so it lands in the scanned count, the coverage assertion below still
+# balances, and the rule summary still reports `disabled=0`. Nothing in the run
+# says why no finding was possible, and the gate would call the surface checked
+# and clean.
+#
+# `excluded_paths` is deliberately NOT stripped. Those files are never opened,
+# so they surface as excluded-glob declines that the verdict below names and
+# fails on, which is the report this gate wants rather than a silent override.
 
 mkdir -p "$TMP/root/.claude" "$TMP/home" || exit 2
-if ! jq '.disabled_rules |= ((. // []) | map(select(. != "rule-em-dash")))' \
+if ! jq '.disabled_rules |= ((. // []) | map(select(. != "rule-em-dash")))
+  | del(.em_dash_allowed_paths)
+  | .rule_allowed_paths |= ((. // {}) | del(."rule-em-dash"))' \
   "$SLOP_CONFIG" >"$TMP/root/.claude/ai-slop.json"; then
   echo "check-purged-em-dashes: could not derive the detector config from $SLOP_CONFIG" >&2
   exit 2
@@ -237,20 +268,28 @@ fi
 
 # --- Verdict ----------------------------------------------------------------
 
-# A declared path that the tracked config excludes is reported rather than
-# folded into the clean count. Such a path is inside the allowlist and outside
+# A declared path that the tracked config excludes FAILS the gate rather than
+# folding into the clean count. Such a path is inside the allowlist and outside
 # enforcement at the same time, which is the one way this gate can be green over
-# a surface it is checking nothing on, and a silent count would hide it.
+# a surface it is checking nothing on. Reporting it is not enough: an unenforced
+# declaration reads as coverage to every consumer of this exit code, so only a
+# nonzero verdict keeps it from shipping as one.
+verdict=0
 if ((excluded > 0)); then
   echo "check-purged-em-dashes: $excluded declared file(s) are excluded by $SLOP_CONFIG and were NOT checked:" >&2
   sed -n 's/^Declined: file=\([^ ]*\) cause=excluded-glob$/  \1/p' "$OUT" >&2
   echo "check-purged-em-dashes: remove them from $ALLOWLIST or from the config's excluded_paths; declaring a path the detector never reads enforces nothing" >&2
+  verdict=1
 fi
 
 findings="$(grep '^Finding: rule=ai-slop/audit/rule-em-dash ' "$OUT")"
 if [[ -z "$findings" ]]; then
-  printf 'check-purged-em-dashes: %s declared paths, %s files scanned, no em dashes.\n' "${#GLOBS[@]}" "$scanned"
-  exit 0
+  if ((verdict == 0)); then
+    printf 'check-purged-em-dashes: %s declared paths, %s files scanned, no em dashes.\n' "${#GLOBS[@]}" "$scanned"
+  else
+    echo "check-purged-em-dashes: the $scanned file(s) that were checked carry no em dashes, but the excluded file(s) above were not checked at all" >&2
+  fi
+  exit "$verdict"
 fi
 
 count="$(printf '%s\n' "$findings" | wc -l | tr -d ' ')"

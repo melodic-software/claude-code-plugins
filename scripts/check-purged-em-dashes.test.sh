@@ -36,21 +36,26 @@ EM="$(printf '\xe2\x80\x94')"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# run <fixture-root> <allowlist-relative-path> [args...]: sets OUT and RC.
+# run_cfg <detector-config> <fixture-root> <allowlist-relative-path> [args...]:
+# sets OUT and RC. The config is a parameter because three of the cases below
+# turn on what the SUT derives from a DIFFERENT tracked config than the default
+# one; every other case goes through run(), which pins the default.
 # Deliberately not wrapped in a command substitution of its own: that forks a
 # subshell and the exit status never reaches the caller.
-run() {
-  local root="$1" list="$2"
-  shift 2
+run_cfg() {
+  local cfg="$1" root="$2" list="$3"
+  shift 3
   OUT="$(
     EM_DASH_PURGED_ROOT="$root" \
       EM_DASH_PURGED_PATHS="$list" \
-      EM_DASH_SLOP_CONFIG=".claude/ai-slop.json" \
+      EM_DASH_SLOP_CONFIG="$cfg" \
       EM_DASH_DETECT="$DETECT" \
       bash "$SUT" "$@" 2>&1
   )"
   RC=$?
 }
+
+run() { run_cfg ".claude/ai-slop.json" "$@"; }
 
 # --- Fixture ----------------------------------------------------------------
 # One repository, several allowlists pointed at different subsets of it, so each
@@ -98,13 +103,14 @@ printf '%s\n' \
   "Wholly declined text ${EM} not this gate's business either." \
   >"$REPO/surface/marked.md"
 
-# The gate's sibling accounting path, an excluded_paths glob, is deliberately
-# NOT exercised here. detect.sh reads that array through a jq call whose output
-# carries CRLF under the Windows build of jq, so every element arrives with a
-# trailing carriage return and matches nothing; a case asserting the exclusion
-# took effect would pass on the Linux runner and fail on a Windows workstation.
-# That is a defect in the detector's own config reader rather than in this gate,
-# and pinning it from here would only make this suite platform-dependent.
+# Three more tracked configs, each carrying one switch that can quiet
+# rule-em-dash on an allowlisted file. The SUT strips the first two when it
+# derives its throwaway layer and fails the run on the third, so each of these
+# is pointed at the SEEDED VIOLATION: a config that could suppress the finding
+# is the only fixture in which stripping is observable.
+write ".claude/cfg-em-dash-allowed.json" '{"excluded_paths":[],"em_dash_allowed_paths":["surface/dirty.md"],"disabled_rules":["rule-em-dash"]}'
+write ".claude/cfg-rule-allowed.json" '{"excluded_paths":[],"rule_allowed_paths":{"rule-em-dash":["surface/dirty.md"]},"disabled_rules":["rule-em-dash"]}'
+write ".claude/cfg-excluded.json" '{"excluded_paths":["surface/dirty.md"],"disabled_rules":["rule-em-dash"]}'
 
 list() {
   local name="$1"
@@ -263,6 +269,52 @@ if ((RC == 2)); then
   ok "an unreadable detector config is exit 2"
 else
   fail "an unreadable detector config is exit 2 (rc=$RC): $OUT"
+fi
+
+# --- Switches that could quiet rule-em-dash on a declared path ---------------
+#
+# Each of the three runs below uses with-dirty.txt, whose surface/dirty.md the
+# base case above proves is a real finding. So each asserts on the ONE thing
+# its config changes, against a fixture where suppression would be visible.
+
+# em_dash_allowed_paths exempts a single file from rule-em-dash alone. The
+# detector still opens the file, so it counts as scanned, the coverage
+# assertion still balances and the rule summary still says disabled=0: nothing
+# in a passing run would have said the file was never actually judged. The SUT
+# strips the key rather than trusting those counters to reveal it.
+run_cfg ".claude/cfg-em-dash-allowed.json" "$REPO" "with-dirty.txt"
+if ((RC == 1)) && [[ "$OUT" == *"surface/dirty.md"* ]]; then
+  ok "em_dash_allowed_paths does not exempt a declared path"
+else
+  fail "em_dash_allowed_paths does not exempt a declared path (rc=$RC, want 1): $OUT"
+fi
+
+# rule_allowed_paths is the generalized form of the same switch, keyed by rule
+# slug, and reaches the detector through a different reader. Stripping one and
+# not the other would leave the identical hole under a second spelling.
+run_cfg ".claude/cfg-rule-allowed.json" "$REPO" "with-dirty.txt"
+if ((RC == 1)) && [[ "$OUT" == *"surface/dirty.md"* ]]; then
+  ok "rule_allowed_paths[rule-em-dash] does not exempt a declared path"
+else
+  fail "rule_allowed_paths[rule-em-dash] does not exempt a declared path (rc=$RC, want 1): $OUT"
+fi
+
+# excluded_paths is handled the other way round: the file is never opened, so
+# the SUT cannot judge it and does not pretend to. It reports the path and
+# FAILS, because a declaration the detector never reads is not coverage, and a
+# green exit is exactly how it would be mistaken for some.
+run_cfg ".claude/cfg-excluded.json" "$REPO" "with-dirty.txt"
+if ((RC == 1)) && [[ "$OUT" == *"were NOT checked"* ]] && [[ "$OUT" == *"surface/dirty.md"* ]]; then
+  ok "a declared path the config excludes fails the gate and is named"
+else
+  fail "a declared path the config excludes fails the gate and is named (rc=$RC, want 1): $OUT"
+fi
+# ... and the failure is the exclusion, not the em dash that happens to be in
+# that file: the detector never read it, so it can report no finding on it.
+if [[ "$OUT" != *"em-dash line(s)"* ]]; then
+  ok "the excluded path fails as unchecked rather than as a finding"
+else
+  fail "the excluded path fails as unchecked rather than as a finding: $OUT"
 fi
 
 test_harness::report
