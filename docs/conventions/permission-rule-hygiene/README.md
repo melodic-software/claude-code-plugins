@@ -79,10 +79,12 @@ order:
 
 > On entering auto mode, broad allow rules that grant arbitrary code execution are dropped:
 > Blanket `Bash(*)` or `PowerShell(*)`; Wildcarded interpreters like `Bash(python*)`; Package-manager
-> run commands; `Agent` allow rules. Narrow rules like `Bash(npm test)` carry over. Dropped rules are
+> run commands; `Agent` allow rules; `Monitor` allow rules, because Claude Code runs Monitor commands
+> through the shell. Narrow rules like `Bash(npm test)` carry over. Dropped rules are
 > restored when you leave auto mode.
 > — [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
-> ("How the classifier evaluates actions")
+> ("How the classifier evaluates actions"; re-fetched 2026-08-26 — the `Monitor` category was
+> added upstream in v2.1.236, which before then left Monitor allow rules in effect in auto mode)
 
 The [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
 restates it and adds that `autoMode.classifyAllShell: true` suspends even the narrow shell allow rules:

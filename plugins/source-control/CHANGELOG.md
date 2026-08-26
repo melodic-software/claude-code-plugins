@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.21]
+## [0.55.22]
 
 ### Changed
 
@@ -16,6 +16,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   reference/review-discipline.md gained Contents sections; the heading-less 394-line
   skills/setup/reference/apply-convention.md gained an orientation block with a grep recipe.
   Progressive-disclosure audit, tier-mismatch and missing-toc treatments.
+
+## [0.55.21]
+
+### Changed
+
+- **`worktree-root-convention` version-floors row hedges the git 2.56 `worktree:`/`worktree/i:` includeIf claim** as unreleased as of 2026-08-26 (latest upstream tag v2.55.0; the 2.55 docs do not list the condition), so a config is not authored against an unshipped floor. From the repo-wide derivability/point-dont-copy audit (PR #3387).
 
 ## [0.55.20]
 

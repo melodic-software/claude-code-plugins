@@ -33,9 +33,9 @@ check.
    them here (`gh repo view --json owner,name`, per the tracker CONTRACT's "Setup (binding file)"),
    so a shape-valid `github` binding in a non-GitHub checkout would otherwise PASS every probe and
    surface only when a verb fails at call time. Probe that same call **unconditionally**, never
-   behind a `gh auth status` precheck, which tests every account on every known host and exits 1 if
-   any has an issue (`gh auth status --help`), so an unrelated stale credential would skip the probe
-   and let the very binding this exists to catch go unreported. Verdict on *why* the call failed
+   behind a `gh auth status` precheck ([`providers.md`](providers.md) owns why that account-level
+   check is the wrong gate), so an unrelated stale credential cannot skip the probe and let the
+   very binding this exists to catch go unreported. Verdict on *why* the call failed
    rather than on failure alone:
    - Resolves → INFO naming the `owner/repo` the seam will address.
    - No remote, or no remote pointing at a known GitHub host → FAIL: nothing here can derive a repo,

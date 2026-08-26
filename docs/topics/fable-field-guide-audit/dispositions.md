@@ -67,7 +67,8 @@ one root cause appears once as a remediation and many times as evidence. **R13, 
 reclassified during synthesis** — as A2 (§7), D1 (§3) and D4 (§3) respectively — so those three
 numbers are absent from §5 by design, not by omission. Every row from every
 ledger survives as a row here, including the no-change ones — collapsing them would discard the
-completeness property `coverage-reconcile.md` established.
+completeness property the audit's coverage-reconcile check established (that working file was
+removed once its conclusion was absorbed here).
 
 Audit-originated findings (not derivable from any article claim) are quarantined in §7 so they
 cannot be laundered into article-derived gaps.

@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5]
+
+### Changed
+
+- **Unsourced "27K vs 114K / roughly 4x" token figure removed** from README and the skill description/body — the number is not in upstream `@playwright/cli`'s docs (checked 2026-08-26), matching this changelog's 0.5.0 precedent of dropping unsourced performance figures. The qualitative claim (artifacts on disk, only paths in context) stands. From the repo-wide derivability/point-dont-copy audit (PR #3387).
+
 ## [0.6.4]
 
 ### Changed

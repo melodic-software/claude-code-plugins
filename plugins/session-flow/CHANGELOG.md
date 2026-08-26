@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.34.7]
+## [0.34.8]
 
 ### Changed
 
@@ -8,6 +8,12 @@
   reference/structure.md gained Contents sections, including the handoff document's own body
   sections as lookup targets. Purely additive. Progressive-disclosure audit, missing-toc
   treatment.
+
+## [0.34.7]
+
+### Changed
+
+- **`retro`'s ecosystem-improvement catalog points at the hook-events docs instead of copying them.** The ~25-row Hook Events table (a capability list the official docs own, and one that grows faster than a copy can track) is replaced by a pointer to <https://code.claude.com/docs/en/hooks>. From the repo-wide derivability/point-dont-copy audit (PR #3387).
 
 ## [0.34.6]
 

@@ -41,14 +41,8 @@ Refuse to advance `last_checked`/`next_due` or close the associated issue when t
 
 1. **Update dates.** Always set `last_checked` to today. Only advance `next_due` if it's in the past or today — if it's already in the future, the recurring-issues automation has already advanced it and re-advancing would skip a cycle.
 
-| Cadence | Days |
-|---------|------|
-| `weekly` | 7 |
-| `biweekly` | 14 |
-| `monthly` | 30 |
-| `quarterly` | 90 |
-| `semi-annual` | 180 |
-| `annual` | 365 |
+Cadence-to-days values: the Cadence Duration Table in [`add.md`](add.md#cadence-duration-table)
+(defined once there; do not restate it here).
 
 1. **Edit `.github/recurring-schedule.json`:**
 

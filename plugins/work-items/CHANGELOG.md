@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.31]
+## [0.39.32]
 
 ### Changed
 
@@ -14,6 +14,13 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   chains; track's label-taxonomy condition also names `list --category`. The 769-line tracker
   CONTRACT.md and 422-line github adapter README gained `## Contents` indexes. Behavior unchanged.
   Progressive-disclosure audit, deep-nesting and missing-toc treatments.
+
+## [0.39.31]
+
+### Changed
+
+- **`setup`'s gh-auth-status rationale consolidated to its owner.** `reference/autonomous-apply.md` and `reference/check.md` now point at `reference/providers.md` for why the account-level `gh auth status` check is the wrong gate, keeping only their operative instructions.
+- **`track recheck`'s Cadence Duration Table became a pointer** at `add.md#cadence-duration-table`, honoring the plugin's own defined-once-in-add.md claim. From the repo-wide derivability/point-dont-copy audit (PR #3387).
 
 ## [0.39.30]
 

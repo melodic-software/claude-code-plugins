@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.40.10]
+## [0.40.11]
 
 ### Changed
 
@@ -11,6 +11,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   criteria.md gained a Contents section with its per-ID catalog entries and a grep recipe for
   lookup by ID; `audit-pass`'s run-state-and-resumability.md gained a Contents section. Purely
   additive. Progressive-disclosure audit, missing-toc treatment.
+
+## [0.40.10]
+
+### Changed
+
+- **`audit-pass` doctor-handoff treats `DISABLE_DOCTOR_COMMAND` as unconfirmed throughout.** A 2026-08-26 re-check (two fetch routes) found the env-vars row absent again — its documented status has now flipped twice — so the item title, the re-check note, and the suppression-channels paragraph all route it through the existing detection-over-prediction posture instead of citing a documented basis. From the repo-wide derivability/point-dont-copy audit, tightened per PR #3387 review.
 
 ## [0.40.9]
 

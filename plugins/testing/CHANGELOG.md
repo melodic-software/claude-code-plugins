@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.9]
+
+### Changed
+
+- **`run-e2e` MCP handshake shapes point at the spec instead of copying it.** The `initialize` request/response JSON blocks are replaced by a pointer naming the pinned `2025-06-18` revision and <https://modelcontextprotocol.io/specification/latest>, noting revisions after `2025-11-25` replace the handshake with per-request metadata (verified 2026-08-26), so the smoke test is scoped to legacy/dual-era servers.
+- **Duplicated "27K vs 114K" token figures removed** from the SKILL body and `context/e2e.md` in step with the playwright plugin dropping the unsourced origin figure; the comparison is now qualitative. From the repo-wide derivability/point-dont-copy audit (PR #3387).
+
 ## [0.7.8]
 
 ### Changed

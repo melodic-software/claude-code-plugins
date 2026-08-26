@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.10]
+## [0.38.11]
 
 ### Changed
 
@@ -12,6 +12,13 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   operator-setup-emission-privacy.md, previously reachable only through intermediate spokes; the
   363-line plugin README gained a `## Contents` index. Behavior unchanged. Progressive-disclosure
   audit, deep-nesting and missing-toc treatments.
+
+## [0.38.10]
+
+### Changed
+
+- **`audit-install-state` surfaces table caught up to the current `claude-directory` docs** (verified 2026-08-26): adds the swept `uploads/<session>/`, `feedback/drafts/` (shorter-of-two-windows retention), and `usage-data/` rows, and splits `image-cache/` from `paste-cache/` to record its distinct all-other-sessions sweep rule — load-bearing for the skill's `age-exceeds-window` reasoning.
+- **`observability` read-routing retention summary became a pointer** at `operator-setup-retention.md#retention-knobs` instead of a duplicated defaults table. From the repo-wide derivability/point-dont-copy audit (PR #3387).
 
 ## [0.38.9]
 
