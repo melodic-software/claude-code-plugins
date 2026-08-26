@@ -778,22 +778,27 @@ and their kin) are the high-value core because their cost recurs every session .
 for an always-loaded surface than for an on-demand one." The doctrine applies at T3, but not with
 T2's force, and nothing in these 104 clears the lower bar.
 
-**The residual: two sites that stay open, and are not covered by this decline.** Two sites match the
-doctrine's counter-example rather than merely its letter, because the target is named contentlessly
-and the payload trails it: `plugins/songwriting/skills/suno/context/troubleshoot.md:65` and `:158`.
-Both open `See` on a link whose text is the bare filename `SKILL.md`, then trail the payload ("on
-where first-hand observations sit relative to the ladder"). Front-loading these is a clean,
-meaning-preserving transform, and unlike the other 102 there is a real payload to move:
+**The residual: two sites that are not covered by this decline, and are now APPLIED.** Two sites
+matched the doctrine's counter-example rather than merely its letter, because the target was named
+contentlessly and the payload trailed it: `plugins/songwriting/skills/suno/context/troubleshoot.md`
+at `:65` and `:158`. Both opened `See` on a link whose text was the bare filename `SKILL.md`, then
+trailed the payload ("on where first-hand observations sit relative to the ladder"). Unlike the
+other 102, there was a real payload to move, so front-loading them was a clean, meaning-preserving
+transform.
+
+Both shipped in the same change set as this record, reading:
 
 ```text
-Where first-hand observations sit relative to the ladder: see [SKILL.md](../SKILL.md).
+Where a first-hand observation sits relative to the confidence ladder: see [Confidence flags](../SKILL.md).
 ```
 
-They are **not declined**. They were adjudicated as part of a 104-site batch and do not belong to
-it, so they carry forward as their own two-site finding for whoever next edits that skill. Do not
-let this row's decline be read as covering them. The cost argument that governs the batch does not
-govern them either: any edit under `plugins/songwriting/` publishes a release, so these two should
-ride an edit that is happening anyway rather than justify one of their own.
+The link text names the target section rather than the file, which is the half the counter-example
+was actually about.
+
+They were never declined. They were adjudicated inside a 104-site batch they do not belong to, and
+the cost argument that governs the batch never governed them: `plugins/songwriting/` was already
+being bumped for the `suno` orphan-spoke fix in the same change set, so the release these two would
+have "cost" was already being published.
 
 ### P7, a step defers a fact it needs to an unnamed location, 2
 
