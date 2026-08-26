@@ -5,6 +5,15 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.11]
+
+### Changed
+
+- **Options-reference regeneration.** `scripts/sync-plugin-options-docs.py` dropped the
+  phrase `in order to` from its shared options template, per the repo's own
+  write-for-humans style rule that the phrase is just `to`. The generated options
+  block in `README.md` regenerated with the shorter wording; no other change.
+
 ## [0.6.10]
 
 ### Changed

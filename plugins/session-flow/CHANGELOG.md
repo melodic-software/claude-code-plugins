@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## [0.34.1]
+
+### Changed
+
+- **Options-reference regeneration.** `scripts/sync-plugin-options-docs.py` dropped the
+  phrase `in order to` from its shared options template, per the repo's own
+  write-for-humans style rule that the phrase is just `to`. The generated options
+  block in `README.md` regenerated with the shorter wording; no other change.
+
 ## [0.34.0]
 
 ### Added

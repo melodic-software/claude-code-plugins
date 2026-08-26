@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.10]
+
+### Changed
+
+- **Options-reference regeneration.** `scripts/sync-plugin-options-docs.py` dropped the
+  phrase `in order to` from its shared options template, per the repo's own
+  write-for-humans style rule that the phrase is just `to`. The generated options
+  block in `README.md` regenerated with the shorter wording; no other change.
+
 ## [0.13.9]
 
 ### Changed

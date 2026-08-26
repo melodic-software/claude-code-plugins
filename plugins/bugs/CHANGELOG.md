@@ -3,6 +3,15 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2]
+
+### Changed
+
+- **Options-reference regeneration.** `scripts/sync-plugin-options-docs.py` dropped the
+  phrase `in order to` from its shared options template, per the repo's own
+  write-for-humans style rule that the phrase is just `to`. The generated options
+  block in `README.md` regenerated with the shorter wording; no other change.
+
 ## [0.9.1]
 
 ### Changed

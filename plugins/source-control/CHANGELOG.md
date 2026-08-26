@@ -7,16 +7,22 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **Five skill bodies split against the progressive-disclosure audit.** `babysit-loop`,
-  `babysit-prs`, `pull-request`, `setup` and `worktree` each sat near the 500-line ceiling with
-  on-demand material inlined, which a `SKILL.md` pays for across the rest of a session once it
-  triggers. The sometimes-only content moved to a spoke and the body kept what every invocation
-  needs:
+- **Four skill bodies split against the progressive-disclosure audit.** `babysit-loop`,
+  `pull-request`, `setup` and `worktree` each sat near the 500-line ceiling with on-demand material
+  inlined, which a `SKILL.md` pays for across the rest of a session once it triggers. The
+  sometimes-only content moved to a spoke and the body kept what every invocation needs:
   - `babysit-loop` to `reference/cycle-shape.md`
-  - `babysit-prs` to `reference/guarded-mutations.md`
   - `pull-request` to `reference/full-lifecycle.md`
   - `setup` to `reference/babysit-config.md`
   - `worktree` to `context/nesting-invariant.md`
+
+  `babysit-prs` was audited as a fifth candidate and deliberately **not** split. Its oversize
+  content is the guarded-mutation gate catalog, and `scripts/tests/test_skill_contract.py` asserts
+  three times that the merge-readiness paragraph lives in `SKILL.md` itself, citing #601: the body
+  must name the merge gate's `ready` field as the sole authority for a merge-ready claim. Moving
+  that behind a pointer would let an agent that never opens the spoke call a PR merge-ready on the
+  finding-classification gate's signal, which is the exact failure #601 closed. Line count is the
+  weaker consideration when the inlined content is the safety contract.
 
   Each pointer states when to read the spoke rather than only that it exists, so the split does
   not trade an oversize body for a blind pointer. No content was dropped; the spokes gained only
