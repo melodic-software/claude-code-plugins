@@ -33,7 +33,7 @@ actions below in particular:
 `add` and `recheck` also draw on reference files the seam doc above does not itself carry:
 
 - [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md):
-  the 8-group label structure `add` validates against.
+  the 8-group label structure `add` validates against and `list --category` filters by.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md):
   the title convention `add` applies.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md):

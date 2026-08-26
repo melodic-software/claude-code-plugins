@@ -72,6 +72,12 @@ environment variable is set). A single check can run in isolation:
 3. New remediation: write `scripts/windows/remediations/<Verb>-<Noun>.ps1`, add it to the authorization list in `references/windows/remediation-policy.md`, and wire dispatch in the orchestrator. Remediations always default to not approved.
 4. New OS: replace the matching `NOT_IMPLEMENTED.md` with a populated folder. Consult `references/shared/discovery-guide.md` for the porting checklist.
 
+How the orchestrator applies cross-finding correlation rules after check dispatch: `references/shared/correlation-rules.md`.
+
+## Testing
+
+Pester test conventions (directory layout, fixtures, prerequisites): `references/shared/testing.md`.
+
 ## Guardrails codified in the skill
 
 See `SKILL.md` § Guardrails. Briefly: 15m total, 90s per check, no interactive prompts, no retries, first-run dry mode, admin never assumed, egress allowlist, no `Invoke-Expression` on external data, never write into the plugin install directory.
