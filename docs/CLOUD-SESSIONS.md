@@ -9,6 +9,12 @@ other pages were last verified 2026-07-30. Per the
 [upstream-drift convention](conventions/upstream-drift/README.md), re-fetch a page before acting
 on it.
 
+## Contents
+
+- [What this is](#what-this-is)
+- [Set up your own (any account, machine, or repo)](#set-up-your-own-any-account-machine-or-repo)
+- [How this repository is set up](#how-this-repository-is-set-up)
+
 ## What this is
 
 - [Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web) runs each

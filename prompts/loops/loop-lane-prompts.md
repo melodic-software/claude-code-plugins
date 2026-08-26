@@ -29,6 +29,22 @@ claims it, that is a gap to fix here, not a population to ignore.
 | Expired claims / leases | `/work-items:track audit`, run manually — **no scheduled sweep exists** |
 | Lane telemetry issues | Lane infrastructure — excluded from every population by construction |
 
+## Contents
+
+- [Variables](#variables)
+- [Per-repository profile](#per-repository-profile)
+- [Adopting a new repository](#adopting-a-new-repository)
+- [How to inject these](#how-to-inject-these)
+- [Topology rules](#topology-rules)
+- [Models](#models)
+- [Concurrent workers on one repository](#concurrent-workers-on-one-repository)
+- [1 — Worker lane](#1--worker-lane)
+- [2 — Merge lane](#2--merge-lane)
+- [3 — Attended queue](#3--attended-queue)
+- [3b — Parked-decision burn-down (attended, on demand)](#3b--parked-decision-burn-down-attended-on-demand)
+- [Known gaps that outlive any one repository](#known-gaps-that-outlive-any-one-repository)
+- [Filled profiles](#filled-profiles)
+
 ## Variables
 
 Replace every `{{...}}` occurrence in the block you are pasting.

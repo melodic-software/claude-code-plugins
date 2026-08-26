@@ -4,6 +4,15 @@ Sub-topic of `docs/topics/ladder-climb-roadmap/PLAN.md` Phase I (on `main` since
 Design record: interview rulings (ledger committed in the roadmap topic) +
 `design/design-resolution.md`.
 
+## Contents
+
+- [Brief](#brief)
+- [Plan](#plan)
+- [Blast radius](#blast-radius)
+- [Stress-test summary](#stress-test-summary)
+- [Execution shape](#execution-shape)
+- [Handoff to implementation](#handoff-to-implementation)
+
 ## Brief
 
 Ignite the 2→3 loop: the first standing routine (C2 drain — hourly at ignition, re-bound

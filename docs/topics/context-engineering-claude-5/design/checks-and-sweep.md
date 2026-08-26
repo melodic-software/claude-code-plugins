@@ -10,6 +10,39 @@ Tasks #19 and #22–#27 (two new checks and four edits to existing ones, per the
 and #28 (the sweep). **The sweep is named `audit-pass`**, invoked as `/claude-config:audit-pass` —
 see "Naming, resolved" below for what that choice paid.
 
+## Contents
+
+- [D1 — cross-surface instruction conflict](#d1--cross-surface-instruction-conflict)
+  - [D1 wears the tier label without the delete-and-watch loop, and that is deliberate](#d1-wears-the-tier-label-without-the-delete-and-watch-loop-and-that-is-deliberate)
+  - [Detect](#detect)
+  - [`AGENTS.md` is affirmatively excluded](#agentsmd-is-affirmatively-excluded)
+  - [D1 reads the expanded surface, not the file on disk](#d1-reads-the-expanded-surface-not-the-file-on-disk)
+  - [Type B ships, and does not ship without the allowlist](#type-b-ships-and-does-not-ship-without-the-allowlist)
+  - [Must NOT flag](#must-not-flag)
+  - [Remediate](#remediate)
+  - [Source](#source)
+  - [An incumbent exists after all, and D1 is scoped around it](#an-incumbent-exists-after-all-and-d1-is-scoped-around-it)
+  - [The inventory D1 depends on, and the native-first gate](#the-inventory-d1-depends-on-and-the-native-first-gate)
+- [The other checks](#the-other-checks)
+- [The sweep](#the-sweep)
+  - [Why it is a component and not a runbook](#why-it-is-a-component-and-not-a-runbook)
+  - [Posture](#posture)
+  - [The exclusion set is derived, never hardcoded](#the-exclusion-set-is-derived-never-hardcoded)
+  - [`/doctor` — prerequisite contract, not a hand-wave](#doctor--prerequisite-contract-not-a-hand-wave)
+  - [Dispatch](#dispatch)
+  - [Coverage disclosure — `OPINION` and `/doctor`](#coverage-disclosure--opinion-and-doctor)
+  - [Verification is designed in, not left to the invoker](#verification-is-designed-in-not-left-to-the-invoker)
+  - [D6 needs a synthetic fixture](#d6-needs-a-synthetic-fixture)
+- [The report and the lanes](#the-report-and-the-lanes)
+- [Threat model — prompt injection against the sweep](#threat-model--prompt-injection-against-the-sweep)
+  - [Sources](#sources)
+  - [T1 — instruction text that targets the auditor, not the model under audit](#t1--instruction-text-that-targets-the-auditor-not-the-model-under-audit)
+  - [T2 — the suppression record as an attack surface](#t2--the-suppression-record-as-an-attack-surface)
+  - [T3 — what the human gate can and cannot catch](#t3--what-the-human-gate-can-and-cannot-catch)
+  - [What this section newly constrains, and who owns it](#what-this-section-newly-constrains-and-who-owns-it)
+  - [What this section does not settle](#what-this-section-does-not-settle)
+- [Open in this phase](#open-in-this-phase)
+
 ## D1 — cross-surface instruction conflict
 
 The deliverable's entire officially-backed payload. It ships as check **I12** in
