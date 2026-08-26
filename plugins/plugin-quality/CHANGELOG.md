@@ -5,6 +5,25 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2]
+
+### Changed
+
+- **`audit`'s evidence-packet specification moves to `references/evidence-packet.md`.** The packet
+  layout, the `audit-notes.md` filename constraint, and the write-once discipline were 178 lines of
+  specification sitting above the workflow that uses them. They are now one reference file with its
+  own table of contents, carried on the skill's existing `Load when` index. The hub keeps the
+  packet path and names the three things the spoke owns, because getting any of them wrong corrupts
+  an audit silently rather than failing it. Docs-hygiene sweep, L2-progressive-disclosure.
+
+## [0.7.1]
+
+### Changed
+
+- **The audit skill's six steps are a numbered list.** They were an inline 77-word sentence with
+  seven clause interrupters; a sequence takes a numbered list. Docs-hygiene sweep,
+  L8-write-for-humans.
+
 ## [0.7.0]
 
 ### Added

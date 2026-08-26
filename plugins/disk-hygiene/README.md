@@ -54,46 +54,11 @@ at preview. Backups remain the recovery boundary for user data.
 ## Requirements and platform support
 
 - Python 3.11+ available on `PATH` is required for scanning, validation, the skill-scoped guard, and
-  cleanup (the floor's single origin is the `MIN_PYTHON` constant in
+  cleanup. The floor's single origin is the `MIN_PYTHON` constant in
   `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
-  there, so treat the number printed here as a convenience copy). Guarded engine calls must use the
+  there, so treat the number printed here as a convenience copy. Guarded engine calls must use the
   same absolute interpreter reported by the skill-scoped guard, so Bash aliases and functions cannot
-  replace it. **All three** hook registrations, both wired hooks and the skill-scoped belt, use
-  **shell form**: the `command` string names `hooks/run-python-hook.sh` directly with
-  `"shell": "bash"` and no `args`, so Claude Code routes them through Git Bash itself instead of
-  resolving the command on `PATH`. Exec form is the regression this plugin hit twice: as
-  `"command": "bash"` in the wired hooks (#1416) and as `"command": "python3"` in the belt (#2568).
-  On Windows that bare `PATH` lookup finds the WSL relay `System32\bash.exe` before Git Bash, or the
-  zero-length `WindowsApps\python3.exe` App Execution Alias stub; the launch fails, and a failed
-  hook launch is non-blocking, so the guard silently enforces nothing. The launcher then resolves
-  Python (#1504). The guard
-  registers on two surfaces: a
-  plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
-  engine, deferring everything else instantly, and enforces the kill switch and data-root
-  authority; and the skill-scoped **belt** inside the `clean` skill's context, which adds the
-  deny-by-default Bash and deletion-spelling PowerShell discipline during active cleanup work. Both
-  surfaces resolve the kill switch by reading `disk_hygiene_enabled` from user-scope `pluginConfigs`
-  in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only from user/managed/`--settings`
-  scope since Claude Code 2.1.207, so a repo cannot forge it), register unconditionally, and fail
-  closed to enabled, the earlier bare-`${user_config.*}` argument that dropped the engine gate on a
-  default install is gone (since 0.9.0). Hook-lifetime caveat: docs
-  scope a skill hook to the component's lifetime, but session-long firing of the belt has been
-  observed on at least one Claude Code build (producer-reported; see issue #1105). If unrelated
-  commands are denied after a clean run ends, start a new session and see that issue. PreToolUse
-  hooks also fire inside subagents, so fanned-out workers run under the same guards. The plugin
-  never downloads a runtime.
-- **A silent engine-gate launch/runtime failure is now surfaced (since 0.9.5, #1416).** A `Stop`-event
-  detector (`skills/clean/scripts/guard_launch_monitor.py`, a second hook entry in `hooks/hooks.json`,
-  independent of the engine-gate guard itself) scans the session transcript for
-  `hook_non_blocking_error` records naming the engine gate's own command string and warns once per
-  session with the failure count and the most recent failure's exit code, duration, and stderr, so a
-  guard that never ran or died mid-run no longer looks identical to a guard that ran and approved.
-  This covers only the `destructive_guard.py` command string in the current session's transcript: it
-  does not cover repo-hygiene's own guard (a separate plugin, verified working independently), and it
-  never retroactively scans a prior session's transcript. Every hook registration routes through
-  `hooks/run-python-hook.sh`, a bash launcher that resolves Python independently of bare
-  `python3` on PATH, so when `python3` is the WindowsApps alias stub or otherwise unresolvable,
-  the detector still emits a `systemMessage` even though the guard cannot run (#1504).
+  replace it. The plugin never downloads a runtime.
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
 - `gh` with authenticated access to the configured `github.com` remote is additionally required only
@@ -107,24 +72,6 @@ at preview. Backups remain the recovery boundary for user data.
   distinction only, the engine treats Windows and macOS identically (execution unsupported); which
   reversible-removal container the manual lane prefers is the model's instruction, not engine
   behavior.
-- **Windows `python3` gotcha, the Store alias stub fails the guard open.** Every hook resolves
-  Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe`
-  App Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard.
-  Since 0.17.9 that includes the skill-scoped belt, which previously named `python3` directly as its
-  exec-form `command` and so could not start at all against the stub. When no interpreter resolves
-  anywhere on the ladder, the guard still
-  fails open, a PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny`
-  decision ([Hooks](https://code.claude.com/docs/en/hooks)); a guard that never runs emits neither,
-  and Claude Code treats the non-blocking result as approval, the destructive Bash/PowerShell
-  command proceeds ungated (the same fail-open shape as the 0.6.3 launch-failure fix, via a
-  different vector). The Stop detector emits a `systemMessage` in that case so the blind spot is
-  visible. `/disk-hygiene:setup check` resolves the launcher's whole ladder and FAILs only when it
-  is exhausted or the interpreter it selects is below the floor. A stubbed `python3` alongside a
-  working `python` or `py -3` is a **WARN**, not a FAIL, every guard launches there, and the
-  residual is only that a bare `python3` typed by hand still opens the Store. To clear it: disable
-  the `python3` App execution alias (Settings > Apps > Advanced app settings > App execution
-  aliases) or install real Python ahead of WindowsApps on `PATH`. A bare `command -v python3` /
-  `where python3` success is not proof the interpreter is real, the stub answers to the name too.
 - Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
   the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
@@ -132,6 +79,60 @@ at preview. Backups remain the recovery boundary for user data.
 
 Verify this machine's prerequisites and platform posture with `/disk-hygiene:setup check`;
 `/disk-hygiene:setup apply` resolves anything the check reports with guidance.
+
+## How the guard is registered
+
+**All three** hook registrations, both wired hooks and the skill-scoped belt, use **shell form**:
+the `command` string names `hooks/run-python-hook.sh` directly with `"shell": "bash"` and no
+`args`, so Claude Code routes them through Git Bash itself instead of resolving the command on
+`PATH`. Exec form does not survive Windows, where a bare `PATH` lookup finds the WSL relay
+`System32\bash.exe` before Git Bash, or the zero-length `WindowsApps\python3.exe` App Execution
+Alias stub; the launch fails, and a failed hook launch is non-blocking, so the guard silently
+enforces nothing. The launcher resolves Python itself instead (#1504).
+
+The guard registers on two surfaces: a plugin-level **engine gate** (`hooks/hooks.json`) that acts
+only on commands referencing the engine, deferring everything else instantly, and enforces the kill
+switch and data-root authority; and the skill-scoped **belt** inside the `clean` skill's context,
+which adds the deny-by-default Bash and deletion-spelling PowerShell discipline during active
+cleanup work. Both surfaces resolve the kill switch by reading `disk_hygiene_enabled` from
+user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only
+from user/managed/`--settings` scope since Claude Code 2.1.207, so a repo cannot forge it), register
+unconditionally, and fail closed to enabled.
+
+Hook-lifetime caveat: docs scope a skill hook to the component's lifetime, but session-long firing
+of the belt has been observed on at least one Claude Code build (producer-reported; see
+issue #1105). If unrelated commands are denied after a clean run ends, start a new session and see
+that issue. PreToolUse hooks also fire inside subagents, so fanned-out workers run under the same
+guards.
+
+**A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
+(`skills/clean/scripts/guard_launch_monitor.py`, a second hook entry in `hooks/hooks.json`,
+independent of the engine-gate guard itself) scans the session transcript for
+`hook_non_blocking_error` records naming the engine gate's own command string and warns once per
+session with the failure count and the most recent failure's exit code, duration, and stderr, so a
+guard that never ran or died mid-run does not look identical to a guard that ran and approved. This
+covers only the `destructive_guard.py` command string in the current session's transcript: it does
+not cover repo-hygiene's own guard (a separate plugin, verified working independently), and it never
+retroactively scans a prior session's transcript. Every hook registration routes through
+`hooks/run-python-hook.sh`, a bash launcher that resolves Python independently of bare `python3` on
+PATH, so when `python3` is the WindowsApps alias stub or otherwise unresolvable, the detector still
+emits a `systemMessage` even though the guard cannot run (#1504).
+
+**Windows `python3` gotcha, the Store alias stub fails the guard open.** Every hook resolves Python
+through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
+Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard, the
+skill-scoped belt included. When no interpreter resolves anywhere on the ladder, the guard fails
+open: a PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny` decision
+([Hooks](https://code.claude.com/docs/en/hooks)); a guard that never runs emits neither, and Claude
+Code treats the non-blocking result as approval, so the destructive Bash/PowerShell command proceeds
+ungated. The Stop detector emits a `systemMessage` in that case so the blind spot is visible.
+`/disk-hygiene:setup check` resolves the launcher's whole ladder and FAILs only when it is exhausted
+or the interpreter it selects is below the floor. A stubbed `python3` alongside a working `python`
+or `py -3` is a **WARN**, not a FAIL, every guard launches there, and the residual is only that a
+bare `python3` typed by hand still opens the Store. To clear it: disable the `python3` App execution
+alias (Settings > Apps > Advanced app settings > App execution aliases) or install real Python ahead
+of WindowsApps on `PATH`. A bare `command -v python3` / `where python3` success is not proof the
+interpreter is real, the stub answers to the name too.
 
 ## Usage
 
@@ -193,7 +194,10 @@ hand-cleaning the zone.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every
   tracked path and does not emulate Git's path rules.
 
-## Plugin-acceptance security review
+## Security posture
+
+What this plugin can reach, what it refuses, and what it costs you to have it installed. The
+measurements below carry the conditions they were taken under.
 
 - **Code execution:** the plugin runs bundled, standard-library Python. The skill-scoped PreToolUse
   guard denies every unknown Bash command, permits only canonical bundled scan/preview calls, and
@@ -326,6 +330,8 @@ Verified 2026-07-16 against current primary documentation:
 - [POSIX `unlink`](https://pubs.opengroup.org/onlinepubs/9799919799/functions/unlink.html) and
   [Linux `unlink(2)`](https://man7.org/linux/man-pages/man2/unlink.2.html). Open-file unlink semantics
   motivate an explicit preflight rather than relying on deletion failure.
+
+## Configuration
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->

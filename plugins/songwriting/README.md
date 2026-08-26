@@ -76,9 +76,7 @@ internal rhyme generation.
 MIT (SPDX-License-Identifier: MIT) covers **this plugin's own code, skills and
 prompts**. It does not extend to material quoted from other authors.
 
-**This wording changed in 0.8.6 because the previous version was inaccurate.** It
-said the plugin "contains distilled craft guidance and short verified anchor
-quotes, not book text." Since 0.8.5 that has not been true. The research files
+The research files
 under `context/pat-pattison/research/` reproduce Pat Pattison's examples, worked
 analyses, exercise wording and printed answer keys **verbatim**, along with the
 song lyrics he analyses, because a summarized exercise is not an exercise, and

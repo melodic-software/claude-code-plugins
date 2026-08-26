@@ -3,6 +3,26 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.8]
+
+### Changed
+
+- **`audit`'s report template and restoration regimes move to spokes.** The report skeleton is
+  artifact shape read at the start of Phase 5, so it is now `skills/audit/templates/report.md`.
+  Phase 3's restoration-verification detail and its three mutant-write regimes are now
+  `skills/audit/context/restoration-regimes.md`. Phase 3 keeps the per-mutant loop, the
+  verify-the-revert requirement, and the not-delegated rule in the body, so the requirement is
+  stated where the run meets it and the spoke owns only how it is proved. Docs-hygiene sweep,
+  L2-progressive-disclosure.
+
+## [0.3.7]
+
+### Changed
+
+- **The scaling-and-suppression pointer front-loads its subject (`principles`).** A reader matching
+  on "scaling" or "suppression" had to read the filename to learn the pointer was for them.
+  Docs-hygiene sweep, L7-write-for-agents.
+
 ## [0.3.6]
 
 ### Changed

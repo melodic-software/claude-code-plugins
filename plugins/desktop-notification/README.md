@@ -82,13 +82,6 @@ per "How to set these" below.
 Set `desktop_notification_enabled` to `false` (via `/plugin configure
 desktop-notification@<marketplace>` or `--config desktop_notification_enabled=false`).
 
-## Telemetry (opt-in)
-
-When the consumer sets `HOOK_TELEMETRY_SINK` to an executable, the hook emits one
-[telemetry envelope](../../docs/conventions/hook-telemetry/README.md) per run.
-`hook: "desktop-notification"`, `hook_event: "Notification"`, and a `data` payload
-of `notification_type` plus the `channels` that fired. Unset → exact no-op.
-
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -166,6 +159,13 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Telemetry (opt-in)
+
+When the consumer sets `HOOK_TELEMETRY_SINK` to an executable, the hook emits one
+[telemetry envelope](../../docs/conventions/hook-telemetry/README.md) per run.
+`hook: "desktop-notification"`, `hook_event: "Notification"`, and a `data` payload
+of `notification_type` plus the `channels` that fired. Unset → exact no-op.
 
 ## License
 

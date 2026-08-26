@@ -123,13 +123,19 @@ pass alone, so a scheduled hygiene routine can compose it on its own token budge
 ### audit-pass
 
 Coordinates one pass rather than adding checks: every check is delegated to the plugin that owns it
-through a presence-gated invocation with a documented fallback. It supplies the run semantics that
-invoking those skills by hand does not: a three-scope inventory taken before any check runs (managed
-policy read-only, user scope routed as recommendations, project scope), an exclusion set derived at
-run time from the target's own shared-source registry, the `vendor/` rule, `git worktree list`, and
-the pass's own artifacts; content-derived finding identity that survives an unrelated edit above it;
-a `finding_id`-keyed suppression record with staleness reporting; per-lane persistence with resume;
-and one human gate per run. Findings report in three tiers: derived (exact equality across runs),
+through a presence-gated invocation with a documented fallback. It supplies run semantics that
+invoking those skills by hand does not:
+
+- A three-scope inventory taken before any check runs: managed policy read-only, user scope routed
+  as recommendations, and project scope.
+- An exclusion set derived at run time from the target's own shared-source registry, the `vendor/`
+  rule, `git worktree list`, and the pass's own artifacts.
+- Content-derived finding identity that survives an unrelated edit above it.
+- A `finding_id`-keyed suppression record with staleness reporting.
+- Per-lane persistence with resume.
+- One human gate per run.
+
+Findings report in three tiers: derived (exact equality across runs),
 judged (a stability tolerance whose violation fails the run's self-check), delegated. `/doctor` is an
 operator handoff, never a dispatch, because it is interactive.
 
@@ -156,12 +162,16 @@ as the project.
 
 The empirical counterpart to `audit-instructions`: instead of judging instruction *text* against
 doctrine, it measures the *model* against the repo with the instructions gone. Four resumable
-phases: **snapshot** (inventory the live project surfaces on a dedicated experiment branch, classify
-hooks policy-vs-behavioral), **bare** (reversibly strip the behavioral tier: tracked files via git,
-settings entries via manifest-recorded backups; policy gates and managed settings are never
-touched), **observe** (work normally in fresh sessions, logging real stumbles to a ledger), and
-**readd** (restore only instructions with at least two same-cause ledger rows, each restore citing
-its evidence; everything else stays deleted, with git history as the archive). The canonical trigger
+phases:
+
+| Phase | What it does |
+|---|---|
+| `snapshot` | Inventories the live project surfaces on a dedicated experiment branch and classifies each hook as policy or behavioral |
+| `bare` | Reversibly strips the behavioral tier: tracked files via git, settings entries via manifest-recorded backups. Policy gates and managed settings are never touched |
+| `observe` | You work normally in fresh sessions, logging real stumbles to a ledger |
+| `readd` | Restores only instructions with at least two same-cause ledger rows, each restore citing its evidence. Everything else stays deleted, with git history as the archive |
+
+The canonical trigger
 is a frontier model release. Instructions written for the previous generation are the experiment's
 subject. Human-gated at every mutation; state persists under `${CLAUDE_PLUGIN_DATA}` for resume.
 

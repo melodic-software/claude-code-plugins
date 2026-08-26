@@ -1,10 +1,11 @@
 # session-flow
 
-A Claude Code plugin bundling fourteen skills for one cohesive capability: managing the lifecycle of a
-working session, where you are in the work, how to pause and resume it, how to recover it after an
-interruption, how to leave it durable before the machine goes away, how to retire finished work and
-reconcile the task ledger, where things stand and why, whether its assumptions are still current,
-what to learn from it while it runs and after, and how to arm it for delegation-heavy tasks.
+A Claude Code plugin bundling fourteen skills for one cohesive capability: managing the lifecycle of
+a working session. The skills answer where you are in the work, how to pause and resume it, how to
+recover it after an interruption, how to leave it durable before the machine goes away, how to
+retire finished work and reconcile the task ledger, where things stand and why, whether the
+session's assumptions are still current, what to learn from it while it runs and after, and how to
+arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|

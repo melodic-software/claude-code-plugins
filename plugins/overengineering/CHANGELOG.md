@@ -3,6 +3,17 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Changed
+
+- **`delta`'s baseline model and non-error run states move to `context/`.** 149 of the body's 480
+  lines were conceptual reference, read once to understand a mechanic and never re-executed as a
+  step of the run. `context/baseline-model.md` owns what the delta is computed against and the
+  bootstrap cycle; `context/run-states.md` owns the detached checkout, the missing baseline, and
+  the unwalked layer. Both open with a table of contents over their own sections. Docs-hygiene
+  sweep, L2-progressive-disclosure.
+
 ## [0.3.1]
 
 ### Changed

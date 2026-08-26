@@ -3,6 +3,16 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.11]
+
+### Changed
+
+- **The `## License` section drops its own correction notice.** Three sentences described what the
+  licence text used to say and when it changed, which is changelog content; the `0.8.6` entry in
+  this file already carries it in full, under "the License section now describes what is actually
+  here". Every factual and legal claim in the section stays. Docs-hygiene sweep,
+  L8-write-for-humans.
+
 ## [1.4.10]
 
 ### Changed

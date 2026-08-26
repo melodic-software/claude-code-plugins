@@ -1,5 +1,25 @@
 # Changelog — session-flow plugin
 
+## [0.34.3]
+
+### Changed
+
+- **`find-handoff`'s recovery ladder keeps its spine and moves two rungs to spokes.** Rungs 1 and
+  3 were 230 of the body's 486 lines and are attempted in order, so a run that resolves at rung 1
+  never executes rung 3's grep machinery and a run that reaches rung 3 has finished with rung 1's
+  glob rules. Each rung now has its own file under `skills/find-handoff/reference/`, cited from a
+  ladder that still reads end to end. Rungs 2, 4, 5, and 6 stay in the body: rung 2 is seven lines
+  and rungs 4 to 6 are the confirmation gate and the handoff every path reaches. Docs-hygiene
+  sweep, L2-progressive-disclosure.
+
+## [0.34.2]
+
+### Changed
+
+- **The README's opening sentence splits in two.** 86 words carrying seven appositives before the
+  reader reached a verb they could act on. The `fourteen skills` count is unchanged. Docs-hygiene
+  sweep, L8-write-for-humans.
+
 ## [0.34.1]
 
 ### Changed

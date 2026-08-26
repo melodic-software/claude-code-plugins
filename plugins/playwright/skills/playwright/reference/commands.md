@@ -49,7 +49,7 @@ playwright-cli find --regex "/sign (in|up)/i"  # wrap in slashes for flags, e.g.
 
 `find` is cheaper than a full `snapshot` when you only need to locate one or two elements on a large page — it returns matching nodes with a few lines of context, like `grep -C`.
 
-See [snapshots-and-refs.md](snapshots-and-refs.md) for ref system.
+Ref system: see [snapshots-and-refs.md](snapshots-and-refs.md).
 
 ## Navigation + keyboard/mouse
 
@@ -126,7 +126,7 @@ playwright-cli attach --cdp=http://localhost:9222
 playwright-cli attach --extension              # via Playwright MCP Bridge extension
 ```
 
-See [sessions.md](sessions.md) for `-s=<name>` session isolation; [windows-quirks.md](windows-quirks.md) for `--headed` on Windows.
+Session isolation with `-s=<name>`: see [sessions.md](sessions.md). `--headed` on Windows: see [windows-quirks.md](windows-quirks.md).
 
 ## Examples
 

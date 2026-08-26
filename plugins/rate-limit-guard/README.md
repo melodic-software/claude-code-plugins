@@ -116,12 +116,6 @@ writer from its readers. The kill switch stops the tee's *write* while leaving t
 transparent; removing the wrapper itself is the operator's edit to their `statusLine`; disabling
 everything is `enabledPlugins` / uninstall.
 
-## Consumers
-
-Written for the loop-lane convention's three lanes (work-items `work-loop` and `attend-queue`,
-source-control `babysit-loop`), which inline the reader contract's operable floor. Any session or
-tool on the machine may read the same files under the same contract.
-
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -196,6 +190,12 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Consumers
+
+Written for the loop-lane convention's three lanes (work-items `work-loop` and `attend-queue`,
+source-control `babysit-loop`), which inline the reader contract's operable floor. Any session or
+tool on the machine may read the same files under the same contract.
 
 ## Tuning: `RLG_TEE_ASYNC`
 

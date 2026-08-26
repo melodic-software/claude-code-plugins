@@ -73,15 +73,6 @@ One plugin option: `report_dir` (directory), where dated reports land; unset mea
 `Documents\MachineHealth` under the user profile. Everything else is machine-local state managed
 by `/machine-health:setup`. No hooks, no MCP servers.
 
-## Tests
-
-A Pester 5.7+ suite ships with the plugin (`skills/audit/tests/`). Windows-only. It
-mocks Win32/MSFT CIM types that resolve only there:
-
-```powershell
-pwsh -NoProfile -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
-```
-
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -156,6 +147,15 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Tests
+
+A Pester 5.7+ suite ships with the plugin (`skills/audit/tests/`). Windows-only. It
+mocks Win32/MSFT CIM types that resolve only there:
+
+```powershell
+pwsh -NoProfile -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
+```
 
 ## License
 

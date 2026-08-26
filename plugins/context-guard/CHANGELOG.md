@@ -5,6 +5,16 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.23]
+
+### Changed
+
+- **The generated options block sits under `## Configuration`.** It was under `## Consumers`, below
+  the section that already documents configuration. The generated table itself is unchanged; only
+  its placement moved. Docs-hygiene sweep, L8-write-for-humans.
+- **The statusline-cost sentence parses on the first read.** Its parenthetical put a period after a
+  two-word fragment. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.7.22]
 
 ### Changed

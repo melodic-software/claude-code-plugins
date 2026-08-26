@@ -3,6 +3,27 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.11]
+
+### Changed
+
+- **`setup`'s guardrail and routine slices move to `context/`, matching their three sibling
+  slices.** The two were 224 of the body's 494 lines, and slices are argument-selected: a run that
+  does not select one never needed its detail resident. Three sibling slices were already spoked,
+  so this closes the pattern rather than inventing one. Both spokes had their relative links and
+  in-page anchors re-based for the extra directory level. Docs-hygiene sweep,
+  L2-progressive-disclosure.
+
+## [0.22.10]
+
+### Changed
+
+- **Two README parentheticals repaired, and the `lane_stop_gate_enabled` note stops narrating a
+  release.** Both parentheticals ended a sentence inside themselves, leaving a fragment on one side
+  of the period. The `--settings`-only note drops its "pre-0.12.0 opt-in" framing, which the 0.12.0
+  entry in this file already carries, and names the positive path instead: arm a lane through the
+  launcher. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.22.9]
 
 ### Changed

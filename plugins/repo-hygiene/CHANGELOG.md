@@ -3,6 +3,14 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.13]
+
+### Changed
+
+- **The destructive-guard kill-switch note is one grammatical unit again.** A `; user-scoped.`
+  fragment sat inside the parenthetical, followed by a full sentence still inside it. Docs-hygiene
+  sweep, L8-write-for-humans.
+
 ## [0.10.12]
 
 ### Removed

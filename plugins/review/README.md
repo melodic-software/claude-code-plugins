@@ -27,11 +27,11 @@ Invoke via `@review:<agent>` or let Claude delegate.
 
 - **`/review:quality-gate [mode]`**, the single-lens checkpoint between "code works"
   and "code is ready". Modes: `self` (fresh-context self-review), `code`, `architecture`,
-  `security`, `spec` (spec-fidelity. Did the change deliver what the originating item, plan, or
-  brief asked for), `close-out` (the same fidelity lens at spec-container scale. One cumulative
+  `security`, `spec` (spec-fidelity: did the change deliver what the originating item, plan, or
+  brief asked for), `close-out` (the same fidelity lens at spec-container scale, one cumulative
   pass over everything a container shipped, across however many PRs, against the container's own
   body; derives its own diff basis per execution shape), `downstream` (what the change breaks
-  outside its own diff. Callers, serialization boundaries, cross-service consumers), `pr`,
+  outside its own diff: callers, serialization boundaries, cross-service consumers), `pr`,
   `criteria`, `slice <name>`, `restatement`.
 - **`/review:fanout [mode]`**. Breadth review: fans out across the
   reviewer agents, the project's own per-concern review criteria docs, and optional

@@ -3,6 +3,42 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.16]
+
+### Changed
+
+- **`setup` is no longer split, and this plugin's skills are now a documented poor split
+  target.** The `reference/babysit-config.md` extraction carried the lane-script reachability
+  canary out of `SKILL.md`, and `skills/babysit-prs/scripts/tests/test_guards.py` pins the exact
+  canary invocation there in three assertions. Reverted.
+
+  That is the third revert in this plugin for one reason, after `babysit-prs` and `babysit-loop`
+  below. The pattern is worth stating rather than rediscovering: `source-control` pins a large
+  share of its skill-body prose by test, on purpose, because the pinned statements are safety
+  gates and reachability contracts that an agent must have loaded rather than one link away. A
+  line-count audit cannot see those pins. **Before splitting any skill in this plugin, grep its
+  `scripts/tests/` for assertions reading `SKILL.md`.** Where a pin covers the content, the line
+  count is the weaker consideration and the split does not happen.
+
+- **`babysit-loop` gets its promotion-evidence gate back in the body.** The 0.55.11 cycle-shape
+  split moved the merge-eligibility partition into `reference/cycle-shape.md`, and
+  `skills/babysit-prs/scripts/tests/test_skill_contract.py` had been failing four assertions since:
+  it requires the promotion-evidence gate, the `effective-promoted` state, the
+  `promotion-evidence-resolution.md` citation, and the `--merge human-only` launch-line rule to be
+  present in `skills/babysit-loop/SKILL.md`. Same reason the `babysit-prs` split was reverted at
+  0.55.12: the condition decides whether anything merges at all, and a loop that never opens the
+  spoke could resolve a cell as promoted on evidence the seam would refuse. The rest of the cycle
+  shape stays in the spoke; only the gate moved back. Docs-hygiene sweep,
+  L2-progressive-disclosure.
+
+## [0.55.15]
+
+### Changed
+
+- **The generated options block sits under `## Configuration`.** It was under `## Security`, below
+  the section that already documents configuration. The generated table itself is unchanged; only
+  its placement moved. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.55.14]
 
 ### Changed

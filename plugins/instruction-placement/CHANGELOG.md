@@ -3,6 +3,17 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.7]
+
+### Changed
+
+- **The `@import` rule in `realign`'s apply recipes states the positive.** It said only what fails.
+  It now says to cite the shared file by path, carrying the same prohibition and the same rationale.
+  Docs-hygiene sweep, L5-noise.
+- **The generated options block sits under `## Configuration`.** It was under `## Revisit triggers`,
+  a maintainer watchlist whose own lead sentence says so. The generated table itself is unchanged; a
+  `## Configuration` heading was added above it. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.11.6]
 
 ### Changed

@@ -152,6 +152,8 @@ remains Dometrain's proprietary content, accessible under your Dometrain Pro sub
 This plugin ships no server code. The MCP server is Dometrain-hosted. There is no build step;
 `claude plugin validate plugins/dometrain` is the only local check.
 
+## Configuration
+
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

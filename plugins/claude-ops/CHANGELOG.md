@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.6]
+
+### Changed
+
+- **Four `audit-install-state` pointers front-load their subject.** Each phase section closed with a
+  bare `See <link>.`, so the term a reader matches on arrived only inside the filename. Each now
+  leads with what following the pointer gets you. Docs-hygiene sweep, L7-write-for-agents.
+- **Two README parentheticals repaired, and the `audit-performance` cell is scannable.** Both
+  parentheticals ended a sentence inside themselves. The `audit-performance` skills-table cell named
+  its four suspects across a 100-word sentence; it now names them plainly and leaves the per-suspect
+  evidence and verdict routing to the skill body, which already documents both. Docs-hygiene sweep,
+  L8-write-for-humans.
+
 ## [0.38.5]
 
 ### Changed

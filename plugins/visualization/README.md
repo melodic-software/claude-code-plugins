@@ -12,12 +12,17 @@ show it, then render it. It is a form-and-medium router, not a craft teacher.
 
 Two decisions, then the output:
 
-- **Form**, matched to the *shape* of the content: a mermaid diagram for flow /
-  hierarchy / sequence / state / relationships; a markdown table for attribute
-  comparison; a chart for quantities; ASCII/Unicode for a small structural sketch;
-  a rich rendered page for a composite or interactive view; a hand-editable design
-  canvas (via the bundled `design` skill, when that presence-gated preview is
-  available) for a visual layout the user would rather tweak by hand.
+- **Form**, matched to the *shape* of the content:
+
+  | Content shape | Form |
+  |---|---|
+  | Flow, hierarchy, sequence, state, or relationships | A mermaid diagram |
+  | Attribute comparison | A markdown table |
+  | Quantities | A chart |
+  | A small structural sketch | ASCII or Unicode |
+  | A composite or interactive view | A rich rendered page |
+  | A visual layout the user would rather tweak by hand | A hand-editable design canvas, via the bundled `design` skill when that presence-gated preview is available |
+
 - **Medium**. One of three ascending tiers, **inline terminal → local HTML file →
   published Artifact**, chosen by the form's weight, a configurable preference, and
   which surfaces are actually available.
@@ -74,21 +79,6 @@ non-sensitive option at `user` scope. Never uninstall to reconfigure: that drops
 the whole stored `pluginConfigs` entry and resets every option to its manifest
 default. No persistent state; no external prerequisites; no network calls of
 its own.
-
-## Install
-
-```shell
-/plugin marketplace add melodic-software/claude-code-plugins
-/plugin install visualization@<marketplace>
-```
-
-## Possible future change
-
-- **Third-party visualization server.** No credible egress-free, self-hostable
-  visualization server exists to depend on today. Re-evaluate if one lands with a
-  maintained security posture (a self-hosted AntV deployment is the current
-  candidate). Until then the skill relies only on native rendering surfaces and
-  the presence-gated craft capabilities.
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -164,3 +154,18 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install visualization@<marketplace>
+```
+
+## Possible future change
+
+- **Third-party visualization server.** No credible egress-free, self-hostable
+  visualization server exists to depend on today. Re-evaluate if one lands with a
+  maintained security posture (a self-hosted AntV deployment is the current
+  candidate). Until then the skill relies only on native rendering surfaces and
+  the presence-gated craft capabilities.

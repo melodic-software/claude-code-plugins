@@ -156,7 +156,7 @@ Objective: cross-reference findings against trusted thought leaders OR upstream 
 2. **Upstream repo changelog or releases**. `gh api repos/<owner>/<repo>/releases` OR a raw `CHANGELOG.md` fetch this turn
 3. **One recognized industry authority**, a top-voted community post or named-author practitioner blog
 
-See the discipline file's "Tool-ecosystem Phase 3 fallback" for the playbook.
+Tool-ecosystem Phase 3 fallback playbook: the discipline file's "Tool-ecosystem Phase 3 fallback".
 
 ## Phase 4 (conditional): Additional follow-up
 

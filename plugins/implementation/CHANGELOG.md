@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.5]
+
+### Changed
+
+- **The commit-checkpoint step names the section it depends on.** "See below for commit discipline"
+  named neither the section nor what the reader gets, and the rules sit past an intervening section,
+  so the step was executable without ever reaching them. Docs-hygiene sweep, L7-write-for-agents.
+
 ## [0.15.4]
 
 ### Changed

@@ -3,6 +3,17 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.8]
+
+### Changed
+
+- **The correctness-class fix rule states the positive (`fanout`).** It said only where not to route
+  a correctness finding, leaving a reader who has not memorized the fix-pass routing with no
+  disposition at all. It now names the route and keeps the `/simplify` exclusion with its reason.
+  Docs-hygiene sweep, L5-noise.
+- **The `quality-gate` mode list parses on the first read.** Three of its mode glosses ended a
+  sentence inside their own parenthetical. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.26.7]
 
 ### Changed

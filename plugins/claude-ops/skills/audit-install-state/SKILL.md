@@ -149,7 +149,7 @@ Each entry carries `surface`, a `reading` with its own `evidence`, and `file_cou
 count** and keeps each file's first snapshot regardless of age; `subagents/` and `tool-results/` age
 out with their parent transcript; `session-env/`, `tasks/` and `debug/` are per-session. Old mtimes
 on those paths are the documented behaviour.
-See [reference/surfaces.md](reference/surfaces.md).
+Per-path retention rules: see [reference/surfaces.md](reference/surfaces.md).
 
 ## Phase 4. Numeric names and liveness
 
@@ -167,7 +167,7 @@ missed. That distinction is the whole point:
 
 `alive` is a measurement about *a* process with that id; PIDs get reused, so "therefore this file is
 in use" is a further inference. A probe that could not run reports `unverified`, **never** `dead`.
-See [reference/name-schemes.md](reference/name-schemes.md).
+Name schemes and their liveness meanings: see [reference/name-schemes.md](reference/name-schemes.md).
 
 ## Phase 5. Home-root state
 
@@ -202,7 +202,7 @@ If you fan this out across agents, keep an explicit cross-review stage: in the a
 from, five errors were made and five were caught, **none by the agent that made it**. Parallelism buys
 coverage, not correctness. Verify a peer's claim against your own evidence before adopting it, and
 record a disagreement nothing depends on as unresolved rather than settling it silently.
-See [reference/evidence-discipline.md](reference/evidence-discipline.md).
+Cross-review procedure: see [reference/evidence-discipline.md](reference/evidence-discipline.md).
 
 ## Verifying an upstream claim
 
@@ -210,7 +210,7 @@ Any claim about what Claude Code itself does must come from the raw markdown end
 `https://code.claude.com/docs/en/claude-directory.md` to a file, then read the file. A summarizing
 fetch returns a small model's answer *about* the page, so **absence from it is not evidence of
 absence**, and no destructive conclusion may rest on one.
-See [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.
+Upstream-claim verification: see [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.
 
 ## Gotchas
 

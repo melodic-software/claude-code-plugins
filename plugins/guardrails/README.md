@@ -210,10 +210,10 @@ out of scope until such a signal exists.
 
 ## Per-hook kill switches
 
-Each guard is toggled by its own `userConfig` boolean (default **on**, except
-the two behavioral-class advisories `workflow-resilience-check` and
-`flag-commit-pr-skill-bypass`, default **off** since 0.20.0 per #2021. Set to
-`true` to opt in; set any switch to `false` for a clean no-op). This per-hook
+Each guard is toggled by its own `userConfig` boolean, default **on**, except the two
+behavioral-class advisories `workflow-resilience-check` and `flag-commit-pr-skill-bypass`, which
+have been default **off** since 0.20.0 per #2021. Set a switch to `true` to opt in, or to `false`
+for a clean no-op. This per-hook
 control is the bundle's core contract: disable one guard without touching the
 others.
 
@@ -348,6 +348,8 @@ check reports with guidance. Opt-in personal git hooks:
 `/guardrails:setup apply install-commit-msg` (commit-convention depth layer) and
 `/guardrails:setup apply install-pre-commit-content` (secret / hardcoded-path
 content invariants on every staged blob, write-path-independent).
+
+## Configuration
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->

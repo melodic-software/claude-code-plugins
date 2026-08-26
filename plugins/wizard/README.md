@@ -32,16 +32,17 @@ it never fires for steps the agent can perform itself.
   skill reads key **names** only from a live `.env`, never values. The honest
   caveat: a value the user pastes into the chat is in context like any other
   pasted text.
-- **Hardened template.** The fixed library above the `STAGES` marker (never
-  hand-edited, identical in every wizard) enforces: https-only URL opening with
-  the full URL printed before dispatch; fail-closed prompts (a closed terminal
-  aborts, it never falls through); key-name validation; single-quoted,
-  escaped `.env` values with `chmod 600` after every write, an
-  is-it-gitignored check, and trap-cleaned atomic temp-file rewrites; GitHub
-  writes that resolve and echo the target repo once, require explicit
-  confirmation before the first write, pass `--repo` on every call, pipe values
-  over stdin (never argv), refuse empty values, and surface `gh` errors into
-  the closing summary; and a names-only closing summary.
+- **Hardened template.** The fixed library above the `STAGES` marker is never hand-edited and is
+  identical in every wizard. It enforces:
+  - https-only URL opening, with the full URL printed before dispatch.
+  - Fail-closed prompts: a closed terminal aborts rather than falling through.
+  - Key-name validation.
+  - Single-quoted, escaped `.env` values, with `chmod 600` after every write, an is-it-gitignored
+    check, and trap-cleaned atomic temp-file rewrites.
+  - GitHub writes that resolve and echo the target repo once, require explicit confirmation before
+    the first write, pass `--repo` on every call, pipe values over stdin rather than argv, refuse
+    empty values, and surface `gh` errors into the closing summary.
+  - A names-only closing summary.
 
 ## Prerequisites
 

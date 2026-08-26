@@ -271,25 +271,6 @@ The plugin-scope finding-classification gate accepts extra posting identities vi
 `--extra-self` flag (fed from `babysit_self_logins`), added to your
 `gh api user` login; its `--self` flag still provides a full override.
 
-## Security
-
-- One local hook (`pr-body-linkage-gate`, above), no MCP servers, no telemetry
-  unless you opt in (see below), no outbound network beyond `git` and `gh`
-  against the repository the session already targets. The hook reads only the
-  Bash command it is gating, the body file that command names, and the
-  repository's own workflow directory; it never runs `git`, `gh`, or any
-  network call.
-- Writes to GitHub (comments, reactions, thread resolution, PR creation,
-  merge) happen only inside the documented `/source-control:pull-request` phases and the
-  `/source-control:babysit-prs` loop. `/source-control:babysit-prs` merges only in its explicit
-  `worker`/`autopilot` opt-in tiers, and only through a deterministic merge
-  gate (expected-head pin, fail-closed owner allowlist, dependency-PR and
-  unprotected-repo refusals), the safe default never resolves threads or
-  merges, and configuration alone can never grant an auto-routed invocation
-  merge authority.
-- Bundled scripts are read-only against the GitHub API except where the
-  skill body documents a write.
-
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -399,3 +380,22 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Security
+
+- One local hook (`pr-body-linkage-gate`, above), no MCP servers, no telemetry
+  unless you opt in (see below), no outbound network beyond `git` and `gh`
+  against the repository the session already targets. The hook reads only the
+  Bash command it is gating, the body file that command names, and the
+  repository's own workflow directory; it never runs `git`, `gh`, or any
+  network call.
+- Writes to GitHub (comments, reactions, thread resolution, PR creation,
+  merge) happen only inside the documented `/source-control:pull-request` phases and the
+  `/source-control:babysit-prs` loop. `/source-control:babysit-prs` merges only in its explicit
+  `worker`/`autopilot` opt-in tiers, and only through a deterministic merge
+  gate (expected-head pin, fail-closed owner allowlist, dependency-PR and
+  unprotected-repo refusals), the safe default never resolves threads or
+  merges, and configuration alone can never grant an auto-routed invocation
+  merge authority.
+- Bundled scripts are read-only against the GitHub API except where the
+  skill body documents a write.

@@ -45,7 +45,7 @@ between the two means the coverage you have is thin, not that the tests are bad.
 **"Should we fail the build on a mutation score?"**. No, and this is the single most common way
 adoption fails. The score is depressed by equivalent mutants that no test can ever kill, so a hard
 threshold rewards suppressing mutants over writing tests. Report it; do not gate on it.
-See [scaling-and-suppression.md](reference/scaling-and-suppression.md).
+Scaling and suppression mechanics: see [scaling-and-suppression.md](reference/scaling-and-suppression.md).
 
 **"Isn't this too slow to be practical?"**. Naive whole-repo mutation testing is, and that is why
 the technique sat unused for thirty years. The industrial answer is architectural, not

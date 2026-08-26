@@ -232,45 +232,17 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 ## Session-config recommendation (model, effort, advisor)
 
-The interview already reads task complexity and ambiguity to drive its rounds. Turn
-that read into a recommendation for how the session carrying the work forward should
-be configured. *When* it lands follows from *what* it configures. Engineering work
-hands off to a **downstream execution session** that has not started yet, so its
-recommendation belongs at the stop/handoff boundary. A terminal session (general
-decisions, per Step 5 above) has nothing downstream. The session carrying the work
-IS the current one. So surface a first read **early**, right after the Step 1
-survey classifies the domain as general, whenever the survey's complexity/ambiguity
-signals warrant a config change: applied then, it can still improve the substantive
-rounds it was derived for. At the stop boundary, refresh that read as config for the
-**current/next session**, applied now; if the config was raised only at the end (or
-not at all), offer to re-evaluate the reached understanding under the raised config
-rather than presenting a knob that can no longer affect the finished work. Two
-orthogonal knobs, picked per the official distinction:
+Turn the interview's read of complexity and ambiguity into a recommendation for how the session
+carrying the work forward should be configured. *When* it lands follows from *what* it configures:
+an engineering interview recommends at the stop/handoff boundary, for the downstream execution
+session; a terminal interview (a general decision, per Step 5) recommends at the early post-survey
+surface and again at the stop boundary, for the current session.
 
-- **Model tier (capability)**. Raise the model when the assistant would be
-  *confidently wrong despite full context* (a reasoning ceiling, not missing input).
-- **Effort level (thoroughness)**. Raise effort when the assistant would
-  *under-explore or under-verify* (right answer reachable, but it stops short).
-
-When the recommendation keeps a faster main model, pair it with the **advisor**: a
-faster main without a stronger advisor is not the recommended config for non-trivial
-work. The documented efficiency pairing escalates planning, ambiguous failures, and
-completion checks to a stronger advisor instead of paying for the top model every
-turn.
-
-**Source the current names live, never pin them.** Model names, tiers, effort levels,
-and accepted advisor pairings drift between versions; the durable *distinction* above
-is stable, the *names* are not. Fetch them once when you form the recommendation from
-the official docs (mirror `draft-goal-condition`'s never-pin discipline). A doc-fetch
-failure **degrades, never halts**. Fall back to the durable distinction and tell the
-user the current names could not be verified live so they confirm against `/model` /
-`/advisor`. Frame the whole thing as advisory (the skill cannot read the current
-effort/advisor state) and applicable to engineering and general sessions alike. The
-same signals matter **mid-task**, in the inverse direction. But the interview
-terminates at handoff, so hand the user a watch-for ("if execution turns out too
-complex for the current model/effort, that's the cue to raise it") rather than an
-instruction to whatever session executes next. Full detail, sources, and the
-knob-picking signals in [`context/session-config.md`](context/session-config.md).
+Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the
+recommendation: it owns the two orthogonal knobs and their picking signals, the advisor pairing,
+the rule that current model and effort names are fetched live and never pinned (and that a failed
+fetch degrades rather than halts), the advisory framing, and the per-surface wording. Do not form
+the recommendation from this summary.
 
 ## What this skill does NOT do
 

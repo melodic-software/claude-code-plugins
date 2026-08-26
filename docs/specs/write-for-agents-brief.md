@@ -2,10 +2,9 @@
 
 Brief locked via `/planning:interview me` (lane 7 of the pocock-course-lanes steering extension,
 [#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909); rounds 1–2 all
-answered, register gate clean, **user confirmed the shared understanding 2026-08-17**). Working
-ledger: the topic's memory slice (`.work/authoring-steering-skill/`, disposable). The verified
-auto-read enumeration feeding the scope statement lives in that slice's `RESEARCH.md` artifact
-set; its durable adaptation lands in the skill's reference file at implementation.
+answered, register gate clean, **user confirmed the shared understanding 2026-08-17**). The
+verified auto-read enumeration behind the scope statement lands in the skill's reference file at
+implementation.
 
 ## Brief
 

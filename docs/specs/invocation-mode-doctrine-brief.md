@@ -1,11 +1,10 @@
 # invocation-mode-doctrine — PLAN
 
 Lane 8 of the AI Hero course steering chain
-([#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910); chain contract:
-`docs/topics/pocock-course-lanes/PLAN.md` on branch `claude/plan-mode-discussion-55kszx`, steering
-rows now in `docs/upstream/aihero-course.md` — the interim steering record dissolved into it at
-the lane 6 harvest). Interview ledger:
-`.work/invocation-mode-doctrine/interview-checklist.md` (8/8 answered, register gate clean).
+([#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910); chain contract: the
+steering rows in `docs/upstream/aihero-course.md`, which the interim steering record dissolved into
+at the lane 6 harvest). Interview ledger: 8/8 answered, register gate clean (memory tier, not
+committed).
 
 ## Brief
 

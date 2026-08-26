@@ -3,6 +3,18 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.12]
+
+### Changed
+
+- **The first audit-report bullet parses on the first read.** Its parenthetical opened with a
+  subordinate clause, ended a sentence inside itself, and then ran twenty more words before closing.
+  Docs-hygiene sweep, L8-write-for-humans.
+- **The capability table's availability column stops carrying release records.** Four rows read
+  `Shipped in <PR> / <issue>`, which tells a reader when a capability was built rather than what the
+  plugin does. They now read `Shipped`; the release records are in this file. Docs-hygiene sweep,
+  L8-write-for-humans.
+
 ## [0.23.11]
 
 ### Changed

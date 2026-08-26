@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.14]
+
+### Changed
+
+- **The kill-switch paragraph is one grammatical unit again.** Its parenthetical carried a
+  description and then an instruction, with a sentence break inside the parentheses; the instruction
+  is now its own sentence. Docs-hygiene sweep, L8-write-for-humans.
+- **The generated options block sits under `## Configuration`.** It was under `## Install`, which
+  handed a reader two commands and then a 21-row option table. The generated table itself is
+  unchanged; a `## Configuration` heading was added above it. Docs-hygiene sweep,
+  L8-write-for-humans.
+
 ## [0.29.13]
 
 ### Changed

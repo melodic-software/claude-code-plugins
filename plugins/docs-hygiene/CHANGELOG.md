@@ -1,5 +1,13 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.16]
+
+### Changed
+
+- **Two skills-table cells split at the point that made a reader backtrack.** The `extract-ssot` row
+  ran 75 words with a three-item apposition and no colon marking it; the `write-for-humans` row ran
+  61. Content unchanged. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.21.15]
 
 ### Changed

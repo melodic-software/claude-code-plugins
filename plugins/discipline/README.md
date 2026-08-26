@@ -6,9 +6,8 @@ has lost salience. Each skill re-anchors ONE discipline, applies it to the
 current conversation, and corrects what drifted, auditing both the work in
 flight and the pre-existing state and choices it trusts. (Some correctors
 audit the conversation's own output; others audit state and decisions that
-predate the session, a config already on disk, a tool already chosen, because existing state is not evidence of its own correctness. Scope
-recorded as a deliberate widening from the original "work in flight" framing,
-a `/discipline:reason-dont-recite` finding on that boundary.)
+predate the session, a config already on disk, a tool already chosen, because existing state is not
+evidence of its own correctness.)
 
 Firing a corrector is a re-anchor, not an accusation. Reaching for one as a
 gentle reminder, before the work, or just to set posture, is a
@@ -127,9 +126,9 @@ surfaces routes upstream via follow-our-standards.
 
 Re-anchors terseness discipline: say markdown in fewer words with no
 semantic loss, write code in fewer lines when readability holds. The code
-side re-anchors the consuming org's simpler-code convention (named failure
-modes; constraints. Clarity, tests, error handling, conventions,
-observability, never traded for line count); prose terseness usually has no
+side re-anchors the consuming org's simpler-code convention, which names the failure modes and the
+constraints that are never traded for line count: clarity, tests, error handling, conventions, and
+observability. Prose terseness usually has no
 dedicated standards doc, so the skill flags that gap rather than inventing a
 rubric. Audits the work for avoidable verbosity and tightens only where the
 reduction is free; routes batch work to a compress capability (prose) and a
@@ -145,11 +144,11 @@ Re-anchors the discipline that existing state, config, code, docs, infra, is evi
 on. Fetches the CURRENT official upstream docs for the surface in play,
 diffs the repo's state against them, and classifies each divergence: a
 **gap** (docs say X, we do Y, no recorded rationale, including deprecation
-and version drift), a **deliberate divergence** (rationale recorded in
-repo docs / an ADR. Re-checked only for whether it still holds, since
+and version drift), a **deliberate divergence** (rationale recorded in the
+repo docs or an ADR, re-checked only for whether it still holds, since
 upstream may have obsoleted it), or an **undocumented divergence** (looks
-intentional, no rationale, needs the human's call. Routed to the repo's
-ADR/docs convention). Reports what was compared versus skipped; unverified
+intentional, has no rationale, and needs the human's call, so it routes to
+the repo's ADR/docs convention). Reports what was compared versus skipped; unverified
 conformance is not "clean". A distinct axis from `reason-dont-recite`
 (internal precedent) and `follow-our-standards` (the org's own standards):
 this measures against the external vendor's docs.
@@ -270,7 +269,7 @@ proportional to blast radius, an ADR/docs entry for durable changes, a
 PR/commit note for small ones; no recorded reason is the finding. Scope is the
 unlintable approach level (idioms, structure, naming shapes, error handling,
 doc formats, process); mechanical style belongs to linters. Distinct from
-`reason-dont-recite` (evaluation-side. Is the inherited convention justified?)
+`reason-dont-recite`, the evaluation side, which asks whether the inherited convention is justified,
 and carved out from `pick-for-the-problem` (which owns tool and dependency
 selection, where matching the incumbent is a selection sin, not a consistency
 win).
@@ -373,12 +372,12 @@ list of corrector names, empty by default (tiers run exactly as declared). And
 | `batch_exclude` | Drop these correctors from the batch |
 | `batch_promote` | Run these situational correctors every session instead of gating them on relevance (situational-only; never/core/unknown warn and are not promoted) |
 | `batch_demote` | Run these core correctors only when relevant instead of every session |
-| `research_deep_verification` | `do-your-research-deep` verification depth: `tiered` (default. Subagents only over load-bearing items) or `full` (subagent-verify every item); an invocation argument overrides it |
+| `research_deep_verification` | `do-your-research-deep` verification depth. `tiered` is the default and fans subagents out only over load-bearing items; `full` subagent-verifies every item. An invocation argument overrides it |
 
 Set them through Claude Code's native plugin-config flow
 (`/plugin configure discipline@<marketplace>`); they are personal scalars, not repository
 configuration. `/discipline:setup check` reports the effective configuration
-read-only (it never writes config. Reconfiguration stays the native flow).
+read-only: it never writes config, so reconfiguration stays the native flow.
 Batch membership and order otherwise live in each corrector's own colocated
 tier metadata (`metadata.discipline-batch` + `discipline-batch-rank`), so changing
 a shipped tier is a PR to that corrector.

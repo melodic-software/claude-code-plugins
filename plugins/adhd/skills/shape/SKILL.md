@@ -36,8 +36,8 @@ format") the same way.
 
 ## Five facts that drive every rule
 
-1. **Working memory is small.** Anything off-screen is gone. Never ask the
-   reader to "keep in mind" something stated earlier.
+1. **Working memory is small.** Anything off-screen is gone. Restate any
+   earlier state the reader needs, in the current response.
 2. **Knowing is not doing.** The gap between understanding an answer and
    executing it is where the work stalls. Close it.
 3. **Starting is the hardest step.** The first action must be obvious, small,

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "skill-quality",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "description": "Skill-authoring QA tooling: a static contract checker that runs twenty-five deterministic checks over a Claude Code skill (frontmatter, explicit invocation mode, description/verb-contract polarity, per-skill listing-entry cap, trigger-keyword preservation, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, completion-criteria signal, injection shell-declaration, fresh-eyes declaration conformance), a shared skill-listing budget reporter across a set of skills, and a bundled evals.json schema plus a deterministic eval-quality lint (duplicate case identities, missing fixtures, empty or vague grading criteria, set-coverage warnings). Runs against any repo's skills directory via the convention-resolution ladder — no baked layout.",
   "author": {
     "name": "Melodic Software",

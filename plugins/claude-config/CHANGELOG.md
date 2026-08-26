@@ -3,6 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.5]
+
+### Changed
+
+- **Two README run-ons became a list and a table.** The `audit-pass` run-semantics sentence (80
+  words, 7 clause interrupters) is now a bulleted list, and `unhobble`'s four-phase description is
+  now a four-row table. Every fact survives; the reader no longer backtracks to parse them.
+  Docs-hygiene sweep, L8-write-for-humans.
+- **`audit` phase 1.1 names the table it feeds.** "Before the table below" pointed thirty-five lines
+  and two subsections away, past other tables above and below it. It now names `1.2 Structure
+  inventory`. Docs-hygiene sweep, L7-write-for-agents.
+
 ## [0.40.4]
 
 ### Changed

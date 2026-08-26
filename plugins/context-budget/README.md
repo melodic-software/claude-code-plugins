@@ -84,6 +84,8 @@ passed.
 - Measurements describe **headless** sessions of the **local CLI**; interactive sessions and
   cloud/web surfaces can compose the payload differently, and reports say so.
 
+## Configuration
+
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

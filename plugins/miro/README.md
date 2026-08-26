@@ -88,6 +88,8 @@ npm run verify-bundle # fail if dist/index.min.js drifts from src/
 After editing `src/`, run `npm run bundle` and commit the regenerated `dist/index.min.js`
 alongside the source change.
 
+## Configuration
+
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

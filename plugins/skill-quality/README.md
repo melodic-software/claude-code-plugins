@@ -117,6 +117,8 @@ stands alone.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
   twenty-four still gate.
 
+## Configuration
+
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->
 <!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

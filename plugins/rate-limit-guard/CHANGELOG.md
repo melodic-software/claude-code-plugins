@@ -3,6 +3,14 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.13]
+
+### Changed
+
+- **The generated options block sits under `## Configuration`.** It was under `## Consumers`, below
+  the section that already documents configuration. The generated table itself is unchanged; only
+  its placement moved. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.7.12]
 
 ### Changed

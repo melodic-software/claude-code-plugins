@@ -172,6 +172,17 @@ again whenever the loop resumes after an interrupt: it owns the per-cycle step o
 step may mutate at the resolved autonomy tier, and where the escalation and no-progress checks
 attach. The stop modes above decide whether a cycle runs; that file decides what one is.
 
+**Promotion-evidence gate (trusted seam, fail-closed).** This one condition stays here rather than
+in that file, because it decides whether anything merges at all. A PR is merge-eligible when its
+item's class sits within the effective rung **and** its promotable cell is **effective-promoted**:
+C2 at `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy`, never C4/C5. Before
+any work-class comparison, resolve each cell through the trusted seam. Unqualified evidence
+fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines
+(#1695). Report each bound-to-effective pair at cycle start. The three-arm resolver, what counts as
+qualified evidence, and the forgeable surfaces it refuses are in
+[reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
+before resolving the first cell of a run.
+
 ## do-not-merge
 
 A do-not-merge label is respected by default in every tier and at every rung, the PR is reported,

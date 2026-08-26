@@ -3,6 +3,14 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.9]
+
+### Changed
+
+- **The generated options block sits under `## Configuration`.** It was under `## Development`,
+  which is contributor documentation. The generated table itself is unchanged; a `## Configuration`
+  heading was added above it. Docs-hygiene sweep, L8-write-for-humans.
+
 ## [0.3.8]
 
 ### Changed
