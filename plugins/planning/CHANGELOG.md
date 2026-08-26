@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.6]
+
+### Changed
+
+- **Behavior-preserving simplification pass (repo-wide batch-simplify).** Two hand-rolled
+  run-then-check-rc cases in `scripts/goal-condition-length.test.sh` now use the suite's own
+  `expect_exit` helper (invocation, labels, and failure plumbing proven identical; the
+  helper's empty-stdin pipe is unreachable in the `--file` paths; mutation probes killed
+  with matching labels). Suite green 14/14.
+
 ## [0.34.5]
 
 ### Changed
