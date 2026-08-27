@@ -32,6 +32,8 @@ set -uo pipefail
 # twice would drain the pipe on the second call.
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
 
 hook::check_enabled "RUFF_FORMAT"
 
@@ -231,19 +233,14 @@ RUFF_COMMON=(--force-exclude --no-cache --quiet)
 #
 # Content-mutation disclosure (#1596): Ruff may auto-fix lint issues and/or
 # reformat layout the user did not request. Name the rewrite on the user
-# channel; stay silent when the file is unchanged.
-_ruff_before=""
-if _ruff_before=$(mktemp 2>/dev/null); then
-  cp "$FILE" "$_ruff_before" 2>/dev/null || _ruff_before=""
-fi
+# channel; stay silent when the file is unchanged. Snapshot lifecycle and
+# single-document composition live in the shared rewrite-guard lib (#3406,
+# #3409): the disclosure is TAKEN at each exit arm and composed into that
+# arm's one JSON document, never emitted mid-run as a second document.
+RUFF_REWRITE_MESSAGE="ruff-format: auto-fixed and/or reformatted $(basename "$FILE") via Ruff."
+hook::rewrite_guard_begin "$FILE"
 (cd "$RUN_DIR" && "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
 (cd "$RUN_DIR" && "$RUFF_BIN" format "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
-if [[ -n "$_ruff_before" ]]; then
-  if ! cmp -s "$_ruff_before" "$FILE" 2>/dev/null; then
-    hook::emit_system_message "ruff-format: auto-fixed and/or reformatted $(basename "$FILE") via Ruff."
-  fi
-  rm -f "$_ruff_before"
-fi
 
 # Verify pass — a pure reporter. --no-fix matters: a consumer config may set
 # fix=true, which would make a bare `ruff check` re-apply fixes here, including
@@ -257,19 +254,21 @@ RC=$?
 
 if [[ $RC -eq 0 ]]; then
   emit_tel "ok" '[]'
+  hook::rewrite_disclose PostToolUse "$FILE" "$RUFF_REWRITE_MESSAGE"
   exit 0
 fi
 
 if [[ $RC -eq 1 && -n "$OUTPUT" ]]; then
-  hook::ctx_reset
-  hook::ctx_append "ruff-format: $(basename "$FILE") has Ruff findings (advisory):"
+  RUFF_CTX="ruff-format: $(basename "$FILE") has Ruff findings (advisory):"
   findings_raw=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    hook::ctx_append "  $line"
+    RUFF_CTX+=$'\n'"  $line"
     findings_raw+="$line"$'\n'
   done <<<"$OUTPUT"
-  hook::ctx_flush PostToolUse
+  # Findings AND a rewrite disclosure compose into one document (#3406).
+  hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
+  hook::emit_channels PostToolUse "$RUFF_CTX" "$HOOK_REWRITE_MESSAGE"
 
   FINDINGS_JSON='[]'
   if [[ -n "$findings_raw" ]]; then
@@ -287,12 +286,15 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran to judgment), the same status as the
 # no-config / no-binary paths.
-hook::ctx_reset
-hook::ctx_append "ruff-format: ruff failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+RUFF_CTX="ruff-format: ruff failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
-  hook::ctx_append "  $line"
+  RUFF_CTX+=$'\n'"  $line"
 done <<<"$OUTPUT"
-hook::ctx_flush PostToolUse
 emit_tel "skipped" '[]'
+# The fix/format passes may already have rewritten the file before the verify
+# pass broke; take the disclosure and compose it with the tool-break context
+# as one document (#3406).
+hook::rewrite_take_disclosure "$FILE" "$RUFF_REWRITE_MESSAGE"
+hook::emit_channels PostToolUse "$RUFF_CTX" "$HOOK_REWRITE_MESSAGE"
 exit 0

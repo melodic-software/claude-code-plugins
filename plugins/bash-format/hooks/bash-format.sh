@@ -20,6 +20,8 @@ set -uo pipefail
 # twice would drain the pipe on the second call.
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
 
 hook::check_enabled "BASH_FORMAT"
 
@@ -223,10 +225,7 @@ if shell_editorconfig_opt_in; then
       [[ -f "$_fmt_target" ]] || _fmt_target="$FILE"
       # Content-mutation disclosure (#1596): shfmt rewrites structural layout
       # only; name the rewrite on the user channel and stay silent on no-op paths.
-      _fmt_before=""
-      if _fmt_before=$(mktemp 2>/dev/null); then
-        cp "$_fmt_target" "$_fmt_before" 2>/dev/null || _fmt_before=""
-      fi
+      hook::rewrite_guard_begin "$_fmt_target"
       if probe_err=$(shfmt --apply-ignore --version 2>&1 >/dev/null); then
         shfmt --apply-ignore -w "$_fmt_target" 2>/dev/null
       elif [[ "$probe_err" == *apply-ignore* ]] &&
@@ -235,12 +234,10 @@ if shell_editorconfig_opt_in; then
       else
         append_notice "bash-format: shfmt capability probe failed unexpectedly (${probe_err%%$'\n'*}) — formatting skipped for this file, opt-outs preserved."
       fi
-      if [[ -n "$_fmt_before" ]]; then
-        if ! cmp -s "$_fmt_before" "$_fmt_target" 2>/dev/null; then
-          hook::emit_system_message "bash-format: reformatted $(basename "$FILE") via shfmt (structural layout only)."
-        fi
-        rm -f "$_fmt_before"
-      fi
+      # Taken here, EMITTED at the single emission point below: the rewrite
+      # disclosure and any lint findings/notice must compose into one JSON
+      # document (#3406, #3409).
+      hook::rewrite_take_disclosure "$_fmt_target" "bash-format: reformatted $(basename "$FILE") via shfmt (structural layout only)."
       ran_any=1
     fi
   elif hook::notice_once "bash-format-shfmt" "$INPUT"; then
@@ -291,15 +288,19 @@ PATH probed: ${PATH:-<unset>}"
 fi
 
 # Single emission point: findings on the agent channel, missing-tool notice on
-# both channels, composed into one JSON document.
+# both channels, rewrite disclosure on the user channel — composed into one
+# JSON document (#3406).
 CTX="${CTX%$'\n'}"
+SYSMSG="$HOOK_REWRITE_MESSAGE"
 if [[ -n "$NOTICE" ]]; then
   AGENT_CTX="$CTX"
   [[ -n "$AGENT_CTX" ]] && AGENT_CTX+=$'\n'
   AGENT_CTX+="$NOTICE"
-  hook::emit_channels PostToolUse "$AGENT_CTX" "$NOTICE"
+  [[ -n "$SYSMSG" ]] && SYSMSG+=$'\n'
+  SYSMSG+="$NOTICE"
+  hook::emit_channels PostToolUse "$AGENT_CTX" "$SYSMSG"
 else
-  hook::emit_channels PostToolUse "$CTX" ""
+  hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 fi
 
 status="ok"
