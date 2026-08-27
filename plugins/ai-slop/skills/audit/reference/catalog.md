@@ -194,6 +194,24 @@ files) plus a plugin-quality audit and a verified prior-art survey:
 - `rule_allowed_paths` generalized the per-rule path exemption the em-dash rule already had,
   as the proportionate closure for density verdicts a line marker cannot quiet.
 
+Fourth pass, 2026-08-27, for the "Model-era additions (repo-owned)" section, against the
+then-current 1,361-file tracked-markdown corpus:
+
+- `rule-model-era-phrases` shipped with its anchored three-fragment roster and measured **0
+  findings corpus-wide** — the chatbot-artifacts precedent (0-3 corpus-wide ships clean)
+  holds for the new phrase class.
+- `pre-existing` joined the shipped vocabulary list on the leverage precedent: 61 files
+  contain the word and the density gate (3.0/1000, minimum 3 hits) fired on none of them.
+  The rest of the frequency cluster stays `recorded-only`; measured with the pruned 7-word
+  distinctive core added, the rule's yield was dominated by domain-literal use
+  (`uncommitted` in a git-reset document, `dedup` in a dedup-pass reference), and the broad
+  21-word list flagged 636 findings across 47% of the corpus.
+- Rubric-cue base rates recorded for the two new metaphor cues, since the rubric layer is
+  where this pass's real cost lands and the detector delta cannot measure it:
+  `load-bearing` 527 occurrences across 273 files, `seam(s)` 1,429 across 328 files (36% of
+  the corpus in union). The cue entries' literal-sense boundaries and the fix-pass posture
+  (never per-audit re-reporting of saturation-level house usage) are the control.
+
 ## Content
 
 ### rule-significance-inflation: Undue emphasis on significance, legacy, and broader trends
@@ -1044,14 +1062,17 @@ README's "Updating the model-era inventory".
   plugin, system-prompt priming, no stemming. Representative ratios: gating 759x, dedup 647x,
   decisive 637x, verdict 631x, scaffolds 570x, settles 434x, handoff 358x, genuinely 224x,
   errored 215x, drift 183x, pre-existing 183x, silently 36x, verbatim 31x, canonical 27x.
-- NONE of these ships in the default vocabulary list. Measured on this repository's corpus,
-  even the pruned distinctive core fires on domain-literal prose (`uncommitted` in a git
-  document, `dedup` in a dedup-pass reference) — the exact class the shipped list's own
-  admission rule excludes — and the broad list would flag 47% of the corpus. Each word is a
-  per-word candidate behind the measured-narrowing gate; until a word passes on a real corpus,
-  the closure for a repo that wants it is `vocab_add` (the README lists the candidates).
-  Promotion of the cluster as a class additionally waits on a second independent frequency
-  pool (see the record's recheck trigger).
+- ONE of these ships in the default vocabulary list: `pre-existing` passed the measured
+  quiet-gate test on this corpus (2026-08-27: 61 files contain the word, the density gate
+  fired on none of them — the same measurement that admitted "leverage"), so it joined the
+  shipped `rule-ai-vocabulary` list. The rest do NOT ship. Measured on this repository's
+  corpus, even the pruned distinctive core fires on domain-literal prose (`uncommitted` in a
+  git document, `dedup` in a dedup-pass reference) — the exact class the shipped list's own
+  admission rule excludes — and the broad list would flag 47% of the corpus. Each remaining
+  word is a per-word candidate behind the measured-narrowing gate; until a word passes on a
+  real corpus, the closure for a repo that wants it is `vocab_add` (the README lists the
+  candidates). Promotion of the cluster as a class additionally waits on a second independent
+  frequency pool (see the record's recheck trigger).
 
 ### Model-era record
 

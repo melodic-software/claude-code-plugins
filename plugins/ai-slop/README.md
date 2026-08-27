@@ -114,9 +114,10 @@ model generation introduces a tic, it is added there first. The workflow, in ord
 
 Vocabulary candidates that have NOT passed the gate (single-pool measurements: `gating`,
 `dedup`, `decisive`, `verdict`, `scaffolds`, `settles`, `handoff`, `genuinely`, `errored`,
-`drift`, `pre-existing`, `silently`, `verbatim`, `canonical`) stay `recorded-only` in the
-catalog; a repo whose corpus tolerates one adds it via `vocab_add` — measured here, even the
-distinctive core fired mostly on domain-literal prose, which is why none ships by default.
+`drift`, `silently`, `verbatim`, `canonical`) stay `recorded-only` in the catalog; a repo
+whose corpus tolerates one adds it via `vocab_add` — measured here, even the distinctive core
+fired mostly on domain-literal prose. `pre-existing` is the one word that passed (the density
+gate stayed quiet on all 61 files containing it) and ships in the default list.
 
 The metaphor word-cues this layer added to the judgment rubric ("load-bearing", "seam") have
 no config lever — the rubric reads no config, and its findings reach the human report only.

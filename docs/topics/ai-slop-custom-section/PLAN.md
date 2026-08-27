@@ -144,7 +144,7 @@ cascade (existing — per-key layered reads), and the new `phrase_add`/`phrase_r
 (introduced — driven through the same CLI, no new test-only interface). Red-Green where
 practical: write the failing phrase-rule and glob-bug tests first, then implement.
 
-### Phase 1: Fix the rule_allowed() glob-expansion bug [TODO]
+### Phase 1: Fix the rule_allowed() glob-expansion bug [DONE]
 
 - detect.sh `rule_allowed()`: replace the unquoted `matches_glob "$file" $globs` with a
   `read -r -a` split into an array (read does not pathname-expand) and a quoted
@@ -163,7 +163,7 @@ practical: write the failing phrase-rule and glob-bug tests first, then implemen
   including the new regression cases; `grep -n 'matches_glob "\$file" \$globs'
   plugins/ai-slop/skills/audit/scripts/detect.sh` returns no match.
 
-### Phase 2: Catalog section — Model-era additions (repo-owned) [TODO]
+### Phase 2: Catalog section — Model-era additions (repo-owned) [DONE]
 
 - catalog.md: new H2 section after "Cursor unslop additions" with:
   - Charter/attribution block: repo-owned inventory (not CC BY-SA-adapted material; the
@@ -212,7 +212,7 @@ practical: write the failing phrase-rule and glob-bug tests first, then implemen
   `grep -n 'Model-era additions' plugins/ai-slop/skills/audit/reference/catalog.md`
   hits the section, the attribution block, and the record block.
 
-### Phase 3: Detector — phrase rule + phrase_add/phrase_remove [TODO]
+### Phase 3: Detector — phrase rule + phrase_add/phrase_remove [DONE]
 
 - detect.sh: `MODEL_PHRASES` array holding the shipped roster as ERE fragments —
   **pinned here, the single source for every other mention in this plan**:
@@ -258,7 +258,7 @@ practical: write the failing phrase-rule and glob-bug tests first, then implemen
   the crosswalk row and `head docs/conventions/detector-findings/CHANGELOG.md` shows
   2.7.0.
 
-### Phase 4: Docs — README, rewrite guide, SKILL.md [TODO]
+### Phase 4: Docs — README, rewrite guide, SKILL.md [DONE]
 
 - README.md: document `phrase_add`/`phrase_remove` (ERE-fragment contract, apostrophes
   as `.`, replace-wholesale cascade semantics, the malformed-fragment behavior — invalid
@@ -288,7 +288,7 @@ practical: write the failing phrase-rule and glob-bug tests first, then implemen
   (catalog.md and rewrite-guide.md are exclusion/marker-covered and verify as declined,
   not as scanned-clean).
 
-### Phase 5: Calibration, changelog-parity release [TODO]
+### Phase 5: Calibration, changelog-parity release [DONE]
 
 - Repo-wide detector run (chunked per SKILL.md) before/after; record the delta in the
   catalog's calibration record as a dated fourth pass (expected: phrase rule ~0 findings
@@ -352,10 +352,21 @@ overhead.
 
 ## Open questions
 
-- Q8 (deferred, arbiter: this plan) — resolved into Phase 5's per-word measurement gate:
-  no Tier-C word ships by default; each is admitted only by its own measurement.
-- Q9 (deferred, arbiter: this plan) — resolved: "belt and suspenders" enters as
+- Q8 (deferred, arbiter: this plan) — RESOLVED by Phase 5 measurement: `pre-existing`
+  passed the quiet-gate test (61 files contain it, density gate fired on none — the
+  leverage precedent) and shipped in the default vocabulary list; every other Tier-C word
+  stays `recorded-only` (the 7-word core measured domain-literal-dominated; the broad list
+  flagged 47% of the corpus).
+- Q9 (deferred, arbiter: this plan) — RESOLVED: "belt and suspenders" entered as
   `recorded-only` with the dispute recorded (Phase 2), not as a rubric cue.
+
+## Implementation record
+
+All five phases DONE 2026-08-27. Final calibration: `rule-model-era-phrases` fires 0 times
+across 1,361 tracked files; repo-wide script findings unchanged at 1 (a pre-existing
+chatbot-artifacts hit); 186/186 detector tests pass; rubric-cue base rates recorded in the
+catalog's calibration record (fourth pass). Released as ai-slop 0.5.0 with
+detector-findings convention 2.7.0.
 
 ## Handoff to implementation
 

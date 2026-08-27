@@ -35,10 +35,11 @@ EMOJI_ERE=$'(\xf0\x9f|\xe2[\x98-\x9e\xac\xad])'
 CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 
 # Distinctive AI-vocabulary defaults (catalog rule-ai-vocabulary; config-tunable).
-# The trailing three are the Cursor plain-word additions (catalog calibration
-# record, second pass): common enough alone that only the density gate makes
+# The trailing four are measured admissions: three Cursor plain-word additions
+# (catalog calibration record, second pass) and pre-existing (fourth pass, from
+# the model-era section) — common enough alone that only the density gate makes
 # them safe to ship.
-DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate"
+DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate pre-existing"
 
 # Model-era phrase roster (catalog rule-model-era-phrases; config-tunable via
 # phrase_add/phrase_remove). One ERE alternation fragment per element, apostrophes
