@@ -138,6 +138,12 @@ probe_pid=$!
   kill -9 "$probe_pid" 2>/dev/null
 ) >/dev/null 2>&1 &
 watchdog_pid=$!
+# `disown` drops the watchdog from the job table so bash does not announce its
+# death. Measured on Git Bash (MSYS2), which prints
+# `<script>: line N: <pid> Killed  ( sleep 5; ... )` to the suite's stderr
+# without it, on the PASSING path; Linux bash stays quiet either way. The
+# probe's own kill IS still announced, but only where this case already FAILs.
+disown "$watchdog_pid" 2>/dev/null
 wait "$probe_pid" || missing_value_rc=$?
 kill -9 "$watchdog_pid" 2>/dev/null
 if [[ "$missing_value_rc" -eq 2 ]]; then
