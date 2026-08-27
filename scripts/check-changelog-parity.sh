@@ -582,11 +582,10 @@ preexisting=0
 nonmonotonic=0
 published_reuse=0
 absorbed=0
-declare -A absorbed_reported
 
+# touched_changelogs is already unique (the seen_changelog guard where it is
+# built), so each changelog is inspected exactly once.
 for changelog in "${touched_changelogs[@]}"; do
-  [[ -n "${absorbed_reported[$changelog]:-}" ]] && continue
-  absorbed_reported["$changelog"]=1
   [[ -f "$changelog" ]] || continue
   missing_headings="$(missing_preserved_headings "$merge_base" "$changelog")" ||
     exit 2
