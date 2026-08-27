@@ -3,6 +3,23 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.25]
+
+### Fixed
+
+- **`_ps_before` snapshot leaked on the trust-gate and tool-break arms (#3366).** The hook copies
+  the target file to an `mktemp` snapshot so a formatter rewrite can be disclosed. Arms 3 and 5
+  release it and the disclosure helper releases it on the arms that call it, but the trust-gate
+  arm (`6)`) and the tool-break catch-all (`*)`) returned without either, leaking one temp file
+  per gated run. Both now release it.
+- **A formatter rewrite went undisclosed when pwsh broke (#3366).** `Invoke-Formatter` writes the
+  reformatted file back before `Invoke-ScriptAnalyzer` runs, and both sit inside the same
+  try/catch that raises exit 4, so a rewrite can already be on disk when pwsh throws. The
+  tool-break arm exited 0 without calling `maybe_disclose_ps_rewrite`, silently violating the
+  hook's rewrite-disclosure contract; it now discloses. The trust-gate arm owes no disclosure:
+  every `exit 6` is raised by the gate, which runs before `Invoke-Formatter`, so no rewrite can
+  have landed there.
+
 ## [0.7.24]
 
 ### Changed

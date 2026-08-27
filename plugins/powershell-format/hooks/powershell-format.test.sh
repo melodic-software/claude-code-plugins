@@ -762,6 +762,111 @@ else
 fi
 
 # ============================================================================
+# Snapshot release + rewrite disclosure on the non-formatting arms (#3366)
+# ============================================================================
+# The hook copies the target file to an `_ps_before` mktemp snapshot so a
+# formatter rewrite can be disclosed on the user channel. Every exit arm owes
+# that snapshot a release. The trust-gate (pwsh exit 6) and tool-break
+# (catch-all) arms used to return without one, leaking one temp file per gated
+# run; the tool-break arm also skipped maybe_disclose_ps_rewrite, so a rewrite
+# Invoke-Formatter had already written back before the analyzer threw went
+# undisclosed.
+#
+# Each run gets its own TMPDIR so "left nothing behind" is a strict emptiness
+# check, and HOOK_TELEMETRY_SINK stays unwired so hook-utils' own envelope
+# mktemp never lands in the scratch. The stub pwsh counts the scratch's entries
+# WHILE it runs: that live probe is what keeps the post-run emptiness assertion
+# from being vacuous — a scratch the hook's mktemp never used would read as
+# "empty" too, and the assertion would pass over a leak elsewhere.
+ARM_REPO="$WORK/arm-cleanup"
+new_repo "$ARM_REPO"
+ARM_FILE="$ARM_REPO/arm.ps1"
+
+# run_arm <label> <stub-body> -> ARM_OUT (hook stdout), ARM_RC, ARM_DURING
+# (scratch entries while pwsh ran), ARM_LEFT (scratch entries after the hook
+# exited), ARM_FILE reset to its pre-run content first.
+run_arm() {
+  local label="$1" stub="$2" scratch probe
+  scratch="$WORK/scratch-$label"
+  probe="$WORK/probe-$label"
+  rm -rf "$scratch"
+  mkdir -p "$scratch"
+  rm -f "$probe"
+  printf "%s\n" "Get-ChildItem -Path '.'" >"$ARM_FILE"
+  make_stub_pwsh "ls -A \"\$TMPDIR\" 2>/dev/null | wc -l >\"$probe\"
+$stub"
+  # `-u` must precede every NAME=VALUE: env stops parsing options at the first
+  # operand, so a trailing `-u FOO` is taken as the command to run (exit 127).
+  ARM_OUT=$(run_hook_env "$ARM_FILE" \
+    -u HOOK_TELEMETRY_SINK \
+    CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true \
+    CLAUDE_PLUGIN_DATA="$WORK/arm-data-$label" \
+    TMPDIR="$scratch" \
+    PATH="$STUB_BIN:$PATH")
+  ARM_RC=$?
+  ARM_DURING="$(tr -cd '0-9' <"$probe" 2>/dev/null)"
+  ARM_LEFT="$(ls -A "$scratch" 2>/dev/null | wc -l | tr -cd '0-9')"
+}
+
+# --- Trust-gate arm (pwsh exit 6) -> snapshot released -----------------------
+run_arm gate 'echo "PSSA_TRUST NOSTORE"; exit 6'
+if [[ "${ARM_DURING:-0}" -ge 1 ]]; then
+  ok "trust-gate arm: hook's snapshot mktemp lands in the isolated TMPDIR (leak check is discriminating)"
+else
+  fail "trust-gate arm: nothing in the isolated TMPDIR during the run — leak check would be vacuous"
+fi
+if [[ $ARM_RC -eq 0 && "${ARM_LEFT:-1}" -eq 0 ]]; then
+  ok "trust-gate arm (pwsh exit 6) -> _ps_before snapshot released, nothing left in TMPDIR"
+else
+  fail "trust-gate arm leaked $ARM_LEFT temp file(s) (rc=$ARM_RC out=$ARM_OUT)"
+fi
+
+# --- Tool-break arm (pwsh exit 4) -> snapshot released AND rewrite disclosed --
+# The stub rewrites the file before throwing, standing in for Invoke-Formatter
+# writing back (line 631 of the pwsh block) and Invoke-ScriptAnalyzer then
+# throwing inside the same try/catch (exit 4).
+run_arm break "printf '# rewritten by the formatter\\n' >>\"$ARM_FILE\"
+echo 'boom: analyzer threw' >&2
+exit 4"
+if [[ "${ARM_DURING:-0}" -ge 1 ]]; then
+  ok "tool-break arm: hook's snapshot mktemp lands in the isolated TMPDIR (leak check is discriminating)"
+else
+  fail "tool-break arm: nothing in the isolated TMPDIR during the run — leak check would be vacuous"
+fi
+if [[ $ARM_RC -eq 0 && "${ARM_LEFT:-1}" -eq 0 ]]; then
+  ok "tool-break arm (pwsh exit 4) -> _ps_before snapshot released, nothing left in TMPDIR"
+else
+  fail "tool-break arm leaked $ARM_LEFT temp file(s) (rc=$ARM_RC out=$ARM_OUT)"
+fi
+# Substring match rather than has_format_disclosure: this arm emits the
+# tool-break additionalContext document and the disclosure document separately
+# (the same shape arm 1 already has), so jq cannot read the pair as one object.
+if printf '%s' "$ARM_OUT" | grep -q 'reformatted arm.ps1 via Invoke-Formatter'; then
+  ok "tool-break arm -> a rewrite that landed before pwsh threw is disclosed"
+else
+  fail "tool-break arm -> rewrite went undisclosed: $ARM_OUT"
+fi
+if printf '%s' "$ARM_OUT" | grep -qi 'tool break'; then
+  ok "tool-break arm -> still surfaces the advisory tool-break context alongside the disclosure"
+else
+  fail "tool-break arm -> tool-break context lost: $ARM_OUT"
+fi
+
+# --- Tool-break arm with NO rewrite -> silent, still no leak ------------------
+run_arm quiet "echo 'boom: analyzer threw' >&2; exit 4"
+if [[ "${ARM_LEFT:-1}" -eq 0 ]]; then
+  ok "tool-break arm without a rewrite -> snapshot still released"
+else
+  fail "tool-break arm without a rewrite leaked $ARM_LEFT temp file(s)"
+fi
+if printf '%s' "$ARM_OUT" | grep -q 'reformatted'; then
+  fail "tool-break arm disclosed a rewrite that never happened: $ARM_OUT"
+else
+  ok "tool-break arm without a rewrite -> no disclosure (no-op paths stay silent)"
+fi
+rm -f "$STUB_BIN/pwsh"
+
+# ============================================================================
 # Telemetry
 # ============================================================================
 

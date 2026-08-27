@@ -755,6 +755,11 @@ case $PWSH_EXIT in
     hook::emit_skip_notice PostToolUse \
       "powershell-format trust gate: PSScriptAnalyzer run skipped — $SETTINGS_REL declares CustomRulePath (analysis would load and execute repository-supplied rule modules) or cannot be verified code-free. $APPROVE_HINT"
   fi
+  # No disclosure decision is owed here: every `exit 6` in the pwsh block above
+  # is raised by the trust gate, which runs BEFORE Invoke-Formatter, so no
+  # rewrite can have landed. Only the snapshot needs releasing — same as arms
+  # 3 and 5, which also precede the formatter.
+  rm -f "$_ps_before"
   emit_skipped
   ;;
 *)
@@ -770,6 +775,11 @@ case $PWSH_EXIT in
   done <<<"$PSSA_OUTPUT"
   hook::ctx_flush PostToolUse
   emit_tel "skipped" '[]'
+  # Invoke-Formatter writes back BEFORE Invoke-ScriptAnalyzer runs, and both sit
+  # inside the same try/catch that raises exit 4 — so a rewrite can already be on
+  # disk when pwsh breaks. Disclose it (the helper also releases the snapshot on
+  # both the changed and unchanged paths) rather than exiting on a silent rewrite.
+  maybe_disclose_ps_rewrite
   exit 0
   ;;
 esac
