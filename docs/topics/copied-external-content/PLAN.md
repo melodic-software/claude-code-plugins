@@ -230,7 +230,7 @@ Create the plugin skeleton per `design/plugin-topology.md` and register it.
 manifest validation, so the generated views must be regenerated in this phase);
 `bash scripts/check-plugin-catalog-enablement.sh` exits 0.
 
-### Phase 2: Fingerprint module [TODO]
+### Phase 2: Fingerprint module [DONE]
 
 Review: code-design
 
@@ -240,9 +240,9 @@ inline-quoted spans (straight and curly) from the local text before shingling; t
 5-shingles, containment, Jaccard, longest matched span; matched-SPAN verdicts with local line
 offsets. Contract: `design/type-inventory.md` "fingerprint.mjs".
 
-- [ ] `plugins/provenance/skills/audit/scripts/fingerprint.mjs` CREATE
-- [ ] `plugins/provenance/skills/audit/scripts/fingerprint.test.mjs` CREATE (first, red)
-- [ ] `plugins/provenance/skills/audit/scripts/fingerprint.test.sh` CREATE (discovery wrapper, autonomy-plugin shape with a node-absent SKIP; `run-plugin-tests.sh` discovers only `*.test.sh`, so without the wrapper the module has zero CI coverage)
+- [x] `plugins/provenance/skills/audit/scripts/fingerprint.mjs` CREATE
+- [x] `plugins/provenance/skills/audit/scripts/fingerprint.test.mjs` CREATE (first, red)
+- [x] `plugins/provenance/skills/audit/scripts/fingerprint.test.sh` CREATE (discovery wrapper, autonomy-plugin shape with a node-absent SKIP; `run-plugin-tests.sh` discovers only `*.test.sh`, so without the wrapper the module has zero CI coverage)
 
 **Sanity Check:** `node plugins/provenance/skills/audit/scripts/fingerprint.test.mjs` exits 0
 and its output names the inline-quote fixture and the span-dilution fixture as passing;
