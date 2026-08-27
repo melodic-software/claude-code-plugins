@@ -92,7 +92,6 @@ function classifyLesson(dedupEntry, durationSec) {
   const intervalFrames = frames.filter((f) => f.isInterval);
   const sceneFrames = frames.filter((f) => !f.isInterval);
 
-  // Check if this is a talking-head lesson: all interval, mostly duplicates
   const isTalkingHead =
     sceneFrames.length === 0 &&
     intervalFrames.length > 3 &&
@@ -106,7 +105,6 @@ function classifyLesson(dedupEntry, durationSec) {
     const isScene = !frame.isInterval;
     const isDup = !!frame.likelyDuplicate;
 
-    // Estimate timestamp from frame position within the video duration
     const position = i / Math.max(frames.length - 1, 1);
     const estimatedTimestamp = Math.round(position * durationSec);
 
@@ -182,7 +180,6 @@ for (const module of course.modules) {
 
     const classified = classifyLesson(dedupEntry, durationSec);
 
-    // Pair each classified frame with its nearest transcript segment.
     const segments = parseTranscript(transcriptPath);
     for (const frame of classified) {
       const seg = nearestSegment(segments, frame.timestamp);

@@ -186,6 +186,5 @@ if [[ -n "$AL_OUTPUT" ]]; then
   exit 0
 fi
 
-# Clean workflow.
 emit_tel "ok" '[]'
 exit 0

@@ -91,7 +91,6 @@ function Invoke-TrendAnalysis {
         # cadence lets a monthly check skip a run.
         $lastRun = Get-CheckLastRun -CheckId $r.id -HistoryTail $HistoryTail
 
-        # Attach trend annotation.
         $deltaText = $null
         $currentValue = $null
         if ($relevantKey -and $r.detail -and $r.detail.PSObject.Properties[$relevantKey]) {

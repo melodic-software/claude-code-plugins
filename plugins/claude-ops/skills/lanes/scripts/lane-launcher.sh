@@ -997,7 +997,7 @@ main() {
   resolve_repo
   resolve_config
   # Validate explicit targets up front — before session load and, crucially,
-  # before any action's refresh step mutates the repo/plugin state (Item 2).
+  # before any action's refresh step mutates the repo/plugin state.
   validate_target_lanes
   [[ -z "$AGENTS_JSON_FILE" || -f "$AGENTS_JSON_FILE" ]] || {
     err "agents-json file not found: $AGENTS_JSON_FILE"

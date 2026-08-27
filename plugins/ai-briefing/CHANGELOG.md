@@ -3,6 +3,15 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.14]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed zero-information comments
+  in the `generate` skill's build pipeline (`run.js`, `emit-slides-data.js`, `lib/emit-slides.js`,
+  `validate.js`): flow narration and call-site labels that restated the adjacent code. No behavior
+  change.
+
 ## [0.7.13]
 
 ### Fixed

@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.28]
+## [0.20.29]
 
 ### Changed
 
@@ -15,6 +15,15 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   regions in the same file. test_python3_alias_probe.py moves a backslash-continued `with` to
   the parenthesized form. Adversarially refutation-verified; suites 317 + 10 green; guard,
   kill-switch, and destructive-boundary code untouched.
+
+## [0.20.28]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** In the clean skill's engine,
+  the Win32 magic literals in `windows_handle_state` became named module constants
+  (`FILE_FLAG_BACKUP_SEMANTICS`, `FILE_ATTRIBUTE_NORMAL`, `OPEN_EXISTING`), keeping only the
+  share-mode rationale as prose. No behavior change; test suite green before and after.
 
 ## [0.20.27]
 

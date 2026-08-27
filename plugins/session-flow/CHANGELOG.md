@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.34.9]
+## [0.34.10]
 
 ### Changed
 
@@ -8,6 +8,14 @@
   booleans is now the expression itself, and the UTC-fallback branch is
   `resolve_zone(name) or resolve_zone("UTC")`. Same results on every input. Code-tidying sweep,
   behavior-preserving.
+
+## [0.34.9]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed one zero-information
+  comment in `skills/retro/scripts/parse_transcript.py` (it inaccurately restated the adjacent
+  prepend condition); no behavior change.
 
 ## [0.34.8]
 

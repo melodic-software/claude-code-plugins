@@ -106,7 +106,6 @@ function Get-WingetPackageUpdate {
     [OutputType([hashtable])]
     param()
 
-    # Preferred path: Microsoft.WinGet.Client module.
     $module = Get-Module -ListAvailable Microsoft.WinGet.Client -ErrorAction SilentlyContinue |
         Sort-Object Version -Descending |
         Select-Object -First 1
@@ -137,7 +136,6 @@ function Get-WingetPackageUpdate {
         }
     }
 
-    # Fallback: text parse.
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         $err = if ($module) {
             'Microsoft.WinGet.Client module present but failed; winget CLI also not on PATH.'

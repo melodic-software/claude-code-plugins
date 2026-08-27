@@ -4,10 +4,9 @@
 GitHub Actions workflow-command annotation helpers for Pester runners.
 
 .DESCRIPTION
-Dot-sourced by Pester runner scripts; consumers derive on demand via the repo
-dep-graph edge scan (tools/AGENTS.md "Vertical slices"). Exposes three
-functions used to translate Pester failure records into safe GitHub Actions
-`::error::` workflow commands and matching markdown step-summary lines.
+Dot-sourced by Pester runner scripts. Exposes three functions used to
+translate Pester failure records into safe GitHub Actions `::error::`
+workflow commands and matching markdown step-summary lines.
 
 Workflow-command payloads require escaping: '%' -> '%25', CR -> '%0D',
 LF -> '%0A'. Property values (title= etc.) additionally need ':' -> '%3A'
@@ -20,7 +19,7 @@ to caller; entry-point sets these). #Requires is a harmless minimum-version
 check.
 
 .EXAMPLE
-. (Join-Path $repoRoot 'tools/shared/pester/PesterWorkflowAnnotation.ps1')
+. (Join-Path $testsRoot 'helpers/PesterWorkflowAnnotation.ps1')
 $info = Get-FailedTestInfo -Test $failedTest
 $safeTitle = ConvertTo-WorkflowCommandProperty ('Pester: ' + $info.Path)
 $safeMessage = ConvertTo-WorkflowCommandMessage $info.Message

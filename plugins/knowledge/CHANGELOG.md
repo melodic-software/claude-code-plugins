@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## [0.13.18]
+## [0.13.19]
 
 ### Changed
 
@@ -19,7 +19,7 @@ only after that version increases.
   refutation-verified (expression-identity tables, URL-normalization probes, HEAD-baseline
   spot-runs); full package suite 71 files / 494 tests green; `tsc --noEmit` clean.
 
-## [0.13.17]
+## [0.13.18]
 
 ### Changed
 
@@ -36,7 +36,7 @@ only after that version increases.
   `&& length > 0` conjunct to `||`. Package suites green (adapters 112, transcript 58,
   acquisition 93, watch consumers spot-checked); `tsc --noEmit` clean.
 
-## [0.13.16]
+## [0.13.17]
 
 ### Changed
 
@@ -45,6 +45,14 @@ only after that version increases.
   (repo-wide call-site census shows the sole caller awaits without reading the value) and the
   destructure that fed only that return. No emitted output, JSON shape, or exit-code change;
   package suite 91/91 green; adversarially refutation-verified.
+
+## [0.13.16]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed four zero-information
+  comments in the course-digest extraction scripts (`download-resources.js`,
+  `generate-manifests.js`); no behavior change.
 
 ## [0.13.15]
 

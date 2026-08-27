@@ -109,7 +109,6 @@ const sectionInfo = await page.evaluate(() => {
   return sections.map((s) => ({ id: s.id, h1: s.querySelector("h1")?.innerText.trim() || "", h2: s.querySelector("h2")?.innerText.trim() || "" }));
 });
 
-// Screenshot each section by scrolling it into view
 for (let i = 0; i < sectionInfo.length; i++) {
   const id = sectionInfo[i].id;
   await page.evaluate((sid) => {
@@ -272,7 +271,6 @@ try {
     await p2.evaluate((z) => { document.documentElement.style.zoom = String(z); }, m.zoom);
     await p2.evaluate(settleRender);
 
-    // Per-section overflow check
     const overflows = await p2.evaluate(collectSectionOverflows);
 
     // Single full-page screenshot per matrix combo (decks can be long; cap height)

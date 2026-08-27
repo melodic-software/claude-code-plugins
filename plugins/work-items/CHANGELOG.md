@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.34]
+## [0.39.35]
 
 ### Changed
 
@@ -18,7 +18,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   conformance harness, and cross-plugin audit-check bundles were reviewed clean with no
   changes.
 
-## [0.39.33]
+## [0.39.34]
 
 ### Changed
 
@@ -34,6 +34,14 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   harness byte-identical); github renew-lease.sh uses `[[ -n ]]` for the lease-comment
   check (token-stream identity proven). Tracker, binding, adapter, and coordination suites
   all green at baseline counts.
+
+## [0.39.33]
+
+### Changed
+
+- Comment triage pass (`/code-tidying:dissolve-comments`): removed a stale param-order
+  claim from the seam test library header (`tools/work-item-tracker/tests/lib.sh`); the
+  accurate signatures live on each helper's own doc comment. No behavior change.
 
 ## [0.39.32]
 

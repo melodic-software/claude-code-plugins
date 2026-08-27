@@ -204,10 +204,9 @@ function Invoke-DriversCheck {
 
 # Guard: skip main block when dot-sourced for testing. The test file dot-sources
 # this script so Pester mocks of dot-sourced lib functions (Get-DriverStoreInventory,
-# Get-PnpProblemDevice, etc.) apply inside Invoke-DriversCheck. Without this guard,
-# dot-sourcing would execute the check at import time. See
-# .claude/rules/powershell/testing.md "Mocks do NOT propagate through
-# `&`-invoked .ps1 scripts".
+# Get-PnpProblemDevice, etc.) apply inside Invoke-DriversCheck; mocks do not
+# propagate through `&`-invoked .ps1 scripts. Without this guard, dot-sourcing
+# would execute the check at import time.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 Invoke-DriversCheck | Write-HealthResult -Human:$Human
