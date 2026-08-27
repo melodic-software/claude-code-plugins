@@ -5,20 +5,21 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: add-sub-item <id> --parent <id>" "$@"
+usage='usage: add-sub-item <id> --parent <id>'
+wit_help_if_requested "$usage" "$@"
 
 id="${1:-}"
-[[ -n "$id" ]] || wit_usage_error "usage: add-sub-item <id> --parent <id>"
+[[ -n "$id" ]] || wit_usage_error "$usage"
 shift
 parent=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --parent)
-      [[ $# -ge 2 ]] || wit_usage_error "--parent needs a value"
-      parent="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --parent)
+    [[ $# -ge 2 ]] || wit_usage_error "--parent needs a value"
+    parent="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 [[ -n "$parent" ]] || wit_usage_error "--parent is required"

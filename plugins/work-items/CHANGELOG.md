@@ -3,6 +3,21 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.34]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 10 (batch-simplify).** Six local-markdown
+  adapter verbs (add-sub-item, claim, get-item, link-blocks, list-sub-items, renew-lease)
+  hoist their usage string — previously duplicated verbatim at the help and usage-error
+  sites — into one `usage=` literal, matching the sibling adapters' idiom; the repo's shfmt
+  hook normalized case-arm indentation in the same files. Adversarially refutation-verified:
+  the paired literals were byte-identical at every site, expansion-safety confirmed, and a
+  24-invocation differential drive (help/no-arg/unknown-flag per verb) is byte-identical on
+  stdout, stderr, and exit codes; all 8 adapter suites green (79 checks). The linear adapter,
+  conformance harness, and cross-plugin audit-check bundles were reviewed clean with no
+  changes.
+
 ## [0.39.33]
 
 ### Changed

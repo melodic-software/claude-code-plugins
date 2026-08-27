@@ -7,20 +7,21 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: renew-lease <id> --lease-comment-id <n>" "$@"
+usage='usage: renew-lease <id> --lease-comment-id <n>'
+wit_help_if_requested "$usage" "$@"
 
 id="${1:-}"
-[[ -n "$id" ]] || wit_usage_error "usage: renew-lease <id> --lease-comment-id <n>"
+[[ -n "$id" ]] || wit_usage_error "$usage"
 shift
 lease_comment_id=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --lease-comment-id)
-      [[ $# -ge 2 ]] || wit_usage_error "--lease-comment-id needs a value"
-      lease_comment_id="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --lease-comment-id)
+    [[ $# -ge 2 ]] || wit_usage_error "--lease-comment-id needs a value"
+    lease_comment_id="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id"

@@ -3,6 +3,19 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.5]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 10 (batch-simplify).** check-skill.sh's
+  `vc_lead_mutate` pipes its helper's stdout straight into `grep -qE` instead of
+  re-materializing it through `printf '%s' "$(...)"`, dropping one fork per call on a
+  predicate CI evaluates up to three times per skill across the fleet. Adversarially
+  refutation-verified: the helper's pipeline exit is deterministically 0 under `pipefail`
+  (probed to 200KB inputs), the trailing-newline delta is unobservable to `grep -q`
+  (11-input probe against the verbatim regex), and the full check-skill suite including the
+  verb-contract cases is green.
+
 ## [0.20.4]
 
 ### Changed
