@@ -144,8 +144,19 @@ its own accuracy over time; Phase 6 builds that loop (adjudicated findings becom
 fixtures via shape-preserving synthetic rewrite; run telemetry retunes constants).
 
 Accuracy config (amends the type-inventory schema, dated note there): `accuracy: {
-nomination_passes: 2, judge_samples: 3, judge_lens_diversity: true, review_agents: 1,
-deep_research_on_exhaustion: false }`. Nomination passes union their nominations (recall
+nomination_passes: 2, judge_lens_diversity: true, review_agents: 1,
+deep_research_on_exhaustion: false }`. `judge_samples` stays a TOP-LEVEL key (single home,
+matching the schema and the Q10 list); the setup skill rejects unknown keys under `accuracy`
+so a misplaced `accuracy.judge_samples` fails loudly instead of becoming a silent no-op.
+A review-agent veto never reassigns a tier (the mapping is fixed at contract time): it forces
+the finding's disposition to `leave-with-reason`, human-routed, so the finding stays visible
+and fix-ineligible; the finding record carries a `review` block mirroring `rubric` (dated
+type-inventory amendment). `deep_research_on_exhaustion` is presence-gated per seam-phrasing:
+when no research-capable skill is installed the dial degrades to a visible warning plus the
+normal neutral disposition, never a refusal. `judge_lens_diversity` defaults on under the
+user's accuracy directive, and Phase 6's dial measurement is the commitment behind it: if
+diversity degrades verdict unanimity without a recall gain, the default flips off in the same
+change that records the measurement. Nomination passes union their nominations (recall
 bias); diverse judge lenses replace three identical prompts (S3 measured self-consistency
 only, and the user funded the diversity probe); `review_agents` adds fresh-context unbiased
 validators over STANDS verdicts before fix eligibility; `deep_research_on_exhaustion` lets a
@@ -208,11 +219,13 @@ Create the plugin skeleton per `design/plugin-topology.md` and register it.
 - [ ] `.claude-plugin/marketplace.json` MODIFY (add entry, ai-slop entry as the shape precedent; category chosen from the `docs/CATALOG-TAXONOMY.md` vocabulary, which `scripts/generate-catalog.mjs`'s CATEGORY_ORDER enforces)
 - [ ] `docs/CATALOG.md` MODIFY (regenerate: `node scripts/generate-catalog.mjs`)
 - [ ] `docs/SKILL-CHEAT-SHEET.md` MODIFY (regenerate: `node scripts/generate-cheatsheet.mjs`; regenerated again in Phase 5 when the SKILL.md files land)
+- [ ] `.claude/settings.json` MODIFY (insert `"provenance@melodic-software": true` under `enabledPlugins` in byte order; the catalog-enablement gate fails both UNENABLED and UNSORTED, and this is the three-time-shipped failure class the gate exists for)
 
 **Sanity Check:** `jq empty plugins/provenance/.claude-plugin/plugin.json` exits 0;
 `jq -e '.plugins[] | select(.name == "provenance")' .claude-plugin/marketplace.json` exits 0;
 `bash scripts/validate-plugins.sh` exits 0 (it runs the catalog and cheatsheet `--check` plus
-manifest validation, so the generated views must be regenerated in this phase).
+manifest validation, so the generated views must be regenerated in this phase);
+`bash scripts/check-plugin-catalog-enablement.sh` exits 0.
 
 ### Phase 2: Fingerprint module [TODO]
 
@@ -226,9 +239,11 @@ offsets. Contract: `design/type-inventory.md` "fingerprint.mjs".
 
 - [ ] `plugins/provenance/skills/audit/scripts/fingerprint.mjs` CREATE
 - [ ] `plugins/provenance/skills/audit/scripts/fingerprint.test.mjs` CREATE (first, red)
+- [ ] `plugins/provenance/skills/audit/scripts/fingerprint.test.sh` CREATE (discovery wrapper, autonomy-plugin shape with a node-absent SKIP; `run-plugin-tests.sh` discovers only `*.test.sh`, so without the wrapper the module has zero CI coverage)
 
 **Sanity Check:** `node plugins/provenance/skills/audit/scripts/fingerprint.test.mjs` exits 0
 and its output names the inline-quote fixture and the span-dilution fixture as passing;
+`bash plugins/provenance/skills/audit/scripts/fingerprint.test.sh` exits 0;
 `node .../fingerprint.mjs compare --local <fixture> --source <fixture> --json | jq -e
 '.matched_spans'` exits 0.
 
@@ -295,13 +310,15 @@ skill manages `.claude/provenance.json` including the Q16/Q10 keys and the `accu
 above; the audit flow reads the accuracy dials when spawning nomination, judge, and review
 subagents.
 
-- [ ] `plugins/provenance/skills/audit/SKILL.md` CREATE
-- [ ] `plugins/provenance/skills/audit/evals/evals.json` CREATE
+- [ ] `plugins/provenance/skills/audit/SKILL.md` CREATE (composition step explicitly reconciles emit-findings.sh behavior against context/persist-findings.md, since Wave A authors the two halves of that contract in separate agents)
+- [ ] `plugins/provenance/skills/audit/evals/evals.json` CREATE (referencing ONLY fixtures that exist at this phase; the eval-quality lint FAILs unresolvable fixture paths, so golden-dir references wait for Phase 6's MODIFY)
 - [ ] `plugins/provenance/skills/setup/SKILL.md` CREATE
 - [ ] `plugins/provenance/skills/setup/evals/evals.json` CREATE
+- [ ] `scripts/skill-leaf-name-registry.txt` MODIFY (append `provenance` to the `audit` row's owner set with argued grounds per the file's own format; the row is a fixed 14-plugin set, no wildcard, and `check-skill-leaf-names.sh --check` fails on an owner-set change that arrives unargued. `setup` is wildcarded, no edit needed)
 
 **Sanity Check:** `bash scripts/check-changed-skills.sh origin/main` exits 0 with the two new
 skills in scope (it applies `--require-evals` to changed skills internally);
+`bash scripts/check-skill-leaf-names.sh --check` exits 0;
 `node scripts/generate-cheatsheet.mjs && node scripts/generate-catalog.mjs` then
 `bash scripts/validate-plugins.sh` exits 0; the untrusted-content conformance greps pass over
 the audit SKILL.md's fetch step and fix-flow liveness check; `/skill-quality:check` over both
@@ -324,14 +341,32 @@ funded: diverse judge lenses versus identical prompts (the T15 diversity probe, 
 and multi-pass nomination union, scored against the same golden set so each dial's recall
 gain is a recorded number, not a belief.
 
-Two consequences stated plainly (stress-test findings, 2026-08-27). First, the v1 fix
-posture: with 5 to 10 total cases across four classes, no class reaches `min_n_per_class` 10,
-so EVERY class ships report-only at v1 by the gate's own arithmetic; fix mode goes live per
+Consequences stated plainly (stress-test findings, 2026-08-27). First, the v1 fix posture:
+with 5 to 10 total cases across four classes, no class reaches `min_n_per_class` 10, so
+EVERY class ships report-only at v1 by the gate's own arithmetic; fix mode goes live per
 class only when the growth loop carries that class past minimum n at or above the precision
-bar, `verbatim` targeted first. This is the designed path, not a failure. Second, Phase 6
-runs are sidecar-only: the emitter is not invoked until Phase 7's registry rows exist, so no
-relay file ever carries a rule id with no crosswalk row. The T15 live no-breadcrumb
-(not-found) probe needs a live corpus and moves to the Phase 8 sub-topic's Brief.
+bar, `verbatim` targeted first. This is the designed path, not a failure, and growing the
+two fix-eligible classes to n >= 10 is a NAMED exit condition of the sub-topic's first
+growth round, not an open-ended aspiration. The phase's required deliverable is the gate
+decision table (per class: n, P, R, gate outcome) recorded in this file; at n near 10 the
+0.95 bar means one error demotes, so the bar behaves as a ratchet, not a statistic, and that
+is accepted. Second, Phase 6 runs are sidecar-only: the emitter is not invoked until Phase
+7's registry rows exist, so no relay file ever carries a rule id with no crosswalk row. The
+T15 live no-breadcrumb (not-found) probe needs a live corpus and moves to the Phase 8
+sub-topic's Brief.
+
+Harness seam (design amendment, dated in `design/capability-matrix.md`): the fixture-tree
+exclusion moves from unconditional-in-script to a CONFIG-LAYER entry (this repo's
+`.claude/provenance.json` `excluded_paths`), exactly the ai-slop resolution of #3041, so the
+eval harness's isolation (empty HOME plus CLAUDE_PROJECT_DIR) lifts the exclusion and
+fixtures are measurable while every normal run still declines them. `list-corpus.sh` (built
+in Phase 3, so the contract lands before Wave A dispatches) takes the exclusion from config,
+not a hardcoded glob. Offline sources: a case directory with `source.md` present
+short-circuits the fetch stage (stated in `reference/source-fetch.md`), so golden runs
+exercise nomination, resolution, fingerprint, and judgment without live fetches; the bypass
+is scoped to corpus enumeration and fetch, never to judgment stages.
+
+- [ ] `plugins/provenance/skills/audit/evals/evals.json` MODIFY (register the golden case dirs as `files[]`; `check-orphaned-fixtures.sh --check` fails unregistered fixture files, and the adjudication loop text must state that a new case is not landed until evals.json names it)
 
 - [ ] `plugins/provenance/skills/audit/evals/fixtures/golden/c01-.../` CREATE (5 to 10 case dirs: case.md, expected.json, source.md where needed)
 - [ ] `plugins/provenance/skills/audit/reference/dispositions.md` MODIFY (adjudication-to-fixture loop, if not landed in Phase 4)
@@ -339,17 +374,19 @@ relay file ever carries a rule id with no crosswalk row. The T15 live no-breadcr
 
 **Sanity Check:** `bash plugins/provenance/skills/audit/scripts/score-golden.sh --report
 .work/copied-external-content/golden-run-report.json` exits 0 and emits per-class P/R (the
-sidecar path convention: the run's memory slice, this name); `bash
-plugins/provenance/skills/audit/scripts/list-corpus.sh plugins/provenance` output does NOT
-contain `fixtures/golden` (unconditional exclusion); measured P/R values recorded in this
-file; `git diff --name-only` for the phase contains no relay findings file.
+sidecar path convention: the run's memory slice, this name); with this repo's config in
+place, `bash plugins/provenance/skills/audit/scripts/list-corpus.sh plugins/provenance`
+output does NOT contain `fixtures/golden` (config-layer exclusion active); the gate decision
+table (per class: n, P, R, outcome) recorded in this file; `bash
+scripts/check-orphaned-fixtures.sh --check` exits 0; `git diff --name-only` for the phase
+contains no relay findings file.
 
 ### Phase 7: Crosswalk registration and quality gate [TODO]
 
 Land the three draft crosswalk rows from `design/type-inventory.md` in the detector-findings
 registry, then run the full-repo quality gates over every new surface.
 
-- [ ] `docs/conventions/detector-findings/README.md` MODIFY (three rows: rule-verbatim-copy, rule-stamp-expired, rule-trigger-less-stamp)
+- [ ] `docs/conventions/detector-findings/README.md` MODIFY (three rows: rule-verbatim-copy, rule-stamp-expired, rule-trigger-less-stamp; RESHAPED into the registry's exact column set `| Rule id | What fires it | The test the disposition is argued from | Tier or disposition | Auto-applicable |` with pipes escaped and the `<name>` placeholders substituted to `provenance/audit/rule-*`, appended to the existing table, never pasted as a second table: the crosswalk check locates the table by its exact header and fails duplicates)
 - [ ] `docs/conventions/detector-findings/CHANGELOG.md` MODIFY (entry for the rows)
 - [ ] `plugins/provenance/**` KEEP (audited by the gates, no planned change)
 
@@ -412,7 +449,20 @@ Formal stress-test: run (Step 4).
 
 ## Stress-test summary
 
-<!-- populated after Step 3/4 -->
+Two fresh-context passes ran 2026-08-27 against the draft: the plan reviewer (13 findings: 1
+CRITICAL, 5 IMPORTANT, 7 SUGGESTION) and a devils-advocate stress-test (15 findings: 1
+CRITICAL, 4 HIGH, 5 MEDIUM, 5 LOW). Load-bearing findings were verified against the repo
+before fixing; all confirmed, all folded in. The headline catches: the marketplace edit
+needed the generated catalog views AND the `.claude/settings.json` enablement key (the
+three-time-shipped CI failure class); the `audit` leaf name needs an argued registry
+addition; `fingerprint.test.mjs` needed a `.test.sh` discovery wrapper to be CI-covered at
+all; the emitter script's contract violated the reasoning-free constraint and was split
+model-side/script-side per the ai-slop precedent; the min-n arithmetic makes v1 fix mode
+dark for every class (now stated as the designed path with a named exit condition); and the
+unconditional fixture exclusion would have made the golden harness unable to measure the
+shipped pipeline (moved to the config layer, the repo's own #3041 resolution). Both
+reviewers' verdict: amend, do not rework; no finding undermined the Brief or the accepted
+architecture.
 
 ## Execution shape
 
@@ -450,7 +500,11 @@ phases in parallel; Wave B is sequential because each consumes prior outputs.
 
 Each agent FORBIDDEN: any file outside its ALLOWED list; PLAN.md; other agents' territory;
 staging, commit, or push. Each worker brief carries the divergence-escalation clause from the
-plan template verbatim.
+plan template verbatim. PLAN.md phase-tag flips are main-session-owned and serialized (agents
+report back; the main session commits), so the tag-flip write never races Wave A. A2 builds
+`emit-findings.sh` while A3 writes `context/persist-findings.md`; both anchor to the
+type-inventory contract, and Phase 5's main-session composition step reconciles the two
+halves explicitly.
 
 ### Per-phase routing table
 
@@ -483,8 +537,10 @@ plan template verbatim.
   URL as fallback, refusing only when neither is reachable. This departs from ai-slop's
   URL-only precedent to serve offline runs and org-agnosticism; ai-slop itself is untouched.
 - Any scope expansion beyond `plugins/provenance/**` plus the named shared surfaces
-  (marketplace.json, the two generated views, the detector-findings registry) stops for
-  approval.
+  (`.claude-plugin/marketplace.json`, `.claude/settings.json` enablement key, the two
+  generated views `docs/CATALOG.md` and `docs/SKILL-CHEAT-SHEET.md`,
+  `scripts/skill-leaf-name-registry.txt`, the detector-findings registry and its changelog)
+  stops for approval.
 
 ### Execution shape ([EXEC-SHAPE] tagged)
 
@@ -498,6 +554,16 @@ plan template verbatim.
   passes, 3 diverse judges, 1 review agent, deep-research escalation off) as config-key
   values under the user's accuracy-first, all-tunable resolution. Basis: user answers at the
   Q16 round and the mid-plan accuracy directive, both 2026-08-27.
+- [EXEC-SHAPE] Fixture exclusion via the config layer rather than unconditional-in-script.
+  Basis: the repo's own litigated precedent (#3041, quoted in `.claude/ai-slop.json`), read
+  this session.
+- [EXEC-SHAPE] Review-agent veto forces `leave-with-reason` without tier reassignment.
+  Basis: the type contract's fixed-mapping rule plus the Brief's fail-safe direction (every
+  uncertainty falls to a report-only surface, never silence).
+- [EXEC-SHAPE] Trigger-less-stamp registry row lands in Phase 7 with the engagement draft
+  annotated (option b), rather than deferring the row to the sub-topic. Basis: the
+  crosswalk-completeness gate favors registering emitting rules when they ship; the interim
+  state is recorded in both artifacts.
 
 ### Mechanical work
 

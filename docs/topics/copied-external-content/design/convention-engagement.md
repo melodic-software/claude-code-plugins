@@ -36,6 +36,13 @@ Three parts land as one entry:
    enforceability verdict changes (the convention's own versioning rule); otherwise the
    re-derivation lands as a minor entry (additive guidance) with the as-of date refreshed and
    the outcome stated, drift or no drift.
+Dated note, 2026-08-27 (plan stress-test): the build plan lands the check's CODE
+(`check-stamps.sh --trigger-less`, Phase 3) and its crosswalk ROW (Phase 7) before the sweep,
+so payload 3 below is partially pre-consumed. What remains for this engagement is exactly the
+convention's own table-row flip ("named but not built" to "built, off-by-default,
+repo-override enabled") and the build-trigger bookkeeping; the registry row's early presence
+is recorded in the build plan's Phase 7 as scheduled, not drifted.
+
 3. **The trigger-less-stamp check lands.** The named-not-built candidate check ("flag any
    `Verified <date>` line or row whose surface states no trigger") carried the build trigger "a
    trigger-less stamp lands on main again". This engagement builds it as

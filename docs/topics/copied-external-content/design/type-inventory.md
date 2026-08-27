@@ -67,6 +67,12 @@ report are both projections of this record.
 }
 ```
 
+Amended 2026-08-27 at plan time: the record carries a `review` block mirroring `rubric`
+(`{agents, verdict, evidence}`) when `accuracy.review_agents` > 0. A review veto NEVER
+reassigns a tier (the mapping stays fixed at contract time): it forces `disposition` to
+`leave-with-reason`, human-routed, so the finding stays visible on every surface and
+fix-ineligible. `review` is null when the dial is 0.
+
 Nulls are honest: `fingerprint` is null when nothing was fetched; `rubric` is null for
 carve-out declines (which are counts, not findings). `span` from nomination is approximate for
 report-only tiers; for `fingerprint-confirmed` it is replaced by the module's exact matched
@@ -82,7 +88,9 @@ test (`.test.sh` for bash, `.test.mjs` for the Node module, autonomy-plugin prec
 
 Tracked markdown under target (default repo), minus built-in categorical exclusions and config
 `excluded_paths`. Output: file list plus a declined block `{path_pattern, count, reason}`.
-The eval-fixture tree is excluded unconditionally.
+The eval-fixture tree is excluded via the config layer (capability-matrix amendment
+2026-08-27, the #3041 resolution), so the eval harness's isolation lifts it while every
+configured run declines it with a stated reason.
 
 ### `extract-breadcrumbs.sh --dir D | --files F...`
 

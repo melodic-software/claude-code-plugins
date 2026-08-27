@@ -41,8 +41,13 @@ categorical carve-outs before anything reads a byte. Reasoning-free: path matchi
   them.
 - Declined paths are counted and reported per the detector-findings declined-candidate rule,
   never silently dropped.
-- Invariant: the fixture tree is always excluded, even when a target argument points inside it;
-  the script says so rather than scanning.
+- Invariant, amended 2026-08-27 at plan time (stress-test finding): the fixture-tree
+  exclusion is a CONFIG-LAYER entry (this repo's `.claude/provenance.json`
+  `excluded_paths`), not unconditional in the script. This is the ai-slop resolution of
+  #3041: an unconditional exclusion would decline fixtures under the eval harness's own
+  isolation, leaving the eval author trusting prose. Under the consuming repo's config every
+  normal run declines the tree and says so; the harness isolation lifts the config layer and
+  the fixtures report their real findings.
 
 Cross-app reuse: none. This is plugin-specific plumbing.
 
