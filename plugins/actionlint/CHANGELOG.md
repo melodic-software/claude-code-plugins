@@ -3,6 +3,14 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.23]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed one
+  zero-information comment in `hooks/actionlint-check.sh` (a label restating
+  the adjacent clean-path emit); no behavior change.
+
 ## [0.8.22]
 
 ### Changed
