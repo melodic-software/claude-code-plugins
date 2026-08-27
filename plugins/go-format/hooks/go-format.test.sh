@@ -340,7 +340,11 @@ fi
 printf 'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}\n' >"$REPO/tel.go"
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/tel.go" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+# Capture THIS run's stdout (#3367). Discarding it and grepping a `$OUT` last
+# assigned by an earlier case made the stdout-leak assertion below vacuous: it
+# checked output the telemetry run never produced, so it would have kept
+# passing had the hook started printing the envelope.
+TEL_OUT=$(run_hook_env "$REPO/tel.go" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK")
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -359,7 +363,15 @@ if [[ -s "$TEL" ]]; then
   FREL=$(jq -r '.data.file' "$TEL")
   if [[ -n "$FREL" && "$FREL" != /* && "$FREL" != ?:* ]]; then ok "envelope: data.file repo-relative ($FREL)"; else fail "envelope: data.file not repo-relative: $FREL"; fi
   if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL" >/dev/null 2>&1; then ok "envelope: duration_ms non-negative int"; else fail "envelope: duration_ms invalid ($(jq .duration_ms "$TEL"))"; fi
-  if ! printf '%s' "$OUT" | grep -q schema_version 2>/dev/null; then ok "envelope: never leaked into hook's own stdout"; else fail "envelope leaked into stdout"; fi
+  # Staleness guard: the fixture is a syntax-error file, so THIS run must have
+  # put its advisory additionalContext JSON on stdout. An empty capture means
+  # the assertion below is grepping nothing and proves nothing.
+  if [[ -n "$TEL_OUT" ]]; then
+    ok "envelope: telemetry run's own stdout captured (leak assertion has something to check)"
+  else
+    fail "envelope: telemetry run produced no stdout — leak assertion would be vacuous"
+  fi
+  if ! printf '%s' "$TEL_OUT" | grep -q schema_version 2>/dev/null; then ok "envelope: never leaked into hook's own stdout"; else fail "envelope leaked into stdout: $TEL_OUT"; fi
 else
   fail "telemetry/stub-sink: no envelope written"
 fi
