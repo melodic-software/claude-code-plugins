@@ -6,7 +6,11 @@ with a named arbiter), deferred (needs input the design stage cannot supply). Th
 constraints and the interview ledger's 19 settled decisions are upstream of every thread here
 and are not relitigated.
 
-## T1 — Plugin and skill naming (Q19) — DIRECTIONAL
+## T1 — Plugin and skill naming (Q19) — RESOLVED
+
+User picked `provenance` from the shortlist below (2026-08-27, design acceptance gate), ahead
+of the plan-gate schedule the Brief allowed. Q19 is closed; `<name>` substitution points in
+the design artifacts read as `provenance`. Original pass record follows.
 
 Ran /naming:name-it-better (default pass, three blind lenses, collision check against the
 71-plugin roster). Filters removed `transclusion`, `citation`, `attribution` (they name the
@@ -25,9 +29,8 @@ call site). Ranked shortlist:
    term.
 4. `prose-provenance` — disambiguates SLSA at the cost of length in rule ids and config keys.
 
-Arbiter: the user at the plan approval gate (Brief names /planning:plan; the naming skill's
-rule is the human always picks). Design artifacts use `provenance` as the working name with
-`<name>` marking substitution points.
+Arbiter was the user (the naming skill's rule is the human always picks); the pick landed at
+the design acceptance gate, recorded above.
 
 ## T2 — Skill surface — RESOLVED
 
