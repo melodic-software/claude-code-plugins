@@ -132,6 +132,22 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
             $state.remediations.'clear-temp-files'.approved_at | Should -Match '^\d{4}-\d{2}-\d{2}T'
         }
 
+        It 'separates host and user in approved_by with exactly one backslash' {
+            # #3369: the interpolation used "$env:COMPUTERNAME\\$env:USERNAME".
+            # PowerShell double-quoted strings do not treat backslash as an
+            # escape, so that emitted a LITERAL doubled separator. Counted
+            # rather than compared against a rebuilt expected value: rebuilding
+            # it with the same expression would pass while both sides are wrong.
+            Set-Content -LiteralPath $script:todoPath `
+                -Value '- [x] Clear-TempFiles' -Encoding utf8
+
+            $state = Get-ApprovalState -StateDir $script:stateDir -TodoPath $script:todoPath
+
+            $approvedBy = $state.remediations.'clear-temp-files'.approved_by
+            @($approvedBy.ToCharArray() | Where-Object { $_ -eq '\' }).Count | Should -Be 1
+            $approvedBy | Should -Not -BeLike '*\\*'
+        }
+
         It 'does NOT overwrite an existing approvals.json with a migration' {
             New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
             $existing = '{"schema_version":"1.0","remediations":{"clear-temp-files":{"approved":false}}}'

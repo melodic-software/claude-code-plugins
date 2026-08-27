@@ -3,6 +3,26 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.10]
+
+### Fixed
+
+- **`Get-GpuDriverInfo` asks `nvidia-smi` for the fields it meant to ask for.** The query and
+  format flags were written bare with a space after each comma
+  (`--query-gpu=name, driver_version`), which PowerShell's argument-mode comma operator turns
+  into an array that spreads into four separate argv entries. `nvidia-smi` rejected them
+  (`Option driver_version is not recognized`, exit 2), so the NVIDIA branch silently produced
+  nothing on real hardware while the suite's argument-agnostic mocks stayed green. Both flags
+  are now single quoted tokens, and the suite gained a shadowing `nvidia-smi` stub that
+  captures and asserts the exact argument vector.
+- **`approved_by` records one backslash between host and user, not two.** The TODO.md migration
+  built the identity as `"$env:COMPUTERNAME\\$env:USERNAME"`; PowerShell double-quoted strings
+  do not treat `\` as an escape, so every migrated approval persisted a literal `HOST\\user`.
+  The field is free-form audit metadata (`catalog/schemas/approvals.schema.json`) and no code
+  path compares it — `Test-ApprovalGranted` reads only `approved` — so previously persisted
+  values need no migration; the one-shot TODO.md path writes only when `approvals.json` is
+  absent, which further bounds the reach.
+
 ## [0.11.9]
 
 ### Changed
