@@ -69,7 +69,12 @@ switch ($Action) {
         }
         $rule = Get-Rule
         if ($rule) {
-            if (-not $rule.Enabled) {
+            # Compared against 'True', never tested for truthiness. Get-NetFirewallRule's
+            # Enabled is a NetSecurity enum whose members are True = 1 and False = 2, so
+            # BOTH are non-zero and both coerce to boolean $true. `-not $rule.Enabled` was
+            # therefore always false and a disabled rule was never re-enabled. The string
+            # comparison also holds when the property arrives already stringified.
+            if ($rule.Enabled -ne 'True') {
                 Enable-NetFirewallRule -DisplayName $RuleName | Out-Null
                 Write-Output '[firewall] re-enabled existing rule'
             } else {
@@ -97,7 +102,9 @@ switch ($Action) {
             Write-Output '[firewall] not present — nothing to disable'
             exit 0
         }
-        if ($rule.Enabled) {
+        # Same enum hazard as the enable branch above: a bare truthiness test took the
+        # disable path even for a rule that was already disabled.
+        if ($rule.Enabled -eq 'True') {
             Disable-NetFirewallRule -DisplayName $RuleName | Out-Null
             Write-Output '[firewall] disabled (rule retained — re-enable when sync is done)'
         } else {
