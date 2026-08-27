@@ -30,8 +30,13 @@ function Get-GpuDriverInfo {
     $nvCmd = Get-Command nvidia-smi -ErrorAction SilentlyContinue
     if ($nvCmd) {
         try {
-            $raw = & nvidia-smi --query-gpu=name, driver_version `
-                --format=csv, noheader 2>$null
+            # Each flag is ONE token, and the quoting is load-bearing. Written
+            # bare with a space after the comma, PowerShell's argument-mode
+            # comma operator builds an array that spreads into four separate
+            # argv entries, and nvidia-smi rejects the flags ("Option
+            # driver_version is not recognized", exit 2).
+            $raw = & nvidia-smi '--query-gpu=name,driver_version' `
+                '--format=csv,noheader' 2>$null
             if ($LASTEXITCODE -eq 0 -and $raw) {
                 foreach ($line in ($raw -split "`r?`n")) {
                     $parts = $line -split ',' | ForEach-Object { $_.Trim() }

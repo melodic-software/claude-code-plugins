@@ -65,7 +65,9 @@ function Read-ApprovalsFromTodo {
     if ($migrations.Count -eq 0) { return $null }
 
     $stamp = (Get-Date).ToString('o')
-    $approvedBy = "$env:COMPUTERNAME\\$env:USERNAME"
+    # One backslash, not two: PowerShell double-quoted strings do not treat `\`
+    # as an escape character, so `\\` here would persist a literal `HOST\\user`.
+    $approvedBy = "$env:COMPUTERNAME\$env:USERNAME"
     $rem = [ordered]@{}
     foreach ($id in $migrations.Keys) {
         $rem[$id] = [pscustomobject]@{
