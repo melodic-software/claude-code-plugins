@@ -56,7 +56,12 @@ for plugin_dir in plugins/*/; do
       continue
     fi
     rel="${full#"$plugin_dir"}"
-    cluster_entries["$rel"]+="${plugin}:${full} "
+    # NEWLINE-delimited, not space-delimited (#3376). `find -print0` already
+    # hands us paths containing spaces intact; joining the accumulator on a
+    # space would throw that away again the moment load_cluster split it back
+    # apart, turning one entry into two bogus ones and feeding sha256sum a
+    # truncated path. A newline is the one separator no path here can contain.
+    cluster_entries["$rel"]+="${plugin}:${full}"$'\n'
   done < <(find "$plugin_dir" -type f -print0)
 done
 
@@ -66,8 +71,7 @@ done
 # the arrays and put a function call where .shellcheckrc's SC2310 warns about
 # set -e suppression.
 load_cluster() {
-  # shellcheck disable=SC2206
-  entries=(${cluster_entries[$1]})
+  mapfile -t entries < <(printf '%s' "${cluster_entries[$1]}")
   plugins_list=()
   local entry
   for entry in "${entries[@]}"; do
@@ -117,7 +121,18 @@ discover | --check) ;;
 esac
 
 if [[ "$mode" == "discover" ]]; then
-  for rel in $(printf '%s\n' "${!cluster_status[@]}" | sort); do
+  # Feed `sort` from a loop rather than `printf '%s\n' "${!cluster_status[@]}"`
+  # (#3376). Two hazards, one of them latent in each direction: an unquoted
+  # `$(...)` here word-split every key on IFS whitespace and glob-expanded the
+  # results against the working directory, so a cluster path with a space
+  # mis-iterated silently; and `printf '%s\n'` with NO arguments still prints
+  # one blank line, which `mapfile -t` would turn into a single empty key on a
+  # tree that has no clusters at all. An empty array iterates zero times and
+  # feeds `sort` nothing, which is the answer both cases want.
+  mapfile -t sorted_rels < <(
+    for rel in "${!cluster_status[@]}"; do printf '%s\n' "$rel"; done | sort
+  )
+  for rel in "${sorted_rels[@]}"; do
     load_cluster "$rel"
     reg=""
     [[ -n "${registered[$rel]:-}" ]] && reg=" [registered]"
