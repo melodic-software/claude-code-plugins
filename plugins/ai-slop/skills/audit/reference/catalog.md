@@ -21,6 +21,7 @@
 - [Ineffective indicators](#ineffective-indicators)
 - [Historical indicators](#historical-indicators)
 - [Cursor unslop additions](#cursor-unslop-additions)
+- [Model-era additions (repo-owned)](#model-era-additions-repo-owned)
 
 The rule inventory for `/ai-slop:audit`: every sign of AI writing catalogued by the Wikipedia page
 below, plus the additions in the "Cursor unslop additions" section. Each tell is classified for
@@ -83,7 +84,8 @@ The "Cursor unslop additions" section was inspired by
 ## Inventory
 
 65 tells catalogued from the Wikipedia source revision, plus 7 in the "Cursor unslop additions"
-section at the end of this file. Entry marker: `### rule-<slug>: <name>`. The qualified id used
+section and 4 in the "Model-era additions (repo-owned)" section at the end of this file. Entry
+marker: `### rule-<slug>: <name>`. The qualified id used
 in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
 
 - **detectability**: `mechanical` (patterns a script can match) or `judgment` (needs a reader).
@@ -91,6 +93,10 @@ in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
   (only meaningful inside Wikipedia's editing model).
 - **v1**: `script` (implemented in detect.sh), `rubric` (skill judgment layer), or
   `recorded-only` (catalogued, not run; reason given).
+
+Model-era entries carry four further fields (`era`, `models`, `evidence`, and — inside the
+prose — an attribution note where a harness confound applies); the evidence grades and their
+placement gate are defined at the top of that section.
 
 ## False-positive posture (source Caveats)
 
@@ -855,6 +861,11 @@ either layer, and those rows say so.
   listed phrase falls to the rubric alongside `rule-collaborative-communication`. Merges the
   source's "chatbot phrases" and "sycophantic tone" patterns; bare "Certainly!" and "Of course!"
   were left off the phrase list as too common in legitimate prose.
+- Currency note (2026-08): "You're absolutely right" and "Found the smoking gun" remain the two
+  headline Claude tells of the 2025-2026 era — the former acknowledged by Anthropic's own
+  account and tracked in vendor-repo issues, the latter documented defying an explicit
+  CLAUDE.md ban mid-sentence. Both resist user-level suppression instructions; sources in the
+  "Model-era additions" record below.
 
 ### rule-filler-phrases: Filler phrases
 
@@ -910,6 +921,16 @@ either layer, and those rows say so.
   "evacuate" (for moving code) in their metaphorical (not domain-literal) senses. The tell turns on the literal-versus-metaphor call:
   "harness" naming an actual test harness is not a tell. Calibration kept this out of the script
   layer (see the calibration record's second pass). Replacements live in `rewrite-guide.md`.
+- **Model-era cues (2026-08, from the "Model-era additions" section)**: "load-bearing" and
+  "seam" join the cue list as the flagship 2026 Claude-family metaphor words (load-bearing
+  measured at >7,500x its Stack Overflow base rate in Claude Code output; seam at 62x). Their
+  literal boundary is BROAD, deliberately: a Feathers seam in refactoring/testing prose, a
+  load-bearing wall, and a load-bearing invariant or instruction NAMED as such deliberately in
+  architecture prose are all terms of art, not tells — the tell is the reflexive metaphor where
+  a plainer word served ("this comment is load-bearing" for "this comment matters"). These cues
+  carry no config lever (the rubric layer reads no config): the boundary text here is the
+  suppression surface, and saturation-level house usage of either word is a fix-pass decision
+  for that repo, never something to re-report at every audit.
 
 ### rule-mechanism-free-claims: Feeling-words instead of mechanism
 
@@ -921,3 +942,136 @@ either layer, and those rows say so.
   sent to the database"). Two tests: can the sentence be restated as a concrete instruction,
   fact, or number (if not, cut it); and could it appear unchanged in another project's docs (if
   so, it says nothing about this one).
+
+## Model-era additions (repo-owned)
+
+The repo-owned, evolving inventory of CURRENT-generation model-vocabulary tells — the layer
+neither the Wikipedia source page nor the Cursor skill has absorbed yet (verified against both
+heads; see the model-era record below). This section is this repository's own work, not adapted
+from the Wikipedia page, so the CC BY-SA statement at the top of this file (scoped to "the
+adapted material in this file") does not cover it; each entry cites the community sources it
+rests on. It exists to move faster than the upstream inventories: when a new model generation
+introduces a tic, the entry lands here first, graded by its evidence, and migrates to the
+Wikipedia-derived inventory only if upstream later absorbs it.
+
+**Evidence grades** — every entry in this section carries one, and the grade gates placement:
+
+- `locally-observed` — seen by this repo's owner in the wild; no indexed external attestation.
+  Eligible for `recorded-only` or the rubric ONLY. Never a shipped script rule on one
+  observer's evidence.
+- `community-attested` — documented by independent community sources (threads, catalogs,
+  filter lists). Eligible for any layer its false-positive measurement supports.
+- `measured` — carried by at least one quantitative frequency measurement. A SINGLE pool is
+  still single-pool: the measured-narrowing gate (density stays quiet on legitimate files AND
+  firing files are genuine residue, measured on a real corpus) governs promotion into any
+  shipped default word list.
+
+Consumer repos extend the phrase layer via `phrase_add`/`phrase_remove` and the vocabulary
+layer via `vocab_add` (README "Configuration"); the update workflow for THIS section is in the
+README's "Updating the model-era inventory".
+
+### rule-model-era-phrases: Distinctive model-phrase constructions
+
+- detectability: mechanical
+- applicability: general-prose
+- v1: script
+- era: 2025-2026
+- models: Claude family (the community record dates the layer to Opus 4.6 onward and attests it
+  through the Opus 5 / Fable era); "unlock" also appears on GPT cliché lists, so that phrase is
+  cross-model
+- evidence: community-attested
+- Multiword constructions distinctive enough to fire per occurrence. The shipped roster is the
+  ANCHORED forms only (apostrophes spelled `.` per the detector's ERE convention):
+  - `the part most people skip` — "X is the part most people skip" and kin. Four in-the-wild
+    hits on HN, all 2025-2026, all in AI-tooling threads; no catalog documents it yet. Rare in
+    human prose; near-zero expected yield is accepted.
+  - `(the|my) honest take` — the opinion-opener construction ("The honest take is..."). The
+    bare bigram "honest take" is recognized but NOT shipped: in blog-register prose it is
+    ordinary human writing, and this corpus (which measured 0 hits) is the wrong corpus to
+    prove otherwise.
+  - `that.s the unlock` — the punchline form. The bare "the unlock" is recognized but NOT
+    shipped: it has a measured domain-literal false positive in this very repo (prose about an
+    actual worktree lock), and any corpus documenting locks, auth, or feature flags would fire
+    the same way.
+- Sources: the Hacker News Claude-ism thread (id 48905248, 609 points) and Ask HN 49045140;
+  jola.dev's filter hook; Ivo Velitchkov's "A catalog of Claude cliches"; the
+  archiewood/claudeisms inventory. Consumers add or remove phrases via
+  `phrase_add`/`phrase_remove` — fragments are EREs, and the joined roster is validated at
+  config-read time (an invalid or empty fragment is skipped with a warning, never allowed to
+  flood or silently kill the rule).
+
+### rule-ranked-punchline: Enumerated observations with a ranked punchline
+
+- detectability: mechanical (construction core), judgment (residual)
+- applicability: general-prose
+- v1: recorded-only
+- era: 2025-2026
+- models: Claude family (composition of two documented behaviors)
+- evidence: locally-observed
+- "Two observations, and one is load-bearing" — an enumeration whose closer ranks one item as
+  the one that matters ("N observations/problems/things, and one is load-bearing / fatal / the
+  real problem"). Zero indexed attestations as a named tell (checked: HN Algolia exact
+  queries, general web search; unchecked: X full-text, private corpora); its components are
+  separately documented — self-ranking claims (Velitchkov's catalog) plus the load-bearing
+  vocabulary below. Recorded on the repo owner's observation, which is exactly what this
+  section's `locally-observed` grade is for; promotes toward a script phrase when independent
+  attestations land.
+
+### rule-belt-and-suspenders: "Belt and suspenders"
+
+- detectability: mechanical
+- applicability: general-prose
+- v1: recorded-only
+- era: 2025-2026
+- models: Claude family (attested in the HN thread)
+- evidence: community-attested (disputed)
+- The redundancy idiom, deployed by current Claude output at noticeable frequency — but the
+  attestation is disputed in the same thread that raises it: commenters attest pre-LLM usage
+  ("heard it since way before LLMs"), and it is a legitimate engineering idiom decades old.
+  Recorded with the dispute; if ever promoted, density treatment only, never occurrence.
+
+### rule-model-era-vocabulary: Frequency-cluster words (single-pool, corroborate before shipping)
+
+- detectability: mechanical
+- applicability: general-prose
+- v1: recorded-only
+- era: 2025-2026
+- models: Claude family (Claude Code agentic output specifically)
+- evidence: measured (single pool)
+- The archiewood/claudeisms measurement: 145 words at >=20x frequency versus a 1.72B-word
+  Stack Overflow comment corpus, measured on ~5 weeks of the author's own Claude Code
+  Opus 4.7/4.8 transcripts. Author-declared confounds: workflow skew, an installed style
+  plugin, system-prompt priming, no stemming. Representative ratios: gating 759x, dedup 647x,
+  decisive 637x, verdict 631x, scaffolds 570x, settles 434x, handoff 358x, genuinely 224x,
+  errored 215x, drift 183x, pre-existing 183x, silently 36x, verbatim 31x, canonical 27x.
+- NONE of these ships in the default vocabulary list. Measured on this repository's corpus,
+  even the pruned distinctive core fires on domain-literal prose (`uncommitted` in a git
+  document, `dedup` in a dedup-pass reference) — the exact class the shipped list's own
+  admission rule excludes — and the broad list would flag 47% of the corpus. Each word is a
+  per-word candidate behind the measured-narrowing gate; until a word passes on a real corpus,
+  the closure for a repo that wants it is `vocab_add` (the README lists the candidates).
+  Promotion of the cluster as a class additionally waits on a second independent frequency
+  pool (see the record's recheck trigger).
+
+### Model-era record
+
+- **Claim**: the entries above reflect the community-documented model-vocabulary layer as of
+  the dates below, and neither upstream inventory carries it.
+- **Basis**: per-entry sources; upstream absence verified against the live Wikipedia page and
+  the Cursor skill head.
+- **Recheck trigger**: each `ai-slop` release, each new frontier-model generation, and — for
+  `rule-model-era-vocabulary` — whether a second independent frequency pool has landed (the
+  cluster's promotion condition, which no other trigger would look for).
+- **Record (2026-08-26, initial)**: layer established from the Hacker News thread 48905248
+  (609 points), archiewood/claudeisms (two-measurement corroboration for "load-bearing":
+  >7,500x lower-bound ratio, and Marek Suppa's independent 188-in-1.7M-words count),
+  anthropics/claude-code issue 53454 (maintainer-reproduced), Velitchkov's cliché catalog,
+  crystl.dev's hacker-idiom catalog, and jola.dev's filter hook. Wikipedia "Signs of AI
+  writing" head revision 1371415133 (fetched 2026-08-26) and Cursor unslop head (last commit
+  2026-08-02) both carry none of it. Harness confound recorded on the metaphor cues: the
+  version-tracked Piebald-AI system-prompt mirror carries "give brief updates when you find
+  something load-bearing or change direction" verbatim, so "load-bearing" in Claude Code
+  output is partly prompt-primed rather than purely model-weight; the frequency spike aligns
+  with the Opus 4.6 release date and the word appears in non-Code output, so the weights-side
+  claim stays alive at MEDIUM. A harness prompt change can therefore collapse a phrase's base
+  rate overnight — attribution notes exist so a recheck knows which entries die that way.
