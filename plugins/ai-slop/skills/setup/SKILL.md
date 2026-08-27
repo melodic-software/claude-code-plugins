@@ -20,6 +20,8 @@ tuning in `.claude/ai-slop.json`, resolved per the config-cascade convention: us
 | `em_dash_allowed_paths` | glob list | Documents exempt from the zero-tolerance em-dash rule |
 | `vocab_add` | word list | Additions to the AI-vocabulary list |
 | `vocab_remove` | word list | Removals from the AI-vocabulary list |
+| `phrase_add` | ERE fragment list | Additions to the model-era phrase roster (`rule-model-era-phrases`); whole fragments, spaces allowed, apostrophes spelled `.` |
+| `phrase_remove` | ERE fragment list | Removals from the shipped phrase roster, matched verbatim against the shipped fragments |
 | `disabled_rules` | rule slugs | Rules the audit skips entirely (reported as disabled) |
 | `thresholds` | map | Per-rule density thresholds: `ai_vocabulary`, `copulative_avoidance`, `rule_of_three` (matches per 1000 words; density rules also need at least 3 matches) |
 | `_comment` | string | Free-text rationale for the choices in this file. Read by nobody; JSON has no comment syntax, and a config that disables a rule without recording why is the drift this skill exists to catch. Not drift — do not flag it as an unknown key |
@@ -32,7 +34,9 @@ Report the current state and change nothing:
    layers directly; report which layer wins each key and which layers are absent.
 2. Flag drift: unknown keys, an em-dash threshold key (the rule is zero-tolerance by design —
    per-document exemption via `em_dash_allowed_paths` is the supported mechanism), globs that
-   match nothing, or a `disabled_rules` slug that names no shipped rule.
+   match nothing, a `disabled_rules` slug that names no shipped rule, a `phrase_add` fragment
+   that is not a valid ERE (the detector skips it with a stderr note; surface it here as
+   drift), or a `phrase_remove` fragment matching no shipped phrase.
 3. End with what `apply` would change, if anything was flagged.
 
 ## apply

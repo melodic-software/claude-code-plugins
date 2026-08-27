@@ -53,10 +53,20 @@ overlay; later layers refine earlier ones per key):
   "rule_allowed_paths": { "rule-ai-vocabulary": ["docs/marketing/**"] },
   "vocab_add": ["utilize"],
   "vocab_remove": ["landscape"],
+  "phrase_add": ["chef.s kiss architecture"],
+  "phrase_remove": ["(the|my) honest take"],
   "disabled_rules": ["rule-emoji-formatting"],
   "thresholds": { "ai_vocabulary": 3.0, "copulative_avoidance": 4.0 }
 }
 ```
+
+`phrase_add`/`phrase_remove` tune the model-era phrase roster (`rule-model-era-phrases`, the
+catalog's "Model-era additions" section). Fragments are whole EREs — spaces allowed,
+apostrophes spelled `.` (the detector's phrase convention), metacharacters live — and each key
+replaces wholesale per config layer, like `vocab_add`. A fragment that is not a valid ERE, or
+an empty one, is skipped with a stderr note rather than allowed to flood the rule or silently
+disable it; removing every shipped phrase leaves the rule inert. `phrase_remove` matches the
+shipped fragments verbatim (the shipped roster is listed by `--show-config`).
 
 `rule_allowed_paths` exempts ONE rule on the named globs and counts the file as declined for
 that rule — the proportionate closure when a whole document legitimately trips a single rule
@@ -81,3 +91,34 @@ text and mentions of a tell need no marker — writing about the phrase `in orde
 backticks or quotes never fires the filler rule. Typography rules (em dash, curly artifacts,
 emoji formatting, citation tokens, tracking parameters) still scan quoted material, because
 byte residue is a defect wherever it sits.
+
+## Updating the model-era inventory
+
+The catalog's "Model-era additions (repo-owned)" section is the evolving layer: when a new
+model generation introduces a tic, it is added there first. The workflow, in order:
+
+1. **Catalog entry first.** Add the tell to the section with its era, model attribution, and
+   an honest evidence grade: `locally-observed` (you saw it; nobody has documented it),
+   `community-attested` (independent sources document it), or `measured` (a frequency
+   measurement backs it). The grade gates placement — a `locally-observed` phrase is
+   `recorded-only` or a rubric cue, never a shipped script rule (the test suite asserts this).
+2. **Detector second, measurement first.** A `community-attested`+ phrase joins the shipped
+   `MODEL_PHRASES` roster in `detect.sh` only in an ANCHORED form measured at (or near) zero
+   hits on a real technical corpus; a vocabulary word joins the density list only through the
+   measured-narrowing gate (density gate quiet on legitimate files, firing files genuine
+   residue). Until then the closure for a repo that wants it is `phrase_add`/`vocab_add`.
+3. **Record third.** Date the addition in the section's model-era record with its sources, and
+   bump the plugin release per changelog parity. The record's recheck triggers (each release,
+   each new frontier model, a second frequency pool) are when entries are promoted, demoted to
+   Historical indicators, or handed to the upstream inventory if Wikipedia absorbs them.
+
+Vocabulary candidates that have NOT passed the gate (single-pool measurements: `gating`,
+`dedup`, `decisive`, `verdict`, `scaffolds`, `settles`, `handoff`, `genuinely`, `errored`,
+`drift`, `pre-existing`, `silently`, `verbatim`, `canonical`) stay `recorded-only` in the
+catalog; a repo whose corpus tolerates one adds it via `vocab_add` — measured here, even the
+distinctive core fired mostly on domain-literal prose, which is why none ships by default.
+
+The metaphor word-cues this layer added to the judgment rubric ("load-bearing", "seam") have
+no config lever — the rubric reads no config, and its findings reach the human report only.
+The catalog entry's literal-sense boundary is the suppression surface; saturation-level house
+usage of either word is a fix-pass decision for that repo, not a per-audit re-report.
