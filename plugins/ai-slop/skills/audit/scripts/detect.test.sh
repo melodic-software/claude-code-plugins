@@ -335,6 +335,37 @@ assert_contains "rule_allowed_paths: unlisted file still fires" "$out" "file=pla
 assert_not_contains "rule_allowed_paths: listed path declines the one rule" "$out" "file=quirks/doc.md"
 assert_contains "rule_allowed_paths: decline counted for the exempted rule" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=1"
 
+# rule_allowed() glob-expansion regression: the globs were expanded unquoted, so
+# a cwd where the glob matches real files replaced the configured pattern with
+# that directory's file listing before case-matching ever ran. The decoy cwd
+# below makes `quirks/**` expand (to decoy paths that match nothing under $RAP),
+# which broke the exemption before the read -r -a fix; the nested file also pins
+# that `**` crosses `/` (bash case fnmatch has no FNM_PATHNAME).
+DECOY="$TEST_TMPDIR/rap-decoy"
+mkdir -p "$DECOY/quirks/inner"
+printf 'decoy\n' >"$DECOY/quirks/decoy.txt"
+printf 'decoy\n' >"$DECOY/quirks/inner/decoy.txt"
+mkdir -p "$RAP/quirks/nested"
+printf '# Nested\n\nWritten in order to stay exempt here too.\n' >"$RAP/quirks/nested/deep.md"
+out="$(cd "$DECOY" && CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" "$RAP/quirks/nested/deep.md" "$RAP/plain.md" 2>&1)"
+assert_not_contains "glob expansion: exemption survives a cwd where the glob expands" "$out" "file=quirks/doc.md"
+assert_not_contains "glob expansion: ** crosses / for nested paths" "$out" "file=quirks/nested/deep.md"
+assert_contains "glob expansion: unlisted file still fires from the decoy cwd" "$out" "file=plain.md"
+assert_contains "glob expansion: both exempt files counted as declined" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=2"
+
+# Deliberate widening, pinned as documented behavior: these are shell case-match
+# globs, so `*` also crosses `/` — `sub/*.md` matches `sub/deep/nested.md`. A
+# consumer wanting gitignore-precision single-level matching has no spelling for
+# it; the README states the semantics.
+WIDE="$TEST_TMPDIR/rap-wide"
+mkdir -p "$WIDE/.claude" "$WIDE/sub/deep"
+cat >"$WIDE/.claude/ai-slop.json" <<'EOF'
+{ "rule_allowed_paths": { "rule-filler-phrases": ["sub/*.md"] } }
+EOF
+printf '# Deep\n\nWritten in order to test star depth.\n' >"$WIDE/sub/deep/nested.md"
+out="$(CLAUDE_PROJECT_DIR="$WIDE" bash "$DETECT" "$WIDE/sub/deep/nested.md" 2>&1)"
+assert_contains "glob semantics: * crosses / (case fnmatch, no FNM_PATHNAME)" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=1"
+
 # --- Exemptions ------------------------------------------------------------------
 
 out="$(bash "$DETECT" "$MARKED" 2>&1)"

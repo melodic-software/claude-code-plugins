@@ -63,6 +63,11 @@ that rule — the proportionate closure when a whole document legitimately trips
 (a density verdict especially, which no line marker can quiet). `em_dash_allowed_paths` is the
 older spelling of the same thing for `rule-em-dash` and stays supported.
 
+Every path-list key takes shell case-match globs, matched against the absolute path and the
+repo-relative path: `*` and `**` both cross `/` (there is no gitignore-style single-level
+`*`), so `docs/*.md` also matches `docs/guides/deep.md`. Spell the glob for the subtree you
+mean, not the directory level.
+
 In-file opt-outs: `<!-- ai-slop-ignore -->` on a line exempts that line;
 `<!-- ai-slop-ignore-start -->` and `<!-- ai-slop-ignore-end -->` fence a block;
 `<!-- ai-slop-ignore-file -->` exempts the whole file. Every form takes an

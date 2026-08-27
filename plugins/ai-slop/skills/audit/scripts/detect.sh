@@ -281,8 +281,15 @@ rule_allowed() {
   local slug="$1" file="$2" globs
   globs="${RULE_ALLOWED_GLOBS[$slug]:-}"
   [[ -z "${globs// /}" ]] && return 1
-  # shellcheck disable=SC2086
-  matches_glob "$file" $globs
+  # read -r -a word-splits WITHOUT pathname expansion. An unquoted $globs here
+  # was glob-expanded against the caller's cwd first, so a configured glob
+  # reached matches_glob as whatever files it happened to match locally —
+  # exemptions silently failed whenever the cwd made the expansion diverge
+  # from the literal glob (worst from the repo root, where globs expand).
+  local -a glob_arr=()
+  read -r -a glob_arr <<<"$globs"
+  [[ "${#glob_arr[@]}" -eq 0 ]] && return 1
+  matches_glob "$file" "${glob_arr[@]}"
 }
 
 rule_disabled() {
