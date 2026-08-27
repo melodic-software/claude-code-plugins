@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "provenance",
+  "version": "0.1.0",
+  "description": "Finds prose in tracked markdown that restates content an external source owns (vendor docs, blogs, articles) without adequate attribution, confirms the source, and refactors the copy into a pointer, a citation, or a dated stamped record. Documentation provenance, not software supply chain. Nomination and judgment are LLM work; the scripts do only reasoning-free work (corpus scoping, breadcrumb extraction, stamp expiry, fingerprint compare of two concrete texts). Read-only audit by default; explicit fix and sweep actions apply dispositions behind a semantic-diff guard and live pointer verification. Findings conform to the detector-findings convention.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "provenance",
+    "citation",
+    "attribution",
+    "copied-content",
+    "upstream-drift",
+    "documentation",
+    "detector",
+    "prose",
+    "audit",
+    "skill"
+  ]
+}

@@ -212,17 +212,17 @@ fixture-tree exclusion is unconditional (list-corpus), emitter refuses on unreac
 
 ### Phases
 
-### Phase 1: Scaffold and registration [TODO]
+### Phase 1: Scaffold and registration [DONE]
 
 Create the plugin skeleton per `design/plugin-topology.md` and register it.
 
-- [ ] `plugins/provenance/.claude-plugin/plugin.json` CREATE (manifest, version 0.1.0)
-- [ ] `plugins/provenance/README.md` CREATE (boundary statement per topology doc, config keys, marker forms, and a prerequisites section: Node for fingerprint.mjs, bash for the scripts, WebSearch optional with the degraded breadcrumb-only branch named)
-- [ ] `plugins/provenance/CHANGELOG.md` CREATE
-- [ ] `.claude-plugin/marketplace.json` MODIFY (add entry, ai-slop entry as the shape precedent; category chosen from the `docs/CATALOG-TAXONOMY.md` vocabulary, which `scripts/generate-catalog.mjs`'s CATEGORY_ORDER enforces)
-- [ ] `docs/CATALOG.md` MODIFY (regenerate: `node scripts/generate-catalog.mjs`)
-- [ ] `docs/SKILL-CHEAT-SHEET.md` MODIFY (regenerate: `node scripts/generate-cheatsheet.mjs`; regenerated again in Phase 5 when the SKILL.md files land)
-- [ ] `.claude/settings.json` MODIFY (insert `"provenance@melodic-software": true` under `enabledPlugins` in byte order; the catalog-enablement gate fails both UNENABLED and UNSORTED, and this is the three-time-shipped failure class the gate exists for)
+- [x] `plugins/provenance/.claude-plugin/plugin.json` CREATE (manifest, version 0.1.0)
+- [x] `plugins/provenance/README.md` CREATE (boundary statement per topology doc, config keys, marker forms, and a prerequisites section: Node for fingerprint.mjs, bash for the scripts, WebSearch optional with the degraded breadcrumb-only branch named)
+- [x] `plugins/provenance/CHANGELOG.md` CREATE
+- [x] `.claude-plugin/marketplace.json` MODIFY (add entry, ai-slop entry as the shape precedent; category chosen from the `docs/CATALOG-TAXONOMY.md` vocabulary, which `scripts/generate-catalog.mjs`'s CATEGORY_ORDER enforces)
+- [x] `docs/CATALOG.md` MODIFY (regenerate: `node scripts/generate-catalog.mjs`)
+- [x] `docs/SKILL-CHEAT-SHEET.md` MODIFY (regenerate: `node scripts/generate-cheatsheet.mjs`; regenerated again in Phase 5 when the SKILL.md files land)
+- [x] `.claude/settings.json` MODIFY (insert `"provenance@melodic-software": true` under `enabledPlugins` in byte order; the catalog-enablement gate fails both UNENABLED and UNSORTED, and this is the three-time-shipped failure class the gate exists for)
 
 **Sanity Check:** `jq empty plugins/provenance/.claude-plugin/plugin.json` exits 0;
 `jq -e '.plugins[] | select(.name == "provenance")' .claude-plugin/marketplace.json` exits 0;
