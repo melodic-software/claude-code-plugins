@@ -7,10 +7,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveTempSession, serializeTempPath } from "../lib/temp-session-paths.js";
 import { watchStatePath } from "./watch-state.js";
@@ -79,10 +79,8 @@ export function exportSheetFrameIndex(sliceDir) {
 }
 
 const sliceDir = process.argv[2];
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   if (!sliceDir) {
     writeStderr("Usage: node watch/export-sheet-frame-index.js <slice-dir>");
     process.exit(2);

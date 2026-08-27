@@ -7,10 +7,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { validateTriageSheet } from "../lib/watch-vision-validation.js";
 
@@ -78,10 +78,8 @@ export function mergeTriageJson(sliceDir, batchPaths) {
 
 const sliceDir = process.argv[2];
 const batchPaths = process.argv.slice(3);
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   if (!sliceDir) {
     writeStderr("Usage: node watch/merge-triage-json.js <slice-dir> [batch.json ...]\n");
     process.exit(2);

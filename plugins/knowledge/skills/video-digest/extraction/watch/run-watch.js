@@ -22,7 +22,6 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
@@ -34,6 +33,7 @@ import {
 } from "../adapters/adapter-contract.js";
 import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
 import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "../transcript/derive-video-slug.js";
@@ -352,10 +352,7 @@ export async function runWatchCli(argv) {
   }
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   runWatchCli(process.argv)
     .then((code) => {
       process.exitCode = code;

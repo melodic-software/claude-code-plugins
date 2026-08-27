@@ -7,10 +7,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveTempSession, serializeTempPath } from "../lib/temp-session-paths.js";
 import { watchStatePath } from "./watch-state.js";
@@ -62,10 +62,7 @@ export function snapshotBootstrapContactSheets(sliceDir) {
   return { copied: sheets.length, destDir };
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/snapshot-bootstrap.js <slice-dir>\n");

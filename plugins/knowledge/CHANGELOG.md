@@ -4,6 +4,21 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.17]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 6 (batch-simplify).** `video-digest`
+  extraction: the `isMainModule()` helper (lib/cli-entrypoint.js) rollout is completed
+  package-wide — all 30 remaining hand-rolled ESM main-module checks across watch/, watching/,
+  transcript/, evals/, and acquisition/ now use the helper, and the imports they orphaned
+  (`node:url`, sometimes `node:path`) are dropped; the only main-module check left in the
+  package is the helper itself. Two watch test files also consolidate: four hand-rolled
+  Map-backed fs fakes into one `memoryStore(seed)` helper (assertion-for-assertion identical)
+  and a byte-identical fixture setup hoisted into `beforeEach`. Every batch adversarially
+  refutation-verified (expression-identity tables, URL-normalization probes, HEAD-baseline
+  spot-runs); full package suite 71 files / 494 tests green; `tsc --noEmit` clean.
+
 ## [0.13.16]
 
 ### Changed

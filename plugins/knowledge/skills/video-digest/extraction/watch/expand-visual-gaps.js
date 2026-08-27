@@ -5,11 +5,11 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { parsePromotedTimestampsSec } from "../evals/check-watch-outcomes.js";
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
 /**
@@ -49,10 +49,8 @@ ${gapRows.join("\n")}
 }
 
 const sliceDir = process.argv[2];
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   if (!sliceDir) {
     writeStderr("Usage: node watch/expand-visual-gaps.js <slice-dir>");
     process.exit(2);

@@ -14,6 +14,13 @@ describe("snapshotBootstrapContactSheets", () => {
     sliceDir = mkdtempSync(join(tmpdir(), "slice-"));
     sheetsDir = mkdtempSync(join(tmpdir(), "video-sheets-"));
     writeFileSync(join(sheetsDir, "sheet_001.jpg"), "fake-jpg-bytes");
+
+    mkdirSync(join(sliceDir, "run-state"), { recursive: true });
+    writeFileSync(
+      join(sliceDir, "run-state", "watch.json"),
+      `${JSON.stringify({ tempSession: { contactSheetsDir: sheetsDir } }, null, 2)}\n`,
+      "utf8",
+    );
   });
 
   afterEach(() => {
@@ -22,13 +29,6 @@ describe("snapshotBootstrapContactSheets", () => {
   });
 
   it("tokenizes snapshot-meta.json sourceDir — no machine-local temp path leaks", () => {
-    mkdirSync(join(sliceDir, "run-state"), { recursive: true });
-    writeFileSync(
-      join(sliceDir, "run-state", "watch.json"),
-      `${JSON.stringify({ tempSession: { contactSheetsDir: sheetsDir } }, null, 2)}\n`,
-      "utf8",
-    );
-
     const result = snapshotBootstrapContactSheets(sliceDir);
     expect(result.copied).toBe(1);
 
@@ -40,13 +40,6 @@ describe("snapshotBootstrapContactSheets", () => {
   });
 
   it("writes a local .gitignore excluding the snapshot JPG binaries", () => {
-    mkdirSync(join(sliceDir, "run-state"), { recursive: true });
-    writeFileSync(
-      join(sliceDir, "run-state", "watch.json"),
-      `${JSON.stringify({ tempSession: { contactSheetsDir: sheetsDir } }, null, 2)}\n`,
-      "utf8",
-    );
-
     snapshotBootstrapContactSheets(sliceDir);
 
     const ignore = readFileSync(
