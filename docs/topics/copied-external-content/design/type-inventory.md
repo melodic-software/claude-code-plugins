@@ -104,13 +104,18 @@ shingling. Then word 5-shingles, containment, Jaccard, longest matched span. Out
 words}], separation: {rule: "containment>=0.3||span>=15", fired: true}}`. Constants are
 named placeholders read from config; plan time tunes them (Q10/Q16).
 
-### `emit-findings.sh --report SIDECAR`
+### `emit-findings.sh --report SIDECAR --out RESOLVED_PATH`
 
 Projects relay-eligible findings (`fingerprint-confirmed` copies, stamp rules) into a
-conforming findings file per the detector-findings contract: fetches the contract at run time,
-refuses to write when unreachable (report-only outcome, stated), resolves the destination
-through the topic-docs binding's rung order with the non-interactive collapse, applies the
-cell-escaping rule, leads every Finding cell with the qualified rule id and fired condition.
+conforming findings file per the detector-findings contract: applies the cell-escaping rule
+and leads every Finding cell with the qualified rule id and fired condition.
+
+Amended 2026-08-27 at plan time (stress-test finding): destination resolution through the
+topic-docs rung order and the contract fetch-and-refuse gate are MODEL-side work carried by
+`context/persist-findings.md`, exactly as the ai-slop precedent splits it; the script
+receives the already-resolved `--out` path and does only reasoning-free composition. Rung
+resolution involves prose inference, so a bash implementation would have violated C1 or
+silently collapsed to the documented default.
 
 ## Crosswalk rows (draft; land in the detector-findings registry at implementation)
 

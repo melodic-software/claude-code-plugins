@@ -171,8 +171,12 @@ inference from repository context that is not auto-loaded:
 | untrusted-content | `docs/conventions/untrusted-content/README.md` (framing spine, inline byte-identical) | team |
 | config-cascade | `docs/conventions/config-cascade/README.md` (`.claude/provenance.json`, `--show-config`) | team |
 | shell-test-helpers | `docs/conventions/shell-test-helpers/README.md` (paired `.test.sh` shape) | team |
-| evals warrant | `scripts/check-changed-skills.sh --require-evals` plus `scripts/evals-warrant-exemptions.txt` | team |
+| evals warrant | `scripts/check-changed-skills.sh <base-ref>` (applies `--require-evals` internally to changed skills) plus `scripts/evals-warrant-exemptions.txt` | team |
 | house prose | `/ai-slop:audit` catalog; `.claude/rules/vendor-docs-are-not-style.md` (ambient, not re-pulled) | team |
+| topic-docs | `docs/conventions/topic-docs/README.md` (destination rung order the emitter's caller resolves) | team |
+| plugin-data-report-keying | `docs/conventions/plugin-data-report-keying/README.md` (the report sidecar's keying) | team |
+| seam-phrasing | `docs/conventions/seam-phrasing/README.md` (presence-gated references to sibling plugins) | team |
+| invocation-mode | `docs/conventions/invocation-mode/README.md` (the two new always-listed skill descriptions) | team |
 
 ### Test strategy
 
@@ -199,13 +203,16 @@ fixture-tree exclusion is unconditional (list-corpus), emitter refuses on unreac
 Create the plugin skeleton per `design/plugin-topology.md` and register it.
 
 - [ ] `plugins/provenance/.claude-plugin/plugin.json` CREATE (manifest, version 0.1.0)
-- [ ] `plugins/provenance/README.md` CREATE (boundary statement per topology doc, config keys, marker forms)
+- [ ] `plugins/provenance/README.md` CREATE (boundary statement per topology doc, config keys, marker forms, and a prerequisites section: Node for fingerprint.mjs, bash for the scripts, WebSearch optional with the degraded breadcrumb-only branch named)
 - [ ] `plugins/provenance/CHANGELOG.md` CREATE
-- [ ] `.claude-plugin/marketplace.json` MODIFY (add entry, ai-slop entry as the shape precedent)
+- [ ] `.claude-plugin/marketplace.json` MODIFY (add entry, ai-slop entry as the shape precedent; category chosen from the `docs/CATALOG-TAXONOMY.md` vocabulary, which `scripts/generate-catalog.mjs`'s CATEGORY_ORDER enforces)
+- [ ] `docs/CATALOG.md` MODIFY (regenerate: `node scripts/generate-catalog.mjs`)
+- [ ] `docs/SKILL-CHEAT-SHEET.md` MODIFY (regenerate: `node scripts/generate-cheatsheet.mjs`; regenerated again in Phase 5 when the SKILL.md files land)
 
 **Sanity Check:** `jq empty plugins/provenance/.claude-plugin/plugin.json` exits 0;
 `jq -e '.plugins[] | select(.name == "provenance")' .claude-plugin/marketplace.json` exits 0;
-repo manifest CI scripts pass (`bash scripts/check-manifest-duplicate-keys.test.sh`).
+`bash scripts/validate-plugins.sh` exits 0 (it runs the catalog and cheatsheet `--check` plus
+manifest validation, so the generated views must be regenerated in this phase).
 
 ### Phase 2: Fingerprint module [TODO]
 
@@ -237,8 +244,18 @@ failure.
 - [ ] `plugins/provenance/skills/audit/scripts/emit-findings.sh` + `.test.sh` CREATE
 - [ ] `plugins/provenance/skills/audit/scripts/score-golden.sh` + `.test.sh` CREATE
 
+Contract split for `emit-findings.sh`, following the ai-slop precedent exactly (its
+`context/persist-findings.md` hands the script `--out <resolved path>`): the MODEL resolves
+the destination through the topic-docs rung order and runs the fetch-and-refuse contract
+gate; the SCRIPT receives `--report <sidecar> --out <resolved path>` and does only the
+reasoning-free composition (cell escaping, rule-id-first Finding cells, tier lookup).
+Rung resolution involves prose inference and is not reasoning-free, so putting it in bash
+would violate Brief constraint C1 (stress-test finding, 2026-08-27; type-inventory carries
+the dated amendment).
+
 **Sanity Check:** `for t in plugins/provenance/skills/audit/scripts/*.test.sh; do bash "$t" ||
-exit 1; done` exits 0; `bash scripts/affected-tests.sh` includes and passes the new tests.
+exit 1; done` exits 0; `bash scripts/affected-tests.sh --run` (diff vs origin/main) exits 0
+(the `--run` flag executes; bare invocation only lists).
 
 ### Phase 4: Reference artifacts [TODO]
 
@@ -251,12 +268,21 @@ table, one four-part record per entry restating an externally-owned rule.
 - [ ] `plugins/provenance/skills/audit/reference/dispositions.md` CREATE (three dispositions, guards, demotion path)
 - [ ] `plugins/provenance/skills/audit/reference/source-fetch.md` CREATE (rung ladder, identity checks, cache, budgets; four-part record citing upstream-drift)
 - [ ] `plugins/provenance/skills/audit/reference/nomination.md` CREATE (nomination and judge prompt templates, untrusted spine inline)
-- [ ] `plugins/provenance/skills/audit/context/persist-findings.md` CREATE (relay mechanics, refuse-when-unreachable)
+- [ ] `plugins/provenance/skills/audit/context/persist-findings.md` CREATE (relay mechanics, refuse-when-unreachable; model-side rung resolution per the Phase 3 contract split)
 
-**Sanity Check:** `grep -c 'C[1-4]-' plugins/provenance/skills/audit/reference/rubric.md` >= 4;
-the untrusted-content spine appears byte-identical in `source-fetch.md` and `nomination.md`
-(`grep -F` of the spine's first line hits both); `/ai-slop:audit` over the five files reports
-clean.
+Noted tension, resolution tagged in the handoff: ai-slop's model fetches the detector-findings
+contract from the publisher's raw URL at run time, which PLUGIN-PHILOSOPHY's org-agnosticism
+section flags as non-conforming (open case) and which turns every offline run report-only.
+Planned resolution: resolve the contract shape through the installed `review` plugin's bundled
+copy when present (presence-gated per seam-phrasing), publisher URL as fallback,
+refuse-when-neither-reachable retained.
+
+**Sanity Check:** each criterion id greps individually (`for c in C1-span-correspondence
+C2-beyond-common-idiom C3-attribution-adequacy C4-transformative-use; do grep -q "$c"
+plugins/provenance/skills/audit/reference/rubric.md || exit 1; done` exits 0); the
+untrusted-content convention's own two conformance greps pass over `source-fetch.md` and
+`nomination.md`, and are re-run in Phase 5 over SKILL.md's fetch step and fix-flow liveness
+check (all four T8 surfaces covered); `/ai-slop:audit` over the five files reports clean.
 
 ### Phase 5: Skills and evals [TODO]
 
@@ -274,10 +300,13 @@ subagents.
 - [ ] `plugins/provenance/skills/setup/SKILL.md` CREATE
 - [ ] `plugins/provenance/skills/setup/evals/evals.json` CREATE
 
-**Sanity Check:** `bash scripts/check-changed-skills.sh --require-evals` exits 0 with the two
-new skills in scope; `/skill-quality:check` over both SKILL.md files reports no blocking
-findings; `grep -n 'fix' plugins/provenance/skills/audit/SKILL.md` shows fix reachable only
-under an explicit-argument heading.
+**Sanity Check:** `bash scripts/check-changed-skills.sh origin/main` exits 0 with the two new
+skills in scope (it applies `--require-evals` to changed skills internally);
+`node scripts/generate-cheatsheet.mjs && node scripts/generate-catalog.mjs` then
+`bash scripts/validate-plugins.sh` exits 0; the untrusted-content conformance greps pass over
+the audit SKILL.md's fetch step and fix-flow liveness check; `/skill-quality:check` over both
+SKILL.md files reports no blocking findings; `grep -n 'fix' plugins/provenance/skills/audit/SKILL.md`
+shows fix reachable only under an explicit-argument heading.
 
 ### Phase 6: Golden set, measurement, and the improvement loop [TODO]
 
@@ -295,14 +324,25 @@ funded: diverse judge lenses versus identical prompts (the T15 diversity probe, 
 and multi-pass nomination union, scored against the same golden set so each dial's recall
 gain is a recorded number, not a belief.
 
+Two consequences stated plainly (stress-test findings, 2026-08-27). First, the v1 fix
+posture: with 5 to 10 total cases across four classes, no class reaches `min_n_per_class` 10,
+so EVERY class ships report-only at v1 by the gate's own arithmetic; fix mode goes live per
+class only when the growth loop carries that class past minimum n at or above the precision
+bar, `verbatim` targeted first. This is the designed path, not a failure. Second, Phase 6
+runs are sidecar-only: the emitter is not invoked until Phase 7's registry rows exist, so no
+relay file ever carries a rule id with no crosswalk row. The T15 live no-breadcrumb
+(not-found) probe needs a live corpus and moves to the Phase 8 sub-topic's Brief.
+
 - [ ] `plugins/provenance/skills/audit/evals/fixtures/golden/c01-.../` CREATE (5 to 10 case dirs: case.md, expected.json, source.md where needed)
 - [ ] `plugins/provenance/skills/audit/reference/dispositions.md` MODIFY (adjudication-to-fixture loop, if not landed in Phase 4)
 - [ ] `docs/topics/copied-external-content/PLAN.md` MODIFY (record measured P/R)
 
 **Sanity Check:** `bash plugins/provenance/skills/audit/scripts/score-golden.sh --report
-<sidecar>` exits 0 and emits per-class P/R; `bash plugins/provenance/skills/audit/scripts/list-corpus.sh
-plugins/provenance` output does NOT contain `fixtures/golden` (unconditional exclusion);
-measured P/R values recorded in this file.
+.work/copied-external-content/golden-run-report.json` exits 0 and emits per-class P/R (the
+sidecar path convention: the run's memory slice, this name); `bash
+plugins/provenance/skills/audit/scripts/list-corpus.sh plugins/provenance` output does NOT
+contain `fixtures/golden` (unconditional exclusion); measured P/R values recorded in this
+file; `git diff --name-only` for the phase contains no relay findings file.
 
 ### Phase 7: Crosswalk registration and quality gate [TODO]
 
@@ -312,6 +352,13 @@ registry, then run the full-repo quality gates over every new surface.
 - [ ] `docs/conventions/detector-findings/README.md` MODIFY (three rows: rule-verbatim-copy, rule-stamp-expired, rule-trigger-less-stamp)
 - [ ] `docs/conventions/detector-findings/CHANGELOG.md` MODIFY (entry for the rows)
 - [ ] `plugins/provenance/**` KEEP (audited by the gates, no planned change)
+
+Registering the `rule-trigger-less-stamp` crosswalk row here does NOT fire the upstream-drift
+convention engagement and does not touch that convention's "named but not built" table row:
+the engagement fires at sweep completion only (Brief; `design/convention-engagement.md`), and
+the row update is part of that engagement's changelog entry, owned by the Phase 8 sub-topic.
+The interim state (check built and registered, convention table not yet updated) is accepted
+and recorded here so it reads as scheduled, not drifted.
 
 **Sanity Check:** `bash scripts/check-detector-findings-crosswalk.sh --check` exits 0;
 `/ai-slop:audit` over `plugins/provenance` reports clean; full repo CI test lane
@@ -324,9 +371,13 @@ convention engagement (executing `design/convention-engagement.md`), and the nar
 regression gate for the cleaned state are promoted to their own topic
 (`docs/topics/provenance-sweep/`, own PLAN.md) per the sub-topic promotion trigger: own
 commit boundaries, more than five work items, and its own measurement needs. This phase in
-the parent plan is only the promotion itself.
+the parent plan is only the promotion itself. The sub-topic's Brief must carry, beyond the
+execution contract: the T15 live no-breadcrumb (not-found) probe as a first-run validation
+item, and sweep resume semantics (the fetch ceiling and cache are scoped per SWEEP and
+recorded in the closure ledger, so a resumed sweep neither resets its spend nor silently
+reuses a stale cache; the ledger is checkout-local, stated).
 
-- [ ] `docs/topics/provenance-sweep/PLAN.md` CREATE (Brief inherited from this file's execution-contract criteria)
+- [ ] `docs/topics/provenance-sweep/PLAN.md` CREATE (Brief inherited from this file's execution-contract criteria plus the two items above)
 
 **Sanity Check:** the sub-topic PLAN.md exists and its Brief cites this file; nothing under
 `plugins/provenance` changes in this phase (`git diff --name-only` for the phase touches only
@@ -416,18 +467,24 @@ plan template verbatim.
 
 ## Open questions
 
-- None blocking. T15 probes (adversarial fixtures, live not-found case, judge prompt
-  diversity) are scheduled inside Phase 6 and the sub-topic, not open decisions.
+- None blocking. T15 probes are all owned: adversarial fixtures and judge-lens diversity in
+  Phase 6; the live no-breadcrumb not-found probe in the Phase 8 sub-topic's Brief (it needs
+  a live corpus the offline golden set cannot supply).
 
 ## Handoff to implementation
 
 ### User-approval gates
 
-- Phase 6 records measured P/R; if any fix-eligible class misses the (tunable) bar, fix mode
-  for that class ships report-only and the user is told which key to tune, never a silent
-  demotion reversal.
-- Any scope expansion beyond `plugins/provenance/**` plus the two named shared surfaces stops
-  for approval.
+- v1 ships with fix mode dark for every class (the min-n arithmetic above); the first
+  per-class fix-mode activation, when the growth loop clears the gate, is surfaced to the
+  user rather than flipped silently.
+- [FALLBACK, confirm or override] `context/persist-findings.md` resolves the detector-findings
+  contract through the installed `review` plugin's bundled copy when present, publisher raw
+  URL as fallback, refusing only when neither is reachable. This departs from ai-slop's
+  URL-only precedent to serve offline runs and org-agnosticism; ai-slop itself is untouched.
+- Any scope expansion beyond `plugins/provenance/**` plus the named shared surfaces
+  (marketplace.json, the two generated views, the detector-findings registry) stops for
+  approval.
 
 ### Execution shape ([EXEC-SHAPE] tagged)
 
