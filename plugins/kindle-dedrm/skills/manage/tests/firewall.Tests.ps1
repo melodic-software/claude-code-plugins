@@ -157,10 +157,12 @@ Describe 'firewall.ps1' {
 
     Context 'check action, end to end' {
         # Run in a child pwsh: firewall.ps1 calls `exit`, which escapes an
-        # in-process `& $ScriptPath` and aborts the whole Pester run
-        # (Pester issue 2669). The child gets a Get-NetFirewallRule stub in its
-        # global scope, which the script picks up because it defines no function
-        # of that name itself.
+        # in-process `& $ScriptPath` and surfaces as
+        # "A 'break' or 'continue' statement ... escaped from your code",
+        # aborting the WHOLE container with no results rather than failing one
+        # test. The child gets a Get-NetFirewallRule stub in its global scope,
+        # which the script picks up because it defines no function of that name
+        # itself.
         BeforeAll {
             function Invoke-FirewallCheck {
                 param([Parameter(Mandatory)] [string] $EnabledMember)
