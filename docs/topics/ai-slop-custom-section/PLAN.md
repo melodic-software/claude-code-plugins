@@ -71,11 +71,14 @@ technical corpora whose legitimate vocabulary overlaps the tell list.
   research evidence; and entries for the researched roster (Tier A/B phrases; the
   ranked-punchline construction as `locally-observed`; Tier-C words as `recorded-only`
   unless a measurement admits them).
-- detect.sh ships one new phrase rule (distinctive multiword phrases measured at ~0
-  current corpus hits: e.g. "that's the part most people skip" family, "honest take",
-  "the unlock", "belt and suspenders" excluded or rubric-noted per its disputed status)
-  wired into PATTERN_RULES with a severity-crosswalk row, respecting the quotation
-  exemption; detect.test.sh covers it.
+- detect.sh ships one new phrase rule wired into PATTERN_RULES, respecting the quotation
+  exemption, with the shipped roster pinned to the ANCHORED ERE fragments in Phase 3
+  (the "part most people skip" family, "(the|my) honest take", "that.s the unlock" —
+  bare "the unlock" and "honest take" bigrams are recorded-only: the bare unlock form
+  has a measured in-repo domain-literal false positive). Severity-crosswalk row added in
+  the detector-findings convention (with that convention's own CHANGELOG minor bump) and
+  mirrored in emit-findings.sh; detect.test.sh covers the rule, the roster-agreement
+  sets, and the config-reader failure modes.
 - `rule-abstract-metaphor-jargon` rubric entry gains the new metaphor word cues
   (load-bearing, seam, and researched siblings) with the literal-vs-metaphor boundary
   stated per word.
@@ -145,10 +148,17 @@ practical: write the failing phrase-rule and glob-bug tests first, then implemen
 
 - detect.sh `rule_allowed()`: replace the unquoted `matches_glob "$file" $globs` with a
   `read -r -a` split into an array (read does not pathname-expand) and a quoted
-  `"${arr[@]}"` call.
-- detect.test.sh: regression test — config with `rule_allowed_paths` glob, detector run
-  from a cwd where pathname expansion would break the match (and a nested path under a
-  `**` glob); exemption must hold and count as declined.
+  `"${arr[@]}"` call. Note the bug bites hardest FROM the repo root (where globs
+  expand against real files); `em_dash_allowed_paths` feeds the same path and is
+  equally affected — the CHANGELOG behavior-change entry names both keys.
+- detect.test.sh: regression tests — (a) a `rule_allowed_paths` glob honored from a cwd
+  where the fixture makes pathname expansion actually occur (create files the glob
+  expands to, so the test tests something), and from a nested path under a `**` glob;
+  (b) pin the deliberate widening: `docs/*.md` matches `docs/sub/deep.md` (bash case
+  fnmatch has no FNM_PATHNAME — `*` crosses `/`; tested so it is documented behavior,
+  not an accident). Exemptions count as declined.
+- README: document the glob semantics for all path-list keys ("shell case-match globs:
+  `*` and `**` both cross `/`; not gitignore globs").
 - **Sanity Check:** `bash plugins/ai-slop/skills/audit/scripts/detect.test.sh` exits 0
   including the new regression cases; `grep -n 'matches_glob "\$file" \$globs'
   plugins/ai-slop/skills/audit/scripts/detect.sh` returns no match.
@@ -162,18 +172,30 @@ practical: write the failing phrase-rule and glob-bug tests first, then implemen
     vocabulary defined (`locally-observed | community-attested | measured`) with the
     placement gate stated (locally-observed → `recorded-only`/rubric only).
   - `rule-model-era-phrases` entry (script; wording class): distinctive phrase
-    constructions with era/model/attribution fields. Initial shipped roster (all
-    community-attested+, ~0 current corpus hits, measured): "the part most people skip"
-    family, "honest take", "that's the unlock". Ranked-punchline construction ("N
-    observations, and one is load-bearing") catalogued `recorded-only`
-    (evidence: locally-observed — zero indexed attestations; components documented).
+    constructions with era/model/attribution fields. Shipped roster = exactly the
+    anchored EREs pinned in Phase 3; the bare "the unlock" and "honest take" bigram
+    spellings are recorded in the entry as recognized-but-not-shipped (measured
+    domain-literal FP for the bare unlock form; blog-register human usage for the bare
+    honest-take form). Ranked-punchline construction ("N observations, and one is
+    load-bearing") catalogued `recorded-only` (evidence: locally-observed — zero
+    indexed attestations; components documented).
+  - Entry layout pinned for the count check: one `### rule-` heading per tell
+    (`rule-model-era-phrases`, `rule-belt-and-suspenders`, the ranked-punchline
+    entry); the Tier-C vocabulary words grouped under ONE `### rule-` heading
+    (`recorded-only`, the rule-ai-vocabulary word-list pattern), each word with its
+    single-pool caveat and promotion criterion.
   - "belt and suspenders" entry, `recorded-only`, with the community dispute recorded
     (HN commenters attest pre-LLM usage; density-only if ever promoted).
   - Tier-C vocabulary entries (`gating`, `dedup`, `pre-existing`, and the researched
     cluster) as `recorded-only` with the single-pool caveat and per-word promotion
     criterion (the measured-narrowing gate); pointer to README `vocab_add` suggestions.
   - Word-cue additions to `rule-abstract-metaphor-jargon`: "load-bearing", "seam", each
-    with its literal-sense boundary (load-bearing wall/architecture; Feathers seam).
+    with its literal-sense boundary written BROADLY — covering term-of-art use in
+    architecture/testing prose (a Feathers seam, a load-bearing invariant named as
+    such deliberately), not just the wall metaphor — and stating explicitly that
+    saturation-level house usage is a fix-pass decision, never a per-audit re-report
+    (this repo: the cues land on 496 of 1,361 files, 36%, measured; the rubric layer
+    has no config lever, so the boundary text is the only suppression surface).
   - Currency notes on the existing `rule-chatbot-artifacts` entry ("You're absolutely
     right!", "Found the smoking gun": 2026 prominence, suppression-resistance evidence,
     Anthropic's own acknowledgment).
@@ -181,58 +203,108 @@ practical: write the failing phrase-rule and glob-bug tests first, then implemen
     the research evidence (HN 48905248, archiewood/claudeisms, Suppa measurement,
     anthropics/claude-code#53454, Velitchkov, crystl.dev), the harness/system-prompt
     confound (mirror-attested), and the recheck trigger (each ai-slop release or new
-    frontier model).
+    frontier model, AND "check whether a second independent Tier-C frequency pool has
+    landed" — the promotion condition no recheck would otherwise look for).
   - Update the Inventory count line to account for the new section's entries.
 - **Sanity Check:** `grep -c '^### rule-' plugins/ai-slop/skills/audit/reference/catalog.md`
-  equals the count stated in the Inventory section; `grep -n 'Model-era additions'
-  catalog.md` hits the section, the overlap/attribution block, and the record block.
+  equals the sum of the counts stated in the Inventory section (currently 65+7=72;
+  post-change 72 + the new `### rule-` headings per the pinned layout above);
+  `grep -n 'Model-era additions' plugins/ai-slop/skills/audit/reference/catalog.md`
+  hits the section, the attribution block, and the record block.
 
 ### Phase 3: Detector — phrase rule + phrase_add/phrase_remove [TODO]
 
-- detect.sh: `MODEL_PHRASES` array holding the shipped roster as ERE fragments;
-  `phrase_remove` filters it; `phrase_add` appends (both read via a separator-preserving
-  jq reader — the `@tsv`/`join("|")` precedent — never `cfg_array`); joined into
-  `__PHRASES__`, substituted in the pattern loop like `__VOCAB__`; new PATTERN_RULES
-  entry `rule-model-era-phrases|phrase match|1|1|wording|__PHRASES__`; `--show-config`
-  reports the effective phrase list; empty-roster guard (all phrases removed → rule
-  emits nothing rather than matching everything).
-- Severity crosswalk: add the argued row for `rule-model-era-phrases` wherever the
-  existing crosswalk rows live (locate via the detector-findings convention reference).
+- detect.sh: `MODEL_PHRASES` array holding the shipped roster as ERE fragments —
+  **pinned here, the single source for every other mention in this plan**:
+  `the part most people skip`, `(the|my) honest take`, `that.s the unlock`
+  (apostrophes as `.` per the file's convention; anchored forms only — the bare
+  bigrams are recorded-only in the catalog).
+- Config plumbing: `phrase_remove` filters the array; `phrase_add` appends (both read
+  via a separator-preserving jq reader — the `@tsv`/`join("|")` precedent, with the
+  mandated CR-stripping — never `cfg_array`); joined into `__PHRASES__`, substituted in
+  the pattern loop like `__VOCAB__`; new PATTERN_RULES entry
+  `rule-model-era-phrases|phrase match|1|1|wording|__PHRASES__`; `--show-config` reports
+  the effective phrase list; cascade semantics documented as replace-wholesale per key
+  (the vocab_add precedent).
+- Fragment hygiene (measured failure modes, both reproduced): drop empty/whitespace-only
+  fragments (an empty alternation branch matches EVERY line — flood); probe each
+  remaining fragment for ERE validity at config-read time (`grep -E --` against
+  /dev/null; on exit 2, warn on stderr naming the fragment and layer, and skip that
+  FRAGMENT, not the rule — an unbalanced paren otherwise silently kills the whole rule
+  into an indistinguishable `findings=0` Summary row).
+- Tier: pinned **SUGGESTION** (register preference among working phrasings — the
+  significance-inflation walk), so the emit-findings.sh `rule_tier()` unknown-slug
+  default is correct by construction; add the rule's rewrite action to `rule_action()`.
+- Detector-findings convention (source of truth for the crosswalk,
+  `docs/conventions/detector-findings/README.md`): add the argued row for
+  `rule-model-era-phrases` in the convention's admission-test form, plus the
+  convention's own CHANGELOG minor entry (2.6.0 → 2.7.0 per its "new adopter row is a
+  minor bump" rule).
 - detect.test.sh: phrase fires on an inline fixture; quoted/backticked mention declines
-  (quotation exemption); `phrase_add` multiword phrase survives the cascade (the
-  cfg_array word-split trap is the regression under test); `phrase_remove` silences a
-  shipped phrase; `disabled_rules` disables the rule; empty-roster guard case.
-- **Sanity Check:** detect.test.sh exits 0 with the new cases; a tmpdir fixture
+  via the quotation exemption (assert `declined=1` in the rule's Summary row — no
+  per-candidate `Declined:` row exists for quote exemption); `phrase_add` multiword
+  phrase survives the cascade (the cfg_array word-split trap under test); a CRLF-jq
+  shim case for both new readers (the #3343 regression class — join the existing
+  CRLF section); `phrase_remove` silences a shipped phrase; `disabled_rules` disables
+  the rule; empty-roster guard; invalid-fragment case (shipped roster keeps firing,
+  stderr names the fragment); empty-string-element case (no flood); extend the
+  roster-agreement expected sets (`EXPECTED_SUGGESTION`) for the new rule; catalog
+  consistency assertion — within the Model-era section, `evidence: locally-observed`
+  never co-occurs with `v1: script` (the evidence-grade gate survives future edits).
+- **Sanity Check:** detect.test.sh exits 0 with all new cases; a tmpdir fixture
   containing "that's the unlock" yields a `rule-model-era-phrases` finding; the same
-  text double-quoted yields a decline row, not a finding.
+  text double-quoted yields `findings=0 declined=1` in that rule's Summary row;
+  `grep -n 'rule-model-era-phrases' docs/conventions/detector-findings/README.md` hits
+  the crosswalk row and `head docs/conventions/detector-findings/CHANGELOG.md` shows
+  2.7.0.
 
 ### Phase 4: Docs — README, rewrite guide, SKILL.md [TODO]
 
 - README.md: document `phrase_add`/`phrase_remove` (ERE-fragment contract, apostrophes
-  as `.`), the evidence-grade wiring, and a "suggested vocab_add candidates" list for
-  the Tier-C words that did not ship (with the one-line reason).
+  as `.`, replace-wholesale cascade semantics, the malformed-fragment behavior — invalid
+  fragments are skipped with a stderr warning), the glob semantics note from Phase 1,
+  the evidence-grade wiring, the section's UPDATE WORKFLOW (how the owner adds a phrase
+  as model eras progress: catalog entry with grade + measurement, then detector roster
+  if grade and measurement admit it, then record-block entry), a "suggested vocab_add
+  candidates" list for the Tier-C words that did not ship (one-line reason each), and a
+  note that rubric word-cues have no config lever (advisory; the catalog boundary text
+  is the suppression surface).
+- Setup surface (pre-flight consumer sweep, verified consumers): `skills/setup/SKILL.md`
+  key table + misconfiguration-validation list gain both new keys; the config-cascade
+  convention's adopter row for ai-slop (`docs/conventions/config-cascade/README.md`,
+  "Two list keys...") updated to name the phrase pair.
 - rewrite-guide.md: replacement guidance for the new classes — metaphor words
   (load-bearing → name what actually depends on it; seam → the concrete interface/file),
   phrase constructions (ranked punchline → state the observation without self-ranking;
   "honest take" → delete the opener; "the unlock" → name the mechanism).
 - SKILL.md purpose line: extend the catalog-sections mention to include the model-era
-  section (keeps the skill body's inventory description accurate).
-- **Sanity Check:** `grep -n phrase_add plugins/ai-slop/README.md` documents both keys;
-  `grep -n 'load-bearing' plugins/ai-slop/skills/audit/reference/rewrite-guide.md` hits
-  the new guidance; `/ai-slop:audit`'s own detector run over the four edited docs
-  reports zero new findings (house style passes its own audit).
+  section; check plugin.json `description` and SKILL.md frontmatter `description` for
+  the same currency (they enumerate tell families).
+- **Sanity Check:** `grep -n phrase_add plugins/ai-slop/README.md
+  plugins/ai-slop/skills/setup/SKILL.md docs/conventions/config-cascade/README.md`
+  hits all three; `grep -n 'load-bearing'
+  plugins/ai-slop/skills/audit/reference/rewrite-guide.md` hits the new guidance;
+  detector run over README.md and the audit SKILL.md reports zero new findings
+  (catalog.md and rewrite-guide.md are exclusion/marker-covered and verify as declined,
+  not as scanned-clean).
 
 ### Phase 5: Calibration, changelog-parity release [TODO]
 
 - Repo-wide detector run (chunked per SKILL.md) before/after; record the delta in the
   catalog's calibration record as a dated fourth pass (expected: phrase rule ~0 findings
-  on this corpus; no density change since no Tier-C word ships by default).
+  on this corpus; no density change since no Tier-C word ships by default), AND the
+  rubric-cue base-rate counts (load-bearing/seam file and occurrence greps) alongside —
+  the rubric layer carries this change's real cost and the detector delta alone would
+  measure the wrong layer.
 - Per-word measurement for the deferred Q8 candidates (`pre-existing` first): run the
   detector with the word in `vocab_add` over the corpus; admit into the shipped list
   only if the density gate stays quiet on legitimate files AND firing files are genuine
   residue; otherwise the catalog entry stays `recorded-only` with the measurement cited.
 - CHANGELOG.md entry (new section, new rule, new config keys, glob-bug fix, evidence
-  citations) + plugin.json version bump 0.4.2 → 0.5.0 (additive feature + fix).
+  citations) + plugin.json version bump 0.4.2 → 0.5.0 (additive feature + fix; the
+  0.4.0 three-new-rules release is the size precedent). The entry states that new
+  findings will appear (the 0.4.0 wording precedent) and carries the glob-fix
+  behavior-change note naming BOTH `rule_allowed_paths` and `em_dash_allowed_paths`.
 - Run repo toolchain checks on touched files (shellcheck/shfmt on detect.sh and tests,
   markdownlint on edited markdown).
 - **Sanity Check:** `jq -r .version plugins/ai-slop/.claude-plugin/plugin.json` prints
@@ -250,9 +322,21 @@ documented (strictly widens exemptions to where they were already configured).
 
 ## Stress-test summary
 
-Pending: fresh-context plan-reviewer (Step 3) + formal devils-advocate (Step 4, MEDIUM
-blast radius) dispatched against this draft; findings will be verified and folded in
-before implementation.
+Both fresh-context passes ran 2026-08-27 against the draft and their confirmed findings
+are folded into the phases above. Plan-reviewer: 1 CRITICAL (roster-agreement tests +
+emit-findings tier mirror unaccounted — now in Phase 3), 4 IMPORTANT (convention
+CHANGELOG duty, consumer sweep for setup/config-cascade surfaces, roster-form
+inconsistency, CRLF-jq regression case), 5 SUGGESTION (all folded). Devils-advocate
+(verdict: plan survives with revisions): 3 HIGH — the bare "unlock" form fails the
+plan's own ~0-findings criterion on a measured in-repo domain-literal hit (roster now
+pinned to anchored forms), phrase_add fragment flood/silent-kill failure modes
+reproduced by measurement (fragment hygiene + tests now in Phase 3), rubric cues land
+on 36% of this corpus with no config lever (boundary text broadened, suppression story
+documented, rubric base rates added to Phase 5's evidence); 3 MEDIUM and 3 LOW folded
+(anchored honest-take form, glob-semantics documentation naming both keys, convention
+row/tier pinning, entry-layout pinning, version-bump precedent confirmed, recheck line
+for a second Tier-C pool). Both validators independently confirmed the glob-bug
+diagnosis and fix shape.
 
 ## Execution shape
 
