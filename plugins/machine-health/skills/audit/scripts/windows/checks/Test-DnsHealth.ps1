@@ -32,7 +32,6 @@ try {
         }
     }
 
-    # Default gateway reachability (1 ping, 1s timeout).
     $gatewayReachable = $null
     $gateway = $null
     try {

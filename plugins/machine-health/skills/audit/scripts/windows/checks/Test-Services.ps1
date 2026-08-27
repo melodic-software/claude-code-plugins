@@ -9,7 +9,7 @@ See references/windows/check-catalog.md#4-services--startup-items for rubric.
 param([switch]$Human)
 
 Set-StrictMode -Version 3.0
-# Resilient-worker pattern per powershell/conventions.md: keep
+# Resilient-worker pattern: keep
 # ErrorActionPreference at Continue so non-terminating errors don't
 # abort the structured JSON envelope; outer try/catch around the main
 # body catches catastrophic failures and emits UNKNOWN. Strict mode
