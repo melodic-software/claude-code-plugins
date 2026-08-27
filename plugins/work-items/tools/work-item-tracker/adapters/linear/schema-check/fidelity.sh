@@ -96,7 +96,9 @@ done
 # The SHARED field-selection block. Three of the read operations — fetch_issue,
 # list-items' issues walk and list-sub-items' children walk — interpolate this one template
 # rather than spelling their selections out, so an unchecked `F` leaves the highest-traffic
-# reads resting on nothing.
+# reads resting on nothing. It was previously extracted, printed, and compared to nothing at
+# all, which made the README's "every operation matches" claim an overstatement for exactly
+# those three. Now asserted, and it contributes to ok/bad like everything else.
 fields_needle="$(printf '%s' "$FIELDS" | unesc | norm)"
 if [[ -z "$fields_needle" ]]; then
   bad=$((bad + 1))

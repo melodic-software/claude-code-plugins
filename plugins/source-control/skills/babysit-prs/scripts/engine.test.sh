@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Test entry for the babysit-prs engine: runs the stdlib-unittest suite under
-# tests/, an optional ruff lint pass, and a bash-level check of the guarded
-# wrappers (whose --allow-unpinned-head rejection is a shell concern, not a
-# Python one). SKIPs (exit 0) when Python 3.11+ is unavailable, matching the
+# tests/ (test_babysit_delta.py and siblings, covering babysit_delta.py and the
+# other engine modules), an optional ruff lint pass, and a bash-level check of
+# the guarded wrappers (whose --allow-unpinned-head rejection is a shell
+# concern, not a Python one). SKIPs (exit 0) when Python 3.11+ is unavailable, matching the
 # repo test-runner convention for optional toolchains.
 set -uo pipefail
 
