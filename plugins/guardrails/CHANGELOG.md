@@ -3,6 +3,29 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.17]
+
+### Fixed
+
+- **`block-hook-bypass` and `flag-commit-pr-skill-bypass` no longer emit an assignment VALUE as the
+  telemetry subject.** Both carried a local, pre-hardening copy of the subject reducer that stripped
+  `sudo` / `NAME=*` prefixes naively, so `TOKEN="a b" curl …` emitted `Bash:b"` and a bare
+  `TOKEN=ghp_…` emitted the whole assignment — a possible credential — into the envelope. Both now
+  call the shared hardened `hook::extract_bash_subject`, which aborts to the bare `Bash` subject when
+  a prefix token carries a quote, when the resolved token carries a quote, or when the resolved token
+  is still shaped like a bare or trailing assignment. **Telemetry subject output changes** for those
+  command shapes, and for a whitespace-only command (`Bash:` becomes `Bash`); every other shape,
+  including the `sudo`-prefixed basename strip, is byte-identical. No copy of the reducer remains in
+  either hook. (#3372)
+- **The verify-hook suites' exit-code assertions are no longer vacuous.** `skill-reference-verify`
+  and `stale-path-verify` called their `run` / `run_edit` helpers as `OUT=$(run …)`, which runs the
+  helper in a command-substitution subshell, so the `RC=$?` assigned inside never reached the parent
+  and each following `assert_exit` compared a stale outer `0`. Both helpers now put the hook's output
+  in a global `OUT` and RETURN its exit code, and every call site is `run …` followed by
+  `assert_exit … "$?"` — the shape `source-control`'s `worktree-claim.test.sh` already uses. Each
+  suite gained a case that points the helpers at a stub hook exiting 3 and asserts the 3 arrives, so
+  the propagation itself is guarded. (#3373)
+
 ## [0.29.16]
 
 ### Changed

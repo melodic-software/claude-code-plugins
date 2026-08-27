@@ -212,13 +212,28 @@ if _ps_before=$(mktemp 2>/dev/null); then
   cp "$FILE" "$_ps_before" 2>/dev/null || _ps_before=""
 fi
 
-maybe_disclose_ps_rewrite() {
+# Release the snapshot and record the disclosure text (empty when nothing was
+# rewritten) in PS_REWRITE_MESSAGE. Split from the emitting wrapper because an
+# arm that ALSO carries additionalContext must compose both channels into ONE
+# document: Claude Code parses the hook's whole stdout as a single JSON doc, so
+# a second printed object is an invalid response and either message can be lost.
+# Idempotent — a second call finds `_ps_before` empty and resets the message.
+PS_REWRITE_MESSAGE=""
+take_ps_rewrite_disclosure() {
+  PS_REWRITE_MESSAGE=""
   [[ -n "$_ps_before" ]] || return 0
   if ! cmp -s "$_ps_before" "$FILE" 2>/dev/null; then
-    hook::emit_system_message "powershell-format: reformatted $(basename "$FILE") via Invoke-Formatter (structural layout only)."
+    PS_REWRITE_MESSAGE="powershell-format: reformatted $(basename "$FILE") via Invoke-Formatter (structural layout only)."
   fi
   rm -f "$_ps_before"
   _ps_before=""
+}
+
+# Disclosure for an arm that carries no additionalContext of its own.
+maybe_disclose_ps_rewrite() {
+  take_ps_rewrite_disclosure
+  [[ -n "$PS_REWRITE_MESSAGE" ]] || return 0
+  hook::emit_system_message "$PS_REWRITE_MESSAGE"
 }
 
 # Single pwsh invocation — probe the module, gate code-loading settings, format
@@ -665,22 +680,24 @@ case $PWSH_EXIT in
   # Findings — advisory context, exit 0. Status "ok": the analyzer RAN and
   # produced a judgment (findings live in data.findings), mirroring the sibling
   # formatter plugins where status reflects whether the tool ran, not clean-ness.
-  hook::ctx_reset
-  hook::ctx_append "powershell-format: $(basename "$FILE") has PSScriptAnalyzer findings (advisory):"
+  PS_CTX="powershell-format: $(basename "$FILE") has PSScriptAnalyzer findings (advisory):"
   findings_raw=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    hook::ctx_append "  $line"
+    PS_CTX+=$'\n'"  $line"
     findings_raw+="$line"$'\n'
   done <<<"$PSSA_OUTPUT"
-  hook::ctx_flush PostToolUse
 
   FINDINGS_JSON='[]'
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
   emit_tel "ok" "$FINDINGS_JSON"
-  maybe_disclose_ps_rewrite
+  # Findings AND a rewrite disclosure compose into one document. Emitting the
+  # context and the systemMessage as two objects would break the single-JSON-doc
+  # stdout contract, which is what hook::emit_channels exists to prevent.
+  take_ps_rewrite_disclosure
+  hook::emit_channels PostToolUse "$PS_CTX" "$PS_REWRITE_MESSAGE"
   exit 0
   ;;
 3)
@@ -755,6 +772,11 @@ case $PWSH_EXIT in
     hook::emit_skip_notice PostToolUse \
       "powershell-format trust gate: PSScriptAnalyzer run skipped — $SETTINGS_REL declares CustomRulePath (analysis would load and execute repository-supplied rule modules) or cannot be verified code-free. $APPROVE_HINT"
   fi
+  # No disclosure decision is owed here: every `exit 6` in the pwsh block above
+  # is raised by the trust gate, which runs BEFORE Invoke-Formatter, so no
+  # rewrite can have landed. Only the snapshot needs releasing — same as arms
+  # 3 and 5, which also precede the formatter.
+  rm -f "$_ps_before"
   emit_skipped
   ;;
 *)
@@ -762,14 +784,19 @@ case $PWSH_EXIT in
   # judgment was made. Surface via additionalContext (NOT stderr — an advisory
   # hook's exit-0 stderr can trip a false "Hook Error" label). Record as
   # "skipped" (the analyzer never ran to judgment).
-  hook::ctx_reset
-  hook::ctx_append "powershell-format: pwsh failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+  PS_CTX="powershell-format: pwsh failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    hook::ctx_append "  $line"
+    PS_CTX+=$'\n'"  $line"
   done <<<"$PSSA_OUTPUT"
-  hook::ctx_flush PostToolUse
   emit_tel "skipped" '[]'
+  # Invoke-Formatter writes back BEFORE Invoke-ScriptAnalyzer runs, and both sit
+  # inside the same try/catch that raises exit 4 — so a rewrite can already be on
+  # disk when pwsh breaks. Take the disclosure (which also releases the snapshot
+  # on the changed and unchanged paths alike) and emit it WITH the tool-break
+  # context as one document, rather than exiting on a silent rewrite.
+  take_ps_rewrite_disclosure
+  hook::emit_channels PostToolUse "$PS_CTX" "$PS_REWRITE_MESSAGE"
   exit 0
   ;;
 esac

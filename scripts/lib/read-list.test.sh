@@ -100,6 +100,59 @@ if read_list::into entries "$f" --bogus 2>/dev/null; then
 else
   ok "an unknown option is rejected"
 fi
+
+# A BARE `--comments` (the flag present, its mode value missing) must reach the
+# same rc-2 answer, and must reach it AT ALL. The pre-#3363 arm consumed its
+# value with `shift 2 || true`; as the last argument that shifted nothing and
+# returned non-zero, `|| true` hid the failure, `$#` stayed at 1, and the option
+# loop reprocessed `--comments` forever.
+#
+# The WATCHDOG is the load-bearing part of this assertion, not decoration:
+# without a bound, a regression does not FAIL this suite, it HANGS it, and an
+# unbounded stall in CI is worse than a red test. It is hand-rolled from
+# `kill`/`wait` rather than written as `timeout 5` because GNU coreutils
+# `timeout` is absent from a stock macOS userland, which
+# scripts/check-shell-portability.sh names as the platform no runner here
+# covers: on a developer's Mac that invocation would return 127 and fail a
+# correct library. `sleep`, `kill` and `wait` are POSIX, so this bounds the
+# probe everywhere. A killed probe reports 128+SIGKILL, never 2.
+missing_value_rc=0
+# shellcheck disable=SC2016  # $1/$2 are the inner `bash -c` positionals, deliberately unexpanded here
+bash -c '
+  . "$1"
+  declare -a probe=()
+  read_list::into probe "$2" --comments
+' _ "$SELF_DIR/read-list.sh" "$f" 2>/dev/null &
+probe_pid=$!
+# SIGKILL on the watchdog SHELL, and no `wait` for it. SIGTERM would be
+# deferred until its foreground `sleep` returned, costing the suite the full
+# five seconds on the HAPPY path; SIGKILL cannot be deferred. Killing the shell
+# rather than letting it fire against an already-reaped pid is also what keeps
+# this free of a pid-reuse hazard: the orphaned `sleep` has nothing left to run
+# the kill.
+# The `>/dev/null 2>&1` is not cosmetic. Without it the orphaned `sleep`
+# inherits this suite's stdout, and anything reading the suite through a pipe
+# blocks for the full five seconds waiting for that last writer to close.
+(
+  sleep 5
+  kill -9 "$probe_pid" 2>/dev/null
+) >/dev/null 2>&1 &
+watchdog_pid=$!
+# `disown` drops the watchdog from the job table so bash does not announce its
+# death. Measured on Git Bash (MSYS2), which prints
+# `<script>: line N: <pid> Killed  ( sleep 5; ... )` to the suite's stderr
+# without it, on the PASSING path; Linux bash stays quiet either way. The
+# probe's own kill IS still announced, but only where this case already FAILs.
+disown "$watchdog_pid" 2>/dev/null
+wait "$probe_pid" || missing_value_rc=$?
+kill -9 "$watchdog_pid" 2>/dev/null
+if [[ "$missing_value_rc" -eq 2 ]]; then
+  ok "a bare --comments (no mode value) returns 2 promptly"
+elif [[ "$missing_value_rc" -ge 128 ]]; then
+  fail "a bare --comments HUNG (watchdog killed it, rc=$missing_value_rc) instead of returning 2 (#3363)"
+else
+  fail "a bare --comments returned $missing_value_rc, want 2"
+fi
 rm -f "$f"
 
 # --- an unreadable file is loud, never an empty list -----------------------

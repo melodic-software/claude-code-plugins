@@ -46,6 +46,23 @@ only after that version increases.
   destructure that fed only that return. No emitted output, JSON shape, or exit-code change;
   package suite 91/91 green; adversarially refutation-verified.
 
+## [0.13.15]
+
+### Fixed
+
+- **`recover-watch-bootstrap` crashed instead of printing its usage line (#3365).** The CLI ran
+  `path.resolve(argv[2])` through `path.resolve(argv[5])` BEFORE the presence check, so a
+  missing argument threw `TypeError: The "paths[0]" argument must be of type string` first and
+  the usage branch (and its `return 1`) was unreachable. Callers got a stack trace. Arguments
+  are now validated before resolution, so a short invocation prints the usage line and returns
+  1.
+- **The downsample WARN reported the same count on both sides (#3365).** `selection` was
+  reassigned with the downsampled array before the log interpolated
+  `selection.selected.length`, so a 50-frame selection cut to 16 logged
+  `downsampled 16 → 16 frames` and hid every dropped frame. The stratified downsample moved to
+  an exported `downsampleSelectedFrames` helper that captures the pre-downsample count, and the
+  WARN now names the true before count, the after count, and how many frames were dropped.
+
 ## [0.13.14]
 
 ### Changed

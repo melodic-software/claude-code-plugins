@@ -187,4 +187,43 @@ else
 fi
 rm -rf "$f"
 
+# --- an invalid base ref exits 2, not a silent "nothing to gate" (#3377) -----
+#
+# Target discovery runs inside `mapfile -t targets < <( ... )`, and the
+# base-ref branch's `exit 2` terminated only that process-substitution
+# subshell. `mapfile`'s own status reflects the READ, and a process
+# substitution's exit code is not propagated, so the parent saw nothing but an
+# empty `targets`, scanned zero files and exited 0. A typo'd branch or a
+# shallow clone missing the ref therefore read as "nothing to gate": the error
+# text went to stderr, but the exit code CI gates on said success, in exactly
+# the case this validation exists to catch.
+f="$(new_git_fixture)"
+skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nNo precompute here.\n'
+git_test_config "$f" add -A >/dev/null
+git_test_config "$f" commit -qm base >/dev/null
+out="$(run_check "$f" no-such-ref-deadbeef 2>&1)" && rc=0 || rc=$?
+if [[ "$rc" -eq 2 ]] && echo "$out" | grep -q 'not a valid commit'; then
+  ok "an invalid base ref exits 2"
+elif [[ "$rc" -eq 0 ]]; then
+  fail "an invalid base ref passed SILENTLY (rc=0), the #3377 shape: $out"
+else
+  fail "an invalid base ref should exit 2 (rc=$rc): $out"
+fi
+rm -rf "$f"
+
+# --- --all still scans the tree, and is never base-ref validated -------------
+#
+# The #3377 fix hoists `git rev-parse` into the parent, so the mode dispatch
+# that keeps --all and --paths out of that check is now load-bearing: a fixture
+# with no git repository at all must still scan.
+f="$(new_fixture)"
+skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'
+out="$(run_check "$f" --all 2>&1)" && rc=0 || rc=$?
+if [[ "$rc" -eq 0 ]] && echo "$out" | grep -q '1 skill(s) scanned, 1 violation'; then
+  ok "--all scans the tree with no base-ref validation"
+else
+  fail "--all should scan the fixture and report its violation (rc=$rc): $out"
+fi
+rm -rf "$f"
+
 test_harness::report

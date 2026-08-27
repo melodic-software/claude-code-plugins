@@ -99,25 +99,48 @@ TARGET="$REPO/notes.md"
 
 RC=0
 
-# run <content> -> hook stdout+stderr; sets RC.
+# run <content> — hook stdout+stderr lands in the global OUT; the hook's exit
+# code is RETURNED, so `run …` then `assert_exit … "$?"` is the call shape.
+#
+# Never `OUT=$(run …)` (#3373): a command substitution runs the helper in a
+# subshell, so an `RC=$?` assigned inside it never reaches the parent and every
+# `assert_exit` after the call silently compares a stale outer value — the
+# suite would stay green through a hook that regressed to a nonzero exit.
+# HOOK_OVERRIDE lets a case point the helpers at a stub hook; unset elsewhere.
 run() {
-  local out
-  out=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$TARGET" "$1")" 2>&1)
-  RC=$?
-  printf '%s' "$out"
+  local rc
+  OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "${HOOK_OVERRIDE:-$HOOK}" \
+    <<<"$(write_json "$TARGET" "$1")" 2>&1)
+  rc=$?
+  return "$rc"
 }
 # run_edit <new_string> -> same, as an Edit payload.
 run_edit() {
-  local out
-  out=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$TARGET" "$1")" 2>&1)
-  RC=$?
-  printf '%s' "$out"
+  local rc
+  OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "${HOOK_OVERRIDE:-$HOOK}" \
+    <<<"$(edit_json "$TARGET" "$1")" 2>&1)
+  rc=$?
+  return "$rc"
 }
+
+# --- The run helpers must carry the hook's exit code out (#3373) -------------
+# Guards the assertion machinery itself: point the helpers at a stub that exits
+# nonzero and the returned code must be that code. Under the old
+# `OUT=$(run …)` + inner `RC=$?` shape this read 0, which is what made every
+# run-based `assert_exit` below vacuous.
+STUB_HOOK="$TEST_TMPDIR/rc-stub-hook.sh"
+printf '#!/usr/bin/env bash\nexit 3\n' >"$STUB_HOOK"
+HOOK_OVERRIDE="$STUB_HOOK"
+run 'anything'
+assert_exit "run propagates a nonzero hook exit" 3 "$?"
+run_edit 'anything'
+assert_exit "run_edit propagates a nonzero hook exit" 3 "$?"
+unset HOOK_OVERRIDE
 
 # ============================ MUST FIRE =====================================
 
-OUT=$(run 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')
-assert_exit "deleted path in code span → exit 0 (advisory)" 0 "$RC"
+run 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.'
+assert_exit "deleted path in code span → exit 0 (advisory)" 0 "$?"
 assert_contains "deleted path → named" "$OUT" \
   "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
 assert_contains "deleted path → count" "$OUT" "1 cited path(s) were removed"
@@ -132,7 +155,7 @@ assert_contains "advisory states detect-then-judge" "$OUT" "Detect-then-judge"
 assert_contains "advisory exempts a deliberate deletion record" "$OUT" \
   "deletion or completion record"
 
-OUT=$(run_edit 'Now cites `plugins/re-anchor/context/re-anchor-audit-correct.md` instead.')
+run_edit 'Now cites `plugins/re-anchor/context/re-anchor-audit-correct.md` instead.'
 assert_contains "Edit hunk scanned via new_string" "$OUT" \
   "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
 
@@ -233,14 +256,14 @@ assert_contains "replace_all → repeated anchor still adjudicated" "$OUT" \
 
 # A line-citation suffix is stripped for resolution; the finding names the path
 # without it.
-OUT=$(run 'Per `plugins/re-anchor/context/re-anchor-audit-correct.md:12` the rule applies.')
+run 'Per `plugins/re-anchor/context/re-anchor-audit-correct.md:12` the rule applies.'
 assert_contains "line citation suffix stripped → still fires" "$OUT" \
   "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
 
 # CRITERION 2, behaviorally. git records tools/legacy-emit.sh -> tools/current-emit.sh
 # as a rename; with git's default rename detection --name-only prints only the new
 # path, so this case fails and the guard is silently inert.
-OUT=$(run 'Run `tools/legacy-emit.sh` to build.')
+run 'Run `tools/legacy-emit.sh` to build.'
 assert_contains "renamed-away path fires (--no-renames in effect)" "$OUT" \
   "STALE_PATH: tools/legacy-emit.sh"
 
@@ -308,68 +331,68 @@ assert_silent "generic root package.json mention stays quiet after root deletion
 # Cause 1 (72% of findings): consumer-project config a marketplace documents but
 # never carries. `.claude/` exists locally, which is exactly why shape-based
 # gating could not tell these apart.
-OUT=$(run 'Consumers put their suite under `.claude/testing/e2e.md`.')
-assert_exit "consumer config path → exit 0" 0 "$RC"
+run 'Consumers put their suite under `.claude/testing/e2e.md`.'
+assert_exit "consumer config path → exit 0" 0 "$?"
 assert_silent "consumer config path never in this repo → silent" "$OUT"
 
 # Cause 2: a subtree-relative citation. `lib/` exists at the root, but the cited
 # file is relative to a skill root, not the repo root.
-OUT=$(run 'The generator lives at `lib/emit-slides.js` beside the skill.')
+run 'The generator lives at `lib/emit-slides.js` beside the skill.'
 assert_silent "subtree-relative citation → silent" "$OUT"
 
 # Cause 3: forward-looking — a path this change set has not written yet.
-OUT=$(run 'CREATE: `docs/new-thing.md` in the next step.')
+run 'CREATE: `docs/new-thing.md` in the next step.'
 assert_silent "forward-looking path never committed → silent" "$OUT"
 
 # Cause 4: an illustrative placeholder.
-OUT=$(run 'For instance `docs/example.md` would do.')
+run 'For instance `docs/example.md` would do.'
 assert_silent "illustrative placeholder → silent" "$OUT"
 
 # Cause 5: a code span holding markdown link syntax is example text, not a link.
 # Its destination must never be extracted as one.
-OUT=$(run 'Write it as `[the guide](docs/gone.md)` in prose.')
+run 'Write it as `[the guide](docs/gone.md)` in prose.'
 assert_silent "link literal inside a code span → silent" "$OUT"
 
 # Link destinations are out of scope entirely — including one naming a genuinely
 # removed file, which is the case a destination extractor would most want.
-OUT=$(run 'See [the guide](docs/gone.md) for details.')
+run 'See [the guide](docs/gone.md) for details.'
 assert_silent "link destination to a removed file → silent (links out of scope)" "$OUT"
 
 # HEAD, not --all: a path that only ever existed on an abandoned branch is not a
 # stale mainline citation.
-OUT=$(run 'Scratch notes were at `scratch/branch-only.md`.')
+run 'Scratch notes were at `scratch/branch-only.md`.'
 assert_silent "path deleted only off HEAD → silent" "$OUT"
 
 # The provenance gate replaces the first-segment gate rather than layering with
 # it: a coincident leading directory is no longer sufficient.
-OUT=$(run 'Upstream lives at `docs/never-existed.md` and `plugins/other/thing.sh`.')
+run 'Upstream lives at `docs/never-existed.md` and `plugins/other/thing.sh`.'
 assert_silent "coincident first segment with no provenance → silent" "$OUT"
 
-OUT=$(run 'Read `docs/real.md` before starting.')
+run 'Read `docs/real.md` before starting.'
 assert_silent "existing path → silent" "$OUT"
 
-OUT=$(run 'Glob it with `plugins/*/SKILL.md` or `docs/**/*.md`.')
+run 'Glob it with `plugins/*/SKILL.md` or `docs/**/*.md`.'
 assert_silent "glob patterns → silent" "$OUT"
 
-OUT=$(run 'Placeholders like `plugins/<name>/plugin.json` and `docs/${topic}/PLAN.md`.')
+run 'Placeholders like `plugins/<name>/plugin.json` and `docs/${topic}/PLAN.md`.'
 assert_silent "placeholder metacharacters → silent" "$OUT"
 
-OUT=$(run 'Fetch <https://example.com/docs/gone.md> and `https://a.test/docs/gone.md`.')
+run 'Fetch <https://example.com/docs/gone.md> and `https://a.test/docs/gone.md`.'
 assert_silent "URLs → silent" "$OUT"
 
-OUT=$(run 'Absolute paths `/etc/hosts` and `C:/Windows/system32/x.dll`.')
+run 'Absolute paths `/etc/hosts` and `C:/Windows/system32/x.dll`.'
 assert_silent "absolute paths → silent (hardcoded-path-check owns those)" "$OUT"
 
-OUT=$(run 'User config at `~/.claude/settings.json`.')
+run 'User config at `~/.claude/settings.json`.'
 assert_silent "home-relative → silent" "$OUT"
 
-OUT=$(run 'Parent escape `../docs/gone.md` and `docs/../plugins/x.sh`.')
+run 'Parent escape `../docs/gone.md` and `docs/../plugins/x.sh`.'
 assert_silent "parent-escaping paths → silent" "$OUT"
 
-OUT=$(run 'Prose mentioning plugins/re-anchor/context/re-anchor-audit-correct.md outside a span.')
+run 'Prose mentioning plugins/re-anchor/context/re-anchor-audit-correct.md outside a span.'
 assert_silent "unquoted prose path → not scanned" "$OUT"
 
-OUT=$(run 'A whole command: `cp docs/gone.md docs/real.md`.')
+run 'A whole command: `cp docs/gone.md docs/real.md`.'
 assert_silent "multi-token code span → not a path candidate" "$OUT"
 
 # A CHANGELOG is an append-only record and this oracle selects for exactly what

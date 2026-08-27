@@ -3,6 +3,19 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.25]
+
+### Fixed
+
+- **Telemetry stdout-leak assertion was vacuous (#3367).** `go-format.test.sh` claimed the
+  telemetry envelope "never leaked into hook's own stdout", but it grepped `$OUT` — last
+  assigned by the kill-switch case, whose own assertion proves that capture is EMPTY. The
+  telemetry run itself discarded its stdout, so the assertion checked output that run never
+  produced and passed unconditionally. It now captures the telemetry run's own stdout and
+  greps that, with a preceding guard asserting the capture is non-empty so an empty capture
+  can never make the check vacuous again. Verified by mutation: with an envelope echoed onto
+  the hook's stdout the old assertion still passed (46/0) and the new one fails.
+
 ## [0.3.24]
 
 ### Changed
