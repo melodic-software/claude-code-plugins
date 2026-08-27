@@ -119,11 +119,7 @@ wit_effective_binding_json() {
 wit_role_label() {
   local configured
   configured="$(jq -r --arg role "$2" '.config.role_labels[$role] // empty' "$1")"
-  if [[ -n "$configured" ]]; then
-    printf '%s\n' "$configured"
-  else
-    printf '%s\n' "$3"
-  fi
+  printf '%s\n' "${configured:-$3}"
 }
 
 # wit_read_binding <path> — validate shape and export WIT_PROVIDER,
