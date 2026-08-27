@@ -199,6 +199,7 @@ EOF
   # ShellCheck report SC2154. Disclosure and findings must compose into a
   # single document — a second printed object is an invalid hook response and
   # either message can be lost.
+  # shellcheck disable=SC2016  # $undefined_variable must stay literal in the emitted fixture (it is what makes ShellCheck report SC2154)
   printf '#!/usr/bin/env bash\nif true; then\necho "$undefined_variable"\nfi\n' >"$REPO_YES/src/both.sh"
   OUT=$(run_hook "$REPO_YES/src/both.sh")
   DOCS=$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)

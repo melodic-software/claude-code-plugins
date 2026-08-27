@@ -143,8 +143,11 @@ if command -v jq >/dev/null 2>&1; then
     fail "disclose output malformed: $out"
   fi
 else
-  [[ "$out" == *disclose-msg* ]] && ok "disclose emits the message (jq absent; string check)" ||
+  if [[ "$out" == *disclose-msg* ]]; then
+    ok "disclose emits the message (jq absent; string check)"
+  else
     fail "disclose emitted nothing"
+  fi
 fi
 
 # --- disclose emits nothing when unchanged -----------------------------------
