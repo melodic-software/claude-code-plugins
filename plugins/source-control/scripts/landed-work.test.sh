@@ -417,6 +417,44 @@ OUT="$(bash "$ENGINE" --worktree "$TEST_TMPDIR/does-not-exist" --no-peers)"
 R="$(row "$OUT" "does-not-exist")"
 assert_eq "an absent path is notgit, never silently omitted" "notgit" "$(col "$R" $C_RISK)"
 
+# A head-less row must survive the consumer loop this file's callers are told to
+# use. `col` splits with `awk -F'\t'`, which does NOT collapse a run of tabs, so
+# it cannot see this: only `while IFS=$'\t' read` can, because a tab is IFS
+# whitespace there and an empty head silently shifts every later column left
+# (#3371). Consumed here exactly as a caller would, with all 15 field names.
+notgit_head=""
+notgit_risk=""
+notgit_reason=""
+# shellcheck disable=SC2034  # every column is named on purpose: the collapse this
+# guards against is only visible when the read consumes the full 15-field contract.
+while IFS=$'\t' read -r f_path f_branch f_head f_unpushed f_landed f_method f_base \
+  f_inprogress f_staged f_unstaged f_conflicted f_untracked f_peers f_risk f_reason; do
+  [[ "$f_path" == *does-not-exist* ]] || continue
+  notgit_head="$f_head"
+  notgit_risk="$f_risk"
+  notgit_reason="$f_reason"
+done < <(printf '%s\n' "$OUT" | tail -n +2)
+assert_eq "a head-less row emits '-', never an empty field" "-" "$notgit_head"
+assert_eq "notgit risk lands in the risk column under IFS-tab read" "notgit" "$notgit_risk"
+assert_eq "notgit reason lands in the reason column under IFS-tab read" \
+  "path-absent" "$notgit_reason"
+
+# Same contract on the other head-less row class: a bare hub.
+BARE_HUB2="$(mktemp -d "$TEST_TMPDIR/hub2XXXXXX")/hub2.bare"
+git init -q --bare -b main "$BARE_HUB2" >/dev/null 2>&1
+OUT="$(bash "$ENGINE" --repo-dir "$BARE_HUB2" --no-peers)"
+bare_head=""
+bare_risk=""
+# shellcheck disable=SC2034  # same full-contract read as the notgit case above.
+while IFS=$'\t' read -r f_path f_branch f_head f_unpushed f_landed f_method f_base \
+  f_inprogress f_staged f_unstaged f_conflicted f_untracked f_peers f_risk f_reason; do
+  [[ "$f_path" == *hub2.bare* ]] || continue
+  bare_head="$f_head"
+  bare_risk="$f_risk"
+done < <(printf '%s\n' "$OUT" | tail -n +2)
+assert_eq "a bare hub's head column is '-'" "-" "$bare_head"
+assert_eq "bare risk lands in the risk column under IFS-tab read" "bare" "$bare_risk"
+
 # --------------------------------------------------------------------------
 # Degradation paths each carry a reason
 # --------------------------------------------------------------------------

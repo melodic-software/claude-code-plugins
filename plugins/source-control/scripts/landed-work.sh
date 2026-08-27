@@ -863,8 +863,15 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   # reason string out of the risk column. Found by using this output from a
   # `while IFS=$'\t' read` loop, which is the most natural way to consume it and
   # the one this file's own callers are told to use.
+  #
+  # The head column is sliced BEFORE the fallback applies: `${T_HEAD[$idx]:0:12}`
+  # on an empty value yields empty, not `-`, so a `${T_HEAD[$idx]:--}` written
+  # inline with the slice would still emit nothing. notgit and bare-hub rows
+  # carry no HEAD by design (the `-z "${T_HEAD[$idx]}"` checks above), so those
+  # are exactly the rows this contract was written for.
+  head_col="${T_HEAD[$idx]:0:12}"
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "${T_PATH[$idx]:--}" "${T_BRANCH[$idx]:--}" "${T_HEAD[$idx]:0:12}" "${R_UNPUSHED[$idx]:--}" \
+    "${T_PATH[$idx]:--}" "${T_BRANCH[$idx]:--}" "${head_col:--}" "${R_UNPUSHED[$idx]:--}" \
     "${R_LANDED[$idx]:--}" "${R_METHOD[$idx]:--}" "${R_BASE[$idx]:--}" "${R_INPROGRESS[$idx]:--}" \
     "${R_STAGED[$idx]:--}" "${R_UNSTAGED[$idx]:--}" "${R_CONFLICTED[$idx]:--}" "${R_UNTRACKED[$idx]:--}" \
     "${PEERS[$idx]:--}" "${risk:--}" "${reason:--}"
