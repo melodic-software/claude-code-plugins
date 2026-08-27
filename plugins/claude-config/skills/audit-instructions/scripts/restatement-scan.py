@@ -228,7 +228,7 @@ def recoverable(unit: str, source: str) -> bool:
     nsrc = normalize(source)
     if len(nunit) < 24:
         return False
-    if nunit and nunit in nsrc:
+    if nunit in nsrc:
         return True
     utoks = content_tokens(unit)
     stoks = content_tokens(source)
@@ -309,10 +309,6 @@ def main(argv: list[str]) -> int:
         help="accepted for flag-parity with instruction-scan.sh; I29 is body-scoped by construction",
     )
     args = parser.parse_args(argv)
-    if not args.files:
-        if args.count:
-            print(0)
-        return 0
     rows: list[str] = []
     for raw in args.files:
         p = Path(raw)

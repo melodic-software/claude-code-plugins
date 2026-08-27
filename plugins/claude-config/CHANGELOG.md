@@ -3,6 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.12]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `audit-instructions`'s
+  restatement-scan.py dropped a redundant `nunit and` truthiness test (the preceding length
+  guard already excludes empty units) and its `main()` empty-file-list special case (the
+  general path is byte-identical for an empty list); `audit-permission-state`'s
+  automode-block-lint.test.sh dropped a duplicate `command -v bash` reassignment. All output
+  bytes, exit codes, and assertions unchanged; each change adversarially refutation-verified
+  (20k-case differential fuzz on the scanner).
+
 ## [0.40.11]
 
 ### Changed
