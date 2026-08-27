@@ -125,7 +125,7 @@ if [[ "$mode" == "discover" ]]; then
   # (#3376). Two hazards, one of them latent in each direction: an unquoted
   # `$(...)` here word-split every key on IFS whitespace and glob-expanded the
   # results against the working directory, so a cluster path with a space
-  # mis-iterated silently; and `printf '%s\n'` with NO arguments still prints
+  # iterated wrongly and silently; and `printf '%s\n'` with NO arguments prints
   # one blank line, which `mapfile -t` would turn into a single empty key on a
   # tree that has no clusters at all. An empty array iterates zero times and
   # feeds `sort` nothing, which is the answer both cases want.

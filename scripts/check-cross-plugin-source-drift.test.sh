@@ -154,7 +154,7 @@ rm -rf "$f"
 # working directory; and the cluster accumulator was space-joined, so
 # load_cluster split each entry's path apart again and handed sha256sum a
 # truncated name, which is fatal under this script's `set -e`. A space-bearing
-# path therefore mis-iterated with no error signal, in the one mode whose whole
+# path therefore iterated wrongly with no error signal, in the one mode whose
 # job is showing a human the cluster inventory.
 f="$(new_fixture)"
 plugin_file "$f" alpha "hooks/shared file.sh" "same"
