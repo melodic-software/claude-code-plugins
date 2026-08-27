@@ -262,10 +262,10 @@ fi
 #        added no matter what the source's mode was, which puts it squarely
 #        INSIDE the newly-added-only scope, so the copy arm gates on nothing and
 #        defers to the `100644`-plus-shebang filter below exactly as `A` does.
-#        Gating the copy arm on the source mode made the answer a function of
-#        the consumer's `diff.renames` setting -- the same staged content
-#        reported as `A` with copy detection off and went unreported as `C` with
-#        it on, which is the precise failure this candidate set exists to remove.
+#        Gating the copy arm on the source mode would make the answer a function
+#        of the consumer's `diff.renames` setting -- the same staged content
+#        reported as `A` with copy detection off and unreported as `C` with it
+#        on, which is the precise failure this candidate set exists to remove.
 #
 # A pair whose destination kept `100755` is dropped by the `100644` filter below
 # regardless, on either arm.

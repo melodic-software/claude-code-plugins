@@ -389,9 +389,9 @@ PERMISSION_HYGIENE_FIXTURE_DIR="$TEST_TMPDIR/does-not-exist" bash "$SCRIPT" --co
 assert_exit "--count refuses a nonexistent root too" 2 "$rc"
 
 # --- Case 10: the denominator ------------------------------------------------
-# "No fragile permission grants found." used to print identically whether the run
-# parsed forty grants and found them healthy or parsed none at all. These cases
-# pin that the two are now different strings, and that the coverage block reports
+# A run that parsed forty grants and found them healthy and a run that parsed
+# none at all must print different strings. These cases pin that a scan of
+# nothing and a clean bill stay distinct, and that the coverage block reports
 # what was NOT read as well as what was.
 
 # 10a: a root with nothing in it is NOT a clean bill.
@@ -518,10 +518,9 @@ else
 fi
 chmod u+rw "$D10BE/.claude/skills/u/SKILL.md" 2>/dev/null
 
-# 10c: a settings file that is present but not valid JSON was skipped in silence,
-# so its rules were never read and the run still printed a clean bill. The skip
-# is now named — an unparsable rules file is exactly where a fragile grant would
-# sit unexamined.
+# 10c: a settings file that is present but not valid JSON must be named and
+# counted under NOT read, never skipped in silence behind a clean bill. An
+# unparsable rules file is exactly where a fragile grant would sit unexamined.
 D10C="$TEST_TMPDIR/unparsable-settings"
 mkdir -p "$D10C/.claude"
 printf '{ "permissions": { "allow": [ "Bash(python*)"\n' >"$D10C/.claude/settings.json"

@@ -197,11 +197,7 @@ assert_eq "missing-enabled: installed-but-never-mentioned flagged" '["alpha@mark
 # project-scope install — fleet-state.sh can only read the current
 # PROJECT_ROOT's settings files, so a project/local install belonging to
 # another repo can never be verified as known or unknown here. Excluded
-# entirely rather than asserted missing (a fixed bug: this used to compare
-# every project/local install machine-wide against only the current repo's
-# settings, so any other repo's already-enabled install showed up as
-# missing_from_enabled and sync could try to `enable -s project` against the
-# wrong repo)
+# entirely rather than asserted missing.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -322,16 +318,13 @@ assert_eq "windows-path: native backslash projectPath matches Git Bash cwd" "tru
 
 # ============================================================================
 # Case: case-sensitivity — a case-only path difference must NOT collapse two
-# different repos on a case-sensitive filesystem (a fixed bug: the
-# currentProject comparison used to case-fold unconditionally, so on a
-# case-sensitive POSIX host, e.g. GitHub's ubuntu CI runner, a fixture
-# projectPath differing only by case from the real project dir would
-# false-positive as the same repo). Same fixture, run twice with an EXPLICIT
-# OSTYPE override each time (never "this host's ambient OSTYPE" — this suite
-# itself runs on both a case-insensitive dev host and a case-sensitive CI
-# runner, so asserting against the ambient value is not deterministic across
-# them): forcing linux-gnu must NOT match (case-sensitive); forcing msys must
-# still match (case-insensitive — no regression to the existing behavior).
+# different repos on a case-sensitive filesystem. Same fixture, run twice with
+# an EXPLICIT OSTYPE override each time (never "this host's ambient OSTYPE" —
+# this suite itself runs on both a case-insensitive dev host and a
+# case-sensitive CI runner, so asserting against the ambient value is not
+# deterministic across them): forcing linux-gnu must NOT match
+# (case-sensitive); forcing msys must still match (case-insensitive — no
+# regression to the existing behavior).
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -522,10 +515,7 @@ assert_eq "--all: market2 reports its failure inline" "no catalog fixture" "$m2_
 # ============================================================================
 # Case: --all sweeps every marketplace; one MALFORMED catalog (not merely
 # absent) does not abort the sweep either — this is a distinct code path from
-# the absent-fixture case above (a fixed bug: emit_marketplace previously ran
-# the catalog JSON through the fatal require_json helper, which exit-2'd the
-# whole process before the {marketplaces: ...} report was ever emitted for
-# ANY marketplace, not just the malformed one)
+# the absent-fixture case above
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -726,7 +716,7 @@ assert_exit "--marketplace no arg: exit 2, not an infinite loop" 2 "$rc"
 assert_contains "--marketplace no arg: actionable error" "$out" "requires a name"
 
 # ============================================================================
-# Case: FLEET_STATE_HOOK_UTILS is no longer honored — a caller-supplied path is
+# Case: FLEET_STATE_HOOK_UTILS must never be honored — a caller-supplied path is
 # never sourced (security regression guard). hook-utils.sh resolves only from
 # the script's own location, so an inherited or hostile environment cannot
 # redirect `source` at an arbitrary file. If a future refactor re-introduces an
@@ -832,18 +822,18 @@ esac
 
 # ============================================================================
 # Case: large-catalog marketplace does not crash with "Argument list too
-# long" (#1336). fleet-state.sh used to embed full catalog/installed/enabled
-# JSON blobs as literal `jq --argjson` command-line arguments; once a
-# marketplace catalog got large enough (confirmed against a real 273-plugin
-# catalog), the serialized JSON exceeded the platform/shell's argv-length
-# ceiling and jq crashed before emitting anything. Uses a synthetic 500-plugin
-# catalog — well past the 273-plugin real-world repro — fully installed and
-# enabled, so every array in the composed report (catalog, installed, enabled,
-# and all three missing_from_* arrays) carries the full payload through the
-# same code path that used to crash. Asserts the run completes AND produces
-# the same-shaped, semantically-correct output a small catalog would (no
-# silent truncation or partial report — the acceptance criteria's second
-# bullet), not merely that it exits 0.
+# long" (#1336). Guards the argv-length ceiling: catalog/installed/enabled
+# JSON payloads must travel via --slurpfile temp files, never as literal
+# `jq --argjson` command-line arguments, because a large enough marketplace
+# catalog (confirmed against a real 273-plugin catalog) pushes the serialized
+# JSON past the platform/shell's argv-length ceiling and jq crashes before
+# emitting anything. Uses a synthetic 500-plugin catalog — well past the
+# 273-plugin real-world repro — fully installed and enabled, so every array
+# in the composed report (catalog, installed, enabled, and all three
+# missing_from_* arrays) carries the full payload through the code path the
+# guard exists for. Asserts the run completes AND produces the same-shaped,
+# semantically-correct output a small catalog would (no silent truncation or
+# partial report), not merely that it exits 0.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -884,18 +874,13 @@ sample_enabled=$(jq -r '.enabled["large-catalog-synthetic-plugin-499@bigmarket"]
 assert_eq "large catalog: a spot-checked entry has correct effective-enabled value, not a placeholder" "true" "$sample_enabled"
 
 # ============================================================================
-# Case: malformed user_settings.json still fails loud after the --argjson ->
-# --slurpfile conversion (#1336 fail-loud parity). --slurpfile tolerates a
-# genuinely EMPTY file as "zero JSON values" (yielding null) rather than
-# erroring the way `--argjson name ""` used to when a prior `jq -c
-# '.enabledPlugins // {}'` read failed on malformed source JSON and captured
-# no stdout — so a naive conversion would turn a loud crash into a silent
-# `null`-degraded report. jq_slurp_tmpfile guards this by writing a
-# deliberately-invalid token for an empty value, forcing jq's own parser to
-# still error at the --slurpfile call site. Confirmed against the actual
-# pre-fix script (git history) that this exact fixture already failed loud
-# (nonzero exit) before this issue's change, so this case is locking in
-# existing behavior, not inventing a new contract.
+# Case: malformed user_settings.json must fail loud (#1336 fail-loud
+# parity). When a prior `jq -c '.enabledPlugins // {}'` read fails on
+# malformed source JSON and captures no stdout, --slurpfile would tolerate
+# the genuinely EMPTY file as "zero JSON values" (yielding null), turning a
+# loud crash into a silent `null`-degraded report. jq_slurp_tmpfile guards
+# this by writing a deliberately-invalid token for an empty value, forcing
+# jq's own parser to still error at the --slurpfile call site.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1024,8 +1009,7 @@ rc=$?
 assert_exit "--ids CR regression: exit 0 under a CRLF-emitting jq" 0 "$rc"
 # The empty branch is not redundant: with no output at all "contains no CR" is
 # vacuously true, so a regression that stopped emitting ids entirely would pass
-# a bare CR check. Verified against the pre-fix script — it emitted nothing and
-# the CR assertion passed for the wrong reason until this branch was added.
+# a bare CR check.
 case "$out" in
 "") fail "--ids CR regression: no CR survives into the emitted ids" \
   "output was EMPTY — a CR assertion over no output proves nothing" ;;

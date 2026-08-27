@@ -621,7 +621,7 @@ class HygieneTests(unittest.TestCase):
                 self.skipTest(f"hard links unavailable here: {exc}")
 
             after = os.stat(candidate)
-            # The fields the old check compared are all unchanged...
+            # Every identity field except nlink is unchanged...
             self.assertEqual(before.st_size, after.st_size)
             self.assertEqual(before.st_mtime_ns, after.st_mtime_ns)
             self.assertEqual(before.st_ino, after.st_ino)
@@ -955,9 +955,9 @@ class HygieneTests(unittest.TestCase):
         ]
 
     def test_non_os_volume_root_without_bound_requires_large_confirmation(self) -> None:
-        # A non-OS volume root is no longer blanket-rejected, but an unbounded
-        # whole-volume walk is gated the same way a home target is (#985's
-        # large-target gate) rather than silently proceeding.
+        # A non-OS volume root is accepted, but an unbounded whole-volume walk
+        # is gated the same way a home target is (#985's large-target gate)
+        # rather than silently proceeding.
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             target = base / "dev-drive"
@@ -4901,9 +4901,8 @@ class GuardTests(unittest.TestCase):
 
         Absolute trusted forms remain allowlisted. On Windows, ``Path.is_absolute``
         rejects POSIX-style heads and ``which("ls")`` often returns an ``.exe``
-        path — both are why this assertion previously encoded a Linux-only
-        expectation and went red (or never ran) on NT (#2774). Build the
-        absolute head with the same trust rules the guard uses.
+        path, so build the absolute head with the same trust rules the guard
+        uses.
         """
         located = shutil.which("ls")
         self.assertIsNotNone(located)
@@ -5197,10 +5196,10 @@ class GuardTests(unittest.TestCase):
         """#2774 C: engine-gate must not hard-allow an allowlisted inspection command.
 
         The plugin-level gate runs in every consumer session. An allowlisted
-        command that also names the engine path used to hard-``allow`` (and
-        bypass the user's prompt). `ask` preserves the prompt; belt mode still
-        hard-allows. A command that does not name the engine is deferred with
-        no output — that is not this defect.
+        command that also names the engine path must not hard-``allow`` (that
+        would bypass the user's prompt); `ask` preserves the prompt. Belt mode
+        still hard-allows. A command that does not name the engine is deferred
+        with no output — that is not this defect.
         """
         head = None
         for candidate in ("/usr/bin/ls", "/bin/ls"):
@@ -6385,14 +6384,7 @@ class GuardTests(unittest.TestCase):
     def test_skill_hook_launcher_resolves_a_supported_interpreter(self) -> None:
         """Prove the belt's interpreter still resolves, through its real ladder.
 
-        This test previously locked the literal `python3` as the hook's `command`
-        and probed THAT name — an assertion that was only meaningful while the
-        belt ran in exec form, and that encoded the #2568 defect as the contract:
-        exec form resolves `command` on PATH, and on stock Windows `python3` is
-        the zero-length WindowsApps App Execution Alias stub, so the launch fails
-        and a failed hook launch is non-blocking.
-
-        The belt now launches through `hooks/run-python-hook.sh` (the launch
+        The belt launches through `hooks/run-python-hook.sh` (the launch
         SHAPE is asserted by
         `test_skill_hook_registers_in_portable_shell_form`), so the interpreter
         that matters is whatever that launcher resolves — `python3`, then

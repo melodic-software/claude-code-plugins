@@ -743,8 +743,8 @@ run_pwsh() {
   rc=$?
   assert_exit "$label" "$expected" "$rc"
 }
-# The tool name moved to the third jq field when `.cwd` was added. A payload
-# MISSING cwd must still read it from the right slot, or a PowerShell command
+# The tool name is the third jq field. A payload MISSING cwd must still read it
+# from the right slot, or a PowerShell command
 # would silently be classified as Bash and the PowerShell-specific fail-closed
 # sinks would never fire.
 run_pwsh_nocwd() {
@@ -899,9 +899,8 @@ run_pwsh "PS: grouping + bare-computed target via Get-Command (allowed — #2848
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + bare-computed target inside foreach (allowed — #2848)" \
   "\$ids = @('a','b'); foreach (\$id in \$ids) { & \$py \$script (Join-Path \$dir \"\$id.jsonl\") }" 0
-# The one single-factor allowance that was previously unpinned: a grouping
-# construct with a LITERAL call target. Pinned here so a future narrowing pass
-# cannot regress it unnoticed.
+# Single-factor pin: grouping with a LITERAL call target (#2848), so a future
+# narrowing pass cannot regress it unnoticed.
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + literal call target (allowed — single-factor pin, #2848)" \
   "foreach (\$id in @('a','b')) { & \"C:/tools/python.exe\" C:/s/run.py \$id }" 0
@@ -1211,7 +1210,7 @@ run_pwsh "PS #2667: sink allow + reset-hard allow opens iex;reset compound" \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation,reset-hard
 
 malformed_rc=0
-(cd "$REPO_SHA1" && bash "$HOOK" <<< 'not json at all' >/dev/null 2>&1) || malformed_rc=$?
+(cd "$REPO_SHA1" && bash "$HOOK" <<<'not json at all' >/dev/null 2>&1) || malformed_rc=$?
 assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 
 # --- A NUL in the payload must not void the guard (#2122) --------------------
@@ -1312,11 +1311,11 @@ run_pwsh "PS: backtick-escaped quote does not extend the span (blocked — #2965
 # shellcheck disable=SC2016
 run_pwsh "PS: doubled-quote escape over-blocks rather than deletes (blocked — #2965)" \
   "Write-Host 'it''s'; & ('g'+'it') push --force" 2
-# The escape cases have a SECOND failure mode that the first cut of this fix
-# shipped and review caught: ending a span AT the backticked quote leaves the
-# string's REAL closer behind as a stray opener, which then pairs with a quote
-# far to the right and deletes the command anyway. Both escapes therefore delete
-# NOTHING on their line. Pinned on the exact reviewed spelling.
+# The escape cases have a SECOND failure mode: ending a span AT the backticked
+# quote would leave the string's REAL closer behind as a stray opener, which
+# then pairs with a quote far to the right and deletes the command anyway. Both
+# escapes therefore delete NOTHING on their line. Pinned on the exact reviewed
+# spelling.
 # shellcheck disable=SC2016
 run_pwsh "PS: escaped quote's real closer must not re-pair rightward (blocked — #2965)" \
   "\"a\`\"\"; & ('g'+'it') push --force; 'b\"c'" 2

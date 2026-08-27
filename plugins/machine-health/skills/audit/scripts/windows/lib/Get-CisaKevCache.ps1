@@ -29,8 +29,8 @@ the cache. Partial/corrupt downloads do not clobber a previously-good cache.
 
 # Egress lines go through the canonical Write-EgressLogLine so they carry a
 # single timestamp in the exact "<ts> egress <kind> <uri>" shape Read-EgressLog
-# parses -- hand-rolling the line here previously double-stamped it (the writer
-# adds its own timestamp) and broke urls_called ingestion.
+# parses -- hand-rolling the line here would double-stamp it (the writer
+# adds its own timestamp) and break urls_called ingestion.
 . (Join-Path $PSScriptRoot 'Invoke-AllowlistedWeb.ps1')
 
 $script:CisaKevUrl = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'

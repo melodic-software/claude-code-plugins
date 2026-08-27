@@ -157,21 +157,21 @@
 # a day.
 #
 # A completed scan's counts are exact for every path the detector can see.
-# attribute_file used to discard git's stderr on both commands that produce a
-# count, so a file whose diff or blame FAILED was indistinguishable from one
+# If attribute_file discarded git's stderr on the two commands that produce a
+# count, a file whose diff or blame FAILED would be indistinguishable from one
 # that had nothing to attribute, and the failure could only ever subtract
-# lines, never invent them (#2880). A non-zero status is now a hard error
-# (exit 2) rather than a quiet zero; stderr stays discarded on success so
-# expected git noise does not train anyone to ignore the canary.
+# lines, never invent them. So a non-zero status is a hard error (exit 2)
+# rather than a quiet zero; stderr stays discarded on success so expected git
+# noise does not train anyone to ignore the canary.
 # git-diff(1) of two commits exits 0 on success even when the files differ
 # -- `--exit-code` is the option that would turn a difference into status 1
 # -- so any non-zero status here is a real failure, not "these files
 # differ". git-blame(1) has no analogous "found something" status.
 #
-# `-diff` text paths used to be a remaining subtraction (#2883): the
-# path-limited content diff emits "Binary files differ" (gitattributes(5)
-# Unset on `diff`) and attribute_file derived no ranges, so a lock-file
-# revert attributed to zero. Those deletions are now recovered by a
+# `-diff` text paths would be another subtraction: the path-limited
+# content diff emits "Binary files differ" (gitattributes(5) Unset on
+# `diff`) and attribute_file derives no ranges from it, so a lock-file
+# revert would attribute to zero. Those deletions are recovered by a
 # blob-to-blob diff, which has no path and so no attribute. Genuine
 # binary CONTENT still contributes zero -- git's content heuristic, not
 # `--text` -- because treating a random blob as lines manufactures
@@ -605,10 +605,10 @@ attribute_file() {
   # ENUMERATION in scan_commit that -M actually defends, not this diff. See the
   # pin table above.
   #
-  # Status is checked separately from output (#2880). A failed diff used to
-  # be byte-identical to "this file had no deleted lines": stderr discarded,
-  # no @@ headers, no ranges, return 0. That is the quiet pass the header
-  # contract forbids. git-diff(1) `--exit-code` is deliberately NOT passed
+  # Status is checked separately from output (#2880). A failed diff would
+  # otherwise be byte-identical to "this file had no deleted lines": stderr
+  # discarded, no @@ headers, no ranges, return 0. That is the quiet pass the
+  # header contract forbids. git-diff(1) `--exit-code` is deliberately NOT passed
   # -- without it, two-commit diff exits 0 on success even when the files
   # differ -- so a non-zero status here is a real failure.
   local diff_out
@@ -825,12 +825,12 @@ scan_commit() {
   # Attribute every deleted line across every modified/deleted file.
   #
   # Redirect, never a pipe: `die` inside attribute_file must not land in a
-  # subshell. A piped failure used to be byte-identical to "this file had
-  # nothing to attribute" (#2880).
+  # subshell. A piped failure would be byte-identical to "this file had
+  # nothing to attribute".
   #
   # The enumeration diff is the same contract. A failed `git diff --name-only`
-  # used to feed the loop nothing (process substitution discards status),
-  # so scan_commit reported `ok` -- the quiet pass, reached before
+  # would feed the loop nothing (process substitution discards status),
+  # so scan_commit would report `ok` -- the quiet pass, reached before
   # attribute_file ever ran.
   local attributed file_attr enum_list
   attributed="$(mktemp)" || die "mktemp failed"
@@ -989,10 +989,9 @@ report_finding() {
 # Exit status alone proves only "this commit still produces no finding
 # above the threshold". The note beside it names a specific culprit and a
 # specific sub-threshold line count -- the closest miss, the figure a
-# threshold change would trip first -- and nothing used to check that
-# number. Pinning the detector's diff flags moved 129 to 136 on this
-# file's previous closest-miss row; the `fires` sibling of that drift
-# went red and was corrected, the `clean` row stayed green.
+# threshold change would trip first -- and without this field nothing
+# checks that number: a detector drift that moves it would leave the
+# `clean` row green while the recorded figure goes stale.
 #
 # So a `clean` row may carry the same bracketed field. The replay then
 # asserts the run's largest *in-window, sub-threshold* attribution is
@@ -1204,9 +1203,9 @@ verify_known_incidents() {
 
   # Zero rows verified is a broken input, not a pass. An empty file, a
   # comments-only file, or a file whose only row was dropped by a missing
-  # trailing newline used to fall through to the success banner -- the
+  # trailing newline would fall through to the success banner -- the
   # self-proof lane reporting that it reproduced every recorded incident
-  # after it reproduced none (#2874).
+  # after it reproduced none.
   ((verified > 0)) ||
     die "$INCIDENTS_FILE verified zero rows -- an incident file that pins nothing is a broken input, not a pass"
 

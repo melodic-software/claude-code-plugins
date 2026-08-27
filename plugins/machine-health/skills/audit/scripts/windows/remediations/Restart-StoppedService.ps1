@@ -8,10 +8,10 @@ Accepts either a single service name via -ServiceName or a full services
 CheckResult via -Finding (string or PSCustomObject). Emits a JSON array
 of RemediationAttempt objects on stdout -- one per service targeted.
 
-The previous implementation read the finding from [Console]::In, which
-is unreliable under Start-Job isolation and some PowerShell hosts. The
-orchestrator now passes the finding explicitly via -Finding, matching
-the contract used by every other remediation.
+The orchestrator passes the finding explicitly via -Finding, matching
+the contract used by every other remediation; reading it from
+[Console]::In is unreliable under Start-Job isolation and some
+PowerShell hosts.
 
 Policy: references/windows/remediation-policy.md#1-restart-stoppedservice
 Philosophy: references/shared/remediation-philosophy.md

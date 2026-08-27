@@ -1,5 +1,11 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.19]
+
+### Changed
+
+- **Shared `parse-concern-value.sh` comment cleanup.** Comment-only sync from `lib/parse-concern-value.sh`: the pre-centralization history narration in the header is now a present-tense rationale; no behavior change. Also removes confirmed comment residue (session finding-IDs and history narration) from the `audit-noise` detector scripts.
+
 ## [0.21.18]
 
 ### Fixed

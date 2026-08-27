@@ -271,8 +271,8 @@ none
         self.assertIn(b"1 **CN.**", proc.stdout)
 
     def test_four_tick_wrapper_around_immediate_inner_fence(self):
-        # Truncation at the first inner ``` used to yield payload "" and
-        # fail the empty-payload check on a valid verbatim quote.
+        # Guards against truncation at the first inner ``` yielding payload ""
+        # and failing the empty-payload check on a valid verbatim quote.
         inner = "```\nprint(1)\n```"
         source = write(self.dir, "src-immediate.md", inner + "\n")
         text = f"""## Key claims (verbatim)

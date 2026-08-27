@@ -272,7 +272,7 @@ worktree)
     # A registered path whose root-ness probe FAILS outright.
     printf 'worktree %s\0HEAD pfail\0branch refs/heads/feature/prefix-fail\0\0' "$TEST_ROOT/prefix-fail"
     # Linked worktrees for worktree-status-handoff: wt-a and wt-status-fail are reliable-admin
-    # linked paths (status is no longer probed for reclaimability); wt-mismatch is admin-mismatched.
+    # linked paths (status is not probed for reclaimability); wt-mismatch is admin-mismatched.
     printf 'worktree %s\0HEAD status-fail\0branch refs/heads/feature/status-fail\0\0' "$TEST_ROOT/wt-status-fail"
     ;;
   conform-canon)
@@ -1092,7 +1092,7 @@ else
   failures=$((failures + 1))
 fi
 
-# A consumed config without any fleet.root/fleet.repo (e.g. only maxDepth) no longer falls back to
+# A consumed config without any fleet.root/fleet.repo (e.g. only maxDepth) does not fall back to
 # the project directory; the remedy names the consumed config and directs scope INTO it.
 cat >"$TMP/scopeless.conf" <<'SCOPELESS'
 [fleet]

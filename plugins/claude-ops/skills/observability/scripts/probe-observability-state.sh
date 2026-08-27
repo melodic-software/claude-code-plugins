@@ -28,17 +28,16 @@
 #   <name>:<bytes>B
 #   <name>:absent
 #
-# Store resolution, unchanged from the lines this replaced:
+# Store resolution:
 #   --hook-events  <git toplevel, or the working directory when not inside a
-#                  repo>/.claude/observability/hook-events.jsonl — no env override,
-#                  matching the line it replaces.
+#                  repo>/.claude/observability/hook-events.jsonl — no env override.
 #   --otel-store   CC_OTEL_STORE when set and non-empty, used verbatim; otherwise
 #                  <git toplevel, or the working directory>/.claude/observability/otel.
 #
 # The git toplevel is CR-stripped through an empty-means-fall-back test rather than
 # a `|| pwd` continuation, because piping through `tr` would make the pipeline
 # always succeed and swallow the not-in-a-repo fallback. `wc` output is emitted
-# as captured, exactly as the pre-compute lines did.
+# as captured.
 #
 # Exit codes:
 #   0  the requested mode's lines were emitted

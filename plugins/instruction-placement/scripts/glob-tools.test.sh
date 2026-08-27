@@ -309,9 +309,9 @@ out="$(run rules --root "$split_repo")"
 over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
 assert_eq "the budget does not leak across separate rules" "0" "$over"
 
-# The same separation for `validate`. Every CLI --glob used to be tagged with the
-# same `<cli>` source, so the running total carried from one flag to the next and
-# two independently-legal globs in one invocation reported the first
+# The same separation for `validate`. Tagging every CLI --glob with the same
+# `<cli>` source would carry the running total from one flag to the next, and
+# two independently-legal globs in one invocation would report the first
 # over-budget. A --glob is nobody's `paths:` list; each is its own unit of one.
 out="$(run validate --root "$split_repo" --glob "$nine/x.ts" --glob "$nine/y.ts")"
 over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"

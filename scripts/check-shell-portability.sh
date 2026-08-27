@@ -507,7 +507,7 @@ scan_file() {
     # earlier revision masked whole double-quoted arguments and lost the
     # nested commands entirely: `printf -- "%s" "$(stat -c "%s" "$f")"`
     # reported clean because the OUTER `--` truncated everything after it,
-    # nested invocation included (#1544 review round 2).
+    # nested invocation included (#1544).
     #
     # The state stack is what makes that resumable: `"$(cmd "x")"` re-enters
     # double quotes for the inner argument and must still return to the outer
@@ -524,7 +524,7 @@ scan_file() {
     # An INLINE COMMENT is not shell code either. 2.3 rule 10: an unquoted `#`
     # at the START of a word begins a comment that runs to the newline, so
     # nothing after it is structural. Two fail-opens came from treating it as
-    # ordinary text (#1544 review round 8):
+    # ordinary text (#1544):
     #   echo ok # portability-ok: x \   the trailing backslash is comment text,
     #   date -d tomorrow                not a continuation — joining the two
     #                                   carried the annotation onto a
@@ -731,9 +731,8 @@ scan_file() {
         # A quoted NEWLINE neutralizes to a SPACE, not to the `Q` filler. `Q` is
         # a word character, so it would weld the text on either side of a join
         # into one word and defeat the very leading boundary the command-word
-        # tokens rely on — the hit after a join stopped matching at all. A
-        # space is what the shell would never make of it either way, and it
-        # leaves the token gaps free to span the join.
+        # tokens rely on. A space is what the shell would never make of it
+        # either way, and it leaves the token gaps free to span the join.
         if (substr(m, i, 1) == "Q" && c == NL) r = r " "
         else if (substr(m, i, 1) == "Q" && index(SEPS, c) > 0) r = r "Q"
         else r = r c
@@ -1080,7 +1079,7 @@ scan_file() {
     # it matches: a `stat -- -f` / `stat "--" -f` counterpart, an operand
     # before the `-f`, an argument-taking cluster letter ahead of it, or a
     # missing format argument each mean the "fallback" runs no BSD stat at
-    # all, and each previously failed OPEN.
+    # all.
     # A `!` in front of the GNU call inverts its status, so the `||` fires when
     # the call SUCCEEDS and is skipped when it fails — the fallback never runs
     # on the dialect that needs it. A negated probe therefore has no guard at
@@ -1104,7 +1103,7 @@ scan_file() {
     #                                   skipped;
     #     x=$(! stat -c …) || stat -f … the inner `!` inverts it first.
     # Truncating at the `$(` lost the outer `!` and admitted the first shape
-    # (#1544 review round 8). A `)` stays a boundary: an outer negation reaching
+    # (#1544). A `)` stays a boundary: an outer negation reaching
     # PAST a closed substitution is a shape this gate has never recognized, and
     # widening it is not what this finding is about.
     #

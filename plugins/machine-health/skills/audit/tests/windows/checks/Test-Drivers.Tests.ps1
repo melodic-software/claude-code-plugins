@@ -5,9 +5,9 @@
 Tests for scripts/windows/checks/Test-Drivers.ps1.
 
 .DESCRIPTION
-Pins this rubric rewrite:
+Pins the rubric:
 
-1. IsSigned=false is no longer a WARN trigger. It produces false
+1. IsSigned=false is not a WARN trigger. It produces false
    positives on modern Windows 10/11 -- cross-signed, attestation-
    signed, and user-mode drivers routinely report false. Secure Boot
    already blocks genuinely-unsigned kernel drivers from loading, so

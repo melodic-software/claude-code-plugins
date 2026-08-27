@@ -449,7 +449,7 @@ assert_eq "unresolvable spelling leaves the gap count untouched" "0" "$(run "$TE
 # --- Case 16h: the INTERACTIVE path is loud too -------------------------------
 # Both headers that name a main checkout print only under --worktree-root or a
 # distinct --project-root, so a plain run from an unresolvable linked worktree
-# used to drop a main-local deny with no output whatsoever.
+# would otherwise drop a main-local deny with no output whatsoever.
 OUT=$(run "$TEST_TMPDIR/res-sep2-wt" "$CFGRES")
 assert_contains "interactive path reports the unread layer" "$OUT" "UNREAD LAYER"
 assert_contains "interactive path summary is INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
@@ -457,7 +457,7 @@ assert_not_contains "interactive path never claims OK" "$OUT" "PREFLIGHT: OK"
 
 # --- Case 16i: a bare repository has no main checkout — not an unread layer ---
 # Nothing is missing (a bare repo holds no working tree, so no main-local file can
-# exist), so INCOMPLETE here would be the same false alarm this change removes.
+# exist), so INCOMPLETE here would be a false alarm.
 git clone -q --bare "$CONV" "$TEST_TMPDIR/res-bare.git" 2>/dev/null
 git -C "$TEST_TMPDIR/res-bare.git" worktree add -q --detach "$TEST_TMPDIR/res-bare-wt"
 OUT=$(run "$TEST_TMPDIR/res-bare-wt" "$CFGRES" --worktree-root "$RESROOT")
@@ -465,7 +465,6 @@ assert_contains "bare repo's worktree reports OK" "$OUT" "PREFLIGHT: OK"
 assert_not_contains "bare repo's worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
 
 # --- Case 16j: --project-root naming a non-checkout is unresolved, not named --
-# The old arithmetic would happily name a directory it never verified.
 NOTAREPO="$TEST_TMPDIR/res-notarepo"
 mkdir -p "$NOTAREPO"
 OUT=$(run "$TEST_TMPDIR/res-conv-wt" "$CFGRES" --project-root "$NOTAREPO" --worktree-root "$RESROOT")
@@ -488,8 +487,7 @@ assert_not_contains "a vanished main checkout is never named" "$OUT" "$DEADPATH"
 # --- Case 16l: the conventional parent is rejected when it is not the tree ----
 # "<X>/.git is the common dir" does not by itself make <X> the working tree. Here
 # the common dir's core.worktree names somewhere else, so <X>'s own toplevel
-# disagrees and the candidate must be discarded — the old arithmetic returned <X>
-# unconditionally, which is what let a non-checkout be named as the main one.
+# disagrees and the candidate must be discarded.
 CONV2="$TEST_TMPDIR/res-conv2"
 git init -q "$CONV2"
 commit_empty "$CONV2"
@@ -533,9 +531,9 @@ assert_eq "root additionalDirectories entry covers any worktree root" "0" "$(run
 
 # --- Case 19: tilde-form additionalDirectories entry expands to the user home -
 # A ~-form entry (~/.worktrees) must expand to $HOME and cover an absolute probed
-# root beneath it — the grant the harness's own tilde expansion makes live but
-# normalize_path previously left unmatched. HOME is set explicitly so the case is
-# independent of the tester's real home.
+# root beneath it — a grant tilde expansion makes live but a naive normalize_path
+# leaves unmatched. HOME is set explicitly so the case is independent of the
+# tester's real home.
 HOME19="$TEST_TMPDIR/home19"
 mkdir -p "$HOME19"
 CFG19="$TEST_TMPDIR/cfg19"

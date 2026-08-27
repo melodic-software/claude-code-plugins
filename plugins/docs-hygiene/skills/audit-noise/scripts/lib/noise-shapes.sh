@@ -19,10 +19,10 @@ audit_noise_trim_excerpt() {
 }
 
 # Resolve configured convention roots once per process and export them.
-# Calling this (or the legacy pattern helper) inside a command substitution used
-# to set AUDIT_NOISE_CONTRACT_ROOT only in the subshell — so a configured
-# contract root's bare reviews/handoffs/running-retros child was silently
-# exempt against the lib's stated intent (auditor F6).
+# Calling this (or the legacy pattern helper) inside a command substitution
+# sets AUDIT_NOISE_CONTRACT_ROOT only in the subshell, silently exempting a
+# configured contract root's bare reviews/handoffs/running-retros child
+# against the lib's stated intent.
 audit_noise_resolve_convention_roots() {
   if [[ -n "${AUDIT_NOISE_ROOTS_RESOLVED:-}" ]]; then
     return 0
@@ -108,10 +108,10 @@ audit_noise_line_has_ghost_ref() {
 # True when the text following an antecedent's `in` names a written locus a
 # future reader can still open — a position inside this page, or a named
 # durable document — rather than the conversation or circumstance the sentence
-# came out of. The input is the raw follower text: it is lowercased here (the
-# follower used to be compared case-sensitively, so a capitalised one fell
-# through) and cut at the first clause break, so a locator noun in a LATER
-# clause cannot exempt the antecedent. Two deliberate absences: tracker nouns
+# came out of. The input is the raw follower text: it is lowercased here (so a
+# capitalised follower cannot fall through) and cut at the first clause break,
+# so a locator noun in a LATER clause cannot exempt the antecedent. Two
+# deliberate absences: tracker nouns
 # (`issue`, `ticket`, `PR`) — a decision parked in a tracker is provenance,
 # which ticket-pr-residue owns and this shape must not launder — and nouns for
 # the conversation itself (`meeting`, `call`, `thread`, `review`), which are
@@ -143,12 +143,12 @@ audit_noise_follower_is_document_locator() {
 # text. Exactly two follower classes stand the shape down: an anaphoric adverb
 # ("as we discussed above / earlier"), and a preposition (`in` / `under` / `at`
 # / `on`) in front of a document locator ("as we decided in §3 / in the ADR /
-# on the ADR's recommendation"). A bare `in` used to exempt the whole sentence,
-# which correctly spared "as we decided in the ADR" but also spared "as we
-# decided in favor of X" and "as we discussed in yesterday's meeting" — both
-# residue, because the referent is the conversation, not a document. `under`,
-# `at`, and `on` carried the same blanket exemption until the locator predicate
-# was applied to them too: "as we agreed on Tuesday" is residue, identically.
+# on the ADR's recommendation"). A bare `in` exemption would correctly spare
+# "as we decided in the ADR" but also spare "as we decided in favor of X" and
+# "as we discussed in yesterday's meeting", both residue, because the referent
+# is the conversation, not a document. A blanket `under` / `at` / `on`
+# exemption without the locator predicate has the same weakness: "as we agreed
+# on Tuesday" is residue, identically.
 # The actor-less passive ("As requested, retry three times") is the same shape
 # without the pronoun, but it is matched only as a clause-final adverbial:
 # bounded that way, the live attribution "as requested by the client" and the
@@ -252,9 +252,9 @@ audit_noise_line_has_ticket_pr_residue() {
   return 1
 }
 
-# Opening-section rationale at any ATX heading level. Detection used to
-# require a literal `## Why this file exists` while the section-exemption
-# path already generalized across ATX levels; these must stay aligned.
+# Opening-section rationale at any ATX heading level; detection must stay
+# aligned with the section-exemption path, which generalizes across ATX
+# levels.
 # Semantic titles from the skill table: why-this-file-exists, Motivation,
 # Rationale (file-purpose openers, not every heading that mentions "why").
 audit_noise_line_has_preamble() {
@@ -267,7 +267,7 @@ audit_noise_line_has_preamble() {
 
 # Historical citations. The skill table is semantic (dated incidents,
 # rename narration, provenance); these are the structural cues, including
-# paraphrases the original literal tripwires missed (`Renamed from`).
+# paraphrases beyond the literal tripwires (`Renamed from`).
 audit_noise_line_has_citation() {
   local line="$1"
   [[ "$line" =~ [Ee]mpirically[[:space:]]+observed ]] && return 0
@@ -523,7 +523,7 @@ audit_noise_split_sentences_into() {
 AUDIT_NOISE_APOS="['’]"
 
 # The contraction wildcard has to be an apostrophe CLASS, never `.`: `don.t`
-# matches `donut`, so ordinary prose was emitted as a Tier 2 finding.
+# matches `donut`, which would emit ordinary prose as a Tier 2 finding.
 audit_noise_sentence_has_prohibition() {
   local s="${1,,}"
   [[ "$s" =~ (^|[^[:alnum:]])(never|do[[:space:]]+not|don${AUDIT_NOISE_APOS}t|avoid|must[[:space:]]+not|should[[:space:]]+not|shouldn${AUDIT_NOISE_APOS}t)([^[:alnum:]]|$) ]]
@@ -545,8 +545,8 @@ AUDIT_NOISE_CLAUSE_STOPWORDS=" the a an and or but nor so yet if unless until wh
 
 # Adverbs that lead an imperative without being one ("Just mark.", "Simply
 # re-run it."). The word after them decides the clause, so the test looks
-# THROUGH these rather than stopping on them — treating them as stopwords
-# reported a positive alternative as if it were absent.
+# THROUGH these rather than stopping on them; treating them as stopwords
+# would report a positive alternative as if it were absent.
 AUDIT_NOISE_CLAUSE_TRANSPARENT=" just simply always then also still only first next now again finally "
 
 # True when a clause after a separator opens with a content word — the signal
@@ -653,7 +653,7 @@ audit_noise_sentence_is_worked_example() {
 #    row, which ends in `|`.
 #
 # Both narrowings are due to #3180, which established them against a 1140-file
-# corpus sweep; this is that work adopted after #3194 shipped the wider form.
+# corpus sweep.
 
 # Strip list, blockquote, task-list-checkbox and leading emphasis markers so a
 # cue that opens the content still reads as initial. Ordered items are accepted
@@ -718,7 +718,7 @@ audit_noise_line_has_negation_without_positive() {
   # Line-level gate first — cheapest, and genuinely a property of the LINE when
   # the caller has not already accumulated a wrapped sentence. Paragraph mode
   # skips it: a hard-wrapped prohibition with no positive must emit, and the
-  # closed-sentence test is what used to withhold that case.
+  # closed-sentence test would withhold that case.
   if [[ "$mode" == "line" ]]; then
     audit_noise_line_ends_sentence "$1" || return 1
   fi

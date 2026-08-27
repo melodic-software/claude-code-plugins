@@ -268,9 +268,9 @@ typos_write_lockfile_denied() {
   base="$(basename -- "$1")"
   case "$base" in
   package-lock.json | npm-shrinkwrap.json | yarn.lock | pnpm-lock.yaml | \
-  bun.lock | bun.lockb | Cargo.lock | poetry.lock | Pipfile.lock | \
-  composer.lock | Gemfile.lock | go.sum | Podfile.lock | flipper.lock | \
-  Package.resolved | packages.lock.json | project.assets.json)
+    bun.lock | bun.lockb | Cargo.lock | poetry.lock | Pipfile.lock | \
+    composer.lock | Gemfile.lock | go.sum | Podfile.lock | flipper.lock | \
+    Package.resolved | packages.lock.json | project.assets.json)
     return 0
     ;;
   *)
@@ -285,17 +285,17 @@ typos_write_ext_allowed() {
     return 0
     ;;
   *.md | *.mdc | *.mdx | *.markdown | *.txt | *.rst | *.adoc | *.asciidoc | *.org | \
-  *.py | *.pyi | *.rb | *.go | *.rs | *.java | *.kt | *.kts | *.scala | *.swift | \
-  *.js | *.jsx | *.mjs | *.cjs | *.ts | *.tsx | *.mts | *.cts | *.vue | *.svelte | \
-  *.c | *.h | *.cc | *.hh | *.cpp | *.hpp | *.cxx | *.hxx | *.cs | *.fs | *.fsx | \
-  *.sh | *.bash | *.zsh | *.fish | *.ps1 | *.psm1 | *.psd1 | \
-  *.html | *.htm | *.css | *.scss | *.sass | *.less | \
-  *.xml | *.yaml | *.yml | *.toml | *.json | *.jsonc | \
-  *.sql | *.graphql | *.graphqls | *.proto | \
-  *.lua | *.r | *.R | *.pl | *.pm | *.php | *.ex | *.exs | *.erl | *.hrl | \
-  *.hs | *.elm | *.clj | *.cljs | *.lisp | *.el | \
-  *.tf | *.hcl | *.nix | *.cmake | *.mk | \
-  *.tex | *.bib | *.pod | *.rdoc)
+    *.py | *.pyi | *.rb | *.go | *.rs | *.java | *.kt | *.kts | *.scala | *.swift | \
+    *.js | *.jsx | *.mjs | *.cjs | *.ts | *.tsx | *.mts | *.cts | *.vue | *.svelte | \
+    *.c | *.h | *.cc | *.hh | *.cpp | *.hpp | *.cxx | *.hxx | *.cs | *.fs | *.fsx | \
+    *.sh | *.bash | *.zsh | *.fish | *.ps1 | *.psm1 | *.psd1 | \
+    *.html | *.htm | *.css | *.scss | *.sass | *.less | \
+    *.xml | *.yaml | *.yml | *.toml | *.json | *.jsonc | \
+    *.sql | *.graphql | *.graphqls | *.proto | \
+    *.lua | *.r | *.R | *.pl | *.pm | *.php | *.ex | *.exs | *.erl | *.hrl | \
+    *.hs | *.elm | *.clj | *.cljs | *.lisp | *.el | \
+    *.tf | *.hcl | *.nix | *.cmake | *.mk | \
+    *.tex | *.bib | *.pod | *.rdoc)
     return 0
     ;;
   *)
@@ -456,12 +456,11 @@ fi
 #
 # Both streams arrive on STDIN, separated by a marker line, rather than as --arg
 # values. Windows caps a process command line at 32767 characters, and typos'
-# jsonlines run about 110 bytes per finding — so passing them as arguments
-# silently broke somewhere past ~300 corrections: jq never ran, and the run
-# degraded to "could not be summarized" on exactly the typo-heavy files the
-# disclosure matters most for. Reproduced at 500 corrections before the change,
-# clean after. The marker is not valid JSON, so it can never collide with a
-# finding line.
+# jsonlines run about 110 bytes per finding — so passing them as --arg values
+# silently breaks past ~300 corrections: jq never runs, and the run degrades to
+# "could not be summarized" on exactly the typo-heavy files the disclosure
+# matters most for. The marker is not valid JSON, so it can never collide with
+# a finding line.
 CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL_OUTPUT" |
   jq -R -s -c --argjson max "$MAX_REPORT" '
     def parse($lines): [$lines[] | select(length > 0) | (fromjson? // empty) | select(.type == "typo")];
@@ -604,15 +603,15 @@ if ((APPLIED_COUNT > 0)); then
 elif [[ "$WRITE_CHANGES" != "true" ]]; then
   if [[ -n "$WRITE_SKIP_REASON" ]]; then
     case "$WRITE_SKIP_REASON" in
-      lockfile)
-        skip_why="this path is a generated lockfile basename, so the file was NOT modified"
-        ;;
-      extensionless)
-        skip_why="this path has no extension and is outside the write allowlist, so the file was NOT modified"
-        ;;
-      *)
-        skip_why="this extension is outside the write allowlist, so the file was NOT modified"
-        ;;
+    lockfile)
+      skip_why="this path is a generated lockfile basename, so the file was NOT modified"
+      ;;
+    extensionless)
+      skip_why="this path has no extension and is outside the write allowlist, so the file was NOT modified"
+      ;;
+    *)
+      skip_why="this extension is outside the write allowlist, so the file was NOT modified"
+      ;;
     esac
     CTX+="typos-format is report-only for $BASE — write mode is on, but ${skip_why}. Findings:"$'\n'
   else
@@ -630,7 +629,7 @@ if ((RESIDUAL_COUNT > 0)); then
   if ((RESIDUAL_COUNT > MAX_REPORT)); then
     CTX+="  ... and $((RESIDUAL_COUNT - MAX_REPORT)) more."$'\n'
   fi
-  # One remediation pointer for the whole list (it used to ride on every line).
+  # One remediation pointer for the whole list.
   CTX+="  Intentional terms are allow-listed via extend-words / extend-identifiers (or an extend-ignore-re pattern) in the repo's typos config."$'\n'
 fi
 
@@ -649,9 +648,7 @@ CTX="${CTX%"${CTX##*[![:space:]]}"}"
 # a string well past its character count: 4,000 for systemMessage (the
 # person-facing summary, deliberately the tighter of the two) and 8,000 for
 # additionalContext — a 20% margin under the cap, the agent channel carrying
-# the fuller finding list. The agent budget was previously 12,000 — 2,000
-# characters ABOVE the very cap this ceiling exists to respect, so it could
-# never fire first.
+# the fuller finding list.
 #
 # DEFENCE IN DEPTH, not the working bound: at MAX_REPORT=10 entries × 60-char
 # elided tokens the message tops out near 1,100 characters, so this ceiling does

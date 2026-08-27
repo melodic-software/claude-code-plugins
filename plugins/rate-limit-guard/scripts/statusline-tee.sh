@@ -229,13 +229,11 @@ tee_snapshot() {
   local dir="$HOME/.claude/rate-limit-guard"
   local target="$dir/rate-limits.json"
   # Create-and-harden only when the directory is not already there. Both calls
-  # were unconditional and both are processes, so on every refresh after the
-  # first they were paying ~50 ms to re-assert a state that already held.
-  # Tradeoff, accepted deliberately: the owner-only mode is now asserted at
-  # creation instead of re-asserted on every refresh, so a mode a user or tool
-  # later loosens on this directory is no longer silently corrected. There is no
-  # builtin that can read a mode, so the alternative is a stat process per
-  # refresh — the same cost this removes.
+  # are processes, and re-asserting a state that already holds would cost ~50 ms
+  # on every refresh after the first. Tradeoff, accepted deliberately: the
+  # owner-only mode is asserted only at creation, so a mode a user or tool later
+  # loosens on this directory is not corrected. There is no builtin that can
+  # read a mode, so checking first would itself be a stat process per refresh.
   if [[ ! -d "$dir" ]]; then
     mkdir -p "$dir" 2>/dev/null || return 0
     # Owner-only contract dir: keeps other local users from pre-planting
@@ -249,8 +247,7 @@ tee_snapshot() {
   # Window-bearing stays a structural property — jq's has(), never a substring
   # test: a forwarded value that merely contains the string "rate_limits"
   # (e.g. "session_name":"rate_limits") must not count as window-bearing and
-  # overwrite a snapshot holding real windows. It is asked of the BUILT payload,
-  # exactly as it was when this function ran its own jq.
+  # overwrite a snapshot holding real windows. It is asked of the BUILT payload.
   local payload="$_RLG_PAYLOAD" has_windows="$_RLG_HAS_WINDOWS"
   [[ -n "$payload" ]] || return 0
 
@@ -529,21 +526,20 @@ _rlg_tee_enabled() {
 
 # ONE jq pass for everything this script needs to decide and to write: the
 # snapshot body, the window-bearing verdict, and the USER-scope enablement
-# verdict. Each of those used to be its own jq — three spawns per refresh, at
-# ~42 ms each on Windows, on a path that fires on every assistant message AND
-# every refreshInterval tick with as many concurrent sessions as the user has
-# windows open.
+# verdict. Separate jq spawns would cost ~42 ms each on Windows, on a path that
+# fires on every assistant message AND every refreshInterval tick with as many
+# concurrent sessions as the user has windows open.
 #
 # The settings document is read by BASH (`$(<file)`, which bash performs without
 # forking) and handed over in the ENVIRONMENT, never opened by jq and never placed
-# in its argv: a native jq on Windows cannot open an MSYS-style path (the same
-# reason the shell redirection was there before), and argv is world-readable while
-# a settings file can hold credentials. See _RLG_DOC_JQ above for the full note.
+# in its argv: a native jq on Windows cannot open an MSYS-style path, and argv is
+# world-readable while a settings file can hold credentials. See _RLG_DOC_JQ
+# above for the full note.
 #
 # Everything is wrapped so that no single malformed input can cost more than the
 # thing it feeds: a settings file that will not parse yields an empty verdict
-# (fail-open, as before) without disturbing the snapshot, and a payload that will
-# not parse yields an empty payload without disturbing the gate.
+# (fail-open) without disturbing the snapshot, and a payload that will not
+# parse yields an empty payload without disturbing the gate.
 _RLG_PAYLOAD=""
 _RLG_HAS_WINDOWS=false
 _RLG_USER_VERDICT=""

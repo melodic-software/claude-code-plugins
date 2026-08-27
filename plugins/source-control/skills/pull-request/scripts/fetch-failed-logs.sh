@@ -335,12 +335,12 @@ fi
 #   TOP-LEVEL:  <step-num>_<job-name>.txt    consolidated step log (errors live here)
 #   PER-JOB:    <job-name>/system.txt         agent metadata only
 # Errors appear in the top-level consolidated files. Walk all *.txt recursively
-# rather than per-job dirs (the prior fixture-only logic missed real layouts).
+# rather than per-job dirs.
 
 # Enumerated ONCE and reused by every walk below (markers, --raw, the three
-# audit sections, the no-marker fallback). Each of those used to re-run `find`,
-# so an --audit pass re-walked the extracted tree five times. NUL-delimited to
-# survive filenames with spaces (real ZIPs have them — e.g. "shell _ Bash").
+# audit sections, the no-marker fallback), so the five consumers do not each
+# re-walk the extracted tree. NUL-delimited to survive filenames with spaces
+# (real ZIPs have them — e.g. "shell _ Bash").
 TXT_FILES=()
 while IFS= read -r -d '' f; do
   TXT_FILES+=("$f")

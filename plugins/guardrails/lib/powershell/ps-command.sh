@@ -242,23 +242,23 @@ ps::blank_herestrings() {
 # detection and commit/push shaping ignore characters inside message text. Never
 # fed to a parser.
 #
-# LEFT TO RIGHT, FIRST OPENER OWNS ITS SPAN. This used to be a `sed` with two
-# independent expressions — `s/'[^']*'//g` then `s/"[^"]*"//g` — neither of which
-# had any notion of which quote style opened first. An apostrophe inside a
-# DOUBLE-quoted string is a literal character to PowerShell, but the single-quote
-# expression treated it as a delimiter, so the span it deleted ran from the
-# apostrophe in one double-quoted string to the apostrophe in the next — taking
-# everything between them with it:
+# LEFT TO RIGHT, FIRST OPENER OWNS ITS SPAN. Two independent per-style strips
+# (`s/'[^']*'//g` then `s/"[^"]*"//g`) have no notion of which quote style
+# opened first. An apostrophe inside a DOUBLE-quoted string is a literal
+# character to PowerShell, but a per-style single-quote expression treats it as
+# a delimiter, so the span it deletes runs from the apostrophe in one
+# double-quoted string to the apostrophe in the next, taking everything between
+# them with it:
 #
 #   in:  Write-Host "a'b"; & ('g'+'it') push --force; Write-Host "c'd"
 #   out: Write-Host
 #
 # That is not a measurement error, it is the ERASURE of the command every
 # sink-trigger scan is about to look at. With the `(` gone, has_special_constructs
-# saw no construct, has_dynamic_invocation saw no call, has_launcher saw no
-# launcher — so classify_git_command never entered the fail-closed sink at all,
-# and the same deletion hid a computed writer call from write_bypass. Two
-# ordinary strings that happen to contain apostrophes ("Kyle's build") were a
+# sees no construct, has_dynamic_invocation sees no call, has_launcher sees no
+# launcher: classify_git_command never enters the fail-closed sink at all, and
+# the same deletion hides a computed writer call from write_bypass. Two
+# ordinary strings that happen to contain apostrophes ("Kyle's build") become a
 # general bypass of all three blocking hooks (#2965).
 #
 # A single walk fixes the pairing: whichever quote character opens first owns
@@ -315,7 +315,7 @@ ps::blank_quoted_spans() {
         # Ambiguous escape context in a double-quoted span — stop looking and
         # fall through to the delete-nothing branch below.
         if [[ "$q" == '"' && "$c" == '`' ]]; then
-          for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+          for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
           break
         fi
         if [[ "$c" == "$q" ]]; then
@@ -323,7 +323,7 @@ ps::blank_quoted_spans() {
           # (`'it''s'`, `"say ""hi"""`), so this candidate closer may not be one.
           # Same resolution as the backtick: refuse the question, delete nothing.
           if [[ "${text:j+1:1}" == "$q" ]]; then
-            for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+            for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
             break
           fi
           found=1
@@ -390,12 +390,12 @@ ps::opaque_quoted_spans() {
         c="${text:j:1}"
         [[ "$c" == $'\n' ]] && break
         if [[ "$q" == '"' && "$c" == '`' ]]; then
-          for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+          for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
           break
         fi
         if [[ "$c" == "$q" ]]; then
           if [[ "${text:j+1:1}" == "$q" ]]; then
-            for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+            for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
             break
           fi
           found=1
@@ -505,13 +505,12 @@ ps::has_special_constructs() {
 #
 # Both lanes ask the same question of a call `&` / dot-source `.`: is the target
 # COMPUTED (so it could resolve to anything, including the program the lane
-# guards) or a compile-time CONSTANT (so it is statically decidable)? They used to
-# answer it with two different regexes — the git lane matching any quote character
-# and the python lane only an interpolating double quote — which is how the git
-# lane came to block `& "publish.ps1"`, a provably git-free literal path (#1968).
-# The separator class and the operator shape now live in one place; the two lanes
-# differ only in WHICH of the two computed shapes each admits, stated at the call
-# site rather than duplicated in a regex.
+# guards) or a compile-time CONSTANT (so it is statically decidable)? One shared
+# predicate answers it: two per-lane regexes drift apart, which is how a git
+# lane matching any quote character blocks `& "publish.ps1"`, a provably
+# git-free literal path (#1968). The separator class and the operator shape live
+# in one place; the two lanes differ only in WHICH of the two computed shapes
+# each admits, stated at the call site rather than duplicated in a regex.
 #
 # A call operator is valid immediately after a statement/block separator
 # (`;& …`, `{& …}`, `|& …`) or after an ASSIGNMENT operator (`$a=& …`), not only
@@ -578,8 +577,8 @@ ps::call_target_is_bare_computed() {
 # exactly as before; the widened target token only decides where the shape
 # refusal fires, never what it refuses. Unlike the braced-name fix (#2908) there
 # is nothing to consume upstream: `$(` survives backtick deletion, quote
-# blanking, and lowercasing intact, so the evidence is still here and the fix
-# belongs in this predicate rather than in a pre-deletion pass.
+# blanking, and lowercasing intact, so the evidence is still here and the
+# refusal belongs in this predicate rather than in a pre-deletion pass.
 #
 # The split exists because the two halves are NOT equally decidable, and the
 # library already treats them differently everywhere else (#2848). A
@@ -1153,11 +1152,11 @@ ps::might_write_via_python3() {
   # target (so the launcher/token tests miss it) and it is not a launcher, so match
   # it here on the quote-INTACT text and fail closed. A SINGLE-quoted target does
   # NOT interpolate in PowerShell (`& '$x'` is the literal name `$x`), so it is not
-# matched. ps::write_bypass catches an UNQUOTED `& $`/`& (` only together with a
-# write indicator or special construct (#2722); this closes the
-# quoted-interpolated form for the python-write lane — which is why this lane
-# takes only the interpolating-string half of the shared call-target predicate
-# and not the bare-computed half.
+  # matched. ps::write_bypass catches an UNQUOTED `& $`/`& (` only together with a
+  # write indicator or special construct (#2722); this closes the
+  # quoted-interpolated form for the python-write lane — which is why this lane
+  # takes only the interpolating-string half of the shared call-target predicate
+  # and not the bare-computed half.
   ps::call_target_is_interpolating_string "$recovered" && return 0
   # Must name a python interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])(pypy|python|py)[0-9]*([.][0-9]+)*([.]exe)?([^[:alnum:]_.]|$) ]] || return 1
@@ -1745,16 +1744,16 @@ ps::write_bypass() {
     # producer redirect AND the `&` of the merge is not read as a statement
     # separator by the call-site walk.
     #
-    # The strip used to feed only the `>` redirect probe, via a separate `gate`
-    # variable, while the two MEASURING probes were handed the unstripped
-    # `blanked_gate`. `ps::call_site_operand_region` ends a call's operand region
-    # at a depth-zero `;` `|` `&`, and the `&` inside `2>&1` is at depth zero, so
-    # `& $w 2>&1 f.txt x` — a working `Set-Content <path> <value>`, verified as a
-    # real write under pwsh — had its region truncated to `" 2>"`. Both measuring
-    # probes went silent and the command fell through ALLOWED (#2927). The same
-    # fd-dup strip therefore runs on BOTH texts below before any probe sees them.
-    # The texts then diverge on PURPOSE: quote-blanked for every probe except
-    # the positional one, which needs quoted operands to stay present (#2906).
+    # The fd-dup strip MUST run on BOTH texts below before any probe sees them,
+    # not only on the `>` redirect probe's copy. `ps::call_site_operand_region`
+    # ends a call's operand region at a depth-zero `;` `|` `&`, and the `&`
+    # inside `2>&1` is at depth zero, so handing the MEASURING probes unstripped
+    # text truncates the region of `& $w 2>&1 f.txt x` (a working
+    # `Set-Content <path> <value>`, verified as a real write under pwsh) to
+    # `" 2>"`: both measuring probes go silent and the command falls through
+    # ALLOWED (#2927). The texts then diverge on PURPOSE: quote-blanked for
+    # every probe except the positional one, which needs quoted operands to
+    # stay present (#2906).
     #
     # Deleting the merge cannot manufacture a signal. The pattern requires a `>`
     # immediately before the `&` and a digit after it, so it never consumes the
@@ -1774,20 +1773,20 @@ ps::write_bypass() {
     opaque_gate=$(ps::opaque_quoted_spans "$lcq_bt")
     opaque_gate="${opaque_gate//\`/}"
     opaque_gate=$(printf '%s' "$opaque_gate" | sed -E 's/[0-9*]*>&[0-9]+//g')
-    # The gate used to be a blanket ps::has_special_constructs, which treated ANY
-    # grouping anywhere in the command as a write signal — so an ordinary
-    # `foreach (…) { & $py run.py $x }` was reported as a "file-write cmdlet
-    # bypass" for a command that writes nothing (#2848). Grouping is not a write
-    # signal; the three shapes that gate actually needed to carry are named
-    # directly instead, each strictly more precise than the construct it replaces:
+    # Grouping is NOT a write signal (#2848): a blanket
+    # ps::has_special_constructs gate treats ANY grouping anywhere in the
+    # command as one, reporting an ordinary `foreach (…) { & $py run.py $x }`
+    # as a "file-write cmdlet bypass" for a command that writes nothing. The
+    # gate carries exactly three named shapes, each strictly more precise than
+    # that blanket construct:
     #   - the CALL TARGET itself is a subexpression (`& ('Set-'+'Content') …`) —
     #     the writer name is assembled at run time and cannot be proven otherwise;
     #   - `--%` (stop-parsing), which makes the remaining argv opaque to every
     #     probe below, so the -Value / positional shapes cannot be ruled out;
     #   - a SPLAT (`& $w @p`), which supplies -Path/-Value from a hashtable the
-    #     probes below cannot see. Previously this was caught only by accident,
-    #     and only when the hashtable literal happened to sit in the same command
-    #     (`$p = @{…}; & $w @p`); naming it closes the pre-built-`$p` form too.
+    #     probes below cannot see. Naming the splat covers the pre-built-`$p`
+    #     form too, not only a hashtable literal sitting in the same command
+    #     (`$p = @{…}; & $w @p`).
     #     The splat is measured PER CALL SITE, the same way the positional probe
     #     measures its operands — a whole-command `@name` scan would make an
     #     unrelated splat the write signal for a call it has nothing to do with

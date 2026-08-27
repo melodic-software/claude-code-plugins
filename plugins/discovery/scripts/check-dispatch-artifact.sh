@@ -298,10 +298,9 @@ done < <(grep -oE "${sidecar_prefix}-[A-Za-z0-9._-]+\.md" "$index" | sort -u)
 
 if [[ ${#referenced[@]} -eq 0 ]]; then
   echo "unusable: index names no ${sidecar_prefix}-<section>.md sidecar: $index" >&2
-  # Through `verdict`, not a hand-rolled printf: this branch used to emit a
-  # short line missing the `freshness=` and `pointer=` fields the header
-  # documents, so a parent grepping the verdict line for them found nothing on
-  # exactly one of the failure paths.
+  # Through `verdict`, not a hand-rolled printf, so this failure path emits
+  # the `freshness=`/`pointer=` fields the header documents and a parent
+  # grepping the verdict line for them finds them here too.
   verdict "$index" 0 0 unusable
   exit 1
 fi

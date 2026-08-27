@@ -4,12 +4,12 @@
 # trailing-slash-normalized — with a caller-supplied fallback for the case the
 # key is absent.
 #
-# Why this exists: the topic-docs seam (`.claude/topic-docs.yaml` `memory_dir`
-# and siblings) was parsed inline at each consumer with a naive
-# `val="${val%%#*}"` FIRST — which truncates a legitimately-quoted value that
-# contains `#` (`"a#b"` -> `"a`) and strips comments before quotes are resolved.
-# Centralizing the parse fixes it once for every consumer instead of re-forking
-# the same bug per site.
+# Why this exists: a naive `val="${val%%#*}"` FIRST strip truncates a
+# legitimately-quoted value that contains `#` (`"a#b"` -> `"a`) because it
+# removes comments before quotes are resolved. This helper is the single
+# quote-aware parse for the topic-docs seam (`.claude/topic-docs.yaml`
+# `memory_dir` and siblings); consumers share it instead of each carrying an
+# inline parse that can re-fork that bug.
 #
 # SINGLE SOURCE OF TRUTH: lib/parse-concern-value.sh at the marketplace repo
 # root. The copies materialized into consuming plugins exist because installed

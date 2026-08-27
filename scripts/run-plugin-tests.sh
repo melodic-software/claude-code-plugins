@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 # Run every plugin contract test (plugins/**/*.test.sh) plus the repo-local
 # hook tests (.claude/hooks/*.test.sh) and fail if any fails. The repo-local
-# hooks are tracked policy with the same test conventions as plugin hooks;
-# before this runner covered them, .claude/hooks/pr-linkage-mcp-gate.test.sh
-# never ran in CI and the copy drifted silently from its plugin sibling.
+# hooks are tracked policy with the same test conventions as plugin hooks.
 #
 # Each test is self-contained and cwd-independent; an individual test SKIPs
 # (exit 0) when an optional tool it needs (shellcheck, shfmt, ...) is absent, so
 # this runner gates on real failures without requiring every tool to be present.
 #
 # Skips are never silent: the summary names every suite that skipped and why,
-# so "exit 0 with skips" reads differently from "all green" (#1313 — a suite
-# whose only coverage skipped used to be indistinguishable from a pass).
+# so "exit 0 with skips" reads differently from "all green" (a suite whose
+# only coverage skipped would be indistinguishable from a pass).
 # --strict-skips turns any optional SKIP into a failure, for callers that have
 # provisioned the full toolchain and want a skip to mean the environment
 # regressed rather than that a tool is optional.

@@ -87,9 +87,9 @@ out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PRO
 assert_contains "gh pr create fires" "$out" "gh pr create"
 assert_contains "names the /pull-request skill" "$out" "/pull-request create"
 
-# --- git commit is no longer this hook's concern -----------------------------
-# It moved to block-noncanonical-commit.sh, which BLOCKS on the stdin-form
-# mechanic. A duplicate advisory here would double-fire on one command.
+# --- git commit is not this hook's concern -----------------------------------
+# block-noncanonical-commit.sh owns it and BLOCKS on the stdin-form mechanic.
+# A duplicate advisory here would double-fire on one command.
 out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$ENABLED_PROJECT")
 assert_silent "git commit -m is not flagged here (owned by block-noncanonical-commit)" "$out"
 

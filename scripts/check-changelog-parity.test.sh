@@ -617,8 +617,9 @@ rm -rf "$repo"
 
 # VERSION COLLISION (two branches staged one number): the branch bumps alpha
 # 1.0.0 -> 1.1.0 with a proper entry, but main already merged its own 1.1.0.
-# head==base-tip previously read as "not bumped" and skipped silently; the fork
-# comparison must see the branch's own bump and fail the collision loudly.
+# Comparing head against the base TIP would read head==tip as "not bumped" and
+# skip silently; the fork comparison must see the branch's own bump and fail
+# the collision loudly.
 repo="$(mk_repo)"
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes

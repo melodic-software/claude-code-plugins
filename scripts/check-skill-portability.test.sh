@@ -225,9 +225,10 @@ rm -f "$f"
 # block-level `<!--` comment line (opening at start-of-line, modulo leading
 # whitespace) may extend an annotation to the next line. Line 2 below has a
 # hardcoded token AND an inline `<!--` marker that is NOT itself a
-# portability-ok annotation — under the pre-fix bug this made is_comment()
-# true for line 2, which left pending_annot carried over from line 1 instead
-# of resetting it, wrongly excusing line 3's unannotated hit too.
+# portability-ok annotation — treating that line as a comment would make
+# is_comment() true for line 2, leaving pending_annot carried over from
+# line 1 instead of resetting it and wrongly excusing line 3's unannotated
+# hit too.
 f="$(tmpfile '<!-- portability-ok: covers only line 2 -->
 diff against origin/main here <!-- unrelated inline note, not an annotation -->
 diff against origin/main again, unannotated')"

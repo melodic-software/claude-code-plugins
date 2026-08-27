@@ -163,7 +163,7 @@ chmod +x "$ARM_STUB"
 # via --repo, so resolve_repo never shells out.
 export PATH="$STUB_BIN:$PATH"
 
-# Launch-commit markers are namespaced by repo (#792 review): the data dir is
+# Launch-commit markers are namespaced by repo (#792): the data dir is
 # plugin-wide, but `work` is a conventional lane name in every repo. Mirrors the
 # launcher's own repo_marker_key — a digest of the canonical repo path, not a
 # character fold, so two paths differing only in a folded character keep
@@ -808,7 +808,8 @@ JSON
   assert_eq "marker: a SHA-256 repo yields a 64-character key" 64 "${#sha256_key}"
   marker="$(cat "$DATA_DIR9/lanes/$sha256_key/work-launch-commit" 2>/dev/null)"
   assert_eq "marker: written under the TARGET repo's object-format key" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
-  # The SHA-1 key the unscoped digest used to produce must hold nothing.
+  # A key derived from the CALLER's object format (SHA-1 here) must hold
+  # nothing — only the target repo's object-format key is valid.
   sha1_key="$(printf '%s' "$SHA256_REPO" | git -C "$REPO" hash-object --stdin)"
   if [[ -e "$DATA_DIR9/lanes/$sha1_key/work-launch-commit" ]]; then wrongfmt=1; else wrongfmt=0; fi
   assert_eq "marker: nothing is written under the caller-format key" 0 "$wrongfmt"

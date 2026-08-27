@@ -1,5 +1,11 @@
 # Changelog — session-flow plugin
 
+## [0.34.10]
+
+### Changed
+
+- **Shared `parse-concern-value.sh` comment cleanup.** Comment-only sync from `lib/parse-concern-value.sh`: the pre-centralization history narration in the header is now a present-tense rationale; no behavior change.
+
 ## [0.34.8]
 
 ### Changed

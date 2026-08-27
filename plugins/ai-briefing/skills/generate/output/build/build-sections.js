@@ -11,7 +11,7 @@ export const escape = (s) =>
     .replaceAll('"', "&quot;");
 
 const SECTION_LABELS = {
-  hero: "Cover",                  // renamed from "Hero" — chip label only; section id stays "hero"
+  hero: "Cover",                  // chip label only; section id stays "hero"
   open: "Open Share",
   agenda: "Agenda",
   welcome: "Welcome",

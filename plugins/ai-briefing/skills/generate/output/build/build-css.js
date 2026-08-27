@@ -642,7 +642,7 @@ body.print-mode .section:last-child { break-after: auto; page-break-after: auto;
   .topnav-meta { display: none; }
 }
 
-/* Force news URLs to break anywhere — long URLs no longer trigger horizontal scroll */
+/* Force news URLs to break anywhere so long URLs cannot trigger horizontal scroll */
 .news-url, .pattern-headline, .news-headline {
   overflow-wrap: anywhere;
   word-break: break-word;

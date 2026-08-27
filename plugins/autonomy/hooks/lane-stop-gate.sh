@@ -29,12 +29,13 @@
 # applies — but an enablement claimed only on the untrusted env channel gets a
 # visible once-per-session notice rather than a silent disengage.
 #
-# CONFIG IS READ FROM TRUSTED SOURCES ONLY (#1784). The gate previously read
-# `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_*` straight off the environment —
-# channel B of docs/conventions/hook-config-delivery, whose unset case a watched
-# repository's own `.claude/settings.json` `env` block owns. A gate whose
-# enablement (or sentinel, or marker path) the watched repository controls is
-# not a gate. Per-key resolution is now, in precedence order:
+# CONFIG IS READ FROM TRUSTED SOURCES ONLY (#1784). The gate never reads
+# `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_*` straight off the environment as a
+# value: that is channel B of docs/conventions/hook-config-delivery, whose
+# unset case a watched repository's own `.claude/settings.json` `env` block
+# owns, and a gate whose enablement (or sentinel, or marker path) the watched
+# repository controls is not a gate. Per-key resolution is, in precedence
+# order:
 #
 #   1. managed settings (fixed root-owned paths + managed-settings.d drop-ins);
 #   2. the per-session ARM RECORD: the claude-ops lane launcher arms a lane at
@@ -173,15 +174,15 @@ GATE_ARM_JSON=""
 # flock is not used: it is absent on macOS, the reason statusline-tee.sh already
 # records for avoiding it.
 #
-# FAIL DIRECTION, unchanged: a store this hook cannot write leaves no claim file
+# FAIL DIRECTION: a store this hook cannot write leaves no claim file
 # at all and the arm is HONORED. Being gated is never the harm here; the harm is
 # a legitimate lane silently losing its gate. The existence recheck that tells
 # "another session claimed it" apart from "an unwritable store" shares that
 # direction, and so does the fall-through below: durably ownerless — a create
 # that won whose write never landed — or a durably unwritable store honors every
 # presenter for as long as it lasts, the same unbounded over-gating a failed
-# claim write already produced before this change, in the same direction. An
-# extra nudge, never an ungated lane.
+# claim write produces, in the same direction. An extra nudge, never an
+# ungated lane.
 #
 # The claim file exists ONLY because some process won the exclusive create, so
 # an EMPTY one is that winner caught between its create and its write, not an

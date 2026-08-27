@@ -249,9 +249,10 @@ def main() -> int:
             return 2
         if not options:
             # A plugin that removed its LAST option must lose its generated block too.
-            # Skipping here left a stale block documenting options that no longer exist,
-            # and --check never read the README on this branch, so the gate reported it
-            # as up to date -- the one path where the gate silently fails at its own job.
+            # Skipping here would leave a stale block documenting options that no longer
+            # exist, and --check would never read the README on this branch, so the gate
+            # would report it as up to date -- the one path where the gate silently
+            # fails at its own job.
             removal = strip_stale_block(readme, check)
             if removal is None:
                 skipped += 1

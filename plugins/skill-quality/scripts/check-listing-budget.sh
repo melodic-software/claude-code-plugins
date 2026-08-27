@@ -173,8 +173,7 @@ JOINER_CHARS=3 # the literal " - " the harness inserts between description and w
 
 # Precedence matches the documented contract above: a fixed aggregate budget
 # SKIPS the token/fraction reconstruction. Checking it first is what makes that
-# sentence true — the reconstruction branch used to win and silently discard a
-# supplied fixed budget, which could flip the OK/WARN verdict.
+# sentence true.
 if [[ -n "${CHECK_SKILL_LISTING_BUDGET_CHARS:-}" ]]; then
   BUDGET_CHARS="$CHECK_SKILL_LISTING_BUDGET_CHARS"
   require_positive_number CHECK_SKILL_LISTING_BUDGET_CHARS "$BUDGET_CHARS" int
@@ -273,35 +272,35 @@ fi
 
 # --- One awk pass over every SKILL.md ---------------------------------------
 #
-# WHY THIS IS ONE PROCESS. The previous shape was a bash loop that spent at
-# least eleven forked subshells and five external process execs (4x awk, 1x tr)
-# on EVERY SKILL.md — on the order of 2,000 spawns for this repo's ~200 skills.
-# Process creation costs roughly two orders of magnitude more on Windows than on
-# Linux, so `check-listing-budget.sh plugins/*/skills` took 289s there and was
-# KILLED at the 180s foreground limit with zero output, while CI (ubuntu-24.04)
-# never surfaced it. That command is verbatim what #2023's procedure and
-# .github/recurring-schedule.json instruct an operator to run each cycle, so a
-# report-only drift watch silently produced nothing on the one machine where the
-# routine is actually driven (#2216).
+# WHY THIS IS ONE PROCESS. A per-file bash loop spends at least eleven forked
+# subshells and five external process execs (4x awk, 1x tr) on EVERY SKILL.md,
+# on the order of 2,000 spawns for this repo's ~200 skills. Process creation
+# costs roughly two orders of magnitude more on Windows than on Linux, so that
+# shape takes `check-listing-budget.sh plugins/*/skills` to 289s there and gets
+# it KILLED at the 180s foreground limit with zero output, while CI
+# (ubuntu-24.04) never surfaces it. That command is verbatim what #2023's
+# procedure and .github/recurring-schedule.json instruct an operator to run
+# each cycle, so a report-only drift watch would silently produce nothing on
+# the one machine where the routine is actually driven (#2216).
 #
-# THIS IS A PORT, NOT A REWRITE. The program below reimplements, behaviour for
-# behaviour, the four helpers the loop used to shell out to:
+# PARITY, NOT A REWRITE. The program below reimplements, behaviour for
+# behaviour, the four `skill-frontmatter.sh` helpers:
 # `skill_frontmatter::extract`, `::field` (including block-scalar unfolding for
 # `|` and `>`, and the quote-aware trailing-comment strip with its
 # doubled-single-quote case), `::strip_quotes` (ONE outer layer, double OR
 # single, never both), and `normalize_bool`/`trim_ws`. Output is byte-identical
-# to the pre-port script over this repo's tree — aggregate, entry count, every
-# per-file contribution row, and the report text — which is the property the
-# test suite pins.
+# to composing those helpers per file over this repo's tree — aggregate, entry
+# count, every per-file contribution row, and the report text — which is the
+# property the test suite pins.
 #
-# Two command-substitution behaviours the old pipeline got for free are
-# reproduced EXPLICITLY here, because they were load-bearing rather than
-# incidental:
-#   - `fm="$(skill_frontmatter::extract ...)"` stripped trailing NEWLINES from
-#     the extracted frontmatter, so trailing blank lines could never append a
+# Two command-substitution behaviours a shell caller of those helpers gets for
+# free are reproduced EXPLICITLY here, because they are load-bearing rather
+# than incidental:
+#   - `fm="$(skill_frontmatter::extract ...)"` strips trailing NEWLINES from
+#     the extracted frontmatter, so trailing blank lines can never append a
 #     separator inside a block scalar. Hence the trailing-empty-line drop after
 #     collection, and hence an all-blank block counting as no frontmatter.
-#   - `"$(skill_frontmatter::field ...)"` stripped trailing newlines from the
+#   - `"$(skill_frontmatter::field ...)"` strips trailing newlines from the
 #     FIELD's value. Hence strip_trailing_nl() on each result. A folded (`>`)
 #     scalar joins with SPACES, which command substitution does not strip, so
 #     only newlines are removed — not whitespace generally.

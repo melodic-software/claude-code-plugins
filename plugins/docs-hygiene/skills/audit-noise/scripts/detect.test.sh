@@ -346,10 +346,10 @@ assert_contains "configured memory root flags concrete slices" "$conf_out" ".scr
 assert_not_contains "configured bare concern root stays exempt" "$conf_out" ".scratch/reviews/"
 assert_not_contains "configured bare running-retros root stays exempt" "$conf_out" ".scratch/running-retros/"
 
-# F6 regression: a configured contract root's bare reviews/handoffs child must
-# NOT inherit the memory-root exemption. AUDIT_NOISE_CONTRACT_ROOT used to be
-# set only inside a command-substitution subshell and lost, so product/topics/
-# reviews/ was incorrectly treated like .work/reviews/.
+# Regression: a configured contract root's bare reviews/handoffs child must
+# NOT inherit the memory-root exemption. AUDIT_NOISE_CONTRACT_ROOT set only
+# inside a command-substitution subshell is lost, and product/topics/reviews/
+# is then incorrectly treated like .work/reviews/.
 CONF_CONTRACT_BARE="$TEST_TMPDIR/configured-contract-bare.md"
 cat >"$CONF_CONTRACT_BARE" <<'EOF'
 # Configured-contract bare-root fixture
@@ -654,9 +654,9 @@ assert_not_contains "document locators keep the antecedent unflagged" \
   "$ante_neg_out" "Finding shape: conversational-antecedent"
 assert_contains "antecedent exemptions file is clean" "$ante_neg_out" "| T1=0 T2=0 T3=0"
 
-# under / at / on used to exempt unconditionally, the same weakness `in` had
-# before the locator predicate. Conversational residue phrased with those
-# prepositions must flag; a real document locus after them must stay exempt.
+# A blanket under / at / on exemption has the same weakness a bare `in` one
+# would: conversational residue phrased with those prepositions must flag; a
+# real document locus after them must stay exempt.
 # High-traffic `on` idioms that are NOT this shape (based on, depends on, on
 # disk, on the other hand) are pinned so narrowing `on` cannot start matching
 # ordinary prose that never had an antecedent.

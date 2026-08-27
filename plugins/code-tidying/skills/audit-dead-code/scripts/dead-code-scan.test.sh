@@ -279,9 +279,9 @@ mkdir -p "$MULTI_DEG/node_modules" "$MULTI_DEG/packages/inner"
 printf 'restored\n' >"$MULTI_DEG/node_modules/marker"
 printf '%s\n' '{"name":"outer","version":"0.0.0","private":true}' >"$MULTI_DEG/package.json"
 cp "$FIXTURES/dead-and-dynamic.ts" "$FIXTURES/ts-used.ts" "$FIXTURES/ts-entry.ts" "$MULTI_DEG/"
-# The nested root has no local node_modules (hoisted ancestor install). It
-# is still degraded here via a per-root stderr capture — restore is no longer
-# the trigger; an ERROR: line is.
+# The nested root has no local node_modules (hoisted ancestor install). It is
+# still degraded here: degradation comes from the per-root stderr capture (an
+# ERROR: line), not the restore probe.
 printf '%s\n' '{"name":"inner","version":"0.0.0","private":true}' >"$MULTI_DEG/packages/inner/package.json"
 cp "$FIXTURES/ts-orphan.ts" "$FIXTURES/ts-entry.ts" "$MULTI_DEG/packages/inner/"
 stage_repo "$MULTI_DEG"
@@ -449,9 +449,8 @@ assert_contains "exported control does not inflate the totals" "$goexp_out" "Sum
 # --- 5b. A degraded gopls module emits NO records ----------------------------------
 # gopls degrades toward false NEGATIVES: the module graph did not load, hints are
 # suppressed, and it still exits 0. The lane line says the module "emits no
-# records", and that claim has to be true. It was not: health used to be decided
-# INSIDE the parse loop, so add_candidate had already appended this module's rows
-# before the gate fired.
+# records", and that claim has to be true: the health gate must fire before the
+# parse loop can append this module's rows via add_candidate.
 
 GO_DEGRADED="$TEST_TMPDIR/gopls-degraded.txt"
 cat "$FIXTURES/gopls-hints.txt" >"$GO_DEGRADED"
@@ -484,9 +483,9 @@ grep_exit=0
 grep_out="$(cd "$SH_REPO" && bash "$SCAN" --lane grep 2>/dev/null)" || grep_exit=$?
 assert_exit "grep lane scan exits 0" 0 "$grep_exit"
 assert_contains "grep lane ran over the one shell file" "$grep_out" "Lane: grep | root=. | state=ran | files=1 | detail=2 candidate(s) from 3 distinct definition name(s)"
-# The fixture used to name both symbols in its own header comment, and `grep -w -F`
-# counted the prose mention as a reference — the fixture saved the very symbols it
-# exists to condemn, and the lane produced nothing at all.
+# If the fixture named both symbols in its own header comment, `grep -w -F`
+# would count the prose mention as a reference: the fixture would save the very
+# symbols it exists to condemn, and the lane would produce nothing at all.
 assert_not_contains "the fixture is not self-referencing into zero candidates" "$grep_out" "detail=0 candidate(s)"
 assert_contains "grep shape is unreferenced-symbol" "$grep_out" "Finding shape: unreferenced-symbol"
 assert_contains "unreferenced-symbol is tier 1" "$grep_out" "Finding tier: 1"

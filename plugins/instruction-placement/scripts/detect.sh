@@ -193,9 +193,9 @@ else
   # Rules reached through a symlink are not tracked by design; discovery owns
   # that asymmetry, so pull them in from there rather than from the git listing.
   #
-  # The exclusion and tier filters run again here. Skipping them let this loop
-  # UNDO the one above: a tracked rule under an excluded subtree was written to
-  # SKIP_ROWS and left out of FILES, then re-added here because it was "not
+  # The exclusion and tier filters run again here. Skipping them would let this
+  # loop UNDO the one above: a tracked rule under an excluded subtree is written
+  # to SKIP_ROWS and left out of FILES, then re-added here because it is "not
   # already in FILES" -- emitting a SKIP row and a FILE row for the same path and
   # counting it in both summary totals. `context/corpus.md` states exclusions are
   # absolute and applied before any classification, so nothing below can reach
@@ -401,9 +401,10 @@ done
 # Existing rule inventory, from the shared discovery layer.
 while IFS= read -r rule; do
   [[ -z "$rule" ]] && continue
-  # One parser, shared with glob-tools.sh and render-index.sh. This file used to
-  # carry a third copy of it, and all three split the inline flow form on brace
-  # commas — turning one correct glob into two broken ones.
+  # One parser, shared with glob-tools.sh and render-index.sh. A private copy
+  # here would risk the brace-comma bug: splitting the inline flow form
+  # `["src/*.{ts,tsx}"]` on the brace comma turns one correct glob into two
+  # broken ones.
   globs="$(ip_parse_paths "$rule" | paste -sd, -)"
   if [[ -n "$globs" ]]; then
     printf 'RULE\t%s\tscoped\t%s\n' "$rule" "$globs" >>"$ROWS"

@@ -3,11 +3,11 @@
 # directly. Reuses clean_path_key / clean_skip_matches from clean-common.sh —
 # the separator-agnostic normalization + skip matching proven out by tree-batch.
 #
-# tree-batch (git-tree-reset-batch.sh) predates this module and now reads lines
-# and emits per-repo records through it. Its resolve-dedup loop is still inline:
+# tree-batch (git-tree-reset-batch.sh) reads lines and emits per-repo records
+# through this module, but its resolve-dedup loop is inline:
 # batch_resolve_repos additionally runs each input through batch_normalize_input
 # (backslash folding), which tree-batch's loop does not, so adopting it there is a
-# behavior change rather than a lift — a deferred follow-up.
+# behavior change rather than a lift.
 
 # shellcheck source=clean-common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/clean-common.sh"

@@ -198,11 +198,11 @@ fi
 # --- Snapshot release + rewrite disclosure on the non-formatting arms (#3366) -
 # The hook copies the target file to an `_ps_before` mktemp snapshot so a
 # formatter rewrite can be disclosed on the user channel. Every exit arm owes
-# that snapshot a release. The trust-gate (pwsh exit 6) and tool-break
-# (catch-all) arms used to return without one, leaking one temp file per gated
-# run; the tool-break arm also skipped the disclosure, so a rewrite
-# Invoke-Formatter had already written back before the analyzer threw went
-# unnamed.
+# that snapshot a release: the trust-gate (pwsh exit 6) and tool-break
+# (catch-all) arms exercised here would each leak one temp file per gated run
+# without one. The tool-break arm also owes the disclosure: a rewrite
+# Invoke-Formatter has already written back before the analyzer throws would
+# otherwise go unnamed.
 #
 # These live ABOVE the real-pwsh prerequisite gate on purpose: they drive the
 # arms through the stub pwsh, so they need neither a real pwsh nor the

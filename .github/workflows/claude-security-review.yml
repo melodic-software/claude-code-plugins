@@ -74,13 +74,13 @@ jobs:
   # review when the action skips itself on an in-scope diff. This job is
   # intentionally separate so the guard stays readable in-repo.
   #
-  # It reads the lane's DECLARED outputs, passed below out of `needs`. It used
-  # to scrape the lane's job log instead, and a log is not a contract: the
-  # lane's `Report review outcome` step is an inline github-script whose source
-  # is echoed into that log, so the grep matched the source that mentions the
-  # skip phrases and reddened every successful in-scope pull request (#2517).
+  # It reads the lane's DECLARED outputs, passed below out of `needs`, never a
+  # scrape of the lane's job log, because a log is not a contract: the lane's
+  # `Report review outcome` step is an inline github-script whose source is
+  # echoed into that log, so a grep for the skip phrases would match that
+  # source and redden every successful in-scope pull request (#2517).
   # Those outputs exist as of ci-workflows v0.14.2, which is why this job is
-  # now coupled to the pin above — the guard fails CLOSED when they are absent
+  # coupled to the pin above — the guard fails CLOSED when they are absent
   # at an unmoved head, so a re-pin BACKWARDS past that release turns this red.
   # The release, never a pull request number: a reader checking whether their
   # pin carries the outputs needs a version they can compare against, and the
@@ -96,8 +96,8 @@ jobs:
     permissions:
       contents: read
       # The guard reads the pull request's live head on one path only —
-      # telling a retired superseded run apart from an absent verdict. It no
-      # longer reads run jobs or logs, so `actions: read` is gone with them.
+      # telling a retired superseded run apart from an absent verdict. It
+      # never reads run jobs or logs, so it needs no `actions: read`.
       pull-requests: read
     steps:
       - name: Check out

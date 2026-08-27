@@ -214,13 +214,13 @@ assert_exit "missing pr-number exits 1" 1 "$?"
 run_script_silent 2
 assert_exit "gh pr view failure exits 2" 2 "$?"
 
-# Case 8: per-check-run annotations API failure exits 2 (regression — `|| true`
-# on the jq pipeline used to mask gh api auth/rate-limit failures and silently
-# emit partial JSONL instead of failing the script per the docstring contract)
+# Case 8: per-check-run annotations API failure exits 2 (regression guard: a
+# `|| true` on the jq pipeline would mask gh api auth/rate-limit failures and
+# silently emit partial JSONL instead of failing per the docstring contract)
 run_script_silent 5
 assert_exit "annotations API failure exits 2" 2 "$?"
 
-# Case 7: check-runs API failure exits 2 (regression — used to silently exit 0)
+# Case 7: check-runs API failure exits 2 (regression guard: must not silently exit 0)
 run_script_silent 4
 assert_exit "check-runs API failure exits 2" 2 "$?"
 

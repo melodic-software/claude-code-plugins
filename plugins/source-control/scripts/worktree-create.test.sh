@@ -43,8 +43,7 @@ fi
 # Deliberately its OWN mktemp tree, not a subdirectory of TEST_TMPDIR: the
 # discovery-root case below asserts the resolved worktree escapes the repository's
 # whole ancestry, and a data dir sharing that ancestry would make the assertion
-# unfalsifiable — which is exactly how an earlier version of it passed on one
-# platform and failed on another.
+# unfalsifiable.
 DATA_DIR_POSIX="$(mktemp -d)"
 if command -v cygpath >/dev/null 2>&1; then
   DATA_DIR="$(cygpath -m "$DATA_DIR_POSIX")"
@@ -53,7 +52,7 @@ else
 fi
 trap 'rm -rf "$TEST_TMPDIR" "$DATA_DIR_POSIX"' EXIT
 DATA_ROOT_FILE="$TEST_TMPDIR/data-root"
-printf '%s' "$DATA_DIR" > "$DATA_ROOT_FILE"
+printf '%s' "$DATA_DIR" >"$DATA_ROOT_FILE"
 
 # mkrepo [--origin <url>] [--remote-name <name>] [--no-head] — create a fresh git
 # repo fixture with one commit; unless --no-head, the remote's HEAD is pointed at
@@ -67,10 +66,19 @@ mkrepo() {
   local origin_url="" seed_head=1 remote_name="origin"
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --origin) origin_url="$2"; shift 2 ;;
-      --remote-name) remote_name="$2"; shift 2 ;;
-      --no-head) seed_head=0; shift ;;
-      *) shift ;;
+    --origin)
+      origin_url="$2"
+      shift 2
+      ;;
+    --remote-name)
+      remote_name="$2"
+      shift 2
+      ;;
+    --no-head)
+      seed_head=0
+      shift
+      ;;
+    *) shift ;;
     esac
   done
   local repo
@@ -85,7 +93,7 @@ mkrepo() {
     # as failures while its refusal cases still pass — a shape that reads as a
     # real regression rather than an unrunnable fixture.
     git -C "$repo" config commit.gpgsign false
-    printf 'seed\n' > "$repo/README.md"
+    printf 'seed\n' >"$repo/README.md"
     git -C "$repo" add README.md
     git -C "$repo" commit -qm init
     if [[ -n "$origin_url" ]]; then
@@ -119,7 +127,7 @@ addremote() {
 # whatever remote tips are already seeded.
 commitfile() {
   local repo="$1" rel="$2"
-  printf 'x\n' > "$repo/$rel"
+  printf 'x\n' >"$repo/$rel"
   {
     git -C "$repo" add "$rel"
     git -C "$repo" commit -qm "add $rel"
@@ -166,8 +174,8 @@ assert_file_exists "fallback worktree materialized" "$out/README.md"
 # checkout would re-trigger the nesting defect this helper exists to prevent, so
 # assert the negative explicitly rather than inferring it.
 case "$out" in
-  "$repo"/*) fail "default is outside the repository" "not under $repo" "$out" ;;
-  *) pass "default is outside the repository" ;;
+"$repo"/*) fail "default is outside the repository" "not under $repo" "$out" ;;
+*) pass "default is outside the repository" ;;
 esac
 
 # --- Case: the default does not land in a repository-discovery tree ---
@@ -188,7 +196,7 @@ disc_repo="$discovery_root/github.com/acme/widget"
   git -C "$disc_repo" config user.email t@t.t
   git -C "$disc_repo" config user.name t
   git -C "$disc_repo" config commit.gpgsign false
-  printf 'seed\n' > "$disc_repo/README.md"
+  printf 'seed\n' >"$disc_repo/README.md"
   git -C "$disc_repo" add README.md
   git -C "$disc_repo" commit -qm init
   git -C "$disc_repo" remote add origin "git@github.com:acme/widget.git"
@@ -200,8 +208,8 @@ disc_root_native="${disc_root_native%/github.com/acme/widget}"
 out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/nodiscovery --data-root-file "$DATA_ROOT_FILE" --repo-dir "$disc_repo" 2>/dev/null)
 assert_exit "discovery-layout repo creates against the default (exit 0)" 0 "$?"
 case "$out" in
-  "$disc_root_native"/*) fail "default escapes the repository-discovery root" "not under $disc_root_native" "$out" ;;
-  *) pass "default escapes the repository-discovery root" ;;
+"$disc_root_native"/*) fail "default escapes the repository-discovery root" "not under $disc_root_native" "$out" ;;
+*) pass "default escapes the repository-discovery root" ;;
 esac
 
 # --- Case: an unexpanded token reaches the same default (exit 0) ---
@@ -217,7 +225,7 @@ assert_eq "token fallback places the worktree under the plugin data dir" \
 
 # --- Case: the default does NOT read CLAUDE_PLUGIN_DATA (regression guard) ---
 # A stray CLAUDE_PLUGIN_DATA pointing at another plugin's storage must not change
-# where the worktree lands. This is the P1 the earlier draft of this fallback had.
+# where the worktree lands.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 expected_root="$DATA_DIR/worktrees"
 foreign="$TEST_TMPDIR_NATIVE/some-other-plugin-data"
@@ -244,7 +252,7 @@ assert_contains "refuse message rejects the in-repo fallback" "$err" ".claude/wo
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 token_data_file="$TEST_TMPDIR/data-root-token"
 # shellcheck disable=SC2016
-printf '%s' '${CLAUDE_PLUGIN_DATA}' > "$token_data_file"
+printf '%s' '${CLAUDE_PLUGIN_DATA}' >"$token_data_file"
 err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/datatoken --data-root-file "$token_data_file" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "unsubstituted data-root-file token refuses exit 3" 3 "$?"
 assert_contains "token refusal names worktree_root key" "$err" "worktree_root"
@@ -325,7 +333,7 @@ assert_exit "--data-root-file missing file exit 2" 2 "$?"
 # two channels cannot drift apart.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 multi_data_file="$TEST_TMPDIR/data-root-multiline"
-printf '%s\n%s\n' "$TEST_TMPDIR_NATIVE/one" "touch $TEST_TMPDIR/pwned-data" > "$multi_data_file"
+printf '%s\n%s\n' "$TEST_TMPDIR_NATIVE/one" "touch $TEST_TMPDIR/pwned-data" >"$multi_data_file"
 err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/datanewline --data-root-file "$multi_data_file" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "--data-root-file embedded newline is a usage error (exit 2)" 2 "$?"
 assert_contains "--data-root-file newline error names the newline" "$err" "newline"
@@ -461,7 +469,7 @@ assert_exit "duplicate path exit 4" 4 "$?"
 
 # --- Case: base-ref head branches from local HEAD (carries unpushed commits) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
-printf 'local-only\n' > "$repo/UNPUSHED.md"
+printf 'local-only\n' >"$repo/UNPUSHED.md"
 git -C "$repo" add UNPUSHED.md
 git -C "$repo" commit -qm "unpushed local commit"
 root="$TEST_TMPDIR/wtroot4"
@@ -476,16 +484,16 @@ assert_file_absent "base-ref fresh excludes the unpushed commit" "$out/UNPUSHED.
 
 # --- Case: .worktreeinclude copy is the (matched AND gitignored) intersection ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
-printf '.work/\n*.env\n' > "$repo/.gitignore"
-printf '.work/keep.md\n.work/*/EXPLORE.md\n*.env\n' > "$repo/.worktreeinclude"
+printf '.work/\n*.env\n' >"$repo/.gitignore"
+printf '.work/keep.md\n.work/*/EXPLORE.md\n*.env\n' >"$repo/.worktreeinclude"
 git -C "$repo" add .gitignore .worktreeinclude
 git -C "$repo" commit -qm "ignore + include"
 mkdir -p "$repo/.work/task1"
-printf 'x\n' > "$repo/.work/keep.md"          # matched + gitignored -> copy
-printf 'x\n' > "$repo/.work/task1/EXPLORE.md" # matched (nested) + gitignored -> copy
-printf 'x\n' > "$repo/.work/task1/OTHER.md"   # gitignored, NOT matched  -> skip
-printf 'x\n' > "$repo/secrets.env"            # matched + gitignored -> copy
-printf 'x\n' > "$repo/loose.txt"              # neither -> skip
+printf 'x\n' >"$repo/.work/keep.md"          # matched + gitignored -> copy
+printf 'x\n' >"$repo/.work/task1/EXPLORE.md" # matched (nested) + gitignored -> copy
+printf 'x\n' >"$repo/.work/task1/OTHER.md"   # gitignored, NOT matched  -> skip
+printf 'x\n' >"$repo/secrets.env"            # matched + gitignored -> copy
+printf 'x\n' >"$repo/loose.txt"              # neither -> skip
 root="$TEST_TMPDIR/wtroot6"
 out=$(bash "$HELPER" --name feat/inc --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "worktreeinclude: matched+ignored top-level copied" "$out/.work/keep.md"
@@ -497,7 +505,7 @@ assert_file_absent "worktreeinclude: unignored file never copied" "$out/loose.tx
 # --- Case: settings.local.json copied from the git common dir (#2119) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 mkdir -p "$repo/.claude"
-printf '{"env":{"DISK_HYGIENE_GUARD_WATCHDOG_SECONDS":"50"}}\n' > "$repo/.claude/settings.local.json"
+printf '{"env":{"DISK_HYGIENE_GUARD_WATCHDOG_SECONDS":"50"}}\n' >"$repo/.claude/settings.local.json"
 root="$TEST_TMPDIR/wtroot-settings"
 out=$(bash "$HELPER" --name feat/settings --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "settings.local.json copied into the worktree" "$out/.claude/settings.local.json"
@@ -673,7 +681,7 @@ assert_eq "ref check leaves stdout as the sole path line" "$root/acme-widget-fea
 # being rejected because of where the caller happened to stand — the documented
 # invocation omits --repo-dir, so the CWD is the default.
 stale="$(mktemp -d "$TEST_TMPDIR/staleXXXXXX")"
-printf 'gitdir: %s/definitely-not-here\n' "$TEST_TMPDIR" > "$stale/.git"
+printf 'gitdir: %s/definitely-not-here\n' "$TEST_TMPDIR" >"$stale/.git"
 root="$TEST_TMPDIR/wtroot10e"
 out=$(cd "$stale" && bash "$HELPER" --name "feat/cwdok" --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_exit "valid name unaffected by a stale .git in the CWD (exit 0)" 0 "$?"
@@ -704,7 +712,7 @@ assert_eq "trailing-slash root yields a single separator" \
 # --- Case: --root and --root-file together are a usage error (exit 2) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-both"
-printf '%s' "$TEST_TMPDIR/wtroot-both" > "$root_file"
+printf '%s' "$TEST_TMPDIR/wtroot-both" >"$root_file"
 bash "$HELPER" --name feat/both --root "$TEST_TMPDIR/wtroot-both" --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root and --root-file together exit 2" 2 "$?"
 
@@ -730,7 +738,7 @@ assert_exit "--root-file missing file exit 2" 2 "$?"
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR_NATIVE/wtroot13-O'Connor \$weird \`root\`"
 root_file="$TEST_TMPDIR/rootfile-special"
-printf '%s' "$root" > "$root_file"
+printf '%s' "$root" >"$root_file"
 out=$(bash "$HELPER" --name feat/special --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
 assert_exit "--root-file special-char root creates (exit 0)" 0 "$?"
 assert_eq "--root-file special-char root computes the exact path" \
@@ -743,7 +751,7 @@ assert_file_exists "--root-file special-char worktree materialized" "$out/README
 # (key never configured) broken.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-empty"
-: > "$root_file"
+: >"$root_file"
 expected_root="$DATA_DIR/worktrees"
 err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/emptyfallback --data-root-file "$DATA_ROOT_FILE" --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
 rc=$?
@@ -761,7 +769,7 @@ assert_eq "--root-file empty content places the worktree under the plugin data d
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-token"
 # shellcheck disable=SC2016
-printf '%s' '${user_config.worktree_root}' > "$root_file"
+printf '%s' '${user_config.worktree_root}' >"$root_file"
 expected_root="$DATA_DIR/worktrees"
 out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/token --data-root-file "$DATA_ROOT_FILE" --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
 assert_exit "--root-file unexpanded token creates against the default (exit 0)" 0 "$?"
@@ -774,7 +782,7 @@ assert_eq "--root-file token fallback places the worktree under the plugin data 
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR_NATIVE/wtroot14-noeol.d"
 root_file="$TEST_TMPDIR/rootfile-noeol"
-printf '%s' "$root" > "$root_file"
+printf '%s' "$root" >"$root_file"
 out=$(bash "$HELPER" --name feat/noeol --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
 assert_exit "--root-file unterminated value creates (exit 0)" 0 "$?"
 assert_eq "--root-file unterminated value keeps every byte" "$root/acme-widget-feat-noeol" "$out"
@@ -787,7 +795,7 @@ assert_file_exists "--root-file unterminated value materialized" "$out/README.md
 # have smuggled into shell source — which is why the handoff is non-shell now.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-multiline"
-printf '%s\n%s\n' "$TEST_TMPDIR/wtroot15-multi" "touch $TEST_TMPDIR/pwned" > "$root_file"
+printf '%s\n%s\n' "$TEST_TMPDIR/wtroot15-multi" "touch $TEST_TMPDIR/pwned" >"$root_file"
 err=$(bash "$HELPER" --name feat/multi --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "--root-file embedded newline is a usage error (exit 2)" 2 "$?"
 assert_contains "--root-file newline error names the newline" "$err" "newline"
@@ -800,7 +808,7 @@ assert_file_absent "--root-file newline payload never executed" "$TEST_TMPDIR/pw
 # so a trailing newline means the value really carries one.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-trailing-eol"
-printf '%s\n' "$TEST_TMPDIR/wtroot16-trailing" > "$root_file"
+printf '%s\n' "$TEST_TMPDIR/wtroot16-trailing" >"$root_file"
 err=$(bash "$HELPER" --name feat/trailing --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "--root-file trailing newline is a usage error (exit 2)" 2 "$?"
 assert_contains "--root-file trailing-newline error names the newline" "$err" "newline"
@@ -813,7 +821,7 @@ assert_file_absent "--root-file trailing-newline root never materialized" \
 # The check therefore runs on the file, before the value reaches a variable.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-nul"
-printf '%s\000%s' "$TEST_TMPDIR/wtroot17-nul" "suffix" > "$root_file"
+printf '%s\000%s' "$TEST_TMPDIR/wtroot17-nul" "suffix" >"$root_file"
 err=$(bash "$HELPER" --name feat/nul --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "--root-file NUL byte is a usage error (exit 2)" 2 "$?"
 assert_contains "--root-file NUL error names the NUL byte" "$err" "NUL"
@@ -832,7 +840,7 @@ assert_file_absent "--root-file NUL-collapsed path never materialized" \
 # substring assertions below even with no lock armed at all.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-lock"
-printf '%s' "$TEST_TMPDIR/wtroot18-lock" > "$root_file"
+printf '%s' "$TEST_TMPDIR/wtroot18-lock" >"$root_file"
 out=$(bash "$HELPER" --name feat/liveness --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
 assert_exit "lock case: creation succeeds (exit 0)" 0 "$?"
 stanza=$(git -C "$repo" worktree list --porcelain | awk -v RS= -v p="acme-widget-feat-liveness" 'index($0, p)')

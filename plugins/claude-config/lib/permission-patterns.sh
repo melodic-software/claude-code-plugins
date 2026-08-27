@@ -61,10 +61,8 @@ CCPERM_SCRIPT_BODY='py|sh|rb|js|ts|mjs|cjs|pl|php'
 # time instead of re-deriving the wrapping; the union stays the P1 detector's
 # single match target and is composed from them, never written twice.
 #
-# The RUNNER alternative carries #2382's precision tightening -- the
-# `([\"' :])` before the `\*` requires a separator, so `Bash(npmx *)` no longer
-# matches the `npm` runner. Composed in rather than resolved away: this branch
-# only restructured these patterns, it did not change what they match.
+# In the RUNNER alternative, the `([\"' :])` before the `\*` requires a
+# separator, so `Bash(npmx *)` does not match the `npm` runner.
 CCPERM_P1_BLANKET_ERE="(Bash|PowerShell)\\(\\*\\)"
 CCPERM_P1_INTERP_ERE="(Bash|PowerShell)\\([\"' ]*([^)\"' ]*[/\\\\])?(${CCPERM_INTERP_BODY})([\"' :][^)]*)?\\*[^)]*\\)"
 CCPERM_P1_RUNNER_ERE="(Bash|PowerShell)\\([\"' ]*(${CCPERM_RUNNER_BODY})([\"' :][^)]*)?([\"' :])\\*[^)]*\\)"
