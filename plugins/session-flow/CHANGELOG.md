@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## [0.34.9]
+
+### Changed
+
+- **`keep-going`'s `check-usage-limit-reset.py` collapses a boolean ladder.** An if/else returning
+  booleans is now the expression itself, and the UTC-fallback branch is
+  `resolve_zone(name) or resolve_zone("UTC")`. Same results on every input. Code-tidying sweep,
+  behavior-preserving.
+
 ## [0.34.8]
 
 ### Changed

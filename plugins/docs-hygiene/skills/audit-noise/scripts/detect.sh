@@ -177,20 +177,10 @@ mapfile -d '' -t SORTED < <(printf '%s\0' "${TARGETS[@]}" | LC_ALL=C sort -uz)
 
 # Chunk affordance: slice the sorted list so a parent can fan out without a
 # per-file shell loop (hook-bypass-safe single process per chunk).
-if [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
-  CHUNKED=()
-  idx=0
-  for file in "${SORTED[@]}"; do
-    if [[ "$idx" -ge "$OFFSET" ]]; then
-      if [[ "$LIMIT" -eq 0 || ${#CHUNKED[@]} -lt "$LIMIT" ]]; then
-        CHUNKED+=("$file")
-      else
-        break
-      fi
-    fi
-    idx=$((idx + 1))
-  done
-  SORTED=(${CHUNKED[@]+"${CHUNKED[@]}"})
+if [[ "$LIMIT" -gt 0 ]]; then
+  SORTED=("${SORTED[@]:OFFSET:LIMIT}")
+elif [[ "$OFFSET" -gt 0 ]]; then
+  SORTED=("${SORTED[@]:OFFSET}")
 fi
 
 if [[ ${#SORTED[@]} -eq 0 ]]; then
@@ -260,7 +250,7 @@ audit_file() {
   # finding_rows is written via nameref in audit_noise_record_finding.
   # shellcheck disable=SC2034
   local -a shapes=() finding_rows=()
-  local shape tier excerpt line heading_text
+  local shape excerpt line heading_text
   local fence_delim fence_dchar fence_dlen
   local is_heading=0
   # Negation is paragraph-scoped: accumulate soft-wrapped lines, then classify.
