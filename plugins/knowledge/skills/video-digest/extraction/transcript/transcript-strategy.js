@@ -77,6 +77,22 @@ function asrBlockedReason(mediaAvailable) {
 }
 
 /**
+ * The terminal degradation: no caption to consume and the ASR rung cannot run,
+ * so the digest proceeds without a transcript. Reached from both the explicit
+ * `asr` request and the caption-absent adapter default, which must report the
+ * identical reason.
+ *
+ * @param {boolean} mediaAvailable
+ * @returns {TranscriptPlan}
+ */
+function noTranscriptPlan(mediaAvailable) {
+  return {
+    strategy: null,
+    degradation: `no captions were selected and ${asrBlockedReason(mediaAvailable)} — digest proceeds without a transcript`,
+  };
+}
+
+/**
  * Resolve the transcript strategy for one media entry.
  *
  * @param {Object} inputs
@@ -120,10 +136,7 @@ export function resolveTranscriptStrategy({
         degradation: `transcript strategy "asr" could not run (${asrBlockedReason(mediaAvailable)}); fell back to "${fallback}" over the selected caption`,
       };
     }
-    return {
-      strategy: null,
-      degradation: `no captions were selected and ${asrBlockedReason(mediaAvailable)} — digest proceeds without a transcript`,
-    };
+    return noTranscriptPlan(mediaAvailable);
   }
 
   if (captionPresent) {
@@ -142,8 +155,5 @@ export function resolveTranscriptStrategy({
   if (asrAvailable && mediaAvailable) {
     return { strategy: "asr", degradation: null };
   }
-  return {
-    strategy: null,
-    degradation: `no captions were selected and ${asrBlockedReason(mediaAvailable)} — digest proceeds without a transcript`,
-  };
+  return noTranscriptPlan(mediaAvailable);
 }

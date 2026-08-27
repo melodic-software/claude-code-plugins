@@ -4,6 +4,23 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.16]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 5 (batch-simplify).** `video-digest`
+  extraction cleanups, each adversarially refutation-verified with emitted bytes unchanged:
+  adapters/x.js folds the twice-built degraded-acquisition failure message into one
+  `failDegraded()` helper and drops a per-iteration `Set` + spread inside a filter for a plain
+  array; adapters/adapter-contract.js collapses the two near-identical
+  `extractorArgs`/`allowedExtractors` validation branches into one loop (violation strings and
+  order byte-identical); adapters/youtube.js replaces a single-use `/^\//` regex with
+  `.slice(1)` and hoists a per-call `Set` literal to module scope;
+  transcript/transcript-strategy.js folds two byte-identical no-transcript degradation returns
+  into a `noTranscriptPlan()` helper; acquisition/build-yt-dlp-args.js collapses a redundant
+  `&& length > 0` conjunct to `||`. Package suites green (adapters 112, transcript 58,
+  acquisition 93, watch consumers spot-checked); `tsc --noEmit` clean.
+
 ## [0.13.15]
 
 ### Changed

@@ -466,11 +466,11 @@ export function validateAdapter(spec) {
   // string silently disables the declaration — for allowedExtractors that
   // would silently drop the SSRF guard. Fail loud instead: null is the one
   // way to declare "none".
-  if (record.extractorArgs !== null && (typeof record.extractorArgs !== "string" || record.extractorArgs.length === 0)) {
-    violations.push('attribute "extractorArgs" must be a non-empty string or null');
-  }
-  if (record.allowedExtractors !== null && (typeof record.allowedExtractors !== "string" || record.allowedExtractors.length === 0)) {
-    violations.push('attribute "allowedExtractors" must be a non-empty string or null');
+  for (const attribute of ["extractorArgs", "allowedExtractors"]) {
+    const value = record[attribute];
+    if (value !== null && (typeof value !== "string" || value.length === 0)) {
+      violations.push(`attribute "${attribute}" must be a non-empty string or null`);
+    }
   }
   if (
     typeof record.captionClass !== "string" ||
