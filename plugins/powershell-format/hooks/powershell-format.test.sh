@@ -195,6 +195,120 @@ if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
 else
   fail "tool break -> no additionalContext JSON: $OUT"
 fi
+# --- Snapshot release + rewrite disclosure on the non-formatting arms (#3366) -
+# The hook copies the target file to an `_ps_before` mktemp snapshot so a
+# formatter rewrite can be disclosed on the user channel. Every exit arm owes
+# that snapshot a release. The trust-gate (pwsh exit 6) and tool-break
+# (catch-all) arms used to return without one, leaking one temp file per gated
+# run; the tool-break arm also skipped the disclosure, so a rewrite
+# Invoke-Formatter had already written back before the analyzer threw went
+# unnamed.
+#
+# These live ABOVE the real-pwsh prerequisite gate on purpose: they drive the
+# arms through the stub pwsh, so they need neither a real pwsh nor the
+# PSScriptAnalyzer module, and placing them below would silently skip this
+# regression coverage on exactly the pwsh-less hosts CI runs on.
+#
+# Each run gets its own TMPDIR so "left nothing behind" is a strict emptiness
+# check, and HOOK_TELEMETRY_SINK stays unwired so hook-utils' own envelope
+# mktemp never lands in the scratch. The stub pwsh counts the scratch's entries
+# WHILE it runs: that live probe is what keeps the post-run emptiness assertion
+# from being vacuous — a scratch the hook's mktemp never used would read as
+# "empty" too, and the assertion would pass over a leak elsewhere.
+ARM_REPO="$WORK/arm-cleanup"
+new_repo "$ARM_REPO"
+ARM_FILE="$ARM_REPO/arm.ps1"
+
+# run_arm <label> <stub-body> -> ARM_OUT (hook stdout), ARM_RC, ARM_DURING
+# (scratch entries while pwsh ran), ARM_LEFT (scratch entries after the hook
+# exited), ARM_FILE reset to its pre-run content first.
+run_arm() {
+  local label="$1" stub="$2" scratch probe
+  scratch="$WORK/scratch-$label"
+  probe="$WORK/probe-$label"
+  rm -rf "$scratch"
+  mkdir -p "$scratch"
+  rm -f "$probe"
+  printf "%s\n" "Get-ChildItem -Path '.'" >"$ARM_FILE"
+  make_stub_pwsh "find \"\$TMPDIR\" -mindepth 1 2>/dev/null | wc -l >\"$probe\"
+$stub"
+  # `-u` must precede every NAME=VALUE: env stops parsing options at the first
+  # operand, so a trailing `-u FOO` is taken as the command to run (exit 127).
+  ARM_OUT=$(run_hook_env "$ARM_FILE" \
+    -u HOOK_TELEMETRY_SINK \
+    CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true \
+    CLAUDE_PLUGIN_DATA="$WORK/arm-data-$label" \
+    TMPDIR="$scratch" \
+    PATH="$STUB_BIN:$PATH")
+  ARM_RC=$?
+  ARM_DURING="$(tr -cd '0-9' <"$probe" 2>/dev/null)"
+  ARM_LEFT="$(find "$scratch" -mindepth 1 2>/dev/null | wc -l | tr -cd '0-9')"
+}
+
+# Trust-gate arm (pwsh exit 6) -> snapshot released.
+run_arm gate 'echo "PSSA_TRUST NOSTORE"; exit 6'
+if [[ "${ARM_DURING:-0}" -ge 1 ]]; then
+  ok "trust-gate arm: hook's snapshot mktemp lands in the isolated TMPDIR (leak check is discriminating)"
+else
+  fail "trust-gate arm: nothing in the isolated TMPDIR during the run — leak check would be vacuous"
+fi
+if [[ $ARM_RC -eq 0 && "${ARM_LEFT:-1}" -eq 0 ]]; then
+  ok "trust-gate arm (pwsh exit 6) -> _ps_before snapshot released, nothing left in TMPDIR"
+else
+  fail "trust-gate arm leaked $ARM_LEFT temp file(s) (rc=$ARM_RC out=$ARM_OUT)"
+fi
+
+# Tool-break arm (pwsh exit 4) -> snapshot released AND rewrite disclosed. The
+# stub rewrites the file before throwing, standing in for Invoke-Formatter
+# writing back and Invoke-ScriptAnalyzer then throwing inside the same
+# try/catch (exit 4).
+run_arm break "printf '# rewritten by the formatter\\n' >>\"$ARM_FILE\"
+echo 'boom: analyzer threw' >&2
+exit 4"
+if [[ "${ARM_DURING:-0}" -ge 1 ]]; then
+  ok "tool-break arm: hook's snapshot mktemp lands in the isolated TMPDIR (leak check is discriminating)"
+else
+  fail "tool-break arm: nothing in the isolated TMPDIR during the run — leak check would be vacuous"
+fi
+if [[ $ARM_RC -eq 0 && "${ARM_LEFT:-1}" -eq 0 ]]; then
+  ok "tool-break arm (pwsh exit 4) -> _ps_before snapshot released, nothing left in TMPDIR"
+else
+  fail "tool-break arm leaked $ARM_LEFT temp file(s) (rc=$ARM_RC out=$ARM_OUT)"
+fi
+# The hook output contract is ONE JSON document for the whole of stdout, so the
+# tool-break context and the disclosure must compose rather than print twice.
+# `jq -s length` counts the documents on stdout, which is what makes the two
+# assertions below meaningful: on a two-document response `jq -e` would be
+# reading whichever object came last, not the response as a reader sees it.
+if [[ "$(printf '%s' "$ARM_OUT" | jq -s 'length' 2>/dev/null)" == "1" ]]; then
+  ok "tool-break arm -> context and disclosure compose into ONE JSON document"
+else
+  fail "tool-break arm -> stdout is not a single JSON document: $ARM_OUT"
+fi
+if has_format_disclosure "$ARM_OUT"; then
+  ok "tool-break arm -> a rewrite that landed before pwsh threw is disclosed"
+else
+  fail "tool-break arm -> rewrite went undisclosed: $ARM_OUT"
+fi
+if printf '%s' "$ARM_OUT" | jq -e '.hookSpecificOutput.additionalContext | contains("tool break")' >/dev/null 2>&1; then
+  ok "tool-break arm -> still surfaces the advisory tool-break context alongside the disclosure"
+else
+  fail "tool-break arm -> tool-break context lost: $ARM_OUT"
+fi
+
+# Tool-break arm with NO rewrite -> silent, still no leak.
+run_arm quiet "echo 'boom: analyzer threw' >&2; exit 4"
+if [[ "${ARM_LEFT:-1}" -eq 0 ]]; then
+  ok "tool-break arm without a rewrite -> snapshot still released"
+else
+  fail "tool-break arm without a rewrite leaked $ARM_LEFT temp file(s)"
+fi
+if printf '%s' "$ARM_OUT" | grep -q 'reformatted'; then
+  fail "tool-break arm disclosed a rewrite that never happened: $ARM_OUT"
+else
+  ok "tool-break arm without a rewrite -> no disclosure (no-op paths stay silent)"
+fi
+
 rm -f "$STUB_BIN/pwsh"
 
 # --- settings walk-up bounded by CLAUDE_PROJECT_DIR ceiling ------------------
@@ -303,6 +417,35 @@ if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
   fi
 else
   fail "lint finding -> no additionalContext JSON: $OUT"
+fi
+
+# --- Case 4b: findings AND a formatter rewrite compose into ONE document -----
+# Arm 1 carries both channels at once. The hook output contract is a single
+# JSON document for the whole of stdout, so a run that both reformats and
+# reports findings must compose them rather than print two objects (#3366).
+# The fixture pairs a lowercase alias (PSUseCorrectCasing rewrites it) with a
+# global var (PSAvoidGlobalVars survives the formatter as a finding), and the
+# last assertion proves the rewrite actually happened — without it the
+# composition check would pass on a run that had nothing to compose.
+# SC2016: literal PowerShell variable syntax — single quotes are intentional.
+# shellcheck disable=SC2016
+printf '%s\n%s\n' "get-childitem -Path '.'" '$global:both = 1' >"$REPO/lib/both.ps1"
+OUT=$(run_hook "$REPO/lib/both.ps1")
+if [[ "$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)" == "1" ]]; then
+  ok "findings + rewrite -> ONE JSON document on stdout"
+else
+  fail "findings + rewrite -> stdout is not a single JSON document: $OUT"
+fi
+if has_format_disclosure "$OUT" &&
+  printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | contains("PSAvoidGlobalVars")' >/dev/null 2>&1; then
+  ok "findings + rewrite -> both channels survive composition"
+else
+  fail "findings + rewrite -> a channel was lost: $OUT"
+fi
+if grep -q 'Get-ChildItem' "$REPO/lib/both.ps1"; then
+  ok "findings + rewrite -> the formatter did rewrite (fixture is discriminating)"
+else
+  fail "findings + rewrite -> no rewrite happened, so the composition check proves nothing: $(cat "$REPO/lib/both.ps1")"
 fi
 
 # --- Case 5: .psm1 and .psd1 extensions match --------------------------------
