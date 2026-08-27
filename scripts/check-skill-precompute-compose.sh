@@ -90,6 +90,24 @@ scan_skill() {
   return 0
 }
 
+# Validate the base ref HERE, in the parent shell, and not inside the
+# process substitution below (#3377). An `exit 2` in there terminates only
+# the subshell: `mapfile`'s own status reflects the read, process-substitution
+# exit codes are not propagated, and the parent saw nothing but an empty
+# `targets` -- so a typo'd branch or a shallow clone missing the ref scanned
+# zero files and exited 0. The error text reached stderr, but the exit code CI
+# gates on said success, which is a silent pass in exactly the case this
+# validation was written to catch.
+case "$first" in
+--all | --paths) ;;
+*)
+  if ! git rev-parse --verify --quiet "${first}^{commit}" >/dev/null; then
+    printf 'Error: base ref %s is not a valid commit\n' "$first" >&2
+    exit 2
+  fi
+  ;;
+esac
+
 mapfile -t targets < <(
   case "$first" in
   --all)
@@ -99,12 +117,7 @@ mapfile -t targets < <(
     printf '%s\n' "${rest[@]}"
     ;;
   *)
-    base="$first"
-    if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
-      printf 'Error: base ref %s is not a valid commit\n' "$base" >&2
-      exit 2
-    fi
-    git diff --name-only "$base" -- 'plugins/' |
+    git diff --name-only "$first" -- 'plugins/' |
       sed -nE 's#^(plugins/[^/]+/skills/[^/]+)/SKILL\.md$#\1/SKILL.md#p' |
       sort -u
     ;;
