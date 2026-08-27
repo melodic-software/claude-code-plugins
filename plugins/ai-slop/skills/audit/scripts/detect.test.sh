@@ -335,6 +335,171 @@ assert_contains "rule_allowed_paths: unlisted file still fires" "$out" "file=pla
 assert_not_contains "rule_allowed_paths: listed path declines the one rule" "$out" "file=quirks/doc.md"
 assert_contains "rule_allowed_paths: decline counted for the exempted rule" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=1"
 
+# rule_allowed() glob-expansion regression: the globs were expanded unquoted, so
+# a cwd where the glob matches real files replaced the configured pattern with
+# that directory's file listing before case-matching ever ran. The decoy cwd
+# below makes `quirks/**` expand (to decoy paths that match nothing under $RAP),
+# which broke the exemption before the read -r -a fix; the nested file also pins
+# that `**` crosses `/` (bash case fnmatch has no FNM_PATHNAME).
+DECOY="$TEST_TMPDIR/rap-decoy"
+mkdir -p "$DECOY/quirks/inner"
+printf 'decoy\n' >"$DECOY/quirks/decoy.txt"
+printf 'decoy\n' >"$DECOY/quirks/inner/decoy.txt"
+mkdir -p "$RAP/quirks/nested"
+printf '# Nested\n\nWritten in order to stay exempt here too.\n' >"$RAP/quirks/nested/deep.md"
+out="$(cd "$DECOY" && CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" "$RAP/quirks/nested/deep.md" "$RAP/plain.md" 2>&1)"
+assert_not_contains "glob expansion: exemption survives a cwd where the glob expands" "$out" "file=quirks/doc.md"
+assert_not_contains "glob expansion: ** crosses / for nested paths" "$out" "file=quirks/nested/deep.md"
+assert_contains "glob expansion: unlisted file still fires from the decoy cwd" "$out" "file=plain.md"
+assert_contains "glob expansion: both exempt files counted as declined" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=2"
+
+# Deliberate widening, pinned as documented behavior: these are shell case-match
+# globs, so `*` also crosses `/` — `sub/*.md` matches `sub/deep/nested.md`. A
+# consumer wanting gitignore-precision single-level matching has no spelling for
+# it; the README states the semantics.
+WIDE="$TEST_TMPDIR/rap-wide"
+mkdir -p "$WIDE/.claude" "$WIDE/sub/deep"
+cat >"$WIDE/.claude/ai-slop.json" <<'EOF'
+{ "rule_allowed_paths": { "rule-filler-phrases": ["sub/*.md"] } }
+EOF
+printf '# Deep\n\nWritten in order to test star depth.\n' >"$WIDE/sub/deep/nested.md"
+out="$(CLAUDE_PROJECT_DIR="$WIDE" bash "$DETECT" "$WIDE/sub/deep/nested.md" 2>&1)"
+assert_contains "glob semantics: * crosses / (case fnmatch, no FNM_PATHNAME)" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=1"
+
+# --- Model-era phrase rule (rule-model-era-phrases) ------------------------------
+# Shipped roster is the ANCHORED forms only (catalog "Model-era additions"): the
+# bare "the unlock" / "honest take" bigrams are recorded-only, with a measured
+# domain-literal false positive behind the decision.
+
+PHRASES_FIX="$TEST_TMPDIR/model-phrases.md"
+cat >"$PHRASES_FIX" <<'EOF'
+# Model phrases
+
+Calibration is the part most people skip.
+The honest take is that this works.
+Small files parse faster, and that's the unlock.
+We quoted "that's the unlock" on this line to document it.
+EOF
+out="$(bash "$DETECT" "$PHRASES_FIX" 2>&1)"
+assert_contains "model phrases: anchored constructions fire per occurrence" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=3 declined=1"
+assert_contains "model phrases: finding rows name the rule" "$out" "Finding: rule=ai-slop/audit/rule-model-era-phrases"
+
+BAREFIX="$TEST_TMPDIR/bare-phrases.md"
+cat >"$BAREFIX" <<'EOF'
+# Bare forms
+
+The unlock flow starts on the device screen.
+An honest take from a human maintainer follows.
+EOF
+out="$(bash "$DETECT" "$BAREFIX" 2>&1)"
+assert_contains "model phrases: bare bigrams do not fire (anchored roster only)" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0"
+
+# phrase_add / phrase_remove cascade. The "kiss of death" line discriminates a
+# word-split regression: a cfg_array-style reader would split the added fragment
+# into three word alternates and "kiss" alone would match that line too.
+PREPO="$TEST_TMPDIR/phrase-repo"
+mkdir -p "$PREPO/.claude"
+cat >"$PREPO/.claude/ai-slop.json" <<'EOF'
+{
+  "phrase_add": ["chef.s kiss architecture"],
+  "phrase_remove": ["(the|my) honest take"]
+}
+EOF
+cat >"$PREPO/doc.md" <<'EOF'
+# Doc
+
+Calibration is the part most people skip.
+The honest take is that this works.
+This design is chef's kiss architecture, honestly.
+The kiss of death for caches is a stale key.
+EOF
+out="$(CLAUDE_PROJECT_DIR="$PREPO" bash "$DETECT" "$PREPO/doc.md" 2>&1)"
+assert_contains "phrase config: add fires whole, remove silences, no word-split" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=2 declined=0"
+
+# Empty roster: every shipped phrase removed. The rule goes inert instead of
+# matching every line (an empty alternation "()" would).
+EMPTYREPO="$TEST_TMPDIR/phrase-empty"
+mkdir -p "$EMPTYREPO/.claude"
+cat >"$EMPTYREPO/.claude/ai-slop.json" <<'EOF'
+{ "phrase_remove": ["the part most people skip", "(the|my) honest take", "that.s the unlock"] }
+EOF
+cp "$PHRASES_FIX" "$EMPTYREPO/doc.md"
+out="$(CLAUDE_PROJECT_DIR="$EMPTYREPO" bash "$DETECT" "$EMPTYREPO/doc.md" 2>&1)"
+assert_not_contains "phrase config: emptied roster emits no findings" "$out" "Finding: rule=ai-slop/audit/rule-model-era-phrases"
+assert_contains "phrase config: emptied roster still reports its summary row" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0"
+
+# Fragment hygiene, both measured failure modes: an invalid ERE fragment is
+# skipped with a note (instead of erroring every grep into a silent findings=0),
+# and an empty-string element is dropped (instead of joining as an empty
+# alternation branch that matches every prose line).
+BADREPO="$TEST_TMPDIR/phrase-bad"
+mkdir -p "$BADREPO/.claude"
+cat >"$BADREPO/.claude/ai-slop.json" <<'EOF'
+{ "phrase_add": ["", "broken ("] }
+EOF
+cp "$PHRASES_FIX" "$BADREPO/doc.md"
+out="$(CLAUDE_PROJECT_DIR="$BADREPO" bash "$DETECT" "$BADREPO/doc.md" 2>&1)"
+assert_contains "phrase hygiene: invalid fragment skipped with a note naming it" "$out" "phrase_add fragment is not a valid ERE, skipped: 'broken ('"
+assert_contains "phrase hygiene: shipped roster keeps firing past the bad fragment" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=3 declined=1"
+out="$(CLAUDE_PROJECT_DIR="$BADREPO" bash "$DETECT" "$CLEAN" 2>&1)"
+assert_not_contains "phrase hygiene: empty-string element does not flood clean prose" "$out" "Finding: rule=ai-slop/audit/rule-model-era-phrases"
+
+# Wholesale replacement includes the empty override: a later layer's explicit
+# `"phrase_add": []` clears the inherited list (key presence decides, not value
+# emptiness — Codex review, PR 3389). The local overlay is the later layer.
+CLRREPO="$TEST_TMPDIR/phrase-clear"
+mkdir -p "$CLRREPO/.claude"
+cat >"$CLRREPO/.claude/ai-slop.json" <<'EOF'
+{ "phrase_add": ["chef.s kiss architecture"] }
+EOF
+cat >"$CLRREPO/.claude/ai-slop.local.json" <<'EOF'
+{ "phrase_add": [] }
+EOF
+cat >"$CLRREPO/doc.md" <<'EOF'
+# Doc
+
+This design is chef's kiss architecture, honestly.
+EOF
+out="$(CLAUDE_PROJECT_DIR="$CLRREPO" bash "$DETECT" "$CLRREPO/doc.md" 2>&1)"
+assert_contains "phrase config: explicit empty array clears the inherited add list" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0"
+
+# A layer caught mid-write (valid object, then truncated bytes) is refused
+# whole for the phrase keys, the cfg_scalar posture: jq's exit status guards
+# the read, so the partially parsed values never become the effective roster.
+TRUNCPHRASE="$TEST_TMPDIR/phrase-trunc"
+mkdir -p "$TRUNCPHRASE/.claude"
+printf '%s\n' '{ "phrase_add": ["chef.s kiss architecture"] }' '{bad' >"$TRUNCPHRASE/.claude/ai-slop.json"
+cp "$CLRREPO/doc.md" "$TRUNCPHRASE/doc.md"
+out="$(CLAUDE_PROJECT_DIR="$TRUNCPHRASE" bash "$DETECT" "$TRUNCPHRASE/doc.md" 2>&1)"
+assert_contains "phrase config: partially parsed layer is refused, no phrase added" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0"
+
+# disabled_rules covers the new rule like any other.
+DISREPO="$TEST_TMPDIR/phrase-disabled"
+mkdir -p "$DISREPO/.claude"
+cat >"$DISREPO/.claude/ai-slop.json" <<'EOF'
+{ "disabled_rules": ["rule-model-era-phrases"] }
+EOF
+cp "$PHRASES_FIX" "$DISREPO/doc.md"
+out="$(CLAUDE_PROJECT_DIR="$DISREPO" bash "$DETECT" "$DISREPO/doc.md" 2>&1)"
+assert_not_contains "phrase config: disabled rule emits no findings" "$out" "Finding: rule=ai-slop/audit/rule-model-era-phrases"
+assert_contains "phrase config: disabled rule reported in summary" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0 disabled=1"
+
+# --show-config reports the effective roster.
+out="$(CLAUDE_PROJECT_DIR="$PREPO" bash "$DETECT" --show-config 2>&1)"
+assert_contains "show-config: effective phrase roster shown" "$out" "model_phrases=(the part most people skip|that.s the unlock|chef.s kiss architecture)"
+
+# Evidence-grade gate, asserted against the catalog itself: within the
+# Model-era additions section, a locally-observed entry must never be a script
+# rule (the grade's placement gate; keeps the constraint alive through future
+# catalog edits rather than resting on one authoring choice).
+CATALOG_MD="$SCRIPT_DIR/../reference/catalog.md"
+grade_violations="$(awk '/^## Model-era additions/{insec=1} insec && /^### rule-/{slug=$2} insec && /evidence: locally-observed/{lo[slug]=1} insec && /v1: script/{sc[slug]=1} END{for (s in lo) if (s in sc) print s}' "$CATALOG_MD")"
+if [[ -z "$grade_violations" ]]; then
+  pass "catalog gate: no locally-observed entry ships as a script rule"
+else
+  fail "catalog gate: no locally-observed entry ships as a script rule" "no slugs" "$grade_violations"
+fi
+
 # --- Exemptions ------------------------------------------------------------------
 
 out="$(bash "$DETECT" "$MARKED" 2>&1)"
@@ -472,6 +637,13 @@ assert_contains "crlf jq: disabled_rules still applies" "$out" "rule=ai-slop/aud
 out="$(PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" "$RAP/plain.md" 2>&1)"
 assert_not_contains "crlf jq: rule_allowed_paths still declines the listed path" "$out" "file=quirks/doc.md"
 assert_contains "crlf jq: rule_allowed_paths decline still counted" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=1"
+
+# The phrase readers are line-per-element (mapfile), so a CRLF jq would leave a
+# CR on EVERY fragment and each one would silently match nothing — the #3343
+# class, on the reader class this suite's earlier cases do not cover. The
+# phrase-repo fixture is reused under the shim.
+out="$(PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$PREPO" bash "$DETECT" "$PREPO/doc.md" 2>&1)"
+assert_contains "crlf jq: phrase_add and phrase_remove still apply" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=2 declined=0"
 
 # Anchored on the text that FOLLOWS the value: a bare `=999` substring match
 # passes against `999\r` and would not discriminate.
@@ -910,15 +1082,15 @@ fi
 # the code instead of restating it.
 
 EXPECTED_IMPORTANT="rule-knowledge-cutoff-disclaimer rule-llm-citation-artifacts rule-chatbot-artifacts"
-EXPECTED_SUGGESTION="rule-em-dash rule-emoji-formatting rule-curly-artifacts rule-significance-inflation rule-negative-parallelism rule-challenges-conclusion rule-utm-params rule-filler-phrases rule-stacked-hedging rule-ai-vocabulary rule-copulative-avoidance"
+EXPECTED_SUGGESTION="rule-em-dash rule-emoji-formatting rule-curly-artifacts rule-significance-inflation rule-negative-parallelism rule-challenges-conclusion rule-utm-params rule-filler-phrases rule-stacked-hedging rule-model-era-phrases rule-ai-vocabulary rule-copulative-avoidance"
 
 # The roster detect.sh actually ships, taken from its Summary rows on any run.
 ROSTER="$(bash "$DETECT" "$CLEAN" 2>&1 | LC_ALL=C sed -n 's|^Summary rule=ai-slop/audit/\([a-z-]*\) .*|\1|p' | sort)"
 EXPECTED_ROSTER="$(printf '%s %s' "$EXPECTED_IMPORTANT" "$EXPECTED_SUGGESTION" | tr ' ' '\n' | sort)"
 if [[ "$ROSTER" == "$EXPECTED_ROSTER" ]]; then
-  pass "roster agreement: detect.sh ships exactly the 14 tabled rules"
+  pass "roster agreement: detect.sh ships exactly the 15 tabled rules"
 else
-  fail "roster agreement: detect.sh ships exactly the 14 tabled rules" \
+  fail "roster agreement: detect.sh ships exactly the 15 tabled rules" \
     "the tabled set" "$(diff <(echo "$EXPECTED_ROSTER") <(echo "$ROSTER") | tr '\n' ' ')"
 fi
 

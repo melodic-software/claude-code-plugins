@@ -35,10 +35,19 @@ EMOJI_ERE=$'(\xf0\x9f|\xe2[\x98-\x9e\xac\xad])'
 CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 
 # Distinctive AI-vocabulary defaults (catalog rule-ai-vocabulary; config-tunable).
-# The trailing three are the Cursor plain-word additions (catalog calibration
-# record, second pass): common enough alone that only the density gate makes
+# The trailing four are measured admissions: three Cursor plain-word additions
+# (catalog calibration record, second pass) and pre-existing (fourth pass, from
+# the model-era section) — common enough alone that only the density gate makes
 # them safe to ship.
-DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate"
+DEFAULT_VOCAB="delve tapestry testament pivotal crucial underscore underscores boasts intricate intricacies meticulous meticulously garner bolstered fostering showcasing vibrant nestled groundbreaking renowned interplay enduring utilize leverage facilitate pre-existing"
+
+# Model-era phrase roster (catalog rule-model-era-phrases; config-tunable via
+# phrase_add/phrase_remove). One ERE alternation fragment per element, apostrophes
+# spelled `.` like the PATTERN_RULES phrase lists. Anchored forms only: the bare
+# "honest take" and "the unlock" bigrams are recorded-only in the catalog
+# (measured domain-literal false positives). A fragment may contain spaces, so
+# these are read and joined as whole elements, never word-split.
+MODEL_PHRASES=("the part most people skip" "(the|my) honest take" "that.s the unlock")
 
 # --- Rule registry ---------------------------------------------------------------
 # Pattern rules: slug|fired label|case-insensitive(0/1)|whole-word(0/1)|class|ERE
@@ -75,6 +84,7 @@ PATTERN_RULES=(
   "rule-chatbot-artifacts|chat-turn residue|1|1|wording|(i hope this helps|let me know if you|feel free to (ask|reach out)|i.d be happy to|happy to help|great question|you.re absolutely right|found the smoking gun)"
   "rule-filler-phrases|filler phrase|1|1|wording|(in order to|due to the fact that|it( is|.s) (important to note|worth noting)|it should be noted)"
   "rule-stacked-hedging|stacked hedge|1|1|wording|((could|may|might) potentially|(could|might) possibly)"
+  "rule-model-era-phrases|phrase match|1|1|wording|__PHRASES__"
 )
 # Density rules: slug|threshold key|default threshold|ERE (vocab ERE is built at runtime).
 # All density rules are wording-class: they judge authored prose, so they run on
@@ -177,6 +187,9 @@ HAVE_JQ=1
 command -v jq >/dev/null 2>&1 || HAVE_JQ=0
 
 VOCAB="$DEFAULT_VOCAB"
+PHRASE_ADD=()
+PHRASE_REMOVE=()
+PHRASE_ADD_LAYER=""
 EXCLUDED_GLOBS=()
 EM_DASH_ALLOWED_GLOBS=()
 DISABLED_RULES=""
@@ -264,11 +277,80 @@ if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
     done
     VOCAB="${filtered# }"
   fi
+  # phrase_add / phrase_remove: whole ERE fragments, one array element each.
+  # NOT cfg_array — its space-join would split "honest take" into two dead
+  # words. Per-layer wholesale replacement keyed on the KEY BEING PRESENT
+  # (jq has()), so an explicit `"phrase_add": []` in a later layer clears an
+  # inherited list instead of reading as absent. jq's own exit status guards
+  # both reads — a layer caught mid-write (valid object then truncated bytes)
+  # is refused whole, the cfg_scalar posture, which the tr pipe of an earlier
+  # revision silently overrode. CR stripped by expansion, not a pipe, for the
+  # same reason. The winning layer is kept so hygiene warnings below can name
+  # where a bad fragment came from.
+  for layer in "${CFG_LAYERS[@]}"; do
+    if jq -e 'has("phrase_add")' "$layer" >/dev/null 2>&1; then
+      if v="$(jq -r '.phrase_add | .[]' "$layer" 2>/dev/null)"; then
+        v="${v//$'\r'/}"
+        if [[ -n "${v//[[:space:]]/}" ]]; then
+          mapfile -t PHRASE_ADD <<<"$v"
+        else
+          PHRASE_ADD=()
+        fi
+        PHRASE_ADD_LAYER="$layer"
+      fi
+    fi
+    if jq -e 'has("phrase_remove")' "$layer" >/dev/null 2>&1; then
+      if v="$(jq -r '.phrase_remove | .[]' "$layer" 2>/dev/null)"; then
+        v="${v//$'\r'/}"
+        if [[ -n "${v//[[:space:]]/}" ]]; then
+          mapfile -t PHRASE_REMOVE <<<"$v"
+        else
+          PHRASE_REMOVE=()
+        fi
+      fi
+    fi
+  done
 elif [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   echo "Note: jq not found; config layers present but unread, using defaults" >&2
 fi
 
 VOCAB_ERE="($(printf '%s' "$VOCAB" | tr ' ' '|'))"
+
+# Effective phrase roster: shipped minus phrase_remove, plus phrase_add, then
+# hygiene. Both hygiene checks close measured failure modes, not hypothetical
+# ones: an empty/whitespace fragment joins as an empty alternation branch that
+# matches EVERY line (flood), and a fragment grep -E rejects (exit 2, e.g. an
+# unbalanced paren) errors every grep for the rule into findings=0 — a Summary
+# row indistinguishable from a clean corpus. Invalid fragments are skipped with
+# a note; the rule keeps running on the fragments that survive.
+phrase_fragment_ok() {
+  LC_ALL=C grep -E -- "($1)" /dev/null >/dev/null 2>&1
+  [[ $? -ne 2 ]]
+}
+EFFECTIVE_PHRASES=()
+for frag in "${MODEL_PHRASES[@]}"; do
+  removed=0
+  for r in ${PHRASE_REMOVE[@]+"${PHRASE_REMOVE[@]}"}; do
+    [[ "$frag" == "$r" ]] && removed=1 && break
+  done
+  [[ "$removed" -eq 1 ]] && continue
+  EFFECTIVE_PHRASES+=("$frag")
+done
+for frag in ${PHRASE_ADD[@]+"${PHRASE_ADD[@]}"}; do
+  [[ -z "${frag//[[:space:]]/}" ]] && continue
+  if ! phrase_fragment_ok "$frag"; then
+    echo "Note: phrase_add fragment is not a valid ERE, skipped: '$frag' (${PHRASE_ADD_LAYER})" >&2
+    continue
+  fi
+  EFFECTIVE_PHRASES+=("$frag")
+done
+PHRASES_ERE=""
+if [[ "${#EFFECTIVE_PHRASES[@]}" -gt 0 ]]; then
+  PHRASES_ERE="($(
+    IFS='|'
+    printf '%s' "${EFFECTIVE_PHRASES[*]}"
+  ))"
+fi
 
 # em_dash_allowed_paths is the legacy alias: append it to rule-em-dash's entry
 # so both spellings work and neither silently shadows the other.
@@ -281,8 +363,15 @@ rule_allowed() {
   local slug="$1" file="$2" globs
   globs="${RULE_ALLOWED_GLOBS[$slug]:-}"
   [[ -z "${globs// /}" ]] && return 1
-  # shellcheck disable=SC2086
-  matches_glob "$file" $globs
+  # read -r -a word-splits WITHOUT pathname expansion. An unquoted $globs here
+  # was glob-expanded against the caller's cwd first, so a configured glob
+  # reached matches_glob as whatever files it happened to match locally —
+  # exemptions silently failed whenever the cwd made the expansion diverge
+  # from the literal glob (worst from the repo root, where globs expand).
+  local -a glob_arr=()
+  read -r -a glob_arr <<<"$globs"
+  [[ "${#glob_arr[@]}" -eq 0 ]] && return 1
+  matches_glob "$file" "${glob_arr[@]}"
 }
 
 rule_disabled() {
@@ -304,6 +393,7 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
     echo "Effective: threshold_${key}=$(threshold_for "$key" "$default") (rule $slug)"
   done
   echo "Effective: vocab=$VOCAB"
+  echo "Effective: model_phrases=${PHRASES_ERE:-"(empty roster; rule inert)"}"
   echo "Effective: excluded_paths=${EXCLUDED_GLOBS[*]:-}"
   echo "Effective: em_dash_allowed_paths=${EM_DASH_ALLOWED_GLOBS[*]:-}"
   for slug in "${!RULE_ALLOWED_GLOBS[@]}"; do
@@ -599,6 +689,13 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
   # Pattern rules: one finding per matching prose line.
   for entry in "${PATTERN_RULES[@]}"; do
     IFS='|' read -r slug label ci word class ere <<<"$entry"
+    # Runtime-built roster, like __VOCAB__ in the density loop. The empty-roster
+    # guard runs before decline accounting: with every phrase removed there is
+    # nothing to exempt, and "()" would match every line.
+    if [[ "$ere" == "__PHRASES__" ]]; then
+      [[ -z "$PHRASES_ERE" ]] && continue
+      ere="$PHRASES_ERE"
+    fi
     rule_disabled "$slug" && continue
     if rule_allowed "$slug" "$file"; then
       DECLINED[$slug]=$((DECLINED[$slug] + 1))

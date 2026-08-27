@@ -4,6 +4,22 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.7.0 — 2026-08-27
+
+**Minor under this contract's own rule** — one new row on an existing adopter; no
+producer-owned field's rule moves, no coexistence obligation changes, and no
+enforceability verdict changes.
+
+- **`ai-slop/audit` gains `rule-model-era-phrases`**, the script rule for the
+  catalog's new "Model-era additions (repo-owned)" section: distinctive
+  2025-2026 model stock constructions, per occurrence, with the roster
+  config-extended via `phrase_add`/`phrase_remove` (fragments validated at read
+  time; invalid or empty fragments are skipped with a stderr note so the rule
+  can neither flood nor silently zero out). Argued **SUGGESTION**: the same
+  register-preference walk as `rule-filler-phrases` — unlike the chat-residue
+  row, these constructions assert nothing false of the committed document.
+  `Auto-applicable: No` (the deleted punchline sometimes carries the claim).
+
 ## 2.6.0 — 2026-08-23
 
 **Minor under this contract's own rule** — two new rows on an existing adopter; no

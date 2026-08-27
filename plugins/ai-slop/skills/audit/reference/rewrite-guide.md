@@ -123,6 +123,18 @@ not only to the flagged words:
   that only tightens"; "endgame" becomes "the last phase"; "north star" becomes "the goal";
   "evacuate" becomes "move out".
   Leave domain-literal uses alone: a harness that is a test harness keeps its name.
+- **Model-era metaphor cues** (same rule, "Model-era additions" layer): "load-bearing" becomes
+  what actually depends on the thing ("three consumers parse this line" beats "this line is
+  load-bearing"); "seam" becomes the concrete interface, file, or boundary it stands in for.
+  A Feathers seam in refactoring prose and a deliberately named load-bearing invariant are
+  terms of art — leave them.
+- **Model-era phrases** (`rule-model-era-phrases`): state the point without the stock
+  construction. "That's the unlock" becomes the mechanism it gestures at ("caching the parse
+  is what makes this fast"); "the honest take is" is deleted, the take standing on its own;
+  "X is the part most people skip" becomes why X matters ("X fails silently when skipped").
+  The ranked-punchline closer ("two observations, and one is load-bearing") becomes the
+  observations themselves, ordered by importance — the ranking shows in the order, not in a
+  self-grading clause.
 
 ## Adding voice
 
