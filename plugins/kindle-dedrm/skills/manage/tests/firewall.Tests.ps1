@@ -122,7 +122,12 @@ Describe 'firewall.ps1' {
         }
     }
 
-    Context 'both guards tolerate a stringified Enabled' {
+    Context 'both guards tolerate the other shapes Enabled arrives in' {
+        # Why the comparison is against the STRING 'True' rather than the
+        # fully-qualified NetSecurity type literal: the literal only resolves
+        # once the Windows-only NetSecurity module is loaded, while `-eq 'True'`
+        # holds for the enum, for a CIM path that hands the property back
+        # already stringified, and for a plain boolean.
         It 'reads plain "False"/"True" strings the same way' {
             $enable = Get-EnabledGuard -Path $script:ScriptPath -Action 'enable'
             $disable = Get-EnabledGuard -Path $script:ScriptPath -Action 'disable'
@@ -132,6 +137,19 @@ Describe 'firewall.ps1' {
             [bool](& $disable.Guard) | Should -BeFalse
 
             $rule = [pscustomobject]@{ Enabled = 'True' }
+            [bool](& $enable.Guard) | Should -BeFalse
+            [bool](& $disable.Guard) | Should -BeTrue
+        }
+
+        It 'reads a plain boolean the same way' {
+            $enable = Get-EnabledGuard -Path $script:ScriptPath -Action 'enable'
+            $disable = Get-EnabledGuard -Path $script:ScriptPath -Action 'disable'
+
+            $rule = [pscustomobject]@{ Enabled = $false }
+            [bool](& $enable.Guard) | Should -BeTrue
+            [bool](& $disable.Guard) | Should -BeFalse
+
+            $rule = [pscustomobject]@{ Enabled = $true }
             [bool](& $enable.Guard) | Should -BeFalse
             [bool](& $disable.Guard) | Should -BeTrue
         }
