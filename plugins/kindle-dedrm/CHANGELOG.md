@@ -3,6 +3,32 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.7]
+
+### Fixed
+
+- **`firewall.ps1` stops reading every rule as enabled.** `Get-NetFirewallRule`'s `Enabled`
+  property is a NetSecurity enum whose members are `True = 1` and `False = 2`, so both values are
+  non-zero and both coerce to boolean `$true`. The `enable` action's `if (-not $rule.Enabled)` was
+  therefore always false: a disabled Kindle-blocking rule was reported "already enabled, no
+  change" and never re-enabled, defeating the point of the action. The `disable` action's
+  `if ($rule.Enabled)` had the mirror fault and called `Disable-NetFirewallRule` against rules
+  that were already disabled. Both now compare against `'True'`, which also holds when the
+  property arrives already stringified. Confirmed on Windows 11 against a live disabled rule:
+  `[int]$rule.Enabled` is `2` and `[bool]$rule.Enabled` is `True`. The state display at
+  `Show-State` was audited under the same suspicion and left alone: it interpolates the property
+  for output, which renders the member name (`Enabled=False`) correctly.
+
+### Added
+
+- **A Pester suite for `firewall.ps1`** at `skills/manage/tests/firewall.Tests.ps1`, the plugin's
+  first. It lifts the two real guard expressions out of the script's AST and evaluates them
+  against enum-valued and string-valued rule objects, because the branches themselves sit behind
+  an elevation gate that a test cannot pass and behind a `Test-IsElevated` defined inside the
+  script that shadows any injected stand-in. The `check` action is additionally driven end to end
+  in a child process. Run with
+  `Invoke-Pester -Path plugins/kindle-dedrm/skills/manage/tests`.
+
 ## [0.7.6]
 
 ### Changed
