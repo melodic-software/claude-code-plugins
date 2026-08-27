@@ -9,6 +9,15 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 
 - **Shared `parse-concern-value.sh` comment cleanup.** Comment-only sync from `lib/parse-concern-value.sh`: the pre-centralization history narration in the header is now a present-tense rationale; no behavior change.
 
+## [0.11.5]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** In the audit skill's
+  `discover-instruction-surfaces.sh`, positional-parameter comments dissolved into named
+  locals; the test helper's parameter comment, restated by the line below it, removed.
+  No behavior change; suite green before and after.
+
 ## [0.11.4]
 
 ### Changed

@@ -3,6 +3,14 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.8]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed four zero-information
+  step comments in `skills/manage/scripts/lock-updates.sh` that restated the adjacent echo
+  messages; no behavior change.
+
 ## [0.7.7]
 
 ### Fixed

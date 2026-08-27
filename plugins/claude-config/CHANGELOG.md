@@ -3,6 +3,15 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.12]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed zero-information
+  comment fragments: branch/merge-session narration in `lib/permission-patterns.sh` and
+  `audit-permission-state`'s `permission-state.sh`. The surviving comments keep the #2382
+  precision rationale and the mutation-coverage rationale; no behavior change.
+
 ## [0.40.11]
 
 ### Changed

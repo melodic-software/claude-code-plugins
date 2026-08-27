@@ -224,10 +224,10 @@ classify_json_file() {
   # malformed scope is a healthy empty one -- the exact thing SKILL.md's status
   # vocabulary exists to prevent.
   #
-  # This stage came from main and my merge resolution deleted it. The suite did
-  # not catch that: its malformed fixture is SYNTACTICALLY broken, which the
-  # `jq empty` above rejects on its own, so the assertion passed with the stage
-  # gone. A structurally-valid malformed fixture now covers it.
+  # Deleting this stage once went uncaught: the suite's malformed fixture was
+  # SYNTACTICALLY broken, which the `jq empty` above rejects on its own, so the
+  # assertion passed with the stage gone. A structurally-valid malformed
+  # fixture now covers it.
   crlf_strip <"$path" | jq -e '
     (.permissions | type) as $pt
     | if $pt == "null" then true

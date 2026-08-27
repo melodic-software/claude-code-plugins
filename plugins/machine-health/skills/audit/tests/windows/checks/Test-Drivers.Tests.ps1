@@ -31,9 +31,7 @@ script in a scope where the mock isn't visible (Pester issue #515,
 confirmed by maintainer nohwnd). The check script exposes
 Invoke-DriversCheck and uses a `$MyInvocation.InvocationName -eq '.'`
 guard so tests can dot-source it and call the function directly, with
-mocks applying in the test scope. See
-.claude/rules/powershell/testing.md "Mocks do NOT propagate
-through `&`-invoked .ps1 scripts" for the canonical pattern.
+mocks applying in the test scope.
 #>
 
 BeforeAll {

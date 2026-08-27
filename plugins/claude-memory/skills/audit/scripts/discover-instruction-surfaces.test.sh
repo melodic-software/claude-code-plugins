@@ -39,7 +39,6 @@ assert_exit() {
 # Every case runs with CLAUDE_CONFIG_DIR pointed at a fixture, so the suite never
 # reads — or reports on — the real `~/.claude` on the machine running it.
 run_in() {
-  # $1 = project dir, $2 = config dir, rest = script args
   local proj="$1" conf="$2"
   shift 2
   (cd "$proj" && CLAUDE_CONFIG_DIR="$conf" bash "$SCRIPT" "$@")

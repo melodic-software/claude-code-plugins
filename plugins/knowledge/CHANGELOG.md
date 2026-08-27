@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.16]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed four zero-information
+  comments in the course-digest extraction scripts (`download-resources.js`,
+  `generate-manifests.js`); no behavior change.
+
 ## [0.13.15]
 
 ### Fixed

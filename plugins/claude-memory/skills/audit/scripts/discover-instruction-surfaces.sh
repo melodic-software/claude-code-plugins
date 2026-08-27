@@ -78,22 +78,22 @@ EOF
 done
 
 emit() {
-  # $1 scope, $2 kind, $3 path
+  local scope="$1" kind="$2" path="$3"
   # A `both` record satisfies every filter: the file really is reachable by each layer,
   # so suppressing it from either view would hide a surface that view is about.
   case "$SCOPE_FILTER" in
   all) ;;
-  "$1") ;;
-  *) [[ "$1" == "both" ]] || return 0 ;;
+  "$scope") ;;
+  *) [[ "$scope" == "both" ]] || return 0 ;;
   esac
-  printf '%s\t%s\t%s\n' "$1" "$2" "$3"
+  printf '%s\t%s\t%s\n' "$scope" "$kind" "$path"
 }
 
 emit_rules() {
-  # $1 rules dir, $2 scope
+  local rules_dir="$1" scope="$2"
   while IFS= read -r rule; do
-    [[ -n "$rule" ]] && emit "$2" rule "$rule"
-  done < <(find "$1" -name "*.md" -type f 2>/dev/null | LC_ALL=C sort)
+    [[ -n "$rule" ]] && emit "$scope" rule "$rule"
+  done < <(find "$rules_dir" -name "*.md" -type f 2>/dev/null | LC_ALL=C sort)
 }
 
 # Canonical physical path of a directory, or empty when it does not resolve.
