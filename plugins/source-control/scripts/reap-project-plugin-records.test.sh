@@ -23,6 +23,10 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
+# Resolved once; the platform cannot change mid-suite, and three of the cases
+# below branch on it.
+UNAME_S="$(uname -s 2>/dev/null || true)"
+
 STUB_DIR="$TEST_TMPDIR/stub"
 mkdir -p "$STUB_DIR"
 
@@ -181,7 +185,7 @@ assert_contains "always passes --keep-data" "$(cat "$LOG")" "--keep-data"
 # separator-variant of the same directory must still match. An early probe of
 # this behaviour read as a null purely because two spellings of one path were
 # compared raw.
-if [[ "$(uname -s 2>/dev/null)" == MINGW* || "$(uname -s 2>/dev/null)" == MSYS* || "$(uname -s 2>/dev/null)" == CYGWIN* ]]; then
+if [[ "$UNAME_S" == MINGW* || "$UNAME_S" == MSYS* || "$UNAME_S" == CYGWIN* ]]; then
   variant="$(printf '%s' "$WT_NATIVE" | tr '/' "\134" | tr '[:lower:]' '[:upper:]')"
   seed_state "$(jq -n --arg v "$variant" '[{id:"a@m",scope:"project",projectPath:$v}]')"
   reset_log
@@ -328,14 +332,14 @@ fi
 # manipulation, so it is pinned even where the symlink fixture must skip.
 normalize_candidate() {
   local path="$1"
-  case "$(uname -s 2>/dev/null)" in
+  case "$UNAME_S" in
   MINGW* | MSYS* | CYGWIN*) while [[ "$path" == */ || "$path" == *\\ ]]; do path="${path%?}"; done ;;
   *) while [[ "$path" == */ ]]; do path="${path%?}"; done ;;
   esac
   printf '%s' "$path"
 }
 assert_eq "normalization strips every trailing forward slash" "x/link" "$(normalize_candidate "x/link//")"
-if [[ "$(uname -s 2>/dev/null)" == MINGW* || "$(uname -s 2>/dev/null)" == MSYS* || "$(uname -s 2>/dev/null)" == CYGWIN* ]]; then
+if [[ "$UNAME_S" == MINGW* || "$UNAME_S" == MSYS* || "$UNAME_S" == CYGWIN* ]]; then
   assert_eq "windows shell: a trailing backslash is a separator and strips" "x/link" "$(normalize_candidate "x/link\\")"
   assert_eq "windows shell: mixed trailing separators all strip" "x/link" "$(normalize_candidate "x/link/\\")"
 else

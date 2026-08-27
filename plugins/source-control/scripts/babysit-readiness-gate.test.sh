@@ -417,11 +417,18 @@ probe_py() {
     >/dev/null 2>&1
 }
 
+# Resolved once: the same three-interpreter probe gates every Python-only case
+# below, and re-running it per case only re-spawns interpreters.
+HAVE_PY311=0
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  HAVE_PY311=1
+fi
+
 # --- Case: PYTHONUTF8=1 actually reaches the Python child process (#597) ------
 # A stubbed `py -3` records the PYTHONUTF8 value it inherited when
 # babysit_python execs it, proving the export reaches the child process (not
 # just present as dead source text in the static check above).
-if probe_py py -3 || probe_py python3 || probe_py python; then
+if ((HAVE_PY311)); then
   PYSTUB_BIN="$TEST_TMPDIR/bin-pystub"
   mkdir -p "$PYSTUB_BIN"
   PYUTF8_PROBE_FILE="$TEST_TMPDIR/pyutf8-probe.txt"
@@ -447,7 +454,7 @@ else
   pass "#597: PYTHONUTF8 child-inheritance probe skipped (no Python 3.11+)"
 fi
 
-if probe_py py -3 || probe_py python3 || probe_py python; then
+if ((HAVE_PY311)); then
   F=$(mkjson lifetime-open '[
     {author:"codex[bot]", body:"[CRITICAL] resolved earlier", isResolved:true},
     {author:"codex[bot]", body:"[CRITICAL] outdated round", isOutdated:true},
@@ -469,7 +476,7 @@ fi
 # -> BLOCKED. Thread-aware, so asserted only under Python; the bash degrade is
 # reply-thread-blind and false-passes here (the accepted degrade coarseness, same
 # as the #465 discount above).
-if probe_py py -3 || probe_py python3 || probe_py python; then
+if ((HAVE_PY311)); then
   F=$(mkjson stale-pr-classification '[
     {author:"codex[bot]", body:"[CRITICAL] fresh unclassified finding", in_review_thread:true},
     {author:"me[bot]", body:"| 1 | old resolved finding | VALID | fixed |"}
@@ -488,7 +495,7 @@ fi
 # cross-credit the inline finding -> classified=0 < findings=1 -> BLOCKED.
 # Thread-aware (tag-driven), so Python-gated; the bash degrade greps all bodies
 # and false-passes here, the accepted degrade coarseness.
-if probe_py py -3 || probe_py python3 || probe_py python; then
+if ((HAVE_PY311)); then
   F=$(mkjson reuse-inline-type '[
     {type:"inline", author:"codex[bot]", body:"[CRITICAL] inline finding"},
     {type:"review", author:"me[bot]", body:"| 1 | old | VALID | fixed |"}
@@ -505,7 +512,7 @@ fi
 # isolated in the unknown bucket, where a PR-level (`type:"review"`)
 # classification row cannot offset it -> classified=0 < findings=1 -> BLOCKED.
 # Defensive (production paths always signal); Python-gated like the cases above.
-if probe_py py -3 || probe_py python3 || probe_py python; then
+if ((HAVE_PY311)); then
   F=$(mkjson unsignalled-provenance '[
     {author:"codex[bot]", body:"[CRITICAL] unsignalled finding"},
     {type:"review", author:"me[bot]", body:"| 1 | x | VALID | y |"}
