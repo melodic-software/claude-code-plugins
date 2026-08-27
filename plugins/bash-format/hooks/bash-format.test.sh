@@ -300,8 +300,7 @@ EOF
 
   # A brace-list section naming sh (`[*.{sh,bash}]`) governs shell files:
   # section_applies_to_shell matches the `{,sh,}` / `{sh,` / `,sh}` shapes, so
-  # formatting opts in. Regression guard for the documented brace-list form,
-  # previously exercised only via section_applies_to_shell's implementation.
+  # formatting opts in. Regression guard for the documented brace-list form.
   REPO_BRACE="$WORK/brace-config"
   new_repo "$REPO_BRACE"
   printf 'root = true\n[*.{sh,bash}]\nindent_style = space\nindent_size = 2\n' >"$REPO_BRACE/.editorconfig"

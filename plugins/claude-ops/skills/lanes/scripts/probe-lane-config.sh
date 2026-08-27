@@ -17,12 +17,11 @@
 #   <path> (<N> lanes)  config present; N is `(.lanes//[])|length` over it
 #   <path> ( lanes)     config present but the count is unavailable — jq missing,
 #                       or the file is not readable as JSON. The count degrades to
-#                       empty rather than erroring, which is what the pre-compute
-#                       line this replaced produced from its `2>/dev/null` inside
-#                       the count substitution.
+#                       empty rather than erroring (the `2>/dev/null` inside the
+#                       count substitution).
 #   absent (<path>) — author one (see context/config.md)
 #
-# Path resolution, unchanged from the line this replaced:
+# Path resolution:
 #   CLAUDE_OPS_LANES_CONFIG when set and non-empty — used verbatim, no suffix
 #   appended; otherwise <git toplevel, or the working directory when not inside a
 #   repo>/.work/lanes.json.

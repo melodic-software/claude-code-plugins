@@ -441,9 +441,9 @@ fi
 rm -rf "$PROJ12" "$OUTSIDE12" "$SIB12"
 
 # --- Test 12b: read_file_path membership guard — Windows 8.3 short names ------
-# GNU realpath under Git Bash does not expand 8.3 short names, so before
+# GNU realpath under Git Bash does not expand 8.3 short names, so without
 # hook::expand_8dot3 a short-form spelling of an IN-project file (the shape
-# Claude Code's own scratchpad paths take) failed the prefix comparison and was
+# Claude Code's own scratchpad paths take) fails the prefix comparison and is
 # silently skipped. Both sides are passed in Windows mixed form (C:/...), the
 # form production hooks receive — a POSIX/mixed cross-form pair is a case
 # production never produces (see Test 12's rfp note). 8.3 generation is a
@@ -597,7 +597,7 @@ if command -v git >/dev/null 2>&1; then
   (
     cd "$PROJ12E" || exit 1
     git init -q .
-    echo in-repo > tracked.md
+    echo in-repo >tracked.md
     git add tracked.md
     git -c user.email=t@e.st -c user.name=t commit -q -m init
   ) >/dev/null 2>&1
@@ -1154,9 +1154,8 @@ fi
 # hold, not by the read timeout: reaching a stall costs the bound PLUS the two
 # subshell forks buffer_stdin spends resolving its timeout and slice, PLUS a jq
 # probe — and a fork on this platform has been measured between 93 ms and 3.2 s.
-# Every fixed `sleep` hold in this file was therefore a constant guessed against
-# an unbounded quantity, and each one was observed failing in turn: 1 s, then 5 s,
-# then the timing helpers' 3 s and 4 s holds, all outrun by spawns, each showing
+# Any fixed `sleep` hold here is therefore a constant guessed against an
+# unbounded quantity; holds outrun by spawns have been observed failing, showing
 # up as rc 1 (EOF first, so no stall) or as a comparison measuring the hold
 # instead of the behavior.
 #
@@ -1182,21 +1181,18 @@ else
   # FIFOs is the plausible way to get here, and that is worth knowing.
   printf 'WARNING: mkfifo unavailable (%s); buffer_stdin cases fall back to a fixed hold, which is slower and less precise.\n' \
     "${bs_mkfifo_err:-no FIFO created}" >&2
-  # No FIFO on this host: fall back to a fixed hold, which is what this replaced.
-  # It has to clear the WORST case any call site can reach, and the worst is the
-  # stall comparison's unsliced arm. That arm pays TWO whole bounds, not one:
-  # unsliced, the first 3.6 s read returns WITH the early bytes and only the
-  # second empty one declares the stall (which is the overshoot the sliced form
-  # exists to cap — see Test 18g). So 7.2 s of bounds plus three sequential
-  # forks, which at the 3.2 s per-fork figure measured above is ~16.8 s; a
-  # measured pass of that arm came in at 10593 ms on a box that was not at its
-  # worst. This comment previously counted ONE bound and derived ~13.2 s, which
-  # is under the real worst case; a 12 s constant would have been under it by
-  # more, reintroducing exactly the truncation this replaced. 60 s is ~3.5x the
-  # derived worst case, so it stays adequate on the corrected arithmetic. The
-  # honest trade, since the comment here previously claimed there was none: a
-  # too-short hold turns a should-pass into a false fail, and a long one costs
-  # wall time on a host that reaches it.
+  # No FIFO on this host: fall back to a fixed hold. It has to clear the WORST
+  # case any call site can reach, and the worst is the stall comparison's
+  # unsliced arm. That arm pays TWO whole bounds, not one: unsliced, the first
+  # 3.6 s read returns WITH the early bytes and only the second empty one
+  # declares the stall (which is the overshoot the sliced form exists to cap —
+  # see Test 18g). So 7.2 s of bounds plus three sequential forks, which at the
+  # 3.2 s per-fork figure measured above is ~16.8 s; a measured pass of that arm
+  # came in at 10593 ms on a box that was not at its worst. A hold derived from
+  # ONE bound (~13.2 s, or a 12 s constant) would sit under that worst case and
+  # truncate the slow arm. 60 s is ~3.5x the derived worst case, so it stays
+  # adequate. The honest trade: a too-short hold turns a should-pass into a
+  # false fail, and a long one costs wall time on a host that reaches it.
   # This path is best-effort — Linux and MSYS both provide mkfifo, so it is not
   # expected to run — and it buys correctness with time rather than the reverse.
   bs_hold_open() { sleep 60; }
@@ -1272,12 +1268,12 @@ fi
 #
 # 1. The slow arm must do strictly MORE work than the fast one in every
 #    dimension. The override therefore performs the real completeness check and
-#    only LIES about the verdict. An override that SKIPPED the work
-#    (`json_complete() { return 1; }`, used here until 2026-08-09) made the slow
-#    arm pay ZERO jq forks while the fast arm paid one, so on a host where a
-#    spawn costs seconds the "slow" arm won: 4855 ms fast vs 4330 ms slow, an
-#    inverted result. The ledger is now fast = 1 read + 1 fork against slow =
-#    5 reads + 3 forks (two json_complete probes plus the `validated=0` probe at
+#    only LIES about the verdict. An override that SKIPS the work
+#    (`json_complete() { return 1; }`) makes the slow arm pay ZERO jq forks
+#    while the fast arm pays one, so on a host where a spawn costs seconds the
+#    "slow" arm wins: measured, 4855 ms fast vs 4330 ms slow, an inverted
+#    result. The ledger is fast = 1 read + 1 fork against slow = 5 reads +
+#    3 forks (two json_complete probes plus the `validated=0` probe at
 #    hook-utils.sh:586, which only the slow arm reaches).
 #
 # 2. The producer must hold its stdout open until the CONSUMER is done. A fixed
@@ -1387,13 +1383,13 @@ bs_paired_verdict() {
 # indistinguishable from the behavior gap being measured, so a regression that
 # made the arms equally fast could still clear the slack.
 #
-# ALTERNATION ALONE DOES NOT CANCEL IT. This claimed until 2026-08-09 that the
-# second-position penalty lands on A for half the pairs and on B for the other
-# half, "so it cancels in the median" — it does not, which is why the deltas are
-# now kept in two groups and combined by bs_paired_estimate instead of pooled. A
-# median pooled over both orders lands INSIDE whichever group is larger and keeps
-# that group's bias in full: at the odd n=5 this used to take, the 3/2 split put
-# the pooled median at g+δ, and the majority group was the PASS-favoring one.
+# ALTERNATION ALONE DOES NOT CANCEL IT. The second-position penalty lands on A
+# for half the pairs and on B for the other half, but it does NOT cancel in the
+# median, which is why the deltas are kept in two groups and combined by
+# bs_paired_estimate instead of pooled. A median pooled over both orders lands
+# INSIDE whichever group is larger and keeps that group's bias in full: at an
+# odd n=5, the 3/2 split puts the pooled median at g+δ, and the majority group
+# is the PASS-favoring one.
 # Driving the shipped helpers with a fully regressed mechanism (true gap zero) on
 # a host with a ±500 ms order bias produced deltas of 500 -500 500 -500 500 and a
 # pooled median of 500 ms — a PASS against the 400 ms slack for a mechanism that
@@ -1539,12 +1535,11 @@ rm -f "$bs_big_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 #    on any host, however loaded. Load only lengthens it.
 #  * The per-byte gap must stay under the idle bound, or the guard declares a
 #    stall that is not one. This is the load-sensitive direction, and the gap has
-#    to be produced WITHOUT a process spawn to survive it — see bs_tick. At the
-#    original 100 ms `sleep` gap against a 300 ms bound the margin was nominally
-#    3x and this case FAILED on a loaded Windows box on 2026-08-09 (rc 2, empty
-#    payload); widening the bound to 1.2 s did not fix it, because the gap was
-#    never really 100 ms — it was 100 ms plus a spawn, and the spawn was the
-#    larger and more variable term. With a spawn-free gap the 12x margin is real.
+#    to be produced WITHOUT a process spawn to survive it — see bs_tick. A
+#    `sleep`-produced gap is never really 100 ms: it is 100 ms plus a spawn,
+#    and the spawn is the larger and more variable term, so no nominal margin
+#    over the bound survives a loaded box (observed as rc 2 with an empty
+#    payload). With a spawn-free gap the 12x margin is real.
 #
 # bs_tick <seconds> — a delay that spawns NOTHING. A FIFO opened READ-WRITE never
 # reaches EOF and never delivers a byte, so `read -t` against it is a pure
@@ -1800,14 +1795,11 @@ rm -f "$bs_rc_file"
 # almost twice the configured bound. Reading the bound in slices caps that
 # overshoot at one slice. Asserted by comparison against a variant with the slice
 # count forced to 1 (the unsliced behavior), sampled as INTERLEAVED PAIRS so the
-# two arms see the same load window. Runner load does NOT cancel — that is what
-# this said until 2026-08-09, and it was wrong twice over: the arms are separate
-# sequential processes that never share a load sample, and the code has not been
-# a single back-to-back pair since the sampling went in. Interleaving only keeps
-# a load spike from landing systematically on one arm; the estimator is what
-# discards it. The override is asserted to actually engage first — a silently
-# ineffective override would make this a vacuous pass, which has already happened
-# twice on this branch.
+# two arms see the same load window. Runner load does NOT cancel: the arms are
+# separate sequential processes that never share a load sample. Interleaving
+# only keeps a load spike from landing systematically on one arm; the estimator
+# is what discards it. The override is asserted to actually engage first — a
+# silently ineffective override would make this a vacuous pass.
 #
 # There is no non-clock proxy: both variants end in the same rc 2 stall with the
 # same empty payload, and only WHEN the stall is declared differs, which is the
@@ -1860,12 +1852,11 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
 }
 # The unsliced override must pay the same COMMAND SUBSTITUTION the real
 # hook::resolve_read_slice pays at hook-utils.sh:491 to probe its slice value.
-# `printf "%s 1" "$1"` alone — what this was until 2026-08-09 — forks zero times
-# where the sliced arm forks once, and it is the arm that must come out SLOWER,
-# so the missing fork shrinks the very gap this case measures. On a host where a
-# fork has been measured at up to 3.2 s that is enough to invert the result: the
-# run that exposed it had two of five paired deltas negative. Identical mistake
-# to the json_complete override above, in a second place; the rule is that an
+# `printf "%s 1" "$1"` alone forks zero times where the sliced arm forks once,
+# and it is the arm that must come out SLOWER, so the missing fork shrinks the
+# very gap this case measures. On a host where a fork has been measured at up
+# to 3.2 s that is enough to invert the result: the run that exposed it had two
+# of five paired deltas negative. As with the json_complete override above, an
 # override may lie about a VERDICT but must never skip the WORK.
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_unsliced='hook::resolve_read_slice() {
@@ -2375,8 +2366,7 @@ slice_is "a sub-slice bound still yields a usable slice" 0.004 "0.001 4"
 # A quotient that formats as 0.000 is unusable as a `read -t` value, so the
 # helper must degrade to the unsliced form rather than emit it.
 slice_is "a zero bound falls back to the unsliced form" 0.000 "0.000 1"
-# Anything the numeric pattern rejects degrades the same way — the branch the
-# awk-failure path used to cover.
+# Anything the numeric pattern rejects degrades the same way.
 slice_is "a non-numeric bound falls back to the unsliced form" abc "abc 1"
 
 # --- jq_fields: one jq process, index-parallel results ------------------------
@@ -2461,11 +2451,11 @@ else
 fi
 
 # --- jq_fields: a NUL in a value must not split the frame (#2122) -------------
-# The separator was drawn from the same byte space as the values it separates,
-# so a JSON NUL escape inside a value split that value in two, failed the
-# cardinality check, and returned 1 — which every guardrail caller spells
-# `|| exit 0`, i.e. ALLOW. jq now STRIPS every NUL out of each value, so the
-# separator cannot occur inside one and the record count no longer depends on
+# The separator is drawn from the same byte space as the values it separates,
+# so a JSON NUL escape inside a value would split that value in two, fail the
+# cardinality check, and return 1 — which every guardrail caller spells
+# `|| exit 0`, i.e. ALLOW. jq STRIPS every NUL out of each value, so the
+# separator cannot occur inside one and the record count does not depend on
 # what a parseable payload holds. Stripping is not a claim about how a NUL would
 # execute — it SPLICES the bytes either side into a token the payload never
 # carried contiguously — which is exactly why the NUL itself is reported in
@@ -2504,8 +2494,8 @@ else
   fail "jq_fields returned $? on a payload whose value carried a NUL"
 fi
 
-# The point of the fix is what the CALLER sees. A NUL used to make the helper
-# return non-zero, which every guardrail turns into an allow; now it returns
+# The point of the fix is what the CALLER sees. A NUL must not make the helper
+# return non-zero, which every guardrail turns into an allow; it returns
 # success and reports the NUL, so the caller can fail CLOSED on its own terms.
 if hook::jq_fields "$jf_nul" '.tool_input.command'; then
   if [[ "$HOOK_JQ_FIELDS_NUL" == 1 ]]; then

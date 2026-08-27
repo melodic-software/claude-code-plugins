@@ -253,7 +253,7 @@ else
 fi
 
 # 9c. Q4: empty files:[] with a path-shaped token only in prose WARNs — the
-#     silent dodge that previously cleared the gate with 0 findings.
+#     silent dodge that would otherwise clear the gate with 0 findings.
 f="$(make_evals prose-missing '{
   "skill_name": "prose-missing",
   "evals": [

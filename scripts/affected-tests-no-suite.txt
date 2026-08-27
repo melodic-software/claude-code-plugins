@@ -79,6 +79,12 @@
 .node-version
 *.toml
 
+# Docs-sync generator executed directly by the plugin-options-docs-gate CI
+# lane: `python3 scripts/sync-plugin-options-docs.py --check` runs this exact
+# file on every push, so a crash or drifted output fails that lane. No shell
+# suite names it, which is why it needs this entry.
+scripts/sync-plugin-options-docs.py
+
 # Session-local working docs and this checkout's own Claude Code configuration
 # prose. Ships to no one; the hooks under .claude/hooks/ are NOT covered by
 # this line — they carry their own *.test.sh and are selected normally.

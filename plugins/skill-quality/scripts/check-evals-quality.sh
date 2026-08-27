@@ -227,8 +227,8 @@ strip_trailing_punct() {
   local s="$1"
   while true; do
     case "$s" in
-      *[[:punct:]]) s="${s%?}" ;;
-      *) break ;;
+    *[[:punct:]]) s="${s%?}" ;;
+    *) break ;;
     esac
   done
   printf '%s' "$s"
@@ -237,54 +237,54 @@ strip_trailing_punct() {
 while IFS="$US" read -r kind a b c; do
   [[ -z "$kind" ]] && continue
   case "$kind" in
-    FAIL) err "$a" ;;
-    WARN) warn "$a" ;;
-    FILE)
-      # a=file, b=caseref, c=fixture path. Resolve relative to the skill dir
-      # (parent of the evals dir), then the evals dir. An absolute path or a
-      # `..` component escapes the documented roots — reject it BEFORE the
-      # existence test, so a traversal entry can never pass by pointing at a
-      # host file that happens to exist.
-      if [[ "$c" == /* || "$c" =~ ^[A-Za-z]: || "/$c/" == *"/../"* ]]; then
-        err "$a: $b: files entry \"$c\" escapes the documented fixture roots (absolute path or '..' component) — fixtures must live under the skill or evals directory (Q4)"
-      else
-        evals_dir="$(dirname "$a")"
-        skill_dir="$(dirname "$evals_dir")"
-        if [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; then
-          err "$a: $b: files entry \"$c\" not found under $skill_dir/ or $evals_dir/ — a case whose fixtures cannot be found cannot be exercised (Q4)"
-        fi
-      fi
-      ;;
-    PROSE)
-      # a=file, b=caseref, c=path-shaped token from prompt/expected_output.
-      # Same roots as FILE; WARN (not FAIL) so narration-heavy corpora stay
-      # green while the silent files:[] dodge is no longer invisible. Set
-      # narration: true to opt out, or declare the path in files.
-      c="$(strip_trailing_punct "$c")"
-      [[ -z "$c" ]] && continue
-      # Skip URL leftovers (https://example.com/docs/a.md → example.com/docs/a.md)
-      # and host-shaped first segments. A bare "has a dot" test is too wide —
-      # versioned dirs like v1.2/schema/config.json are fixture paths, not hosts.
-      # Require a DNS-like label ending in an alphabetic TLD-ish final segment.
-      # Dotfiles like .claude/... stay in scope (leading-dot first segment fails
-      # the hostname pattern).
-      first="${c%%/*}"
-      if [[ "$c" == *"://"* ]] ||
-        [[ "$first" =~ ^[A-Za-z0-9-]+([.][A-Za-z0-9-]+)*[.][A-Za-z]{2,}$ ]]; then
-        continue
-      fi
+  FAIL) err "$a" ;;
+  WARN) warn "$a" ;;
+  FILE)
+    # a=file, b=caseref, c=fixture path. Resolve relative to the skill dir
+    # (parent of the evals dir), then the evals dir. An absolute path or a
+    # `..` component escapes the documented roots — reject it BEFORE the
+    # existence test, so a traversal entry can never pass by pointing at a
+    # host file that happens to exist.
+    if [[ "$c" == /* || "$c" =~ ^[A-Za-z]: || "/$c/" == *"/../"* ]]; then
+      err "$a: $b: files entry \"$c\" escapes the documented fixture roots (absolute path or '..' component) — fixtures must live under the skill or evals directory (Q4)"
+    else
       evals_dir="$(dirname "$a")"
       skill_dir="$(dirname "$evals_dir")"
-      # PROSE tokens come from PROSE_PATH_RE, which has no leading-/ or drive
-      # alternative — absolute-looking prose is scanned without the leading /
-      # and falls through to the existence check. Only `../` traversal is
-      # reachable as an escape here; keep that gate before the -e test.
-      if [[ "/$c/" == *"/../"* ]] ||
-        { [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; }; then
-        warn "$a: $b: path-shaped token \"$c\" in prompt/expected_output resolves to no fixture under $skill_dir/ or $evals_dir/ while files is empty — add it to files, ship a fixture, or set narration: true (Q4)"
+      if [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; then
+        err "$a: $b: files entry \"$c\" not found under $skill_dir/ or $evals_dir/ — a case whose fixtures cannot be found cannot be exercised (Q4)"
       fi
-      ;;
-    *) err "internal: unrecognized lint line kind '$kind'" ;;
+    fi
+    ;;
+  PROSE)
+    # a=file, b=caseref, c=path-shaped token from prompt/expected_output.
+    # Same roots as FILE; WARN (not FAIL) so narration-heavy corpora stay
+    # green while the silent files:[] dodge is still surfaced. Set
+    # narration: true to opt out, or declare the path in files.
+    c="$(strip_trailing_punct "$c")"
+    [[ -z "$c" ]] && continue
+    # Skip URL leftovers (https://example.com/docs/a.md → example.com/docs/a.md)
+    # and host-shaped first segments. A bare "has a dot" test is too wide —
+    # versioned dirs like v1.2/schema/config.json are fixture paths, not hosts.
+    # Require a DNS-like label ending in an alphabetic TLD-ish final segment.
+    # Dotfiles like .claude/... stay in scope (leading-dot first segment fails
+    # the hostname pattern).
+    first="${c%%/*}"
+    if [[ "$c" == *"://"* ]] ||
+      [[ "$first" =~ ^[A-Za-z0-9-]+([.][A-Za-z0-9-]+)*[.][A-Za-z]{2,}$ ]]; then
+      continue
+    fi
+    evals_dir="$(dirname "$a")"
+    skill_dir="$(dirname "$evals_dir")"
+    # PROSE tokens come from PROSE_PATH_RE, which has no leading-/ or drive
+    # alternative — absolute-looking prose is scanned without the leading /
+    # and falls through to the existence check. Only `../` traversal is
+    # reachable as an escape here; keep that gate before the -e test.
+    if [[ "/$c/" == *"/../"* ]] ||
+      { [[ ! -e "$skill_dir/$c" && ! -e "$evals_dir/$c" ]]; }; then
+      warn "$a: $b: path-shaped token \"$c\" in prompt/expected_output resolves to no fixture under $skill_dir/ or $evals_dir/ while files is empty — add it to files, ship a fixture, or set narration: true (Q4)"
+    fi
+    ;;
+  *) err "internal: unrecognized lint line kind '$kind'" ;;
   esac
 done <<<"$LINT_OUT"
 

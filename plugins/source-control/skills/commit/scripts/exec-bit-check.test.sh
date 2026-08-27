@@ -799,19 +799,19 @@ assert_eq "a rename destination is reported when BOTH paths contain spaces" \
 
 # repo20 covers spaced paths on the RENAME arm only. The COPY arm reads the same
 # three fields through its own `read` calls, so it needs its own spaced case --
-# and the copy arm is now the one that admits unconditionally, so a misread
-# field becomes a WRONG path reported rather than a path silently dropped.
+# and the copy arm admits unconditionally, so a misread field becomes a WRONG
+# path reported rather than a path silently dropped.
 # What this pins is the THREE-FIELD NUL-terminated read on the copy arm when
 # both paths contain spaces -- the shape most likely to desynchronize the
 # stream and shift every record behind it.
 #
-# It does NOT pin C-quoted-path handling, and an earlier version of this comment
-# wrongly claimed it did. `core.quotepath` only quotes bytes >0x80, control
-# characters, backslash and double-quote; `git help config` says outright that
-# "a simple space character is not considered 'unusual'". So a path built from
-# ASCII letters and spaces is never quoted whatever the setting is, and setting
-# it here is a no-op that matches the default. Exercising the quoted form needs
-# a path carrying one of those bytes, which no case in this file has.
+# It does NOT pin C-quoted-path handling. `core.quotepath` only quotes bytes
+# >0x80, control characters, backslash and double-quote; `git help config` says
+# outright that "a simple space character is not considered 'unusual'". So a
+# path built from ASCII letters and spaces is never quoted whatever the setting
+# is, and setting it here is a no-op that matches the default. Exercising the
+# quoted form needs a path carrying one of those bytes, which no case in this
+# file has.
 repo23="$(mkrepo)"
 (
   cd "$repo23" || exit 1

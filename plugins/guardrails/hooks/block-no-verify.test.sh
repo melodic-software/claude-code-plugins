@@ -418,7 +418,8 @@ run_pwsh "PS: grouping + bare-computed target via Get-Command (allowed — #2848
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + bare-computed target inside foreach (allowed — #2848)" \
   "\$ids = @('a','b'); foreach (\$id in \$ids) { & \$py \$script (Join-Path \$dir \"\$id.jsonl\") }" 0
-# The previously unpinned single-factor allowance: grouping with a LITERAL target.
+# Single-factor pin: grouping with a LITERAL call target (#2848), so a future
+# narrowing pass cannot regress it unnoticed.
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + literal call target (allowed — single-factor pin, #2848)" \
   "foreach (\$id in @('a','b')) { & \"C:/tools/python.exe\" C:/s/run.py \$id }" 0
@@ -525,7 +526,7 @@ assert_contains "PS msg #2662: unparsable-git path still cannot-parse" \
   "$stop_nov_out" "cannot be parsed with confidence"
 
 malformed_rc=0
-bash "$HOOK" <<< 'not json at all' >/dev/null 2>&1 || malformed_rc=$?
+bash "$HOOK" <<<'not json at all' >/dev/null 2>&1 || malformed_rc=$?
 assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 
 # --- A NUL in the payload must not void the guard (#2122) --------------------

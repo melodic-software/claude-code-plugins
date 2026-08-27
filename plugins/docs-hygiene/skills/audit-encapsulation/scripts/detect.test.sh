@@ -211,7 +211,7 @@ out="$(cd "$plugin_scripts_repo" && bash "$SCRIPT" 2>/dev/null)"
 assert_exit "plugin scripts/ entry cite → exit 0 (carve-out)" 0 "$?"
 assert_silent "plugin scripts/ cite emits nothing" "$out"
 
-# F3: subdir / skill name shapes the old kebab class missed must now match.
+# Subdir / skill name shapes beyond the kebab class must match.
 for shape_desc_path in \
   "uppercase-subdir:${skill_root}/foo/Context/notes.md" \
   "single-char-subdir:${skill_root}/foo/c/x.md" \

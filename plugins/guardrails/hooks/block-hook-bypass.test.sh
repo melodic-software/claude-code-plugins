@@ -678,7 +678,8 @@ run_pwsh "PS: pipeline into & \$w path (blocked)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + bare-computed target via Get-Command (allowed — #2848)" \
   '$py = "C:/tools/python.exe"; if (-not (Test-Path $py)) { $py = (Get-Command python).Source }; & $py C:/s/run.py --flag' 0
-# The previously unpinned single-factor allowance: grouping with a LITERAL target.
+# Single-factor pin: grouping with a LITERAL call target (#2848), so a future
+# narrowing pass cannot regress it unnoticed.
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + literal call target (allowed — single-factor pin, #2848)" \
   "foreach (\$id in @('a','b')) { & \"C:/tools/python.exe\" C:/s/run.py \$id }" 0
@@ -1549,7 +1550,7 @@ run "scratch: python3 -c write into an exempt root still blocks" \
   "python3 -c \"open('/tmp/scratch/x','w').write('a')\"" 2 "$SCRATCH_ENV=/tmp/scratch"
 
 # --- #2217: three inline-write forms that reached a real file ----------------
-# All three were rc=0 (allowed) before this change. Every assertion below that
+# All three were rc=0 (allowed) before the #2217 fix. Every assertion below that
 # moves anything moves allowed -> blocked; the floors interleaved with them are
 # what pin that NO assertion moved blocked -> allowed.
 
@@ -1643,7 +1644,7 @@ PY_NL_PIPE=$(printf 'printf \x27a\nb\x27 | wc -c')
 run "#2217: multi-line span piped, no redirect (allowed)" "$PY_NL_PIPE" 0
 PY_NL_DANGLE=$(printf 'git status ; echo "dangling')
 run "#2217: unterminated quote at end of command (allowed)" "$PY_NL_DANGLE" 0
-# Already blocked before the change; the segment split it relies on is a real
+# Already blocked pre-#2217; the segment split it relies on is a real
 # separator on the closing line, so it must keep blocking.
 PY_NL_THEN=$(printf 'grep "a\nb" f ; echo x > out.txt')
 run "#2217: multi-line span then a real producer+redirect (blocked)" "$PY_NL_THEN" 2
@@ -1653,11 +1654,10 @@ run "#2217: multi-line span then a real producer+redirect (blocked)" "$PY_NL_THE
 # segment start, and that is the correct reading: in `foo "a<newline>" echo x > f`
 # bash's command word is `foo` and `echo` is one of its ARGUMENTS, so the
 # redirect's producer is another program and this guard is producer-scoped by
-# design. Before the change the newline split it into a bogus `echo x > f`
-# segment and it blocked — a false positive. The single-line spelling of the
-# same command is the control: it has always been allowed on `main`, so this
-# makes the multi-line form agree with the shipped single-line behavior rather
-# than inventing a new exemption. Both are asserted so the agreement is pinned.
+# design. Pre-#2217 the newline split it into a bogus `echo x > f` segment and
+# it blocked, a false positive. The single-line spelling of the same command is
+# the always-allowed control: the multi-line form must agree with it rather
+# than invent a new exemption. Both are asserted so the agreement is pinned.
 PY_NL_ARGECHO=$(printf 'foo "a\n" echo x > f')
 run "#2217: producer is foo, echo is its argument (allowed)" "$PY_NL_ARGECHO" 0
 run "#2217: control — same command on one line (allowed)" "foo \"a\" echo x > f" 0
@@ -1838,11 +1838,11 @@ run_pwsh "PS: natural-prose spelling of the straddle (blocked — #2965)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: bare-computed writer with -Value, straddled (blocked — #2965)" \
   "Write-Host \"it's\"; & \$w f.txt -Value x; Write-Host \"won't\"" 2
-# The escape cases have a SECOND failure mode that the first cut of this fix
-# shipped and review caught: ending a span AT the backticked quote leaves the
-# string's REAL closer behind as a stray opener, which then pairs with a quote
-# far to the right and deletes the writer call anyway. Both the backtick and the
-# doubled-quote escape therefore delete NOTHING on their line. This spelling
+# The escape cases have a SECOND failure mode: ending a span AT the backticked
+# quote would leave the string's REAL closer behind as a stray opener, which
+# then pairs with a quote far to the right and deletes the writer call anyway.
+# Both the backtick and the doubled-quote escape therefore delete NOTHING on
+# their line. This spelling
 # reaches write_bypass through `lcq_bt` — the backtick-intact copy built before
 # backticks are stripped from `lcq` — so `ps::blank_quoted_spans` sees the
 # backtick and the backtick-ambiguity branch emits the line verbatim. The

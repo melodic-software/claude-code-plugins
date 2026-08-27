@@ -63,8 +63,8 @@ COLLECTED='[]'
 # SEEN counts raw rows returned so far, for comparison against gitea's own X-Total-Count.
 # `services/convert.ToCorrectPageSize` silently clamps `limit` to `[api] MAX_RESPONSE_ITEMS`
 # (stock 50), so on an instance whose cap is below config.gitea.page_size EVERY page comes
-# back short — and "short page means last page" then ended the loop after page 1 and returned
-# a truncated list with nothing said, because the ceiling guard below never fired either.
+# back short — "short page means last page" alone would end the loop after page 1 and return
+# a truncated list with nothing said, with the ceiling guard below never firing either.
 # This endpoint's handler calls ctx.SetTotalCountHeader, so when the header is present it is
 # the authoritative end-of-list signal and the clamp stops mattering. The short-page heuristic
 # stays as the fallback for anything that does not send one; it costs no extra request.

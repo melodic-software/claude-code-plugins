@@ -1,11 +1,11 @@
 # shellcheck shell=bash
 # Shared assertion scaffolding for scripts/*.test.sh. Sourced, never executed.
 #
-# The suites under scripts/ used to re-declare PASS/FAIL counters, ok()/fail(),
-# and a trailing summary in eight spellings. The copies were free to disagree
-# on the part that matters: a suite whose summary was wrong could print
-# failures and still exit 0, and CI would treat that as green. One library
-# owns the pass-recording / fail-recording / summary / exit-status contract.
+# One library owns the pass-recording / fail-recording / summary / exit-status
+# contract. Per-suite copies of the counters, ok()/fail(), and the trailing
+# summary would be free to disagree on the part that matters: a suite whose
+# summary is wrong can print failures and still exit 0, and CI would treat
+# that as green.
 #
 # This is the called shape, not an EXIT trap. Bash runs exactly one EXIT trap
 # per shell; an installed summary contended with the suites that already use

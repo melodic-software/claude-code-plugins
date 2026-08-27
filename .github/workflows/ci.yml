@@ -32,9 +32,8 @@ jobs:
   # work not applicable. Both are plain equality against a value that
   # `${{ <expr> != 'true' }}` can only ever render as the string `true` or the
   # string `false`, so the two forms are exact complements and a new lane has
-  # no negation to spell wrong. The earlier shape asked each consumer to write
-  # `docs_only != 'true'` and relied on a prose comment to keep that polarity
-  # straight across every site.
+  # no negation to spell wrong. A negated form would rely on a prose comment to
+  # keep that polarity straight across every site.
   #
   # FAIL-CLOSED TOWARD RUNNING THE SUITE. `scripts/check-docs-only.sh` already
   # emits `docs_only=false` on every condition it cannot resolve. This job
@@ -365,13 +364,12 @@ jobs:
   #
   # `lib/hook-utils.sh` is the exception: it carries OSTYPE-gated branches that a
   # Linux runner NEVER EXECUTES — case-insensitive path folding for the Windows
-  # filesystem, and `cygpath` short-name (8.3) resolution. Those branches were
-  # previously verified only by whatever a maintainer happened to run on a dev
-  # box. This job is what makes them a gate — but only because it is also listed
-  # in the `ci-status` needs graph below. `ci-status` is the single required merge
-  # check, so a lane missing from that list is informational no matter how loudly
-  # a comment here calls it a gate: the aggregate would report success while this
-  # lane was red.
+  # filesystem, and `cygpath` short-name (8.3) resolution. Nothing but this job
+  # exercises those branches. This job is what makes them a gate — but only
+  # because it is also listed in the `ci-status` needs graph below. `ci-status`
+  # is the single required merge check, so a lane missing from that list is
+  # informational no matter how loudly a comment here calls it a gate: the
+  # aggregate would report success while this lane was red.
   #
   # Free: GitHub Actions is free for public repositories on standard
   # GitHub-hosted runners, Windows included; only larger runners are charged.
@@ -771,7 +769,7 @@ jobs:
       - name: Check hook declarations for exec-form bare command names
         run: scripts/check-hook-exec-form.sh
 
-  # Three separate readers judge `metadata.summary`, and they used to disagree:
+  # Three separate readers judge `metadata.summary`, and they can drift apart:
   # a malformed value reached CI twice in #3162, failing in opposite directions,
   # each time after clearing the local check meant to catch it. The local bash
   # reader enforced only a length cap, the cheat-sheet generator's guard
@@ -910,10 +908,9 @@ jobs:
   # CALLER's .git/config — shared by every worktree of the clone — and the
   # caller's next commit is silently re-authored. That failed
   # required_signatures with `no_user` and cost #2827 -> #2830 (#2840). The
-  # check is repo-wide and static. The grandfathered baseline was drained
-  # in #2872; a new fixture-building suite must isolate itself. The
-  # self-test runs unconditionally so a broken detector cannot mask a
-  # regression behind a green gate.
+  # check is repo-wide and static; a new fixture-building suite must
+  # isolate itself. The self-test runs unconditionally so a broken
+  # detector cannot mask a regression behind a green gate.
   fixture-git-isolation-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1112,10 +1109,9 @@ jobs:
   # wrong makes a heavy lane report success without running. Its safety
   # properties — one resolution, an output whose unset value means "run the full
   # suite", a detector failure absorbed rather than propagated, an unweakened
-  # self-test, and exactly one spelling for a consumer to copy — used to live in
-  # a prose comment repeated next to every gated step. This lane checks them
-  # against the workflow instead. Self-test first, so a broken gate cannot mask
-  # a regression.
+  # self-test, and exactly one spelling for a consumer to copy — are what this
+  # lane checks against the workflow. Self-test first, so a broken gate cannot
+  # mask a regression.
   docs-only-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

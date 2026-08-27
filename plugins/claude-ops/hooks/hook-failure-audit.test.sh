@@ -167,9 +167,7 @@ assert_absent "signature at exit 126 is not ambiguous" "$OUT_SIG126" "ambiguous"
 # registered shell hook launches fine and still exits 126/127 when a command
 # INSIDE it is not invocable, so the code alone cannot carry the split; asserting
 # a launch failure there hands out the restart remedy for a defect restarting
-# cannot touch, which is the misdiagnosis #2849 exists to fix. This deliberately
-# refines acceptance criterion 2 of #2849 (126/127 OR a signature keeps the
-# launch wording) — see the PR body and the CHANGELOG.
+# cannot touch, which is the misdiagnosis #2849 exists to fix.
 T_127="$TEST_TMPDIR/exit127.jsonl"
 custom_record "PreToolUse:Bash" "missing-binary --guard" "$HARNESS_NO_STDERR" 127 12 >"$T_127"
 OUT_127=$(run_hook "$T_127" "$TEST_TMPDIR/data-127")

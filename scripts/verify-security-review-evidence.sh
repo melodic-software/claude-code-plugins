@@ -10,21 +10,17 @@
 #
 # READS THE LANE'S DECLARED VERDICT, NEVER ITS LOG. The reusable classifies
 # every attempt and surfaces the result as workflow_call outputs
-# from ci-workflows v0.14.2 onward; this guard consumes those. The earlier
-# shape scraped the job log, and a log is not a contract: the lane's
-# `Report review outcome` step is an inline github-script whose SOURCE is
-# echoed into that same log and contains the skip phrases as string literals,
-# so the grep matched every successful in-scope pull request and reddened
-# exactly the ones the guard exists to approve (#2517). Anchoring the grep to
-# `##[warning]`/`##[error]` lines fixed the false positive but left the guard
-# coupled to log text no test upstream pins. Do not reintroduce a log read.
+# from ci-workflows v0.14.2 onward; this guard consumes those. A log is not a
+# contract: the lane's `Report review outcome` step is an inline github-script
+# whose SOURCE is echoed into that same log and contains the skip phrases as
+# string literals, so a log grep would match every successful in-scope pull
+# request and redden exactly the ones the guard exists to approve, and log
+# text is pinned by no test upstream. Do not reintroduce a log read.
 #
-# Scope is the lane's own `relevant` output, not a second implementation of the
-# same matcher. This script used to re-derive it in Python with `fnmatch`
-# semantics while the lane matched with `git check-ignore` gitignore semantics —
-# two matchers that disagree on the patterns that distinguish them, and the
-# source of the `set -e` scope-verdict defect that turned every out-of-scope PR
-# red. One matcher, upstream, is the fix.
+# Scope is the lane's own `relevant` output, never a second implementation of
+# the same matcher: two matchers (say, `fnmatch` semantics against the lane's
+# `git check-ignore` gitignore semantics) disagree on exactly the patterns
+# that distinguish them. One matcher, upstream.
 #
 # Runs as a sibling job after security-review in
 # .github/workflows/claude-security-review.yml, which supplies the LANE_* values
@@ -79,8 +75,8 @@ live_head_sha() {
 # guard that has gone blind, and a blind security guard must not report safety.
 #
 # Prints the VERDICT on stdout — `retired` or `blind` — and reserves a non-zero
-# EXIT for a genuine fault, the same split the scope check used to need. The
-# explanation goes to stderr so it cannot be mistaken for the verdict. Calling
+# EXIT for a genuine fault. The explanation goes to stderr so it cannot be
+# mistaken for the verdict. Calling
 # this from an `if` instead would disable `set -e` for its whole dynamic extent
 # (ShellCheck SC2310, enabled on purpose in this repository's `.shellcheckrc`),
 # which is how a fault inside a helper stops being a fault.

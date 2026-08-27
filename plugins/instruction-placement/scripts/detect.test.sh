@@ -206,11 +206,11 @@ assert_has "a docs tree file is tiered" "$out_c" "$(printf 'FILE\tdocs/guide.md\
 
 # An excluded path that ALSO lives in a `.claude/rules` tree reaches the file
 # list by two routes: the tracked walk (which skips it) and the symlink backfill
-# from ip_discover_rules (which used to re-add it, because it only asked "is this
-# already in FILES"). The result was a SKIP row and a FILE row for one path, and
-# a double count in the summary. `context/corpus.md` says exclusions are absolute
-# and applied before any classification, so this pins BOTH halves: skipped, and
-# not silently re-admitted.
+# from ip_discover_rules (which would re-add it if it only asked "is this
+# already in FILES"). The result would be a SKIP row and a FILE row for one
+# path, and a double count in the summary. `context/corpus.md` says exclusions
+# are absolute and applied before any classification, so this pins BOTH halves:
+# skipped, and not silently re-admitted.
 excl="$(mktemp -d)"
 git -C "$excl" init -q .
 mkdir -p "$excl/vendor/pkg/.claude/rules"
@@ -241,7 +241,7 @@ a="$(run --root "$rules")"
 b="$(run --root "$rules")"
 assert_eq "output is byte-identical across runs" "$a" "$b"
 
-# A regex the awk engine cannot compile used to print a panic to stderr and an
+# A regex the awk engine cannot compile would print a panic to stderr and an
 # empty fact set to stdout, which reads exactly like "this file has no sections".
 assert_lacks_sub "no awk panic reaches the output" "$out" "panic"
 assert_lacks_sub "no awk syntax error reaches the output" "$out" "syntax error"

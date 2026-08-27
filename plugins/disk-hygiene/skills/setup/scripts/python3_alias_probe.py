@@ -5,16 +5,15 @@
 surface walks through ``hooks/run-python-hook.sh``. On stock Windows,
 ``%LOCALAPPDATA%\\Microsoft\\WindowsApps\\python3.exe`` is an *App Execution Alias*
 — a zero-length reparse-point stub that opens the Microsoft Store (or exits without
-running anything) instead of launching an interpreter. Until #2568 the ``clean``
-skill's belt named ``python3`` directly as an exec-form ``command``, so the stub
-stopped the launch outright: the guard emitted neither exit code 2 nor a ``deny``
-permission decision — the only two ways a PreToolUse hook blocks a tool call — and
-Claude Code let the destructive Bash/PowerShell command proceed UNGUARDED. The
-launcher now skips the stub and falls through to ``python``, then ``py -3``, so a
-stub is no longer a launch failure on its own. It is still reported, because the
-aliases ship as a pair and ``py`` exists only where real Python is installed, so a
-stubbed ``python3`` usually means the whole ladder resolves nothing — which is the
-same fail-open. A naive ``python3 --version`` probe does not surface this cleanly:
+running anything) instead of launching an interpreter. The launcher skips the
+stub and falls through to ``python``, then ``py -3``, so a stub alone is not a
+launch failure. It is still reported, because the aliases ship as a pair and
+``py`` exists only where real Python is installed, so a stubbed ``python3``
+usually means the whole ladder resolves nothing, and a hook that fails to launch
+blocks nothing: the guard emits neither exit code 2 nor a ``deny`` permission
+decision — the only two ways a PreToolUse hook blocks a tool call — and Claude
+Code lets the destructive Bash/PowerShell command proceed UNGUARDED. A naive
+``python3 --version`` probe does not surface this cleanly:
 it pops the Store or hangs. This probe therefore *inspects* the resolution instead
 of executing it.
 

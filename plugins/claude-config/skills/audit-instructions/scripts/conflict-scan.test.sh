@@ -57,8 +57,7 @@ assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
 # --- Case 2: mandate vs prohibition across two files -------------------------
-# Fixture text, not a live citation: it reproduces the shape the worked example
-# documents, which the repo-hygiene gate it was drawn from no longer uses.
+# Fixture text, not a live citation: no repo file carries this text.
 MANDATE="$TEST_TMPDIR/skill-body.md"
 cat >"$MANDATE" <<'EOF'
 Mandatory gate: show dry-run output, then `AskUserQuestion`, then apply.
@@ -243,9 +242,9 @@ assert_eq "opt-in as subject is not suppressed" "1" \
   "$(bash "$SCRIPT" --count "$OPTMANDATE" "$OPTSUBJECT")"
 
 # --- Case 23: a prohibition in the PRECEDING sentence must not win ----------
-# The leading window is 60 chars, so an earlier unrelated prohibition on the
-# same line used to cross the sentence break and classify the mandate as a
-# prohibition — pairing it with a real prohibition then yielded nothing.
+# The 60-char leading window must not cross the sentence break: an unrelated
+# prohibition earlier on the same line must not classify the mandate as a
+# prohibition, which would pair with a real prohibition and yield nothing.
 PRESENTENCE="$TEST_TMPDIR/pre-sentence.md"
 cat >"$PRESENTENCE" <<'EOF'
 Never delete branches. Always use `AskUserQuestion` before deleting a branch.

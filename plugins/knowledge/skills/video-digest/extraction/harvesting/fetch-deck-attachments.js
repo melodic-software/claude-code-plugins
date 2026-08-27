@@ -27,7 +27,7 @@ const FETCHABLE_KINDS = new Set(["deck", "doc", "attachment"]);
  * it). Writes to a `.partial` sidecar and renames on success, so a mid-stream
  * failure (including the cap firing after headers passed) removes only the
  * partial — a previously-fetched attachment at `destPath` survives a failed
- * retry, preserving the old buffered implementation's idempotency.
+ * retry, so retries stay idempotent.
  *
  * @param {ReadableStream<Uint8Array>} webStream
  * @param {string} destPath

@@ -60,7 +60,7 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $checks = @(New-CheckStub -Id 'disk-space' -Category 'storage' -Severity 'WARN' -Detail @{ used_pct = 88 })
         $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
         $result[0].trend.last_run | Should -Be '2026-04-22T00:00:00-04:00'
-        # last_severity was removed; the schema forbids it (additionalProperties:false).
+        # The schema forbids last_severity (additionalProperties:false).
         $result[0].trend.PSObject.Properties.Name | Should -Not -Contain 'last_severity'
     }
 

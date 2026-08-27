@@ -291,9 +291,8 @@ physically_inside() {
 # no `.git`, discovery searches its own directory alone, and it does not lint
 # unless `/tmp` itself carries a markdownlint config.
 #
-# REPO_ROOT is resolved before the scope rather than after it because the scope
-# now needs it. It depends only on FILE, so moving it earlier changes nothing
-# about its value, and it is computed once for both.
+# REPO_ROOT is resolved here because the scope needs it. It depends only on
+# FILE, and it is computed once for both.
 REPO_ROOT="$(resolve_repo_root "$(dirname "$FILE")")"
 
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
@@ -1218,9 +1217,9 @@ FIX_OUTPUT="${FIX_OUTPUT//$'\r'/}"
 
 # markdownlint-cli2 reports the fixes it WROTE as a bare count line and nothing
 # more — it has no per-fix detail to offer. That count is still the only signal
-# that this hook changed the file, so it is reported rather than dropped; the
-# clean-after-fix path used to emit nothing at all, which made a rewrite of the
-# user's file indistinguishable from the hook not running.
+# that this hook changed the file, so it is reported rather than dropped:
+# dropping it would make a rewrite of the user's file indistinguishable from
+# the hook not running.
 #
 # Split in the SAME pass: the output is also divided into violation lines and
 # everything else. The banner lines markdownlint-cli2 always prints (its

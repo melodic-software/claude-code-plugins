@@ -152,8 +152,8 @@ assert_contains "codex-badge-with-url findings=1 (not double-counted)" "$r" "fin
 assert_contains "codex-badge-with-url -> READINESS_OK" "$r" "READINESS_OK"
 
 # --- Case: codex P0 badge IS counted -----------------------------------------
-# P0 was excluded under the old bare-P[1-3] / alt-text approach to avoid matching
-# lowercase priority:p0-critical labels. The shield-URL form `/badge/P0-` is
+# A bare alt-text match must exclude P0 to avoid matching lowercase
+# priority:p0-critical labels. The shield-URL form `/badge/P0-` is
 # unambiguous, so a codex P0 finding must count — else an unclassified P0
 # false-passes the gate.
 F=$(mkjson codexp0 '[
@@ -348,8 +348,8 @@ assert_contains "documented dispositions -> READINESS_OK" "$r" "READINESS_OK"
 
 # --- Case: a decorated disposition cell still counts (#619) -----------------
 # The cell anchor permits leading non-letter decoration, so a bolded
-# `| **VALID** |` cell — countable before this change under the
-# anywhere-in-the-row match — must not silently stop counting.
+# `| **VALID** |` cell — countable under an anywhere-in-the-row match — must
+# not silently stop counting.
 F=$(mkjson bold-classify '[
   {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
   {author:"me[bot]", body:"| 1 | a | **VALID** | fixed |"}
@@ -408,7 +408,7 @@ assert_contains "out-of-range [P-num] -> OK" "$r" "READINESS_OK"
 # A severity marker carried in a thread GitHub reports resolved or outdated is a
 # lifetime artifact of an already-addressed round, not a live finding. The shared
 # Python classifier (babysit_findings.py) discounts it (open-state aware) so a
-# fully-classified PR with re-review history no longer false-BLOCKs. The bash
+# fully-classified PR with re-review history does not false-BLOCK. The bash
 # degrade cannot see thread state and counts lifetime markers, so this enriched
 # behavior is asserted only when a Python 3.11+ interpreter is present -- the same
 # path the gate itself prefers. Three lifetime markers, only one open: findings=1.
@@ -640,10 +640,10 @@ fetch_err=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>&1 1>/dev/null)
 assert_contains "live-fetch-failure names the env-var override" "$fetch_err" "FETCH_COMMENTS_OWNER"
 
 # --- READINESS_UNPROVEN: no exit path leaves stdout without a verdict --------
-# A caller that greps stdout for a verdict used to see NOTHING on these paths,
-# which reads identically to a run that was never attempted — the ambiguity that
-# let a blocked gate be reported as readiness (#787). Every non-verdict exit must
-# now carry the fail-closed third token, with the exit codes unchanged.
+# A stderr-only failure path shows a caller that greps stdout for a verdict
+# NOTHING, which reads identically to a run that was never attempted — the
+# ambiguity that lets a blocked gate be reported as readiness (#787). Every
+# non-verdict exit must carry the fail-closed third token.
 
 # verdict_lines <stdout> — count of READINESS_* lines, for the exactly-one rule.
 verdict_lines() { printf '%s\n' "$1" | grep -c '^READINESS_' || true; }
@@ -755,8 +755,8 @@ assert_contains "live-fetch-failure stdout carries UNPROVEN" "$unp_out" \
 
 # --- A malformed comment payload must never read as readiness ----------------
 # A snapshot that exists but does not parse (truncated, hand-edited, an error
-# document a fetch returned with exit 0) used to reach the counters with jq's
-# stderr suppressed: the counts stayed 0 and the gate printed READINESS_OK — a
+# document a fetch returned with exit 0) would reach the counters with jq's
+# stderr suppressed: the counts stay 0 and the gate prints READINESS_OK — a
 # ready verdict derived from data it never read. Every non-array shape must
 # route through the fail-closed verdict instead.
 printf 'not-json' >"$TEST_TMPDIR/malformed.json"
@@ -890,9 +890,9 @@ assert_contains "null author is never credited as a self classification row" \
 
 # --- Identity lookup failure is not a bad argument ---------------------------
 # With no --self/--extra-self and a `gh api user` that fails, the ARGUMENTS are
-# valid; the identity prerequisite is what broke. Reporting bad-args sent the
-# operator (and the loop report that quotes this verdict verbatim) to edit flags
-# that were already correct. Exit code stays 3 for callers keyed on it.
+# valid; the identity prerequisite is what broke. Reporting bad-args would send
+# the operator (and the loop report that quotes this verdict verbatim) to edit
+# flags that are already correct. Exit code stays 3 for callers keyed on it.
 NOAUTH_BIN="$TEST_TMPDIR/bin-noauth"
 mkdir -p "$NOAUTH_BIN"
 cat >"$NOAUTH_BIN/gh" <<'STUB'
@@ -935,9 +935,8 @@ assert_contains "--help documents READINESS_UNPROVEN" "$help_out" "READINESS_UNP
 
 # ...but documenting a verdict must not COUNT as emitting one. --help is not a
 # check run, so a caller's `^READINESS_` grep must find nothing there. A header
-# line describing the token un-indented into a bare match once the comment
-# markers were stripped, so help text parsed as a malformed verdict on a run
-# that checked nothing.
+# line describing the token that un-indents into a bare match once the comment
+# markers are stripped would parse as a verdict on a run that checked nothing.
 help_verdicts=$(verdict_lines "$help_out")
 assert_eq "--help emits no verdict line" 0 "$help_verdicts"
 

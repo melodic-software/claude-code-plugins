@@ -363,8 +363,8 @@ assert_silent "link destination to a removed file → silent (links out of scope
 run 'Scratch notes were at `scratch/branch-only.md`.'
 assert_silent "path deleted only off HEAD → silent" "$OUT"
 
-# The provenance gate replaces the first-segment gate rather than layering with
-# it: a coincident leading directory is no longer sufficient.
+# Provenance is required; a coincident leading directory alone is not
+# sufficient (the gate does not layer on a first-segment match).
 run 'Upstream lives at `docs/never-existed.md` and `plugins/other/thing.sh`.'
 assert_silent "coincident first segment with no provenance → silent" "$OUT"
 

@@ -173,11 +173,11 @@ assert_eq "nothing unpushed is ok" "ok" "$(col "$R" $C_RISK)"
 # A branch whose only unique work is a DELETION is not landed
 # --------------------------------------------------------------------------
 
-# The case that retired the direction test. `git diff base..HEAD` reports
+# A direction test ("additions are zero") misclassifies this fixture as landed
+# while the deletion commit exists nowhere else: `git diff base..HEAD` reports
 # deletions both for a branch that is merely BEHIND the base and for a branch
-# whose own unique work IS a deletion — the numstat rows are identical. So
-# "additions are zero" proved nothing, and this fixture is what it classified as
-# landed while the deletion commit existed nowhere else.
+# whose own unique work IS a deletion — the numstat rows are identical, so zero
+# additions prove nothing.
 W="$(mkfixture)"
 WT_DEL="$TEST_TMPDIR/wt-delete-only"
 commit_in "$W" doomed.txt "keep
@@ -192,12 +192,12 @@ assert_eq "a delete-only branch is NOT landed" "no" "$(col "$R" $C_LANDED)"
 assert_eq "a delete-only branch is STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
 
 # --------------------------------------------------------------------------
-# Behind the base is no longer proven landed by content alone
+# Behind the base is not proven landed by content alone
 # --------------------------------------------------------------------------
 
 # The base takes the branch's content AND more of the same file, so its commit is
-# a different patch — no patch-id matches, and the two-dot is non-empty. With the
-# direction test retired this reports `no`: over-cautious by exactly one
+# a different patch — no patch-id matches, and the two-dot is non-empty. With no
+# direction test this reports `no`: over-cautious by exactly one
 # confirmation prompt, and indistinguishable-from-data-loss if it said otherwise.
 # The genuinely landed shapes are caught by the range patch-id above instead.
 W="$(mkfixture)"
@@ -241,14 +241,15 @@ assert_eq "a whitespace-only difference is not landed" "no" "$(col "$R" $C_LANDE
 # Path spellings the two-dot fallback must not be defeated by
 # --------------------------------------------------------------------------
 
-# The fallback used to compare two diff invocations' TEXT output, and the two did
-# not agree on how a path is spelled. `--name-only` octal-escapes a non-ASCII byte
-# under git's default `core.quotePath=true`; the numstat side was pinned to false.
-# The join then matched nothing, and matching nothing is the same shape as
-# "identical to the base" — an unproven `landed=yes` on a commit that exists
-# nowhere else. Pinning quotepath on both sides closed that byte class and left
-# another, since git escapes `"`, `\` and control characters regardless of the
-# setting. Handing the paths back to git as literal pathspecs closes the class.
+# A fallback that compares two diff invocations' TEXT output would join paths
+# the two invocations spell differently. `--name-only` octal-escapes a non-ASCII
+# byte under git's default `core.quotePath=true`; a numstat side pinned to false
+# does not. The join then matches nothing, and matching nothing is the same
+# shape as "identical to the base" — an unproven `landed=yes` on a commit that
+# exists nowhere else. Pinning quotepath on both sides closes that byte class
+# but leaves another, since git escapes `"`, `\` and control characters
+# regardless of the setting. Handing the paths back to git as literal pathspecs
+# closes the class.
 #
 # Three spellings, all of which must classify as STRANDED: a non-ASCII name, a
 # name containing a glob metacharacter (which must be matched literally, not as a

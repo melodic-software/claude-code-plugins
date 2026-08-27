@@ -179,7 +179,7 @@ rm -f "$f" "$tok"
 
 # --- operator-terminated forms: no trailing whitespace before a control
 # operator, redirection, subshell close or quote must still be detected
-# (#1537 — the boundary originally accepted only whitespace or end of line) -
+# (#1537; a whitespace-only boundary would miss these) ----------------------
 tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
@@ -256,8 +256,7 @@ rm -f "$f"
 
 # --- operator-terminated forms: no trailing whitespace before a control
 # operator, redirection, subshell close or quote must still be detected
-# (#1537 — the boundary originally accepted only whitespace or end of line,
-# missing exactly these three forms cited in the issue) ---------------------
+# (#1537; a whitespace-only boundary would miss exactly these three forms) --
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -769,9 +768,9 @@ fi
 rm -f "$f"
 
 # --- operator-terminated forms: no trailing whitespace before a control
-# operator, redirection, or subshell close must still be detected (#1545 —
-# the boundary originally accepted only whitespace or end of line, the same
-# class of false negative #1537 fixed for sort -V/grep -P/echo -e). Quotes
+# operator, redirection, or subshell close must still be detected (#1545; a
+# whitespace-only boundary would miss these, the same false-negative class
+# as #1537's sort -V/grep -P/echo -e forms). Quotes
 # are NOT in this token's boundary (unlike the sibling tokens above) — see
 # the "sed -Ei'' must not be flagged" test above for why. --------------------
 while IFS= read -r case; do
@@ -2077,18 +2076,17 @@ fi
 rm -f "$f"
 
 # =============================================================================
-# Quote-aware matching -- #1544 review round
+# Quote-aware matching -- #1544
 #
-# Each shape below was reproduced against the real gate before the fix. Two
-# were false positives; three were the gate failing OPEN, the worse direction
-# -- a GNU-only call reaching a BSD userland unreported. The gap still
-# excludes separators; what changed is that it now matches a line whose
-# QUOTED separators have been neutralized first, so a `;` in a filename and a
-# `;` between commands stop being the same character to it.
+# The shapes below cover both defect directions: false positives, and the
+# gate failing OPEN, the worse direction -- a GNU-only call reaching a BSD
+# userland unreported. The gap still excludes separators; the matcher sees a
+# line whose QUOTED separators have been neutralized first, so a `;` in a
+# filename and a `;` between commands are not the same character to it.
 # =============================================================================
 
 # --- `--` (end-of-options) IS honored (#1562, via the #1551 word layer): a
-# flag-shaped word after the marker is an operand, so it no longer reports.
+# flag-shaped word after the marker is an operand, so it is not reported.
 # The three capabilities whose absence got the feature withdrawn in #1544 are
 # what the word layer supplies: per-invocation scoping (the marker must sit
 # inside the matched extent, between the command word and its option),
@@ -2160,8 +2158,8 @@ rm -f "$f"
 
 # --- and a later real invocation on the same line is never lost behind one:
 # a demoted occurrence is discarded and matching RESUMES, so the marker
-# suppresses its own invocation only. A partial implementation without resume
-# suppressed the whole line -- the fail-open that got the feature withdrawn.
+# suppresses its own invocation only. Without resume the whole line would be
+# suppressed, a fail-open.
 f="$(tmpsh "$(printf '%s\n' \
   'stat -- -c; stat -c "%s" "$g"' \
   'date -- -d; date -d tomorrow')")"
@@ -2280,18 +2278,16 @@ fi
 rm -f "$f"
 
 # =============================================================================
-# Offset-anchored matching -- #1544 review round 2
+# Offset-anchored matching -- #1544
 #
 # The fallback guard has to apply to ONE invocation, not to the physical line:
 # a `||` further along must not excuse a call that cannot reach it. The guard
 # is anchored at the offset the construct matched, so SEG's existing separator
-# exclusions do the binding. Several shapes below were fail-OPEN, some of them
-# introduced by an earlier revision of this fix and caught by review.
+# exclusions do the binding.
 # =============================================================================
 
-# --- an outer command `--` never suppresses a nested invocation. This was
-# FAIL-OPEN while `--` was honored line-wide, and is the shape that made the
-# feature not worth carrying half-built.
+# --- an outer command `--` never suppresses a nested invocation: line-wide
+# `--` honoring would fail OPEN here.
 f="$(tmpsh 'printf -- "%s\n" "$(stat -c "%s" "$g")"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a nested stat -c under an outer -- should fail, got success: $out"
@@ -2301,7 +2297,7 @@ fi
 rm -f "$f"
 
 # --- a trailing command inside the substitution takes over its exit status,
-# so the outer || is not the GNU call fallback. FAIL-OPEN before the fix.
+# so the outer || is not the GNU call fallback.
 f="$(tmpsh 'x=$(stat -c "%s" "$g"; true) || stat -f "%z" "$g"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a substitution whose status comes from a later command should fail, got success: $out"
@@ -2375,8 +2371,8 @@ rm -f "$f"
 # trusted input (#1562), so a fallback whose `-f` BSD getopt would never parse
 # as an option is rejected. FreeBSD/macOS stat(1): option parsing stops at the
 # first operand, `--` ends it explicitly, and `-f`/`-t` take an argument.
-# Every shape below previously read as a guarded ladder and failed OPEN -- the
-# GNU-only call shipped with a "fallback" that runs no BSD stat at all.
+# Every shape below would read as a guarded ladder and fail OPEN -- the
+# GNU-only call would ship with a "fallback" that runs no BSD stat at all.
 for line in \
   'stat -c "%s" "$g" || stat -- -f' \
   'stat -c "%s" "$g" || stat "--" -f' \
@@ -3080,9 +3076,9 @@ fi
 rm -f "$TOK" "$f"
 
 # =============================================================================
-# Shell spellings the token classes must not let past -- #1544 review round.
-# Each was reproduced against the built gate before the fix; all reach the same
-# GNU utility with the same GNU-only option after the shell is done with them.
+# Shell spellings the token classes must not let past -- #1544. All reach the
+# same GNU utility with the same GNU-only option after the shell is done with
+# them.
 # =============================================================================
 
 # --- `&>` / `&>>` after the command name are redirections, not separators the

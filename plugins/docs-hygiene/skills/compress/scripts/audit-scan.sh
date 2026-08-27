@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Mechanical audit scan for /docs-hygiene:compress audit action.
 # Implements the six-signal heuristic in context/target-types.md as a script
-# so runs do not re-implement awk/grep counting in-session (auditor M7).
+# so runs do not re-implement awk/grep counting in-session.
 #
 # Output: one markdown table row per file, then an aggregate line.
 # Exit: 0 on scan paths; 2 on unknown args.

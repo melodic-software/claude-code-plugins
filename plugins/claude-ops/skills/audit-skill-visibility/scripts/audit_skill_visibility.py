@@ -253,7 +253,7 @@ def collect_fleet(plugins_root: str) -> list[dict]:
 def collect_fleet_at(plugin_root: str, plugin: str) -> list[dict]:
     """Walk ONE plugin directory into denominator entries.
 
-    Split out of `collect_fleet` because the installed manifest resolves each
+    Separate from `collect_fleet` because the installed manifest resolves each
     plugin to its own root: the installs are scattered across versioned cache
     paths rather than sitting side by side under a single parent, so there is
     no one directory to walk for a real installation.

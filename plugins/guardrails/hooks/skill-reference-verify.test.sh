@@ -562,9 +562,9 @@ assert_contains "a reference reconstructed out of multibyte content is intact" "
 # WHICH separator has that property is a property of the host's C library, not of
 # this hook, and it is NOT portable. glibc removed U+00A0 and U+202F from `space`
 # in 2.26 (a no-break space is deliberately not a separator); Cygwin/MSYS still
-# classifies them. An earlier revision of this case hardcoded U+00A0 and so passed
-# on Windows and failed on Linux CI — asserting a libc's classification table as if
-# it were this hook's behavior.
+# classifies them. Hardcoding U+00A0 in this case passes on Windows and fails on
+# Linux CI, asserting a libc's classification table as if it were this hook's
+# behavior.
 #
 # So the separator is DISCOVERED rather than assumed: take the first candidate this
 # host actually classifies differently between the two locales, probed through the

@@ -93,8 +93,8 @@ LIMIT=$((10#$LIMIT))
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 
 # Resolve relative CLI / paths-file targets against the caller's cwd BEFORE any
-# cd into the repo root (F10: cd-before-target-resolution used to silently skip
-# relative paths given from another working directory).
+# cd into the repo root, or relative targets given from another working
+# directory are silently skipped.
 resolve_existing_path() {
   local raw="$1"
   if [[ "$raw" == /* ]]; then
@@ -190,8 +190,8 @@ if [[ ${#SORTED[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# Hoist convention-root resolution once per run (also repairs F6: contract
-# root must survive into the ghost-ref exemption check).
+# Hoist convention-root resolution once per run: the contract root must
+# survive into the ghost-ref exemption check.
 AUDIT_NOISE_REPO_ROOT="${AUDIT_NOISE_REPO_ROOT:-${repo_root:-.}}"
 audit_noise_resolve_convention_roots
 
@@ -355,9 +355,9 @@ audit_file() {
       continue
     fi
 
-    # Any ATX heading level toggles section exemption (F7: ##-only toggles let
-    # an exempt ## Sources followed by an H1 stay exempt to EOF, and ### Sources
-    # was never recognized).
+    # Any ATX heading level toggles section exemption: an ##-only toggle would
+    # let an exempt ## Sources followed by an H1 stay exempt to EOF, and would
+    # never recognize ### Sources.
     if [[ "$line" =~ ^(#{1,6})[[:space:]]+(.*)$ ]]; then
       # Capture before flushing, for the same reason as the fence branch above.
       heading_text="${BASH_REMATCH[2]}"
@@ -373,7 +373,7 @@ audit_file() {
       # blank line (unreachable in MD022-clean markdown; robustness only).
       in_ignored_para=0
     fi
-    # Opt-out markers: require a well-formed HTML comment line (F4). Prose that
+    # Opt-out markers: require a well-formed HTML comment line. Prose that
     # merely mentions the marker name must not act as a live marker. Order
     # matters: -line first.
     if audit_noise_is_ignore_line_marker "$line"; then

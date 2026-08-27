@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 # Retention pruning for the plugin-quality evidence tree.
 #
-# The skill's retention rule used to be prose telling the model to "delete
-# packet directories older than 30 days" — a recursive delete, over the one
-# tree that also holds the only copy of an unattended run's emitted work item
-# (`item.md`), left entirely to model obedience. This script is that rule as a
-# mechanism, so the safety properties hold whether or not the model reads them.
-#
 # Three properties are enforced HERE, not in prose:
 #
 #   1. Dry run by default. Nothing is deleted without an explicit `--apply`.

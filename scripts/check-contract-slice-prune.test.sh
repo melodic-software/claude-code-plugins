@@ -342,9 +342,10 @@ if run_diff "$repo" >/dev/null; then fail "an indented root mapping must not hid
 rm -rf "$repo"
 
 # --- nested roots: the MOST SPECIFIC root owns a path -----------------------
-# Relocating contract_dir beneath a grandfathered slice used to let the outer
-# root match first, naming the exempt slug 'legacy' for every path inside the
-# new root — so a brand-new slice smuggled in alongside the migrated one passed.
+# If the outer root matched first when contract_dir relocates beneath a
+# grandfathered slice, every path inside the new root would carry the exempt
+# slug 'legacy' — a brand-new slice smuggled in alongside the migrated one
+# would pass.
 repo="$(mk_repo $'legacy\n')"
 mkdir -p "$repo/docs/topics/legacy"
 printf 'plan\n' >"$repo/docs/topics/legacy/PLAN.md"

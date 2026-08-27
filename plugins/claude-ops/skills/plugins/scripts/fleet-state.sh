@@ -208,7 +208,7 @@ jq() { command jq "$@" | tr -d '\r'; }
 # `--argjson name "$value"`; payload then travels through the filesystem,
 # never argv, so its size never determines whether jq can be invoked.
 # --slurpfile always yields a one-element array bound to $name, so a
-# converted jq program reads `$name[0]` where it used to read `$name`.
+# converted jq program reads `$name[0]` instead of `$name`.
 # Process substitution (`<(...)`) was considered instead of a real temp file,
 # but a native-Windows jq binary does not reliably read the /dev/fd-style
 # paths Git Bash's process substitution produces, so a real file backed by
@@ -234,13 +234,11 @@ jq_slurp_tmpfile() {
   if [[ -z "$1" ]]; then
     # An empty value only happens when an earlier `jq` read of a source file
     # (e.g. user/project/local settings.json) already failed — malformed
-    # JSON captures no stdout. `--argjson name ""` used to fail this loud
-    # immediately ("invalid JSON text passed to --argjson"); `--slurpfile`
+    # JSON captures no stdout. An empty payload must fail loud: `--slurpfile`
     # tolerates a genuinely EMPTY file as "zero JSON values" instead of
     # erroring, which would silently degrade the report (a null/empty field
-    # instead of the script failing) rather than reproducing the prior
-    # fail-loud behavior. Write a deliberately-invalid token so the
-    # consuming jq call's own parser still errors at this call site.
+    # instead of the script failing). Write a deliberately-invalid token so
+    # the consuming jq call's own parser still errors at this call site.
     printf '%s' 'FLEET_STATE_INVALID_EMPTY_PAYLOAD' >"$f"
   else
     printf '%s' "$1" >"$f"
@@ -394,8 +392,8 @@ fi
 
 # Case-fold path comparisons ONLY on case-insensitive filesystems (mirrors
 # hook::normalize_path's own $OSTYPE check exactly). Applying ascii_downcase
-# unconditionally — as an earlier version of this script did — makes two
-# genuinely different sibling repos on a case-sensitive POSIX host (e.g.
+# unconditionally makes two genuinely different sibling repos on a
+# case-sensitive POSIX host (e.g.
 # /work/repo and /work/Repo) compare equal, which can point a project-scope
 # mutation at the wrong repo.
 case_insensitive_os="false"

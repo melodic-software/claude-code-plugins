@@ -169,7 +169,7 @@ assert_exit "--all-unclaimed with nothing left is exit 0" 0 "$?"
 assert_contains "no-op --all-unclaimed says so" "$ERR" "no unclaimed"
 
 # A lock failure in the batch must not be reported as success (`if ! cmd;
-# then rc=$?` used to store 0).
+# then rc=$?` stores 0, hiding the failure).
 git -C "$REPO" worktree add -q "$EXT/wt-lockfail" -b feat/lockfail
 
 # Root-proof arm (#3378). The chmod fixture below cannot make the admin

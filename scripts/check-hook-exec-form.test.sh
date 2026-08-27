@@ -518,10 +518,9 @@ rm -rf "$f"
 
 # --- frontmatter: every YAML spelling of the hooks key is a declaration -----
 # Bare, double-quoted, single-quoted, space-before-colon, and the three escape
-# encodings all denote the same key. Each of these was a live bypass of the
-# hand-rolled walk this gate used to carry, and each is why the reader hands the
-# document to a real parser instead of matching the token as text: the scanner
-# has already decoded the key by the time the gate sees it.
+# encodings all denote the same key, and only a real parser sees that: the
+# reader hands the document to one instead of matching the token as text, so
+# the scanner has already decoded the key by the time the gate sees it.
 # BS keeps the literal backslash of the escape spellings unambiguous in source.
 # shellcheck disable=SC1003  # a lone backslash IS the intended value here
 BS='\'

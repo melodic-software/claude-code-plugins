@@ -16,8 +16,8 @@
 # (claude-code-plugins#2656).
 #
 # Substring / setup-only mentions (comments, F_KIND injection arrays) do not
-# count — those previously false-greened locked-worktree. Existing coverage
-# debt is grandfathered in scripts/fleet-finding-test-coverage-baseline.txt
+# count. Existing coverage debt is grandfathered in
+# scripts/fleet-finding-test-coverage-baseline.txt
 # (exact finding-kind tokens, one per line). --check fails on a stale entry so
 # the baseline cannot outlive its debt. FLEET_FINDING_COVERAGE_BASELINE /
 # FLEET_FINDING_SCRIPT / FLEET_FINDING_TEST override paths (test injection and

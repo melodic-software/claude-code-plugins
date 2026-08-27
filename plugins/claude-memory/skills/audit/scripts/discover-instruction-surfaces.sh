@@ -2,14 +2,12 @@
 # discover-instruction-surfaces.sh — enumerate the CLAUDE.md and rules files in audit scope,
 # each tagged with the scope it loads from.
 #
-# Why this exists: Step 1 discovery used to be two bare `find` commands rooted at the
-# current directory (`find . -maxdepth 1 -name CLAUDE.md`, `find .claude/rules ...`), so it
-# could only ever see PROJECT-scope files. The user-global surfaces — `~/.claude/CLAUDE.md`
-# and `~/.claude/rules/*.md` — load in every session and were reachable by neither this
-# skill nor `claude-config:audit-instructions` (I15 now defers to C6 once both anchors are
-# in this population, including user↔project; at the time this comment was written, neither
-# check reached them). One skill's conflict pass deferred a user-global surface; the
-# receiving skill's discovery could not reach it, so nothing audited it.
+# Why this exists: this script enumerates BOTH project and user-global surfaces. Bare
+# `find` commands rooted at the current directory (`find . -maxdepth 1 -name CLAUDE.md`,
+# `find .claude/rules ...`) can only ever see PROJECT-scope files, while the user-global
+# surfaces — `~/.claude/CLAUDE.md` and `~/.claude/rules/*.md` — load in every session and
+# must be in this population for `claude-config:audit-instructions` to reach them (I15
+# defers to C6 once both anchors are here, including user↔project).
 #
 # Scope tagging is not cosmetic. Several criteria are project-scoped (C9 is the live case),
 # and widening discovery WITHOUT a scope field would make them fire on personal files that

@@ -58,9 +58,9 @@ entries="$(jq -r '.plugins[] | [.name, .source] | @tsv' "$MARKETPLACE" | tr -d '
 # checks key on the same string for every equivalent way of writing one
 # directory. `./plugins/alpha/`, `plugins//alpha` and `plugins/./alpha` all
 # resolve and glob identically on the filesystem, so a catalog entry spelled
-# any of those ways used to register a key the inverse check's
+# any of those ways would register a key the inverse check's
 # `"$PLUGINS_ROOT"/*/` expansion ('plugins/alpha') could never match, and the
-# gate reported a correctly-registered directory as UNREGISTERED.
+# gate would report a correctly-registered directory as UNREGISTERED.
 #
 # Empty and "." segments are dropped; ".." is deliberately KEPT VERBATIM. This
 # function must never resolve a parent reference -- doing so would launder

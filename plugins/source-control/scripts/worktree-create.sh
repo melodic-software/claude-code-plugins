@@ -245,16 +245,60 @@ need_value() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --name) need_value "$@"; name="$2"; shift 2 ;;
-    --root) need_value "$@"; root="$2"; root_given=1; shift 2 ;;
-    --root-file) need_value "$@"; root_file="$2"; root_file_given=1; shift 2 ;;
-    --fallback-root) need_value "$@"; fallback_root="$2"; fallback_root_given=1; shift 2 ;;
-    --fallback-root-file) need_value "$@"; fallback_root_file="$2"; fallback_root_file_given=1; shift 2 ;;
-    --data-root-file) need_value "$@"; data_root_file="$2"; data_root_file_given=1; shift 2 ;;
-    --base-ref) need_value "$@"; base_ref="$2"; shift 2 ;;
-    --repo-dir) need_value "$@"; repo_dir="$2"; shift 2 ;;
-    -h|--help) usage; exit 0 ;;
-    *) printf '%s: unknown argument: %s\n' "$PROG" "$1" >&2; usage; exit 2 ;;
+  --name)
+    need_value "$@"
+    name="$2"
+    shift 2
+    ;;
+  --root)
+    need_value "$@"
+    root="$2"
+    root_given=1
+    shift 2
+    ;;
+  --root-file)
+    need_value "$@"
+    root_file="$2"
+    root_file_given=1
+    shift 2
+    ;;
+  --fallback-root)
+    need_value "$@"
+    fallback_root="$2"
+    fallback_root_given=1
+    shift 2
+    ;;
+  --fallback-root-file)
+    need_value "$@"
+    fallback_root_file="$2"
+    fallback_root_file_given=1
+    shift 2
+    ;;
+  --data-root-file)
+    need_value "$@"
+    data_root_file="$2"
+    data_root_file_given=1
+    shift 2
+    ;;
+  --base-ref)
+    need_value "$@"
+    base_ref="$2"
+    shift 2
+    ;;
+  --repo-dir)
+    need_value "$@"
+    repo_dir="$2"
+    shift 2
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    printf '%s: unknown argument: %s\n' "$PROG" "$1" >&2
+    usage
+    exit 2
+    ;;
   esac
 done
 
@@ -266,11 +310,11 @@ fi
 # Mutual exclusion keys off whether each flag APPEARED, not whether its value is
 # non-empty: `--root '' --root-file f` is still a caller naming two sources, and
 # treating the empty one as absent would silently pick the other.
-if (( root_given && root_file_given )); then
+if ((root_given && root_file_given)); then
   printf '%s: --root and --root-file are mutually exclusive\n' "$PROG" >&2
   exit 2
 fi
-if (( fallback_root_given && fallback_root_file_given )); then
+if ((fallback_root_given && fallback_root_file_given)); then
   printf '%s: --fallback-root and --fallback-root-file are mutually exclusive\n' "$PROG" >&2
   exit 2
 fi
@@ -309,12 +353,15 @@ read_path_file() {
   # which would turn `/root-<NUL>suffix` into `/root-suffix` and create a worktree
   # at a path nobody supplied. Compare the byte count with and without NULs rather
   # than matching on one, since the variable can never hold it.
-  if (( $(wc -c < "$file") != $(tr -d '\000' < "$file" | wc -c) )); then
+  if (($(wc -c <"$file") != $(tr -d '\000' <"$file" | wc -c))); then
     printf '%s: %s %s contains a NUL byte; the file holds the path verbatim and no pathname can contain NUL\n' \
       "$PROG" "$flag" "$file" >&2
     exit 2
   fi
-  value=$(cat "$file"; printf x)   # printf x defends the value's own trailing bytes from $( ) stripping
+  value=$(
+    cat "$file"
+    printf x
+  ) # printf x defends the value's own trailing bytes from $( ) stripping
   value=${value%x}
   if [[ "$value" == *$'\n'* ]]; then
     printf '%s: %s %s contains a newline byte; the file holds the path verbatim and a path with a newline in it is malformed configuration, not a value to trim\n' \
@@ -324,11 +371,11 @@ read_path_file() {
   PATH_FILE_VALUE="$value"
 }
 
-if (( root_file_given )); then
+if ((root_file_given)); then
   read_path_file --root-file "$root_file"
   root="$PATH_FILE_VALUE"
 fi
-if (( fallback_root_file_given )); then
+if ((fallback_root_file_given)); then
   read_path_file --fallback-root-file "$fallback_root_file"
   fallback_root="$PATH_FILE_VALUE"
 fi
@@ -338,7 +385,7 @@ fi
 # and dashes. Reject invalid names loudly (exit 2) here rather than let
 # `git worktree add` fail opaquely downstream. The branch is used verbatim; only
 # the directory slug transforms it.
-if (( ${#name} > 64 )); then
+if ((${#name} > 64)); then
   printf '%s: --name %q exceeds 64 characters\n' "$PROG" "$name" >&2
   exit 2
 fi
@@ -443,7 +490,7 @@ fi
 # an includeIf-supplied value APPENDS after the plain default and wins, matching
 # the ghq.root / wt.basedir precedent. `--type=path` expands a leading `~`.
 # `tr -d '\r'` guards the CRLF a Windows git.exe emits under an MSYS shell.
-if (( root_unset )); then
+if ((root_unset)); then
   config_root="$(git -C "$toplevel" config --get-all --type=path melodic.worktreeroot 2>/dev/null | tail -n 1 | tr -d '\r')"
   if [[ -n "$config_root" ]]; then
     canonicalize_root "$config_root" "melodic.worktreeroot"
@@ -457,7 +504,7 @@ fi
 # Rung 3: the machine-global plugin option, handed over as --fallback-root or
 # --fallback-root-file. Below the git key on purpose: the key is per-repo capable
 # and readable by every consumer; the option is machine-wide and plugin-only.
-if (( root_unset )) && ! root_is_unset "$fallback_root"; then
+if ((root_unset)) && ! root_is_unset "$fallback_root"; then
   canonicalize_root "$fallback_root" --fallback-root
   root="$CANONICAL_ROOT"
   root_unset=0
@@ -488,9 +535,9 @@ fi
 # literal token, which is detected below and refused rather than turned into a
 # relative path inside the repository. The containment guard further down still
 # validates whatever root wins.
-if (( root_unset )); then
+if ((root_unset)); then
   data_root=""
-  if (( data_root_file_given )); then
+  if ((data_root_file_given)); then
     read_path_file --data-root-file "$data_root_file"
     data_root="$PATH_FILE_VALUE"
     # A caller whose substitution did not fire hands over the literal token. That
@@ -544,9 +591,9 @@ fi
 # `--branch` takes a branchname-shorthand and so performs repository discovery,
 # which fails outright when the process's CWD is a stale checkout (a `.git` file
 # naming a gitdir that no longer exists — precisely what this plugin's own
-# worktree cleanup deals with). Inheriting that CWD turned a perfectly valid name
-# into a false exit 2, and the documented invocation omits `--repo-dir`, so the
-# CWD is the default. Deferring past the exit-4 repository probe guarantees a
+# worktree cleanup deals with). Inheriting that CWD would turn a perfectly valid
+# name into a false exit 2, and the documented invocation omits `--repo-dir`, so
+# the CWD is the default. Deferring past the exit-4 repository probe guarantees a
 # healthy repo to run in and makes a non-zero exit mean the NAME, nothing else.
 # Both streams are discarded: on success `--branch` echoes the name to stdout,
 # which would corrupt the sole-stdout-line output contract, and on failure git's
@@ -566,15 +613,16 @@ fi
 # and the caller falls back to the repo-dir name.
 parse_owner_repo() {
   local url="$1" path
-  owner=""; repo=""
+  owner=""
+  repo=""
   # Reduce to the path portion. Scheme URLs (scheme://host/path) and scp syntax
   # (git@host:path) delimit the host differently, so branch on which is present.
   path="$url"
   if [[ "$path" == *"://"* ]]; then
-    path="${path#*://}"        # strip scheme://
-    path="${path#*/}"          # strip host[:port] up to the first '/'
+    path="${path#*://}" # strip scheme://
+    path="${path#*/}"   # strip host[:port] up to the first '/'
   elif [[ "$path" == *:* ]]; then
-    path="${path#*:}"          # scp-like git@host:owner/repo -> owner/repo
+    path="${path#*:}" # scp-like git@host:owner/repo -> owner/repo
   fi
   path="${path%.git}"
   path="${path%/}"
@@ -590,10 +638,10 @@ parse_owner_repo() {
   done
 
   local n=${#seg[@]}
-  if (( n >= 2 )); then
-    repo="${seg[n-1]}"
-    owner="${seg[n-2]}"
-  elif (( n == 1 )); then
+  if ((n >= 2)); then
+    repo="${seg[n - 1]}"
+    owner="${seg[n - 2]}"
+  elif ((n == 1)); then
     repo="${seg[0]}"
   fi
 }
@@ -812,7 +860,7 @@ resolve_default_remote() {
     r=${r%$'\r'}
     [[ -n "$r" ]] && remotes+=("$r")
   done < <(git -C "$repo_top" remote 2>/dev/null)
-  if (( ${#remotes[@]} == 1 )); then
+  if ((${#remotes[@]} == 1)); then
     printf '%s' "${remotes[0]}"
     return 0
   fi
@@ -821,44 +869,44 @@ resolve_default_remote() {
 }
 
 case "$base_ref" in
-  head)
+head)
+  base_commit="HEAD"
+  ;;
+fresh)
+  # Resolve the default REMOTE first, then that remote's default BRANCH
+  # symbolically (never hardcode origin/main — the portability lint forbids
+  # it). When the symref is not cached locally, fall back to local HEAD
+  # (matching Claude Code's documented behavior, which is itself origin-centric:
+  # https://code.claude.com/docs/en/worktrees) but warn loudly: "fresh"
+  # promises the remote default branch, so a silent fall-through to HEAD could
+  # carry unpushed local commits the caller did not want.
+  #
+  # The HEAD probe deliberately does NOT cascade back down the remote rungs.
+  # "fresh" means the EFFECTIVE remote's default branch; quietly substituting a
+  # different remote's default branch is a worse failure than the HEAD
+  # fallback, because the caller cannot see it happen.
+  default_remote=$(resolve_default_remote "$toplevel") || default_remote=""
+  head_ref=""
+  if [[ -n "$default_remote" ]]; then
+    head_ref=$(git -C "$toplevel" symbolic-ref -q "refs/remotes/$default_remote/HEAD" 2>/dev/null | tr -d '\r')
+  fi
+  if [[ -n "$head_ref" ]]; then
+    base_commit="$head_ref"
+  else
     base_commit="HEAD"
-    ;;
-  fresh)
-    # Resolve the default REMOTE first, then that remote's default BRANCH
-    # symbolically (never hardcode origin/main — the portability lint forbids
-    # it). When the symref is not cached locally, fall back to local HEAD
-    # (matching Claude Code's documented behavior, which is itself origin-centric:
-    # https://code.claude.com/docs/en/worktrees) but warn loudly: "fresh"
-    # promises the remote default branch, so a silent fall-through to HEAD could
-    # carry unpushed local commits the caller did not want.
-    #
-    # The HEAD probe deliberately does NOT cascade back down the remote rungs.
-    # "fresh" means the EFFECTIVE remote's default branch; quietly substituting a
-    # different remote's default branch is a worse failure than the HEAD
-    # fallback, because the caller cannot see it happen.
-    default_remote=$(resolve_default_remote "$toplevel") || default_remote=""
-    head_ref=""
     if [[ -n "$default_remote" ]]; then
-      head_ref=$(git -C "$toplevel" symbolic-ref -q "refs/remotes/$default_remote/HEAD" 2>/dev/null | tr -d '\r')
-    fi
-    if [[ -n "$head_ref" ]]; then
-      base_commit="$head_ref"
+      printf '%s: warning: --base-ref fresh could not resolve the remote default branch (%s/HEAD not set); branching from local HEAD instead. Run: git remote set-head %s --auto  to cache it.\n' \
+        "$PROG" "$default_remote" "$default_remote" >&2
     else
-      base_commit="HEAD"
-      if [[ -n "$default_remote" ]]; then
-        printf '%s: warning: --base-ref fresh could not resolve the remote default branch (%s/HEAD not set); branching from local HEAD instead. Run: git remote set-head %s --auto  to cache it.\n' \
-          "$PROG" "$default_remote" "$default_remote" >&2
-      else
-        printf '%s: warning: --base-ref fresh could not resolve the remote default branch (no default remote: the repository has no remotes, or has several with neither a branch-configured remote nor an origin); branching from local HEAD instead.\n' \
-          "$PROG" >&2
-      fi
+      printf '%s: warning: --base-ref fresh could not resolve the remote default branch (no default remote: the repository has no remotes, or has several with neither a branch-configured remote nor an origin); branching from local HEAD instead.\n' \
+        "$PROG" >&2
     fi
-    ;;
-  *)
-    printf '%s: --base-ref must be fresh or head, got: %q\n' "$PROG" "$base_ref" >&2
-    exit 2
-    ;;
+  fi
+  ;;
+*)
+  printf '%s: --base-ref must be fresh or head, got: %q\n' "$PROG" "$base_ref" >&2
+  exit 2
+  ;;
 esac
 
 if ! git -C "$toplevel" worktree add -b "$name" "$worktree_path" "$base_commit" >&2; then
@@ -908,7 +956,7 @@ if [[ -f "$include_file" ]]; then
     fi
   done < <(git -C "$toplevel" ls-files -o -i -z --exclude-from="$include_file")
   printf '%s: copied %d .worktreeinclude file(s) into the worktree\n' "$PROG" "$copied" >&2
-  if (( copy_failed > 0 )); then
+  if ((copy_failed > 0)); then
     printf '%s: %d .worktreeinclude file(s) failed to copy — the worktree at %s exists but is missing expected local files\n' \
       "$PROG" "$copy_failed" "$worktree_path" >&2
     exit 4

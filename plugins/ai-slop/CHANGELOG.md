@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1]
+
+### Changed
+
+- **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
 ## [0.5.0]
 
 ### Added

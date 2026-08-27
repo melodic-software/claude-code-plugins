@@ -26,11 +26,9 @@
 #                 signature to gate on, so every direct invocation is flagged.
 #                 Low-noise in practice: `gh pr create` runs once per PR.
 #
-# `git commit` is NOT handled here — it moved to block-noncanonical-commit.sh,
-# which BLOCKS on the stdin-form mechanic. Keeping a duplicate advisory would
-# double-fire on one command. That hook also drops the `--trailer` conjunct this
-# one used to require: /commit omits the trailer under trailer_policy `none`, so
-# demanding it flagged the skill's own conformant output.
+# `git commit` is NOT handled here: block-noncanonical-commit.sh owns it and
+# BLOCKS on the stdin-form mechanic. A duplicate advisory here would
+# double-fire on one command.
 #
 # NON-BLOCKING (advisory): exits 0 always. Emits additionalContext naming the
 # skill to prefer; never blocks the call — create.md itself documents a

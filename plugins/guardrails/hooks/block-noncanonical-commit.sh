@@ -9,12 +9,11 @@
 #   message belongs on stdin — `git commit -F -` (or `--file -`), the form the
 #   /commit skill emits.
 #
-#   NARROWED in 0.20.0 (#2021): the guard used to deny EVERY `git commit` that
-#   was not the stdin form, single-line `-m "fix: typo"` included — a hybrid
-#   whose extra width policed only style. Only the actual-newline `-m` is the
-#   mangling hazard, so only it blocks now: a single-line `-m`, a bare `git
-#   commit` (editor), and repeated single-line `-m` flags (git itself joins
-#   them as paragraphs; no shell mangling is involved) all pass. On the
+#   Only the actual-newline `-m` is the mangling hazard, so only it blocks
+#   (#2021): a wider gate denying every non-stdin `git commit`, single-line
+#   `-m "fix: typo"` included, would police only style. A single-line `-m`, a
+#   bare `git commit` (editor), and repeated single-line `-m` flags (git itself
+#   joins them as paragraphs; no shell mangling is involved) all pass. On the
 #   PowerShell tool a here-string `-m` value blocks too: the classifier blanks
 #   the body to a placeholder, so its content — multi-line by construction of
 #   the form — cannot be inspected, and the guard fails closed on it.
@@ -553,15 +552,13 @@ persisted_alias_expansions() {
 # tree the walk continues with the literal composed directory instead of refusing
 # the command, which is main's behavior on this path.
 #
-# An earlier revision failed CLOSED here. It was dropped because it never earned its
-# place: its justification was that "a commit could not have succeeded there anyway"
-# — which, if true, means it protected against nothing — while it produced three
-# separate false positives, each refusing a VALID canonical commit reached through a
-# repository the OUTER probe could not see (`--git-dir`/`--work-tree` on the
-# invocation, then `-C` inside the body). The class it was added for is still open
-# regardless: the persisted-alias lookup drops the locating globals on both this
-# guard and main. Deferring resolution to the nested invocation is the real fix and
-# is tracked as its own design question rather than bolted on here.
+# Failing CLOSED here would protect nothing (if a commit could not succeed there
+# anyway, refusing it guards against nothing) while refusing VALID canonical
+# commits reached through a repository the OUTER probe cannot see
+# (`--git-dir`/`--work-tree` on the invocation, then `-C` inside the body). The
+# class stays open regardless: the persisted-alias lookup drops the locating
+# globals on both this guard and main; closing it means deferring resolution to
+# the nested invocation, not failing closed here.
 
 # Alias re-expansion is this guard's only recursive path, and it BRANCHES: every
 # hop re-checks both alias spellings (`alias.<sub>` and `alias.<sub>.command`)

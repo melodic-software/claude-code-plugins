@@ -38,8 +38,8 @@ export function checkResearchComplete(sliceDir) {
     return 1;
   }
 
-  // The agenda is required, not optional: without it the gate previously fell
-  // through to success with no auditable claim-resolution plan.
+  // The agenda is required, not optional: without it, success would carry no
+  // auditable claim-resolution plan.
   if (!fs.existsSync(agendaPath)) {
     writeStderr(`FAIL: missing ${agendaPath}`);
     return 1;

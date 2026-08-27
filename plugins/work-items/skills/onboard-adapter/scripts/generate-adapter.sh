@@ -382,10 +382,7 @@ SAMPLE_ID="$(jq -r --arg d "$default_sample_id" '.api.sample_id // $d' <<<"$SPEC
 [[ "${BASH_REMATCH[1]}" == "$PROVIDER" ]] ||
   die_spec "api.sample_id '$SAMPLE_ID' names provider '${BASH_REMATCH[1]}', not '$PROVIDER'"
 # The generated test asserts the parsed number, so it has to come from the sample id
-# rather than a constant. It was hardcoded `12`, which both shipped specs happen to use
-# — so any consumer whose sample_id ends in anything else got a FAILING test the moment
-# their adapter was generated, against a template that promises the opposite ("every
-# case here is real and passes the moment the adapter is generated").
+# rather than a constant.
 SAMPLE_ID_NUMBER="${SAMPLE_ID##*#}"
 
 # These are substitution VALUES, so they interpolate $DISPLAY_NAME directly rather than

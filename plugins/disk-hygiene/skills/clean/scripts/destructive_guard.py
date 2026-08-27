@@ -496,10 +496,9 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
 
         Asking the filesystem whether a spelling resolves to the engine closes
         every alias at once. Enumerating the spellings closes one per review
-        round, which is the documented history of this predicate — so identity,
-        not the name, is the authority here. The engine's directory is the
-        right base precisely because it is the directory such a command must
-        `cd` into for the alias to run.
+        round — so identity, not the name, is the authority here. The engine's
+        directory is the right base precisely because it is the directory such
+        a command must `cd` into for the alias to run.
         """
         if _samefile(word):
             return True

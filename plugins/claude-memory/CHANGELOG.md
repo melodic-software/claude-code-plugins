@@ -3,6 +3,12 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6]
+
+### Changed
+
+- **Shared `parse-concern-value.sh` comment cleanup.** Comment-only sync from `lib/parse-concern-value.sh`: the pre-centralization history narration in the header is now a present-tense rationale; no behavior change.
+
 ## [0.11.5]
 
 ### Changed

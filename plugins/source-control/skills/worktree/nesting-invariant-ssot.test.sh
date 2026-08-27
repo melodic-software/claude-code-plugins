@@ -2,12 +2,11 @@
 # nesting-invariant-ssot.test.sh — the mechanism claim has ONE owner.
 #
 # The nesting invariant justifies a machine-wide worktree-placement rule enforced
-# by a fail-closed hook. It used to be restated as an undated absolute at 13
-# sites against exactly two dated statements, so a pointer could land a reader on
-# a copy asserting a freshness it had no basis for. Updating 13 copies is not the
-# fix; one owner and twelve pointers is. This test is what stops the re-drift:
-# it fails when a second site states the mechanism, so the next person to explain
-# it in place has to point instead.
+# by a fail-closed hook. Restated copies drift into undated absolutes, and a
+# pointer can then land a reader on a copy asserting a freshness it has no basis
+# for. Updating every copy is not the fix; one owner and pointers is. This test
+# is what stops the re-drift: it fails when a second site states the mechanism,
+# so the next person to explain it in place has to point instead.
 #
 # CHANGELOG.md is excluded throughout. A changelog is a historical record and its
 # past entries must keep their original wording — rewriting them to satisfy a
@@ -39,9 +38,9 @@ grep_sites() {
 # 1. The undated absolute is gone everywhere.
 #
 # This exact sentence is the drift shape: it states a causal mechanism with no
-# date, no basis and no expiry, and it is what stood at all 13 sites. The owner
-# does not use it either — the owner states what was actually observed
-# (`path_glob_match` naming a file) rather than a generalized consequence.
+# date, no basis and no expiry. The owner does not use it either — the owner
+# states what was actually observed (`path_glob_match` naming a file) rather
+# than a generalized consequence.
 mapfile -t ABSOLUTES < <(grep_sites "a read matching a path-scoped rule's glob also loads")
 assert_eq "the undated absolute form of the claim appears nowhere" "0" "${#ABSOLUTES[@]}"
 ((${#ABSOLUTES[@]} == 0)) || printf '      sites: %s\n' "${ABSOLUTES[*]}" >&2

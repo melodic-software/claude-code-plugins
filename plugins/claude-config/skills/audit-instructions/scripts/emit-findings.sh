@@ -266,7 +266,7 @@ LC_ALL=C awk \
 
   # Prefer the caller pwd spelling, then git toplevel, then cd-then-pwd.
   # Empty return means the path is not under any known spelling of the root
-  # (fail closed — this producer pre-fix mode on a spelling mismatch).
+  # (fail closed).
   #
   # A path that is NOT absolute is resolved against the calling directory,
   # because that is the directory this script already read the file from:

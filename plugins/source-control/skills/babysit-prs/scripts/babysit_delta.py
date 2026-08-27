@@ -1344,12 +1344,12 @@ def apply_head_ref_guard(
         # just became allowed. Force it in, same as any other cleared blocker
         # -- unless the PR is otherwise direct-gate-ready. Reads
         # `pr_clean_ready_for_direct_gate` verbatim from `classify_pr` rather
-        # than recomputing it here: a local re-derivation previously omitted
-        # the `untriaged_material_feedback` clause, so a PR with already-known
-        # material bot feedback and a recent check-in was wrongly treated as
+        # than recomputing it here: a local re-derivation can drift (omitting
+        # the `untriaged_material_feedback` clause, say, would treat a PR with
+        # already-known material bot feedback and a recent check-in as
         # direct-gate-ready the moment branch uniqueness cleared, suppressing
         # `branch_uniqueness_cleared` even though the merge gate never
-        # triages bot feedback. This guard never adds a blocker on the unique
+        # triages bot feedback). This guard never adds a blocker on the unique
         # path, so `pr["blockers"]` here already reflects every *other*
         # blocker for the current cycle. A non-draft, CLEAN/HAS_HOOKS PR with
         # none of those left, and no untriaged material feedback, has nothing
