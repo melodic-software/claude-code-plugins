@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.15]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `course-digest`'s
+  extract-course-run.js drops a dead `return { modulesDir }` from `runLessonExtraction`
+  (repo-wide call-site census shows the sole caller awaits without reading the value) and the
+  destructure that fed only that return. No emitted output, JSON shape, or exit-code change;
+  package suite 91/91 green; adversarially refutation-verified.
+
 ## [0.13.14]
 
 ### Changed
