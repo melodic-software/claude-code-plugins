@@ -6,10 +6,10 @@
  */
 
 import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr } from "@melodic/video-digestion/shared/terminal";
+
+import { isMainModule } from "../lib/cli-entrypoint.js";
 
 const DEFAULT_MAX_BYTES = 25_600;
 const MIN_PHRASE_WORDS = 4;
@@ -92,8 +92,7 @@ export function checkTranscriptReadability(transcriptPath, { maxBytes = DEFAULT_
   return 0;
 }
 
-const scriptPath = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
+if (isMainModule(import.meta.url)) {
   const transcriptPath = process.argv[2];
   let maxBytes = DEFAULT_MAX_BYTES;
   const maxIdx = process.argv.indexOf("--max-bytes");

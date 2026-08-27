@@ -78,7 +78,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -n "$REPORT_PROJECT" && ( -n "$FILE" || "$CHECK" -eq 1 ) ]]; then
+if [[ -n "$REPORT_PROJECT" && (-n "$FILE" || "$CHECK" -eq 1) ]]; then
   echo "normalize-enabled-plugins.sh: --report-project cannot be combined with --file or --check" >&2
   exit 2
 fi
@@ -171,7 +171,6 @@ workdir="$(mktemp -d)" || {
 tmp="$workdir/rewritten.json"
 before_sorted="$workdir/before.json"
 after_sorted="$workdir/after.json"
-# shellcheck disable=SC2064
 trap 'rm -rf "$workdir"' EXIT
 
 # Preserve compact vs pretty and CRLF vs LF so a one-key reorder does not

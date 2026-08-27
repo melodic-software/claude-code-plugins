@@ -3,11 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.24]
+## [0.55.25]
 
 ### Changed
 
 - **Shared `hook-utils.sh` comment cleanup.** Comment-only sync from `lib/hook-utils.sh`: history-narration comments rewritten as present-tense rules; no behavior change.
+
+## [0.55.24]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 8 (batch-simplify).** Each change
+  adversarially refutation-verified with emitted bytes unchanged and the full 643-test babysit
+  suite green. babysit-prs: `human_stop_from_feedback` extracted as the single definition of
+  the human-stop record, with `classify_pr` delegating to it (1,800-case differential matrix
+  confirmed field-, key-set-, and key-order-identical outputs, closing a real two-copy drift
+  risk on the `external_required` presence branch); `babysit_resolve_thread` folds seven
+  repeated summary-count comprehensions into one `acted()` counter; `request_review` folds
+  eight `record_attempt_problem` call sites over the same five fixed arguments into a
+  `record_problem` closure; `babysit_review_trigger` extracts the thrice-spelled gate-context
+  predicate into `is_gate()` (400-fixture differential, De Morgan asymmetry preserved); a
+  stale line-number anchor in a merge-test docstring replaced with a symbol anchor. scripts:
+  `worktree-claim.sh` collapses the main-vs-linked flush branches; the readiness-gate suite
+  resolves its Python probe once; `worktree-root-doctor.test.sh` gains `fgit()` wrapping the
+  git-config-isolation prefix at ten fixture sites; the reap suite hoists `uname -s`;
+  `reap-project-plugin-records.sh` uses `$'\t'` directly. Suite counts identical throughout
+  (53/163/37/45); shellcheck and the portability gate clean.
 
 ## [0.55.23]
 

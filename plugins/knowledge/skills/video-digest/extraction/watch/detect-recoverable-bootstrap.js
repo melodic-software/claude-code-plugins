@@ -7,10 +7,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveTempSession } from "../lib/temp-session-paths.js";
 import { watchStatePath } from "./watch-state.js";
@@ -140,9 +140,6 @@ export function runDetectRecoverableBootstrapCli(argv) {
   return result.recoverable ? 0 : 1;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = runDetectRecoverableBootstrapCli(process.argv);
 }

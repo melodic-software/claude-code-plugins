@@ -22,14 +22,12 @@
  * Exit code 2 when any URL resolves to `reject` (lets a caller fail-fast on bad input).
  */
 
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { spawnAsync } from "@melodic/video-digestion/shared/process";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { classifyErrorDetail, UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter } from "../adapters/registry.js";
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { adapterSourceDeclarations } from "./acquire.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
 import { resolveYtDlpAuthArgs } from "./build-yt-dlp-args.js";
@@ -343,7 +341,7 @@ async function main(argv) {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main(process.argv).catch((error) => {
     writeStderr(error instanceof Error ? error.message : String(error));
     process.exit(1);

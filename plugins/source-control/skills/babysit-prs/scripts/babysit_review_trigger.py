@@ -68,9 +68,7 @@ def trigger_regex(phrase: str) -> re.Pattern[str] | None:
     tokens = [re.escape(token) for token in phrase.split()]
     if not tokens:
         return None
-    return re.compile(
-        r"^\s*" + r"\s+".join(tokens) + r"(?:\s+.*)?\s*$", re.I | re.S
-    )
+    return re.compile(r"^\s*" + r"\s+".join(tokens) + r"(?:\s+.*)?\s*$", re.I | re.S)
 
 
 def is_review_bot_item(item: dict[str, Any], config: ReviewTriggerConfig) -> bool:
@@ -308,33 +306,25 @@ def review_gate_state(
     all_checks = [
         check for check in json_array(checks.get("checks")) if is_json_object(check)
     ]
-    gate_statuses = [
-        check
-        for check in all_checks
-        if gate_context
-        and check["type"] == "StatusContext"
-        and check["name"].casefold() == gate_context
-    ]
-    gate_workflow_checks = [
-        check
-        for check in all_checks
-        if gate_context
-        and check["type"] == "CheckRun"
-        and check["name"].casefold() == gate_context
-    ]
+
+    def is_gate(check: dict[str, Any], check_type: str) -> bool:
+        return (
+            bool(gate_context)
+            and check["type"] == check_type
+            and check["name"].casefold() == gate_context
+        )
+
+    gate_statuses = [check for check in all_checks if is_gate(check, "StatusContext")]
+    gate_workflow_checks = [check for check in all_checks if is_gate(check, "CheckRun")]
     ci_gateway_checks = [
         check
         for check in all_checks
         if ci_gateway_context and check["name"].casefold() == ci_gateway_context
     ]
+    # The gate StatusContext is the one check excluded here -- a gate CheckRun of
+    # the same name is an ordinary check for this rollup, as it always was.
     non_review_checks = [
-        check
-        for check in all_checks
-        if not (
-            gate_context
-            and check["type"] == "StatusContext"
-            and check["name"].casefold() == gate_context
-        )
+        check for check in all_checks if not is_gate(check, "StatusContext")
     ]
     return {
         "gate_state": summarized_state(gate_statuses),

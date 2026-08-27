@@ -159,17 +159,17 @@ DISPLAY_NAME="$(sget '.display_name')"
 [[ "$DISPLAY_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9\ ._/+-]*$ ]] ||
   die_spec "display_name must be letters, digits, spaces, and . _ / + - only, starting alphanumeric (found: $DISPLAY_NAME) — it is substituted literally into generated shell, including a double-quoted expansion where \$(…) would execute"
 
-BASE_PATH="$(jq -r '.api.base_path // ""' <<<"$SPEC_JSON")"
+BASE_PATH="$(sget '.api.base_path')"
 [[ "$BASE_PATH" =~ ^(/[A-Za-z0-9._~-]+)*$ ]] ||
   die_spec "api.base_path must be empty or a slash-led path of [A-Za-z0-9._~-] segments (found: $BASE_PATH)"
 
-HOST_SUFFIX="$(jq -r '.api.host_suffix // ""' <<<"$SPEC_JSON")"
+HOST_SUFFIX="$(sget '.api.host_suffix')"
 if [[ -n "$HOST_SUFFIX" ]]; then
   [[ "$HOST_SUFFIX" =~ ^\.[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] ||
     die_spec "api.host_suffix must be empty or a dot-led domain suffix (found: $HOST_SUFFIX)"
 fi
 
-AUTH_SCHEME="$(jq -r '.api.auth_scheme // ""' <<<"$SPEC_JSON")"
+AUTH_SCHEME="$(sget '.api.auth_scheme')"
 case "$AUTH_SCHEME" in
 bearer | token | basic | raw) ;;
 *) die_spec "api.auth_scheme must be one of: bearer, token, basic, raw (found: ${AUTH_SCHEME:-none})" ;;

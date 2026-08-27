@@ -322,7 +322,6 @@ LC_ALL=C awk \
     rows[++nemit] = "| " rule_tier() " | high | " loc ":" cur_line " | docs-hygiene:audit-noise | " \
       esc("docs-hygiene/audit-noise/rule-negation-without-positive prohibition=\"" fired_marker(cur_marker, text) "\" with no positive alternative in the sentence -- " trim(cur_excerpt)) \
       " | " esc(rule_action()) " |"
-    seen++
     reset()
     next
   }
@@ -356,7 +355,7 @@ LC_ALL=C awk \
     print "## Surfaces"
     print ""
     ran = "Ran: [docs-hygiene:audit-noise (detect.sh)]."
-    if (seen == 0) ran = ran " Returned no result: [docs-hygiene/audit-noise/rule-negation-without-positive]."
+    if (nemit == 0) ran = ran " Returned no result: [docs-hygiene/audit-noise/rule-negation-without-positive]."
     print ran
     printf "Detect blocks read: %d. Emitted: %d.\n", nblocks, nemit
     for (k in declined_nocrosswalk)

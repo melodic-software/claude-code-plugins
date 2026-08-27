@@ -1528,7 +1528,7 @@ vc_strip_negated_mutate() {
 
 vc_lead_mutate() {
   # Positive action verbs only. "remediation" (noun) is not advertising.
-  printf '%s' "$(vc_strip_negated_mutate "$1")" | grep -qE \
+  vc_strip_negated_mutate "$1" | grep -qE \
     '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)'
 }
 

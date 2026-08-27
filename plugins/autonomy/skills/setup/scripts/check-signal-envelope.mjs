@@ -281,12 +281,10 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
   // agent-internal: serialized provenance is REQUIRED — an unverifiable
   // self-stamped class would bypass admission.
   const parentItem = envelope["signal.parent_item"];
-  if (signalClass === "agent-internal") {
-    if (!isNormalizedCanonicalUrl(parentItem)) {
-      findings.push(
-        `${where}: signal.parent_item ${JSON.stringify(parentItem)} must be the emitting session's admitted source item as a normalized canonical https URL (required for agent-internal)`,
-      );
-    }
+  if (signalClass === "agent-internal" && !isNormalizedCanonicalUrl(parentItem)) {
+    findings.push(
+      `${where}: signal.parent_item ${JSON.stringify(parentItem)} must be the emitting session's admitted source item as a normalized canonical https URL (required for agent-internal)`,
+    );
   }
 
   // raw_link form branches DETERMINISTICALLY on the serialized origin.

@@ -7,20 +7,21 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: link-blocks <id> --blocked-by <id>" "$@"
+usage='usage: link-blocks <id> --blocked-by <id>'
+wit_help_if_requested "$usage" "$@"
 
 id="${1:-}"
-[[ -n "$id" ]] || wit_usage_error "usage: link-blocks <id> --blocked-by <id>"
+[[ -n "$id" ]] || wit_usage_error "$usage"
 shift
 blocker=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --blocked-by)
-      [[ $# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
-      blocker="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --blocked-by)
+    [[ $# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
+    blocker="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 [[ -n "$blocker" ]] || wit_usage_error "--blocked-by is required"

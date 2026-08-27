@@ -120,6 +120,7 @@ $deletedCount = 0
 $deletedBytes = 0L
 $errorMessages = [System.Collections.Generic.List[string]]::new()
 
+# [ref] writes through to $skippedReparse, so the counter needs no sync-back.
 $skipCounter = [ref]$skippedReparse
 foreach ($p in $paths) {
     try {
@@ -139,7 +140,6 @@ foreach ($p in $paths) {
         $errorMessages.Add("Scan of '$p' failed: $($_.Exception.Message)")
     }
 }
-$skippedReparse = $skipCounter.Value
 
 $after = @{}
 foreach ($p in $paths) { $after[$p] = Measure-PathUsage -Path $p }

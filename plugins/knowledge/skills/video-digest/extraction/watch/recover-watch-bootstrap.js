@@ -9,7 +9,6 @@
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { probeVideoDuration } from "@melodic/video-digestion/media/ffprobe-duration";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
@@ -18,6 +17,7 @@ import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser"
 import { resolveSourceAdapter } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { computeCoveragePlan } from "../watching/compute-coverage-plan.js";
 import { findDensificationWindows, scoreFramePriority } from "../watching/densification.js";
@@ -339,10 +339,7 @@ export async function recoverWatchBootstrapCli(argv) {
   return 0;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   recoverWatchBootstrapCli(process.argv)
     .then((code) => {
       process.exitCode = code;

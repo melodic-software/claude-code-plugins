@@ -3,11 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.13]
+## [0.38.14]
 
 ### Changed
 
 - **Shared `hook-utils.sh` comment cleanup.** Comment-only sync from `lib/hook-utils.sh`: history-narration comments rewritten as present-tense rules; no behavior change.
+
+## [0.38.13]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `inventory`'s inventory.py
+  hoists the duplicated `candidate_binaries()` call into one reused snapshot and normalizes a
+  docstring's em dashes to the file's hyphen idiom (plus formatter-hook layout churn, AST-verified
+  neutral); `plugins`'s normalize-enabled-plugins.sh drops a dead `shellcheck disable=SC2064`
+  directive above a single-quoted trap. Emitted JSON, exit codes, and suite assertions unchanged;
+  refutation-verified byte-identical on smoke runs.
 
 ## [0.38.12]
 

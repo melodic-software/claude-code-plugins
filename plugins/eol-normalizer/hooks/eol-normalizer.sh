@@ -22,6 +22,8 @@ set -uo pipefail
 # would drain the pipe on the second call.
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
 
 hook::check_enabled "EOL_NORMALIZER"
 
@@ -101,16 +103,24 @@ build_data_json() {
 }
 
 # The lib mutates the file in place (side effect persists past the subshell) and
-# echoes the action taken: lf | crlf | skip.
-_eol_tmp="$(mktemp "${TMPDIR:-/tmp}/eol-normalizer.XXXXXX")"
-cp -p "$FILE" "$_eol_tmp"
+# echoes the action taken: lf | crlf | skip. Content-mutation disclosure
+# (#1596): line-ending normalization is a structural rewrite the user did not
+# request; name what changed on the user channel and stay silent on skip/no-op
+# paths. Snapshot lifecycle lives in the shared rewrite-guard lib (#3409); the
+# taken message doubles as the changed/unchanged verdict EFFECTIVE_ACTION needs.
+hook::rewrite_guard_begin "$FILE"
 ACTION=$(normalize_eol_file "$REPO_ROOT" "$FILE")
-if cmp -s "$FILE" "$_eol_tmp"; then
-  EFFECTIVE_ACTION="skip"
-else
+case "$ACTION" in
+lf) EOL_MSG="eol-normalizer: normalized line endings to LF in $(basename "$FILE")." ;;
+crlf) EOL_MSG="eol-normalizer: normalized line endings to CRLF in $(basename "$FILE")." ;;
+*) EOL_MSG="" ;;
+esac
+hook::rewrite_take_disclosure "$FILE" "$EOL_MSG"
+if [[ -n "$HOOK_REWRITE_MESSAGE" ]]; then
   EFFECTIVE_ACTION="$ACTION"
+else
+  EFFECTIVE_ACTION="skip"
 fi
-rm -f "$_eol_tmp"
 
 # status "ok" when the file was actually normalized (lf/crlf); "skipped" when the
 # attr was unspecified, the path is -text, content sniffed binary, or idempotent.
@@ -121,18 +131,6 @@ esac
 
 emit_tel "$status" "$ACTION"
 
-# Content-mutation disclosure (#1596): line-ending normalization is a structural
-# rewrite the user did not request. Name what changed on the user channel; stay
-# silent on skip/no-op paths.
-case "$EFFECTIVE_ACTION" in
-lf)
-  hook::emit_system_message "eol-normalizer: normalized line endings to LF in $(basename "$FILE")."
-  ;;
-crlf)
-  hook::emit_system_message "eol-normalizer: normalized line endings to CRLF in $(basename "$FILE")."
-  ;;
-*)
-  ;;
-esac
+[[ -n "$HOOK_REWRITE_MESSAGE" ]] && hook::emit_system_message "$HOOK_REWRITE_MESSAGE"
 
 exit 0

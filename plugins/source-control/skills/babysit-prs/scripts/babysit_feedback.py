@@ -58,6 +58,7 @@ __all__ = [
     "human_stop_blocks_automation",
     "has_blocking_severity",
     "has_blocking_text",
+    "human_stop_from_feedback",
     "human_stop_state",
     "is_bot",
     "is_dependency_author",
@@ -235,9 +236,9 @@ def collect_feedback(
                     material.append(record)
                 else:
                     ignored.append(record)
-            elif normalized_bot_login(
-                item
-            ) in skip_downgrade_logins and skip_downgrade(text):
+            elif normalized_bot_login(item) in skip_downgrade_logins and skip_downgrade(
+                text
+            ):
                 record["downgrade"] = "review_skip"
                 material.append(record)
             else:
@@ -255,6 +256,40 @@ def collect_feedback(
     }
 
 
+def human_stop_from_feedback(
+    feedback: dict[str, list[dict[str, str]]],
+    normalized_self: frozenset[str] = frozenset(),
+) -> dict[str, Any]:
+    """The human-stop record derived from an already-bucketed feedback split.
+
+    The single definition of that record. `human_stop_state` below reaches it by
+    collecting the feedback first; the snapshot classifier
+    (`babysit_delta.classify_pr`) has already collected the same feedback and
+    calls this directly rather than restating the four fields. The two must
+    agree field for field: `human_stop_blocks_automation` branches on
+    `external_required` being PRESENT, so a field added on one side alone would
+    silently change which automation halts.
+
+    `normalized_self` is already casefolded (`normalize_self_logins`); it
+    defaults empty so an unconfigured caller keeps every human blocker external.
+    """
+    human_blocking = feedback["human_blocking"]
+    return {
+        "required": bool(human_blocking),
+        # Self-authored classification replies must not block freshness refresh or
+        # review triggers (#902); merge/triage still consult `required`.
+        "external_required": any(
+            not is_self_login(item.get("author"), normalized_self)
+            for item in human_blocking
+        ),
+        "human_changes_requested": any(
+            item.get("kind") == "review" and item.get("state") == "CHANGES_REQUESTED"
+            for item in human_blocking
+        ),
+        "human_blocking_count": len(human_blocking),
+    }
+
+
 def human_stop_state(
     pr: dict[str, Any],
     inline_comments: list[dict[str, Any]] | None,
@@ -263,26 +298,10 @@ def human_stop_state(
     self_logins: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     feedback = collect_feedback(pr, inline_comments, config=config)
-    human_changes_requested = any(
-        item.get("kind") == "review" and item.get("state") == "CHANGES_REQUESTED"
-        for item in feedback["human_blocking"]
-    )
     normalized_self = (
         normalize_self_logins(self_logins) if self_logins is not None else frozenset()
     )
-    external_blocking = [
-        item
-        for item in feedback["human_blocking"]
-        if not is_self_login(item.get("author"), normalized_self)
-    ]
-    return {
-        "required": bool(feedback["human_blocking"]),
-        # Self-authored classification replies must not block freshness refresh or
-        # review triggers (#902); merge/triage still consult `required`.
-        "external_required": bool(external_blocking),
-        "human_changes_requested": human_changes_requested,
-        "human_blocking_count": len(feedback["human_blocking"]),
-    }
+    return human_stop_from_feedback(feedback, normalized_self)
 
 
 def fetch_current_human_stop(
@@ -297,9 +316,7 @@ def fetch_current_human_stop(
     hydrated["comments"] = fetch_issue_comments(repo, number)
     rest_hydrate_reviews(hydrated, repo, number)
     inline_comments = fetch_unresolved_review_comments(repo, number)
-    return human_stop_state(
-        hydrated, inline_comments, config, self_logins=self_logins
-    )
+    return human_stop_state(hydrated, inline_comments, config, self_logins=self_logins)
 
 
 def human_stop_blocks_automation(human_stop: dict[str, Any]) -> bool:

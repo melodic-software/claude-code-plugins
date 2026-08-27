@@ -219,7 +219,7 @@ PREAMBLE
         $((${#rows[@]} - MAX_ROWS))
       # shellcheck disable=SC2016 # strips the markdown code span, not an expansion
       printf '%s\n' "${rows[@]}" | LC_ALL=C sort | tail -n +$((MAX_ROWS + 1)) |
-        sed 's/^| `//; s/`.*$//' | sed 's|/[^/]*$||' |
+        sed 's/^| `//; s/`.*$//; s|/[^/]*$||' |
         LC_ALL=C sort | uniq -c |
         awk '{ printf "- `%s/` — %d surface(s)\n", $2, $1 }'
       printf '\n%s\n\n' \

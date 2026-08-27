@@ -3,11 +3,43 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.34]
+## [0.39.36]
 
 ### Changed
 
 - **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
+## [0.39.35]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 10 (batch-simplify).** Six local-markdown
+  adapter verbs (add-sub-item, claim, get-item, link-blocks, list-sub-items, renew-lease)
+  hoist their usage string — previously duplicated verbatim at the help and usage-error
+  sites — into one `usage=` literal, matching the sibling adapters' idiom; the repo's shfmt
+  hook normalized case-arm indentation in the same files. Adversarially refutation-verified:
+  the paired literals were byte-identical at every site, expansion-safety confirmed, and a
+  24-invocation differential drive (help/no-arg/unknown-flag per verb) is byte-identical on
+  stdout, stderr, and exit codes; all 8 adapter suites green (79 checks). The linear adapter,
+  conformance harness, and cross-plugin audit-check bundles were reviewed clean with no
+  changes.
+
+## [0.39.34]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 9 (batch-simplify).** Each change
+  adversarially refutation-verified with byte-identical output and exit codes:
+  work-item-tracker.sh gains a `fail_usage()` helper replacing five open-coded
+  `usage; exit` sites (five-invocation byte comparison against the prior version);
+  lib/binding.sh collapses `wit_role_label`'s if/else to `${configured:-$3}` (falsy-value
+  drive over jq `// empty` outputs identical); onboard-adapter's generate-adapter.sh routes
+  three open-coded spec reads through its own `sget` helper (generated trees `diff -r`
+  identical across three spec shapes; 140-case suite green); gitea create-item.sh captures
+  the per-page label count once instead of re-running `jq length` (four-path pagination
+  harness byte-identical); github renew-lease.sh uses `[[ -n ]]` for the lease-comment
+  check (token-stream identity proven). Tracker, binding, adapter, and coordination suites
+  all green at baseline counts.
 
 ## [0.39.33]
 

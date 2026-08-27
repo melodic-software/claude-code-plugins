@@ -116,6 +116,15 @@
 set -uo pipefail
 
 INPUT=""
+
+# True when the running bash is at least MAJOR.MINOR. Three separate floors
+# matter in this file (`read -N` at 4.1, printf's `%()T` at 4.2), and each is the
+# same compound comparison, easy to get subtly wrong; naming it once keeps them
+# spelled identically. A builtin arithmetic test, so no call site pays a process.
+_rlg_bash_at_least() {
+  ((BASH_VERSINFO[0] > $1 || (BASH_VERSINFO[0] == $1 && BASH_VERSINFO[1] >= $2)))
+}
+
 # Bounded buffered read of the whole stdin payload (Win32 pipes can stall
 # before EOF; a truncated payload just fails jq below and tees nothing this
 # refresh). read -N buffers in blocks, which matters on Windows/MSYS pipes
@@ -128,7 +137,7 @@ INPUT=""
 # guard at the bottom so its enablement gate can be driven by the test suite, and
 # a top-level read would consume the sourcing shell's stdin before `main` runs.
 read_tee_input() {
-  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1))); then
+  if _rlg_bash_at_least 4 1; then
     IFS= read -r -N 1048576 -t 5 INPUT || true
   else
     IFS= read -r -d '' -t 5 INPUT || true
@@ -457,6 +466,26 @@ _RLG_BODY_JQ='def rlg_body($ts): {captured_at: $ts}
                       or .key == "session_name" or (.key | test("account"; "i"))))
          | from_entries);'
 
+# The USER-scope settings document, read into _RLG_SETTINGS_JSON for the jq
+# passes below to hand over in the ENVIRONMENT. Shared verbatim by _rlg_probe and
+# _rlg_drain for the same anti-drift reason the filter text above is shared.
+#
+# BASH opens the file (`$(<file)`), never jq: a native jq on Windows cannot open
+# an MSYS-style path, and argv is world-readable while a settings file can hold
+# credentials. See _RLG_DOC_JQ above for the full note. An absent, unreadable or
+# empty file yields the literal 'null', which the filter's own `// "null"`
+# fallback already expects.
+_RLG_SETTINGS_JSON='null'
+_rlg_read_settings_json() {
+  local file="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
+  _RLG_SETTINGS_JSON='null'
+  if [[ -r "$file" ]]; then
+    _RLG_SETTINGS_JSON="$(<"$file")"
+    [[ -n "$_RLG_SETTINGS_JSON" ]] || _RLG_SETTINGS_JSON='null'
+  fi
+  return 0
+}
+
 _rlg_settings_option() {
   local file="$1" out
   [[ -r "$file" ]] || return 1
@@ -557,7 +586,7 @@ _rlg_absorb_jq_lines() {
   local line
   local -a lines=()
   while IFS= read -r line || [[ -n "$line" ]]; do
-    lines[${#lines[@]}]="$line"
+    lines+=("$line")
   done <<<"$1"
   _RLG_PAYLOAD="${lines[0]:-}"
   [[ "${lines[1]:-}" == true ]] && _RLG_HAS_WINDOWS=true
@@ -570,10 +599,10 @@ _rlg_absorb_jq_lines() {
 
 _rlg_probe() {
   command -v jq >/dev/null 2>&1 || return 0
-  local ts settings_file settings_json out
+  local ts out
   # printf's %()T is a bash 4.2+ builtin; macOS statusline Bash 3.2 needs date -u.
   ts=""
-  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
+  if _rlg_bash_at_least 4 2; then
     TZ=UTC printf -v ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || ts=""
   fi
   if [[ -z "$ts" ]]; then
@@ -581,12 +610,7 @@ _rlg_probe() {
   fi
   [[ -n "$ts" ]] || return 0
 
-  settings_file="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
-  settings_json='null'
-  if [[ -r "$settings_file" ]]; then
-    settings_json="$(<"$settings_file")"
-    [[ -n "$settings_json" ]] || settings_json='null'
-  fi
+  _rlg_read_settings_json
 
   # Settings ride in the environment so credentials never land in jq's argv and no
   # temp file is created; the payload stays on stdin.
@@ -594,7 +618,7 @@ _rlg_probe() {
   # Three lines out, in a fixed order: payload, window-bearing, user verdict.
   # `jq -c` escapes any newline inside a string and the other two are bare
   # tokens, so every line is single-line by construction and the split is exact.
-  out="$(RLG_SETTINGS_DOC="$settings_json" jq -rc --arg ts "$ts" "
+  out="$(RLG_SETTINGS_DOC="$_RLG_SETTINGS_JSON" jq -rc --arg ts "$ts" "
     $_RLG_BODY_JQ
     $_RLG_DOC_JQ"'
     | (rlg_body($ts)) as $p
@@ -748,13 +772,8 @@ _rlg_drain() {
     batch+="$line"$'\n'
   done
 
-  local settings_file settings_json out
-  settings_file="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
-  settings_json='null'
-  if [[ -r "$settings_file" ]]; then
-    settings_json="$(<"$settings_file")"
-    [[ -n "$settings_json" ]] || settings_json='null'
-  fi
+  local out
+  _rlg_read_settings_json
 
   # ONE jq pass, same three lines in the same order _rlg_probe emits, so
   # everything downstream is shared code. Lines are read raw and parsed under
@@ -764,7 +783,7 @@ _rlg_drain() {
   # one-second stamp are broken in favour of THIS render's own shard, whose
   # observation is the freshest by construction.
   if [[ -n "$batch" ]]; then
-    out="$(RLG_SETTINGS_DOC="$settings_json" jq -Rrcn --arg self "$self" "
+    out="$(RLG_SETTINGS_DOC="$_RLG_SETTINGS_JSON" jq -Rrcn --arg self "$self" "
       $_RLG_BODY_JQ
       $_RLG_DOC_JQ"'
       | [ inputs
@@ -869,7 +888,7 @@ _rlg_spool_dispatch() {
 
 rlg_tee_dispatch() {
   if [[ "${RLG_TEE_ASYNC:-0}" != "1" ]]; then
-    if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
+    if _rlg_bash_at_least 4 2; then
       _rlg_spool_dispatch
     else
       _rlg_tee_run

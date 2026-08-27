@@ -611,6 +611,12 @@ export async function acquireXMedia(url, context) {
       fail(message, "acquire-x-media", { label: statusId }, Date.now() - started)
     );
 
+  /** @param {SyndicationDegradation} degradation @returns {AcquireOutcome} */
+  const failDegraded = (degradation) =>
+    failX(
+      `${X_DEGRADED_ACQUISITION_PREFIX} (rate-limited syndication fallback is a partial response, retry later): ${JSON.stringify(degradation)}`,
+    );
+
   // allowedExtractors and ignoreNoFormatsError arrive via the adapter's own
   // declarations (allow-list attribute + mediaOptional capability), so every
   // consumer — probe, media, preflight — carries them identically.
@@ -656,9 +662,7 @@ export async function acquireXMedia(url, context) {
         entryCount: 0,
       });
       if (degradation) {
-        return failX(
-          `${X_DEGRADED_ACQUISITION_PREFIX} (rate-limited syndication fallback is a partial response, retry later): ${JSON.stringify(degradation)}`,
-        );
+        return failDegraded(degradation);
       }
       const envelope = createAcquisitionEnvelope({
         entries: [],
@@ -745,9 +749,7 @@ export async function acquireXMedia(url, context) {
     if (!degradation) {
       return null;
     }
-    return failX(
-      `${X_DEGRADED_ACQUISITION_PREFIX} (rate-limited syndication fallback is a partial response, retry later): ${JSON.stringify(degradation)}`,
-    );
+    return failDegraded(degradation);
   };
 
   let gated = await inspectAndGate();
@@ -799,11 +801,10 @@ export async function acquireXMedia(url, context) {
     files = await listFiles(workDir);
     // Only srt files belonging to the post's own media entries are eligible
     // for conversion back to VTT — never any other file in the directory.
-    const mediaIds = new Set(inspected.twitterVideos.map((video) => String(video.info.id)));
+    const mediaIds = inspected.twitterVideos.map((video) => String(video.info.id));
     const srtPaths = files.filter(
       (entry) =>
-        entry.endsWith(".srt") &&
-        [...mediaIds].some((id) => path.basename(entry).startsWith(`${id}.`)),
+        entry.endsWith(".srt") && mediaIds.some((id) => path.basename(entry).startsWith(`${id}.`)),
     );
     // Backups are deletable only when every tagged VTT has its own converted
     // .srt — a partial conversion (multi-video post) must not pass on the

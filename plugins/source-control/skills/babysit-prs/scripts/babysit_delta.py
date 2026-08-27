@@ -26,7 +26,7 @@ from babysit_classify import (
     is_self_login,
     normalize_self_logins,
 )
-from babysit_feedback import collect_feedback
+from babysit_feedback import collect_feedback, human_stop_from_feedback
 from babysit_gh import find_open_prs_for_head_ref
 from babysit_review_trigger import (
     DEFAULT_REVIEW_TRIGGER_CONFIG,
@@ -466,21 +466,7 @@ def classify_pr(
     feedback = collect_feedback(pr, inline_comments, dispositions, config.feedback)
     review_decision = str(pr.get("reviewDecision") or "")
     self_logins = normalize_self_logins(config.self_logins)
-    human_changes_requested = any(
-        item.get("kind") == "review" and item.get("state") == "CHANGES_REQUESTED"
-        for item in feedback["human_blocking"]
-    )
-    external_human_blocking = [
-        item
-        for item in feedback["human_blocking"]
-        if not is_self_login(item.get("author"), self_logins)
-    ]
-    human_stop = {
-        "required": bool(feedback["human_blocking"]),
-        "external_required": bool(external_human_blocking),
-        "human_changes_requested": human_changes_requested,
-        "human_blocking_count": len(feedback["human_blocking"]),
-    }
+    human_stop = human_stop_from_feedback(feedback, self_logins)
     merge_state = str(pr.get("mergeStateStatus") or "").upper()
     # Stuck-check detection reuses the already-normalized checks (no new fetch).
     # Attached to the same `checks` dict returned below as `checks["stuck"]`,

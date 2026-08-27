@@ -832,7 +832,7 @@ function resolveIdentity(record, ctx) {
       result: resolved.result,
       provenance: resolved.provenance,
     });
-    for (const finding of resolved.findings) findings.push(finding);
+    findings.push(...resolved.findings);
   }
 
   // Identity-level disable declaration.

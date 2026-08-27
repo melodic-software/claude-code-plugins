@@ -3,11 +3,24 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.12]
+## [0.11.13]
 
 ### Changed
 
 - **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
+## [0.11.12]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 7 (batch-simplify).** Two edits, each
+  adversarially refutation-verified by empirical pwsh probes: Clear-TempFiles.ps1 drops a
+  dead `$skippedReparse = $skipCounter.Value` sync-back (the `[ref]` writes through — probe
+  confirmed identical `after.skipped_reparse` with and without); Invoke-MachineHealthTests.ps1
+  hoists the duplicated failed-container predicate into one `$failedContainers` computed once
+  behind the existing `$result.Containers` guard (7-case differential harness under
+  StrictMode 3.0 shows identical annotation and summary output). All other audit lib,
+  checks, catalog, and test-infra files reviewed clean.
 
 ## [0.11.11]
 

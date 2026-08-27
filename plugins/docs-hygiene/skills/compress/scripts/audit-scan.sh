@@ -49,7 +49,7 @@ FLAVOR_RE='just|really|basically|actually|simply|perhaps|somewhat|very|quite|mig
 is_signal1_path() {
   local f="$1" base
   base="$(basename "$f")"
-  [[ "$f" == *'/.claude/rules/'* || "$f" == */.claude/rules/* ]] && return 0
+  [[ "$f" == *'/.claude/rules/'* ]] && return 0
   [[ "$base" == 'AGENTS.md' || "$base" == 'CLAUDE.md' || "$base" == 'SKILL.md' ]] && return 0
   return 1
 }

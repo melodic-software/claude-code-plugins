@@ -1,10 +1,23 @@
 # Changelog — docs-hygiene plugin
 
-## [0.21.19]
+## [0.21.20]
 
 ### Changed
 
 - **Shared `parse-concern-value.sh` comment cleanup.** Comment-only sync from `lib/parse-concern-value.sh`: the pre-centralization history narration in the header is now a present-tense rationale; no behavior change. Also removes confirmed comment residue (session finding-IDs and history narration) from the `audit-noise` detector scripts.
+
+## [0.21.19]
+
+### Changed
+
+- **`compress`'s `audit-scan.sh` drops a duplicate glob alternative.** One pattern list matched the
+  same files twice; the scan's selection is unchanged. Code-tidying sweep, behavior-preserving.
+- **`audit-noise`'s `detect.sh` slices the sorted array directly.** A 14-line manual chunking loop
+  is now `"${SORTED[@]:OFFSET:LIMIT}"` slices, and an unused `local tier` is gone. Same chunks,
+  same output. Code-tidying sweep, behavior-preserving.
+- **`audit-noise`'s `emit-findings.sh` keeps one awk counter.** A duplicate `seen` counter that
+  shadowed the first was removed; emitted findings are unchanged. Code-tidying sweep,
+  behavior-preserving.
 
 ## [0.21.18]
 

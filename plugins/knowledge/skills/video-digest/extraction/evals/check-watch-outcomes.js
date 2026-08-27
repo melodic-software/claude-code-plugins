@@ -7,10 +7,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { forbiddenSynthesisFileNameReason } from "../lib/synthesis-filename.js";
 import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
@@ -725,10 +725,7 @@ export function runCheckWatchOutcomes(sliceDir, options = {}) {
   return result.pass ? 0 : 1;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   const sliceDir = process.argv[2];
   const writeReport = process.argv.includes("--write-report");
   if (!sliceDir) {

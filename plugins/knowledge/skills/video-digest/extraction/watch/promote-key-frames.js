@@ -4,10 +4,10 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
 const KEY_FRAME_IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|webp)$/i;
@@ -122,10 +122,7 @@ export async function runPromoteKeyFramesCli(argv) {
   return 0;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   runPromoteKeyFramesCli(process.argv)
     .then((code) => process.exit(code))
     .catch((err) => {

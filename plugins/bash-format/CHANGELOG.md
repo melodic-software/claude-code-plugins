@@ -3,11 +3,30 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.25]
+## [0.7.26]
 
 ### Changed
 
 - **Shared `hook-utils.sh` comment cleanup.** Comment-only sync from `lib/hook-utils.sh`: history-narration comments rewritten as present-tense rules; no behavior change.
+
+## [0.7.25]
+
+### Fixed
+
+- **Two JSON documents on a rewrite-plus-findings run (#3406).** The shfmt
+  rewrite disclosure was emitted immediately as its own JSON document; the single
+  emission point then printed a second one carrying findings and/or a notice. The
+  disclosure is now taken after the format pass and composed into the single
+  emission point's one document (systemMessage carries the disclosure and any
+  notice together).
+
+### Changed
+
+- **Adopted the shared rewrite-guard lib (#3409).** The hand-rolled
+  snapshot/compare/disclose/release block is replaced by
+  `hooks/rewrite-guard.sh` (synced from `lib/rewrite-guard.sh`); the test suite
+  gained a rewrite-plus-findings case asserting exactly one JSON document
+  carrying both channels.
 
 ## [0.7.24]
 
