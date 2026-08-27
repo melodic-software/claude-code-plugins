@@ -103,7 +103,6 @@ function walkModules(dir, buckets) {
   }
 }
 
-// The link label when the page supplies one, else the URL's own basename.
 function resourceFilename(resource) {
   return resource.label || basename(new URL(resource.href).pathname);
 }
