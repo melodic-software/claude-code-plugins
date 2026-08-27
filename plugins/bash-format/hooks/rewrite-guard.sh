@@ -36,19 +36,35 @@
 #
 # The release is structural, not per-arm: begin arms an EXIT trap, so an arm
 # that exits without taking (or an arm added later) cannot leak the snapshot
-# — the failure class #3401 and #3405 fixed one plugin at a time. The guard
-# OWNS the EXIT trap; a hook that needs its own EXIT trap must chain this
-# release into it. A snapshot that cannot be completed (mktemp or cp failed)
-# degrades to "no disclosure": the hook still formats, take yields an empty
-# message, and — unlike the hand-rolled copies, which left the mktemp file
-# behind when cp failed — the orphan is removed here.
+# — the failure class #3401 and #3405 fixed one plugin at a time. A caller's
+# existing EXIT trap is CHAINED, not replaced: begin captures the previous
+# handler and the guard's handler runs it after the release, so sourcing this
+# lib never silently disables a caller's own cleanup (bash `trap` on a signal
+# replaces the prior handler wholesale). A snapshot that cannot be completed
+# (mktemp or cp failed) degrades to "no disclosure": the hook still formats,
+# take yields an empty message, and — unlike the hand-rolled copies, which
+# left the mktemp file behind when cp failed — the orphan is removed here.
 
 # Guard against double-sourcing.
 [[ -n "${_HOOK_REWRITE_GUARD_LOADED:-}" ]] && return 0
 readonly _HOOK_REWRITE_GUARD_LOADED=1
 
 _HOOK_REWRITE_BEFORE=""
+_HOOK_REWRITE_PREV_EXIT_TRAP=""
 HOOK_REWRITE_MESSAGE=""
+
+# The EXIT handler begin installs: release the snapshot, then run whatever
+# EXIT handler the caller had armed before begin (captured below). The
+# chained handler runs with the release's $? rather than the process's; none
+# of the traps in this marketplace read $?, and a handler that must can
+# capture it first itself.
+hook::_rewrite_guard_on_exit() {
+  [[ -n "${_HOOK_REWRITE_BEFORE:-}" ]] && rm -f "$_HOOK_REWRITE_BEFORE"
+  if [[ -n "$_HOOK_REWRITE_PREV_EXIT_TRAP" ]]; then
+    eval "$_HOOK_REWRITE_PREV_EXIT_TRAP"
+  fi
+  return 0
+}
 
 # Snapshot <file> so a rewrite can be detected and disclosed. Best-effort:
 # on any failure the guard is inert and the hook proceeds undisclosed rather
@@ -61,7 +77,22 @@ hook::rewrite_guard_begin() {
   if snap=$(mktemp 2>/dev/null); then
     if cp "$1" "$snap" 2>/dev/null; then
       _HOOK_REWRITE_BEFORE="$snap"
-      trap '[[ -n "${_HOOK_REWRITE_BEFORE:-}" ]] && rm -f "$_HOOK_REWRITE_BEFORE"' EXIT
+      # Capture the caller's current EXIT handler so ours can chain it.
+      # `trap -p EXIT` prints `trap -- '<quoted cmd>' EXIT`; strip the frame
+      # and eval the remaining shell-quoted literal back into a plain string.
+      # Skip capture when the handler is already ours (a second begin must
+      # not chain the handler to itself).
+      local prev
+      prev=$(trap -p EXIT 2>/dev/null) || prev=""
+      if [[ -n "$prev" ]]; then
+        prev=${prev#trap -- }
+        prev=${prev% EXIT}
+        eval "prev=$prev"
+        if [[ "$prev" != "hook::_rewrite_guard_on_exit" && -n "$prev" ]]; then
+          _HOOK_REWRITE_PREV_EXIT_TRAP="$prev"
+        fi
+      fi
+      trap hook::_rewrite_guard_on_exit EXIT
     else
       rm -f "$snap" 2>/dev/null || true
     fi

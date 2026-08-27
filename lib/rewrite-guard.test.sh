@@ -113,6 +113,49 @@ else
   fail "non-zero exit left $(scratch_count) file(s) behind"
 fi
 
+# --- caller's EXIT trap is chained, not replaced -----------------------------
+# The Codex P2 on #3452: begin's trap must not clobber a caller-armed EXIT
+# handler. The child arms its own cleanup marker BEFORE begin; both the
+# marker (caller's handler ran) and an empty scratch (guard's release ran)
+# must hold after exit.
+printf 'chain\n' >"$target"
+marker="$WORK/prev-trap-ran"
+bash -c '
+  source "$1/hook-utils.sh"
+  source "$1/rewrite-guard.sh"
+  trap "touch \"$3\"" EXIT
+  hook::rewrite_guard_begin "$2"
+  exit 0
+' _ "$LIB_DIR" "$target" "$marker"
+if [[ -f "$marker" ]]; then
+  ok "caller's prior EXIT trap still runs after begin (chained)"
+else
+  fail "caller's prior EXIT trap was clobbered by begin"
+fi
+if [[ "$(scratch_count)" == "0" ]]; then
+  ok "chained exit still releases the snapshot"
+else
+  fail "chained exit left $(scratch_count) file(s) behind"
+fi
+rm -f "$marker"
+
+# ...and a second begin does not chain the guard's handler to itself.
+bash -c '
+  source "$1/hook-utils.sh"
+  source "$1/rewrite-guard.sh"
+  trap "touch \"$3\"" EXIT
+  hook::rewrite_guard_begin "$2"
+  hook::rewrite_take_disclosure "$2" "m"
+  hook::rewrite_guard_begin "$2"
+  exit 0
+' _ "$LIB_DIR" "$target" "$marker"
+if [[ -f "$marker" && "$(scratch_count)" == "0" ]]; then
+  ok "second begin keeps the chain intact (caller trap ran, nothing leaked)"
+else
+  fail "second begin broke the chain (marker=$([[ -f "$marker" ]] && echo yes || echo no), left $(scratch_count))"
+fi
+rm -f "$marker"
+
 # --- snapshot failure: no orphan, guard inert --------------------------------
 # The hand-rolled copies emptied their variable when cp failed but left the
 # mktemp file behind; the guard removes it.
