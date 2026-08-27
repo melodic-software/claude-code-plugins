@@ -3,6 +3,16 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.11]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed zero-information
+  comments (section markers restating adjacent code) in the orchestrator, several checks,
+  and lib helpers, and dropped stale comment references to files that do not exist in this
+  repository (`.claude/rules/powershell/testing.md`, `powershell/conventions.md`,
+  `tools/shared/pester/`), keeping the substantive rationale in place. No behavior change.
+
 ## [0.11.10]
 
 ### Fixed

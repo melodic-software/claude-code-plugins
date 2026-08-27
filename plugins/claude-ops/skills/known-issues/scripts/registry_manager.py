@@ -68,7 +68,6 @@ _MUTATING_ACTIONS = frozenset({"add", "update", "remove"})
 
 
 def load_registry(data_dir: Path) -> dict[str, Any]:
-    """Load and parse registry.json."""
     path = data_dir / REGISTRY_FILENAME
     if not path.exists():
         return {"version": 1, "schema_notes": "", "issues": []}
@@ -223,9 +222,7 @@ def validate_issue(issue: dict[str, Any], index: int) -> list[str]:
         try:
             datetime.fromisoformat(str(closed).replace("Z", "+00:00"))
         except (ValueError, TypeError):
-            errors.append(
-                f"{prefix}: invalid date/datetime in 'closedAt': {closed}"
-            )
+            errors.append(f"{prefix}: invalid date/datetime in 'closedAt': {closed}")
 
     affected = issue.get("affected_files")
     if affected is not None and not isinstance(affected, list):
@@ -287,7 +284,6 @@ def action_list(
     feature_filter: str | None = None,
     stale_days: int | None = None,
 ) -> dict[str, Any]:
-    """Filter and return issues."""
     filtered = issues
 
     if category_filter:
@@ -402,7 +398,6 @@ def action_update(
     repo: str | None = None,
     **updates: Any,
 ) -> dict[str, Any]:
-    """Update fields on existing issue."""
     matches = find_by_key(data["issues"], number, repo)
     if not matches:
         return _not_found("update", f"No issue with number {number}")
@@ -459,7 +454,6 @@ def action_remove(
 def action_validate(
     issues: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Validate all issues in registry."""
     all_errors: list[str] = []
     keys_seen: set[tuple[str, int]] = set()
 
@@ -471,9 +465,7 @@ def action_validate(
         if isinstance(num, int):
             key = (str(issue.get("repo", "")), num)
             if key in keys_seen:
-                all_errors.append(
-                    f"issues[{idx}]: duplicate (repo, number) {key}"
-                )
+                all_errors.append(f"issues[{idx}]: duplicate (repo, number) {key}")
             keys_seen.add(key)
 
     if all_errors:
@@ -492,7 +484,6 @@ def action_validate(
 def action_stats(
     issues: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Summary dashboard."""
     by_category: Counter[str] = Counter(i.get("category", "unknown") for i in issues)
     by_status: Counter[str] = Counter(i.get("status", "unknown") for i in issues)
     today = date.today()
@@ -531,7 +522,6 @@ def action_stats(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build argparse parser with subcommands."""
     parser = argparse.ArgumentParser(
         description="Manage registry.json for the /known-issues skill.",
     )
@@ -543,7 +533,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="action", required=True)
 
-    # list
     p_list = sub.add_parser("list", help="List issues, optionally filtered")
     p_list.add_argument("--category", choices=sorted(VALID_CATEGORIES))
     p_list.add_argument("--status", choices=sorted(VALID_STATUSES))
@@ -555,14 +544,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Only issues not checked in N days",
     )
 
-    # get
     p_get = sub.add_parser("get", help="Find issue by number or fuzzy query")
     p_get.add_argument("query", help="Issue number (int) or search text")
-    p_get.add_argument(
-        "--repo", help="owner/repo (disambiguates a bare number)"
-    )
+    p_get.add_argument("--repo", help="owner/repo (disambiguates a bare number)")
 
-    # add
     p_add = sub.add_parser("add", help="Add new issue to registry")
     p_add.add_argument("number", type=int, help="GitHub issue number")
     p_add.add_argument("--repo", required=True, help="owner/repo")
@@ -591,12 +576,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated related issue numbers",
     )
 
-    # update
     p_up = sub.add_parser("update", help="Update existing issue")
     p_up.add_argument("number", type=int, help="Issue number to update")
-    p_up.add_argument(
-        "--repo", help="owner/repo (disambiguates a bare number)"
-    )
+    p_up.add_argument("--repo", help="owner/repo (disambiguates a bare number)")
     p_up.add_argument("--category", choices=sorted(VALID_CATEGORIES))
     p_up.add_argument("--status", choices=sorted(VALID_STATUSES))
     p_up.add_argument("--stateReason", help="Reason for closure")
@@ -623,17 +605,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated related issue numbers (replaces existing)",
     )
 
-    # remove
     p_rm = sub.add_parser("remove", help="Remove issue by (repo, number)")
     p_rm.add_argument("number", type=int, help="Issue number to remove")
-    p_rm.add_argument(
-        "--repo", help="owner/repo (disambiguates a bare number)"
-    )
+    p_rm.add_argument("--repo", help="owner/repo (disambiguates a bare number)")
 
-    # validate
     sub.add_parser("validate", help="Validate registry.json schema")
 
-    # stats
     sub.add_parser("stats", help="Summary dashboard")
 
     return parser
@@ -683,7 +660,11 @@ def resolve_data_dir(cli_data_dir: Path | None) -> Path:
         data_dir = (
             Path(env_dir).resolve()
             if env_dir
-            else Path.home() / ".claude" / "plugins" / "data" / "claude-ops-melodic-software"
+            else Path.home()
+            / ".claude"
+            / "plugins"
+            / "data"
+            / "claude-ops-melodic-software"
         )
     # Create the resolved directory for every path (CLI --data-dir included) — a
     # freshly configured registry_dir must be writable on first `add`, matching
@@ -693,7 +674,6 @@ def resolve_data_dir(cli_data_dir: Path | None) -> Path:
 
 
 def main() -> None:
-    """Entry point."""
     parser = build_parser()
     args = parser.parse_args()
     data_dir = resolve_data_dir(args.data_dir)

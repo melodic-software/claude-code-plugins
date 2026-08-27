@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.33]
+
+### Changed
+
+- Comment triage pass (`/code-tidying:dissolve-comments`): removed a stale param-order
+  claim from the seam test library header (`tools/work-item-tracker/tests/lib.sh`); the
+  accurate signatures live on each helper's own doc comment. No behavior change.
+
 ## [0.39.32]
 
 ### Changed
