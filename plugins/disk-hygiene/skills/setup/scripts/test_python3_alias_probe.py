@@ -130,8 +130,10 @@ class ProbeTests(unittest.TestCase):
         # Inspect-before-execute: detecting the stub must not run it (which would
         # pop the Store or hang). Guard against any subprocess use in the probe.
         stub = self.make_file("Microsoft/WindowsApps/python3.exe", 0)
-        with mock.patch("subprocess.run", side_effect=AssertionError("executed")), \
-                mock.patch("subprocess.Popen", side_effect=AssertionError("executed")):
+        with (
+            mock.patch("subprocess.run", side_effect=AssertionError("executed")),
+            mock.patch("subprocess.Popen", side_effect=AssertionError("executed")),
+        ):
             result = self.run_probe(["--path", str(stub)])
         self.assertEqual("store-alias-stub", result["verdict"])
 

@@ -773,18 +773,19 @@ def entry_reclaimable_local_bytes(entry: dict[str, Any]) -> int | None:
 
 def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
     """Sum of per-entry reclaimable local bytes across an inventory."""
-    total = 0
-    for entry in entries:
-        value = entry_reclaimable_local_bytes(entry)
-        if value is not None:
-            total += value
-    return total
-
+    return sum(
+        value
+        for entry in entries
+        if (value := entry_reclaimable_local_bytes(entry)) is not None
+    )
 
 
 def entry_is_empty_directory(
     entry: dict[str, Any],
-    inventory: dict[str, dict[str, Any]] | list[dict[str, Any]] | set[str] | None = None,
+    inventory: dict[str, dict[str, Any]]
+    | list[dict[str, Any]]
+    | set[str]
+    | None = None,
     *,
     parents_with_children: set[str] | None = None,
     unknown_paths: set[str] | None = None,
@@ -815,9 +816,7 @@ def entry_is_empty_directory(
         return relative not in parents_with_children
     if inventory is None:
         paths: Iterable[str] = ()
-    elif isinstance(inventory, dict):
-        paths = inventory
-    elif isinstance(inventory, set):
+    elif isinstance(inventory, (dict, set)):
         paths = inventory
     else:
         paths = (
@@ -913,9 +912,7 @@ def children_rollup(
             continue
         name = child_rollup_name(path)
         gaps.setdefault(name, set()).add(
-            reasons.get(path, "not-walked")
-            if path == name
-            else "descendant-not-walked"
+            reasons.get(path, "not-walked") if path == name else "descendant-not-walked"
         )
     totals: dict[str, dict[str, Any]] = {}
     for entry in entries:
