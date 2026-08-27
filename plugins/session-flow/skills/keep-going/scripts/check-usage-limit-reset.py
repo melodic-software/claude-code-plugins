@@ -125,9 +125,7 @@ def _cache_is_trusted(cache_root: Path) -> bool:
     except OSError:
         return False
     getuid = getattr(os, "getuid", None)
-    if getuid is not None and stat_result.st_uid != getuid():
-        return False
-    return True
+    return getuid is None or stat_result.st_uid == getuid()
 
 
 _ensure_bundled_tzdata()
@@ -185,8 +183,7 @@ def parse_reset(text: str, *, now: datetime | None = None) -> datetime:
     elif now is not None:
         zone = now.tzinfo or resolve_zone("UTC")
     else:
-        local = datetime.now().astimezone().tzinfo
-        zone = local if local is not None else resolve_zone("UTC")
+        zone = datetime.now().astimezone().tzinfo or resolve_zone("UTC")
     current = now.astimezone(zone) if now is not None else datetime.now(zone)
     reset_at = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
     # After midnight, an evening reset already passed yesterday; an early-morning

@@ -201,7 +201,7 @@ list_ids() {
 collect_matches() {
   local rows id path
   rows="$(list_ids)" || return 1
-  printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r id path; do
+  printf '%s\n' "$rows" | while IFS=$'\t' read -r id path; do
     [[ -n "$id" ]] || continue
     [[ -n "$path" ]] || continue
     [[ "$(norm_path "$path")" == "$here_key" ]] || continue

@@ -37,7 +37,7 @@ const fail = (name, detail) => {
 };
 
 function runResolver(repoDir, surface) {
-  const result = spawnSync(
+  return spawnSync(
     process.execPath,
     [resolver, "--repo", repoDir, "--surface", surface],
     {
@@ -46,7 +46,6 @@ function runResolver(repoDir, surface) {
       timeout: 30_000,
     },
   );
-  return result;
 }
 
 function parseOut(result) {

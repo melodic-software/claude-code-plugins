@@ -10,11 +10,9 @@
  * verdicts) stay inline in the skill session — they are NOT part of this orchestrator.
  */
 
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { mergeTriageJson } from "./merge-triage-json.js";
 import { renderKeyFramesManifest } from "./render-key-frames-manifest.js";
 import { renderQualityAudit } from "./render-quality-audit.js";
@@ -83,10 +81,7 @@ export function finalizeVision(
   return 0;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
   const sliceDir = args.find((a) => !a.startsWith("--"));

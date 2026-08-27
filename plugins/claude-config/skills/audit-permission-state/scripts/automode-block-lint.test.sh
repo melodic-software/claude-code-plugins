@@ -215,12 +215,11 @@ done
 # spawn is the surprise the opt-in flag exists to prevent.
 NOTICE_STUB="$TEST_TMPDIR/notice-stub"
 mkdir -p "$NOTICE_STUB"
-real_bash_n="$(command -v bash)"
 printf '#!%s
 printf "stub critique output.\n"
-' "$real_bash_n" >"$NOTICE_STUB/claude"
+' "$real_bash" >"$NOTICE_STUB/claude"
 chmod +x "$NOTICE_STUB/claude"
-OUT_NOTICE=$(env AUTOMODE_CONFIG_FIXTURE="$CONFIG" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS"   PATH="$NOTICE_STUB:$PATH" bash "$SCRIPT" --critique 2>&1)
+OUT_NOTICE=$(env AUTOMODE_CONFIG_FIXTURE="$CONFIG" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS" PATH="$NOTICE_STUB:$PATH" bash "$SCRIPT" --critique 2>&1)
 assert_contains "the critique spawn prints a cost notice" "$OUT_NOTICE" "CRITIQUE COST NOTICE"
 assert_contains "the notice says nothing has been spawned yet" "$OUT_NOTICE" "nothing has been spawned yet"
 

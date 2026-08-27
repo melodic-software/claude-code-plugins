@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.18]
+
+### Changed
+
+- **`lib/powershell/ps-command.sh` whitespace and comment cleanup.** No code change: the generated
+  PowerShell pretty-prints identically before and after. Code-tidying sweep, behavior-preserving.
+
 ## [0.29.17]
 
 ### Fixed

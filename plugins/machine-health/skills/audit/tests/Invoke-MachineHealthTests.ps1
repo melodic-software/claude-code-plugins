@@ -197,14 +197,16 @@ if ($env:GITHUB_ACTIONS -eq 'true' -and $result.FailedCount -gt 0) {
 
     # Also emit a block-start annotation with BeforeAll/Container failures
     # since those show up in a different collection than Failed tests.
+    # Guard the pipeline: a $null Containers collection still sends one $null
+    # item through Where-Object, which trips Set-StrictMode on the predicate.
+    $failedContainers = @()
     if ($result.Containers) {
-        foreach ($c in $result.Containers) {
-            if ($c.Result -eq 'Failed' -and $c.ErrorRecord) {
-                foreach ($err in $c.ErrorRecord) {
-                    Write-WorkflowError -Title ('Pester-Container: ' + $c.Item) `
-                        -Message (Get-ErrorRecordMessage $err)
-                }
-            }
+        $failedContainers = @($result.Containers | Where-Object { $_.Result -eq 'Failed' -and $_.ErrorRecord })
+    }
+    foreach ($c in $failedContainers) {
+        foreach ($err in $c.ErrorRecord) {
+            Write-WorkflowError -Title ('Pester-Container: ' + $c.Item) `
+                -Message (Get-ErrorRecordMessage $err)
         }
     }
 
@@ -228,16 +230,13 @@ if ($env:GITHUB_ACTIONS -eq 'true' -and $result.FailedCount -gt 0) {
                 Add-FencedBlock -Lines $lines -Text $info.Message
             }
         }
-        if ($result.Containers) {
-            $failedContainers = @($result.Containers | Where-Object { $_.Result -eq 'Failed' -and $_.ErrorRecord })
-            if ($failedContainers.Count -gt 0) {
-                $lines.Add('### Failed containers (BeforeAll / discovery)')
-                $lines.Add('')
-                foreach ($c in $failedContainers) {
-                    $lines.Add("- **$($c.Item)**")
-                    foreach ($err in $c.ErrorRecord) {
-                        Add-FencedBlock -Lines $lines -Text (Get-ErrorRecordMessage $err)
-                    }
+        if ($failedContainers.Count -gt 0) {
+            $lines.Add('### Failed containers (BeforeAll / discovery)')
+            $lines.Add('')
+            foreach ($c in $failedContainers) {
+                $lines.Add("- **$($c.Item)**")
+                foreach ($err in $c.ErrorRecord) {
+                    Add-FencedBlock -Lines $lines -Text (Get-ErrorRecordMessage $err)
                 }
             }
         }

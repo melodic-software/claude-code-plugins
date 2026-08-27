@@ -38,7 +38,8 @@ export const YOUTUBE_UNAVAILABLE_PATTERNS = Object.freeze([
 const YOUTUBE_EXTRACTOR_ARGS = "youtube:max_comments=20,all,top;comment_sort=top";
 
 const YOUTUBE_VIDEO_ID_PATTERN = /^[\w-]{11}$/;
-const YOUTU_BE_PATH_PREFIX = /^\//;
+/** Path prefixes whose NEXT segment carries the video id (`/live/<id>`, `/embed/<id>`, …). */
+const YOUTUBE_ID_PATH_PREFIXES = new Set(["live", "embed", "shorts", "v"]);
 
 /**
  * @param {string} segment
@@ -57,7 +58,7 @@ export function extractVideoId(url) {
   try {
     const parsed = new URL(url);
     if (parsed.hostname.includes("youtu.be")) {
-      return normalizeYouTubeVideoIdSegment(parsed.pathname.replace(YOUTU_BE_PATH_PREFIX, ""));
+      return normalizeYouTubeVideoIdSegment(parsed.pathname.slice(1));
     }
 
     const queryId = parsed.searchParams.get("v");
@@ -66,8 +67,7 @@ export function extractVideoId(url) {
     }
 
     const pathSegments = parsed.pathname.split("/").filter(Boolean);
-    const pathPrefixes = new Set(["live", "embed", "shorts", "v"]);
-    if (pathSegments.length >= 2 && pathPrefixes.has(pathSegments[0])) {
+    if (pathSegments.length >= 2 && YOUTUBE_ID_PATH_PREFIXES.has(pathSegments[0])) {
       return normalizeYouTubeVideoIdSegment(pathSegments[1]);
     }
 

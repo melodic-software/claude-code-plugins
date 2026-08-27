@@ -142,10 +142,11 @@ if [[ -n "$LABELS" ]]; then
       printf 'create-item.sh: could not accumulate label page %s for %s\n' "$PAGE" "$REPO" >&2
       exit "$EX_INTERNAL"
     }
-    LABEL_SEEN=$((LABEL_SEEN + $(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0)))
+    LABEL_GOT="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0)"
+    LABEL_SEEN=$((LABEL_SEEN + LABEL_GOT))
     # An empty page ends the walk whatever the header claimed — a count that never gets
     # satisfied must not turn into an unbounded loop.
-    (($(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0) == 0)) && break
+    ((LABEL_GOT == 0)) && break
     PAGE=$((PAGE + 1))
   done
   # ORGANIZATION-WIDE labels are usable on this repo's issues and are NOT in the repo label

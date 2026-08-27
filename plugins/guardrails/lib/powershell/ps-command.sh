@@ -315,7 +315,7 @@ ps::blank_quoted_spans() {
         # Ambiguous escape context in a double-quoted span — stop looking and
         # fall through to the delete-nothing branch below.
         if [[ "$q" == '"' && "$c" == '`' ]]; then
-          for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+          for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
           break
         fi
         if [[ "$c" == "$q" ]]; then
@@ -323,7 +323,7 @@ ps::blank_quoted_spans() {
           # (`'it''s'`, `"say ""hi"""`), so this candidate closer may not be one.
           # Same resolution as the backtick: refuse the question, delete nothing.
           if [[ "${text:j+1:1}" == "$q" ]]; then
-            for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+            for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
             break
           fi
           found=1
@@ -390,12 +390,12 @@ ps::opaque_quoted_spans() {
         c="${text:j:1}"
         [[ "$c" == $'\n' ]] && break
         if [[ "$q" == '"' && "$c" == '`' ]]; then
-          for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+          for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
           break
         fi
         if [[ "$c" == "$q" ]]; then
           if [[ "${text:j+1:1}" == "$q" ]]; then
-            for ((; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+            for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
             break
           fi
           found=1
@@ -1153,11 +1153,11 @@ ps::might_write_via_python3() {
   # target (so the launcher/token tests miss it) and it is not a launcher, so match
   # it here on the quote-INTACT text and fail closed. A SINGLE-quoted target does
   # NOT interpolate in PowerShell (`& '$x'` is the literal name `$x`), so it is not
-# matched. ps::write_bypass catches an UNQUOTED `& $`/`& (` only together with a
-# write indicator or special construct (#2722); this closes the
-# quoted-interpolated form for the python-write lane — which is why this lane
-# takes only the interpolating-string half of the shared call-target predicate
-# and not the bare-computed half.
+  # matched. ps::write_bypass catches an UNQUOTED `& $`/`& (` only together with a
+  # write indicator or special construct (#2722); this closes the
+  # quoted-interpolated form for the python-write lane — which is why this lane
+  # takes only the interpolating-string half of the shared call-target predicate
+  # and not the bare-computed half.
   ps::call_target_is_interpolating_string "$recovered" && return 0
   # Must name a python interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])(pypy|python|py)[0-9]*([.][0-9]+)*([.]exe)?([^[:alnum:]_.]|$) ]] || return 1

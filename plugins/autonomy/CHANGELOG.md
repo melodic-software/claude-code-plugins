@@ -3,6 +3,18 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.15]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 11 (batch-simplify).** Setup-gate scripts,
+  each adversarially refutation-verified with byte-identical output and exit codes:
+  check-signal-envelope.mjs collapses a nested single-branch conditional into one `&&`
+  (three-envelope differential drive identical); resolve-prerequisites.mjs pushes findings via
+  spread instead of a loop (findings arrays proven bounded and plain); a dead intermediate
+  local removed from the fixtures test runner. Fixture suites 22/22 and slice checks 4/4
+  green; generated/ tree byte-unchanged.
+
 ## [0.22.14]
 
 ### Changed

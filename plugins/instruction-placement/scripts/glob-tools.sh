@@ -248,10 +248,9 @@ glob_to_ere() {
     "[")
       # Copy the bracket expression through verbatim; validity was checked first.
       local j=$((i + 1)) body="["
-      if [[ "${pattern:j:1}" == "!" ]]; then
-        body+="^"
-        ((j++))
-      elif [[ "${pattern:j:1}" == "^" ]]; then
+      # `!` and `^` both negate, and ERE spells both `^`. brackets_valid() reads
+      # the same pair, so the two must agree on where the expression starts.
+      if [[ "${pattern:j:1}" == "!" || "${pattern:j:1}" == "^" ]]; then
         body+="^"
         ((j++))
       fi

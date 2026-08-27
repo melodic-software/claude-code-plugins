@@ -211,16 +211,12 @@ parse_worktrees() {
 
   flush_record() {
     if [[ -n "$path" && "$bare" -eq 0 ]]; then
-      if ((first)); then
-        WT_PATHS+=("$path")
-        WT_REASONS+=("$reason")
-        WT_IS_LINKED+=(0)
-        first=0
-      else
-        WT_PATHS+=("$path")
-        WT_REASONS+=("$reason")
-        WT_IS_LINKED+=(1)
-      fi
+      # The first non-bare record git emits is the MAIN worktree; every later
+      # one is linked.
+      WT_PATHS+=("$path")
+      WT_REASONS+=("$reason")
+      WT_IS_LINKED+=("$((first ? 0 : 1))")
+      first=0
     elif [[ "$bare" -eq 1 ]]; then
       first=0
     fi

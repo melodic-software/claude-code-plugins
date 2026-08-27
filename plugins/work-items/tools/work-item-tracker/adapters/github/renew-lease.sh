@@ -14,12 +14,12 @@ shift
 lease_comment_id=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --lease-comment-id)
-      [[ $# -ge 2 ]] || wit_usage_error "--lease-comment-id needs a value"
-      lease_comment_id="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --lease-comment-id)
+    [[ $# -ge 2 ]] || wit_usage_error "--lease-comment-id needs a value"
+    lease_comment_id="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
@@ -44,7 +44,7 @@ if [[ -z "$lease_json" ]]; then
   printf 'renew-lease: comment %s is not a work-item lease\n' "$lease_comment_id" >&2
   exit "$EX_CONFLICT"
 fi
-if [[ "$(jq -r '.superseded_at // empty' <<<"$lease_json")" != "" ]]; then
+if [[ -n "$(jq -r '.superseded_at // empty' <<<"$lease_json")" ]]; then
   printf 'renew-lease: lease %s is superseded\n' "$lease_comment_id" >&2
   exit "$EX_CONFLICT"
 fi

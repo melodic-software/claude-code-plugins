@@ -776,13 +776,11 @@ def entry_reclaimable_local_bytes(entry: dict[str, Any]) -> int | None:
 
 def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
     """Sum of per-entry reclaimable local bytes across an inventory."""
-    total = 0
-    for entry in entries:
-        value = entry_reclaimable_local_bytes(entry)
-        if value is not None:
-            total += value
-    return total
-
+    return sum(
+        value
+        for entry in entries
+        if (value := entry_reclaimable_local_bytes(entry)) is not None
+    )
 
 def entry_is_empty_directory(
     entry: dict[str, Any],
@@ -820,9 +818,7 @@ def entry_is_empty_directory(
         return relative not in parents_with_children
     if inventory is None:
         paths: Iterable[str] = ()
-    elif isinstance(inventory, dict):
-        paths = inventory
-    elif isinstance(inventory, set):
+    elif isinstance(inventory, (dict, set)):
         paths = inventory
     else:
         paths = (

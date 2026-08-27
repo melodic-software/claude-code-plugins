@@ -423,6 +423,13 @@ def run_locked(
     state["updated_at"] = attempted_at
     write_state(state_path, state)
 
+    # Every post-attempt failure records against the same PR, state, and head
+    # pin; only the error text and the evidence differ.
+    def record_problem(error: str, **evidence: dict[str, Any] | None) -> None:
+        record_attempt_problem(
+            state_path, state, key, pr_state, expected_head_sha, error, **evidence
+        )
+
     try:
         require_worker_lease(args, state_dir, repo, number)
         validate_current_candidate(
@@ -430,26 +437,11 @@ def run_locked(
         )
         late_trigger = existing_trigger(repo, number, recognizer, known_comment_ids)
     except Exception as exc:
-        record_attempt_problem(
-            state_path,
-            state,
-            key,
-            pr_state,
-            expected_head_sha,
-            str(exc),
-        )
+        record_problem(str(exc))
         raise
     if late_trigger:
         error = "found a new unattributed review trigger immediately before posting"
-        record_attempt_problem(
-            state_path,
-            state,
-            key,
-            pr_state,
-            expected_head_sha,
-            error,
-            found_trigger=late_trigger,
-        )
+        record_problem(error, found_trigger=late_trigger)
         raise RuntimeError(error)
 
     try:
@@ -465,40 +457,18 @@ def run_locked(
             ]
         )
     except Exception as exc:
-        record_attempt_problem(
-            state_path,
-            state,
-            key,
-            pr_state,
-            expected_head_sha,
-            str(exc),
-        )
+        record_problem(str(exc))
         raise
     if not is_json_object(comment) or not comment.get("id"):
         error = "GitHub did not return the created trigger comment"
-        record_attempt_problem(
-            state_path,
-            state,
-            key,
-            pr_state,
-            expected_head_sha,
-            error,
-        )
+        record_problem(error)
         raise RuntimeError(error)
 
     try:
         after = view_pr(repo, number)
     except Exception as exc:
         error = f"unable to verify PR head after posting: {exc}"
-        record_attempt_problem(
-            state_path,
-            state,
-            key,
-            pr_state,
-            expected_head_sha,
-            error,
-            created_comment=comment,
-        )
+        record_problem(error, created_comment=comment)
         raise RuntimeError(error) from exc
     after_head = str(after.get("headRefOid") or "")
     after_state = str(after.get("state") or "").upper()
@@ -507,15 +477,7 @@ def run_locked(
             "PR changed while posting the review request: "
             f"state={after_state or 'UNKNOWN'} head={after_head or 'UNKNOWN'}"
         )
-        record_attempt_problem(
-            state_path,
-            state,
-            key,
-            pr_state,
-            expected_head_sha,
-            error,
-            created_comment=comment,
-        )
+        record_problem(error, created_comment=comment)
         raise RuntimeError(error)
 
     post_known_comment_ids = {*known_comment_ids, str(comment["id"])}
@@ -526,15 +488,7 @@ def run_locked(
         post_reactions = fetch_reaction_signals(repo, number, after, config)
     except Exception as exc:
         error = f"unable to verify trigger uniqueness after posting: {exc}"
-        record_attempt_problem(
-            state_path,
-            state,
-            key,
-            pr_state,
-            expected_head_sha,
-            error,
-            created_comment=comment,
-        )
+        record_problem(error, created_comment=comment)
         raise RuntimeError(error) from exc
     # Scope to this head before flagging "unexpected" -- otherwise a stale
     # earlier-head reaction still sitting on the PR (or on an older,
@@ -559,16 +513,7 @@ def run_locked(
         error = "trigger uniqueness became ambiguous after posting: " + ", ".join(
             details
         )
-        record_attempt_problem(
-            state_path,
-            state,
-            key,
-            pr_state,
-            expected_head_sha,
-            error,
-            created_comment=comment,
-            found_trigger=concurrent_trigger,
-        )
+        record_problem(error, created_comment=comment, found_trigger=concurrent_trigger)
         raise RuntimeError(error)
     record_request(state_path, state, key, pr_state, expected_head_sha, comment)
     result.update(
