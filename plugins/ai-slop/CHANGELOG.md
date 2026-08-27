@@ -29,6 +29,11 @@
   every line) and an invalid ERE is skipped with a stderr note naming it (an unbalanced
   paren would otherwise error every grep for the rule into a `findings=0` row
   indistinguishable from a clean corpus). Removing every phrase leaves the rule inert.
+  Replacement is keyed on the key being present (Codex review): an explicit
+  `"phrase_add": []` in a later layer clears an inherited list instead of reading as an
+  absent key, and a config layer that fails to parse whole (for example one caught
+  mid-write, a valid object followed by truncated bytes) is refused for these keys rather
+  than partially applied — jq's own exit status guards the read, the `cfg_scalar` posture.
 
 - **`pre-existing` joined the shipped vocabulary list** on the leverage precedent: 61 files
   in this corpus contain the word and the density gate fired on none. The rest of the
