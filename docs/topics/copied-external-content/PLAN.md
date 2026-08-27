@@ -130,6 +130,9 @@ matrix, type inventory, plugin topology, design threads, convention engagement).
 plugin (handoff actions 3 to 5). The repo-wide sweep and the convention engagement (actions 6
 and 7) are follow-on phases promoted to their own topic; see Phase 8.
 
+**Approved 2026-08-27 by the user** ("OK I agree with all recommendations"), after the
+fresh-context review and devils-advocate hardening passes. Execution begins at Phase 1.
+
 ### Q16 and Q10 resolutions (recorded here; schema in `design/type-inventory.md`)
 
 Q16 (user-resolved 2026-08-27, posture not fixed numbers): accuracy is the goal, and
