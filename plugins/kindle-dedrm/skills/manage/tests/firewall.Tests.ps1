@@ -35,7 +35,11 @@ enum FakeNetSecurityEnabled {
 }
 
 BeforeAll {
-    $script:ScriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\firewall.ps1'
+    # Separate child segments, not one 'scripts\firewall.ps1' string: Join-Path
+    # does not split a child argument on `\`, so on non-Windows pwsh the
+    # backslash would survive as an ordinary filename character and the path
+    # would not resolve.
+    $script:ScriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts' 'firewall.ps1'
 
     # Returns the literal `if` condition guarding the enum test inside one switch
     # clause of firewall.ps1, as a runnable scriptblock plus its source text.
@@ -141,7 +145,16 @@ Describe 'firewall.ps1' {
             [bool](& $disable.Guard) | Should -BeTrue
         }
 
-        It 'reads a plain boolean the same way' {
+        # Deliberately weaker than its siblings, and labelled so no reader
+        # mistakes it for a regression pin. With a [bool] on the LEFT, PowerShell
+        # converts the RIGHT operand to [bool], and every non-empty string
+        # converts to $true -- so 'True', 'False', and any other literal behave
+        # identically here, and the guard collapses to the truthiness test this
+        # PR removed. The case therefore proves only that the fix did not BREAK
+        # a boolean-valued property; it cannot discriminate the fix from the
+        # defect, because a plain boolean never had the enum's True = 1 /
+        # False = 2 aliasing the defect depended on.
+        It 'does not break when Enabled arrives as a plain boolean' {
             $enable = Get-EnabledGuard -Path $script:ScriptPath -Action 'enable'
             $disable = Get-EnabledGuard -Path $script:ScriptPath -Action 'disable'
 
