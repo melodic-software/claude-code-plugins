@@ -24,7 +24,7 @@ mk() {
   printf '%s' "$f"
 }
 
-# expect <label> <mode> <content> <expected entries, NUL-joined via $'\n'>
+# expect <label> <mode> <content> <expected entries, newline-joined via $'\n'>
 expect() {
   local label="$1" mode="$2" content="$3" want="$4"
   local f got
