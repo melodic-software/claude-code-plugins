@@ -7,6 +7,14 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 ### Fixed
 
+- **The findings and tool-break arms emitted two JSON documents on stdout (#3366).** The hook
+  output contract is ONE JSON document for the whole of stdout, but an arm carrying both
+  `additionalContext` and a rewrite disclosure printed `hook::ctx_flush`'s object and then the
+  disclosure's, producing an invalid response in which either channel could be lost. The
+  disclosure helper splits into `take_ps_rewrite_disclosure` (release the snapshot, record the
+  text) and its emitting wrapper, so arms 1 and the tool-break catch-all now compose both
+  channels through `hook::emit_channels`. Arms 0, 3, 5, and 6 keep the wrapper and are unchanged.
+
 - **`_ps_before` snapshot leaked on the trust-gate and tool-break arms (#3366).** The hook copies
   the target file to an `mktemp` snapshot so a formatter rewrite can be disclosed. Arms 3 and 5
   release it and the disclosure helper releases it on the arms that call it, but the trust-gate
