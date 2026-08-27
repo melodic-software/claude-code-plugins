@@ -279,18 +279,35 @@ if [[ "$HAVE_JQ" -eq 1 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   fi
   # phrase_add / phrase_remove: whole ERE fragments, one array element each.
   # NOT cfg_array — its space-join would split "honest take" into two dead
-  # words. Per-layer wholesale replacement (cfg_array's semantics), CR-stripped
-  # for the Windows jq (same reason as every reader above); the winning layer
-  # is kept so hygiene warnings below can name where a bad fragment came from.
+  # words. Per-layer wholesale replacement keyed on the KEY BEING PRESENT
+  # (jq has()), so an explicit `"phrase_add": []` in a later layer clears an
+  # inherited list instead of reading as absent. jq's own exit status guards
+  # both reads — a layer caught mid-write (valid object then truncated bytes)
+  # is refused whole, the cfg_scalar posture, which the tr pipe of an earlier
+  # revision silently overrode. CR stripped by expansion, not a pipe, for the
+  # same reason. The winning layer is kept so hygiene warnings below can name
+  # where a bad fragment came from.
   for layer in "${CFG_LAYERS[@]}"; do
-    v="$(jq -r '(.phrase_add // empty) | .[]' "$layer" 2>/dev/null | tr -d '\r')"
-    if [[ -n "${v//[[:space:]]/}" ]]; then
-      mapfile -t PHRASE_ADD <<<"$v"
-      PHRASE_ADD_LAYER="$layer"
+    if jq -e 'has("phrase_add")' "$layer" >/dev/null 2>&1; then
+      if v="$(jq -r '.phrase_add | .[]' "$layer" 2>/dev/null)"; then
+        v="${v//$'\r'/}"
+        if [[ -n "${v//[[:space:]]/}" ]]; then
+          mapfile -t PHRASE_ADD <<<"$v"
+        else
+          PHRASE_ADD=()
+        fi
+        PHRASE_ADD_LAYER="$layer"
+      fi
     fi
-    v="$(jq -r '(.phrase_remove // empty) | .[]' "$layer" 2>/dev/null | tr -d '\r')"
-    if [[ -n "${v//[[:space:]]/}" ]]; then
-      mapfile -t PHRASE_REMOVE <<<"$v"
+    if jq -e 'has("phrase_remove")' "$layer" >/dev/null 2>&1; then
+      if v="$(jq -r '.phrase_remove | .[]' "$layer" 2>/dev/null)"; then
+        v="${v//$'\r'/}"
+        if [[ -n "${v//[[:space:]]/}" ]]; then
+          mapfile -t PHRASE_REMOVE <<<"$v"
+        else
+          PHRASE_REMOVE=()
+        fi
+      fi
     fi
   done
 elif [[ "$HAVE_JQ" -eq 0 && "${#CFG_LAYERS[@]}" -gt 0 ]]; then

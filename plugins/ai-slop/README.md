@@ -66,7 +66,10 @@ apostrophes spelled `.` (the detector's phrase convention), metacharacters live 
 replaces wholesale per config layer, like `vocab_add`. A fragment that is not a valid ERE, or
 an empty one, is skipped with a stderr note rather than allowed to flood the rule or silently
 disable it; removing every shipped phrase leaves the rule inert. `phrase_remove` matches the
-shipped fragments verbatim (the shipped roster is listed by `--show-config`).
+shipped fragments verbatim (the shipped roster is listed by `--show-config`). Replacement is
+keyed on the key being present: an explicit `"phrase_add": []` in a later layer clears an
+inherited list, and a config layer that fails to parse whole (for example one caught
+mid-write) is refused rather than partially applied.
 
 `rule_allowed_paths` exempts ONE rule on the named globs and counts the file as declined for
 that rule — the proportionate closure when a whole document legitimately trips a single rule

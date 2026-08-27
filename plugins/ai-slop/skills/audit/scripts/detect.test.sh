@@ -444,6 +444,35 @@ assert_contains "phrase hygiene: shipped roster keeps firing past the bad fragme
 out="$(CLAUDE_PROJECT_DIR="$BADREPO" bash "$DETECT" "$CLEAN" 2>&1)"
 assert_not_contains "phrase hygiene: empty-string element does not flood clean prose" "$out" "Finding: rule=ai-slop/audit/rule-model-era-phrases"
 
+# Wholesale replacement includes the empty override: a later layer's explicit
+# `"phrase_add": []` clears the inherited list (key presence decides, not value
+# emptiness — Codex review, PR 3389). The local overlay is the later layer.
+CLRREPO="$TEST_TMPDIR/phrase-clear"
+mkdir -p "$CLRREPO/.claude"
+cat >"$CLRREPO/.claude/ai-slop.json" <<'EOF'
+{ "phrase_add": ["chef.s kiss architecture"] }
+EOF
+cat >"$CLRREPO/.claude/ai-slop.local.json" <<'EOF'
+{ "phrase_add": [] }
+EOF
+cat >"$CLRREPO/doc.md" <<'EOF'
+# Doc
+
+This design is chef's kiss architecture, honestly.
+EOF
+out="$(CLAUDE_PROJECT_DIR="$CLRREPO" bash "$DETECT" "$CLRREPO/doc.md" 2>&1)"
+assert_contains "phrase config: explicit empty array clears the inherited add list" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0"
+
+# A layer caught mid-write (valid object, then truncated bytes) is refused
+# whole for the phrase keys, the cfg_scalar posture: jq's exit status guards
+# the read, so the partially parsed values never become the effective roster.
+TRUNCPHRASE="$TEST_TMPDIR/phrase-trunc"
+mkdir -p "$TRUNCPHRASE/.claude"
+printf '%s\n' '{ "phrase_add": ["chef.s kiss architecture"] }' '{bad' >"$TRUNCPHRASE/.claude/ai-slop.json"
+cp "$CLRREPO/doc.md" "$TRUNCPHRASE/doc.md"
+out="$(CLAUDE_PROJECT_DIR="$TRUNCPHRASE" bash "$DETECT" "$TRUNCPHRASE/doc.md" 2>&1)"
+assert_contains "phrase config: partially parsed layer is refused, no phrase added" "$out" "rule=ai-slop/audit/rule-model-era-phrases findings=0 declined=0"
+
 # disabled_rules covers the new rule like any other.
 DISREPO="$TEST_TMPDIR/phrase-disabled"
 mkdir -p "$DISREPO/.claude"
