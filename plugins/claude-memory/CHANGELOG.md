@@ -3,6 +3,15 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.5]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** In the audit skill's
+  `discover-instruction-surfaces.sh`, positional-parameter comments dissolved into named
+  locals; the test helper's parameter comment, restated by the line below it, removed.
+  No behavior change; suite green before and after.
+
 ## [0.11.4]
 
 ### Changed

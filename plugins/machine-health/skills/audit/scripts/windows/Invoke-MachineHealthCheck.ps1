@@ -113,8 +113,7 @@ $PSDefaultParameterValues['Write-MachineHealthLog:LogPath'] = $runLog
 Write-MachineHealthLog ("run_start run_id=$runId mode=$RunMode dry_run=$($DryRun.IsPresent) " +
     "output_base=$OutputBase state_base=$StateBase")
 
-# Operator-facing banner: blank line, message lines, blank line. stderr keeps
-# stdout clean for the JSON snapshot.
+# stderr keeps stdout clean for the JSON snapshot.
 function Write-StderrBanner {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)] [string[]] $Line)
@@ -155,7 +154,6 @@ if (Test-Path -LiteralPath $seedKevPath) {
     }
 }
 
-# first-run forces DryRun
 $effectiveDry = $DryRun.IsPresent -or ($RunMode -eq 'first-run')
 if ($effectiveDry -and -not $DryRun.IsPresent) {
     Write-MachineHealthLog 'dry_run forced by RunMode=first-run'
@@ -315,7 +313,6 @@ foreach ($sk in @($selection.skipped)) {
 }
 $windowsChecks = @($selection.due)
 
-# Dispatch checks with 90s timeout per check
 function Invoke-CheckWithTimeout {
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -569,7 +566,6 @@ modules. Harmless to ignore.
     }
 }
 
-# Severity counts by category
 $severityCounts = @{}
 foreach ($r in $checkResults) {
     $cat = $r.category
@@ -589,7 +585,6 @@ $remediationCounts = @{
 $runEnd = Get-Date
 $durationSeconds = [math]::Round(($runEnd - $runStart).TotalSeconds, 1)
 
-# Run snapshot
 $osVersion = try { (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Version } catch { 'unknown' }
 
 $urlsCalled = @()
@@ -656,7 +651,6 @@ $historyJson = $historyLine | ConvertTo-Json -Depth 10 -Compress
 Add-Content -LiteralPath $historyPath -Value $historyJson -Encoding utf8
 Write-MachineHealthLog "appended_history path=$historyPath"
 
-# Report render (minimal but template-driven)
 $templatePath = Join-Path $skillRoot 'references\shared\report-template.md'
 # Per-run (not per-day) filename: a same-day rerun must not overwrite the
 # earlier report, since each run also writes a distinct history entry.

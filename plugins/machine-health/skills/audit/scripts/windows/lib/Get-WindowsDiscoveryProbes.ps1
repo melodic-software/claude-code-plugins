@@ -43,8 +43,6 @@ function Get-WindowsDiscoveryProbe {
 
     $probes = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    # Tool-presence probes: each detects via Test-CommandAvailable. Python
-    # probes two command names (python, python3); the rest probe one.
     $commandProbes = @(
         @{
             Dimension = 'Docker Desktop'
@@ -88,7 +86,6 @@ function Get-WindowsDiscoveryProbe {
             })
     }
 
-    # User cert store
     $certPath = 'Cert:\CurrentUser\My'
     $certs = @()
     try {
@@ -104,7 +101,6 @@ function Get-WindowsDiscoveryProbe {
             straightforward    = $true
         })
 
-    # Scheduled tasks with failing LastTaskResult
     $failedTasks = @()
     try {
         $failedTasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue |
@@ -127,7 +123,6 @@ function Get-WindowsDiscoveryProbe {
             straightforward    = $true
         })
 
-    # Reliability Monitor readiness
     $reliabilityOk = $false
     try {
         $records = @(Get-CimInstance Win32_ReliabilityRecords -ErrorAction SilentlyContinue | Select-Object -First 1)

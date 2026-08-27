@@ -1,5 +1,13 @@
 # Changelog — session-flow plugin
 
+## [0.34.9]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed one zero-information
+  comment in `skills/retro/scripts/parse_transcript.py` (it inaccurately restated the adjacent
+  prepend condition); no behavior change.
+
 ## [0.34.8]
 
 ### Changed

@@ -20,10 +20,9 @@ BeforeAll {
 
 # NOTE: deeper severity-rubric coverage for this check is limited by Pester 5
 # mock propagation into `&`-invoked child scripts for cmdlets from the
-# ScheduledTasks module. See .claude/rules/powershell/testing.md
-# "Mocks do NOT propagate through `&`-invoked `.ps1` scripts". Baseline + no-
-# tasks paths are deterministic; the never-run filter is covered via the
-# extracted Test-IsNeverRunScheduledTask helper below.
+# ScheduledTasks module. Baseline + no-tasks paths are deterministic; the
+# never-run filter is covered via the extracted Test-IsNeverRunScheduledTask
+# helper below.
 
 Describe 'Test-ScheduledTasks -- baseline' -Tag 'check' {
     It 'emits a schema-valid CheckResult when Get-ScheduledTask returns no tasks' {

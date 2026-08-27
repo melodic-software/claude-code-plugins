@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.12]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed zero-information comments:
+  restatement subcommand labels and name-restating docstrings in `known-issues`'s
+  `registry_manager.py`, and a dead plan reference ("Item 2") in `lanes`'s `lane-launcher.sh`.
+  No behavior change; `registry_manager.py` also picked up the pinned formatter's canonical layout.
+
 ## [0.38.11]
 
 ### Changed

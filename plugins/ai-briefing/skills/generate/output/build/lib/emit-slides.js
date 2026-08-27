@@ -328,14 +328,11 @@ export function emitSlides(briefing, ctx) {
     }
   }
 
-  // Apply tier auto-balance before emitting per-bucket slides
   balanceTiers(normalized);
-  // Sort each tier by date desc (most recent → oldest); undated stay at top
   sortTiersByDate(normalized);
 
   const slides = [];
 
-  // 1. Title (hero)
   slides.push({
     type: "title",
     section: "hero",
@@ -345,7 +342,6 @@ export function emitSlides(briefing, ctx) {
     footer: `Briefing window: ${ctx.window}`,
   });
 
-  // 2. Agenda
   slides.push({
     type: "agenda",
     section: "agenda",
@@ -363,7 +359,6 @@ export function emitSlides(briefing, ctx) {
     ],
   });
 
-  // 3. Welcome
   slides.push({
     type: "section",
     section: "welcome",
@@ -372,7 +367,6 @@ export function emitSlides(briefing, ctx) {
     items: ["Share Tips & Tricks", "Share Workflows", "Show and Tell"],
   });
 
-  // 4. Levels
   slides.push({
     type: "levels",
     section: "levels",
@@ -387,7 +381,7 @@ export function emitSlides(briefing, ctx) {
     ],
   });
 
-  // 5. Open share — first slide of the NEWS group (intake before briefing items)
+  // Open share: first slide of the NEWS group (intake before briefing items)
   slides.push({
     type: "open",
     section: "open",
@@ -397,7 +391,7 @@ export function emitSlides(briefing, ctx) {
     note: "Headlines, links, breaking AI news — anything we should add to today's coverage.",
   });
 
-  // 6+. Per-bucket news in canonical order. Each tier slide tagged with section = bucket key + parentSection: news.
+  // Per-bucket news in canonical order. Each tier slide tagged with section = bucket key + parentSection: news.
   for (const b of BUCKET_ORDER) {
     const data = normalized[b.key];
     if (!data) continue;
@@ -411,7 +405,6 @@ export function emitSlides(briefing, ctx) {
     slides.push(...sectionSlides);
   }
 
-  // Dev Tools — Release Walk (per-tool, ordered by DEV_TOOL_PRIORITY)
   const devToolSlides = buildDevToolSlides(normalized);
   for (const s of devToolSlides) {
     s.section = "devtools";
@@ -419,7 +412,6 @@ export function emitSlides(briefing, ctx) {
     slides.push(s);
   }
 
-  // Patterns synthesis (cross-bucket; under news parent)
   const patterns = buildPatternsSlide(normalized);
   if (patterns) {
     patterns.section = "patterns";
@@ -427,7 +419,6 @@ export function emitSlides(briefing, ctx) {
     slides.push(patterns);
   }
 
-  // Pace / velocity (authored)
   const pace = buildPaceSlide(normalized);
   if (pace) {
     pace.section = "pace";
@@ -435,7 +426,6 @@ export function emitSlides(briefing, ctx) {
     slides.push(pace);
   }
 
-  // Breaking & Deprecated
   const breaking = buildBreakingSlide(normalized);
   if (breaking) {
     breaking.section = "breaking";
@@ -443,7 +433,6 @@ export function emitSlides(briefing, ctx) {
     slides.push(breaking);
   }
 
-  // Discussion prompts
   slides.push({
     type: "prompt",
     section: "tools",

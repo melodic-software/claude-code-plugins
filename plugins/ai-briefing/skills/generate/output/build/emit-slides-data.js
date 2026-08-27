@@ -86,13 +86,11 @@ async function main() {
     configDir: configDir(),
   });
 
-  // Resolve meeting number + window from state (or args)
   const state = await readState();
   const dateStr = args.date || new Date().toISOString().slice(0, 10);
   const meetingNumber =
     args.meetingN || state?.current_meeting_window?.meeting_n || state?.meeting_n || 1;
 
-  // Pick briefing path
   const briefingPath = args.briefing
     ? path.resolve(args.briefing)
     : path.join(meetingsDir(), `meeting-${meetingNumber}.md`);
@@ -143,7 +141,6 @@ async function main() {
   );
   if (logoResult.missing.length) console.log(`  Missing: ${logoResult.missing.join(", ")}`);
 
-  // Build context
   const ctx = {
     meetingNumber,
     date: dateStr,
@@ -151,7 +148,6 @@ async function main() {
     org: BRAND.org,
   };
 
-  // Emit slides
   const slides = emitSlides(briefing, ctx);
 
   const meta = {
@@ -164,7 +160,6 @@ async function main() {
     logoWhite: BRAND.logoWhite,
   };
 
-  // Validate before writing
   const deck = { meta, theme: THEME, providerLogos: PROVIDER_LOGOS, slides };
   validateDeck(deck);
 
