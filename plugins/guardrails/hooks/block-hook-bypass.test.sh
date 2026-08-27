@@ -549,6 +549,37 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
+# --- Telemetry subject never carries an assignment VALUE (#3372) -------------
+# The local `bash_subject` copy this hook carried stripped `sudo` / `NAME=*`
+# prefixes naively, so `TOKEN="a b" curl …` emitted `Bash:b"` and a bare
+# `TOKEN=secret` emitted the whole assignment. Both are value fragments — a
+# possible credential — in telemetry. The shared hardened helper aborts to the
+# bare `Bash` subject in each case; these assert the hook now inherits that.
+subject_for() {
+  local cmd="$1" tel sink
+  tel="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+  sink="$(make_sink "cat >\"$tel\"")"
+  env HOOK_TELEMETRY_SINK="$sink" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+    bash "$HOOK" <<<"$(command_json "$cmd")" >/dev/null 2>&1 || true
+  if wait_for_sink "$tel"; then
+    jq -r '.data.subject' "$tel"
+  else
+    printf 'NO-ENVELOPE'
+  fi
+}
+
+SUBJ="$(subject_for 'TOKEN="a b" curl https://example.invalid')"
+assert_contains "telemetry: quoted prefix value still emits a subject" "$SUBJ" "Bash"
+assert_absent "telemetry: quoted prefix value aborts to the bare subject" "$SUBJ" "Bash:"
+SUBJ="$(subject_for 'TOKEN=ghp_notarealsecret')"
+assert_contains "telemetry: bare assignment still emits a subject" "$SUBJ" "Bash"
+assert_absent "telemetry: bare assignment aborts to the bare subject" "$SUBJ" "Bash:"
+assert_absent "telemetry: bare assignment leaks no value" "$SUBJ" "ghp_notarealsecret"
+# The strip that made the copy useful is preserved: a real command behind a
+# `sudo` prefix still reaches the subject, basenamed.
+SUBJ="$(subject_for 'sudo /usr/bin/curl https://example.invalid')"
+assert_contains "telemetry: sudo prefix still resolves to the command" "$SUBJ" "Bash:curl"
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The guard is matched on Bash|PowerShell. PowerShell file-write forms that
 # bypass the Write/Edit gate are blocked; content-producer scoping is preserved

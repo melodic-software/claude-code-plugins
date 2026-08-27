@@ -106,24 +106,11 @@ fi
 
 # Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
 # env-assignment prefixes stripped and the token basenamed. Never the full
-# command.
-bash_subject() {
-  local cmd="$1" tok
-  tok="${cmd%%[[:space:]]*}"
-  while [[ "$tok" == "sudo" || "$tok" == *=* ]] &&
-    [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
-    cmd="${cmd#*[[:space:]]}"
-    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-    tok="${cmd%%[[:space:]]*}"
-  done
-  printf 'Bash:%s' "${tok##*/}"
-}
-
-if [[ "$TOOL_NAME" == "Bash" ]]; then
-  SUBJECT=$(bash_subject "$COMMAND")
-else
-  SUBJECT="$TOOL_NAME"
-fi
+# command. The shared helper is used rather than a local copy so the aborts that
+# keep an assignment VALUE out of the subject — a quoted value spanning the
+# whitespace the tokenizer splits on, and a bare/trailing `NAME=value` no
+# following command consumed — hold here too (#3372).
+SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
 
 # Emit one telemetry envelope per run. Advisory guards always report status
 # "ok" (they never block); the finding signal rides in `data.forms` — category
