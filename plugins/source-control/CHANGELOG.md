@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.23]
+
+### Fixed
+
+- **`landed-work.sh` emits `-` for a head-less row, honoring its own non-empty TSV contract.** Every
+  field in the row `printf` carried a `:--` fallback except the head column, whose `:0:12` slice
+  yields empty (not `-`) when `T_HEAD` is empty. notgit and bare-hub rows carry no HEAD by design, so
+  those rows emitted an empty field, and a consumer reading the documented 15-column contract through
+  `while IFS=$'\t' read` — the form this file's own callers are told to use — had every later column
+  shift left: `risk` read the reason string and `reason` read empty. The slice now lands in a
+  `head_col` variable and the fallback applies after it. Covered by cases that consume a notgit row
+  and a bare-hub row through `while IFS=$'\t' read` with all 15 field names. (#3371)
+- **`worktree-claim.test.sh`'s lock-failure case no longer reports a defect that does not exist under
+  root.** The case forced the failure with `chmod a-w` on the worktree admin directory, which uid 0
+  writes straight through, so the batch claim succeeded and the case failed in root containers with
+  no code change behind it. The permission fixture is now probed before it is trusted and skipped
+  with its reason named when it did not take, and a new root-proof arm — a stub `git` on PATH that
+  fails only `worktree lock` — covers the lock-failure exit-code propagation on every platform and
+  every uid, so the skip vacates no discriminating coverage. (#3378)
+
 ## [0.55.22]
 
 ### Changed
