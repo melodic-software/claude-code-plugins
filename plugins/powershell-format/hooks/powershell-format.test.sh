@@ -230,7 +230,7 @@ run_arm() {
   mkdir -p "$scratch"
   rm -f "$probe"
   printf "%s\n" "Get-ChildItem -Path '.'" >"$ARM_FILE"
-  make_stub_pwsh "ls -A \"\$TMPDIR\" 2>/dev/null | wc -l >\"$probe\"
+  make_stub_pwsh "find \"\$TMPDIR\" -mindepth 1 2>/dev/null | wc -l >\"$probe\"
 $stub"
   # `-u` must precede every NAME=VALUE: env stops parsing options at the first
   # operand, so a trailing `-u FOO` is taken as the command to run (exit 127).
@@ -242,7 +242,7 @@ $stub"
     PATH="$STUB_BIN:$PATH")
   ARM_RC=$?
   ARM_DURING="$(tr -cd '0-9' <"$probe" 2>/dev/null)"
-  ARM_LEFT="$(ls -A "$scratch" 2>/dev/null | wc -l | tr -cd '0-9')"
+  ARM_LEFT="$(find "$scratch" -mindepth 1 2>/dev/null | wc -l | tr -cd '0-9')"
 }
 
 # Trust-gate arm (pwsh exit 6) -> snapshot released.
