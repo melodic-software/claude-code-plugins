@@ -100,6 +100,28 @@ if read_list::into entries "$f" --bogus 2>/dev/null; then
 else
   ok "an unknown option is rejected"
 fi
+
+# A BARE `--comments` (the flag present, its mode value missing) must reach the
+# same rc-2 answer, and must reach it AT ALL. The pre-#3363 arm consumed its
+# value with `shift 2 || true`; as the last argument that shifted nothing and
+# returned non-zero, `|| true` hid the failure, `$#` stayed at 1, and the option
+# loop reprocessed `--comments` forever. `timeout` is the load-bearing part of
+# this assertion: without it a regression does not FAIL this suite, it HANGS it,
+# which in CI is an unbounded stall rather than a red test.
+missing_value_rc=0
+# shellcheck disable=SC2016  # $1/$2 are the inner `bash -c` positionals, deliberately unexpanded here
+timeout 5 bash -c '
+  . "$1"
+  declare -a probe=()
+  read_list::into probe "$2" --comments
+' _ "$SELF_DIR/read-list.sh" "$f" 2>/dev/null || missing_value_rc=$?
+if [[ "$missing_value_rc" -eq 2 ]]; then
+  ok "a bare --comments (no mode value) returns 2 promptly"
+elif [[ "$missing_value_rc" -eq 124 ]]; then
+  fail "a bare --comments HUNG (timed out) instead of returning 2 (#3363)"
+else
+  fail "a bare --comments returned $missing_value_rc, want 2"
+fi
 rm -f "$f"
 
 # --- an unreadable file is loud, never an empty list -----------------------
