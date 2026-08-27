@@ -3,6 +3,24 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.26]
+
+### Fixed
+
+- **Snapshot leak on the error arms (#3405).** The content-mutation snapshot was
+  released only on the clean arm; a run reaching the syntax-error arm or the
+  tool-break catch-all leaked one mktemp file. The disclosure now runs through the
+  shared `rewrite-guard` lib, whose EXIT trap releases the snapshot on every arm,
+  and the error arms now also disclose a rewrite goimports made before failing,
+  composed with the diagnostic context into one JSON document.
+
+### Changed
+
+- **Adopted the shared rewrite-guard lib (#3409).** The hand-rolled
+  snapshot/compare/disclose/release block is replaced by
+  `hooks/rewrite-guard.sh` (synced from `lib/rewrite-guard.sh`); the test suite
+  gained snapshot-hygiene and single-document assertions for the error arms.
+
 ## [0.3.25]
 
 ### Fixed

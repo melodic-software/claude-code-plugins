@@ -3,6 +3,17 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.26]
+
+### Changed
+
+- **Adopted the shared rewrite-guard lib (#3409).** The inline
+  snapshot/take/compose protocol #3401 landed here is generalized into
+  `hooks/rewrite-guard.sh` (synced from `lib/rewrite-guard.sh`) so every sibling
+  formatter shares one implementation; behavior is unchanged, and the arms that
+  skip before the formatter now rely on the guard's EXIT trap for snapshot
+  release instead of per-arm `rm` lines.
+
 ## [0.7.25]
 
 ### Fixed

@@ -24,6 +24,8 @@ set -uo pipefail
 # twice would drain the pipe on the second call.
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
 
 hook::check_enabled "BIOME_FORMAT"
 
@@ -210,28 +212,20 @@ fi
 # on (an out-of-tree config has no in-tree biome.json, so the gate skips anyway).
 # Content-mutation disclosure (#1596): Biome may auto-fix and/or reformat layout
 # the user did not request. Name the rewrite on the user channel; stay silent
-# when the file is unchanged.
-_biome_before=""
-if _biome_before=$(mktemp 2>/dev/null); then
-  cp "$FILE" "$_biome_before" 2>/dev/null || _biome_before=""
-fi
-_biome_emit_mutation_if_changed() {
-  if [[ -n "$_biome_before" ]]; then
-    if ! cmp -s "$_biome_before" "$FILE" 2>/dev/null; then
-      hook::emit_system_message "biome-format: auto-fixed and/or reformatted $(basename "$FILE") via Biome."
-    fi
-    rm -f "$_biome_before"
-    _biome_before=""
-  fi
-}
+# when the file is unchanged. Snapshot lifecycle and single-document
+# composition live in the shared rewrite-guard lib (#3406, #3409): the
+# disclosure is TAKEN once after the check runs and composed into the exiting
+# arm's one JSON document, never emitted mid-run as a second document.
+BIOME_REWRITE_MESSAGE="biome-format: auto-fixed and/or reformatted $(basename "$FILE") via Biome."
+hook::rewrite_guard_begin "$FILE"
 
 if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
-  _biome_emit_mutation_if_changed
   emit_tel "ok" '[]'
+  hook::rewrite_disclose PostToolUse "$FILE" "$BIOME_REWRITE_MESSAGE"
   exit 0
 fi
 
-_biome_emit_mutation_if_changed
+hook::rewrite_take_disclosure "$FILE" "$BIOME_REWRITE_MESSAGE"
 
 # Non-zero exit. The github reporter emits one `::warning`/`::error`/`::notice`
 # line per diagnostic; their presence is the unambiguous signal that Biome made a
@@ -241,21 +235,21 @@ _biome_emit_mutation_if_changed
 # reflects whether the tool ran, not whether it was clean.
 FINDINGS=$(grep -E '^::(warning|error|notice)' <<<"$OUTPUT" || true)
 if [[ -n "$FINDINGS" ]]; then
-  hook::ctx_reset
-  hook::ctx_append "biome-format: $(basename "$FILE") has Biome findings (advisory):"
+  BIOME_CTX="biome-format: $(basename "$FILE") has Biome findings (advisory):"
   findings_raw=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    hook::ctx_append "  $line"
+    BIOME_CTX+=$'\n'"  $line"
     findings_raw+="$line"$'\n'
   done <<<"$FINDINGS"
-  hook::ctx_flush PostToolUse
 
   FINDINGS_JSON='[]'
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
   emit_tel "ok" "$FINDINGS_JSON"
+  # Findings AND a rewrite disclosure compose into one document (#3406).
+  hook::emit_channels PostToolUse "$BIOME_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
 
@@ -265,6 +259,10 @@ fi
 # not a finding and not a break, so skip silently without nagging via context.
 # (Biome 2.x respects files.includes ignores even for explicitly-passed paths.)
 if grep -qE 'No files were processed|provided but ignored' <<<"$OUTPUT"; then
+  # An ignored file was not rewritten, so the taken disclosure is empty and
+  # this emits nothing; kept unconditional so a surprising rewrite would
+  # still be disclosed rather than swallowed.
+  hook::emit_channels PostToolUse "" "$HOOK_REWRITE_MESSAGE"
   emit_skipped
 fi
 
@@ -273,12 +271,13 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran), the same status as the no-config /
 # no-binary paths.
-hook::ctx_reset
-hook::ctx_append "biome-format: biome failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+BIOME_CTX="biome-format: biome failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
-  hook::ctx_append "  $line"
+  BIOME_CTX+=$'\n'"  $line"
 done <<<"$OUTPUT"
-hook::ctx_flush PostToolUse
 emit_tel "skipped" '[]'
+# The --write pass may already have rewritten the file before Biome broke;
+# compose the taken disclosure with the tool-break context as one document.
+hook::emit_channels PostToolUse "$BIOME_CTX" "$HOOK_REWRITE_MESSAGE"
 exit 0

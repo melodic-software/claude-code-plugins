@@ -237,6 +237,34 @@ else
   fail "lint finding -> no additionalContext JSON: $OUT"
 fi
 
+# --- Case 4a: rewrite AND findings -> ONE JSON document, both channels -------
+# The #3406 regression: the format pass rewrites (x=1 -> x = 1) AND the verify
+# pass reports an unfixable F821, so the run carries a rewrite disclosure and
+# findings together. They must compose into a single JSON document — a second
+# printed object is an invalid hook response and either message can be lost.
+printf 'x=1\nprint(undefined_name)\n' >"$REPO/lib/both.py"
+OUT=$(run_hook "$REPO/lib/both.py")
+RC=$?
+if [[ $RC -eq 0 ]]; then ok "rewrite+findings -> exit 0 (advisory)"; else fail "rewrite+findings exit $RC"; fi
+DOCS=$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)
+if [[ "$DOCS" == "1" ]]; then
+  ok "rewrite+findings -> exactly one JSON document (#3406)"
+else
+  fail "rewrite+findings -> $DOCS documents on stdout (#3406): $OUT"
+fi
+if printf '%s' "$OUT" | jq -e '.systemMessage' >/dev/null 2>&1 &&
+  printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
+  CTX=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext')
+  MSG=$(printf '%s' "$OUT" | jq -r '.systemMessage')
+  if printf '%s' "$CTX" | grep -q 'F821' && printf '%s' "$MSG" | grep -qi 'reformatted'; then
+    ok "rewrite+findings -> both channels carried in the one document"
+  else
+    fail "rewrite+findings -> channels malformed (ctx=$CTX msg=$MSG)"
+  fi
+else
+  fail "rewrite+findings -> a channel is missing: $OUT"
+fi
+
 # --- Case 4b: mid-edit syntax error -> surfaced as a finding, not a break ----
 # The dominant on-edit trigger: the file does not parse yet. Ruff reports
 # invalid-syntax as a regular diagnostic (exit 1), so it must land in the

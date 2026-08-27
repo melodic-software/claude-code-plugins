@@ -531,6 +531,26 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
 
+  rewrite-guard-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify plugin copies match the shared lib
+        run: scripts/sync-rewrite-guard.sh --check
+      - name: Run shared lib tests
+        run: bash lib/rewrite-guard.test.sh
+      - name: Verify carrying plugins bumped when the lib changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-rewrite-guard.sh --check-bump "origin/$BASE_REF"
+
   parse-concern-value-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1586,6 +1606,7 @@ jobs:
       - hygiene
       - hook-utils-sync
       - hook-utils-windows
+      - rewrite-guard-sync
       - disk-hygiene-guard-windows
       - disk-hygiene-tests
       - windows-path-emit-gate
