@@ -124,4 +124,327 @@ deferred on 2026-08-12 and named as its own reopening trigger.
 
 ## Plan
 
-<!-- populated by /planning:plan -->
+Written 2026-08-27 by /planning:plan against the accepted design in `design/` (capability
+matrix, type inventory, plugin topology, design threads, convention engagement). Name locked:
+`provenance` (Q19, user pick at the design gate). This plan covers building and measuring the
+plugin (handoff actions 3 to 5). The repo-wide sweep and the convention engagement (actions 6
+and 7) are follow-on phases promoted to their own topic; see Phase 8.
+
+### Q16 and Q10 resolutions (recorded here; schema in `design/type-inventory.md`)
+
+Q16 (user-resolved 2026-08-27, posture not fixed numbers): accuracy is the goal, and
+recall-first: the user will spend more tokens rather than let copies slip through. Report
+surfaces are never filtered by any bar; the bars gate only fix-mode eligibility and release
+readiness, and every one of them is a tunable config key, not a constant. Defaults:
+`fix_precision_bar` 0.95, `report_recall_floor` 0.8, `min_n_per_class` 10. The same
+resolution funds a configurable verification-depth block (the `accuracy` config below):
+multi-pass nomination, perspective-diverse judges, and an optional independent review agent
+are all dials the consuming repo can turn up. The user's best case is a skill that improves
+its own accuracy over time; Phase 6 builds that loop (adjudicated findings become golden-set
+fixtures via shape-preserving synthetic rewrite; run telemetry retunes constants).
+
+Accuracy config (amends the type-inventory schema, dated note there): `accuracy: {
+nomination_passes: 2, judge_samples: 3, judge_lens_diversity: true, review_agents: 1,
+deep_research_on_exhaustion: false }`. Nomination passes union their nominations (recall
+bias); diverse judge lenses replace three identical prompts (S3 measured self-consistency
+only, and the user funded the diversity probe); `review_agents` adds fresh-context unbiased
+validators over STANDS verdicts before fix eligibility; `deep_research_on_exhaustion` lets a
+run escalate a not-found candidate to a /discovery:research-style pass instead of stopping at
+the budget, off by default because it multiplies cost per candidate.
+
+Q10 (plan-resolved from S5 telemetry): fetches are cheap (~0.55 s/page, compare ~29 ms/file),
+judge sampling is the cost center, and the user's accuracy-over-tokens directive says budgets
+exist to bound runaway loops, not to save money. Defaults, all config-tunable:
+`searches_per_candidate` 3, `fetches_per_candidate` 5, `corpus_fetch_ceiling` 200,
+`judge_samples` 3 (floor 3 for fix-eligible findings), `stamp_expiry_days` 180, separation
+`{min_containment: 0.3, min_span_words: 15}`.
+
+### Standards grounding
+
+No standards index exists (`docs/standards/` absent, no `.claude/standards.yaml`); rung-4
+inference from repository context that is not auto-loaded:
+
+| Surface | Sections cited | Layer provenance |
+|---|---|---|
+| detector-findings | `docs/conventions/detector-findings/README.md` (relay contract, severity crosswalk; enforced by `scripts/check-detector-findings-crosswalk.sh --check`) | team |
+| upstream-drift | `docs/conventions/upstream-drift/README.md` (four-part records, fetch route, recorded decision) | team |
+| untrusted-content | `docs/conventions/untrusted-content/README.md` (framing spine, inline byte-identical) | team |
+| config-cascade | `docs/conventions/config-cascade/README.md` (`.claude/provenance.json`, `--show-config`) | team |
+| shell-test-helpers | `docs/conventions/shell-test-helpers/README.md` (paired `.test.sh` shape) | team |
+| evals warrant | `scripts/check-changed-skills.sh --require-evals` plus `scripts/evals-warrant-exemptions.txt` | team |
+| house prose | `/ai-slop:audit` catalog; `.claude/rules/vendor-docs-are-not-style.md` (ambient, not re-pulled) | team |
+
+### Test strategy
+
+TDD (Red-Green-Refactor) for every deterministic script: the paired test is written first,
+red, then the script makes it green. Test boundaries, all settled by this plan's approval:
+
+- `fingerprint.mjs` pure module functions plus its CLI (newly introduced). First tests are the
+  two S2 amendment fixtures: an inline-quote fixture that must strip to zero matches, and a
+  real-sized-file fixture where a 27-word planted span must surface as a matched span, not a
+  diluted whole-file score.
+- The five bash script CLIs (newly introduced), fixture-driven per shell-test-helpers.
+- `evals/evals.json` per judgment-bearing skill (existing house harness; the CI warrant).
+- The golden-set harness (newly introduced): hand-scored case-level P/R with
+  `score-golden.sh` doing the mechanical tally. Runner-agnostic per the Brief.
+
+Edge cases owned by named tests: unparsed stamp forms decline with reasons (check-stamps),
+fixture-tree exclusion is unconditional (list-corpus), emitter refuses on unreachable contract
+(emit-findings), curly plus straight inline quotes strip (fingerprint).
+
+### Phases
+
+### Phase 1: Scaffold and registration [TODO]
+
+Create the plugin skeleton per `design/plugin-topology.md` and register it.
+
+- [ ] `plugins/provenance/.claude-plugin/plugin.json` CREATE (manifest, version 0.1.0)
+- [ ] `plugins/provenance/README.md` CREATE (boundary statement per topology doc, config keys, marker forms)
+- [ ] `plugins/provenance/CHANGELOG.md` CREATE
+- [ ] `.claude-plugin/marketplace.json` MODIFY (add entry, ai-slop entry as the shape precedent)
+
+**Sanity Check:** `jq empty plugins/provenance/.claude-plugin/plugin.json` exits 0;
+`jq -e '.plugins[] | select(.name == "provenance")' .claude-plugin/marketplace.json` exits 0;
+repo manifest CI scripts pass (`bash scripts/check-manifest-duplicate-keys.test.sh`).
+
+### Phase 2: Fingerprint module [TODO]
+
+Review: code-design
+
+The load-bearing pure module, rewritten from `spike-fingerprint.mjs` per prototype discipline
+(never lifted verbatim). Preprocessing inside the module: strip code fences, blockquotes, and
+inline-quoted spans (straight and curly) from the local text before shingling; then word
+5-shingles, containment, Jaccard, longest matched span; matched-SPAN verdicts with local line
+offsets. Contract: `design/type-inventory.md` "fingerprint.mjs".
+
+- [ ] `plugins/provenance/skills/audit/scripts/fingerprint.mjs` CREATE
+- [ ] `plugins/provenance/skills/audit/scripts/fingerprint.test.mjs` CREATE (first, red)
+
+**Sanity Check:** `node plugins/provenance/skills/audit/scripts/fingerprint.test.mjs` exits 0
+and its output names the inline-quote fixture and the span-dilution fixture as passing;
+`node .../fingerprint.mjs compare --local <fixture> --source <fixture> --json | jq -e
+'.matched_spans'` exits 0.
+
+### Phase 3: Deterministic scripts [TODO]
+
+The five bash scripts with paired tests, contracts in `design/type-inventory.md`. Each is
+reasoning-free (Brief C1); stdout JSON, stderr diagnostics, non-zero exit only on operational
+failure.
+
+- [ ] `plugins/provenance/skills/audit/scripts/list-corpus.sh` + `.test.sh` CREATE
+- [ ] `plugins/provenance/skills/audit/scripts/extract-breadcrumbs.sh` + `.test.sh` CREATE
+- [ ] `plugins/provenance/skills/audit/scripts/check-stamps.sh` + `.test.sh` CREATE
+- [ ] `plugins/provenance/skills/audit/scripts/emit-findings.sh` + `.test.sh` CREATE
+- [ ] `plugins/provenance/skills/audit/scripts/score-golden.sh` + `.test.sh` CREATE
+
+**Sanity Check:** `for t in plugins/provenance/skills/audit/scripts/*.test.sh; do bash "$t" ||
+exit 1; done` exits 0; `bash scripts/affected-tests.sh` includes and passes the new tests.
+
+### Phase 4: Reference artifacts [TODO]
+
+The versioned prose surfaces the audit flow loads at the step that needs them, per
+`design/plugin-topology.md` load order. The rubric catalog is the T7 shape: carve-outs first,
+four binary criteria with quoted-evidence requirements and worked pass/fail examples, the tier
+table, one four-part record per entry restating an externally-owned rule.
+
+- [ ] `plugins/provenance/skills/audit/reference/rubric.md` CREATE
+- [ ] `plugins/provenance/skills/audit/reference/dispositions.md` CREATE (three dispositions, guards, demotion path)
+- [ ] `plugins/provenance/skills/audit/reference/source-fetch.md` CREATE (rung ladder, identity checks, cache, budgets; four-part record citing upstream-drift)
+- [ ] `plugins/provenance/skills/audit/reference/nomination.md` CREATE (nomination and judge prompt templates, untrusted spine inline)
+- [ ] `plugins/provenance/skills/audit/context/persist-findings.md` CREATE (relay mechanics, refuse-when-unreachable)
+
+**Sanity Check:** `grep -c 'C[1-4]-' plugins/provenance/skills/audit/reference/rubric.md` >= 4;
+the untrusted-content spine appears byte-identical in `source-fetch.md` and `nomination.md`
+(`grep -F` of the spine's first line hits both); `/ai-slop:audit` over the five files reports
+clean.
+
+### Phase 5: Skills and evals [TODO]
+
+Review: code-design
+
+The two SKILL.md surfaces (audit with actions `audit` default read-only, `fix`, `sweep`;
+setup for config management) plus their evals. Fix and sweep mechanics follow the Brief:
+explicit argument only, semantic-diff guard, pointer liveness, closure accounting. The setup
+skill manages `.claude/provenance.json` including the Q16/Q10 keys and the `accuracy` block
+above; the audit flow reads the accuracy dials when spawning nomination, judge, and review
+subagents.
+
+- [ ] `plugins/provenance/skills/audit/SKILL.md` CREATE
+- [ ] `plugins/provenance/skills/audit/evals/evals.json` CREATE
+- [ ] `plugins/provenance/skills/setup/SKILL.md` CREATE
+- [ ] `plugins/provenance/skills/setup/evals/evals.json` CREATE
+
+**Sanity Check:** `bash scripts/check-changed-skills.sh --require-evals` exits 0 with the two
+new skills in scope; `/skill-quality:check` over both SKILL.md files reports no blocking
+findings; `grep -n 'fix' plugins/provenance/skills/audit/SKILL.md` shows fix reachable only
+under an explicit-argument heading.
+
+### Phase 6: Golden set, measurement, and the improvement loop [TODO]
+
+Author 5 to 10 synthetic cases per the type-inventory case shape (positives as
+shape-preserving rewrites of real history cases, hard negatives including
+paraphrase-styled-never-copied distractors and quoted-and-cited excerpts, plus 2 to 3
+adversarial synonym-rotation cases probing the separation rule, per design thread T15). Run
+the audit over the fixture corpus, hand-score case-level P/R, tune the separation constants
+and budgets from the measured telemetry, and record the measured values in this PLAN. Build
+the improvement loop: an `adjudications.md` reference section in the audit skill instructing
+that human-rejected findings and later-discovered misses are converted (synthetic rewrite,
+never verbatim externally-owned text) into new golden cases, so the set grows toward 20 to 50
+and accuracy improves run over run. This phase also measures the accuracy dials the user
+funded: diverse judge lenses versus identical prompts (the T15 diversity probe, now in scope)
+and multi-pass nomination union, scored against the same golden set so each dial's recall
+gain is a recorded number, not a belief.
+
+- [ ] `plugins/provenance/skills/audit/evals/fixtures/golden/c01-.../` CREATE (5 to 10 case dirs: case.md, expected.json, source.md where needed)
+- [ ] `plugins/provenance/skills/audit/reference/dispositions.md` MODIFY (adjudication-to-fixture loop, if not landed in Phase 4)
+- [ ] `docs/topics/copied-external-content/PLAN.md` MODIFY (record measured P/R)
+
+**Sanity Check:** `bash plugins/provenance/skills/audit/scripts/score-golden.sh --report
+<sidecar>` exits 0 and emits per-class P/R; `bash plugins/provenance/skills/audit/scripts/list-corpus.sh
+plugins/provenance` output does NOT contain `fixtures/golden` (unconditional exclusion);
+measured P/R values recorded in this file.
+
+### Phase 7: Crosswalk registration and quality gate [TODO]
+
+Land the three draft crosswalk rows from `design/type-inventory.md` in the detector-findings
+registry, then run the full-repo quality gates over every new surface.
+
+- [ ] `docs/conventions/detector-findings/README.md` MODIFY (three rows: rule-verbatim-copy, rule-stamp-expired, rule-trigger-less-stamp)
+- [ ] `docs/conventions/detector-findings/CHANGELOG.md` MODIFY (entry for the rows)
+- [ ] `plugins/provenance/**` KEEP (audited by the gates, no planned change)
+
+**Sanity Check:** `bash scripts/check-detector-findings-crosswalk.sh --check` exits 0;
+`/ai-slop:audit` over `plugins/provenance` reports clean; full repo CI test lane
+(`bash scripts/affected-tests.sh`) exits 0.
+
+### Phase 8: Sweep and convention engagement (promoted sub-topic) [TODO]
+
+The repo-wide sweep under the Brief's execution contract, the combined upstream-drift
+convention engagement (executing `design/convention-engagement.md`), and the narrow CI
+regression gate for the cleaned state are promoted to their own topic
+(`docs/topics/provenance-sweep/`, own PLAN.md) per the sub-topic promotion trigger: own
+commit boundaries, more than five work items, and its own measurement needs. This phase in
+the parent plan is only the promotion itself.
+
+- [ ] `docs/topics/provenance-sweep/PLAN.md` CREATE (Brief inherited from this file's execution-contract criteria)
+
+**Sanity Check:** the sub-topic PLAN.md exists and its Brief cites this file; nothing under
+`plugins/provenance` changes in this phase (`git diff --name-only` for the phase touches only
+`docs/topics/provenance-sweep/`).
+
+### Alternatives considered
+
+| Alternative | Why rejected |
+|---|---|
+| Fold into docs-hygiene instead of a new plugin | Interview Q1, validated: ai-slop is the structural precedent; boundary argued against every adjacent owner in `design/plugin-topology.md` |
+| Deterministic web-scale copy detection | No candidate corpus, no durable search-API substrate (RESEARCH.md); rejected before design |
+| Whole-file containment verdicts | S2: a real 27-word match diluted to 0.019 on a 2,912-shingle file; span reporting adopted |
+| `claude plugin eval` as the v1 harness | Runner refuses with an early-access gate on CLI 2.1.246, probed twice by execution; single-track evals.json plus golden set instead |
+| Fixed Q16 bars as constants | User resolution 2026-08-27: recall-first posture, everything tunable; bars became config defaults |
+
+### Risks and mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| Verification depth makes runs slow and token-heavy | High | Low | Accepted explicitly by the user (accuracy over tokens, 2026-08-27); every dial is config; convergence early-stop bounds loops |
+| Fingerprint evaded by systematic paraphrase | Med | Med | Such spans stay `llm-suspected`, report-only by contract; adversarial fixtures in Phase 6 measure the boundary |
+| Golden-set fixtures leak externally-owned text | Low | High | Synthetic-only rule stated in the case shape; Phase 6 review checks every source.md is invented |
+| Fix rewrite loses meaning | Low | High | Fresh-context semantic-diff verifier, revert accounting, pointer liveness at edit time (Brief) |
+| Report noise at recall-first posture | Med | Low | Tiers keep report surfaces triaged; carve-outs run before criteria; user accepted the trade explicitly |
+
+## Blast radius
+
+MEDIUM. Additive new plugin directory plus two shared-surface edits (marketplace.json, the
+detector-findings registry). Stress-test triggers matched: new skill creation with side
+effects (fix mode edits files), new enforcement surface (relay rules), multi-step build.
+Formal stress-test: run (Step 4).
+
+## Stress-test summary
+
+<!-- populated after Step 3/4 -->
+
+## Execution shape
+
+Phase 1 gates everything (the directory skeleton). After it, Wave A runs three file-disjoint
+phases in parallel; Wave B is sequential because each consumes prior outputs.
+
+### Phase file-overlap matrix
+
+| Phase | Files | Overlaps with |
+|---|---|---|
+| 2 | `scripts/fingerprint.*` | none |
+| 3 | `scripts/*.sh`, `scripts/*.test.sh` | none |
+| 4 | `reference/*.md`, `context/*.md` | 6 (dispositions.md, if loop text lands late) |
+| 5 | `skills/*/SKILL.md`, `evals/evals.json` | none |
+| 6 | `evals/fixtures/golden/**`, PLAN.md | 4 (dispositions.md) |
+| 7 | `docs/conventions/detector-findings/*` | none |
+| 8 | `docs/topics/provenance-sweep/` | none |
+
+### Recommended shape
+
+> Wave A (parallel sub-agents, single message): Phases 2, 3, 4
+> Wave B (sequential after Wave A): 5, then 6, then 7, then 8
+> Cost note: 3 parallel agents multiply token usage roughly 3x over sequential for that wave;
+> sequential remains valid and loses only wall-clock.
+> Fallback: on a scope-fence violation, concurrent-edit race, or an agent reporting
+> cannot-complete, abort that agent and run 2 then 3 then 4 sequentially; other agents continue.
+
+### Scope-fencing tables (Wave A)
+
+| Agent | Phase | ALLOWED files | LOC est |
+|---|---|---|---|
+| A1 | 2 | `plugins/provenance/skills/audit/scripts/fingerprint.mjs`, `fingerprint.test.mjs` | ~450 |
+| A2 | 3 | `plugins/provenance/skills/audit/scripts/*.sh`, `*.test.sh` (five pairs) | ~900 |
+| A3 | 4 | `plugins/provenance/skills/audit/reference/*.md`, `context/persist-findings.md` | ~600 |
+
+Each agent FORBIDDEN: any file outside its ALLOWED list; PLAN.md; other agents' territory;
+staging, commit, or push. Each worker brief carries the divergence-escalation clause from the
+plan template verbatim.
+
+### Per-phase routing table
+
+| Phase | Surface | Basis |
+|---|---|---|
+| 1 | main-session | small, touches the shared marketplace manifest |
+| 2 | sub-agent worker | pure module, fixture-driven TDD, fully fenced |
+| 3 | sub-agent worker | mechanical script pairs, contracts fully specified in type-inventory |
+| 4 | main-session | judgment-heavy prose to house style, spine must land byte-identical |
+| 5 | main-session | judgment-heavy; composes every prior artifact |
+| 6 | main-session | hand-scoring is human-adjacent judgment; records values into PLAN |
+| 7 | main-session | shared convention registry edit, argued rows |
+| 8 | main-session | promotion only |
+
+## Open questions
+
+- None blocking. T15 probes (adversarial fixtures, live not-found case, judge prompt
+  diversity) are scheduled inside Phase 6 and the sub-topic, not open decisions.
+
+## Handoff to implementation
+
+### User-approval gates
+
+- Phase 6 records measured P/R; if any fix-eligible class misses the (tunable) bar, fix mode
+  for that class ships report-only and the user is told which key to tune, never a silent
+  demotion reversal.
+- Any scope expansion beyond `plugins/provenance/**` plus the two named shared surfaces stops
+  for approval.
+
+### Execution shape ([EXEC-SHAPE] tagged)
+
+- [EXEC-SHAPE] Wave A parallelism (Phases 2, 3, 4) with the scope fences above; sequential
+  fallback documented. Basis: file-disjoint per the overlap matrix.
+- [EXEC-SHAPE] Q10 budget defaults set from S5 telemetry (values above). Basis: Brief names
+  /planning:plan as Q10 arbiter; S5 numbers captured this session.
+- [EXEC-SHAPE] Sub-topic promotion of the sweep (Phase 8). Basis: promotion trigger rows
+  (commit boundary, item count) in the plan template.
+- [EXEC-SHAPE] Q16 defaults 0.95 / 0.8 / 10 and the `accuracy` block defaults (2 nomination
+  passes, 3 diverse judges, 1 review agent, deep-research escalation off) as config-key
+  values under the user's accuracy-first, all-tunable resolution. Basis: user answers at the
+  Q16 round and the mid-plan accuracy directive, both 2026-08-27.
+
+### Mechanical work
+
+- Commit boundary per phase, conventional-commit subjects, phase tag flipped in the same
+  commit as the phase's changes.
+- Verification checkpoint per phase is its Sanity Check block, run before the phase commit.
+- Sequential fallback path as stated in Execution shape.

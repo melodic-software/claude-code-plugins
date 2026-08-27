@@ -135,18 +135,30 @@ every surface the producer emits to.
   "budgets": {
     "searches_per_candidate": 3,
     "fetches_per_candidate": 5,
-    "corpus_fetch_ceiling": 60
+    "corpus_fetch_ceiling": 200
   },
   "separation": { "min_containment": 0.3, "min_span_words": 15 },
   "stamp_expiry_days": 180,
   "trigger_less_stamp_check": false,
-  "judge_samples": 3
+  "judge_samples": 3,
+  "gates": {
+    "fix_precision_bar": 0.95,
+    "report_recall_floor": 0.8,
+    "min_n_per_class": 10
+  },
+  "accuracy": {
+    "nomination_passes": 2,
+    "judge_lens_diversity": true,
+    "review_agents": 1,
+    "deep_research_on_exhaustion": false
+  }
 }
 ```
 
-All numeric values above are PLACEHOLDERS: Q10 constants are tuned at plan time from S5-style
-telemetry; Q16 numeric bars are user-reserved at the plan gate. The schema is the design
-decision; the numbers are not.
+Amended 2026-08-27 at plan time: the user resolved Q16 as an accuracy-first, all-tunable
+posture (spend tokens rather than miss copies), which added the `gates` and `accuracy` blocks
+and set the numeric defaults; PLAN.md's Q16/Q10 resolutions section is the record. Gates bind
+fix-mode eligibility and release readiness only; report surfaces are never filtered by them.
 
 ## Golden-set case shape (runner-agnostic)
 
