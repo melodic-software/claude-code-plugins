@@ -198,6 +198,8 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" \
       return "Substitute per rewrite-guide.md: \"in order to\" -> \"to\", \"due to the fact that\" -> \"because\"; delete the note-phrases outright"
     if (slug == "rule-stacked-hedging")
       return "Keep the one hedge that states the real uncertainty; drop the other"
+    if (slug == "rule-model-era-phrases")
+      return "Rewrite per rewrite-guide.md model-era guidance: state the point without the stock construction"
     return "Guarded rewrite via /ai-slop:audit fix (judgment; see crosswalk row)"
   }
   # Cell-escaping rule: literal | becomes \| inside Finding/Action cells.
