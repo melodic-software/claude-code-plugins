@@ -3,6 +3,16 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.10]
+
+### Fixed
+
+- **`persist-findings.md` no longer reaches the marketplace `docs/` tree by a relative escape.** Two
+  citations of the topic-docs convention used `../../../../../docs/...`, which resolves only inside a
+  marketplace checkout and is dead in an installed plugin — while the same file instructs "if the
+  contract cannot be fetched, do not write". Both now use the absolute raw-GitHub form the file
+  already uses for the detector-findings contract. Coupling pass, apply lane.
+
 ## [0.3.9]
 
 ### Changed

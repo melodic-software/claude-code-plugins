@@ -110,7 +110,7 @@ findings route to the owning repository rather than being edited in place.
 
 **Check I15 asks a different question with a different unit of judgment.** Do two surfaces
 contradict each other? A per-surface lane sees only one half of a pair, so it is answered by its own
-pass over the pair set, against `reference/conflict-criteria.md`. The `conflicts` scope runs that
+pass over the pair set, against `skills/audit-instructions/reference/conflict-criteria.md`. The `conflicts` scope runs that
 pass alone, so a scheduled hygiene routine can compose it on its own token budget.
 
 ```shell

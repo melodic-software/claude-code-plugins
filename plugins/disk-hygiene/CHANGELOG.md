@@ -3,6 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.31]
+
+### Fixed
+
+- **`safety-model.md` named one valueless scan flag where the guard strips two.** The engine grammar
+  section claimed `--confirmed-large-scan` was "the one valueless scan flag", while
+  `destructive_guard.py` strips at most one each of `--confirmed-large-scan` and `--root-children` —
+  and the same document already documents `--root-children` in its root-children section, so it
+  contradicted itself on a safety surface. The prose now matches the parser. Coupling pass, apply lane;
+  no code change.
+
 ## [0.20.30]
 
 ### Changed

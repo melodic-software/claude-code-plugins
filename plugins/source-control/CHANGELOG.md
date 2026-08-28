@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.26]
+
+### Changed
+
+- **The last unanchored `safety.md` citation in `review-discipline.md` now resolves.** The file sits at
+  the plugin level, so a bare `reference/safety.md` span resolved against
+  `plugins/source-control/reference/`, where no such file exists. It now uses the
+  `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/safety.md` form the same file already uses for
+  the identical target twice. Coupling pass, apply lane; text only.
+
 ## [0.55.25]
 
 ### Changed

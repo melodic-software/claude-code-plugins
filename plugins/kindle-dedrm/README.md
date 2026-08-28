@@ -58,7 +58,7 @@ books the whole workflow exists to produce.
 
 ## How it works
 
-The skill probes machine state on every invocation (`scripts/status.sh`, a
+The skill probes machine state on every invocation (`skills/manage/scripts/status.sh`, a
 read-only JSON reporter) and routes to the matching action. The core hazard it
 manages is Amazon's aggressive 2.9.x auto-update, which breaks key extraction: a
 Windows Firewall rule plus an ICACLS deny on the update directory pin Kindle for

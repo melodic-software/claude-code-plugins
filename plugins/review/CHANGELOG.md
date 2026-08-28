@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.11]
+
+### Changed
+
+- **`fanout`'s cross-skill citation of `quality-gate/context/pr.md` uses the anchored form.** The link
+  target resolved; the code span beside it did not, since a bare path resolves against the citing
+  skill's own directory. Coupling pass, apply lane; text only.
+
 ## [0.26.10]
 
 ### Changed
