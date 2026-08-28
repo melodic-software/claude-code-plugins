@@ -33,7 +33,7 @@ metadata:
 
 ## Pre-computed context
 
-Uncommitted changes: !`git status --porcelain 2>/dev/null | head -5 || echo ""`
+Uncommitted changes (empty = none): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -5`
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 ## Purpose

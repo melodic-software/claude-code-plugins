@@ -1,5 +1,41 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.22]
+
+### Changed
+
+- **`audit-noise`: the body-scope fence stops citing a line number that says the opposite.**
+  `context/persist-findings.md` cited `plugins/skill-quality/scripts/check-skill.sh:414` as the hard
+  FAIL for a dropped trigger phrase. Line 414 sits inside a comment explaining that a trigger
+  **move** WARNs and never blocks; the `err` is at 462. It now names the trigger-phrase drop check
+  rather than a line, matching the fix `detector-findings` 2.7.1 applied to the same claim in the
+  convention doc. Whole-repo extract-ssot sweep.
+
+- **`audit-noise`: the declined-shape count corrected from five to eight.**
+  `context/persist-findings.md` and `scripts/emit-findings.sh`'s header each said the scanner marks
+  six shapes and declines five, naming `citation`, `ghost-ref`, `preamble`, `enum-list` and
+  `scope-meta`. `scripts/lib/noise-shapes.sh` appends eight — those five plus `plan-reference`,
+  `conversational-antecedent` and `ticket-pr-residue` — and `detect.sh` drives a ninth, `negation`,
+  over an accumulated paragraph. So `## Surfaces` reports declined counts for three shapes those two
+  files do not list. `SKILL.md` was inconsistent rather than wrong: it says nine throughout and
+  documents all three newer shapes, but one sentence said "the other five". Both context files now
+  name all eight, and all three point at `audit_noise_detect_shapes_into` as the count's source
+  rather than restating the number as a fact. No behavior changes. Found by the whole-repo
+  extract-ssot sweep.
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and this plugin's orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
 ## [0.21.21]
 
 ### Changed

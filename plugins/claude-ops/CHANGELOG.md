@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.16]
+## [0.38.17]
 
 ### Changed
 
@@ -13,6 +13,15 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
   because `scripts/sync-hook-utils.sh` keeps every carrying plugin
   byte-identical.
+
+## [0.38.16]
+
+### Changed
+
+- **`setup`: repaired a comma splice in the headless-reconfigure caveat.** An em-dash purge had
+  fused two sentences, leaving "Re-verify before relying on it outside those conditions, a
+  `sensitive` option, or `project`/`local` scope, were not covered", whose subject and verb no
+  longer agree. Now two sentences. Whole-repo extract-ssot sweep.
 
 ## [0.38.15]
 

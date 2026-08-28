@@ -3,6 +3,28 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.16]
+
+### Changed
+
+- **Attribution and load-list corrections, plus persistence-block normalization.** Four sites
+  credited a seven-title-type taxonomy to Pat Pattison that this plugin's own owner file records as
+  unaudited and not his; three skills stated a filter's mandatory load list as two files where the
+  filter names seven; nine skills had dropped the canonical's `first match` qualifier from the
+  template-override rule. Whole-repo extract-ssot sweep.
+
+- **`suno`: the character-budget floor, the retired-clip-count note, and ledger row S20.**
+  `SKILL.md`'s inline budget table and its `context/style.md` mirror had drifted on their
+  verification notes, so the declared floor was not byte-identical to its reference. Both now match,
+  and `style.md` keeps its v4-legacy row. Ledger row S20 named only `SKILL.md` as its site, so an
+  audit following the ledger would have updated one copy and left the other stale; its Site cell now
+  names both, per the ledger's own rule that a moved row updates the table and this changelog in the
+  same pull request. The retired three-clip guidance consolidates into `context/voices.md`, the
+  declared full guide, with `context/tips.md` and `context/v55-features.md` pointing at it. Those two
+  keep an explicit "deliberately retired, do not reintroduce" line rather than only a pointer,
+  because an earlier release records that inline note as this plugin's defense against the advice
+  regrowing.
+
 ## [1.4.15]
 
 ### Changed

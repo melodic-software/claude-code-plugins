@@ -89,10 +89,13 @@ assistant violated its own rubric. Do not attribute them to Pat.
 3. **A FAILED pass kills the candidate.** It does not reach the menu with the
    flag attached. A disclosed failure is still a failure shown, and the writer's
    attention is what the disclosure spends.
-4. **Two rejections in a slot ends generation.** When the writer rejects
-   execution twice for the same slot, STOP generating and hand the CONCEPT to the
-   writer instead of producing a third batch. **Two** is the writer's own
-   threshold; the AI does not raise it. *Slot* = the lyric position under
+4. **Two rejected executions in a slot stops generation.**
+   `/songwriting:co-write` Handlers owns this rule; the definitions below are
+   restated here because this file runs under three skills. When the writer
+   rejects execution twice for the same slot, STOP generating and hand the
+   CONCEPT to the writer instead of producing a third batch. **Two** is the
+   writer's own threshold (Sofía sessions, 2026-08-12); the AI does not raise
+   it. *Slot* = the lyric position under
    revision — one line, or one section when the section is being rewritten whole;
    not the metrical or rhyme slot the craft files mean. *Rejection* = the writer
    declines the batch's EXECUTION ("none of these", "the idea's right, the lines

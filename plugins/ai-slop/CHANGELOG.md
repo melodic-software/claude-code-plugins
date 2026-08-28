@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.3]
+
+### Changed
+
+- **Findings-file producer preamble normalized against its contract.** The four
+  `persist-findings.md` preambles this sweep touched now carry byte-identical text apart from the
+  run-name slot. `testing:audit` states the same contract as a numbered `apply` step, keeps that
+  form by design, and regains the three load-bearing clauses it had dropped, including that the
+  contract wins where the two disagree. `provenance:audit`'s preamble landed later and is outside
+  this set: it opens on "this plugin's read" rather than "this skill's" and carries a resolution
+  list the four do not, so it is a sixth surface, not a fifth copy. Whole-repo extract-ssot sweep.
+
 ## [0.5.2]
 
 ### Changed
