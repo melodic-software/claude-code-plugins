@@ -2,7 +2,7 @@
 
 This file documents how to generate presentation slides from ai-briefing output.
 
-**Canonical pipeline = in-tree `output/build/*.js`** (Node ESM, pptxgenjs + playwright direct). Reproduces the deck deterministically from the active brand (default neutral tokens in `output/build/brand.js`, or a declarative profile `brand.json` overlay). See `references/build-pipeline.md` for build commands, `slides-data.js` schema, slide types, and prerequisites.
+**Canonical pipeline = in-tree `output/build/*.js`** (Node ESM, pptxgenjs + playwright direct). Reproduces the deck deterministically from the active brand (default neutral tokens in `output/build/brand.js`, or a declarative profile `brand.json` overlay). Build commands, the `slides-data.js` schema, slide types, and prerequisites: see `references/build-pipeline.md`.
 
 The `/document-skills:pptx` skill stack is documented as a **fallback path** at the bottom of this file — only used when the in-tree pipeline cannot run.
 
@@ -178,7 +178,7 @@ Read `meeting_n` from `context/seen-items.json`. On `--format slides|html`:
 
 ## In-tree build pipeline (canonical)
 
-See `references/build-pipeline.md` for full schema, commands, and dependency setup. Quick summary:
+Full schema, commands, and dependency setup: see `references/build-pipeline.md`. Quick summary:
 
 ```bash
 cd output/build

@@ -3,6 +3,39 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.12]
+
+### Changed
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
+- **Findings-file producer preamble normalized against its contract.** The four
+  `persist-findings.md` preambles this sweep touched now carry byte-identical text apart from the
+  run-name slot. `testing:audit` states the same contract as a numbered `apply` step, keeps that
+  form by design, and regains the three load-bearing clauses it had dropped, including that the
+  contract wins where the two disagree. `provenance:audit`'s preamble landed later and is outside
+  this set: it opens on "this plugin's read" rather than "this skill's" and carries a resolution
+  list the four do not, so it is a sixth surface, not a fifth copy. Whole-repo extract-ssot sweep.
+
+## [0.3.11]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.3.10]
+
+### Fixed
+
+- **`persist-findings.md` no longer reaches the marketplace `docs/` tree by a relative escape.** Two
+  citations of the topic-docs convention used `../../../../../docs/...`, which resolves only inside a
+  marketplace checkout and is dead in an installed plugin — while the same file instructs "if the
+  contract cannot be fetched, do not write". Both now use the absolute raw-GitHub form the file
+  already uses for the detector-findings contract. Coupling pass, apply lane.
+
 ## [0.3.9]
 
 ### Changed

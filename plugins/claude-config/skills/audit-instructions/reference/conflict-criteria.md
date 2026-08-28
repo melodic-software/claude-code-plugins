@@ -602,7 +602,7 @@ the operator's decision — it must never be recorded as one.
 
 **2. A near-miss the gates correctly reject — description-versus-body divergence.**
 `claude-memory:audit`'s `description` (in `SKILL.md`) sells "memory health" and greps zero for
-conflict, contradict, or consistency, while `reference/criteria.md` ships C6, an explicit
+conflict, contradict, or consistency, while that skill's own `reference/criteria.md` ships C6, an explicit
 contradiction check. Two different files, both readable, genuinely out of step — and the divergence
 has real cost: it is why repeated incumbent searches over skill descriptions concluded no conflict
 detector existed in this repository.

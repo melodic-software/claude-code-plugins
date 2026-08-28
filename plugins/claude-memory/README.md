@@ -11,7 +11,7 @@ It ships two skills:
 The two skills split by axis: `audit` checks the health of the instruction/memory layer; `stateless`
 controls the on/off state and contents of the Claude-written auto-memory store. The configuration
 FILES, automation SET, and permission GRANTS are audited by the sibling skills in the separate
-`claude-config` plugin (`audit`, `automation-gaps`, `permission-hygiene`).
+`claude-config` plugin (`audit`, `audit-automation-gaps`, `audit-permission-grants`).
 
 ## What the skills do
 

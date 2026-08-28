@@ -42,7 +42,7 @@ marketplace source AND allowlist its name in the same file:
 ```
 
 The source declaration is required for any non-official marketplace: the allowlisted name is
-ignored if the locally registered marketplace came from a different source, which stops an
+ignored if the locally registered marketplace came from a different source. That rule stops an
 unrelated catalog from registering under an allowlisted name to get its plugins suggested.
 Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
 

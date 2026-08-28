@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.5.4]
+
+### Fixed
+
+- **`audit`: the `detector unavailable` fallback could not render.** The effective-config probe was
+  `${CLAUDE_SKILL_DIR}/scripts/detect.sh --show-config 2>/dev/null | head -8 || echo "detector
+  unavailable"`. `head` exits 0 no matter how `detect.sh` exited, so a skill directory without the
+  script rendered a blank config line rather than saying the detector was missing, and the reader
+  had no way to tell a detector that reported no config from one that never ran. Verified by
+  execution: with the script absent the old shape rendered `[]` and the new one renders
+  `[detector unavailable]`; with the real script both render the seven-line effective config. The
+  probe now guards itself by running `--show-config` once to `/dev/null` and only then piping the
+  second run into `head`. The double run costs 72 ms measured on this repository. Both subcommands
+  still begin `${CLAUDE_SKILL_DIR}/scripts/detect.sh`, so the existing
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)` grant covers each of them independently, as the
+  permissions docs require for a compound command; `head` keeps its own grant. Nothing was widened.
+
+## [0.5.3]
+
+### Changed
+
+- **Findings-file producer preamble normalized against its contract.** The four
+  `persist-findings.md` preambles this sweep touched now carry byte-identical text apart from the
+  run-name slot. `testing:audit` states the same contract as a numbered `apply` step, keeps that
+  form by design, and regains the three load-bearing clauses it had dropped, including that the
+  contract wins where the two disagree. `provenance:audit`'s preamble landed later and is outside
+  this set: it opens on "this plugin's read" rather than "this skill's" and carries a resolution
+  list the four do not, so it is a sixth surface, not a fifth copy. Whole-repo extract-ssot sweep.
+
+## [0.5.2]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.5.1]
 
 ### Changed

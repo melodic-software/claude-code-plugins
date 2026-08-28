@@ -199,7 +199,7 @@ no reclamation test consults.
 - **`heartbeat_at` must not move backwards, and must not run away forwards.** A clock adjustment that
   rewinds it would make a live run read stale, so a refresh writes `max(now, previous)`. But
   `max(now, previous)` alone preserves a timestamp written during a *forward* jump that is later
-  corrected — and since liveness only tests `now - heartbeat_at < 5 minutes`, a future timestamp
+  corrected — and since liveness only tests `now - heartbeat_at < stale_after_s`, a future timestamp
   keeps the lease live for the whole skew interval **even if the process has since crashed**, so
   every `--resume` refuses an abandoned run indefinitely. That is the worse failure of the two,
   because the backwards case costs a re-run and this one costs the artifact.

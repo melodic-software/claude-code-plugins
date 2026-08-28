@@ -4,6 +4,47 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.23]
+
+### Fixed
+
+- **`video-digest`: the prerequisites gate could not fire, so a skill documented as failing closed
+  failed open.** The skill's own "Prerequisites gate" step says to STOP if the pre-computed context
+  shows `MISSING` for yt-dlp, ffmpeg, or ImageMagick, and cloud agents without the media toolchain
+  are supposed to stop there. The three probes were written
+  `yt-dlp --version 2>/dev/null | head -1 || echo "MISSING ..."`. `||` binds to the whole pipeline,
+  a pipeline's exit status is its last command's, and `head` exits 0 whether the probe printed a
+  version or nothing at all, so with the tool absent the line rendered as an empty string and the
+  word `MISSING` never appeared. Verified by execution on a host with none of the three installed:
+  the old shape rendered `yt-dlp: []`, the new one renders
+  `yt-dlp: [MISSING — install yt-dlp (see Prerequisites)]`. Each probe now leads with
+  `command -v <tool> >/dev/null 2>&1 &&`, so the `||` fires on probe failure; with the tool present
+  the real version still renders. This is the shape `firecrawl:firecrawl` already ships and the rule
+  `plugins/playbooks/skills/skill-authoring/reference/precompute-context.md` codifies under "Bind
+  the fallback to the probe, not to the pipeline".
+- **`course-digest`: the same two probes, the same repair.** Its ffmpeg and ImageMagick probes
+  carried the identical pipeline-bound fallback. This skill has no STOP step reading them, so the
+  consequence was a silently blank prerequisites line rather than a dead gate, but the defect is the
+  same one.
+
+Neither skill declares `allowed-tools`, so no grant changed.
+
+## [0.13.22]
+
+### Changed
+
+- **`setup`: repaired a broken numbered-list item and a comma splice in the headless-reconfigure
+  recipe.** One continuation line had lost its indentation, which ended the list item early and
+  detached the 2.1.240 verification stamp from the claim it qualifies; the same block also carried
+  the fused-sentence splice the fleet's other setup skills had. Whole-repo extract-ssot sweep.
+
+## [0.13.21]
+
+### Changed
+
+- **Grammar repaired where the em-dash purge left a sentence broken.** `skills/docpage-digest/SKILL.md`. The #2891 substitution replaced a dash without restructuring the sentence, leaving a verbless fragment or a comma splice. Wording only; no rule changed.
+- **Authoring-doctrine pass over `README.md`, `skills/video-digest/context/companion-primary-sources.md`, `skills/video-digest/templates/readme-journey.md`, `skills/video-digest/templates/recommendations/menu.md`.** Fixed pointers and cross-references that did not resolve; counts and inventories that had drifted from the tree. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.13.20]
 
 ### Changed

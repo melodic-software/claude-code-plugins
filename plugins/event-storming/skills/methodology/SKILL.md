@@ -183,8 +183,7 @@ Architecture") for the sticky-color-to-tactical-pattern mapping and how to trans
 building blocks your own stack uses.
 
 EventStorming directly informs bounded context discovery, domain event design, aggregate
-boundaries, command/query separation, policy identification, and hot-spot tracking. See
-`reference/design-level.md` for the concrete code mapping.
+boundaries, command/query separation, policy identification, and hot-spot tracking.
 
 When using this skill for domain modeling, read the consuming project's own architecture and
 language conventions (its `CLAUDE.md` / `.claude/rules` or equivalent) and map the tactical

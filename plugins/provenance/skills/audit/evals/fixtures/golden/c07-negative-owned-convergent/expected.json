@@ -1,0 +1,11 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "The paraphrase-styled-never-copied distractor, and the hardest negative in the set. It is written in the same flat declarative register as a vendor reference page, on a subject the supplied source page also documents (pools, sizing, draining), and a nomination pass biased for recall should and does propose it.",
+    "carve_outs": "Owned content applies. The discriminator is direction, and the question is whether this passage could have been written without the source in hand. It could: three named pools, six agents, two agents at sixty-four gigabytes, one release agent, a depth-eleven spike at push time, and a third heavy agent that made the second slower are observations of this repository's own queue. None of them exists upstream.",
+    "rubric": "C1 FAILS, and one failing criterion clears the candidate. There is topic overlap and no span correspondence: the source says pools are sized by the operator from reported queue depth, and this file says what this operator observed and chose. That is what topic overlap looks like when there is no copy under it.",
+    "measured": "fingerprint.mjs at k=5: containment 0.0, jaccard 0.0, no matched spans. The separation rule does not fire.",
+    "carries": "This case fails a run that treats subject-matter proximity plus a declarative register as evidence. Recall bias belongs in nomination; a nomination that survives to a finding here is a false positive, and it is the false positive this detector is most likely to produce."
+  }
+}

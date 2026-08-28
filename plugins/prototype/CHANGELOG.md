@@ -3,6 +3,55 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.8]
+
+### Added
+
+- **`detect-ecosystems.sh` and both skill wrappers now have sibling test suites.** All three
+  files mapped to ZERO suites under `scripts/affected-tests.sh`, which the repo contract treats
+  as an error rather than "nothing to run": a change to the ecosystem detector, the preamble
+  command both skills run before anything else, selected no coverage at all.
+  `scripts/detect-ecosystems.test.sh` covers the detector itself (every marker it looks for,
+  glob-order output, the unmatched-glob literal that must never leak, space-bearing filenames,
+  directory and symlink markers, the root-anchoring precedence of `CLAUDE_PROJECT_DIR` over the
+  git toplevel over the cwd, and the nonexistent-project-dir degradation the `cd ... || true`
+  exists for). Each skill's `scripts/detect-ecosystems.test.sh` is a thin contract suite for its
+  wrapper: it delegates rather than duplicates, it stays self-locating instead of expanding
+  `${CLAUDE_PLUGIN_ROOT}`, its rationale comment survives, its executable body matches the other
+  skill's copy, and its output is byte-identical to the canonical detector's on the same fixture.
+  No script changed; this is coverage only.
+
+## [0.9.7]
+
+### Fixed
+
+- **`explore-directions` and `pressure-test`: the grant left behind when 0.9.6 rewrote the
+  working-tree injection.** 0.9.6 changed the injection to
+  `{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -10` but left
+  `allowed-tools` naming only the prefix rule `Bash(git status:*)`, whose first literal token is
+  `git`. The composed command's first token is now `{`, so the rule's leading token no longer
+  matches what the shell is handed. Both skills gain an exact grant for the composed command
+  alongside the existing prefix rule; the prefix rule stays, and no rule was broadened.
+
+  **The prefix rule's behaviour against a brace group is unestablished.**
+  [Configure permissions](https://code.claude.com/docs/en/permissions#compound-commands) (fetched
+  2026-08-28) states that Claude Code splits a compound command on `&&`, `||`, `;`, `|`, `|&`, `&`,
+  and newlines, and that "A rule must match each subcommand independently". It does not say whether
+  a leading `{` is stripped from the first subcommand of a brace group, and neither does
+  `docs/conventions/permission-rule-hygiene/README.md`. The exact grant is the safe route, not a
+  demonstrated fix. Two facts bound the exposure either way: `allowed-tools` grants are turn-scoped
+  and auto mode drops broad shell rules, and `git status --porcelain` is one of the Bash tool's
+  built-in read-only commands, which run without a prompt in every mode.
+
+## [0.9.6]
+
+### Changed
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
 ## [0.9.5]
 
 ### Changed

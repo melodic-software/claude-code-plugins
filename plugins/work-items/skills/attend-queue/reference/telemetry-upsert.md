@@ -77,14 +77,15 @@ the file; do not rely on anything downstream to add it.
 different failures. The **pre-write** assertions run before any API call and reject a `$BODY_FILE`
 that is empty, opens with a literal `@`, is not sentinel-prefixed, or carries under 16 payload bytes
 below the sentinel, the mechanical form of the `@path`-as-body rule owned by the `claude-ops` lanes
-skill ("Never pass a body as an `@path` string"). The floor is measured on everything below line 1,
-so it matches the wrapper's `MIN_BODY_BYTES` byte-for-byte whether that line ends in LF or CRLF. The
-**write's own exit status** is checked next: a PATCH that fails leaves the previous cycle's body in
-place, which a read-back running regardless would happily accept. The **post-write** `VERIFY` then
-re-reads what the write stored, the only check that sees a write which reported success and stored
-something else: a mangled body, a concurrent overwrite, a deleted comment. It is also the half that
-would have caught #943 itself, where the composed file was correct and the defect was the invocation
-(`-f body=@FILE` transmits the literal path; this block only ever uses `-F body=@`).
+skill, `/claude-ops:lanes` ("Never pass a body as an `@path` string"). The floor is measured on
+everything below line 1, so it matches the wrapper's `MIN_BODY_BYTES` byte-for-byte whether that
+line ends in LF or CRLF. The **write's own exit status** is checked next: a PATCH that fails leaves
+the previous cycle's body in place, which a read-back running regardless would happily accept. The
+**post-write** `VERIFY` then re-reads what the write stored, the only check that sees a write which
+reported success and stored something else: a mangled body, a concurrent overwrite, a deleted
+comment. It is also the half that would have caught #943 itself, where the composed file was correct
+and the defect was the invocation (`-f body=@FILE` transmits the literal path; this block only ever
+uses `-F body=@`).
 
 Every branch that ends without a verified body says so and skips the duplicate-supersede pass, so a
 cycle whose own write is unproven never tombstones a racing session's comment. A degraded body that
@@ -97,7 +98,7 @@ there; a lane without one carries it in the cycle's own summary.
 Known limits, inherited from the wrapper: a PATCH that succeeds while storing the previous body still
 verifies, and `VERIFY` asserts that *some* well-formed telemetry is present, not that *this* cycle's
 write is what is present. Not replicated at all: the 64 KiB cap, the body-file containment checks,
-retries, and the wrapper's distinct non-zero exit codes, every branch here exits 0 and reports
+retries, and the wrapper's distinct non-zero exit codes. Every branch here exits 0 and reports
 through stderr alone.
 
 **Creation race reconcile (encoded above).** Two sessions racing the first-ever upsert can both
@@ -105,12 +106,12 @@ see an empty lookup and both POST, forking the singleton. The upsert converges e
 duplicates are visible: the LOWEST comment id is canonical (numeric sort, deterministic for
 every session), the canonical comment receives the current cycle's full state, and every other
 sentinel comment is edited to a one-line tombstone, only once the canonical write verifies, so
-it never matches a lookup again, this
-covers a racer that died between its POST and its own re-list, because the NEXT session's
-ordinary upsert performs the same reconcile. A crashed racer's unmerged counters are an
-accepted loss (durable state re-derives over a cycle); nothing is deleted. The reconcile converges
-duplicates **within one instance's own sentinel set**; a sibling instance's comment carries a
-different marker and never enters `$LIST`.
+it never matches a lookup again. This covers a racer that died between its POST and its own
+re-list, because the NEXT session's ordinary upsert performs the same reconcile. A crashed
+racer's unmerged counters are an accepted loss (durable state re-derives over a cycle); nothing
+is deleted. The reconcile converges duplicates **within one instance's own sentinel set**; a
+sibling instance's comment carries a different marker and never enters `$LIST`, so it is neither
+made canonical nor tombstoned.
 
 Report the instance on its own `instance:` line in the pass report, never appended to `lane:`, the
 telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix. This lane carries no

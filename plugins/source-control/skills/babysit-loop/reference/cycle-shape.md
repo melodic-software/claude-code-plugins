@@ -12,7 +12,7 @@ is.
    neutral-directory launch mode allows.
 1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (conversation
    context is compaction-lossy, the comment is the source of truth for the counters); classify
-   guard mode against the floor below; take the cycle-start snapshot: open PRs with head SHAs,
+   guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot: open PRs with head SHAs,
    last-activity timestamps, and the provenance fields the rung partition consumes
    (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot type the trust test's listed-bot arm reads), and, in drain mode, open issues with the same author-association / login / bot-type fields the issue-author test consumes.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received

@@ -4,6 +4,125 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.9.0 — 2026-08-28
+
+**Minor under this contract's own rule** — a new producer's rows are added; no producer-owned
+field's rule moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **`provenance/audit` joins the crosswalk (#3458)**, the sixth producer's rule set and the first
+  whose findings are about externally-owned facts a tracked file restates. Three rows, all
+  **IMPORTANT**, so the map stays flat across this producer's emitting set:
+  - `rule-verbatim-copy` — a fingerprint-confirmed matched span, argued on **both** IMPORTANT
+    limbs rather than one: the stated-rule limb (the org standard `documentation-and-citations.md`
+    prefers citing and fetching at read time over storing a snapshot) and the degradation limb
+    with a named trigger (the upstream page's next change strands the copy).
+  - `rule-stamp-expired` — a four-part record past its configured window, argued from the
+    degradation limb: the currency ceiling has lapsed and the next reader acts on an assertion
+    nobody has re-derived.
+  - `rule-trigger-less-stamp` — a dated stamp stating no recheck trigger, argued from the
+    stated-rule limb against upstream-drift required part 4. Repo-override only, and the row says
+    why the portable default stays off so the selection decision is not read as tier argument.
+  `Auto-applicable: No` on all three: each repair is a judgment the relay surfaces rather than
+  applies.
+- **The judgment verdicts deliberately have no rows.** `source-fetched-similar`, `llm-suspected`,
+  and split rubric outcomes never reach the relay, so they sit in the Boundary's "findings that
+  never reach a relay" case rather than in the tier vocabulary. The fail-safe direction holds
+  structurally instead of by carve-out: the three deterministic rules carry no withholding
+  verdict, and every model uncertainty falls toward a report-only human surface, never toward
+  silence.
+- **No adopter row yet.** The producer's rows are registered so the relay can look a rule id up a
+  tier, but the table asserts conformance today, and this plugin's fix mode ships report-only per
+  class until the golden set carries a class past minimum n. The row lands when it does.
+
+## 2.8.1 — 2026-08-28
+
+**Patch under this contract's own rule** — docs-only clarification. No producer-owned field's rule
+moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **"Where the file goes" cited `review:fanout` by a path into its private tree.** The paragraph
+  named the binding, correctly, and then wrote
+  `[`SKILL.md`](../../../plugins/review/skills/fanout/SKILL.md)` for the skill body that points at
+  it. That link resolves only inside the marketplace checkout, and every current adopter fetches
+  this contract over `raw.githubusercontent.com` at run time, so a producer reading the contract the
+  way the contract tells it to could not follow it.
+  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  makes the plugin the encapsulation boundary for citation: name the public invocation, never a path
+  into another plugin's private tree. The sentence now reads "which `/review:fanout` names under
+  'Shared inputs'", keeping the section name so a reader in this checkout still lands in the right
+  place, on the same form [`loop-lane` 9.0.1](../loop-lane/CHANGELOG.md) used. The section's
+  deliberate `plugins/review/reference/topic-docs.md` citation is untouched and stays: that file
+  sits outside every skill directory, the section argues explicitly for naming it by repo path, and
+  the argument it gives is unaffected.
+- **The `docs-hygiene:audit-noise` adopter row stops path-citing the producer's shape library.** It
+  named `plugins/docs-hygiene/skills/audit-noise/scripts/lib/noise-shapes.sh`, which is a reach into
+  a private `scripts/lib/` directory the entry-surface carve-out does not cover, from a contract
+  other repositories read. The row now says "its shape library" and "the scanner", the terms the rest
+  of the row already uses, so the conformance evidence is unchanged and survives the next rename of
+  that file. Same correction the `claude-config:audit-instructions` row took in 2.7.1, for the same
+  reason one step further out. Both found by the whole-repo extract-ssot sweep's encapsulation floor.
+
+## 2.8.0 — 2026-08-28
+
+**Minor under this contract's own rule.** A conforming producer gains its adopter row; no
+producer-owned field's rule moves, no coexistence obligation changes, and no
+enforceability verdict changes.
+
+- **`docs-hygiene/audit-noise` gains its Adopters row.** The producer has carried crosswalk
+  rows since 2.5.0 and conforms today, but the Adopters table never gained the row. A table
+  whose own rule is that a row asserts present-tense conformance under-reported a conforming
+  producer, which is the reverse of the failure the tabled-only-once-it-actually-does rule
+  guards against: a reader consulting the table alone could not tell that a fifth producer
+  reaches the relay. The row states what the producer does today, and adds no obligation.
+- **The reachability paragraph stops saying "both".** "A habit both current adopters already
+  have" and "both adopters that persist do exactly that" were written when there were two.
+  There are five, and every one of them fetches this contract at run time and refuses to write
+  when it is unreachable, so the claim now reads "every current adopter" and "every adopter
+  that persists". The claim itself is unchanged and is still evidence about the producer's
+  session rather than the consumer's.
+- **The emitter section's heading stops carrying a count.** "Three emitters, one statement of
+  each mechanic" was written at three and read as a standing claim; there are six counting
+  `review:fanout`, and the section's own body had already been corrected away from "both" and
+  "the third". A heading that names a number decays on every adopter, and this table's whole
+  point is that adopters keep arriving, so the heading is now "Many emitters, one statement of
+  each mechanic". The anchor moves with it; the only three references are inside this file and
+  all three were updated. No obligation changes.
+- **The `audit-noise` adopter row claimed a mechanical selection the producer does not have.** It
+  said "selection is a mechanical per-sentence scan with no withholding verdict", which is true of
+  the scanner and false of the skill: a model judgment lane sits between the scan and the writer and
+  may dismiss a candidate on the grounds `SKILL.md` enumerates. Its sibling row for
+  `claude-config:audit-instructions` states its model-lane carve-outs; this one did not. The row now
+  scopes the mechanical claim to the scanner and names the lane, and its crosswalk row states the
+  three decline classes — `frontmatter`, `quoted-trigger-phrase`, `judgment-lane-dismissal` — which
+  this contract's "No evidence, no decline" rule requires a declining rule to state there. It also
+  named three of the scanner's four withholding boundaries; the fourth, the clause naming an
+  alternative, requires its evidence present like the other three, so the direction was right and
+  the enumeration short. Found by an adversarial verifier reading the scripts, not the row.
+- **`rule-negation-hard-guardrail`'s `Auto-applicable` cell led with `n/a`.** This contract states
+  four permitted lead forms and `n/a` is not one; its three sibling non-emitting rows all use
+  `Not applicable — no row`. Corrected, argument unchanged.
+- **Two counts inside the new adopter row were wrong on the day it was written.** The row said
+  its detector "marks six shapes" with "the other five" declined.
+  `plugins/docs-hygiene/skills/audit-noise/scripts/lib/noise-shapes.sh` marks
+  eight shapes and `detect.sh` drives a ninth, `negation`, over an accumulated paragraph, so
+  eight are declined with `reason=no-severity-crosswalk-row`, not five. It also opened "the third
+  producer to join the crosswalk", copied from 2.5.0, which says the same. This file cannot have
+  it both ways: 2.2.0 tables `ai-slop:audit` as the third adopter, and 2.8.0 above counts
+  `docs-hygiene/audit-noise` as the fifth producer to reach the relay. 2.5.0 is shipped and is
+  left as written; the new row's ordinal is dropped rather than renumbered, because an ordinal in
+  a table that grows is the same decaying claim as the section heading, and this pair is what that
+  decay looks like two versions later.
+
+## 2.7.1 — 2026-08-28
+
+**Patch under this contract's own rule** — docs-only clarification. No producer-owned field's rule
+moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **The `claude-config:audit-instructions` adopter row stops pinning a line number.** It cited the
+  producer's structural fence as `plugins/skill-quality/scripts/check-skill.sh:414`. That line is a
+  comment inside the rationale block, not the check; the guard itself sits ~5 lines earlier, and the
+  pin had already rotted. The row now names the trigger-phrase drop check instead, which survives
+  the next edit to that script.
+
 ## 2.7.0 — 2026-08-27
 
 **Minor under this contract's own rule** — one new row on an existing adopter; no

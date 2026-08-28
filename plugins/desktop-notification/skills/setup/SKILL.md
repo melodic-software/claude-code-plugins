@@ -24,7 +24,7 @@ The hook script and the shared library it sources are the single source of truth
 plugin requires and how it degrades: `${CLAUDE_PLUGIN_ROOT}/hooks/desktop-notification.sh` and
 `${CLAUDE_PLUGIN_ROOT}/hooks/hook-utils.sh`.
 
-**Read it first**. Probe what it actually does, don't recite this file. Then run each probe via
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
 Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to

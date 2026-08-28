@@ -1,5 +1,115 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.25]
+
+### Added
+
+- **`extract-ssot`'s orchestrated-mode floor copy is now gated, not just correct.** 0.21.22
+  reconciled this file's inlined `rate-limit-guard` operable floor by hand. It is now one of the six
+  registered copies the marketplace repo's `loop-lane-floor-drift-gate` lane holds against the
+  reader contract that owns them, so the next floor change fails CI here rather than leaving this
+  copy behind. The lane also scans every tracked file for the floor and fails on a carrier its
+  registry does not name, so a later `docs-hygiene` surface that inlines the block cannot go
+  unwatched. No content change to the block in this release.
+
+## [0.21.24]
+
+### Fixed
+
+- **The filtered-probe guard is now pipefail-proof.** 0.21.23 shipped
+  `probe >/dev/null 2>&1 && probe | filter | head -10 || echo "(git status unavailable)"`. Under
+  `set -o pipefail` the `&&` list takes the pipeline's exit status, and pipefail makes that non-zero
+  in two ordinary situations: `grep` matching nothing, and `git` taking SIGPIPE when `head` closes
+  the pipe at the cap. Both fire the failure token on a healthy probe, which is worse than the
+  defect 0.21.23 removed — the shape it replaced only ever said `none`, while this one positively
+  asserts that `git status` was unavailable when it ran fine. Reproduced on a repository with 3,000
+  dirty files: the 0.21.23 form prints `(git status unavailable)`. The filter pipeline now sits in a
+  brace group closed by `:`, a command that cannot fail, so the `||` is reachable only by the guard
+  short-circuiting. Verified on the committed lines in five states, with and without
+  `set -euo pipefail`: outside a repository, with a `.git` that is not a repository, with no `git`
+  on `PATH`, in a repository whose dirty files do not match, and at the cap with 15 matches.
+
+## [0.21.23]
+
+### Fixed
+
+- **Three filtered-probe injections now tell a failed probe apart from a filter that matched
+  nothing.** 0.21.22 normalized this plugin's one working-tree status probe, in
+  `rename-references`, and recorded its filtered probes as deliberately left open
+  (`docs/specs/extract-ssot-sweep-2026-08-28.md`). Two of them,
+  `audit-noise` and `audit-progressive-disclosure`, piped `git status --porcelain` through a `grep`
+  into `head -10` before `|| echo "none"`: `||` binds to the whole pipeline, a pipeline's status is
+  its last command's, and `head` exits 0 on empty input, so the fallback could never run and a
+  failed probe rendered as an empty string under a label reading `Uncommitted .md files:`.
+  `compress` carried a different defect. Its fallback sat inside the brace group behind the filter
+  (`{ git status --porcelain 2>/dev/null | grep '\.md$' || echo "none"; } | head -10`), where the
+  exit status is `grep`'s, which is 1 both when git failed and when nothing matched, so the
+  fallback did fire and printed `none` for both meanings.
+  All three lines now head an `&&` list with a status-only run of their own probe
+  (`git status --porcelain >/dev/null 2>&1 && git status --porcelain 2>/dev/null | … | head -10 ||
+  echo "(git status unavailable)"`), so the `||` fires on probe failure alone. Each site keeps its
+  own filter, its own cap of 10 and its own label noun; each label gained `empty = none` so an
+  empty render reads as the filter matching nothing, and the failure token is the
+  `(git status unavailable)` string the fleet's already-normalized probes use. The probe runs twice
+  because the capture-first alternative in `audit-derivability` needs a `$` expansion, and a `$`
+  expansion other than a bare `$HOME` in a pre-compute block makes the skill fail to load from a
+  worktree-isolated agent (`session-flow` 0.17.16). The added text introduces no `$` of any kind,
+  and no line here holds a `$` expansion: the only `$` characters left are the end-of-line anchors
+  inside the pre-existing single-quoted `grep` patterns, which the shell never expands. Verified by
+  execution: outside a repository all three print `(git status unavailable)`, inside a repository
+  whose dirty files do not match they print nothing, and with 15 matching `.md` files the cap holds
+  at 10 with no spurious fallback. `audit-derivability`, whose fallback was already reachable, is
+  unchanged.
+
+- **`audit-noise`'s SKILL.md parity check follows the new line shape.**
+  `scripts/detect.test.sh` extracted the preview `grep` with a `sed` anchored to the entire former
+  line, label and `git status --porcelain 2>/dev/null |` prefix included, so the label and probe
+  change above would have left it matching nothing. It now anchors on the label stem and on the
+  `| grep … | head` segment, and still extracts and executes the real expression rather than a
+  restatement of it. Suite green at 199 checks.
+
+## [0.21.22]
+
+### Changed
+
+- **`audit-noise`: the body-scope fence stops citing a line number that says the opposite.**
+  `context/persist-findings.md` cited `plugins/skill-quality/scripts/check-skill.sh:414` as the hard
+  FAIL for a dropped trigger phrase. Line 414 sits inside a comment explaining that a trigger
+  **move** WARNs and never blocks; the `err` is at 462. It now names the trigger-phrase drop check
+  rather than a line, matching the fix `detector-findings` 2.7.1 applied to the same claim in the
+  convention doc. Whole-repo extract-ssot sweep.
+
+- **`audit-noise`: the declined-shape count corrected from five to eight.**
+  `context/persist-findings.md` and `scripts/emit-findings.sh`'s header each said the scanner marks
+  six shapes and declines five, naming `citation`, `ghost-ref`, `preamble`, `enum-list` and
+  `scope-meta`. `scripts/lib/noise-shapes.sh` appends eight — those five plus `plan-reference`,
+  `conversational-antecedent` and `ticket-pr-residue` — and `detect.sh` drives a ninth, `negation`,
+  over an accumulated paragraph. So `## Surfaces` reports declined counts for three shapes those two
+  files do not list. `SKILL.md` was inconsistent rather than wrong: it says nine throughout and
+  documents all three newer shapes, but one sentence said "the other five". Both context files now
+  name all eight, and all three point at `audit_noise_detect_shapes_into` as the count's source
+  rather than restating the number as a fact. No behavior changes. Found by the whole-repo
+  extract-ssot sweep.
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and this plugin's orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
+## [0.21.21]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/compress/SKILL.md`, `skills/rename-references/SKILL.md`.** Fixed pointers and cross-references that did not resolve; a recap that had drifted from the source it cites; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.21.20]
 
 ### Changed

@@ -10,8 +10,8 @@ improve here, and how do we know?"** Two skills, one concern: finding improvemen
 
 ## Evidence-first identity
 
-Every candidate cites its evidence. Repo-native signals such as churn hotspots and CI health,
-local telemetry, or (weakest) model judgment from reading the target, and ranking confidence is
+Every candidate cites its evidence: repo-native signals such as churn hotspots and CI health,
+local telemetry, or (weakest) model judgment from reading the target. Ranking confidence is
 a function of evidence strength. When the target has no measurement at all, the top-ranked
 candidate becomes "instrument this so future runs can rank on data," handed to the pipeline like
 any other improvement. Evidence gaps are recorded, never papered over.
@@ -25,8 +25,8 @@ already does.
 
 Zero config is a fully working state: Tier 0 repo-native evidence needs nothing declared. To tune
 churn analysis or declare Tier 2 MCP telemetry sources, run `/improvement:setup`. It manages the
-`.claude/improvement.md` cascade. Resolution order `~/.claude/improvement.md` (user-global), then
-the team `.claude/improvement.md`, then the gitignored `.claude/improvement.local.md` overlay, whose key contract lives in
+`.claude/improvement.md` cascade. The resolution order is `~/.claude/improvement.md` (user-global), then
+the team `.claude/improvement.md`, then the gitignored `.claude/improvement.local.md` overlay. The key contract lives in
 [reference/config.md](reference/config.md).
 
 ## Running it as a standing routine
@@ -43,9 +43,9 @@ capabilities and limits rather than relying on numbers written here.
 A routine fires a fresh cloud session, and this skill exists there only when the `improvement`
 plugin is installed in that session's environment. Per this marketplace's
 [docs/CLOUD-SESSIONS.md](../../docs/CLOUD-SESSIONS.md), a SessionStart-hook install is never
-visible to the session that ran it, the plugin must be pre-installed by the cloud environment's
+visible to the session that ran it. So the plugin must be pre-installed by the cloud environment's
 setup script (or otherwise present before the session process starts). That is why the template
-below opens with a hard guard: if `/improvement:find` is unavailable, stop and report, a run
+below opens with a hard guard: if `/improvement:find` is unavailable, stop and report. A run
 that improvises an "improvement sweep" without the skill's contract is worse than no run.
 
 ### Recommended Routine prompt (weekly)
@@ -101,5 +101,5 @@ jobs:
 ### What is NOT a standing wrapper
 
 `/loop` is session-scoped only: it repeats a prompt inside one session and dies with it. It can
-babysit a working session, but it is not a standing schedule, a recurring unattended sweep needs
+babysit a working session, but it is not a standing schedule. A recurring unattended sweep needs
 a Routine or a cron workflow, which fire fresh sessions on a standing cadence.

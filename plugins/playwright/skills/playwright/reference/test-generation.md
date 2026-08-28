@@ -85,7 +85,7 @@ For a whole feature rather than one ad-hoc session, drive test authoring from a 
 
 ## Running generated tests
 
-See upstream `../vendor/references/playwright-tests.md` for `npx playwright test --debug=cli` debugging flow — attach `playwright-cli` to a paused test and step through interactively.
+For the `npx playwright test --debug=cli` debugging flow, see upstream `../vendor/references/playwright-tests.md` — attach `playwright-cli` to a paused test and step through interactively.
 
 Short version:
 

@@ -162,7 +162,7 @@ Rung 1 is the default. It was verified against `env-vars` on 2026-08-10: `curl` 
 re-confirmed the header finding below — `Last-Modified` came back equal to `Date`.
 
 The route is not new here; it is **hoisted from two surfaces that each derived it independently**.
-`plugins/claude-ops/skills/changelog/context/read-actions.md` carried it page-scoped ("`curl` the
+`/claude-ops:changelog`'s read-actions context carried it page-scoped ("`curl` the
 `.md` and slice locally … Never report a version 'absent from the changelog' on a truncated
 fetch"), and `/knowledge:docpage-digest`'s Anthropic publisher profile carried it claim-scoped,
 binding any absence-establishing fetch to the raw `.md` channel with `curl` plus a recorded length,

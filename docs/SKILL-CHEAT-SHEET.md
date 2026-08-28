@@ -203,6 +203,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/playbooks:boris`](../plugins/playbooks/skills/boris/SKILL.md) | `playbooks` | Boris Cherny's Claude Code workflow tips across 115 sections |
 | [`/playbooks:fable-5`](../plugins/playbooks/skills/fable-5/SKILL.md) | `playbooks` | Fable 5's operating doctrine loaded as standing session instructions |
 | [`/playbooks:skill-authoring`](../plugins/playbooks/skills/skill-authoring/SKILL.md) | `playbooks` | Anthropic's internal skill-authoring playbook and patterns |
+| [`/provenance:audit`](../plugins/provenance/skills/audit/SKILL.md) | `provenance` | Find prose copied from external sources and convert it into pointers |
 | [`/repo-hygiene:clean`](../plugins/repo-hygiene/skills/clean/SKILL.md) | `repo-hygiene` | Clean caches, build artifacts, stale branches, and stashes per repo |
 | [`/session-flow:show-options`](../plugins/session-flow/skills/show-options/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |
 | [`/session-flow:workflow`](../plugins/session-flow/skills/workflow/SKILL.md) | `session-flow` | Navigate the staged dev workflow and suggest the next stage |

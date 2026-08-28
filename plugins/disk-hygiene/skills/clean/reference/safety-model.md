@@ -195,8 +195,8 @@ guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
 layout. A host that can substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
 `--authorized-data-root`, and the `CLAUDE_PLUGIN_DATA` environment variable is honored last; absent
 every channel the flag fails closed. `--max-depth` accepts only a bare positive-integer literal.
-`--confirmed-large-scan` is the one valueless scan flag; the guard permits at most one and rejects
-any trailing value, so the scan grammar stays exact.
+`--confirmed-large-scan` and `--root-children` are the valueless scan flags; the guard permits at
+most one of each and rejects any trailing value, so the scan grammar stays exact.
 
 Deriving the data root from `${CLAUDE_PLUGIN_ROOT}` couples to the one undocumented part of that
 layout — the `cache/<marketplace>/<name>/<version>` shape of the installation root (the install root

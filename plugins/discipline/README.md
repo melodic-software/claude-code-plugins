@@ -86,7 +86,7 @@ turns for unbacked claims and skipped verification, then corrects forward.
 
 The verification-fan-out tier of `do-your-research`. Same research
 discipline, heavier execution. Enumerates a **typed full inventory** of the
-session's claims. Assumptions, asserted facts, concrete specifics, and
+session's claims: assumptions, asserted facts, concrete specifics, and
 load-bearing premises, as a checklist so coverage is provable, and verifies
 each against a primary source, throttled in bounded waves so a claim-heavy
 session does not trip a burst overload. Reports one ledger row per inventory
@@ -111,7 +111,7 @@ the subagent fan-out is a heavier execution tier (mirrors the
 Re-anchors alignment to the consuming organization's engineering standards.
 Resolves the standards source the consuming project declares (a shared
 standards repo, a conventions tree) with progressive, relevance-routed
-loading, re-asserts the core principles. DRY / single source of truth, low
+loading, re-asserts the core principles: DRY / single source of truth, low
 coupling and high cohesion, change-together-lives-together, SOLID, clean
 code. Audits the work against them with doc citations, and respects a
 declared managed / locally-owned seam.
@@ -206,7 +206,7 @@ fan-out is a heavier execution tier, fixed in frontmatter (mirrors the
 
 Re-anchors selection discipline for a tool, library, framework, language, or
 approach: the choice fits the problem, not the reflex. Names the four
-selection sins. **habit** ("I always use X"), **availability** ("X is at
+selection sins: **habit** ("I always use X"), **availability** ("X is at
 hand"), **incumbency** ("the repo already uses X"), and **preconception**
 ("I came in believing X"), and replaces them with the discipline: define
 the actual problem first, survey the field, and walk the preference ladder
@@ -226,7 +226,7 @@ and over choices already embedded in the work.
 ### mind-your-maxims
 
 Re-anchors cooperative-communication discipline. Points at the primary
-sources for the maxims rather than restating them. Grice's Cooperative
+sources for the maxims rather than restating them: Grice's Cooperative
 Principle and the AI-augmented transparency maxim
 ([arXiv:2403.15115](https://arxiv.org/abs/2403.15115)), and audits recent
 responses AND agent-authored artifacts (docs, PR bodies, prompts) on four
@@ -270,7 +270,7 @@ Re-anchors skill-use discipline: the skill listing (every skill's name and
 description) is in context so the fitting skill gets invoked, not reinvented.
 Scans the listing against the conversation and the task, invokes the skill that
 already owns a procedure rather than improvising it, and, because a fresh
-non-fork subagent does not inherit the parent's listing. Names the relevant
+non-fork subagent does not inherit the parent's listing, names the relevant
 skills in a delegation prompt, recommending a custom subagent's `skills:`
 preload for a discipline it should always carry. Audits recent work for a skill
 that should have fired and did not, and corrects by invoking it now. Description
@@ -351,7 +351,7 @@ drifted into jargon it invented, stacked acronyms, or explained a decision
 whose premise you never saw. The re-pitch backs up as far as needed, adds the
 context you were missing, talks in ASD-STE100 Simplified Technical English
 (short sentences, one meaning per word, technical terms exact), and uses the
-project's ubiquitous language. Read from the nearest domain glossary or
+project's ubiquitous language, read from the nearest domain glossary or
 context map per the project's own convention, degrading silently when none
 exists. Re-pitch means re-ground, not compress: it stays out of the batch
 sweep, and a shorter-but-blunter reply is the failure it exists to avoid.
@@ -389,7 +389,7 @@ standards source when the consumer declares one and no local checkout exists.
 
 The correctors themselves are zero-config. Two skills expose optional
 `userConfig` scalars. The `sweep-all` runbook adds three that
-overlay batch membership without editing any corrector. Each a comma-separated
+overlay batch membership without editing any corrector, each a comma-separated
 list of corrector names, empty by default (tiers run exactly as declared). And
 `do-your-research-deep` adds one that sets its verification depth:
 
