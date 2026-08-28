@@ -3,6 +3,35 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.17]
+
+### Changed
+
+- **`audit-instructions`: the body-scope fence stops citing a line number that says the opposite.**
+  Both `context/persist-findings.md` and `reference/criteria.md` cited
+  `plugins/skill-quality/scripts/check-skill.sh:414` as the hard FAIL for a dropped trigger phrase.
+  Line 414 sits inside a comment explaining that a trigger **move** WARNs and never blocks; the
+  `err` is at 462. The citation asserted the reverse of the line it pointed at, and would have
+  rotted again on the next edit to that script. Both now name the trigger-phrase drop check rather
+  than a line, matching the fix `detector-findings` 2.7.1 applied to the same claim in the
+  convention doc. Whole-repo extract-ssot sweep.
+
+- **`audit-permission-state`: the dropped-allow-rule roster was missing `Monitor`.** The recap of
+  upstream's auto-mode classes elided the category upstream added in v2.1.236 and then counted four
+  classes from the elision, so a dropped `Monitor` allow rule was reported under none of them. The
+  verdict is version-dependent and the diff now says so: the category arrived in v2.1.236 and
+  earlier versions leave `Monitor` rules in effect, so classifying one emits a `DIFF-NOTE` naming
+  that bound rather than asserting the verdict unqualified, since the script cannot read the running
+  version. Whole-repo extract-ssot sweep.
+
+- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
+  The directive had fractured under the same per-plugin de-slop campaign;
+  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
+  sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
+  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
+  extract-ssot sweep.
+
 ## [0.40.16]
 
 ### Changed

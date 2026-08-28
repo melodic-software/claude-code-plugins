@@ -30,20 +30,53 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   change strands that copy. That is the same blindness this gate exists for, one level up, and it
   is not hypothetical: the first report of this coupling named five copies and building the registry
   found six. The check therefore scans every tracked file for the floor's opening bullet and fails
-  on a carrier its registry does not name. A file holding the marker as data declares that inline
-  with a reason (`loop-lane-floor-carrier-ok:`); a bare annotation, or one left on a registered
-  path, fails. The registry is not replaced, because it carries each consumer's comparison mode.
+  on a carrier its registry does not name. The registry is not replaced, because it carries each
+  consumer's comparison mode.
+- **A file holding the marker as data is excused by a list in the gate, never by anything it says
+  about itself.** An in-file annotation was written first, on the shape `# lane-coverage-ok:` and
+  `# silent-skip-ok:` use, and withdrawn before merge: those anchor to a syntactic site that bounds
+  what they excuse, a file has none, so any file mentioning the token anywhere exempted its own
+  floor copy. A real lane could inline the floor, apply it, name the token in a sentence, and drift
+  unwatched. The exception list now lives in the check, is printed on every run including the
+  passing one, and fails when an entry goes stale. §6 states the resulting guarantee as the carried
+  set minus a finite reviewed exception list, rather than as an equality it does not have.
 - **§6 stops restating a floor value in its own prose.** It named the 90%-of-either-window
   threshold while introducing the inline-floor rule, which put a seventh copy of that constant
   outside the block the check compares. The section now names the four items the floor fixes and
   restates none of their values.
-- **The drift the missing check let through is reconciled.** Two uncoordinated de-slop shards
-  rewrote punctuation inside the staleness bullet of all three lane bodies and touched neither the
-  reader contract nor the other three copies. The lanes stayed identical to each other, which is the
-  half a reviewer notices, while all three drifted from their source; the other three copies still
-  matched the contract byte for byte. The source and the three copies that had not been de-slopped
-  moved to the consumers' wording, since that is the direction the repo's de-slop campaign and its
-  house-style rule set. No floor value, path or threshold changed.
+- **The drift the missing check let through was reconciled elsewhere, twice, which is the argument.**
+  Two uncoordinated de-slop shards rewrote punctuation inside the staleness bullet of all three lane
+  bodies and touched neither the reader contract nor the other three copies. The lanes stayed
+  identical to each other, which is the half a reviewer notices, while all three drifted from their
+  source. This convention change was opened to reconcile that and gate it. While it was in review a
+  whole-repo `extract-ssot` sweep found the same divergence by hashing the carriers and repaired it
+  independently, choosing a colon where this branch had chosen a comma. Main's wording is adopted
+  here unchanged: it landed first, it is already consistent across the owner and all six registered
+  consumers, and re-imposing a second correct answer would be a third uncoordinated edit to the
+  block. The floor's values, paths and thresholds never moved in any of these passes; what moved
+  was punctuation nobody was watching, three times, which is what the check now prevents.
+
+  Two of the six consumers are the blockquoted launch-prompt templates, so the honest statement is
+  that all six agree under this check's comparison, byte for byte for the four prose copies and
+  after normalization for the two templates.
+
+## 9.0.1 — 2026-08-28
+
+Corrective, no topology, escalation, tier, or invariant change — §4 cites the `@path`-as-body rule
+by its public invocation instead of by a filesystem path into another plugin's tree.
+
+- **A cross-plugin citation named a path, which an installed reader cannot resolve.** The
+  telemetry-upsert paragraph pointed at
+  `../../../plugins/claude-ops/skills/lanes/SKILL.md` for the "Never pass a body as an `@path`
+  string" section. That link resolves only inside this marketplace checkout; a lane running with
+  `claude-ops` installed has no such path on disk, and the rule the paragraph declares itself bound
+  by was unreachable exactly where it binds. [ADR
+  0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md) makes
+  the plugin the encapsulation boundary for citation: name the public invocation, never a path into
+  another plugin's private tree. The citation is now `/claude-ops:lanes` plus the same section name,
+  which resolves for an installed reader and still locates the section for a reader in this
+  checkout. Text and paragraph wrapping changed; the contract did not. Found by the whole-repo
+  extract-ssot sweep.
 
 ## 9.0.0 — 2026-08-12
 

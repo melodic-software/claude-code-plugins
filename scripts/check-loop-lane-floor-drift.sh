@@ -65,23 +65,28 @@
 #
 # Discovery does not REPLACE the registry, it bounds it. The registry still
 # carries each consumer's comparison mode, which no scan can infer, and still
-# fails on an entry pointing at nothing. The two directions together are what
-# make the consumer set provably equal to the set of files carrying the floor.
+# fails on an entry pointing at nothing.
 #
-# THE ONE EXEMPTION, annotated in place. A file can carry the floor's opening
-# bullet as DATA rather than as a consumer copy — this gate's own test fixtures
-# are the first such file. It declares that inline:
+# WHAT THE TWO DIRECTIONS ACTUALLY GUARANTEE, stated exactly. Every tracked
+# file carrying the floor is either a registered consumer, compared here, or a
+# member of the DATA_CARRIERS list below. Both lists live in this file, both are
+# printed on every run, and both fail on an entry that has gone stale. So the
+# checked set equals the carried set minus a finite, enumerated, reviewed
+# exception list — not "provably equal" with an unbounded escape hatch hiding
+# in the phrasing, which is the shape this whole gate exists to refuse.
 #
-#   loop-lane-floor-carrier-ok: <reason>
-#
-# Same shape as `# lane-coverage-ok:` in the CI workflow and `# silent-skip-ok:`
-# in the hook scripts: the reason lives in the file a reviewer is already
-# reading, and there is no second list to drift. Three rules keep it from
-# becoming a quiet off switch. The reason is mandatory, so a bare annotation
-# FAILS rather than passing as "annotated". An annotation on a REGISTERED path
-# fails as stale, because an exemption must not outlive what it excuses. And
-# every exempt file is printed by --list, so the exemptions are enumerable
-# without reading the tree.
+# DATA CARRIERS ARE LISTED HERE, NEVER SELF-DECLARED, and that is a deliberate
+# departure from the two annotation idioms this gate otherwise mirrors. An
+# in-file `<token>: <reason>` was tried first and is unsafe for a FILE-scoped
+# exemption: `# lane-coverage-ok:` and `# silent-skip-ok:` anchor to a syntactic
+# site (a job key, a guard line) that bounds what the annotation can excuse,
+# while a file has no such site — so any file that carried the token anywhere,
+# in prose or in a fixture string, silently exempted its own floor copy from
+# comparison. A real lane body could then inline the floor, apply it, name the
+# token in a sentence, and drift unwatched. Moving the exemption into this file
+# removes self-exemption entirely: a new data carrier costs an edit to the gate,
+# which is exactly the review the exemption needs, and no file can quiet the
+# gate by writing something into itself.
 #
 # LIVENESS IS ASSERTED, NOT ASSUMED. The extractor keys on a marker line, and a
 # marker that stops matching would make every block empty and every comparison
@@ -94,6 +99,19 @@
 # corpus over a scan that never ran: the source carries the marker by
 # definition, so a discovery pass that does not find the source is a broken
 # scan and exits 2.
+#
+# KNOWN LIMIT, and it is shared by both halves rather than a discovery-only
+# hole. The marker test anchors at column 1, allowing exactly one optional
+# `> ` blockquote prefix. A copy indented under an outer list (three spaces), or
+# nested two blockquote levels deep (`> > `), matches neither discovery nor
+# comparison: it is invisible to the scan AND, if such a path were registered,
+# it would fail as MISSING FLOOR rather than being compared. The second half of
+# that is the saving grace — the limit cannot produce a silent pass on a
+# registered consumer, only on an unregistered copy written in a shape no
+# existing carrier uses. Widening the anchor to arbitrary leading whitespace
+# would let a prose quotation of the bullet register as a carrier, so the
+# narrow anchor is the deliberate trade. A consumer that needs a nested shape
+# adds the shape to the anchor here, in the same change.
 #
 # LIVENESS-ASSERTION CONVENTION, taxonomy row **Gate / classifier**
 # (docs/conventions/liveness-assertion/README.md). That row requires the verdict
@@ -149,6 +167,20 @@ CONSUMERS=(
   "values prompts/loops/loop-lane-profile-claude-code-plugins.md"
 )
 
+# Tracked files that carry the floor's opening bullet as DATA rather than as a
+# consumer copy, each with the reason it is not compared. Listed here rather
+# than self-declared in the file: see "DATA CARRIERS ARE LISTED HERE" above.
+#
+# Adding a line is a claim that the file's block is not an operable copy of the
+# floor, and it is reviewed as one. A line matching no tracked file, or matching
+# a file that no longer carries the marker, fails as stale, so this list cannot
+# outlive what it excuses. Every entry is printed on every run, including
+# --check, so the exception set is visible to CI and not only to a human who
+# thinks to pass --list.
+DATA_CARRIERS=(
+  "scripts/check-loop-lane-floor-drift.test.sh this gate's own fixtures: abridged stand-in floor text, deliberately not the real values"
+)
+
 # The bullet labels the floor is made of. Present in the source block or this
 # gate is reading the wrong thing and says so instead of passing.
 BULLETS=(
@@ -161,11 +193,6 @@ BULLETS=(
 
 # The first line of the floor block, in both plain and blockquoted form.
 MARKER='- **Tee file (fixed path):**'
-
-# The inline annotation by which a file declares it carries the marker as data
-# rather than as a consumer copy. Assembled from two halves so this script does
-# not itself contain the literal token it searches for.
-EXEMPT_TOKEN='loop-lane-floor-carrier''-ok:'
 
 MODE=check
 case "${1-}" in
@@ -218,23 +245,19 @@ discover_carriers() {
   done < <(git grep -I --name-only -z --fixed-strings -e "$MARKER" -- . 2>/dev/null)
 }
 
-# Print the reason a file gives for carrying the marker as data. Exit status 0
-# means the annotation is present (the reason may still be empty, which the
-# caller fails on); 1 means it is absent.
+# Print the listed reason this file is a data carrier, if it is one. Exit
+# status 0 means listed, 1 means not. Nothing in the file under test is read:
+# the answer comes only from DATA_CARRIERS above, so a file cannot exempt
+# itself by containing any particular text.
 carrier_exemption() {
-  awk -v token="$EXEMPT_TOKEN" '
-    {
-      pos = index($0, token)
-      if (pos == 0) next
-      reason = substr($0, pos + length(token))
-      sub(/^[[:blank:]]+/, "", reason)
-      sub(/[[:blank:]]+$/, "", reason)
-      print reason
-      found = 1
-      exit
-    }
-    END { exit(found ? 0 : 1) }
-  ' "$1"
+  local candidate="$1" entry
+  for entry in "${DATA_CARRIERS[@]}"; do
+    if [[ "${entry%% *}" == "$candidate" ]]; then
+      printf '%s\n' "${entry#* }"
+      return 0
+    fi
+  done
+  return 1
 }
 
 # Strip emphasis and backticks, flatten every whitespace run, trim the ends.
@@ -326,17 +349,30 @@ while IFS= read -r carrier; do
   [[ "$carrier" != "$SOURCE" ]] || continue
 
   if reason="$(carrier_exemption "$carrier")"; then
-    if [[ -z "$reason" ]]; then
-      report "BARE EXEMPTION: $carrier declares '$EXEMPT_TOKEN' with no reason after the colon. An undocumented exemption is the silent off switch this scan exists to deny."
-    elif is_registered "$carrier"; then
-      report "STALE EXEMPTION: $carrier is a registered consumer AND declares '$EXEMPT_TOKEN $reason'. It is compared like every other consumer, so drop the annotation."
+    if is_registered "$carrier"; then
+      report "CONTRADICTORY LISTING: $carrier is in CONSUMERS and in DATA_CARRIERS ($reason). A file is compared or excused, never both; drop one entry."
     fi
     continue
   fi
 
   is_registered "$carrier" ||
-    report "UNREGISTERED COPY: $carrier inlines the operable floor but is not in this gate's registry. Add it to CONSUMERS in $(basename "$0") with its comparison mode (exact, or values for a re-wrapped blockquote); annotate it '$EXEMPT_TOKEN <reason>' if it carries the marker as data; or remove the inlined block. A copy nothing watches is a copy the next contract change strands."
+    report "UNREGISTERED COPY: $carrier inlines the operable floor but is not in this gate's registry. Add it to CONSUMERS in $(basename "$0") with its comparison mode (exact, or values for a re-wrapped blockquote); add it to DATA_CARRIERS there, with a reason, if it carries the marker as data; or remove the inlined block. A copy nothing watches is a copy the next contract change strands. Nothing written INSIDE the file exempts it: the exception list lives in the gate so a copy cannot quiet the gate itself."
 done <<<"$CARRIERS"
+
+# --- Stale data-carrier listings -------------------------------------------
+# The exception list is held to the same stale-guard as the consumer registry.
+# An entry naming a file that is gone, or that no longer carries the floor, is
+# an exemption outliving what it excused, and it would go on suppressing a path
+# that a later change could reintroduce as a real consumer.
+
+for entry in "${DATA_CARRIERS[@]}"; do
+  dc_path="${entry%% *}"
+  if [[ ! -r "$dc_path" ]]; then
+    report "STALE DATA CARRIER: $dc_path is listed in DATA_CARRIERS but is not readable. Remove the entry; an exemption must not outlive what it excuses."
+  elif [[ "$(count_markers "$dc_path")" == 0 ]]; then
+    report "STALE DATA CARRIER: $dc_path is listed in DATA_CARRIERS but no longer carries the floor marker. Remove the entry."
+  fi
+done
 
 # --- Every registered consumer ---------------------------------------------
 
@@ -406,6 +442,16 @@ EOF
 fi
 
 carriers_found="$(printf '%s\n' "$CARRIERS" | grep -c . || true)"
-printf 'check-loop-lane-floor-drift: %s consumer(s) match the operable floor in %s; the repo-wide scan found %s tracked carrier(s) and no unregistered copy.\n' \
-  "$checked" "$SOURCE" "$((carriers_found - 1))"
+
+# The exception set is printed on the PASSING path too, not only under --list.
+# CI runs --check and nothing else, so an exemption that appeared only in a
+# listing flag would be invisible in the one place it most needs reading: the
+# log of the run that went green over it.
+for entry in "${DATA_CARRIERS[@]}"; do
+  printf 'check-loop-lane-floor-drift: NOT COMPARED (data carrier): %s — %s\n' \
+    "${entry%% *}" "${entry#* }"
+done
+
+printf 'check-loop-lane-floor-drift: %s consumer(s) match the operable floor in %s; the repo-wide scan found %s tracked carrier(s), %s excused as data carrier(s) above, and no unregistered copy.\n' \
+  "$checked" "$SOURCE" "$((carriers_found - 1))" "${#DATA_CARRIERS[@]}"
 exit 0

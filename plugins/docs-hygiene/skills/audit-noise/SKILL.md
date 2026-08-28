@@ -76,7 +76,10 @@ Single action v1; `relocate` and `generalize` actions are deferred until real de
 [context/persist-findings.md](context/persist-findings.md). It owns every mechanic (destination
 resolution, the fetch-and-refuse gate, the self-ignore guard, which findings enter the file, and
 what each cell says). A bare invocation reports and stops. `negation` is the only shape with a
-severity-crosswalk row; the other five stay in the human report and are counted as declined.
+severity-crosswalk row; the other eight stay in the human report and are counted as declined. That
+eight is the count of shapes `audit_noise_detect_shapes_into` in
+[`scripts/lib/noise-shapes.sh`](scripts/lib/noise-shapes.sh) appends; re-derive it there rather
+than trusting this sentence.
 
 ## Auto-detect default
 

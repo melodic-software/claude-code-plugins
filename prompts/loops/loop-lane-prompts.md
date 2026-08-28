@@ -1107,7 +1107,7 @@ with the operator's signature on them.
 >   for that decision; a `resets_at` already latched from a fresh snapshot
 >   stays valid through the pause (no refresh happens while paused). While
 >   paused, a consumer **must** arm a session Monitor on the tee file and
->   re-evaluate on every write, the file carries **no account-identifier
+>   re-evaluate on every write: the file carries **no account-identifier
 >   field**, so a write is the only signal that the windows changed under
 >   you (account switch, another session's refresh).
 > - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming

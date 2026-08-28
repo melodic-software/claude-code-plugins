@@ -20,11 +20,11 @@
 # through scripts/test-git-helpers.sh, which clears the ambient git environment
 # so a fixture's identity can never land in the caller's checkout (#2840).
 #
-# loop-lane-floor-carrier-ok: the fixture heredocs below open with the floor's
-# marker line as stand-in test data, so the SUT's repo-wide scan sees this file
-# as a carrier. It is a test fixture, not a consumer copy: nothing here ships,
-# and the values are deliberately abridged so a real floor change must not
-# touch this file.
+# The fixture heredocs below open with the floor's marker line as stand-in test
+# data, so the SUT's repo-wide scan sees THIS file as a carrier. It is listed in
+# the SUT's own DATA_CARRIERS for that reason. Note that nothing written here
+# performs that exemption: the list lives in the gate, so this file cannot
+# excuse itself, which case 24 asserts.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -60,6 +60,17 @@ VALUES_CONSUMERS=(
   "prompts/loops/loop-lane-profile-claude-code-plugins.md"
 )
 
+# The SUT stale-guards DATA_CARRIERS exactly as it stale-guards CONSUMERS, so
+# the fixture tree has to satisfy both registries. The paths are read back out
+# of the SUT rather than copied here: a second hand-maintained list would be
+# free to disagree with the one under test, which is the defect class this
+# whole gate is about.
+DATA_CARRIER_PATHS=()
+while read -r _kind _tag dc_path _rest; do
+  [[ -n "${dc_path:-}" ]] || continue
+  DATA_CARRIER_PATHS+=("$dc_path")
+done <<<"$(bash "$SUT" --list 2>/dev/null | grep '^carrier exempt' || true)"
+
 # The floor block as the fixtures carry it. Short stand-ins for the real
 # bullets: this suite tests the gate's comparison, not the guard's values.
 floor_block() {
@@ -94,13 +105,23 @@ no_floor() {
   printf 'This lane no longer inlines anything.\n'
 }
 
-# A file holding the marker as DATA, declaring so inline. The token is printed
-# in two halves so that grepping this suite for the annotation finds the one at
-# the top of the file, which is this suite's own declaration, rather than a
-# fixture string that belongs to a single case.
-annotated_carrier() {
-  printf 'loop-lane-floor-carrier%s a fixture, not a consumer copy\n\n' '-ok:'
+# A listed data carrier's body: carries the marker, but with a value the source
+# does not have. If the exemption ever stopped applying, this would surface as
+# DRIFT rather than quietly agreeing.
+data_carrier_block() {
+  printf 'Fixture data, not an operable copy of the floor.\n\n'
+  floor_block | sed 's/>= 90/>= 42/'
+}
+
+# A genuine consumer copy that ALSO writes the old in-file exemption token into
+# itself, and applies the floor like any lane. Under the withdrawn annotation
+# idiom this silenced the gate; under DATA_CARRIERS it must not. The token is
+# printed in two halves so this fixture string cannot be mistaken for a live
+# annotation by anything grepping the suite.
+self_exempting_consumer() {
+  printf 'loop-lane-floor-carrier%s illustrative example, not an operable copy\n\n' '-ok:'
   floor_block
+  printf '\nThis lane applies the floor above on every cycle.\n'
 }
 
 write_file() {
@@ -120,6 +141,10 @@ seed_tree() {
   local c
   for c in "${EXACT_CONSUMERS[@]}"; do write_file "$c" floor_block; done
   for c in "${VALUES_CONSUMERS[@]}"; do write_file "$c" floor_block_quoted; done
+  # Each listed data carrier gets a block that CARRIES the marker and whose
+  # value DIFFERS from the source, so a conforming tree proves the exemption is
+  # actually excusing the file rather than passing by accidental agreement.
+  for c in "${DATA_CARRIER_PATHS[@]}"; do write_file "$c" data_carrier_block; done
 }
 
 # The SUT enumerates tracked files, so every case stages the fixture tree
@@ -421,48 +446,87 @@ else
   fail "--list should report discovered carriers (rc=$rc): $out"
 fi
 
-# --- 23. An annotated data carrier is exempt -------------------------------
-# A file can hold the marker as data rather than as a consumer copy. This
-# suite is the first such file. The annotation is what makes that a decision
-# on the record instead of a hardcoded path filter.
+# --- 23. The listed data carrier is excused, and named on the passing run --
+# The exception set has to be readable in CI, which runs --check and never
+# --list, or a green run hides what it declined to compare.
 
 seed_tree
-write_file "plugins/some-plugin/fixtures/sample.md" annotated_carrier
 out="$(run --check)"
 rc=$?
-if ((rc == 0)); then
-  ok "a carrier annotated with a reason is exempt from the registry"
+if ((rc == 0)) && grep -q 'NOT COMPARED (data carrier): scripts/check-loop-lane-floor-drift.test.sh' <<<"$out"; then
+  ok "--check names every data carrier it excused on the passing path"
 else
-  fail "annotated data carrier should pass (rc=$rc): $out"
+  fail "--check should report the exception set (rc=$rc): $out"
 fi
 
-# --- 24. A bare annotation is not an exemption -----------------------------
-
-mutate "$TMP/plugins/some-plugin/fixtures/sample.md" 's/-ok: a fixture, not a consumer copy/-ok:/'
-out="$(run --check)"
-rc=$?
-if ((rc == 1)) && grep -q 'BARE EXEMPTION: plugins/some-plugin/fixtures/sample.md' <<<"$out"; then
-  ok "an annotation with no reason fails instead of exempting"
-else
-  fail "bare exemption should fail (rc=$rc): $out"
-fi
-
-# --- 25. An exemption on a registered consumer is stale --------------------
-# Same stale-guard rule the sibling gates use: an exemption must not outlive
-# what it excuses, and a registered path is compared regardless.
+# --- 24. A file cannot exempt ITSELF -- the defect that withdrew the idiom --
+# A genuine lane body that inlines the floor, applies it, and writes the old
+# in-file exemption token into its own prose. Under the annotation idiom this
+# passed while drifting, because the token matched anywhere on any line. The
+# exception list lives in the gate now, so the file is UNREGISTERED regardless
+# of what it says about itself.
 
 seed_tree
-printf '\nloop-lane-floor-carrier%s no longer true\n' '-ok:' \
-  >>"$TMP/plugins/work-items/skills/work-loop/SKILL.md"
+write_file "plugins/some-new-plugin/skills/new-lane/SKILL.md" self_exempting_consumer
 out="$(run --check)"
 rc=$?
-if ((rc == 1)) && grep -q 'STALE EXEMPTION: plugins/work-items/skills/work-loop/SKILL.md' <<<"$out"; then
-  ok "an exemption on a registered consumer fails as stale"
+if ((rc == 1)) && grep -q 'UNREGISTERED COPY: plugins/some-new-plugin/skills/new-lane/SKILL.md' <<<"$out"; then
+  ok "a file naming the old exemption token cannot excuse its own floor copy"
 else
-  fail "stale exemption should fail (rc=$rc): $out"
+  fail "self-exemption must be impossible (rc=$rc): $out"
 fi
 
-# --- 26. The live repository carries no unregistered copy ------------------
+# --- 25. And it is still caught once it has drifted ------------------------
+# The consequence the withdrawn idiom allowed: an exempted copy silently going
+# stale. Same file, now with a changed value.
+
+mutate "$TMP/plugins/some-new-plugin/skills/new-lane/SKILL.md" 's/>= 90/>= 80/'
+out="$(run --check)"
+rc=$?
+if ((rc == 1)) && grep -q 'UNREGISTERED COPY: plugins/some-new-plugin/skills/new-lane/SKILL.md' <<<"$out"; then
+  ok "a self-exempting copy that has drifted still fails"
+else
+  fail "drifted self-exempting copy must fail (rc=$rc): $out"
+fi
+
+# --- 26. A data-carrier listing that no longer carries the floor is stale --
+# Same stale-guard as the consumer registry: an exemption must not outlive what
+# it excuses. Asserted against the live registry, since DATA_CARRIERS lives in
+# the gate and the fixture tree cannot hold an entry for a path of its own.
+
+live="$(bash "$SUT" --list 2>&1)"
+rc=$?
+listed="$(grep -c '^carrier exempt' <<<"$live" || true)"
+stale=0
+while read -r _c _e path _rest; do
+  [[ -n "${path:-}" ]] || continue
+  [[ -r "$SCRIPT_DIR/../$path" ]] || stale=$((stale + 1))
+done <<<"$(grep '^carrier exempt' <<<"$live")"
+if ((rc == 0)) && ((listed >= 1)) && ((stale == 0)); then
+  ok "every listed data carrier still exists in this checkout"
+else
+  fail "data-carrier listing is stale or empty (rc=$rc listed=$listed stale=$stale): $live"
+fi
+
+# --- 27. The discovery self-proof is load-bearing --------------------------
+# If git cannot see the source, the scan found nothing because it was broken,
+# not because the corpus is clean. Staging everything EXCEPT the source makes
+# the file readable on disk (so the earlier source checks pass) and invisible
+# to the tracked-file scan, which is exactly the shape a stubbed-out search
+# produces. Without the self-proof this reports a clean run over -1 carriers.
+
+seed_tree
+git_test_config "$TMP" add -A >/dev/null
+git_test_config "$TMP" rm -q --cached "$SOURCE_REL" >/dev/null
+out="$(LOOP_LANE_FLOOR_ROOT="$TMP" bash "$SUT" --check 2>&1)"
+rc=$?
+if ((rc == 2)) && grep -q 'the scan is not working' <<<"$out"; then
+  ok "a discovery pass that cannot see the source exits 2, never a clean run"
+else
+  fail "discovery self-proof should exit 2 (rc=$rc): $out"
+fi
+
+# --- 28. The live repository carries no unregistered copy ------------------
 # Runs the scan against the real tree, which is where a new copy actually
 # appears. Case 17 proves the mechanism; this proves today's corpus is closed.
 

@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.22]
+
+### Changed
+
+- **`setup`: repaired a broken numbered-list item and a comma splice in the headless-reconfigure
+  recipe.** One continuation line had lost its indentation, which ended the list item early and
+  detached the 2.1.240 verification stamp from the claim it qualifies; the same block also carried
+  the fused-sentence splice the fleet's other setup skills had. Whole-repo extract-ssot sweep.
+
 ## [0.13.21]
 
 ### Changed

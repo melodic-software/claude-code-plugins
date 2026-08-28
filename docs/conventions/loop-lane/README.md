@@ -498,20 +498,20 @@ item, one each, and no instance ever edits another's.
 `claude-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
 (`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
-one-directional. An inlined upsert is bound by the `@path`-as-body rule in
-[`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "Never pass a body as
-an `@path` string", and encodes that rule mechanically in its own block (#943) as three checks. A
-**pre-write gate** refuses a body that is empty, a literal `@path`, not sentinel-prefixed, or under a
-16-byte payload floor measured below the sentinel line, before any API call. The **write's own exit
-status** is then checked, because a failed write leaves the previous cycle's body in place — which a
-read-back running regardless would accept. A **post-write read-back** re-reads what the write stored,
-the only check that sees a write which reported success and stored something else. Every branch that
-ends without a verified body reports UNREPORTED and skips the duplicate-supersede pass, so a cycle
-whose own write is unproven never tombstones a racing session's comment; carry that forward, since
-stderr does not survive the session. Known limits inherited from the wrapper: a PATCH that succeeds
-while storing the previous body still verifies, and the read-back proves *some* well-formed telemetry
-is present, not *this* cycle's. Not replicated inline: the 64 KiB cap, the body-file containment
-checks, retries, and the wrapper's distinct non-zero exits — every inline branch exits 0.
+one-directional. An inlined upsert is bound by the `@path`-as-body rule in `/claude-ops:lanes`,
+section "Never pass a body as an `@path` string", and encodes that rule mechanically in its own
+block (#943) as three checks. A **pre-write gate** refuses a body that is empty, a literal `@path`,
+not sentinel-prefixed, or under a 16-byte payload floor measured below the sentinel line, before any
+API call. The **write's own exit status** is then checked, because a failed write leaves the previous
+cycle's body in place — which a read-back running regardless would accept. A **post-write read-back**
+re-reads what the write stored, the only check that sees a write which reported success and stored
+something else. Every branch that ends without a verified body reports UNREPORTED and skips the
+duplicate-supersede pass, so a cycle whose own write is unproven never tombstones a racing session's
+comment; carry that forward, since stderr does not survive the session. Known limits inherited from
+the wrapper: a PATCH that succeeds while storing the previous body still verifies, and the read-back
+proves *some* well-formed telemetry is present, not *this* cycle's. Not replicated inline: the
+64 KiB cap, the body-file containment checks, retries, and the wrapper's distinct non-zero exits —
+every inline branch exits 0.
 
 **Lane-instance identity (#1295).** The marker names the **writer**, not the lane type. A marker
 that names only the lane makes two concurrent instances resolve one comment and clobber each other's
@@ -787,11 +787,24 @@ runs in CI as the `loop-lane-floor-drift-gate` lane, with its own suite
 check scans every tracked file for the floor's opening bullet and fails on any carrier its registry
 does not name. That is what keeps registration from being optional: a new lane that inlines the
 floor and forgets the entry turns the lane red on the pull request that adds it, rather than passing
-green and going stale at the next contract change. A file that carries the marker as data rather
-than as a consumer copy declares that inline with a reason, `loop-lane-floor-carrier-ok:`, and a
-bare annotation or one left on a registered path fails. The registry stays because it carries each
-consumer's comparison mode, which no scan can infer; the scan bounds the registry, so the two
-together make the checked set provably equal to the set of files carrying the floor.
+green and going stale at the next contract change. The registry stays because it carries each
+consumer's comparison mode, which no scan can infer; the scan bounds the registry.
+
+**What that pair guarantees, stated exactly.** Every tracked file carrying the floor is either a
+registered consumer, compared on every run, or a member of the check's own `DATA_CARRIERS` list,
+which is what a file holding the marker as test data or illustration goes on. Both lists live in the
+check, both are printed on every run including `--check`, and both fail on an entry that has gone
+stale. So the checked set equals the carried set minus a finite, enumerated, reviewed exception
+list. It is deliberately not phrased as an equality: an exception list exists, and a claim of
+"provably equal" would be exactly the unbacked assurance this section was rewritten to remove.
+
+**A file cannot excuse itself, and that is why the exception list is not an in-file annotation.**
+The first version of this check used one, on the shape `# lane-coverage-ok:` and `# silent-skip-ok:`
+use. Those anchor to a syntactic site, a job key or a guard line, which bounds what the annotation
+can excuse; a file has no such site, so any file mentioning the token anywhere, in prose or in a
+fixture string, silently exempted its own floor copy. A real lane could inline the floor, apply it,
+name the token in a sentence, and drift unwatched. Moving the exception list into the check removes
+that: a new data carrier costs an edit to the gate, which is the review the exception needs.
 
 **Neither half is optional, and path shape cannot supply either.**
 `scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, is blind here by

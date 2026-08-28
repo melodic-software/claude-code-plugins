@@ -3,20 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.18]
-
-### Fixed
-
-- **The reader contract's operable floor matches the consumers that inline it again.** Two
-  uncoordinated de-slop shards rewrote punctuation inside the staleness bullet of all three loop
-  lane bodies and touched neither this contract nor the other three copies, so the three lane bodies
-  stayed identical to each other while those same three drifted from their source; the other three
-  copies still matched this contract byte for byte. The floor block here now carries the de-slopped
-  wording the consumers already shipped: the values, the paths and the thresholds are untouched, and
-  only two sentence breaks moved. Reconciling toward the consumers rather than away from them is the
-  direction the repo's own de-slop campaign and its house-style rule set, and three of the consumers
-  are `SKILL.md` files that rule names. The other three copies move with this contract in the same
-  change, which is what returns all seven files to one wording.
+## [0.7.19]
 
 ### Added
 
@@ -31,6 +18,11 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   every tracked file for the floor's opening bullet and fails on any carrier outside its registry,
   so a seventh consumer inlining this block cannot sit unwatched until the next contract change
   strands it. The registry stays, because it carries each consumer's comparison mode.
+- **Why this lands after 0.7.18 rather than with it.** 0.7.18 reconciled the drift by hand, from the
+  other direction, while this check was in review. That is the argument for the check rather than an
+  objection to it: the same two sentence breaks were found and repaired twice, independently, weeks
+  apart, because nothing was watching the block. The floor block is unchanged here; 0.7.18's
+  wording stands as the one this gate now holds every copy to.
 
 ### Changed
 
@@ -38,6 +30,23 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   10-minute value inline, which is a copy of a floor constant sitting outside the block the drift
   check compares, so nothing would have moved it if the contract changed. It now points at the
   operable floor for the value. Same probe, same verdicts.
+
+## [0.7.18]
+
+### Changed
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
+
+- **`setup`: rejoined an orphaned clause in the never-writes boundary.** The sentence ended with a
+  period and then continued lowercase ("...settings surface. the printed edit is the operator's to
+  apply."). The `context-guard` sibling carries the identical slot joined with a semicolon, and this
+  one now matches it. Whole-repo extract-ssot sweep.
 
 ## [0.7.17]
 

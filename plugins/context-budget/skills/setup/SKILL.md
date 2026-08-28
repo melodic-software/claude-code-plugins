@@ -26,7 +26,7 @@ The audit skill and its engine are the single source of truth for what this plug
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/SKILL.md`](../audit/SKILL.md) § Prerequisites and the header of
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs`.
 
-**Read it first**. Probe what it actually does, don't recite this file. Then run each probe via
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
 Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 Install nothing.
