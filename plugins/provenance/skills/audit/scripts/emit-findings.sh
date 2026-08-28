@@ -218,14 +218,24 @@ def verdict_slot:
 # and skipped the searched-surfaces gate on the way.
 #
 # A tier that RENDERS as a verdict name IS a verdict name, so the two invisibilities
-# are handled differently and both completely. Format characters render as nothing
-# ANYWHERE, so they are stripped everywhere — trimming only the ends left
-# `"not-‍found"` reading as `not-found` to whoever opens the file while comparing
-# unequal, which walked it onto a relay row. Separators do render, so they are trimmed
-# at the ends only: `"not found"` is a different string, not this verdict.
+# are handled differently and each by the property that DEFINES it.
+#
+# Characters that render as nothing are stripped EVERYWHERE, by
+# `Default_Ignorable_Code_Point` — the Unicode property for exactly that — plus the
+# rest of `Cf`. Anything narrower is a list of the ones someone thought of: an
+# enumeration of two zero-width characters left six others through; trimming the class
+# at the ends only left an interior `"not-‍found"`; and stripping `Cf` alone left the
+# variation selectors and the combining grapheme joiner, which are `Mn`. Each spelling
+# read as `not-found` to whoever opens the findings file while comparing unequal.
+#
+# Combining marks at large are NOT stripped, because they render: `not-fóund` is a
+# different name, and this reader should say so rather than guess at a verdict.
+#
+# Separators do render too, so they are trimmed at the ends only: `"not found"` is a
+# different string, not this verdict.
 def norm:
   ascii_downcase
-  | gsub("\\p{Cf}"; "")
+  | gsub("[\\p{Default_Ignorable_Code_Point}\\p{Cf}]"; "")
   | sub("^[[:space:][:cntrl:]\\p{Z}]+"; "")
   | sub("[[:space:][:cntrl:]\\p{Z}]+$"; "");
 def names_in:

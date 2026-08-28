@@ -154,12 +154,18 @@ unknown tier rather than the verdict it happens to start with. A valid rule id s
 verdict does not readmit it either.
 
 A tier that RENDERS as a verdict name in the written file IS a verdict name, so the two kinds of
-invisibility are handled differently and both completely, by Unicode CLASS rather than by a list
-of the code points someone thought of. Format characters render as nothing anywhere, so they are
-stripped everywhere: an enumeration of two zero-width characters left six others walking a
-verdict onto a relay row, and trimming the class at the ends alone still left `"not-‍found"`
-reading as `not-found` to whoever opens the file while comparing unequal. Separators do render,
-so they are trimmed at the ends only — `"not found"` is a different string, not this verdict.
+invisibility are handled differently, and each by the Unicode property that DEFINES it rather
+than by a list of the code points someone thought of. Characters that render as nothing are
+stripped EVERYWHERE, by `Default_Ignorable_Code_Point` plus the rest of `Cf`; anything narrower
+is another such list, and each narrower attempt leaked. An enumeration of two zero-width
+characters left six others through; trimming the class at the ends alone left an interior
+`"not-‍found"`; and stripping `Cf` alone left the variation selectors and the combining grapheme
+joiner, which are `Mn`.
+
+What RENDERS is what counts, in both directions. Separators and combining marks at large do
+render, so a separator is trimmed at the ends only and a combining mark is not stripped at all:
+`"not found"` and `"not-fóund"` are different names, and this reader says so rather than guessing
+them into a verdict it never withheld.
 
 Free text in a tier field therefore names no tier, which is the same answer this producer
 already gives a verdict name spelled in a `note`. It has to be: a `verdict.tier` reading "the

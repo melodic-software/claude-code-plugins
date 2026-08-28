@@ -1007,11 +1007,23 @@ write_report tier-invisible-interior2.json '{
   "findings": [{"verdict": {"tier": "source-fetched-​similar"}, "file": "x.md",
                 "note": "INVIS-INTERIOR2"}]
 }'
+# A variation selector and a combining grapheme joiner render as nothing too, and are
+# category Mn rather than Cf: stripping `Cf` alone left both spellings reading as the
+# verdict name in the written file while comparing unequal.
+write_report tier-invisible-vs16.json '{
+  "findings": [{"tier": "not-found️", "file": "x.md", "note": "INVIS-VS16",
+                "searched": ["https://z.example/u"]}]
+}'
+write_report tier-invisible-cgj.json '{
+  "findings": [{"tier": "not-͏found", "file": "x.md", "note": "INVIS-CGJ",
+                "searched": ["https://z.example/u"]}]
+}'
 for iv in "zwsp:not-found:INVIS-ZWSP" "zwnj:not-found:INVIS-ZWNJ" \
   "wj:llm-suspected:INVIS-WJ" "lrm:llm-suspected:INVIS-LRM" \
   "shy:not-found:INVIS-SHY" "mixed:not-found:INVIS-MIXED" \
   "nbsp:not-found:INVIS-NBSP" "interior:not-found:INVIS-INTERIOR" \
-  "interior2:source-fetched-similar:INVIS-INTERIOR2"; do
+  "interior2:source-fetched-similar:INVIS-INTERIOR2" \
+  "vs16:not-found:INVIS-VS16" "cgj:not-found:INVIS-CGJ"; do
   ivn="${iv%%:*}"
   ivr="${iv#*:}"
   ivv="${ivr%%:*}"
@@ -1027,17 +1039,41 @@ for iv in "zwsp:not-found:INVIS-ZWSP" "zwnj:not-found:INVIS-ZWNJ" \
   assert_contains "an invisibly padded verdict is counted ($ivn)" "$IVB" "1 judgment"
 done
 
-# A SEPARATOR does render, so it is not stripped from the middle: `not found` is a
-# different string, not this verdict, and keeps the appendix path an unknown tier gets.
+# A wrapped record carrying an invisibly spelled verdict is withheld by the same
+# reader: the malformed-record route normalizes before it compares.
+write_report record-invisible-wrapped.json '{
+  "counts": {"files": 2},
+  "findings": [["llm-suspected️", "WRAPINVISCANARY"]]
+}'
+RIW="$OUTDIR/record-invisible-wrapped.md"
+run --report "$REPORTS/record-invisible-wrapped.json" --out "$RIW" >/dev/null 2>&1
+RIW_BODY="$(cat "$RIW")"
+assert_not_contains "an invisibly spelled verdict in a wrapped record is withheld" \
+  "$RIW_BODY" "## Unparsed"
+assert_not_contains "and it leaks no payload" "$RIW_BODY" "WRAPINVISCANARY"
+assert_contains "and it is counted" "$RIW_BODY" "1 judgment"
+
+# What RENDERS is what counts, in both directions. A separator and a combining mark
+# both render, so neither is stripped: `not found` and `not-fóund` are different names
+# and keep the appendix path an unknown tier gets, rather than being guessed into a
+# verdict this producer never withheld.
 write_report tier-visible-space.json '{
   "counts": {"files": 2},
   "findings": [{"tier": "not found", "file": "x.md", "note": "VISIBLESPACECANARY"}]
 }'
-VSP="$OUTDIR/tier-visible-space.md"
-run --report "$REPORTS/tier-visible-space.json" --out "$VSP" >/dev/null 2>&1
-assert_exit "a separator inside the name is not stripped" "$?" "0"
-assert_contains "and the record keeps the unknown-tier appendix path" \
-  "$(cat "$VSP")" "VISIBLESPACECANARY"
+write_report tier-visible-accent.json '{
+  "counts": {"files": 2},
+  "findings": [{"tier": "not-fóund", "file": "x.md", "note": "VISIBLEACCENTCANARY"}]
+}'
+for vz in "space:VISIBLESPACECANARY" "accent:VISIBLEACCENTCANARY"; do
+  vzn="${vz%%:*}"
+  vzk="${vz#*:}"
+  VZO="$OUTDIR/tier-visible-$vzn.md"
+  run --report "$REPORTS/tier-visible-$vzn.json" --out "$VZO" >/dev/null 2>&1
+  assert_exit "a rendering character inside the name is not stripped ($vzn)" "$?" "0"
+  assert_contains "and the record keeps the unknown-tier appendix path ($vzn)" \
+    "$(cat "$VZO")" "$vzk"
+done
 
 # FREE TEXT in a tier field names no tier, which is the same answer this producer
 # already gives a verdict name spelled in a `note`. It has to be: withholding a
