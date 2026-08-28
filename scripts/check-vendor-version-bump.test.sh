@@ -106,6 +106,35 @@ else
 fi
 rm -rf "$f"
 
+# --- a cross-plugin vendor MOVE checks the source plugin too ----------------
+# git's default rename detection collapses a byte-identical move to one R100
+# record whose --name-only line is the destination only; without --no-renames
+# in the gate, alpha's vendor deletion vanishes from the diff and bumping beta
+# alone passes.
+f="$(base_fixture)"
+git -C "$f" mv plugins/alpha/vendor/pkg/index.js plugins/beta/vendor/pkg/moved.js
+set_version "$f" beta 2.0.1
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  fail "a vendor file moved alpha -> beta with only beta bumped should fail, got success: $out"
+elif grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$out"; then
+  ok "a cross-plugin vendor move without a source-plugin bump fails as STALE VERSION"
+else
+  fail "expected STALE VERSION for alpha on the move, got: $out"
+fi
+rm -rf "$f"
+
+# --- the same move with both plugins bumped passes --------------------------
+f="$(base_fixture)"
+git -C "$f" mv plugins/alpha/vendor/pkg/index.js plugins/beta/vendor/pkg/moved.js
+set_version "$f" alpha 1.0.1
+set_version "$f" beta 2.0.1
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  ok "a cross-plugin vendor move with both plugins bumped passes"
+else
+  fail "move with both plugins bumped should pass, got: $out"
+fi
+rm -rf "$f"
+
 # --- only the unbumped plugin is named --------------------------------------
 f="$(base_fixture)"
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"

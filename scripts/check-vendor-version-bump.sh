@@ -48,8 +48,16 @@ fi
 # One diff over the whole plugins/ tree, filtered structurally in the loop: a
 # git pathspec glob ('plugins/*/vendor/') matches `*` across slashes, so it
 # could not also hand back the plugin name the manifest lookup needs.
+#
+# --no-renames is load-bearing. Under rename detection (on by default for
+# `git diff`), a file moved plugins/a/vendor/ -> plugins/b/vendor/ collapses to
+# one R100 record whose --name-only line is the DESTINATION only, so plugin a's
+# vendor deletion — a source change a's installed consumers must receive —
+# would never reach the loop and bumping b alone would pass. Disabling
+# detection reports the move as a delete plus an add, one path per side, and
+# both plugins get checked.
 changed_plugins="$(
-  git diff --name-only "$base" -- plugins/ | while IFS= read -r path; do
+  git diff --no-renames --name-only "$base" -- plugins/ | while IFS= read -r path; do
     case "$path" in
     plugins/*/vendor/*)
       name="${path#plugins/}"
