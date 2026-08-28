@@ -197,12 +197,20 @@ function is_stamp(line,   low, pos, rest, off, kw, wlen) {
     pos = off + RSTART + RLENGTH - 1
     kw = substr(low, off + RSTART, RLENGTH)
     wlen = (kw ~ /read/) ? 30 : 60
-    rest = substr(low, pos, wlen)
-    if (rest ~ /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) return 1
-    if (rest ~ /[0-9]+\/[0-9]+\/[0-9]+/) return 1
-    if (rest ~ /(19|20)[0-9][0-9]/) return 1
-    if (rest ~ /(january|february|march|april|may|june|july|august|september|october|november|december)/) return 1
-    if (rest ~ /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) return 1
+    # Same window rule as check-stamps.sh keyword_window(): the window is a
+    # distance from the keyword, not a cut through the text. Slice wlen plus 9
+    # more characters, one short of the longest form matched below, and require
+    # each match to BEGIN at or before wlen. Slicing at exactly wlen dropped
+    # docs/CLOUD-SESSIONS.md:320 from this inventory while check-stamps.sh
+    # counted it a candidate: its date starts at offset 60 of 60, so the cut
+    # left a bare "2" and no form matched. These two scripts promise the same
+    # candidate definition, so the boundary has to be the same in both.
+    rest = substr(low, pos, wlen + 9)
+    if (match(rest, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) && RSTART <= wlen) return 1
+    if (match(rest, /[0-9]+\/[0-9]+\/[0-9]+/) && RSTART <= wlen) return 1
+    if (match(rest, /(19|20)[0-9][0-9]/) && RSTART <= wlen) return 1
+    if (match(rest, /(january|february|march|april|may|june|july|august|september|october|november|december)/) && RSTART <= wlen) return 1
+    if (match(rest, /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) && RSTART <= wlen) return 1
     off = pos
     if (off >= length(low)) return 0
   }

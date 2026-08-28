@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.3.2]
+
+### Fixed
+
+- **The window fix landed in one of the two scripts that share the definition.**
+  `extract-breadcrumbs.sh:is_stamp` still sliced the keyword window at exactly its length after
+  0.3.1 fixed `check-stamps.sh:keyword_window`, so the two disagreed about what a stamp candidate
+  is while the audit flow passes the extractor's output to nomination. Measured over the corpus,
+  three files were short a stamp line that `check-stamps.sh` counted:
+  `docs/CLOUD-SESSIONS.md` (3 against 4), `docs/conventions/loop-lane/README.md` (4 against 5),
+  and `plugins/session-flow/CHANGELOG.md` (7 against 8). All three agree now.
+
+  `docs/CLOUD-SESSIONS.md:320` is the worked case, and it is worse than the 0.3.1 one rather than
+  a repeat of it. Its date begins at offset 60 of the 60-character window, so the cut left a bare
+  `2` and **no** form matched — not even the bare-year fallback that at least kept the 0.3.1 case
+  visible in the declined bucket. The line did not decline; it left the inventory entirely, which
+  is the quieter failure of the two.
+
+  The same slack-and-start-boundary rule now applies in both: slice `wlen + 9`, require every
+  match to begin at or before `wlen`. A regression test pins the real corpus line, with a negative
+  control at offset 64 confirming the added slack does not admit a date that starts outside the
+  window.
+
+  One property of `is_stamp` is worth recording, because it masked this and will mask the next
+  attempt to reproduce it: the function rescans from each keyword in turn, so a line carrying a
+  second keyword beside its date (`as-of 2026-02-28`) matches there regardless of what the first
+  window truncated. A fixture written to exercise the boundary must carry exactly one keyword, or
+  it passes against the unfixed script and proves nothing.
+
+- **The review dispatch could not execute rubric v3 either.** 0.3.0 gave the judge the containing
+  file and left the reviewer, which runs when `accuracy.review_agents > 0`, holding only the
+  passage, the source text, and the quoted grades. Its job includes checking the C3 grade and
+  whether a carve-out was missed; C3 is graded across the file and carve-outs 1, 4 and 5 are
+  file-level. A reviewer without the file either declines the check or waves through an
+  unsupported C3 PASS — and review is the last stage before fix eligibility, so waving one through
+  is what puts an unsupported finding in reach of an automatic edit. The review prompt now carries
+  `LOCAL FILE:` on the same terms as the judge prompt.
+
 ## [0.3.1]
 
 ### Fixed

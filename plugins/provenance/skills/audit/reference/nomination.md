@@ -137,11 +137,22 @@ Runs when `accuracy.review_agents` > 0, over STANDS verdicts only, before fix el
 > [framing block above]
 >
 > A finding has been judged STANDS. Your job is to try to break it. You have the local passage,
-> the source text, and the criterion grades with their quoted evidence. You do not have the
-> judges' reasoning beyond those quotes.
+> the source text, the containing file, and the criterion grades with their quoted evidence. You
+> do not have the judges' reasoning beyond those quotes.
+>
+> LOCAL PASSAGE: [text]
+> SOURCE TEXT: [fetched bytes, with its URL and the rung it came from]
+> LOCAL FILE: [the whole containing file, with the passage's line range marked]
 >
 > State whether each quoted span actually supports the grade it was given, and whether any
 > carve-out was missed. If the finding survives, say so plainly and briefly.
+
+**The reviewer gets the containing file for the same reason the judge does.** Its job includes
+checking the C3 grade and whether a carve-out was missed, and C3 is graded across the file while
+carve-outs 1, 4 and 5 are file-level judgments. A reviewer holding only the passage cannot tell a
+file-wide derivation from an isolated lift, so it would either decline the check or wave through
+an unsupported C3 PASS — and this stage is the last one before fix eligibility, so waving one
+through is what puts an unsupported finding in reach of an automatic edit.
 
 **A review veto never reassigns a tier.** The tier mapping is fixed at contract time. A veto
 forces the finding's disposition to `leave-with-reason` and routes it to the human, so the
