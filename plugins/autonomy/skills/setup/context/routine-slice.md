@@ -1,8 +1,7 @@
 # Routine slice
 
 One slice of the `apply` action in [`../SKILL.md`](../SKILL.md), selected by argument and run only
-when `apply` reaches it. Like the guardrail slice it prepares the security surface and never writes
-it.
+when `apply` reaches it.
 
 Wires the standing-routine state of the
 [routine catalog](${CLAUDE_PLUGIN_ROOT}/reference/routines.md): a routine is a scheduled

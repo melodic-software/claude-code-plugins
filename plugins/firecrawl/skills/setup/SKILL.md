@@ -27,7 +27,7 @@ The main skill is the single source of truth for what the CLI requires and how a
 `${CLAUDE_PLUGIN_ROOT}/skills/firecrawl/context/configuration.md` (the exact env vars the CLI
 reads).
 
-**Read it first**. Probe what it actually does, don't recite this file. Then run each probe via
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
 Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 1. **`firecrawl-cli` binary**, the installed binary is `firecrawl` (the npm package is

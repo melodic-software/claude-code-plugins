@@ -1,4 +1,4 @@
-# Persisting survivors — this plugin's read of the detector-findings contract
+# Persisting survivors: this skill's read of the detector-findings contract
 
 ## Contents
 
@@ -13,17 +13,16 @@
 
 The mechanics of `--persist-findings` (SKILL.md "Phase 6 — Persist (opt-in)").
 
-**Read the producer contract before the first write** —
+**Read the producer contract before the first write**:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.
 It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
-obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what a
-mutation run decides for itself, and cites the contract for the rest. Where the two disagree, the
-contract wins and this file is the defect.
+obligations, the self-ignore guard, and what a minimal producer may omit. This file adds only what
+a `mutation` run decides for itself and cites the contract for the rest. Where the two
+disagree, the contract wins and this file is the defect.
 
-**If the contract cannot be fetched, do not write.** Report that the destination and the guard could
-not be resolved from their owner, and stop. Inventing a destination is the one failure the contract's
-own resolution section exists to prevent, and a plausible guess is worse than no file: the run
-reports success while the consumer never scans that path.
+**If the contract cannot be fetched, do not write.** Report that the destination and the guard
+could not be resolved from their owner, and stop. Inventing a destination reports success while
+the consumer never scans that path.
 
 ## Where the file goes
 

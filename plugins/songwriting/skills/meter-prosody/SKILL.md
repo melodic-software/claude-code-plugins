@@ -18,8 +18,8 @@ needed, and this skill's own boundary forbids it from making that call.
 
 ## Purpose
 
-The sound-and-motion layer: whether the number, placement, and stress of syllables, and the
-stability of each section. Support the meaning and emotion. Covers scansion, prosody, phrasing,
+The sound-and-motion layer: whether the number, placement, and stress of syllables — and the
+stability of each section — support the meaning and emotion. Covers scansion, prosody, phrasing,
 stable/unstable analysis, and fitting lyric to melody.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future
@@ -65,10 +65,11 @@ No action → route on context (a pasted line → `meter`; a "does this feel rig
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md), and honor a
-consuming project's own songwriting layout when it defines one. Before loading any bundled
-`templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
-first, a project-level override wins over the bundled default.
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
+"Where generated work persists", and honor a consuming project's own songwriting layout when it
+defines one. Before loading any bundled `templates/<name>.md`, check
+`${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
+override wins over the bundled skill default, first match, per that file's "Template override".
 
 ## Boundary. What this skill must NOT emit
 

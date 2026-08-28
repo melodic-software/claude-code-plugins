@@ -208,10 +208,10 @@ tracker filing is offered not automatic, the session is never scored, and it is 
 ```
 
 **Detached observer substrate.** running-retro also owns an out-of-band observer that turns the
-checkpoint from PULL (invoked in-session) into a path that can also fire *after* the session ends, a
-`/loop` structurally cannot. The `arm` action launches a stdlib-Python tailer, detached from every
-session's process tree so it outlives the session, which reads the transcript at zero context cost,
-detects end by mtime-idle, then runs the same checkpoint method headless (a cheap `claude -p`) and
+checkpoint from PULL (invoked in-session) into a path that can also fire *after* the session ends, something a
+`/loop` structurally cannot do. The `arm` action launches a stdlib-Python tailer, detached from every
+session's process tree so it outlives the session. The tailer reads the transcript at zero context
+cost, detects end by mtime-idle, then runs the same checkpoint method headless (a cheap `claude -p`) and
 appends the redacted findings to this session's ledger. An **opt-in** SessionStart hook
 (`observer_enabled`, default off, installing the plugin changes nothing) automates the same launcher
 for every real session; the manual `arm` is primary. The substrate, lifecycle, config, untrusted-data
@@ -345,7 +345,7 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ## Configuration
 
-`userConfig`. The **detached observer** is the only configurable surface (six keys, all defaulting
+`userConfig`. The **detached observer** is the only configurable surface (seven keys, all defaulting
 to zero-config behavior; see `reference/observer.md` for full semantics):
 
 | Key | Default | Effect |

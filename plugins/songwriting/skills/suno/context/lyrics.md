@@ -222,7 +222,7 @@ Well-attested across community guides and Reddit but not officially documented. 
 Suno can't fix lyrics post-generation — prevention only. Apply these BEFORE generating:
 
 - Use **clear punctuation** (commas, periods) — not run-on phrases
-- Avoid **overly complex rhyme schemes** (internal multi-syllable rhymes confuse the model)
+- Keep **rhyme schemes simple** (internal multi-syllable rhymes confuse the model)
 - Break **long sentences across lines**
 - For **instrumental tracks**: use `[Melodic Instrumental]` AND include "instrumental" in style prompt
 - **Pop and Gospel** are most vocal-prone genres — add explicit instrumental markers

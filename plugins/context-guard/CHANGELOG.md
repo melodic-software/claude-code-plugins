@@ -5,6 +5,13 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.26]
+
+### Changed
+
+- **Grammar repaired where the em-dash purge left a sentence broken.** `skills/setup/SKILL.md`. The #2891 substitution replaced a dash without restructuring the sentence, leaving a verbless fragment or a comma splice. Wording only; no rule changed.
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.7.25]
 
 ### Changed

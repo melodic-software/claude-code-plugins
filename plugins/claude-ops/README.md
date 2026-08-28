@@ -15,16 +15,16 @@ capability across twelve skills and a family of telemetry-emitter hooks, includi
 most of an installed skill fleet never gets used.
 audit-native-overlap maps native Claude Code surfaces against the current
 repo's own components so a custom skill never silently duplicates what the
-product now ships,
+product now ships.
 audit-install-state reports on the machine-scope `~/.claude` install directory
-itself, audit-performance captures slowness evidence at the moment a machine or
+itself. audit-performance captures slowness evidence at the moment a machine or
 session feels slow so the cause is diagnosed instead of nuked, including the
-fan-out layer of hooks, statusline, spawn cost, and subagent concurrency,
-observability reads what your sessions actually did, known-issues tracks what
-upstream has broken, changelog integration keeps your repo current with what
-upstream has shipped, the plugins skill keeps your own plugin fleet current,
-morning-brief prints your read-only operator morning view, lanes launches and
-manages your loop lanes as background sessions, a
+fan-out layer of hooks, statusline, spawn cost, and subagent concurrency.
+observability reads what your sessions actually did. known-issues tracks what
+upstream has broken, and changelog integration keeps your repo current with what
+upstream has shipped. The plugins skill keeps your own plugin fleet current,
+morning-brief prints your read-only operator morning view, and lanes launches and
+manages your loop lanes as background sessions. A
 re-runnable `setup` action settles where the known-issues registry lives,
 and the `*-audit` hooks feed observability with per-hook execution telemetry
 Claude Code's native OTEL cannot see.
@@ -33,7 +33,7 @@ Claude Code's native OTEL cannot see.
 
 | Skill | What it does |
 |---|---|
-| `/claude-ops:audit-skill-visibility` | Audits whether the model can actually **see** each installed skill, the question behind "why does most of my fleet never get used?", since a skill the model cannot see can never be chosen. Reports three independent things per skill: **reachability** (visible, `user-only` by design, hidden by an override or disabled plugin, or invisibly misconfigured), **observation** (what usage was actually recorded, always horizon-qualified), and **starvation** (whether it is losing the description-budget contest. Claude Code drops descriptions starting with the skills you invoke least, so an unused skill loses the keywords a request would match and stays unused). Whether the listing overflows is computed from documented settings; which particular skills lose their descriptions is a labelled likelihood band, never an exact cutoff. Withholds every cold verdict the data cannot support instead of reporting absence of data as absence of use. Read-only. |
+| `/claude-ops:audit-skill-visibility` | Audits whether the model can actually **see** each installed skill, the question behind "why does most of my fleet never get used?", since a skill the model cannot see can never be chosen. Reports three independent things per skill: **reachability** (visible, `user-only` by design, hidden by an override or disabled plugin, or invisibly misconfigured), **observation** (what usage was actually recorded, always horizon-qualified), and **starvation** (whether it is losing the description-budget contest: Claude Code drops descriptions starting with the skills you invoke least, so an unused skill loses the keywords a request would match and stays unused). Whether the listing overflows is computed from documented settings; which particular skills lose their descriptions is a labelled likelihood band, never an exact cutoff. Withholds every cold verdict the data cannot support instead of reporting absence of data as absence of use. Read-only. |
 | `/claude-ops:audit-install-state` | Read-only audit of the machine-scope Claude Code installation directory, the `~/.claude` tree plus the home-root `~/.claude.json`. Inventories every file (entries labelled as an authored surface or a rolled-up bulk tree, with the complete per-file rows in a CSV artifact), separates what Claude Code's own `cleanupPeriodDays` sweep already manages from what nothing manages, resolves what each number in a filename actually *is* before attempting any process-liveness lookup, and deny-lists any subtree holding a revert ledger before classifying anything as stale. Never deletes; hands off to `claude project purge` and `/disk-hygiene:clean`. |
 | `/claude-ops:audit-native-overlap` | Maps native Claude Code surfaces, built-in CLI commands, bundled skills, plugin-backed built-ins, session-provided skills, against the current repo's plugin skills and agents. Bare invocation is a read-only overlap report (candidates with evidence, detection integrity floors carried through, and a shared-listing-budget exposure section); verdicts (`prefer-native` / `prefer-ours` / `complementary` / `superseded` / `defer`) are human-gated in a committed store (`docs/native-surfaces/records.json`) rendered into a generated registry (`docs/NATIVE-SURFACES.md`) whose every row carries an observable recheck trigger; only an explicit `apply` step bakes presence-gated native references into component descriptions and Boundary sections. |
 | `/claude-ops:audit-performance` | Read-only slowness-diagnostic capture, run at the moment the machine or a session feels slow, before restarting or deleting anything. One timed engine pass separates four documented suspects: accumulated install-tree state, version regression, component bloat, and the fan-out layer. Each suspect's evidence and verdict routing is documented in the skill. Phase timings are first-class evidence; content reads are allowlisted to four non-secret config files (`settings.json`, `.last-cleanup`, `hooks.json`, `installed_plugins.json`), so `~/.claude.json` and `history.jsonl` stay stat-only. Reports and routes; never mutates, never elevates, and never executes a discovered hook or statusline command. |
@@ -119,14 +119,14 @@ loads by default; set `instructions_loaded_audit_log_session_start=true` to opt
 back into logging them. A `stdin_read_timeout` option (seconds, default `2`) is
 an **idle** bound on reading each hook's payload: any byte arriving resets it, so
 a large or slowly-delivered payload is never cut off while it is still coming,
-and it fires only once the pipe has gone silent for that long. At which point
+and it fires only once the pipe has gone silent for that long, at which point
 these audit hooks fail open (skip). On a shell whose `read -t` accepts fractional
 values the bound is read in four slices, so the stall is detected within a
 quarter of the configured interval of it; where fractional timeouts are
 unavailable (Bash 3.2, the macOS system shell) it is read as one window and a
 producer that sends bytes then goes silent can take up to two intervals. A producer
 that keeps emitting is bounded by Claude Code's own hook timeout, not by this
-value. A setting this shell's `read -t` will not accept, or `0`. Falls back to
+value. A setting this shell's `read -t` will not accept, or `0`, falls back to
 the default.
 
 Set them interactively with `/plugin configure claude-ops@<marketplace>`, or headless on the
@@ -165,7 +165,7 @@ expansion). Two workable forms:
   `source` line to point at a `hook-utils.sh` your repo already carries.
 
 - **Or** point at an **absolute** path to the installed sink under your plugin
-  cache. Per-machine, and it moves on each plugin update, so it is not
+  cache. It is per-machine, and it moves on each plugin update, so it is not
   clone-portable.
 
 Any envelope producer (this plugin's hooks, guardrails, the formatters) then
@@ -198,7 +198,7 @@ your own repository's context:
   (`${CLAUDE_PLUGIN_DATA}/lanes/<repo-key>/<lane>-launch-commit`, overridable
   via `lane-launcher.sh --data-dir`). `<repo-key>` namespaces markers by
   repository, the data directory is plugin-wide, while a lane name like `work`
-  is only unique within one checkout. It is a digest of the repository's
+  is only unique within one checkout. `<repo-key>` is a digest of the repository's
   canonical path; print the one for a given checkout with
   `printf '%s' "$(git rev-parse --show-toplevel)" | git hash-object --stdin`. By default nothing is written into your
   repository. Opt in for the registry via the `registry_dir` option (see
@@ -211,7 +211,7 @@ your own repository's context:
 
 ## Requirements
 
-The audit hooks are Bash scripts (Git Bash on native Windows. Install
+The audit hooks are Bash scripts (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
 use `jq`; without jq they fail open (no audit line is written).
 

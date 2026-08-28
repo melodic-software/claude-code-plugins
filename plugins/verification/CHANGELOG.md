@@ -3,6 +3,23 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.10]
+
+### Changed
+
+- **Dynamic-context probe fallback made informative.** This skill's working-tree-status injection
+  was the one uncapped site in the fleet, so its `||` already bound to the probe and the fallback
+  was reachable. What it emitted was an empty string, which under a label reading
+  `Working tree status:` is indistinguishable from a clean tree. It now emits
+  `(git status unavailable)` and the label says what empty means, matching the 25 sites where the
+  fallback was genuinely unreachable. Whole-repo extract-ssot sweep.
+
+## [0.5.9]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.5.8]
 
 ### Changed

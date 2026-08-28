@@ -76,7 +76,8 @@ Leave `{{MERGE}}` at `--merge human-only` unless the target repository's rung
 question has been decided the other way. This repository's was: raised to
 `c3-autonomous` on 2026-07-27, superseding #1388 — but keep the override
 until #1695 wires effective-promotion resolution into the merge partition
-and the evidence predicate is met ("Tier is not the rung" below).
+and the evidence predicate is met (see "C2 auto-merge may lack its
+promotion evidence" under Known gaps).
 
 ## Per-repository profile
 
@@ -1102,11 +1103,11 @@ with the operator's signature on them.
 > - **Pause end:** the **tripped** window's `resets_at`; when **both**
 >   windows trip, the **later** `resets_at`
 > - **Staleness rule:** a snapshot whose `captured_at` is older than **10
->   minutes** is stale — treat the windows as **unknown** (reactive-only)
+>   minutes** is stale. Treat the windows as **unknown** (reactive-only)
 >   for that decision; a `resets_at` already latched from a fresh snapshot
 >   stays valid through the pause (no refresh happens while paused). While
 >   paused, a consumer **must** arm a session Monitor on the tee file and
->   re-evaluate on every write — the file carries **no account-identifier
+>   re-evaluate on every write: the file carries **no account-identifier
 >   field**, so a write is the only signal that the windows changed under
 >   you (account switch, another session's refresh).
 > - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming

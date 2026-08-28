@@ -3,6 +3,29 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.18]
+
+### Changed
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
+
+- **`setup`: rejoined an orphaned clause in the never-writes boundary.** The sentence ended with a
+  period and then continued lowercase ("...settings surface. the printed edit is the operator's to
+  apply."). The `context-guard` sibling carries the identical slot joined with a semicolon, and this
+  one now matches it. Whole-repo extract-ssot sweep.
+
+## [0.7.17]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.7.16]
 
 ### Changed

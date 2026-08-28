@@ -209,7 +209,7 @@ carries it.
 
 The snapshot is a side effect: nothing the status line prints depends on it, and the
 [reader contract](reference/reader-contract.md) budgets ten minutes of staleness. Detaching skips
-no work. Every refresh still takes the lock and writes. It only stops the render waiting.
+no work. Every refresh still takes the lock and writes. Detaching only stops the render waiting.
 
 **Whether that helps depends on how many sessions you keep open, not on your refresh interval.**
 MSYS has no native `fork()`, so forking a bash subshell holding the payload costs 75–200 ms on

@@ -5,6 +5,24 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 9.0.1 — 2026-08-28
+
+Corrective, no topology, escalation, tier, or invariant change — §4 cites the `@path`-as-body rule
+by its public invocation instead of by a filesystem path into another plugin's tree.
+
+- **A cross-plugin citation named a path, which an installed reader cannot resolve.** The
+  telemetry-upsert paragraph pointed at
+  `../../../plugins/claude-ops/skills/lanes/SKILL.md` for the "Never pass a body as an `@path`
+  string" section. That link resolves only inside this marketplace checkout; a lane running with
+  `claude-ops` installed has no such path on disk, and the rule the paragraph declares itself bound
+  by was unreachable exactly where it binds. [ADR
+  0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md) makes
+  the plugin the encapsulation boundary for citation: name the public invocation, never a path into
+  another plugin's private tree. The citation is now `/claude-ops:lanes` plus the same section name,
+  which resolves for an installed reader and still locates the section for a reader in this
+  checkout. Text and paragraph wrapping changed; the contract did not. Found by the whole-repo
+  extract-ssot sweep.
+
 ## 9.0.0 — 2026-08-12
 
 Major — §2 gains a **Cross-lane PR hold** subsection, a change to the escalation contract

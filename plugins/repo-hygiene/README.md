@@ -34,7 +34,7 @@ trigger a `reset --hard`.
 
 `tree-batch` is the supported way to reset a fleet of repos to a fresh-pull state
 without hand-rolling a loop. It skips any repo with uncommitted/untracked changes
-or unpushed commits **by default** (opt in with `--include-dirty`), and its skip
+or unpushed commits **by default** (opt in with `--include-dirty`). Its skip
 list is matched separator-agnostically, so a `\`-path skip entry reliably protects
 a repo enumerated with `/` paths, the failure that lost an uncommitted edit in an
 ad-hoc loop. A skip entry that matches nothing is reported, never silently ignored.
@@ -87,7 +87,8 @@ ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-softw
 
 ## Configuration
 
-No `userConfig`. The protected-path list is enforced by the bundled bash scripts
+One `userConfig` option, `clean_destructive_guard_enabled`, documented below.
+The protected-path list is enforced by the bundled bash scripts
 (which do not read `CLAUDE.md`); a consumer relies on the git-tracked guarantee
 and the `tree` tier's default-preserve classes to keep additional paths safe. A
 declared per-consumer override for the script-enforced protected list is a known

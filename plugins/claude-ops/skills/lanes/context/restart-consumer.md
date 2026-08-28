@@ -168,7 +168,7 @@ parity claim.
   ATTEMPTS per lane per rolling 24 h; a tripped breaker exits 5 and flags the
   telemetry). The breaker counts attempts, not successes: `restarted` and
   `failed` both spend budget, so a launcher that keeps failing — or that returns
-  success while the background lane never appears, the Windows hazard below —
+  success while the background lane never appears, the Windows hazard above —
   stops after the configured number instead of re-attempting a pull, a
   marketplace refresh, and a launch on every tick forever. The pre-launch read
   failures (`error`, `api-error`) are ledgered but deliberately not counted, so

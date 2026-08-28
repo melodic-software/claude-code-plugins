@@ -307,4 +307,4 @@ the `persistence:` axis was built around: a run that finished its work and could
 because the payload has already said why the disk is empty.
 
 The full per-family ladders — including the by-value rung that precedes the resume rung, and
-research's clear-the-slice rule — are in the two files named at the top of this document.
+research's clear-the-slice rule — are in the three per-family files at the top of this document.

@@ -77,8 +77,8 @@ The same file name is the shape at EVERY layer: the user-global layer is
 `~/.claude/autonomy/binding.json`, the project layer `.claude/autonomy/binding.json`, and
 each layer's personal overlay `binding.local.json` beside it. The project file is tracked
 (team-shared); recommend the consumer `.gitignore` line: `.claude/autonomy/**/*.local.*`.
-Layers resolve per the binding-seam ladder. User-global → org binding (when pointed) →
-project → local overlay. Additively. Capability slices (like telemetry below) add their
+Layers resolve per the binding-seam ladder — user-global → org binding (when pointed) →
+project → local overlay — additively. Capability slices (like telemetry below) add their
 sections ADDITIVELY under their slice name: a binding without a slice's section is valid
 (absent-section tolerance) and no schema major bump is needed for an additive section.
 

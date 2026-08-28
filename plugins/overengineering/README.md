@@ -1,9 +1,9 @@
 # overengineering
 
-A Claude Code plugin that audits an existing **enforcement surface**. Agent hooks and standing
+A Claude Code plugin that audits an existing **enforcement surface**: agent hooks and standing
 instructions, repository and version-control hooks, CI lanes and gate scripts, branch protections,
-forge apps and automations, declared external integrations, and, on explicit request, helps peel
-back what no longer earns its cost.
+forge apps and automations, and declared external integrations. On explicit request, it also helps
+peel back what no longer earns its cost.
 
 It is the inverse of a gap audit. A gap audit asks what is missing and default-rejects new
 automation; this plugin treats **every incumbent mechanism as a retirement candidate until empirical
@@ -152,7 +152,7 @@ filtered through a noise budget with per-class rules, and a cycle where nothing 
 Recurrence changes nothing about the read-only boundary: no cadence reaches `realign`, and verdict
 changes queue for a human rather than being acted on. That queue is always in the report; **routing
 it durably to a work-item tracker is opt-in**, because a tracker that refuses to file on inferred
-intent needs an authorization an unattended cycle has nobody to give, and the operator setting
+intent needs an authorization an unattended cycle has nobody to give. The operator setting
 `queue_route: auto` in tracked config is that authorization.
 
 ## Where the artifacts land

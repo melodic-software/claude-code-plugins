@@ -110,7 +110,7 @@ unproven canary, a fork dispatch error (`Agent type 'fork' not found` or
 equivalent), or any other signal that conversation-inheriting forks cannot run
 here. Takes this path. Never re-dispatch the batch blind and never substitute
 a sequential inline audit+correct pass on the main thread: that recreates the
-salience dilution the declared delta below exists to prevent, yields audits
+salience dilution the declared delta exists to prevent, yields audits
 weaker than the ones declined to run, and is indistinguishable from silence in
 an unattended context.
 

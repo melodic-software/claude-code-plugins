@@ -1,5 +1,23 @@
 # Changelog — session-flow plugin
 
+## [0.34.14]
+
+### Changed
+
+- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
+  The directive had fractured under the same per-plugin de-slop campaign;
+  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
+  sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
+  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
+  extract-ssot sweep.
+
+## [0.34.13]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/find-handoff/reference/rung-1-known-location.md`, `skills/workflow/context/continuation.md`.** Fixed pointers and cross-references that did not resolve; counts and inventories that had drifted from the tree; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.34.12]
 
 ### Changed

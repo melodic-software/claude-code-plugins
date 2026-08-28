@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "wizard",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Generate an interactive bash wizard that walks a human, step by step, through the manual procedures an agent cannot perform — provisioning infrastructure or credentials, setting CI secrets, clicking through third-party dashboards, one-off migrations and cutovers. One skill, generate (/wizard:generate): the agent scopes the stages from the repo (reading key NAMES only from a live .env, never values), authors them onto a fixed hardened library (TTY-only fail-closed prompts, https-only URL opening, hidden secret entry, single-quoted 0600 .env upserts with a gitignore check, repo-confirmed gh secret/variable writes over stdin, names-only summary), prints the full STAGES block for explicit human approval BEFORE the script is made executable, and never runs the wizard itself — the human does, in their own terminal. Ephemeral by default: built for one run, committed only when the setup path should live in the repo. The generated script requires bash (Windows: Git Bash or WSL); gh is optional — CI-secret stages degrade to a visible warning plus a closing-summary entry when it is absent.",
   "author": {
     "name": "Melodic Software",
