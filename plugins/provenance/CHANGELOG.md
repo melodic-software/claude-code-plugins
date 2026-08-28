@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.1]
+
+### Fixed
+
+- **`audit`: both `detector unavailable` fallbacks could not render.** The effective-config probe
+  ended `| head -10 || echo "detector unavailable"` and the stamp-config probe ended
+  `| tail -3 || echo "detector unavailable"`. `head` and `tail` each exit 0 regardless of what the
+  script before them did, so a missing or broken `list-corpus.sh` or `check-stamps.sh` rendered an
+  empty line under a label that reads as a detector reporting nothing to report. Verified by
+  execution: with each script absent the old shapes rendered `[]` and the new ones render
+  `[detector unavailable]`; with the real scripts both still render their config lines. Each probe
+  now runs `--show-config` once to `/dev/null` and pipes the second run into the cap, so the `||`
+  binds to the script. The double runs cost 10 ms and 17 ms measured on this repository. Every
+  subcommand still begins with its `${CLAUDE_SKILL_DIR}/scripts/<name>.sh` path, so the existing
+  grants cover each independently. Nothing was widened. Unchanged and pre-existing: the stamp probe
+  pipes into `tail`, which `allowed-tools` does not name, though `tail` is one of the Bash tool's
+  built-in read-only commands and never prompts.
+
 ## [0.1.0]
 
 ### Added

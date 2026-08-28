@@ -13,7 +13,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Effective config: !`${CLAUDE_SKILL_DIR}/scripts/detect.sh --show-config 2>/dev/null | head -8 || echo "detector unavailable"`
+Effective config: !`${CLAUDE_SKILL_DIR}/scripts/detect.sh --show-config >/dev/null 2>&1 && ${CLAUDE_SKILL_DIR}/scripts/detect.sh --show-config 2>/dev/null | head -8 || echo "detector unavailable"`
 
 ## Purpose
 

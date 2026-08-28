@@ -5,6 +5,23 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 9.0.2 — 2026-08-28
+
+Corrective, no topology, escalation, tier, or invariant change — §5's consumer table cites
+`babysit-prs` by its public invocation instead of by a filesystem path into another plugin's tree.
+The second half of the defect 9.0.1 closed, recorded open at the time and now closed with it.
+
+- **The `babysit-loop` row linked `../../../plugins/source-control/skills/babysit-prs/SKILL.md`.**
+  9.0.1 fixed the §4 telemetry-upsert citation and the sweep record that produced it noted this
+  table cell as the same shape in the same file, needing its own pass. It is the same failure for
+  the same reason: the link resolves only inside this marketplace checkout, and a lane running with
+  `source-control` installed has no such path on disk.
+  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  makes the plugin the encapsulation boundary for citation. The cell now reads "merge lane over
+  `/source-control:babysit-prs`", which resolves for an installed reader and still names the skill
+  the lane wraps. The table is still a live consumer list; nothing about the lane, its tier, or its
+  escalation path changed.
+
 ## 9.0.1 — 2026-08-28
 
 Corrective, no topology, escalation, tier, or invariant change — §4 cites the `@path`-as-body rule

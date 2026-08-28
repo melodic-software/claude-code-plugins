@@ -1,8 +1,32 @@
 # Permission Rule Hygiene Convention — Changelog
 
 Notable changes to the permission-rule-hygiene convention. The convention states a principle and three
-anti-patterns; it is enforced by the `claude-config` plugin's `permission-hygiene` skill (checks
+anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
+
+## 1.3.1 — 2026-08-28
+
+Corrective patch: the principle, the three anti-patterns, and the correct pattern are all unchanged.
+The enforcement sentence names its enforcer by public invocation instead of by a filesystem path
+into another plugin's tree, and this file's own preamble stops naming a skill that does not exist.
+
+- **The enforcement citation was a path an installed reader cannot resolve.** The opening section
+  read "Enforced by the [`audit-permission-grants`](../../../plugins/claude-config/skills/audit-permission-grants)
+  skill in the `claude-config` plugin". That link resolves only inside the marketplace checkout, and
+  three plugin surfaces fetch this README over `raw.githubusercontent.com` at run time, so the
+  enforcement route was unreachable exactly where the convention binds.
+  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  makes the plugin the encapsulation boundary for citation: name the public invocation, never a path
+  into another plugin's private tree. The sentence now reads
+  "Enforced by `/claude-config:audit-permission-grants`", which resolves for an installed reader and
+  drops the redundant plugin restatement the slash form already carries.
+- **This changelog's preamble named `permission-hygiene`, a skill that no longer exists.** That was
+  the skill's name when this convention shipped in
+  [#175](https://github.com/melodic-software/claude-code-plugins/pull/175); the naming-grammar batch
+  in [#371](https://github.com/melodic-software/claude-code-plugins/pull/371) renamed it to
+  `audit-permission-grants` and this preamble was not carried along, so it has sent readers after
+  nothing since. Same failure as the citation above, reached by rot rather than by form, and fixed
+  the same way. Both found by the whole-repo extract-ssot sweep's encapsulation floor.
 
 ## 1.3 — 2026-08-17
 

@@ -6,6 +6,20 @@ semantics, and overlay naming. Per-concern keys and schema are versioned by thei
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Implementers table — 2026-08-28
+
+- **Two rows cited another plugin's skill internals by path.** The `ai-slop` row resolved its
+  cascade "in `skills/audit/scripts/detect.sh`" and assigned key ownership to "the plugin's
+  `skills/setup/SKILL.md`"; the `testing` (`run-e2e`) row owned its keys at
+  `run-e2e/context/e2e-config.md`. All three are plugin-relative paths that resolve against nothing
+  from this file, and five plugin surfaces fetch this README over `raw.githubusercontent.com` at run
+  time, where the paths are not on disk at all.
+  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  makes the plugin the encapsulation boundary for citation: name the public invocation, never a path
+  into another plugin's private tree. The rows now read `/ai-slop:audit`, `/ai-slop:setup`, and
+  `/testing:run-e2e`. No contract rule change and no layer, precedence, or override semantics
+  change — no version bump. Found by the whole-repo extract-ssot sweep's encapsulation floor.
+
 ## Implementers table — 2026-08-23
 
 - **`work-items` overlay allowlist.** The personal overlay may refine linear and
