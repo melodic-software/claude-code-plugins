@@ -2,6 +2,70 @@
 
 ## [0.4.0]
 
+### Changed
+
+- **The version-3 re-score is done, and the measurement carries forward unchanged.** Version 3's
+  own rule blocked every precision figure, and with it every class's fix eligibility, on a table
+  pinned to version 2. All ten golden cases were re-judged by a three-judge panel each, thirty
+  judges in independent processes, cases relabelled so no directory name or path reached a judge.
+  Each saw the candidate passage, the fetched source, the whole containing file and the rubric,
+  per the version-3 dispatch; none saw the case's `expected.json`, the fingerprint figures, or
+  another judge's verdict. The deterministic layer was re-run alongside and reproduced every
+  containment, jaccard and matched-span figure the fixtures record.
+
+  Result: **8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall 1.00** — the table version 2
+  recorded, now pinned to version 3. Every panel unanimous, **no verdict moved.** `c04` is the
+  only case whose attribution reaches grading, so it is the only one C3's stated scope could have
+  moved, and all three judges took the new test where version 2 left it: the derivation is one
+  lift inside otherwise-original material, so a `See also` bullet two sections below understates
+  its scope and C3 passes.
+
+  **No class becomes fix-eligible, for the reason that was already there.** Every class measures
+  1.00 against the 0.95 bar and every class sits below `min_n_per_class` 10 (n = 2, 5, 1, 2). The
+  re-score lifts the rubric-version block and leaves the class-size one standing, which is what
+  keeps the sweep in #3465 report-only.
+
+### Fixed
+
+- **The rubric carried its own answer key, and every judge read it.** Version 3's version-history
+  paragraph recorded the expected tally, the panel size, and an enumeration of which golden case
+  turns on which criterion, including the one case the scope change exists to restate. The
+  pipeline inlines the whole rubric into every judge prompt at the judgment step, so all thirty
+  judges in the re-score above read the prediction before grading, and that run had to withdraw
+  its claim of a blind panel. Found by that run's own fresh-context verifier, which returned FAIL
+  on the method while confirming the arithmetic.
+
+  The paragraph was written to keep the figures from sitting under a cloud they did not deserve.
+  Putting it in the file judges read at judgment time is what made a blind measurement against
+  that rubric impossible. The prediction and the enumeration are changelog material and now live
+  here; the rubric keeps the criteria, the carve-outs, the scope rule, the worked examples and the
+  tier table, and says explicitly that a judge should be able to read all of it and still not know
+  the answer.
+
+  **The verdict was tested against the leak rather than assumed safe.** `c04` was re-judged by a
+  second three-judge panel against the same rubric with the version-history preamble removed and
+  every criterion, carve-out, scope sentence and worked example intact. All three returned STANDS
+  with C3 PASS on the same scope-mismatch reasoning. The leak did not drive the verdict; the claim
+  that a fully blind panel produced it is still withdrawn.
+
+  **A second leak of the same kind sits in a fixture and is deliberately NOT fixed here.** The
+  `source.md` shared by `c08`, `c09` and `c10` announces itself as "the shared basis for the three
+  adversarial synonym-rotation cases", naming them and asserting the local text is a rotation,
+  which pre-answers C1 and C2 for nine of the thirty judges. That line is inside the text the
+  fingerprint module compares, so removing it moves every containment and matched-span figure
+  those three cases record. **The fix and a re-score are one atomic change**, and splitting them
+  would leave a recorded measurement that no longer reproduces from its own fixtures. It is filed
+  for the round that next re-scores rather than taken now.
+
+  Two smaller limits, recorded rather than worked around. Four case bodies state their own intended
+  answer (`c06` and `c07` open "A hard negative", `c08` and `c10` open "Adversarial case"), and
+  version 3 requires the judge to read the whole containing file, so those judges saw it;
+  withholding it would mean editing a fixture. And `c07`'s `expected.json` explains the case as a
+  C1 failure while also recording that the owned-content carve-out applies, which the rubric's own
+  order of evaluation makes exclusive. All three judges declined it at the carve-out, which is what
+  that order requires. The route differs, the recorded answer does not, and neither the fixture nor
+  the rubric was changed to match the run.
+
 ### Added
 
 - **The evidence-tier contract now covers a vendored-snapshot basis.** Every tier row gated on
@@ -19,8 +83,6 @@
   was fetched and this one was not; the recorded route is what keeps the report honest about the
   difference. The follow-up is human: re-run the candidate when upstream is reachable or the
   snapshot re-syncs, rather than holding the finding open.
-
-### Fixed
 
 - **The modal "may" is no longer read as a month name.** `may` is a month and an ordinary English
   modal verb, and both stamp detectors matched it bare, so prose like "the first read may raise a
@@ -49,8 +111,6 @@
   under-reporting: a year-boundary fix shifts `RSTART` into the window machinery two prior commits
   tuned, and excluding `_` from the keyword boundary would stop matching a real `last_verified_...`
   stamp.
-
-### Changed
 
 - **The `not-found` searched-surfaces listing is recorded as prose-only and unenforced.** Three
   separate requirements say a run must list every surface it searched before concluding no source
