@@ -3,6 +3,15 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.10]
+
+### Changed
+
+- **`run-e2e`'s outcome handoff carries its presence gate in the file that executes it.** `SKILL.md`
+  gated the `/verification:confirm outcome` step on the `verification` plugin being installed and gave
+  a fallback; `context/e2e.md` — which `SKILL.md` names as where the workflow steps live — restated the
+  same step with neither half. The executed copy now matches the owner. Coupling pass, apply lane.
+
 ## [0.7.9]
 
 ### Changed
