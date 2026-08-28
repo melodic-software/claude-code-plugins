@@ -33,6 +33,7 @@ having moved to `:16` when #3380 inserted a `## Contents` index above it.
 - [Contradictions found](#contradictions-found)
 - [New refusals, recorded so nobody re-opens them](#new-refusals-recorded-so-nobody-re-opens-them)
 - [Open remainder after the encapsulation close](#open-remainder-after-the-encapsulation-close)
+- [The L4 roster is closed, all 34 rows, and Group 2 was never open](#the-l4-roster-is-closed-all-34-rows-and-group-2-was-never-open)
 - [Recall limits this run declares](#recall-limits-this-run-declares)
 
 ## What this run did differently
@@ -419,6 +420,90 @@ because the encapsulation pass kept that record's five file-and-frontmatter cita
 strength of* its re-trigger clause, which means the clause was read and its own condition was not
 checked. Whoever re-runs the review owns the record; the citations are fine either way.
 
+## The L4 roster is closed, all 34 rows, and Group 2 was never open
+
+A pass dispatched to fix the predecessor roster's eight Group 2 rows found **nothing to fix**. All
+eight were closed on 2026-08-26 by
+[#3380](https://github.com/melodic-software/claude-code-plugins/pull/3380) (`6c7a1032`) — the same
+commit that wrote the roster. Its own message says so in a clause nobody carried forward: "eight
+citations written with an implied base of the plugin root while the real base was `reference/` —
+none of them resolved for any reader". It fixed them and left the roster's summary line asserting
+that all 34 still resolved to the citing text the audit quoted.
+
+**That one stale sentence has now caused four passes to re-derive the same roster**, this one
+included. It is the most expensive line in the sweep record, and it is expensive precisely because
+it sits above an inventory whose own decay rule says the status column is its weakest part. The
+lesson is not about these eight rows: **a record that fixes findings and updates its own summary in
+the same commit must update the summary, or the summary outranks the fix for every later reader.**
+
+### The eight, verified against the live tree
+
+Anchored on text, never on the rostered line numbers, which are stale in all three files. Each was
+rewritten from the bare `skills/<s>/<path>` form to the anchored
+`${CLAUDE_PLUGIN_ROOT}/skills/<s>/<path>` form clause 3 requires:
+
+| # | Citing file | Cited surface | Now at |
+|---|---|---|---|
+| `V-sc-01` | `plugins/source-control/reference/config-resolution.md` | `babysit-loop` `promotion-evidence-resolution.md` | `:189` |
+| `V-sc-02` | `plugins/source-control/reference/review-discipline.md` | `babysit-loop` `pre-escalation-dispatch.md` | `:314` |
+| `V-sc-03` | `plugins/source-control/reference/review-discipline.md` | `babysit-prs` `safety.md` | `:178` |
+| `V-sc-04` | `plugins/source-control/reference/review-discipline.md` | `babysit-prs` `safety.md` | `:278` |
+| `V-sc-05` | `plugins/source-control/reference/review-discipline.md` | `babysit-prs` `independent-resolution.md` | `:311` |
+| `V-disc-04` | `plugins/discovery/reference/topic-docs.md` | `explore` `reference/dispatch.md` | `:88` |
+| `V-disc-05` | `plugins/discovery/reference/topic-docs.md` | `research` `context/dispatch.md` | `:89` |
+| `V-disc-06` | `plugins/discovery/reference/topic-docs.md` | `trace-intent` `context/dispatch.md` | `:90` |
+
+All seven distinct targets exist on disk. Group 3's two heading anchors are closed by the same
+commit, dropped to file-level links, so **the 34-row roster stands at 34 closed, 0 open**: 22 of
+Group 1 plus all of Groups 2 and 3 by #3380, and `V-review-13` and `V-review-14` by
+[#3475](https://github.com/melodic-software/claude-code-plugins/pull/3475).
+
+Derived twice with unrelated expressions, per this file's own discipline. First by matching the
+roster's quoted bare-form text at each citing path: zero matches remain, and a regex for any
+`skills/<s>/(reference|context|actions|evals|templates)/` token not prefixed by
+`${CLAUDE_PLUGIN_ROOT}` returns zero across both plugins' `reference/` trees. Second, without
+reference to the roster at all, by resolving **every** citation token in every plugin-level
+`reference/`, `context/` and `agents/` tree and every plugin README against the base its own form
+implies: **52 tokens, 0 clause 3 failures.** That population strictly contains the eight, so the
+second derivation confirms the first without sharing its search expression.
+
+### Judgment: ADR 0018 barely reaches this class, and its encapsulation half does not
+
+Recorded because the dispatch asked for it explicitly and because tidying these rows under the wrong
+clause would have been easy.
+
+**Group 2 was never an encapsulation defect.** The roster says so itself: "Legal as citations under
+ADR 0018, defective as paths." Clause 1 names this exact citing surface — it covers "plugin-level
+`context/`, `reference/` and `agents/` docs" reaching a sibling skill's private files — and
+legalises it. Clause 2 cannot reach them: both files ship inside one plugin, so the runtime absence
+that motivates clause 2, and the fetched-contract problem the amendment builds on it, cannot occur.
+A consumer enabling `source-control` gets `reference/review-discipline.md` and
+`skills/babysit-prs/reference/safety.md` or gets neither.
+
+So **only clause 3 reaches Group 2**, and clause 3 is a resolvability rule, not an encapsulation
+rule. The amendment's fix-an-address / keep-evidence test does not apply either: that test divides
+clause 2 applications, and these are not clause 2 matters. Had the eight still been open, the remedy
+would have been the path form and nothing else — no routing to a slash invocation, no promotion of
+content to a shared location. **Intra-plugin genuinely is a different case, and the file that says
+so is the ADR's own correction 1**, which withdrew the bare-relative breakage claim as a category
+error and named this narrower shape as the real defect: an implied base of the plugin root against a
+real base of the citing file's directory.
+
+The one clause that earned its keep here is the ADR's warning that "proximity did not prevent
+them" — eight of the ten non-resolving citations in the corpus were intra-plugin, inside the case
+the decision legalises. Legalising a citation class and requiring it to resolve are separate
+obligations, and only the second one had teeth in this set.
+
+### What was deliberately not done
+
+No `plugins/**` file was edited, so **no plugin version bump and no plugin CHANGELOG entry belong to
+this pass**. A bump describing a diff that does not exist would be a worse record than none.
+
+The predecessor roster's tables were left verbatim. Its inventory is the part its decay rule says
+cannot be re-derived without re-running the audit, and two earlier passes (#3474, #3475) closed rows
+without touching that file. This pass follows them: the only edit there is an additive closure stamp
+above the tables, correcting the false summary sentence in place rather than rewriting any row.
+
 ## Recall limits this run declares
 
 A finding count read as a defect count is worse than no count. An adversarial verifier audited the
@@ -485,7 +570,9 @@ figures to differ.
   `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14`, the
   last two rows of the predecessor's 34-item L4 roster still open by that roster's own text test:
   re-derivation found 22 of its other 32 rows already closed, twelve of them by #3380 itself, so
-  what remains of the 34 is its eight Group 2 intra-plugin path-form defects, untouched here), and
+  what remains of the 34 is its eight Group 2 intra-plugin path-form defects, untouched here — a
+  claim a later pass refuted: those eight were closed by #3380 too, see
+  [the L4 roster's closure](#the-l4-roster-is-closed-all-34-rows-and-group-2-was-never-open)), and
   one adopter-row detail
   in `docs/conventions/detector-findings/README.md`. **What remains is a judgment set, not a
   backlog**: 23 further in-shape citations were kept with reasons, because each is evidence about
