@@ -295,18 +295,18 @@ the same corpus yields 9 findings. Two findings that cost measurement to reach a
 the keyword-window narrowing that removed an API beta identifier
 (`context-management-2025-06-27`) masquerading as an expired stamp.
 
-### Phase 4: Reference artifacts [TODO]
+### Phase 4: Reference artifacts [DONE]
 
 The versioned prose surfaces the audit flow loads at the step that needs them, per
 `design/plugin-topology.md` load order. The rubric catalog is the T7 shape: carve-outs first,
 four binary criteria with quoted-evidence requirements and worked pass/fail examples, the tier
 table, one four-part record per entry restating an externally-owned rule.
 
-- [ ] `plugins/provenance/skills/audit/reference/rubric.md` CREATE
-- [ ] `plugins/provenance/skills/audit/reference/dispositions.md` CREATE (three dispositions, guards, demotion path)
-- [ ] `plugins/provenance/skills/audit/reference/source-fetch.md` CREATE (rung ladder, identity checks, cache, budgets; four-part record citing upstream-drift)
-- [ ] `plugins/provenance/skills/audit/reference/nomination.md` CREATE (nomination and judge prompt templates, untrusted spine inline)
-- [ ] `plugins/provenance/skills/audit/context/persist-findings.md` CREATE (relay mechanics, refuse-when-unreachable; model-side rung resolution per the Phase 3 contract split)
+- [x] `plugins/provenance/skills/audit/reference/rubric.md` CREATE
+- [x] `plugins/provenance/skills/audit/reference/dispositions.md` CREATE (three dispositions, guards, demotion path)
+- [x] `plugins/provenance/skills/audit/reference/source-fetch.md` CREATE (rung ladder, identity checks, cache, budgets; four-part record citing upstream-drift)
+- [x] `plugins/provenance/skills/audit/reference/nomination.md` CREATE (nomination and judge prompt templates, untrusted spine inline)
+- [x] `plugins/provenance/skills/audit/context/persist-findings.md` CREATE (relay mechanics, refuse-when-unreachable; model-side rung resolution per the Phase 3 contract split)
 
 Noted tension, resolution tagged in the handoff: ai-slop's model fetches the detector-findings
 contract from the publisher's raw URL at run time, which PLUGIN-PHILOSOPHY's org-agnosticism
@@ -315,12 +315,32 @@ Planned resolution: resolve the contract shape through the installed `review` pl
 copy when present (presence-gated per seam-phrasing), publisher URL as fallback,
 refuse-when-neither-reachable retained.
 
+**Resolution landed 2026-08-28** in `context/persist-findings.md` as a three-rung order, with
+the seam-phrasing elements at the reference site (gate on installed-ness of `review`, never a
+marketplace id; stated fallback; ownership framing). One scope limit is stated there rather than
+left implicit: rung 1 yields the file SHAPE and the merge rules, which is what composition
+needs, but severity-vocabulary mapping to a consuming project stays model work either way.
+
 **Sanity Check:** each criterion id greps individually (`for c in C1-span-correspondence
 C2-beyond-common-idiom C3-attribution-adequacy C4-transformative-use; do grep -q "$c"
 plugins/provenance/skills/audit/reference/rubric.md || exit 1; done` exits 0); the
 untrusted-content convention's own two conformance greps pass over `source-fetch.md` and
 `nomination.md`, and are re-run in Phase 5 over SKILL.md's fetch step and fix-flow liveness
 check (all four T8 surfaces covered); `/ai-slop:audit` over the five files reports clean.
+
+**Sanity Check result, 2026-08-28.** All four criterion ids grep individually. The two
+untrusted-content greps match file-for-file over exactly `source-fetch.md` and `nomination.md`,
+which is the correct Phase 4 state: the remaining two T8 surfaces are SKILL.md's fetch step and
+the fix-flow liveness check, both Phase 5. The ai-slop detector reports 0 findings across the
+five files; markdownlint, typos, editorconfig-checker, `check-skill-portability.sh --all`,
+`check-purged-em-dashes.sh --check` and `validate-plugins.sh` all exit 0. Em-dash density in the
+new reference files (4 to 12 per file) sits inside the range the ai-slop precedent already
+carries (`catalog.md` has 24) and none of these paths is on the purge ratchet's declared-clean
+list, so the campaign's allowlist is unaffected.
+
+One expected unresolved reference: `context/persist-findings.md` and the reference files name
+`/provenance:audit`, whose `SKILL.md` lands in Phase 5. The repo's skill-reference hook flags it
+until then; it is correct as written and resolves when Phase 5 commits.
 
 ### Phase 5: Skills and evals [TODO]
 

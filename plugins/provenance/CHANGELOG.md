@@ -4,6 +4,37 @@
 
 ### Added
 
+- **The reference artifacts, the audit's judgment half.** `rubric.md` (rubric version 1),
+  `dispositions.md`, `source-fetch.md`, `nomination.md`, and `context/persist-findings.md`. Each
+  is read at the step that needs it rather than preloaded, so a read-only audit never pays for
+  the fix discipline and a run with no fetch never reads the fetch route.
+
+  The rubric states its own boundary first, because the four criterion names resemble fair-use
+  factors and the resemblance is misleading: the verdicts are editorial, the remedies are
+  maintenance remedies, and a finding says a passage should point at its source rather than
+  restate it. It never says a passage is unlawful. Carve-outs are evaluated before any criterion,
+  since several of them make the criteria meaningless rather than merely satisfied, and each
+  criterion requires a quoted span, with UNKNOWN available when the material needed to quote is
+  not in front of the judge.
+
+  Two shapes exist to stop a measurement from lying. Judges are blind to the fingerprint numbers
+  and to each other, because a judge told the containment score turns three samples into one
+  sample repeated; and the semantic-diff guard reads the before and after without the rewrite
+  rationale, because an agent told why an edit was made reliably finds that the edit achieved it.
+  Nomination passes union rather than intersect, since intersecting two recall-biased passes
+  converts them into a precision filter and discards the recall they were spawned to buy.
+
+  `persist-findings.md` resolves the detector-findings contract through three rungs: the `review`
+  plugin's bundled copy when that plugin is installed, the publisher's raw URL otherwise, and a
+  refusal to write when neither is reachable. The first rung is new against the ai-slop precedent
+  and closes a real gap — fetching a contract from one organization's URL made every offline run
+  report-only and pointed a portable plugin at a single publisher.
+
+  The untrusted-content framing spine is carried inline byte-identical at both Phase 4 ingest
+  surfaces, with the site tails naming what these surfaces actually attract: fetched
+  documentation pages that instruct the reader to copy them, which is the case under audit rather
+  than a settlement of it.
+
 - **The five deterministic scripts, the audit's reasoning-free half.** `list-corpus.sh`
   enumerates tracked markdown minus the categorical carve-outs; `extract-breadcrumbs.sh`
   inventories the provenance signals already in a directory; `check-stamps.sh` flags expired
