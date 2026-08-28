@@ -64,13 +64,6 @@ jobs:
           persist-credentials: false
       - name: Run claude-review skill-evidence guard tests
         run: bash scripts/verify-claude-review-skill.sh.test.sh
-      # The skip-actors exception lives in .github/claude-skip-actors — the one
-      # statement of ADR 0002's ratified list, read through its one parser. The
-      # value used to be restated inline here (and at four sibling sites), and
-      # the restatement drifted (2b4d8abf).
-      - name: Read the ratified skip-actors list
-        id: skip-actors
-        run: echo "list=$(scripts/read-skip-actors.sh)" >> "$GITHUB_OUTPUT"
       - name: Verify claude-review invoked the skill
         env:
           GH_TOKEN: ${{ github.token }}
@@ -81,5 +74,5 @@ jobs:
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           LANE_RESULT: ${{ needs.review.result }}
           REVIEWER_LOGINS: claude[bot]
-          SKIP_ACTORS: ${{ steps.skip-actors.outputs.list }}
+          SKIP_ACTORS: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]
         run: bash scripts/verify-claude-review-skill.sh

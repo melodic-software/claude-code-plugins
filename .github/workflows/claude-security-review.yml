@@ -26,44 +26,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The ratified skip-actors list lives in .github/claude-skip-actors — the
-  # one statement of ADR 0002's skip-actor exception, formerly restated at
-  # five sites (which drifted: 2b4d8abf). A workflow-call `with:` value cannot
-  # read a file, so this job reads the list and hands it across `needs`. It
-  # reads the PR's BASE copy, mirroring the reusable's own `paths-file`
-  # discipline, so a PR cannot edit the list's CONTENT to skip its own
-  # security review; a base that predates the file falls back to the head
-  # copy (the adopting PR itself). A failed read here skips the lane, which a
-  # ruleset would read as success — the evidence job below fails closed on
-  # that shape.
-  skip-actors:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      list: ${{ steps.read.outputs.list }}
-    steps:
-      - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Fetch base
-        uses: ./.github/actions/checkout-with-base
-      - name: Read the ratified skip-actors list
-        id: read
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ -n "$BASE_REF" ] &&
-            git show "origin/$BASE_REF:.github/claude-skip-actors" \
-              >"$RUNNER_TEMP/claude-skip-actors" 2>/dev/null; then
-            list="$(scripts/read-skip-actors.sh "$RUNNER_TEMP/claude-skip-actors")"
-          else
-            list="$(scripts/read-skip-actors.sh)"
-          fi
-          echo "list=$list" >> "$GITHUB_OUTPUT"
-
   security-review:
-    needs: skip-actors
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post the security review
@@ -74,16 +37,14 @@ jobs:
       paths-file: .github/claude-security-paths
       # Stated explicitly, never left to the reusable's default: this list IS
       # ADR 0002's skip-actor exception, and the exception must be readable and
-      # reviewable in the repo it applies to — it lives in
-      # .github/claude-skip-actors, read by the `skip-actors` job above. An
-      # inherited default silently rewrites the exception whenever ci-workflows
-      # changes it — which is how `claude[bot]` and `melodic-ai[bot]` entered
-      # it (#1766 dropped this line while re-pinning to a version whose default
-      # had widened).
+      # reviewable in the repo it applies to. An inherited default silently
+      # rewrites the exception whenever ci-workflows changes it — which is how
+      # `claude[bot]` and `melodic-ai[bot]` entered it (#1766 dropped this line
+      # while re-pinning to a version whose default had widened).
       #
       # DO NOT delete this line at a re-pin, and do not "simplify" it away.
       # Deleting it is not a no-op even when the value matches the upstream
-      # default of the moment: the actors in that file are ADR 0002's
+      # default of the moment: the four actors here are ADR 0002's 2026-08-04
       # ratified baseline, and inheriting instead re-delegates that decision to
       # whatever ci-workflows ships next. Every actor in an inherited default
       # satisfies this repo's REQUIRED `security-review / security-review`
@@ -103,7 +64,7 @@ jobs:
       # not. runner-policy rejects inputs outside the reviewed contract but
       # cannot REQUIRE one, so dropping this line re-widens the exception with
       # nothing said. That residual gap is standards#308.
-      skip-actors: ${{ needs.skip-actors.outputs.list }}
+      skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -125,7 +86,7 @@ jobs:
   # pin carries the outputs needs a version they can compare against, and the
   # guard's own message says the same thing the same way.
   security-review-evidence:
-    needs: [skip-actors, security-review]
+    needs: security-review
     if: >-
       always() &&
       github.event_name == 'pull_request' &&
@@ -143,16 +104,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # A failed skip-actors read skips the lane, and a ruleset reads a skipped
-      # required check as success — so this supplement reddens that shape
-      # rather than letting a broken read double as an off switch.
-      - name: Fail closed when the skip-actors read failed
-        if: needs.skip-actors.result != 'success'
-        env:
-          SKIP_ACTORS_RESULT: ${{ needs.skip-actors.result }}
-        run: |
-          echo "::error::the skip-actors read job concluded '$SKIP_ACTORS_RESULT'; the security lane cannot have received the ratified list"
-          exit 1
       # Self-test first, so a broken guard cannot mask the regression it exists
       # to catch — the shape #2517 was: the guard agreed with itself while
       # failing every pull request.
@@ -171,5 +122,5 @@ jobs:
           LANE_REVIEW_RAN: ${{ needs.security-review.outputs.review-ran }}
           LANE_REVIEW_FAILED: ${{ needs.security-review.outputs.review-failed }}
           LANE_FAILURE_CLASS: ${{ needs.security-review.outputs.failure-class }}
-          SKIP_ACTORS: ${{ needs.skip-actors.outputs.list }}
+          SKIP_ACTORS: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]
         run: bash scripts/verify-security-review-evidence.sh

@@ -29,8 +29,7 @@
 # Environment:
 #   GITHUB_EVENT_NAME    pull_request expected; anything else is not applicable
 #   GITHUB_ACTOR         PR author login
-#   SKIP_ACTORS          comma-separated actors exempt from review (default:
-#                        .github/claude-skip-actors via read-skip-actors.sh)
+#   SKIP_ACTORS          comma-separated actors exempt from review
 #   LANE_RESULT          needs.security-review.result
 #   LANE_RELEVANT        the lane's `relevant` output
 #   LANE_REVIEW_RAN      the lane's `review-ran` output
@@ -45,13 +44,7 @@
 
 set -euo pipefail
 
-# The default is the ratified list in .github/claude-skip-actors, read through
-# its one parser — never a restated literal: this guard's literal is the copy
-# that drifted (2b4d8abf added cursor[bot] to both workflow lines and left it
-# out here).
-if [[ -z "${SKIP_ACTORS:-}" ]]; then
-  SKIP_ACTORS="$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-skip-actors.sh")" || exit 2
-fi
+SKIP_ACTORS="${SKIP_ACTORS:-dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot]}"
 
 usage() {
   cat <<'EOF'
