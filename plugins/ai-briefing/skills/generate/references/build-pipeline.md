@@ -328,7 +328,7 @@ If `document-skills:pptx` is not available, follow the install steps in `slide-g
 
 **Canonical pipeline:** `output/build/build-html.js` produces single-file HTML with inline CSS/JS, base64 org logos, inline SVG provider logos (white via `currentColor`), keyboard nav (←/→/space/PgUp/PgDn/Home/End), explicit prev/next buttons (NO click-to-advance — traps misclicks on URL links), touch swipe, hash deep-link, `?print=1` flag for print mode.
 
-**Summary:** Collect items → emit/update `output/build/slides-data.js` → run `node build-html.js` → output lands at `output/meetings/ai-meeting-{N}.html`. See "slide-data schema" earlier in this file for the schema and full type list.
+**Summary:** Collect items → emit/update `output/build/slides-data.js` → run `node build-html.js` → output lands at `output/meetings/ai-meeting-{N}.html`. Schema and full slide-type list: see "`slides-data.js` schema" earlier in this file.
 
 **Fallback path** (`/frontend-design:frontend-design` + `/ui-ux-pro-max:slides`): see `slide-generation.md` "Fallback skill paths".
 

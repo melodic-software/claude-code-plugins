@@ -122,7 +122,7 @@ it, and STOP. Inferring Shape B here would search for per-item closing PRs that 
 produces and misclassify every checkpoint as `no-code` — a confident verdict over the wrong commit
 set.
 
-**Derive the PR from the branch before either bullet below.** These bullets need a PR object the
+**Derive the PR from the branch before either basis bullet below.** These bullets need a PR object the
 branch line does not carry, and close-out often runs from a session whose checked-out branch is not
 the integration branch (a fresh or cloud session, or a run well after merge), so the skill's
 current-branch base resolution does not apply. Query by head branch across states — the PR is

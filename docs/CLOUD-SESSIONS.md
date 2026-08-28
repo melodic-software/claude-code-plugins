@@ -252,7 +252,7 @@ enables; the cloud bootstrap installs (see
   working tree and follow it manually (note: this bypasses skill-load string substitutions
   such as `${CLAUDE_EFFORT}`). Prefer fixing the environment so the setup-script path
   pre-installs before process start; do not invent plugin-side registry hacks.
-- Being a `directory` source may compound it —
+- Being a `directory` source may compound the symptom —
   [that source is documented for development only](https://code.claude.com/docs/en/settings#extraknownmarketplaces)
   and the carry-over note qualifies install-at-session-start with "requires network access to reach
   the marketplace source". The two candidates were not separated, because the trust gate alone

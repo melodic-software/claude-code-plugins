@@ -688,7 +688,7 @@ Every simulation session follows this lifecycle. The protocol ensures clean stat
 
 Brandolini warns: "discussing to reach an agreement on every single sticky note, before writing it would kill workshop throughput and hide exactly the contradictions we want to explore" (Ch. 4). LLM agents share a base model and naturally converge — the simulation equivalent of a "committee circle."
 
-**After Wave 1, the facilitator checks for premature convergence:**
+**After the initial dump, the facilitator checks for premature convergence:**
 
 1. Scan for events that use identical or near-identical phrasing across personas — if 3+ agents wrote the same event name with no variation, the "different perspectives" signal is missing
 2. Check if any persona's events contradict another's — if not, prompt the skeptical personas: "The [Domain Expert] says [X happens]. From your experience in [Operations/Support], is that really how it works? What goes wrong?"

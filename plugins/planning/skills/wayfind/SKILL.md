@@ -105,7 +105,7 @@ an interactive session. Do not fabricate a map.
    **Not-yet-specified** (fog, prose. Fog never graduates into Out-of-scope) /
    **Out-of-scope** (scope exclusions, not unphraseable fog). Template + exact `gh` calls: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
 3. **Create typed decision items** as sub-issues of the map, one per sharp question. Type
-   label sets the routing target and the default mode (below). Wire `blocked-by` edges where
+   label sets the routing target and the default mode (the type table in Work mode step 4). Wire `blocked-by` edges where
    one decision genuinely gates another. Never invent edges to impose false order.
 4. **Materialize the mode** on each item at creation: HITL types (`interview`, `design`,
    `prototype`) get the `needs-human` label; `research` omits it (autonomous-capable); `task`

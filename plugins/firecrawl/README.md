@@ -35,8 +35,8 @@ appears worth its own surface.
 
 ## Requirements
 
-- `firecrawl-cli` on PATH (`npm install -g firecrawl-cli`), the skill flags
-  this in its status line and the install is one command when first needed.
+- `firecrawl-cli` on PATH (`npm install -g firecrawl-cli`). The skill flags a
+  missing CLI in its status line; the install is one command when first needed.
 - A `FIRECRAWL_API_KEY` environment variable (OS user scope) from the
   [Firecrawl dashboard](https://firecrawl.dev). Prefer env-var auth over
   `firecrawl login`/`firecrawl config`, which write a second source of truth.

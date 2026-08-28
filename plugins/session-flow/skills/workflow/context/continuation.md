@@ -50,7 +50,7 @@ side effect of deciding. With no reconciliation in hand, the liveness input come
 read-only glance; absent that too, it is unknown like any other missing input.
 
 **No duplicated reads, and no new pre-compute.** This router runs no probe of its own: the
-skill's repository-context gather (SKILL.md, "Repository context — gather first") is the whole
+skill's repository-context gather (SKILL.md, "Repository context. Gather first") is the whole
 pre-compute block, and everything past it comes from an informant at run time. Any
 context-gathering added here later inherits that block's `$`-expansion ban — a worktree-isolated
 agent refuses a command carrying one (melodic-software/claude-code-plugins#1687 and #1688) — so a

@@ -74,7 +74,7 @@ against.
 - **Calibre** installed, plus **Python 3.6+** on PATH (not the WindowsApps stub).
 - **`gh` CLI, authenticated.** The `setup` download step and the
   `check-drift` probe resolve the DeDRM_tools release tag via `gh api`.
-  Absent: both fall back to the pinned tag in `references/versions.md`
+  Absent: both fall back to the pinned tag in `skills/manage/references/versions.md`
   (check-drift reports the source unreachable) rather than failing mid-flow.
 - **Admin rights** for the firewall + ICACLS lockdown steps.
 - Books already purchased and downloaded through Kindle for PC.

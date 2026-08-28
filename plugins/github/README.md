@@ -65,7 +65,7 @@ suppresses the offer when `false`. That is an advisory gate honored by the skill
 kill-switch; the hard gate is the per-action user confirm. Guided manual steps with a deep link
 remain the always-available fallback.
 
-`/github:setup` writes both interactively and recommends the one-line recursive overlay
+`/github:setup` writes both files interactively and recommends the one-line recursive overlay
 gitignore (`.claude/**/*.local.*`); it never edits your `.gitignore`.
 
 ## Install

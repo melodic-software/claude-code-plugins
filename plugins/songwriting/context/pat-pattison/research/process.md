@@ -156,7 +156,7 @@ Decision factors:
 - Whether tense supports focus.
 - Whether the speaker stays aimed at the strongest subject.
 
-Do not forget future tense. A future-tense bridge can project consequence while
+Test future tense as well. A future-tense bridge can project consequence while
 keeping present-tense verses immediate.
 
 ## Form alternatives
