@@ -209,11 +209,13 @@ def verdict_slot:
 # three past the boundary — onto a relay row on a stamp rule, and verbatim into
 # `## Unparsed` with no rule id.
 #
-# The fallback turns on a tier NAMED, not on a `tier` key present. Keying off the key
-# let `{"tier": null, "verdict": "not-found"}`, `{"tier": [], …}` and
-# `{"tier": "pending", …}` disarm the whole boundary with one unusable value: the
-# verdict was never consulted, so the record printed verbatim into `## Unparsed` and
-# skipped the searched-surfaces gate on the way.
+# NARROWING TURNS ON A TIER NAMED, NEVER ON A `tier` KEY PRESENT — at BOTH steps, and
+# by the same rule, because the two steps are the same question asked twice. Keying
+# either off the key lets one unusable value disarm the whole boundary:
+# `{"tier": null, "verdict": "not-found"}` never consulted the verdict, and
+# `{"verdict": {"tier": "pending", "result": "not-found"}}` never looked past the
+# `tier` child. Each printed its verdict name and payload verbatim into `## Unparsed`
+# and skipped the searched-surfaces gate on the way.
 #
 # Trimming is against every separator and format character, not a hand-picked few. A
 # zero-width joiner reads as nothing to whoever opens the findings file, so a tier
@@ -225,10 +227,6 @@ def norm:
   | sub("[[:space:][:cntrl:]\\p{Z}\\p{Cf}]+$"; "");
 def names_in:
   [ .[] | .. | strings | norm ];
-def verdict_declared:
-  verdict_slot
-  | if (type == "object") and ((to_entries | map(select(.key | ascii_downcase == "tier")) | length) > 0)
-    then tier_slot else . end;
 # `source-not-identified` is the spelling SKILL.md publishes for the neutral outcome
 # this file elsewhere calls `not-found`. Both are recognized, because the sidecar is
 # written against that description and a name this reader does not know is a verdict
@@ -241,10 +239,14 @@ def is_neutral_name:
   . == "not-found" or . == "source-not-identified";
 def is_tier_name:
   is_verdict_name or . == "fingerprint-confirmed";
+# Prefer the narrower reading of a container ONLY when it names a tier; otherwise the
+# whole container is the declaration. This is the single rule both steps apply.
+def narrow($inner; $whole):
+  if ($inner | names_in | any(is_tier_name)) then $inner else $whole end;
+def verdict_declared:
+  verdict_slot | . as $v | narrow([ tier_slot ]; [ $v ]);
 def declared_tiers:
-  . as $rec
-  | [ tier_slot ]
-  | if (names_in | any(is_tier_name)) then . else [ $rec | verdict_declared ] end;
+  . as $rec | narrow([ tier_slot ]; [ $rec | verdict_declared ] | add // []);
 def declared_names:
   declared_tiers | names_in;
 def declares($name):

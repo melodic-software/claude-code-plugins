@@ -130,10 +130,13 @@ past the boundary — onto a relay row when a stamp rule carried one, and verbat
 so a sidecar keeping the outcome and its surfaces together is not refused for naming them where
 it declared the outcome.
 
-The fallback turns on a tier NAMED, not on a `tier` key present. Keying it off the key let one
-unusable value disarm the whole boundary: `{"tier": null, "verdict": "not-found"}`,
-`{"tier": [], …}` and `{"tier": "pending", …}` never reached the verdict, so each printed
-verbatim into `## Unparsed` and skipped the searched-surfaces gate on the way.
+**Narrowing turns on a tier NAMED, never on a `tier` key present — at both steps, and by the
+same rule**, because the two steps are the same question asked twice: prefer the narrower
+reading of a container only when it names a tier, and otherwise take the whole container.
+Keying either step off the key let one unusable value disarm the whole boundary.
+`{"tier": null, "verdict": "not-found"}` never reached the verdict, and
+`{"verdict": {"tier": "pending", "result": "not-found"}}` never looked past the `tier` child.
+Each printed verbatim into `## Unparsed` and skipped the searched-surfaces gate on the way.
 
 **A record that is not an object at all has no declared tier to respect**, and it is bound for
 `## Unparsed` verbatim, so a verdict name appearing anywhere inside it would print into the file
@@ -144,8 +147,8 @@ still takes the appendix path, and one that names none never costs the well-form
 beside it.
 
 The VALUE is read generously about its WRAPPER and exactly about the NAME. Every string anywhere
-inside the declared value is a candidate, trimmed and case-folded, and it names a tier only when
-it EQUALS one — so `"  not-found  "`, `["not-found"]`, `{"name": "llm-suspected"}` and
+inside the value the narrowing rule below settles on is a candidate, trimmed and case-folded, and
+it names a tier only when it EQUALS one — so `"  not-found  "`, `["not-found"]`, `{"name": "llm-suspected"}` and
 `"LLM-Suspected"` are all the verdicts they say they are, while a future `not-found-v2` is an
 unknown tier rather than the verdict it happens to start with. A valid rule id sitting beside a
 verdict does not readmit it either.

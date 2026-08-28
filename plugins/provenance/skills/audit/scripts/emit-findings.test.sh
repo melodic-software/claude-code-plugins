@@ -672,6 +672,74 @@ for uu in "null:not-found:UNUSABLENULL" "empty:source-fetched-similar:UNUSABLEEM
   assert_contains "an unusable tier is counted, not dropped ($un)" "$UB" "1 judgment"
 done
 
+# The SAME rule applies one step in. An unusable `verdict.tier` used to make the whole
+# verdict unread, so the outcome beside it printed verbatim into `## Unparsed` and the
+# gate never ran — the identical defect at the identical position, one container down.
+write_report verdict-tier-unusable-word.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-nomination", "file": "vu.md",
+                "verdict": {"tier": "pending", "result": "not-found", "confidence": "low"},
+                "excerpt": "VUWORDCANARY", "searched": ["https://vu.example/u"]}]
+}'
+write_report verdict-tier-unusable-null.json '{
+  "counts": {"files": 2},
+  "findings": [{"verdict": {"tier": null, "outcome": "llm-suspected"},
+                "file": "vu2.md", "note": "VUNULLCANARY"}]
+}'
+write_report verdict-tier-unusable-blank.json '{
+  "counts": {"files": 2},
+  "findings": [{"verdict": {"tier": "", "outcome": "source-fetched-similar",
+                            "evidence": "VUBLANKCANARY"}, "file": "vu3.md"}]
+}'
+write_report verdict-tier-unusable-sni.json '{
+  "counts": {"files": 2},
+  "findings": [{"verdict": {"tier": "unset", "outcome": "source-not-identified"},
+                "file": "vu4.md", "excerpt": "VUSNICANARY",
+                "searched": ["https://vu4.example/u"]}]
+}'
+for vu in "word:not-found:VUWORDCANARY" "null:llm-suspected:VUNULLCANARY" \
+  "blank:source-fetched-similar:VUBLANKCANARY" \
+  "sni:source-not-identified:VUSNICANARY"; do
+  vun="${vu%%:*}"
+  vur="${vu#*:}"
+  vuv="${vur%%:*}"
+  vuk="${vur#*:}"
+  VUO="$OUTDIR/verdict-tier-unusable-$vun.md"
+  run --report "$REPORTS/verdict-tier-unusable-$vun.json" --out "$VUO" >/dev/null 2>&1
+  VUB="$(cat "$VUO")"
+  assert_eq "an unusable verdict.tier emits no relay row ($vun)" \
+    "$(grep -c '^| [0-9]' "$VUO")" "0"
+  assert_not_contains "an unusable verdict.tier does not hide the outcome ($vun)" \
+    "$VUB" "$vuv"
+  assert_not_contains "an unusable verdict.tier leaks no payload ($vun)" "$VUB" "$vuk"
+  assert_not_contains "an unusable verdict.tier opens no Unparsed section ($vun)" \
+    "$VUB" "## Unparsed"
+  assert_contains "an unusable verdict.tier is counted ($vun)" "$VUB" "1 judgment"
+done
+
+# It does not let a not-found skip the gate either, and it does not relay a stamp rule
+# carrying the smuggled outcome.
+write_report verdict-tier-unusable-gate.json '{
+  "counts": {"files": 2},
+  "findings": [{"verdict": {"tier": "pending", "result": "not-found"}, "file": "vg.md"}]
+}'
+run --report "$REPORTS/verdict-tier-unusable-gate.json" \
+  --out "$OUTDIR/verdict-tier-unusable-gate.md" >/dev/null 2>&1
+assert_exit "an unusable verdict.tier does not let a not-found skip the gate" "$?" "3"
+
+write_report verdict-tier-unusable-stamp.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-stamp-expired", "file": "vs2.md",
+                "line": 1, "stamp_date": "2020-01-01", "window_days": 9, "days_over": 2,
+                "verdict": {"tier": "pending", "result": "not-found"},
+                "searched": ["https://vs2.example/u"]}]
+}'
+VUS="$OUTDIR/verdict-tier-unusable-stamp.md"
+run --report "$REPORTS/verdict-tier-unusable-stamp.json" --out "$VUS" >/dev/null 2>&1
+assert_eq "a stamp rule carrying a smuggled outcome emits no relay row" \
+  "$(grep -c '^| [0-9]' "$VUS")" "0"
+assert_contains "and it is counted as withheld" "$(cat "$VUS")" "1 judgment"
+
 # And the same shape without a searched listing is refused, not quietly appended.
 write_report tier-unusable-ungated.json '{
   "counts": {"files": 2},
