@@ -182,6 +182,230 @@ const SOURCE_TEXT = [
   );
 }
 
+// --- case: wrapped_quote_fixture --------------------------------------------
+// Hard-wrapped prose is ordinary markdown, so a quotation routinely opens on
+// one line and closes on the next. Stripping per line left that excerpt in and
+// reported it as overlap. Inline stripping now runs over the paragraph.
+{
+  const half = Math.floor(UPSTREAM_SENTENCE.length / 2);
+  const wrapAt = UPSTREAM_SENTENCE.indexOf(" ", half);
+  const wrapped =
+    UPSTREAM_SENTENCE.slice(0, wrapAt) + "\n" + UPSTREAM_SENTENCE.slice(wrapAt + 1);
+
+  const localWrapped = [
+    "# Why we cap parallelism",
+    "",
+    `The vendor's reference puts it plainly: "${wrapped}"`,
+    "(https://example.com/docs/flowlite, read 2026-08-27; recheck on the next major).",
+    "",
+    "Our own runner pins parallelism to two because the fixtures share a sqlite file.",
+  ].join("\n");
+
+  const r = compare(localWrapped, SOURCE_TEXT);
+  check(
+    "wrapped_quote_fixture: a quotation closing on the next line strips to nothing",
+    r.matched_spans.length === 0 && r.longest_span_words === 0,
+    `spans=${JSON.stringify(r.matched_spans)} longest=${r.longest_span_words}`,
+  );
+  check(
+    "wrapped_quote_fixture: separation does not fire on a wrapped cited quotation",
+    r.separation.fired === false && r.containment === 0,
+    `fired=${r.separation.fired} containment=${r.containment}`,
+  );
+
+  const localCurly = localWrapped.replace(`"${wrapped}"`, `“${wrapped}”`);
+  const rc = compare(localCurly, SOURCE_TEXT);
+  check(
+    "wrapped_quote_fixture: curly marks strip across the line break identically",
+    rc.matched_spans.length === 0 && rc.separation.fired === false,
+    `spans=${rc.matched_spans.length} fired=${rc.separation.fired}`,
+  );
+
+  check(
+    "wrapped_quote_fixture: stripping preserves the line count exactly",
+    stripQuoted(localWrapped).split("\n").length === localWrapped.split("\n").length,
+    `${stripQuoted(localWrapped).split("\n").length} vs ${localWrapped.split("\n").length}`,
+  );
+}
+
+// --- case: quote_cannot_escape_paragraph -------------------------------------
+// The bound that makes paragraph-wide stripping safe. An opening mark with no
+// partner in its own paragraph must stay put rather than pairing with a mark
+// further down the document and swallowing everything between.
+{
+  const localBlank = [
+    'An unpaired " quote mark opens here and never closes.',
+    "It runs on to a second line of the very same paragraph.",
+    "",
+    `${UPSTREAM_SENTENCE} And then a stray " mark much later on.`,
+  ].join("\n");
+  const rb = compare(localBlank, SOURCE_TEXT);
+  check(
+    "quote_cannot_escape_paragraph: a blank line resets the open-quote state",
+    rb.longest_span_words >= DEFAULTS.min_span_words,
+    `longest=${rb.longest_span_words} containment=${rb.containment}`,
+  );
+
+  const localQuote = [
+    'An unpaired " quote mark opens here and never closes.',
+    "> a blockquote line sits between the two marks",
+    `${UPSTREAM_SENTENCE} And then a stray " mark much later on.`,
+  ].join("\n");
+  check(
+    "quote_cannot_escape_paragraph: a blockquote line resets the open-quote state",
+    compare(localQuote, SOURCE_TEXT).longest_span_words >= DEFAULTS.min_span_words,
+    `longest=${compare(localQuote, SOURCE_TEXT).longest_span_words}`,
+  );
+
+  const localFence = [
+    'An unpaired " quote mark opens here and never closes.',
+    "```text",
+    "fenced material",
+    "```",
+    `${UPSTREAM_SENTENCE} And then a stray " mark much later on.`,
+  ].join("\n");
+  check(
+    "quote_cannot_escape_paragraph: a fence delimiter resets the open-quote state",
+    compare(localFence, SOURCE_TEXT).longest_span_words >= DEFAULTS.min_span_words,
+    `longest=${compare(localFence, SOURCE_TEXT).longest_span_words}`,
+  );
+
+  const stripped = stripQuoted(localBlank);
+  check(
+    "quote_cannot_escape_paragraph: prose after the unpaired mark survives verbatim",
+    stripped.includes("never closes") && stripped.includes("Flowlite reads configuration"),
+    JSON.stringify(stripped.slice(0, 160)),
+  );
+}
+
+// --- case: contraction_does_not_close_a_quote --------------------------------
+// A single-quoted excerpt that wraps and contains a contraction. The apostrophe
+// in "doesn't" is the first ' after the opening mark, so a naive forward search
+// closes the quote there and leaves the rest of the excerpt in the token stream
+// — the exact false positive paragraph-wide stripping exists to prevent, and it
+// only became reachable once the pairing scope widened past one line.
+{
+  const withContraction = [
+    "The upstream page is explicit about this:",
+    "",
+    "As documented, 'the runner retries twice with linear backoff and",
+    "doesn't apply jitter unless the task opts in explicitly' which is the",
+    "behavior we rely on.",
+  ].join("\n");
+
+  const stripped = stripQuoted(withContraction);
+  check(
+    "contraction_does_not_close_a_quote: the whole excerpt strips, not just its head",
+    !stripped.includes("apply jitter unless the task opts in"),
+    JSON.stringify(stripped.split("\n")[3]),
+  );
+  check(
+    "contraction_does_not_close_a_quote: no orphaned closing mark survives",
+    !stripped.includes("explicitly'"),
+    JSON.stringify(stripped.split("\n")[3]),
+  );
+  check(
+    "contraction_does_not_close_a_quote: unquoted prose after the excerpt survives",
+    stripped.includes("behavior we rely on") && stripped.includes("upstream page is explicit"),
+    JSON.stringify(stripped),
+  );
+  check(
+    "contraction_does_not_close_a_quote: line count is preserved",
+    stripQuoted(withContraction).split("\n").length === withContraction.split("\n").length,
+    `${stripQuoted(withContraction).split("\n").length} vs ${withContraction.split("\n").length}`,
+  );
+
+  // The guard must not stop a genuine closer that merely follows a word, or an
+  // excerpt containing a possessive would never close and would leak instead.
+  const possessive = "A cited span 'covering the runner and the teams' rota' ends here.";
+  check(
+    "contraction_does_not_close_a_quote: a quote containing a possessive still closes",
+    stripQuoted(possessive).includes("ends here") &&
+      !stripQuoted(possessive).includes("covering the runner"),
+    JSON.stringify(stripQuoted(possessive)),
+  );
+}
+
+// --- case: possessive_after_markup_is_not_an_opening_quote -------------------
+// The opening guard tested only for a word char before the mark, so a
+// possessive following a closing backtick or paren — `Location`'s, (FILE.md)'s,
+// which this repository's own prose is full of — read as an OPENING quote.
+// That was bounded while the closing scan stopped at the next contraction; once
+// pairing skipped word-internal apostrophes it ran to the next stray mark
+// instead, blanking whole paragraphs of original prose. Measured across tracked
+// markdown, that reached 16,031 characters in one file. Over-stripping hides
+// real copies, so this is the false-negative direction and the worse one.
+{
+  const possessiveAfterMarkup = [
+    "The rule is contained to `Location`'s file, but the runner still applies it.",
+    "A downstream consumer's rota is unaffected and the schedule stays fixed.",
+    "This whole paragraph is original prose that no upstream page ever carried.",
+    "It ends with a body line quoting a `'trigger phrase'` from the catalog.",
+  ].join("\n");
+
+  const stripped = stripQuoted(possessiveAfterMarkup);
+  check(
+    "possessive_after_markup_is_not_an_opening_quote: original prose survives",
+    stripped.includes("original prose that no upstream page ever carried") &&
+      stripped.includes("rota is unaffected"),
+    JSON.stringify(stripped),
+  );
+  check(
+    "possessive_after_markup_is_not_an_opening_quote: a parenthesized possessive is not an opener",
+    stripQuoted("See (FILE.md)'s note; the rest of this line is original prose.").includes(
+      "the rest of this line is original prose",
+    ),
+    JSON.stringify(stripQuoted("See (FILE.md)'s note; the rest of this line is original prose.")),
+  );
+  check(
+    "possessive_after_markup_is_not_an_opening_quote: a real opening quote still opens",
+    !stripQuoted("Cited as 'the runner retries twice' in the note.").includes(
+      "the runner retries twice",
+    ),
+    JSON.stringify(stripQuoted("Cited as 'the runner retries twice' in the note.")),
+  );
+  check(
+    "possessive_after_markup_is_not_an_opening_quote: line count is preserved",
+    stripped.split("\n").length === possessiveAfterMarkup.split("\n").length,
+    `${stripped.split("\n").length} vs ${possessiveAfterMarkup.split("\n").length}`,
+  );
+}
+
+// --- case: wrapped_quote_line_numbering --------------------------------------
+// Spans report local line offsets and the fix flow edits against them, so a
+// wrapped quotation earlier in the file must not shift what comes after it.
+{
+  const half = Math.floor(UPSTREAM_SENTENCE.length / 2);
+  const wrapAt = UPSTREAM_SENTENCE.indexOf(" ", half);
+  const lines = [
+    "# Notes",
+    "",
+    `Quoted upstream: "${UPSTREAM_SENTENCE.slice(0, wrapAt)}`,
+    `${UPSTREAM_SENTENCE.slice(wrapAt + 1)}" (https://example.com/docs/flowlite).`,
+    "",
+    "Our own paragraph sits between the quotation and the planted copy below.",
+    "",
+    UPSTREAM_SENTENCE,
+    "",
+    "Trailing prose of our own.",
+  ];
+  const local = lines.join("\n");
+  const plantedLine = 8;
+
+  check(
+    "wrapped_quote_line_numbering: stripQuoted returns the same number of lines",
+    stripQuoted(local).split("\n").length === lines.length,
+    `${stripQuoted(local).split("\n").length} vs ${lines.length}`,
+  );
+
+  const r = compare(local, SOURCE_TEXT);
+  check(
+    "wrapped_quote_line_numbering: the planted copy keeps its true line offset",
+    r.matched_spans.length === 1 && r.matched_spans[0].local_lines[0] === plantedLine,
+    JSON.stringify(r.matched_spans),
+  );
+}
+
 // --- case: stripQuoted_unit -------------------------------------------------
 {
   const stripped = stripQuoted('Lead in "quoted words here" and trailing text.');

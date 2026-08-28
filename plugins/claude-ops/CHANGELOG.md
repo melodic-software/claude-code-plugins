@@ -3,6 +3,33 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.18]
+
+### Fixed
+
+- **`observability`: the repo-slug failure token collided with real data.** 0.38.17 made the
+  `unknown` fallback reachable. It stayed ambiguous: a repository whose toplevel directory is
+  literally named `unknown` rendered the same string as a `git rev-parse` that failed, so the
+  reader could not tell a working probe from a broken one. Verified by execution, both states
+  rendered `unknown` byte for byte. The failure case now renders `(git toplevel unavailable)`,
+  matching the parenthesized convention the rest of the fleet's probes use, which no directory name
+  in practice collides with. A repository named `unknown` still renders `unknown`, now
+  unambiguously. Nothing in the plugin reads the injected value, so no consumer changes. The skill
+  declares no `allowed-tools`, so no grant changed. LIVE and PRE-EXISTING. Minor.
+
+## [0.38.17]
+
+### Fixed
+
+- **`observability`: the repo-slug probe's `unknown` fallback could not render.** The probe was
+  `git rev-parse --show-toplevel 2>/dev/null | sed 's|.*/||' || echo "unknown"`. `sed` exits 0 even
+  when `git rev-parse` failed, so running the skill outside a git work tree rendered an empty slug
+  rather than `unknown`, and every report line keyed to the slug lost its label silently. Verified
+  by execution: run from `/tmp` the old shape rendered `[]` and the new one renders `[unknown]`;
+  run from this repository both render `claude-code-plugins`. The probe now leads with
+  `git rev-parse --show-toplevel >/dev/null 2>&1 &&`. The skill declares no `allowed-tools`, so no
+  grant changed.
+
 ## [0.38.16]
 
 ### Changed

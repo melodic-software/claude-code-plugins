@@ -5,6 +5,78 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 9.1.0 — 2026-08-28
+
+Additive, minor. §6 replaces an unbacked conformance claim with the name of a real check. No
+topology, escalation-contract, tier-vocabulary or loop-layer invariant changed, and the inline-floor
+rule itself is unchanged: what changes is that the rule is now enforced.
+
+- **"Fleet audits check conformance per consumer" was false and is gone.** Nothing checked
+  conformance. The repo's general copy-drift gate structurally cannot: it skips `SKILL.md` by
+  basename, and it clusters copies by identical path-within-plugin, while the six surfaces inlining
+  the floor sit at six unrelated paths.
+- **§6 names `scripts/check-loop-lane-floor-drift.sh`.** It extracts the floor block from
+  `plugins/rate-limit-guard/reference/reader-contract.md` and compares it against an explicit
+  registry: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, and the two
+  launch-prompt templates under `prompts/loops/`. Prose copies match byte for byte; the blockquoted
+  prompt templates are re-wrapped to a narrower column, so their registration compares the block
+  after normalization, which strips blockquote markers, backticks and emphasis and flattens
+  whitespace. Line breaks and markup are therefore free in that mode and every word is still
+  asserted: bolding `10 minutes` or not is invisible, dropping `either` from the pause threshold is
+  not. It runs as the `loop-lane-floor-drift-gate` CI lane with its own suite.
+- **The registry is bounded by a repo-wide scan, not trusted on its own.** A gate that only ever
+  looks where it is told cannot see the copy nobody told it about: a new lane inlines the floor, its
+  author forgets the entry, the registered paths still agree, CI is green, and the next contract
+  change strands that copy. That is the same blindness this gate exists for, one level up, and it
+  is not hypothetical: the first report of this coupling named five copies and building the registry
+  found six. The check therefore scans every tracked file for the floor's opening bullet and fails
+  on a carrier its registry does not name. The registry is not replaced, because it carries each
+  consumer's comparison mode.
+- **A file holding the marker as data is excused by a list in the gate, never by anything it says
+  about itself.** An in-file annotation was written first, on the shape `# lane-coverage-ok:` and
+  `# silent-skip-ok:` use, and withdrawn before merge: those anchor to a syntactic site that bounds
+  what they excuse, a file has none, so any file mentioning the token anywhere exempted its own
+  floor copy. A real lane could inline the floor, apply it, name the token in a sentence, and drift
+  unwatched. The exception list now lives in the check, is printed on every run including the
+  passing one, and fails when an entry goes stale. §6 states the resulting guarantee as the carried
+  set minus a finite reviewed exception list, rather than as an equality it does not have.
+- **§6 stops restating a floor value in its own prose.** It named the 90%-of-either-window
+  threshold while introducing the inline-floor rule, which put a seventh copy of that constant
+  outside the block the check compares. The section now names the four items the floor fixes and
+  restates none of their values.
+- **The drift the missing check let through was reconciled elsewhere, twice, which is the argument.**
+  Two uncoordinated de-slop shards rewrote punctuation inside the staleness bullet of all three lane
+  bodies and touched neither the reader contract nor the other three copies. The lanes stayed
+  identical to each other, which is the half a reviewer notices, while all three drifted from their
+  source. This convention change was opened to reconcile that and gate it. While it was in review a
+  whole-repo `extract-ssot` sweep found the same divergence by hashing the carriers and repaired it
+  independently, choosing a colon where this branch had chosen a comma. Main's wording is adopted
+  here unchanged: it landed first, it is already consistent across the owner and all six registered
+  consumers, and re-imposing a second correct answer would be a third uncoordinated edit to the
+  block. The floor's values, paths and thresholds never moved in any of these passes; what moved
+  was punctuation nobody was watching, three times, which is what the check now prevents.
+
+  Two of the six consumers are the blockquoted launch-prompt templates, so the honest statement is
+  that all six agree under this check's comparison, byte for byte for the four prose copies and
+  after normalization for the two templates.
+
+## 9.0.2 — 2026-08-28
+
+Corrective, no topology, escalation, tier, or invariant change — §5's consumer table cites
+`babysit-prs` by its public invocation instead of by a filesystem path into another plugin's tree.
+The second half of the defect 9.0.1 closed, recorded open at the time and now closed with it.
+
+- **The `babysit-loop` row linked `../../../plugins/source-control/skills/babysit-prs/SKILL.md`.**
+  9.0.1 fixed the §4 telemetry-upsert citation and the sweep record that produced it noted this
+  table cell as the same shape in the same file, needing its own pass. It is the same failure for
+  the same reason: the link resolves only inside this marketplace checkout, and a lane running with
+  `source-control` installed has no such path on disk.
+  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  makes the plugin the encapsulation boundary for citation. The cell now reads "merge lane over
+  `/source-control:babysit-prs`", which resolves for an installed reader and still names the skill
+  the lane wraps. The table is still a live consumer list; nothing about the lane, its tier, or its
+  escalation path changed.
+
 ## 9.0.1 — 2026-08-28
 
 Corrective, no topology, escalation, tier, or invariant change — §4 cites the `@path`-as-body rule

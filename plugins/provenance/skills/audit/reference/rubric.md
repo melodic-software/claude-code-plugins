@@ -1,8 +1,40 @@
 # The provenance rubric
 
-Rubric version **1**. This catalog is versioned with the plugin: a change to a carve-out or a
+Rubric version **3**. This catalog is versioned with the plugin: a change to a carve-out or a
 criterion lands in `CHANGELOG.md` and **invalidates any golden-set measurement pinned to the
-prior version**. A precision figure measured against rubric 1 says nothing about rubric 2.
+prior version**. A precision figure measured against rubric 1 says nothing about rubric 3.
+
+**Version 3 states the scope at which C3 is graded, and writes down C4's. It takes the
+invalidation.** Version 2 left C3's scope implicit; two readers graded a real corpus case, agreed
+on the verdict, and disagreed on which scope produced it, which is what surfaced the gap. C4's
+scope was already passage-level in its worked examples and its replacement test, so recording it
+changes nothing. C3's is a substantive addition: file-scope attribution now discharges C3 on a
+file-wide derivation, which version 2's "a bare link at the bottom of a long file does not
+attribute a specific paragraph in the middle of it" cuts against.
+
+That changes what C3 tests, so the measurement version 2 stands on does **not** carry forward.
+**The golden set must be re-scored against version 3 before any precision figure is cited against
+it**, and no class becomes fix-eligible on a measurement pinned to a superseded rubric. That
+re-score has since been run and its outcome is in `CHANGELOG.md`.
+
+**Nothing about a measurement's result belongs in this file, and version 3 shipped a paragraph
+that broke that rule.** The pipeline inlines this whole file into every judge prompt at the
+judgment step, so anything recorded here is read by every judge before they grade. Version 3's
+first draft of the paragraph above also carried the expected tally, the panel size, and an
+enumeration of which golden case turns on which criterion, including the one case the scope change
+exists to restate. Thirty judges read it during the re-score, and the run that found this had to
+withdraw its claim of a blind panel. The prediction and the enumeration are changelog material and
+now live there. **Keep this file to the criteria, the carve-outs, the scope rule, the worked
+examples and the tier table: a judge should be able to read all of it and still not know the
+answer.**
+
+**Version 2 was the one exception to the invalidation rule**, kept here because the reasoning is
+the standard the next exception has to meet. It changed no criterion's substance and no carve-out;
+it corrected an inverted polarity in C3's and C4's question wording and worked-example labels,
+which contradicted the verdict rule stated three times elsewhere in this file. The version-1
+measurement was computed under the verdict rule, not under the inverted labels, and an independent
+blind adjudication returned the same eight positives reading it the same way. Version 3 cannot
+make that argument, which is why it does not try.
 
 Read this at the judgment step. Judges apply it blind, three samples by default; unanimity
 renders the verdict and any split routes to the human.
@@ -118,6 +150,38 @@ without a quote is not a grade; if the text you would need to quote is not in fr
 grade UNKNOWN and say what you would need. UNKNOWN is not a FAIL and not a PASS — it stops the
 verdict and routes to the human.
 
+**Polarity, stated once because it is easy to invert: PASS always means the criterion SUPPORTS
+the finding.** All four criteria point the same way, so all four PASS is what makes a verdict
+STAND. A criterion that clears the candidate is a FAIL. This reads backwards for C3 and C4,
+where the exculpatory answer is the intuitive "yes" — adequately attributed, genuinely
+transformative — so both are phrased below in the negative to keep the direction uniform. A
+rubric whose criteria disagree about which way PASS points cannot render a verdict at all: under
+the inverse reading nothing could ever stand. That inversion shipped in rubric version 1 and was
+caught by a blind adjudication pass, not by review.
+
+**Scope, stated once because C3 and C4 are graded at different ones.** C1 and C2 are graded on
+the passage; nothing else would mean anything. The other two are not symmetric:
+
+- **C3 is graded outward from the passage, across the whole file.** This file already grades it
+  that way in its own worked examples: the PASS example turns on a URL "two sections below" the
+  restated text, and the FAIL example on a source line adjacent to a blockquote. Neither is
+  inside the span. What C3 asks is whether the attribution's declared **scope matches the
+  derivation's**. File-scope attribution discharges C3 when the derivation is file-wide; it does
+  not when one lift sits inside otherwise-original material, because there the header understates
+  and the reader misallocates which sentences came from upstream. "The attribution exists and is
+  complete" is not the test — that reading lets a single lift into an original file escape on a
+  header line about something else.
+- **C4 is graded on the passage**, which is what its worked examples below already do, and what
+  its closing replacement test asks. A file can be substantially transformed while the span in
+  question adds nothing over its source, and it is the span that was copied.
+
+The asymmetry is the point, and it cuts both ways. Grade both at the file, and a majority-adapted
+file **that carries adequate file-level attribution** clears twice — the qualifier matters, since
+a file with no attribution anywhere still fails C3 at either scope. Grade both at the span, and a
+well-attributed derived file stands every time. Version 2 left this implicit; the addition is
+substantive for C3 and a written-down clarification for C4, which is why only C3's half carries
+the invalidation recorded above.
+
 ### C1-span-correspondence
 
 **Does a specific span of the local text correspond to a specific span of the named source?**
@@ -159,36 +223,38 @@ numbers bound the evidence; they do not render the verdict.
 
 ### C3-attribution-adequacy
 
-**Does the attribution already present discharge the obligation?**
+**Is the attribution already present INADEQUATE to discharge the obligation?**
 
 Adequate attribution answers three things for a reader who wants to check: *what* is being
 attributed, *to where*, and *as of when* if the claim is time-bound. A bare link at the bottom of
-a long file does not attribute a specific paragraph in the middle of it.
+a long file does not attribute a specific paragraph in the middle of it. So adequate attribution
+FAILS this criterion and clears the candidate; inadequate attribution PASSES it.
 
-- **PASS (criterion fails, no finding), worked.** A blockquote followed by
-  `— <source title>, <url>, read 2026-08-12`, adjacent to the quoted text.
-- **FAIL (criterion holds, finding stands), worked.** Three paragraphs of restated behavior,
-  with the source URL appearing once in a `See also` list two sections below. The reader cannot
-  tell which sentences came from there, and neither can the next maintainer.
+- **PASS, worked.** Three paragraphs of restated behavior, with the source URL appearing once in
+  a `See also` list two sections below. The reader cannot tell which sentences came from there,
+  and neither can the next maintainer.
+- **FAIL, worked.** A blockquote followed by `— <source title>, <url>, read 2026-08-12`, adjacent
+  to the quoted text.
 
 Grade what is on the page, not what a reasonable author probably intended. This criterion is
 also the one most often used to argue a finding away; the quoted-span requirement is what keeps
-that honest. Quote the attribution you are calling adequate.
+that honest. Quote the attribution you are grading, whichever way you grade it.
 
 ### C4-transformative-use
 
-**Does the local text do work the source does not?**
+**Is the use NON-transformative — does the local text add nothing the source does not carry?**
 
 Selection, synthesis across sources, application to this repository's own context, worked
 examples the source lacks — these make a passage this repository's own even where it began from
-someone else's material. Reformatting does not: a table of the source's prose is the source's
-content in a table.
+someone else's material, and they FAIL this criterion, clearing the candidate. Reformatting is
+not transformation: a table of the source's prose is the source's content in a table, and it
+PASSES.
 
-- **PASS (criterion fails, no finding), worked.** A paragraph that takes three upstream
-  parameters, explains which one this repository uses and why the other two are wrong here, and
-  cites the page. The judgment is local and does not exist upstream.
-- **FAIL (criterion holds, finding stands), worked.** The same three parameters, re-listed with
-  their upstream descriptions lightly reworded, no local judgment added.
+- **PASS, worked.** Three upstream parameters re-listed with their upstream descriptions lightly
+  reworded, no local judgment added.
+- **FAIL, worked.** A paragraph that takes those same three parameters, explains which one this
+  repository uses and why the other two are wrong here, and cites the page. The judgment is local
+  and does not exist upstream.
 
 The honest failure mode here is generosity. Almost any restatement feels a little transformative
 to the person reading it. Ask instead: **if this passage were replaced by a link, what could a

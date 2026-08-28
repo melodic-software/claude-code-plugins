@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "note": "SSOT for native-surface overlap verdicts. Hand-editable and human-gated: every verdict here was written by a person, never by a run. docs/NATIVE-SURFACES.md is generated from this file and is never the source. Seeded candidates live in plugins/claude-ops/skills/audit-native-overlap/reference/canonical-pairs.json; a candidate becomes a row only when someone rules on it. Phrasing rules for anything baked out of these rows: docs/conventions/native-references/README.md.",
+  "note": "SSOT for native-surface overlap verdicts. Hand-editable and human-gated: every verdict here was written by a person, never by a run. docs/NATIVE-SURFACES.md is generated from this file and is never the source. Seeded candidates come from the canonical-pair seed bundled with /claude-ops:audit-native-overlap; a candidate becomes a row only when someone rules on it. Phrasing rules for anything baked out of these rows: docs/conventions/native-references/README.md.",
   "rows": [
     {
       "native": { "name": "code-review", "class": "bundled-skill", "markers": [] },

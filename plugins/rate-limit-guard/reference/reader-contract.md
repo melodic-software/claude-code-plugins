@@ -207,4 +207,13 @@ sweeping the directory expects them:
 
 The loop-lane convention's three lanes: `work-items` `work-loop`, `work-items` `attend-queue`, and
 `source-control` `babysit-loop`. Each records its guard mode (proactive / reactive / unknown) in its
-lane telemetry every cycle, per the convention.
+lane telemetry every cycle, per the convention. Three more surfaces inline the same floor: the
+`docs-hygiene` `extract-ssot` orchestrated mode, and the two loop-lane launch-prompt templates under
+`prompts/loops/` in the marketplace repository.
+
+Every one of those six copies is drift-checked against the "Operable floor" block above by
+`scripts/check-loop-lane-floor-drift.sh`, which runs in the marketplace repo's
+`loop-lane-floor-drift-gate` CI lane and holds the registry of who inlines the floor. A change to
+the floor block here fails that lane until every copy moves with it. The same check scans every
+tracked file for the floor's opening bullet and fails on a carrier its registry does not name, so a
+seventh consumer cannot inline this block and go unwatched.

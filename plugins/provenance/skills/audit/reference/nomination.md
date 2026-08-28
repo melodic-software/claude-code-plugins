@@ -67,8 +67,22 @@ candidate URL lists.
 evidence per criterion.
 
 **Blindness is required, and it is what makes sampling mean anything.** Each judge sees the
-local passage, the fetched source text, and the rubric. No judge sees: the nomination's stated
-suspicion, the fingerprint numbers, another judge's verdict, or how many judges are running.
+local passage, the fetched source text, **the containing file**, and the rubric. No judge sees:
+the nomination's stated suspicion, the fingerprint numbers, another judge's verdict, or how many
+judges are running.
+
+**The containing file is an input, not an oversight, and rubric version 3 is why.** C1, C2 and
+C4 are graded on the passage. **C3 is graded outward across the whole file** — it asks whether
+the attribution's declared scope matches the derivation's, which cannot be answered from a
+passage alone. Carve-outs 1, 4 and 5 are file-level judgments too ("the surface's purpose",
+"could this passage have been written without the source in hand"), and were already
+under-supplied by a passage-only dispatch. Withholding the file does not make the panel more
+blind in the sense that matters; it makes a conforming judge grade C3 UNKNOWN on every
+candidate, because the rubric and the prompt below both require a quoted span and instruct
+UNKNOWN when the text to quote is absent. That stops every verdict and routes the whole run to
+the human. Blindness here means blind to *the pipeline's own suspicion* — the fingerprint
+numbers, the nomination's reasoning, the other judges — never blind to the material the
+criteria are defined over.
 Handing a judge the fingerprint containment tells it the answer and turns three samples into one
 sample repeated, which measures nothing.
 
@@ -80,8 +94,11 @@ not noise to be averaged away.
 **Lens diversity.** With `accuracy.judge_lens_diversity` on (the default), give each judge a
 distinct reading stance rather than the same prompt three times: one reads for whether the local
 text could have been written without the source in hand; one reads for what a reader loses if
-the passage is replaced by a link; one reads for whether the attribution present already
-discharges the obligation. Same rubric, same criteria, different entry point. Identical prompts
+the passage is replaced by a link; one reads for whether the attribution's declared scope covers
+the derivation it is being asked to discharge. Same rubric, same criteria, different entry point.
+That third stance is deliberately not "is the attribution present and complete" — under rubric
+version 3 that is the rejected reading, and pointing a judge at it biases the lens toward
+clearing every well-headed file. Identical prompts
 measure self-consistency, which is not the quantity the panel exists to estimate.
 
 **Prompt shape.**
@@ -102,6 +119,10 @@ measure self-consistency, which is not the quantity the panel exists to estimate
 >
 > LOCAL PASSAGE: [text]
 > SOURCE TEXT: [fetched bytes, with its URL and the rung it came from]
+> LOCAL FILE: [the whole containing file, with the passage's line range marked]
+>
+> Grade C1, C2 and C4 on LOCAL PASSAGE. Grade C3 against LOCAL FILE, because it asks
+> whether the attribution's scope matches the derivation's.
 
 **What the panel never decides.** The tier. Tier is mapped from evidence by fixed rule, never
 from a judge's confidence: a unanimous STANDS on a paraphrase is still `llm-suspected`, because
@@ -116,11 +137,22 @@ Runs when `accuracy.review_agents` > 0, over STANDS verdicts only, before fix el
 > [framing block above]
 >
 > A finding has been judged STANDS. Your job is to try to break it. You have the local passage,
-> the source text, and the criterion grades with their quoted evidence. You do not have the
-> judges' reasoning beyond those quotes.
+> the source text, the containing file, and the criterion grades with their quoted evidence. You
+> do not have the judges' reasoning beyond those quotes.
+>
+> LOCAL PASSAGE: [text]
+> SOURCE TEXT: [fetched bytes, with its URL and the rung it came from]
+> LOCAL FILE: [the whole containing file, with the passage's line range marked]
 >
 > State whether each quoted span actually supports the grade it was given, and whether any
 > carve-out was missed. If the finding survives, say so plainly and briefly.
+
+**The reviewer gets the containing file for the same reason the judge does.** Its job includes
+checking the C3 grade and whether a carve-out was missed, and C3 is graded across the file while
+carve-outs 1, 4 and 5 are file-level judgments. A reviewer holding only the passage cannot tell a
+file-wide derivation from an isolated lift, so it would either decline the check or wave through
+an unsupported C3 PASS — and this stage is the last one before fix eligibility, so waving one
+through is what puts an unsupported finding in reach of an automatic edit.
 
 **A review veto never reassigns a tier.** The tier mapping is fixed at contract time. A veto
 forces the finding's disposition to `leave-with-reason` and routes it to the human, so the

@@ -3,6 +3,50 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.7]
+
+### Fixed
+
+- **`firecrawl`: the `NOT INSTALLED` token could fire on an installed, working CLI.** The status
+  probe was
+  `command -v firecrawl >/dev/null 2>&1 && firecrawl --status 2>/dev/null | head -10 || echo "NOT
+  INSTALLED — run: npm install -g firecrawl-cli"`. Under `set -o pipefail` the `&&` list takes the
+  pipeline's status, and `head -10` closing the pipe kills `firecrawl` with SIGPIPE when
+  `--status` prints more than the cap, so the `||` fires on a healthy CLI. The rendered context
+  then shows ten lines of real status followed by an instruction to install a CLI that is already
+  installed, and the paragraph beneath it tells the reader to go get an API key.
+
+  This site predates the guard sweep that introduced the same defect elsewhere: it is where the
+  guard-first shape was copied FROM, so it was never touched by that sweep and has carried the
+  exposure since it was written. Fixed in the same pass as the sites that copied it.
+
+  Proven by execution in three states, each with and without `pipefail`, against a fake `firecrawl`
+  on `PATH`. Absent: both shapes render `NOT INSTALLED …` under both settings. Present, output under
+  the cap: both render the output, no token, under both settings. Present, output over the cap:
+  without `pipefail` both render ten lines and no token; with `pipefail` the old shape renders ten
+  lines **and** `NOT INSTALLED — run: npm install -g firecrawl-cli`, and this one renders the ten
+  lines alone.
+
+  The data pipeline now sits in a brace group closed by `:`, the shape `docs-hygiene` 0.21.23 and
+  `code-tidying` 0.14.13 established. The command still begins `command -v firecrawl`, so the
+  existing `Bash(command -v firecrawl*)` grant still matches. No grant changed.
+
+## [0.5.6]
+
+### Fixed
+
+- **`update`: the "never synced" fallback could not render.** The last-sync probe was
+  `grep -m1 '^- Last sync:' "${CLAUDE_SKILL_DIR}/UPSTREAM.md" 2>/dev/null | sed 's/^- //' || echo
+  "never — run this skill with --check"`. `sed` exits 0 whether `grep` matched, found nothing, or
+  never opened the file, so a missing or unstamped `UPSTREAM.md` rendered an empty value instead of
+  the instruction to run `--check`. Verified by execution: against a missing file the old shape
+  rendered `[]` and the new one renders `[never — run this skill with --check]`; against the real
+  `UPSTREAM.md` both render `Last sync: 2026-05-22`. The probe now guards itself
+  (`grep ... >/dev/null 2>&1 && grep -m1 -o 'Last sync:.*' ... || echo ...`), which also retires the
+  `sed` stage. Every subcommand still starts `grep -m1` and still names `UPSTREAM.md`, so the
+  existing `allowed-tools: Bash(grep -m1 *UPSTREAM.md*)` grant continues to match; nothing was
+  widened.
+
 ## [0.5.5]
 
 ### Changed

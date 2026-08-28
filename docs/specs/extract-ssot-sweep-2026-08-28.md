@@ -20,7 +20,7 @@ finding's quoted source text is still present at or near the cited path, the fin
 quote that matches nothing has been applied, superseded, or moved.
 
 Two independent confirmations that this rule is not ceremonial. The predecessor's L3 section recorded
-`setup-never-writes-boundary` as "41 instances, 34 edited"; re-measurement found the 41 exact and the
+`setup-never-writes-boundary` as "41, 34 edited"; re-measurement found the 41 exact and the
 edit set down to **one**, because 33 of the 34 had landed three days before the audit that recorded
 them. And the em dashes it located at `persist-findings.md:1` and `:5` were still present, the second
 having moved to `:16` when #3380 inserted a `## Contents` index above it.
@@ -32,6 +32,7 @@ having moved to `:16` when #3380 inserted a `## Contents` index above it.
 - [Verified, not applied](#verified-not-applied)
 - [Contradictions found](#contradictions-found)
 - [New refusals, recorded so nobody re-opens them](#new-refusals-recorded-so-nobody-re-opens-them)
+- [Open remainder after the encapsulation close](#open-remainder-after-the-encapsulation-close)
 - [Recall limits this run declares](#recall-limits-this-run-declares)
 
 ## What this run did differently
@@ -104,9 +105,14 @@ the fix extends it to the two files they cite, which is a choice this record mak
 
 Two further files carry the same floor as a blockquoted restatement inside a prompt:
 `prompts/loops/loop-lane-prompts.md` and `prompts/loops/loop-lane-profile-claude-code-plugins.md`.
-Both re-wrap the block to a narrower measure and both say in their own text that the quotation sits
-outside the byte-audited block, so neither is under the identity contract and neither is counted in
-the five. Their wording was brought to the same text anyway, because a reader who diffs a quotation
+Both re-wrap the block to a narrower measure. Neither is under the identity contract, for the
+reason §6 gives rather than for anything the prompts say: §6 binds the three consuming lane bodies,
+and a prompt quoting the floor is not a lane. An earlier draft of this paragraph claimed both files
+"say in their own text that the quotation sits outside the byte-audited block". They do not. The
+only sentence in either naming that block reads "Two further reader-contract rules apply alongside
+the floor (outside the byte-audited block)", whose subject is those two rules, not the quotation —
+the same attach-the-quote-to-the-wrong-subject error this record was corrected for once already, in
+the `detector-findings-tier-self-restatement` row. Neither prompt is counted in the five. Their wording was brought to the same text anyway, because a reader who diffs a quotation
 against its source should find only the wrapping different.
 
 ### Call-site normalizations
@@ -124,32 +130,80 @@ reading `Working tree status:` is the same rendering as a clean tree. Twenty-fiv
 the 26 the first commit message counts; that message states all 26 as unreachable and over-counts by
 one. The squash message merged to the default branch carries the corrected split.
 
-Four sites with the identical unreachable shape were **not** normalized, on purpose:
+Four sites with the identical unreachable shape were **not** normalized by this run, on purpose.
+**They are closed now**, by the separate pass this section asked for, together with the fifth site
+this run recorded under [Recall limits this run declares](#recall-limits-this-run-declares) rather
+than in the table here. The deferral reasoning is kept below in the past tense, because it states
+what that pass had to answer.
 
-| Site | Probe |
-|---|---|
-| `plugins/docs-hygiene/skills/audit-noise/SKILL.md` | `git status --porcelain \| grep -E '\.md"?$' \| head -10 \|\| echo "none"` |
-| `plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md` | same shape, `grep '\.md$'` |
-| `plugins/code-tidying/skills/dissolve-comments/SKILL.md` | same shape, `awk` plus an extension `grep` |
-| `plugins/code-tidying/skills/audit-comment-residue/SKILL.md` | same shape, `-z` parse plus an extension `grep` |
+| Site | Probe as this run left it | Defect |
+|---|---|---|
+| `plugins/docs-hygiene/skills/audit-noise/SKILL.md` | `git status --porcelain \| grep -E '\.md"?$' \| head -10 \|\| echo "none"` | fallback unreachable |
+| `plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md` | same shape, `grep '\.md$'` | fallback unreachable |
+| `plugins/code-tidying/skills/dissolve-comments/SKILL.md` | same shape, `awk` plus an extension `grep` | fallback unreachable |
+| `plugins/code-tidying/skills/audit-comment-residue/SKILL.md` | same shape, `-z` parse plus an extension `grep` | fallback unreachable |
+| `plugins/docs-hygiene/skills/compress/SKILL.md` | `{ git status --porcelain \| grep '\.md$' \|\| echo "none"; } \| head -10` | fallback reachable, both meanings collapse |
+
+The fifth row is not a site this run normalized and then got wrong. Its brace group predates the
+sweep, from `docs-hygiene` 0.15.0 in
+[#2814](https://github.com/melodic-software/claude-code-plugins/pull/2814), and it puts the filter
+*inside* the group, so the group's exit status is `grep`'s: 1 when git failed and 1 when nothing
+matched. Its fallback did run, and printed `none` for both meanings.
 
 These are filtered probes, not status probes, and the difference is not cosmetic. Their fallback
-reads `none`, which for a filtered list is the *correct* answer when the filter matches nothing, so
-an empty render is not a misreading the way an empty working-tree status is. Making the fallback
-reachable would make `none` fire on probe failure too, collapsing "no matching files" and "git did
-not run" into one string and creating the ambiguity the 25-site fix exists to remove. Fixing them
-properly means giving each a distinct failure token and re-deciding what its label asserts, per
-skill, which is a separate pass with its own review. Recorded open here rather than done badly.
+read `none`, which for a filtered list is the *correct* answer when the filter matches nothing, so
+an empty render was not a misreading the way an empty working-tree status is. Making the fallback
+reachable without more would have made `none` fire on probe failure too, collapsing "no matching
+files" and "git did not run" into one string and creating the ambiguity the 25-site fix exists to
+remove. Fixing them properly meant giving each a distinct failure token and re-deciding what its
+label asserts, per skill, which is why this run recorded them open rather than doing it badly.
 
-The shape that pass should use is already in the fleet.
-`plugins/docs-hygiene/skills/audit-derivability/SKILL.md` runs a filtered probe as
+This section proposed one candidate form, from
+`plugins/docs-hygiene/skills/audit-derivability/SKILL.md`:
 `s=$(git status --porcelain 2>/dev/null) && printf '%s\n' "$s" | … | head -20 || echo "(status
 unavailable)"`. Capturing first makes the probe's own exit status the head of an `&&` list, so a
 failed probe short-circuits and the `||` fires; a successful probe with no matches runs the pipeline
 and renders empty under a label that says `empty = none`. Both meanings survive, separately.
 Verified by execution outside a repository: this form prints `(status unavailable)`, and the four
-filtered probes print nothing. That is one candidate form, not a decision — the pass still owes each
-skill its own label wording.
+filtered probes print nothing.
+
+**The pass did not take that candidate.** Capturing into `s` needs a `$` expansion, and
+`plugins/playbooks/skills/skill-authoring/reference/precompute-context.md` requires a pre-compute
+block to carry no `$` expansion other than a bare `$HOME`: an expansion leaves the composed block
+unverifiable to the worktree-isolation guard, and the skill then fails to load from an isolated
+agent (`session-flow` 0.17.16). `audit-derivability` demonstrates the binding, not a form to copy.
+All five sites first took an equivalent that adds no `$` at all and heads the same `&&` list with a
+status-only run of the site's own probe. **That form was itself wrong, and is no longer what
+ships.** It is correct only without `set -o pipefail`; under pipefail the `&&` list inherits the
+pipeline's status, which both `grep` matching nothing and `git` taking SIGPIPE at the cap make
+non-zero, firing the failure token on a healthy probe. `docs-hygiene` 0.21.24 and `code-tidying`
+0.14.13 replaced it with the pipeline inside a brace group closed by `:`, a command that cannot
+fail, which is correct under both settings:
+
+```text
+git status --porcelain >/dev/null 2>&1 && { git status --porcelain 2>/dev/null | … | head -N; :; } || echo "(git status unavailable)"
+```
+
+The probe runs twice, which is the price of not capturing it. No line holds a `$` expansion after
+the change: the `$` characters that remain are end-of-line anchors in single-quoted `grep` patterns
+and field references in single-quoted `awk` programs, all pre-existing and none of them expanded by
+the shell. Each site kept its own filter, its own cap and its own label noun; each label gained
+`empty = none`; the failure token is the `(git status unavailable)` string the normalized status
+probes already use. Verified by execution in three states per site, **without pipefail**: outside a
+repository each prints the token, inside a repository whose dirty files do not match the filter each
+prints nothing, and above the cap the cap holds with no spurious fallback. That qualifier is the
+whole lesson: the same three states under pipefail print the token in two of them, which is what
+0.21.24 and 0.14.13 had to correct. A verification that fixes the shell's options and does not say
+so proves less than it appears to. Landed in `docs-hygiene` 0.21.23 and `code-tidying` 0.14.12,
+which also carry the two `detect.test.sh` extractors that read these lines out of `SKILL.md` and
+were anchored on the old labels.
+
+One filtered probe with the unreachable shape remains open, and is out of this section's scope
+because its probe is not `git status`:
+`plugins/docs-hygiene/skills/rename-references/SKILL.md` renders rename pairs as
+`{ git diff --name-status -M HEAD; git diff --cached --name-status -M; } | grep '^R' | head -15 || echo "none"`.
+Same binding defect, different probe, and `grep '^R'` matching nothing is the ordinary case there.
+Recorded, not fixed.
 
 The per-cluster detail for the sites that were normalized is in the pull request that carries this
 file.
@@ -161,13 +215,20 @@ this sweep created none and none of these needs one. They are ordered by the har
 
 ### Factual defects
 
-Four of the factual defects this survey found were applied in the same change set and are listed
-under "Applied" above, not here: `auto-mode-dropped-class-roster`,
-`songwriting-title-type-attribution`, `songwriting-section2-load-list-gate`, and
-`check-skill-trigger-fence-line-reference`.
+Four of the factual defects this survey found were applied in the same change set and so are not
+rostered here: `auto-mode-dropped-class-roster`, `songwriting-title-type-attribution`,
+`songwriting-section2-load-list-gate`, and `check-skill-trigger-fence-line-reference`. Their
+per-site detail is in the affected plugins' changelogs — `claude-config`, `songwriting`, and
+`docs-hygiene` respectively — and in the pull request that carried them. An earlier draft said they
+were "listed under Applied above"; that section covers the owner edits, the inline floor, and the
+call-site normalizations, and names none of these four, so a resumer following the pointer found
+nothing.
 
 The last of those is worth recording as a worked example of this file's own decay rule. It was
-written here as an open cluster of four prose surfaces citing
+written here as an open cluster of four *prose* surfaces, and the count was short: a fifth carrier
+sat in a script header, `plugins/docs-hygiene/skills/audit-noise/scripts/emit-findings.sh`, which a
+`*.md`-only grep could not see. All five are closed, but only four were recorded as such at the
+time. The cluster was four prose surfaces citing
 `plugins/skill-quality/scripts/check-skill.sh:414` as the hard FAIL for a dropped trigger phrase.
 Line 414 is inside a comment stating that a trigger **move** WARNs and never blocks; the `err` is at
 462, so each citation asserted the reverse of the line it named. Between this file being written and
@@ -265,13 +326,98 @@ Beyond the predecessor's 13. Each was resolved against the real files and refuse
 - **ADR bodies**, 4 clusters. Treated as immutable throughout. In every case the ADR is the quoting
   party and already carries exact attribution, so citation was the existing state.
 - **Generator-owned twins**, 6 rows, emitted from an adapter README template.
-- **The `discipline` family's shared method pointer**, 14 sites, all citing one plugin-level file.
+- **The `discipline` family's shared method pointer**, 15 skill bodies citing one plugin-level file
+  (`git grep -l re-anchor-audit-correct -- 'plugins/discipline/skills/*/SKILL.md'`), the wording
+  varying between them rather than one reproduced sentence. An earlier draft said 14, which matched
+  neither the family total nor the identical-sentence subset.
   Shared voice is not duplication; only a reproduced rule counts.
 - **CI-registered clusters**: the contract-clause registry, the standards contract mirror, the
   plugin artifact protocol, the zone-combination inline floor, the discovery agents' tool-honesty
   block. Each has a live gate that deduplication would break.
 - Plus roughly 120 further per-cluster refusals across the eight triage batches, each recorded with
   its form and ground in the pull request that carries this file.
+
+## Open remainder after the encapsulation close
+
+Recorded, not fixed. A later pass adjudicates these; this section exists so it does not have to
+re-find them. Stamped 2026-08-28 and subject to the decay rule at the top of this file.
+
+### Twelve citations the encapsulation close created and never rostered
+
+The pass that closed the encapsulation floor wrote a convention CHANGELOG entry for each fix, and
+every entry quotes the path it removed. Those quotes are themselves `docs/**` citations of the exact
+shape the pass was sweeping, created by the sweep, counted by nobody. **Verified against
+`origin/main`, twelve of them:**
+
+| File | Lines |
+|---|---|
+| `docs/conventions/config-cascade/CHANGELOG.md` | 12, 13, 14 |
+| `docs/conventions/detector-findings/CHANGELOG.md` | 44, 57 |
+| `docs/conventions/loop-lane/CHANGELOG.md` | 69 |
+| `docs/conventions/native-references/CHANGELOG.md` | 16, 17, 18 |
+| `docs/conventions/permission-rule-hygiene/CHANGELOG.md` | 14 |
+| `docs/conventions/topic-docs/CHANGELOG.md` | 11, 12 |
+
+One correction to the roster this was handed as: the `loop-lane` row was reported at `:14`, which is
+where it sat when the pass wrote it. Release `9.1.0` landed above it, and the citation is at `:69`
+today, inside the `9.0.2` entry. That is the decay rule firing on a record less than a day old, and
+it is why a later pass must **re-derive by the text and never by these numbers.**
+
+**The twelve are disjoint from the three this file already counts, confirmed by differencing the
+tree at the fix commit's parent.** Before that commit, exactly three lines in
+`docs/conventions/*/CHANGELOG.md` cited a plugin skill by path: two in `detector-findings` and one in
+`loop-lane`. Those are the "three dated changelog entries that quote a citation as it stood" in the
+kept set. Every one of the twelve above was written by the fix commit itself, so **the arithmetic is
+16 fixed and 35 kept, not 16 and 23**, and the changelog-evidence class is fifteen rather than three.
+
+**All twelve are keep-correct** under the test now written into
+[ADR 0018](../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+amendment: each is a dated changelog entry whose whole claim is what a named file contained on that
+date. Nothing here needs an edit. What is missing is the judgment, and a pass that re-derives this
+shape finds twelve rows nobody ruled on and has to adjudicate them from scratch to learn they were
+fine. The general lesson is worth more than the twelve rows: **a sweep that documents each fix by
+quoting the citation it removed manufactures new instances of the shape it is sweeping,** so its own
+output has to be swept before the count is closed.
+
+**The pass writing this section did the same thing, deliberately, three more times.**
+`docs/conventions/plugin-data-report-keying/CHANGELOG.md` 1.0.1 quotes the three pins it dropped, so
+the class stands at eighteen. They are keep-correct on the same ground as the twelve, and they are
+declared here rather than left for the next re-derivation to find. That is the only discipline
+available: the alternative is a changelog entry that does not say what it changed.
+
+### Three trees the sweep excluded by fiat
+
+The sweep's encapsulation floor scoped itself to `docs/**` and then dropped five subtrees. Two of the
+exclusions are defensible and stated as such: `docs/SKILL-CHEAT-SHEET.md` (162 citations, generated
+and CI drift-checked, so an edit is reverted by its generator) and `docs/upstream/` (vendored, not
+this repo's prose to style). **The other three rest on nothing.** `docs/specs/` (roughly 265 sites),
+`docs/topics/` (roughly 43) and `docs/adr/` (25) were excluded on the assertion that "the dated
+records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out of scope by the same test", and
+no carve-out in ADR 0018 authorizes any of it.
+
+The assertion is *probably* right and is *not* established. Under the amendment's test most of that
+population is evidence: dated records, and ADR bodies that quote what they cite. But "most of a
+265-site population is evidence" is a hypothesis about 265 sites, argued from the tree a citation
+lives in rather than from what the citation does, which is the form-over-function reasoning the
+amendment rejects. A tree-shaped exclusion is a carve-out; ADR 0018 grants none. Either the pass that
+resumes this samples the three trees and records the ruling, or the ADR gains the carve-out
+explicitly. It should not stay a habit.
+
+Counts re-derived for this record and rounded deliberately: the exact figure moves with the search
+expression, and per this file's own recall-limits discipline none of these numbers is a total.
+
+### A stale record found in passing, not an ADR matter
+
+`docs/MIGRATION-PLAYBOOK.md:943` carries the `dometrain` security-review record: "Reviewed at
+`0.1.0`; a version bump adding a new trust surface re-triggers this review." **The plugin's manifest
+reads `0.2.7` today** (`plugins/dometrain/.claude-plugin/plugin.json`, confirmed against
+`origin/main`). The trigger has had every opportunity to fire across those bumps and the review was
+never re-run, so the record asserts a currency it does not have.
+
+This is not a citation defect and does not belong to the encapsulation lane. It is logged here
+because the encapsulation pass kept that record's five file-and-frontmatter citations *on the
+strength of* its re-trigger clause, which means the clause was read and its own condition was not
+checked. Whoever re-runs the review owns the record; the citations are fine either way.
 
 ## Recall limits this run declares
 
@@ -325,19 +471,46 @@ figures to differ.
   plugin's `agents/` directory except three.
 - **Three counts are floors, not totals.** The `worker-return-is-synthesis` roster at 13 files and
   the `read-only-artifact-write-reconciliation` roster at 7 both come from partial reads; neither
-  could shrink, both could grow. The encapsulation roster is the third: it records **two**
-  `docs/**` surfaces citing a plugin skill by filesystem path, which is what the survey found, and
-  a later pass found three more of the identical shape that were on no roster —
-  `docs/conventions/topic-docs/README.md` (two links, `discovery` and `verification` setup skills),
-  `docs/conventions/detector-findings/README.md` (`review/skills/fanout/SKILL.md`), and
-  `docs/conventions/permission-rule-hygiene/README.md`
-  (`claude-config/skills/audit-permission-grants`). ADR 0018 rules all of them out for the same
-  reason; none is fixed here.
+  could shrink, both could grow. The encapsulation roster is the third, and it grew: it recorded
+  **two** `docs/**` surfaces citing a plugin skill by filesystem path, which is what the survey
+  found, and a later pass found three more of the identical shape that were on no roster. **They
+  are closed now**, by a pass that re-derived the shape across all of `docs/**` rather than
+  trusting the roster. That pass resolved **16 citations at 12 sites in 8 files**, every one
+  rewritten to the `/plugin:skill` public invocation on the
+  [`loop-lane` 9.0.1](../conventions/loop-lane/CHANGELOG.md) form. Beyond the five named above it
+  reached `docs/PLUGIN-PHILOSOPHY.md`'s Convention registry (the dynamic-context precompute row
+  this very change set added, written in the bare plugin-relative form ADR 0018 names as its real
+  defect class), two conformance rows in `docs/conventions/config-cascade/README.md`, one in
+  `docs/conventions/pre-pr-ordering/README.md`, three in
+  `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14`, the
+  last two rows of the predecessor's 34-item L4 roster still open by that roster's own text test:
+  re-derivation found 22 of its other 32 rows already closed, twelve of them by #3380 itself, so
+  what remains of the 34 is its eight Group 2 intra-plugin path-form defects, untouched here), and
+  one adopter-row detail
+  in `docs/conventions/detector-findings/README.md`. **What remains is a judgment set, not a
+  backlog**: 23 further in-shape citations were kept with reasons, because each is evidence about
+  this checkout rather than an address for an obligation. They are the three worked examples in
+  `docs/conventions/plugin-data-report-keying/README.md`, the four location cites in
+  `docs/conventions/shell-test-helpers/README.md` (whose subject *is* where the duplicate copies
+  sit), the four `scripts/` entry-surface pointers in `docs/NATIVE-SURFACES.md` and
+  `docs/CLOUD-SESSIONS.md` that the public-surface contract's own carve-out permits, two observation
+  rows in the `NATIVE-SURFACES` generated region (authored in
+  `docs/native-surfaces/records.json`, so a hand-edit of the rendered view would be overwritten and
+  the store's copy is the same citation, not a second one), that store's own note on where the
+  overlap seed file lives, the boris-baseline evidence row in `docs/PLUGIN-PHILOSOPHY.md`, the five
+  file-and-frontmatter cites inside `docs/MIGRATION-PLAYBOOK.md`'s dated `dometrain` security-review
+  record (each asserting what a named file contains, under a record that re-triggers on a version
+  bump), and three dated changelog entries that quote a citation as it stood.
+  `docs/SKILL-CHEAT-SHEET.md` is
+  generated too, and the dated records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out
+  of scope by the same test.
 - **A fifth filtered probe exists and is not in the four-site table above.**
   `plugins/docs-hygiene/skills/compress/SKILL.md` already binds its fallback inside the brace group,
   so unlike the four it *is* reachable — but its fallback is `none`, which collapses "no matching
   files" and "git did not run" into one string. Same ambiguity, arrived at from the other direction.
-  A pass that fixes the four should fix this one too.
+  A pass that fixes the four should fix this one too. **It did**: the follow-up pass recorded under
+  [Call-site normalizations](#call-site-normalizations) took all five, and the table there now
+  carries this site as its fifth row.
 - **The `1,536`-character listing cap appeared in 14 tracked files when this was measured**; the
   batch that surfaced it saw three. A later count during this change set's own review found 16, and
   the population keeps moving. That is the point of the paragraph rather than an exception to it:

@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.5.5]
+
+### Fixed
+
+- **`audit`: the `detector unavailable` token fired on a healthy detector, from any directory, with
+  no configuration required.** 0.5.4 gave the effective-config probe a guard,
+  `detect.sh --show-config >/dev/null 2>&1 && detect.sh --show-config 2>/dev/null | head -8 || echo
+  "detector unavailable"`. Under `set -o pipefail` the `&&` list takes the pipeline's exit status,
+  and `detect.sh --show-config` emits 10 lines against a `head -8` cap while writing them one at a
+  time, so `head` closes the pipe mid-run every time and the script dies of SIGPIPE. Measured here:
+  `PIPESTATUS` is `141 0`. The probe rendered the full, correct eight-line config and then appended
+  `detector unavailable` under it. This was not latent and not a corner case: it was the observed
+  behaviour of the shipped line in this repository, and unlike 0.5.4's defect it does not render an
+  empty value, it asserts a failure that did not happen.
+
+  Reproduced and fixed by execution in three states, each with and without `pipefail`. Skill
+  directory absent: both shapes render `detector unavailable` under both settings. A two-line
+  detector (under the cap): both shapes render the two lines, no token, under both settings. The
+  real detector (10 lines, over the cap): without `pipefail` both render eight lines and no token;
+  with `pipefail` the 0.5.4 shape renders nine lines, the ninth being `detector unavailable`, and
+  this one renders eight lines and no token.
+
+  The filter pipeline now sits in a brace group closed by `:`, a command that cannot fail, so the
+  `||` is reachable only by the guard short-circuiting. This is the shape `docs-hygiene` 0.21.23 and
+  `code-tidying` 0.14.13 established; the fleet gains no new idiom. No `$` expansion is introduced,
+  so the composed pre-compute block stays verifiable to the worktree-isolation guard, and the
+  command still begins `${CLAUDE_SKILL_DIR}/scripts/detect.sh`, so the existing
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)` grant still matches its leading token.
+
+- **`audit`: the effective-config probe broke on any install path containing a space.**
+  Pre-existing, not introduced by the fix above, but the fix is what makes it visible: the
+  expansion was unquoted, so an install under a path with a space in it (a Windows profile
+  directory named `<First Last>`, a macOS `Application Support` tree) word-split into two
+  arguments, the script was never found, and the guard short-circuited. Before this release that
+  rendered an empty line; now it renders `detector unavailable` on a detector that is present and
+  working. Reproduced by copying the real `detect.sh` into a directory whose name contains a
+  space: unquoted renders `detector unavailable`, quoted renders the full config, and on a
+  space-free path both render it. Both the guard run and the data run are now quoted, matching the
+  form `firecrawl:update` already ships.
+
+  Quoting changes the literal command string, and Bash permission rules are globs over that literal
+  string, so `Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)` no longer matches the quoted
+  invocation. A companion rule `Bash("${CLAUDE_SKILL_DIR}/scripts/detect.sh":*)` is added for it.
+  The existing unquoted rule is kept, because the skill body's own instructions still invoke the
+  script unquoted. Both rules name the same script under the same `${CLAUDE_SKILL_DIR}` anchor and
+  carry the same `:*` argument scope, so this authorizes nothing the plugin could not already run.
+
+## [0.5.4]
+
+### Fixed
+
+- **`audit`: the `detector unavailable` fallback could not render.** The effective-config probe was
+  `${CLAUDE_SKILL_DIR}/scripts/detect.sh --show-config 2>/dev/null | head -8 || echo "detector
+  unavailable"`. `head` exits 0 no matter how `detect.sh` exited, so a skill directory without the
+  script rendered a blank config line rather than saying the detector was missing, and the reader
+  had no way to tell a detector that reported no config from one that never ran. Verified by
+  execution: with the script absent the old shape rendered `[]` and the new one renders
+  `[detector unavailable]`; with the real script both render the seven-line effective config. The
+  probe now guards itself by running `--show-config` once to `/dev/null` and only then piping the
+  second run into `head`. The double run costs 72 ms measured on this repository. Both subcommands
+  still begin `${CLAUDE_SKILL_DIR}/scripts/detect.sh`, so the existing
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)` grant covers each of them independently, as the
+  permissions docs require for a compound command; `head` keeps its own grant. Nothing was widened.
+
 ## [0.5.3]
 
 ### Changed

@@ -3,7 +3,7 @@ description: "Builds a throwaway interactive terminal app to pressure-test busin
 argument-hint: "[scope] (e.g., /prototype:pressure-test scheduling state machine)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
+allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash({ git status --porcelain 2>/dev/null || echo \"(git status unavailable)\"; } | head -10)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
 shell: bash
 metadata:
   workflow-stage: plan
