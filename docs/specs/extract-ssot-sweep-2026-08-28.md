@@ -339,8 +339,11 @@ Beyond the predecessor's 13. Each was resolved against the real files and refuse
 
 ## Open remainder after the encapsulation close
 
-Recorded, not fixed. A later pass adjudicates these; this section exists so it does not have to
-re-find them. Stamped 2026-08-28 and subject to the decay rule at the top of this file.
+Recorded so a later pass does not have to re-find them. Stamped 2026-08-28 and subject to the decay
+rule at the top of this file. Two of the three below are now closed in place, each marked at its own
+heading: the twelve created citations are adjudicated and needed no edit, and the `dometrain`
+staleness is written into the playbook with the re-review logged as owed. The tree-shaped exclusions
+stay open.
 
 ### Twelve citations the encapsulation close created and never rostered
 
@@ -370,14 +373,36 @@ tree at the fix commit's parent.** Before that commit, exactly three lines in
 kept set. Every one of the twelve above was written by the fix commit itself, so **the arithmetic is
 16 fixed and 35 kept, not 16 and 23**, and the changelog-evidence class is fifteen rather than three.
 
-**All twelve are keep-correct** under the test now written into
+**Adjudicated 2026-08-28: all twelve are keep-correct, and none was edited.** Each was ruled
+individually against the test now written into
 [ADR 0018](../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
-amendment: each is a dated changelog entry whose whole claim is what a named file contained on that
-date. Nothing here needs an edit. What is missing is the judgment, and a pass that re-derives this
-shape finds twelve rows nobody ruled on and has to adjudicate them from scratch to learn they were
-fine. The general lesson is worth more than the twelve rows: **a sweep that documents each fix by
-quoting the citation it removed manufactures new instances of the shape it is sweeping,** so its own
-output has to be swept before the count is closed.
+amendment, not accepted as a class. Every one sits inside a dated entry whose claim is what a named
+file contained on that date, and each is quoted as the string the entry removed, with the public
+invocation that replaced it named in the same sentence. No reader is sent to any of them to get a
+rule, so none is an address. Three sub-rulings the class needed:
+
+- The three `config-cascade` rows quote plugin-relative forms (`skills/audit/scripts/detect.sh`,
+  `skills/setup/SKILL.md`, `run-e2e/context/e2e-config.md`) that resolve against nothing from that
+  file, and the entry says so in the same sentence. Clause 3 does not fire on them: the entry
+  asserts their non-resolution rather than offering them as addresses, so requiring them to resolve
+  would delete the finding.
+- The other nine all resolve on disk today from the base their own form implies, checked one at a
+  time, so clause 3 is satisfied where it does apply.
+- None of the twelve carries a line pin or a step pin, which is the part the amendment says rots
+  first. Nothing to drop.
+
+The judgment is what was missing, and it is now recorded so a pass that re-derives this shape reads
+a ruling instead of buying twelve fresh ones. The general lesson is worth more than the twelve rows:
+**a sweep that documents each fix by quoting the citation it removed manufactures new instances of
+the shape it is sweeping,** so its own output has to be swept before the count is closed.
+
+Re-derivation for this adjudication used a different expression from the one that built the table
+above (added lines of the fix commit, matched on a path-shaped token, rather than a scan of the
+files at rest) and returned the same twelve. It also returned one citation the table excludes on
+purpose: `plugins/review/reference/topic-docs.md`, added by the same commit at
+`detector-findings` 2.8.1. That is a plugin-level non-skill tree, outside this roster and inside the
+one ADR 0018's amendment routes to its own pass, and the entry naming it declares it a keep rather
+than quoting it as removed.
 
 **The pass writing this section did the same thing, deliberately, three more times.**
 `docs/conventions/plugin-data-report-keying/CHANGELOG.md` 1.0.1 quotes the three pins it dropped, so
@@ -408,11 +433,18 @@ expression, and per this file's own recall-limits discipline none of these numbe
 
 ### A stale record found in passing, not an ADR matter
 
-`docs/MIGRATION-PLAYBOOK.md:943` carries the `dometrain` security-review record: "Reviewed at
-`0.1.0`; a version bump adding a new trust surface re-triggers this review." **The plugin's manifest
-reads `0.2.7` today** (`plugins/dometrain/.claude-plugin/plugin.json`, confirmed against
-`origin/main`). The trigger has had every opportunity to fire across those bumps and the review was
-never re-run, so the record asserts a currency it does not have.
+`docs/MIGRATION-PLAYBOOK.md`'s "Review record — `dometrain` (ACCEPT, 2026-07-22)" carries the
+clause "Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review."
+**The plugin's manifest reads `0.2.7`** (`plugins/dometrain/.claude-plugin/plugin.json`, read from
+the working tree, not from the roster). Eleven releases landed in between and the review was never
+re-run, so the record asserts a currency it does not have.
+
+**Closed 2026-08-28, as a record rather than as a review.** The playbook now states the staleness in
+place, directly under the re-trigger clause: the reviewed version, the shipping version, and the
+fact that whether any of the eleven added a trust surface is unadjudicated, which is the condition
+the clause turns on and the one thing that cannot be settled without running the review. The
+re-review is logged as owed and was deliberately not performed here. Whoever runs it replaces that
+note.
 
 This is not a citation defect and does not belong to the encapsulation lane. It is logged here
 because the encapsulation pass kept that record's five file-and-frontmatter citations *on the
