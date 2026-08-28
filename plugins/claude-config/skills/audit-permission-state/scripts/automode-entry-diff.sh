@@ -340,7 +340,7 @@ fi
 
 if [[ -z "$oracle_dropped" ]]; then
   echo "oracle NOTE: the session narrated the permission merge but emitted zero drop lines. If this machine has rules the prediction above says are dropped, the session was likely not in auto mode; treat the oracle as unavailable rather than as an empty drop set."
-  [[ -z "$(printf '%s' "$predicted_dropped")" ]] || exit 0
+  [[ -z "$predicted_dropped" ]] || exit 0
 fi
 
 # Compare on rule text over the union of both sets: one verdict line per rule,
