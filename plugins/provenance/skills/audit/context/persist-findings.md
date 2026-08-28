@@ -76,29 +76,73 @@ knowing before you read a written file:
   action's input, and naming a tier this producer deliberately withheld invites a consumer to
   act on it. The count is there; the vocabulary is not.
 - **A finding the script cannot map to a relay rule lands in `## Unparsed` verbatim.** That is
-  the honest outcome for a malformed or future record, and it is never a silent drop.
+  the honest outcome for a malformed or future record. Nothing is dropped in silence: a record
+  the script does map to a rule but cannot relay is counted in `## Surfaces` instead, and one
+  bad record never refuses the sidecar or costs the well-formed findings beside it.
 
 Those two clauses meet on one record: a judgment verdict carrying no rule id. They are ordered,
 not opposed. **Withholding is decided on the declared tier, ahead of any rule lookup**, so that
 record is withheld, and `## Unparsed` covers only what is unmappable for some OTHER reason — an
-unknown rule id, an unknown tier, a malformed row. Keeping a withheld verdict out of the
+unknown rule id, a record that is not an object, a row too malformed to read. Keeping a
+withheld verdict out of the
 appendix does not drop it: `## Surfaces` carries it in the "Withheld from the relay: N judgment
 findings" count, which is where the no-silent-drop guarantee is discharged for these records.
 Routing one back into `## Unparsed` would print its tier name and its whole payload into the
 apply relay's input, which is exactly what the clause above forbids. That is a leak, not a
 restored guarantee — do not "fix" it that way.
 
-The tier field is read generously, because every sloppiness in reading it is a leak and none is
-a false relay row: a `tier` key at any depth and in any casing, its value serialized before
-matching, so `"  not-found  "`, `["not-found"]` and `{"name": "llm-suspected"}` are all the
-verdicts they say they are. A valid rule id sitting beside the verdict does not readmit it
-either.
+`## Surfaces` counts the withheld separately by what they ARE. A copy finding declaring neither
+`fingerprint-confirmed` nor a judgment verdict is not relay-eligible and gets its own count; it
+is not a judgment finding, and counting it as one would tell a reader to look for it on the
+human report, where it is not.
 
-Two limits, both deliberate. A tier naming none of the three verdicts is not something this
-producer withheld, so it keeps its `## Unparsed` path — that is the future-record case the
-appendix exists for. And the scope is the DECLARED tier: a verdict name spelled in some other
-field, free text included, is opaque payload rather than a verdict, and the record carrying it
-goes to `## Unparsed` verbatim like any other unmappable row.
+**Where the tier is read and which values name one answer opposite risks, and the script tunes
+them separately.** Reading the wrong field is a silent drop; failing to see through a wrapper
+around a real verdict name is a leak.
+
+The KEY is an explicit allowlist — the top-level `tier`, and the `tier` inside a `verdict`
+object — because a miss THERE is a drop, which is worse than the leak it guards. This sidecar is
+model-authored against no schema, and `tier` is already overloaded across it (the verdict tier,
+and the crosswalk severity). A reader that took a `tier` key at any depth could not tell a
+declared verdict from a nested mention of one, and withheld records that had declared
+`fingerprint-confirmed` at the top level: no relay row, no `## Unparsed` entry, and a
+`## Surfaces` count calling them judgment findings on a human report they were never on. Keys
+are matched case-folded, but only at those two positions, so
+`{"xref": {"TIER": "prior: not-found"}}` is the cross-reference it reads as.
+
+The VALUE is read generously about its WRAPPER and exactly about the NAME. Every string anywhere
+inside the declared value is a candidate, trimmed and case-folded, and it names a tier only when
+it EQUALS one — so `"  not-found  "`, `["not-found"]`, `{"name": "llm-suspected"}` and
+`"LLM-Suspected"` are all the verdicts they say they are, while a future `not-found-v2` is an
+unknown tier rather than the verdict it happens to start with. A valid rule id sitting beside a
+verdict does not readmit it either.
+
+Free text in a tier field therefore names no tier, which is the same answer this producer
+already gives a verdict name spelled in a `note`. It has to be: a `verdict.tier` reading "the
+llm-suspected nomination was overruled" is a review note, and withholding the
+fingerprint-confirmed copy that carries it is the same drop as reading a `tier` key at any depth.
+
+**Four names, and one reader for all three questions.** The three withheld verdicts, plus
+`fingerprint-confirmed`, the one tier a copy finding may be relayed on. The searched-surfaces
+refusal, the withhold predicate and the eligibility test all ask that one reader. A caller with
+its own, laxer notion of the tier is the defect, twice over: a `{"Tier": "not-found"}` sidecar
+passed the schema check unexamined and was then withheld silently, and a
+`{"Tier": "fingerprint-confirmed"}` copy was read as a declaration when withholding and as no
+declaration at all when relaying, so it was dropped under a count that denied it had declared
+anything.
+
+Two limits, both deliberate. **A tier naming none of the four is a tier this producer neither
+withheld nor can relay**, and the record takes the ordinary path for its rule id: `## Unparsed`
+when nothing maps it, and the not-relay-eligible count when a copy rule does. And **the scope is
+the DECLARED tier**: a verdict name spelled in some other field, a `note` or a `summary`, is
+opaque payload rather than a verdict, and if nothing else maps the record it goes to
+`## Unparsed` verbatim like any other unmappable row. That second limit is safe because of what
+the consumer does with the appendix, not merely because of how this producer labels it:
+[`review:fanout`](../../../../review/skills/fanout/context/fix-pass-mode.md) surfaces
+`## Unparsed` entries to the user for manual handling and cannot auto-classify them, so no
+remediation surface acts on a verdict name that reaches the file that way. It does not extend to
+a payload cell on a relayed row — an `excerpt` is copied source text and prints as written, which
+is why the excerpt belongs to the finding and never carries this run's own reasoning.
 
 Every cell describes a finding this run actually produced. Never compose an illustrative row,
 and never carry a row forward from a previous run.
@@ -133,7 +177,11 @@ and never carry a row forward from a previous run.
 relay-eligible count plus the withheld and unmapped counts. Omit `tier:` and `## By dimension`:
 nothing here computes a run-size value, and the relay carries one dimension.
 
-- Findings to emit → write.
+- Findings to emit → write. The input-refusal gates run first and are the one exception: a
+  sidecar with no `findings` key, one that does not parse, or one whose `not-found` finding
+  names no searched surfaces is refused whole at exit 3 and nothing is written, because a file
+  composed from input that concludes nothing is worse than no file. A single malformed RECORD is
+  not that case and never refuses the sidecar.
 - Files scanned, zero relay-eligible findings → write anyway, with the empty `## Findings`
   header. Coverage is the payload, and a clean corpus is a result.
 - Nothing scanned (empty target set, everything carved out) → write nothing; say so in the
