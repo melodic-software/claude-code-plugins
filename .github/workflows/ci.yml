@@ -1044,6 +1044,33 @@ jobs:
       - name: Verify every changelog reads newest-first with no duplicate versions
         run: scripts/check-changelog-parity.sh --check-order
 
+  # Vendor version bump: ADR 0019's intra-plugin sharing keeps ONE committed
+  # copy at the plugin root (vendor/), so no sync-*.sh byte-drift gate applies;
+  # the invariant that replaces it is delivery-by-version — a vendor/ source
+  # change must bump the plugin's manifest version, the update cache key, or
+  # installed consumers never receive it. Only prose enforced that, and two
+  # unbumped vendor edits shipped (b3445bc2, b01dace3). General over
+  # plugins/*/vendor/, not a per-plugin list. The self-test runs unconditionally
+  # so a broken gate cannot mask a regression, and the PR-diff step is
+  # event-gated.
+  vendor-version-bump-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Test the vendor version-bump gate
+        run: bash scripts/check-vendor-version-bump.test.sh
+      - name: Verify a vendor/ source change bumps the plugin's version
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
+
   # Contract-slice prune: docs/topics/<slug>/ is Contract tier per
   # docs/conventions/topic-docs/README.md — committed on a task branch only,
   # pruned before merge. The convention specified this required check but it was
@@ -1629,6 +1656,7 @@ jobs:
       - fleet-finding-test-coverage-gate
       - fleet-audit-doc-grammar-gate
       - changelog-parity-gate
+      - vendor-version-bump-gate
       - contract-slice-prune-gate
       - contract-clause-coverage-gate
       - docs-only-gate
