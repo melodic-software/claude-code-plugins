@@ -830,6 +830,44 @@ jobs:
       - name: Run silent-skip-gate tests
         run: bash scripts/check-silent-skips.test.sh
 
+  # A skip_case that vacates the only discriminating assertions in a case group
+  # lets a suite report green while proving nothing — the vacuous-pass shape
+  # the git copy-pairing suites already shipped. The check existed (and
+  # plugins/testing's audit skill cites it as this repo's own CI gate) but ran
+  # in no workflow, so it enforced nothing. The self-test runs first so a
+  # broken gate cannot mask a regression.
+  discriminating-test-skip-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run discriminating-test-skip gate tests
+        run: bash scripts/check-discriminating-test-skips.test.sh
+      - name: Check plugin test suites for discriminating skip_case sites
+        run: scripts/check-discriminating-test-skips.sh
+
+  # Regression sweep for the video-digest skill rename: the sweep script
+  # promised to break CI loudly when the skill's PRE-rename name resurfaces
+  # (its own header spells the hunted token; repeating it here would trip the
+  # sweep), but it ran in no workflow, so a revert artifact or vendored doc
+  # could reintroduce the old name with nothing to catch it. The self-test
+  # runs first so a broken sweep cannot mask a regression.
+  rename-sweep-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run rename-sweep gate tests
+        run: bash scripts/check-rename-sweep.test.sh
+      - name: Check for resurfacing pre-rename skill references
+        run: scripts/check-rename-sweep.sh
+
   # #1547: a routine `git merge origin/main` silently dropped
   # plugins/guardrails/.claude-plugin/plugin.json for ~14 minutes on a branch
   # while .claude-plugin/marketplace.json still catalogued "guardrails" at that
@@ -1648,6 +1686,8 @@ jobs:
       - summary-reader-parity-gate
       - plugin-options-docs-gate
       - silent-skip-gate
+      - discriminating-test-skip-gate
+      - rename-sweep-gate
       - stale-base-overlap-gate
       - plugin-manifest-presence-gate
       - plugin-catalog-enablement-gate
