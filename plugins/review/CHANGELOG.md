@@ -7,10 +7,14 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Changed
 
-- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
-  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
-  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
-  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+- **Dynamic-context probe fallback made reachable, and its `allowed-tools` grant moved with it.**
+  `quality-gate`'s working-tree-status injection piped its probe into `head` before `||`, so the
+  fallback could never run and a failed probe rendered an empty string under a label that reads as a
+  clean tree. The fallback now sits in a brace group with the probe and the cap applies outside it.
+  This skill is the fleet's only site whose `allowed-tools` entry is a byte copy of the injection it
+  authorizes, so the grant was rewritten in the same edit; changing only the injection would have
+  left the skill unable to run its own probe. The grant does not widen — old and new each authorize
+  exactly one command shape. Whole-repo extract-ssot sweep.
 
 ## [0.26.12]
 

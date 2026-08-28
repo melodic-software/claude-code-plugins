@@ -8,9 +8,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 ### Changed
 
 - **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
-  floor identical across carriers; hashing found three distinct texts, the drift traceable to two
-  de-slop shards that also introduced a comma splice. All five carriers now hash identically on an
-  em-dash-free, grammatical form. Whole-repo extract-ssot sweep.
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
 
 - **Telemetry-upsert reference prose normalized across the three lanes.** An em-dash purge had
   reached one copy only, leaving a comma splice and a dropped clause about what the creation-race

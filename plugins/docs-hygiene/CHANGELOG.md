@@ -11,21 +11,25 @@
   rather than a line, matching the fix `detector-findings` 2.7.1 applied to the same claim in the
   convention doc. Whole-repo extract-ssot sweep.
 
-- **`audit-noise`: the declined-shape count corrected from five to eight in all three places that
-  state it.** `SKILL.md`, `context/persist-findings.md` and `scripts/emit-findings.sh`'s header each
-  said the scanner marks six shapes and declines five, naming `citation`, `ghost-ref`, `preamble`,
-  `enum-list` and `scope-meta`. `lib/noise-shapes.sh` appends eight — those five plus
-  `plan-reference`, `conversational-antecedent` and `ticket-pr-residue` — and `detect.sh` drives a
-  ninth, `negation`, over an accumulated paragraph. The three newer shapes were added without the
-  prose following, so a reader of `## Surfaces` would have found declined counts for shapes the
-  skill's own docs say do not exist. All three now say nine and eight, name all eight, and point at
-  `audit_noise_detect_shapes_into` as the count's source rather than restating it as a fact. No
-  behavior changes. Found by the whole-repo extract-ssot sweep.
+- **`audit-noise`: the declined-shape count corrected from five to eight.**
+  `context/persist-findings.md` and `scripts/emit-findings.sh`'s header each said the scanner marks
+  six shapes and declines five, naming `citation`, `ghost-ref`, `preamble`, `enum-list` and
+  `scope-meta`. `scripts/lib/noise-shapes.sh` appends eight — those five plus `plan-reference`,
+  `conversational-antecedent` and `ticket-pr-residue` — and `detect.sh` drives a ninth, `negation`,
+  over an accumulated paragraph. So `## Surfaces` reports declined counts for three shapes those two
+  files do not list. `SKILL.md` was inconsistent rather than wrong: it says nine throughout and
+  documents all three newer shapes, but one sentence said "the other five". Both context files now
+  name all eight, and all three point at `audit_noise_detect_shapes_into` as the count's source
+  rather than restating the number as a fact. No behavior changes. Found by the whole-repo
+  extract-ssot sweep.
 
 - **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
-  floor identical across carriers; hashing found three distinct texts, the drift traceable to two
-  de-slop shards that also introduced a comma splice. All five carriers now hash identically on an
-  em-dash-free, grammatical form. Whole-repo extract-ssot sweep.
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and this plugin's orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
 
 - **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
   probe into `head` before `||`, so the fallback could never run and a failed probe rendered an

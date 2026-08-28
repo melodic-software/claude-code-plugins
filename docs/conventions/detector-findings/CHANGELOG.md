@@ -44,7 +44,8 @@ enforceability verdict changes.
   four permitted lead forms and `n/a` is not one; its three sibling non-emitting rows all use
   `Not applicable — no row`. Corrected, argument unchanged.
 - **Two counts inside the new adopter row were wrong on the day it was written.** The row said
-  its detector "marks six shapes" with "the other five" declined. `lib/noise-shapes.sh` marks
+  its detector "marks six shapes" with "the other five" declined.
+  `plugins/docs-hygiene/skills/audit-noise/scripts/lib/noise-shapes.sh` marks
   eight shapes and `detect.sh` drives a ninth, `negation`, over an accumulated paragraph, so
   eight are declined with `reason=no-severity-crosswalk-row`, not five. It also opened "the third
   producer to join the crosswalk", copied from 2.5.0, which says the same. This file cannot have

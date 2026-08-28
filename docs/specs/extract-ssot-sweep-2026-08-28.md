@@ -50,7 +50,7 @@ subagent-spawn tool").
 |---|---|---|
 | Re-verification | Four workers re-deriving the 13 recorded clusters against the current tree | 6 confirmed open, 5 refused as already applied or already owned, 2 corrected in owner or scope |
 | Pass A | 12-word shingle detector over 1,168 files, line breaks removed: 2,087 raw clusters, 639 at 25+ words, 542 after filtering populations already refused with cause | 8 triage workers, 38 survivors from 366 rows |
-| Pass B | Four concept-axis workers reading for paraphrase clusters sharing no verbatim phrase | 12 survivors and 15 recorded contradictions, none of them reachable by grep |
+| Pass B | Four concept-axis workers reading for paraphrase clusters sharing no verbatim phrase | 12 survivors and 12 recorded contradictions, none of them reachable by grep |
 
 Pass B is where the predecessor's declared hole actually was, and it is where the highest-value
 findings came from. Four of its results are factual defects rather than style drift.
@@ -79,19 +79,28 @@ editing pass per file.
 
 ### The inline floor that was not identical
 
-`docs/conventions/loop-lane/README.md` §6 requires the rate-limit-guard floor to be **byte-identical**
-across its carriers, and the predecessor refused `rate-limit-guard-floor-inline` on exactly that
-ground. Hashing the five carriers showed three distinct texts.
+State §6's scope precisely, because the earlier draft of this section overstated it and the
+overstatement is the same defect class as everything else recorded here.
+`docs/conventions/loop-lane/README.md` §6 requires that each of the **three consuming lane bodies**
+inline the operable floor, and "records the inline-floor rule so **the values** stay byte-identical
+**across lanes**". It binds three lanes, on the values, and names
+`plugins/rate-limit-guard/reference/reader-contract.md` as their provenance rather than as a fourth
+carrier. It says nothing about `extract-ssot`'s orchestrated-mode consumer, which is not a lane.
 
-The drift was one-directional and traceable: `git log -S` returns two commits, both per-plugin
-de-slop shards, which edited the three lane bodies away from the anchor. One of the two edits
-replaced a clause-joining dash with a comma, producing a comma splice in a sentence whose whole job
-is to state a causal link. The em-dash campaign did not know the block was frozen.
+Under that literal scope the three lanes were already mutually identical, and the values never
+drifted at all. What drifted was the surrounding prose, between the three lanes and the contract they
+cite. Hashing the three lanes plus the contract plus the orchestrated-mode consumer showed **two**
+distinct texts, not three: `git log -S` returns two commits, both per-plugin de-slop shards, and
+both made the same two substitutions, so they produced one drifted form between them rather than
+two. One of those substitutions replaced a clause-joining dash with a comma, producing a comma
+splice in a sentence whose whole job is to state a causal link. The em-dash campaign did not know
+the block was frozen.
 
-All five carriers now hash identically, on a form that is both em-dash-free and grammatical, so the
-byte-identity contract and the house style are satisfiable together. The predecessor's refusal rested
-on a premise that was false at the time it was written: the convention requires identity, so any
-difference is the bug, which makes this the opposite of a refusal.
+All five now hash identically, on a form that is both em-dash-free and grammatical, so identity and
+the house style are satisfiable together. The predecessor refused `rate-limit-guard-floor-inline`
+on the ground that the convention requires identity; that ground was sound for the three lanes and
+the fix extends it to the two files they cite, which is a choice this record makes rather than one
+§6 compels.
 
 Two further files carry the same floor as a blockquoted restatement inside a prompt:
 `prompts/loops/loop-lane-prompts.md` and `prompts/loops/loop-lane-profile-claude-code-plugins.md`.
@@ -174,7 +183,7 @@ What remains:
 | `overengineering-branch-identity-mechanism` | 6 files in `overengineering` | `delta`'s copy omits the normalize-then-validate step its siblings require, so an environment supplying `refs/heads/<name>` makes `delta` key a different home than the audit it composes, and the lane reports no delta forever, silently |
 | `bugs-scan-git-clean-mechanism` | 1 file | "a fresh clone or a `git clean` erases" the memory tier. The tier is self-ignoring by contract, and plain `git clean` does not remove ignored files. The conclusion is right, the mechanism named is not |
 | `babysit-prs-isolation-account` | 1 file | `plugins/source-control/skills/babysit-prs/SKILL.md` asserts the form-based account of the worktree-isolation refusal ("a git-bearing compound command") that `session-flow` 0.17.16 refutes in favour of a `$`-expansion trigger. Pre-existing on `main`; this sweep neither created nor worsened it |
-| `detector-findings-tier-self-restatement` | 1 file | `docs/conventions/detector-findings/README.md` declares "This doc never restates it" about the severity vocabulary and routes tier decisions to `review`'s owner, then restates CRITICAL's tier test inside its own crosswalk table |
+| `detector-findings-tier-self-restatement` | 1 file | `docs/conventions/detector-findings/README.md` declares the severity vocabulary "is not this doc's to define", routing it to `plugins/review/context/severity.md`, then restates CRITICAL's tier test in eight crosswalk rows. (An earlier draft of this row attached the quote "This doc never restates it" to severity; that sentence is about the findings-file shape, a different subject in the same file. The observation stands, the quote did not.) |
 
 Two encapsulation defects the earlier L4 lane's roster of 34 did not carry, both in `docs/**` citing
 a plugin skill by filesystem path, which ADR 0018 rules out because an installed plugin may not be
@@ -314,8 +323,23 @@ figures to differ.
   the repo, squarely on one axis), most of `plugins/work-items/`, `plugins/autonomy/reference/
   runner/`, `plugins/machine-health/`, `plugins/event-storming/`, `plugins/mcp-tools/`, and every
   plugin's `agents/` directory except three.
-- **Two counts are floors, not totals.** The `worker-return-is-synthesis` roster at 13 files and the
-  `read-only-artifact-write-reconciliation` roster at 7 both come from partial reads; neither could
-  shrink, both could grow.
-- **The `1,536`-character listing cap appears in 14 tracked files**; the batch that surfaced it saw
-  three. Any pass acting on that cluster should re-derive against the full population.
+- **Three counts are floors, not totals.** The `worker-return-is-synthesis` roster at 13 files and
+  the `read-only-artifact-write-reconciliation` roster at 7 both come from partial reads; neither
+  could shrink, both could grow. The encapsulation roster is the third: it records **two**
+  `docs/**` surfaces citing a plugin skill by filesystem path, which is what the survey found, and
+  a later pass found three more of the identical shape that were on no roster —
+  `docs/conventions/topic-docs/README.md` (two links, `discovery` and `verification` setup skills),
+  `docs/conventions/detector-findings/README.md` (`review/skills/fanout/SKILL.md`), and
+  `docs/conventions/permission-rule-hygiene/README.md`
+  (`claude-config/skills/audit-permission-grants`). ADR 0018 rules all of them out for the same
+  reason; none is fixed here.
+- **A fifth filtered probe exists and is not in the four-site table above.**
+  `plugins/docs-hygiene/skills/compress/SKILL.md` already binds its fallback inside the brace group,
+  so unlike the four it *is* reachable — but its fallback is `none`, which collapses "no matching
+  files" and "git did not run" into one string. Same ambiguity, arrived at from the other direction.
+  A pass that fixes the four should fix this one too.
+- **The `1,536`-character listing cap appeared in 14 tracked files when this was measured**; the
+  batch that surfaced it saw three. A later count during this change set's own review found 16, and
+  the population keeps moving. That is the point of the paragraph rather than an exception to it:
+  any pass acting on that cluster must re-derive against the full population, never cite this
+  number.

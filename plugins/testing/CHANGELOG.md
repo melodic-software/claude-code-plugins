@@ -16,8 +16,10 @@ All notable changes to the `testing` plugin are documented here. Format follows
   the producer contract as a numbered `apply` step rather than as a `persist-findings.md` preamble,
   and that compression had dropped the shape's authority, the self-ignore guard, and the whole
   "where the contract and this file disagree, the contract wins" rule. The step keeps its own form
-  and carries all three again. The other four producer surfaces are byte-identical apart from their
-  run-name slot; this one is deliberately not. Whole-repo extract-ssot sweep.
+  and carries all three again. The four `persist-findings.md` surfaces this sweep touched are
+  byte-identical apart from their run-name slot; this one is deliberately not, and
+  `provenance:audit`'s later preamble is a sixth surface outside that set. Whole-repo extract-ssot
+  sweep.
 
 ## [0.7.11]
 
