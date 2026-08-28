@@ -109,7 +109,7 @@ config route as unverified until you have measured it yourself.
 
 ## Video — hero scripts (via `run-code`)
 
-For polished recordings (demos, PR evidence), build a single `run-code` script with typing delays, overlays, and chapter cards. See [running-code.md](running-code.md) for execution mechanism. Upstream ships a detailed pattern at `../vendor/references/video-recording.md` covering:
+For polished recordings (demos, PR evidence), build a single `run-code` script with typing delays, overlays, and chapter cards. For the execution mechanism, see [running-code.md](running-code.md). Upstream ships a detailed pattern at `../vendor/references/video-recording.md` covering:
 
 - `page.screencast.showChapter(title, { description, duration })` — full-screen chapter card with blurred backdrop
 - `page.screencast.showOverlay(html, { duration })` — custom HTML callouts/labels/highlights

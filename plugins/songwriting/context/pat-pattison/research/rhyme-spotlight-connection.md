@@ -384,7 +384,7 @@ press   stress
 
 <!-- spellchecker:on -->
 
-**Step 4 — filter by stress, not by sound.** See the next section.
+**Step 4 — filter by stress, not by sound.** See *Feminine mosaic problem* below.
 
 **Step 5 — check the *fourth* line before committing the third.** "The key to
 what will happen in the third phrase is often what happens in the fourth."

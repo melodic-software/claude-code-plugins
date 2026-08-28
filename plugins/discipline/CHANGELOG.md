@@ -5,6 +5,13 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.20]
+
+### Changed
+
+- **Grammar repaired where the em-dash purge left a sentence broken.** `skills/scrutinize-dont-coast/SKILL.md`. The #2891 substitution replaced a dash without restructuring the sentence, leaving a verbless fragment or a comma splice. Wording only; no rule changed.
+- **Authoring-doctrine pass over `README.md`, `skills/sweep-all/reference/inheritance-preflight.md`.** Fixed pointers and cross-references that did not resolve; a recap that had drifted from the source it cites; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.12.19]
 
 ### Changed

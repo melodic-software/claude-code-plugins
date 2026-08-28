@@ -192,7 +192,7 @@ For prompt improvements and process gates: run a MINI simulation (single phase, 
 ### After EVERY simulation run
 
 - Score the rubric
-- Compare against source
+- Compare against source (Step 3 — optional; skip if you don't have the book)
 - Update the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) with version metrics
 
 ### After finding a specific gap

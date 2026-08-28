@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.2]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.5.1]
 
 ### Changed

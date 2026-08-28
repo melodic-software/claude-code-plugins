@@ -26,11 +26,11 @@ The lyric-craft skills and `suno` are deliberately paired: the lyric-craft skill
 
 ## Method content and the author seam
 
-Every lyric-craft skill is **concern-scoped and author-neutral**, the skill is the stable interface
+Every lyric-craft skill is **concern-scoped and author-neutral**. The skill is the stable interface
 (what you invoke); the opinionated method behind it is content. Today that method is **Pat
 Pattison's**, held once under `context/pat-pattison/` (the full reference corpus, its templates, the
 Datamuse script, and the mandatory response filter). A future author's method for the same concern
-plugs in at `context/<author>/` without changing the concern skills, the concern skills are open for
+plugs in at `context/<author>/` without changing the concern skills. The concern skills are open for
 extension, closed for modification.
 
 Every craft output first runs the applicable section of the response filter
@@ -67,7 +67,7 @@ to inventory your overrides and confirm your artifact layout (the read-only `che
 
 None beyond Claude Code for the core skills. The optional Datamuse rhyme/vocabulary helper
 (`context/pat-pattison/scripts/datamuse.sh`, used by `/songwriting:rhyme` as a supplement) needs
-`bash`, `curl`, and `jq`, and calls the free, no-auth [Datamuse API](https://www.datamuse.com/api/)
+`bash`, `curl`, and `jq`, and calls the free, no-auth [Datamuse API](https://www.datamuse.com/api/),
 the only network egress in the plugin. Without those tools the skill degrades gracefully to
 internal rhyme generation.
 

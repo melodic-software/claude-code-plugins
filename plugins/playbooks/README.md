@@ -21,7 +21,7 @@ no work of its own.
 script: `--check` (default) reports upstream version and vendor SHA drift
 read-only; `--apply` refreshes the vendored baseline and frontmatter metadata.
 Integrating upstream deltas into the distilled skill bodies stays a manual,
-reviewed step. Run it in a working-tree checkout of this plugin, consumers
+reviewed step. Run it in a working-tree checkout of this plugin. Consumers
 receive updates through `/plugin marketplace update` once a new plugin version is
 published.
 
