@@ -2789,6 +2789,11 @@ chmod +x "$RRP_DIR/cyg/cygpath"
 rrp_case() {
   local mode="$1" label="$2" file="$3" root="$4" want="$5" want_deg="$6" probe
   probe=$(
+    # $BASH, not a bare `bash`: the PATH below is deliberately near-empty, so a
+    # bare name could not be resolved. shellcheck cannot see that the quoted
+    # argument is a bash script, so it reads the (correctly) unexpanded $1/$2/$3
+    # as a mistake; they are the child's own positional parameters.
+    # shellcheck disable=SC2016
     PATH="$RRP_DIR/$mode" "$BASH" -c '
       # shellcheck source=hook-utils.sh
       source "$1"

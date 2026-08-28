@@ -1690,9 +1690,9 @@ if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   REPO_SL="$WORK/symlink-real"
   new_typos_repo "$REPO_SL"
   mkdir -p "$REPO_SL/docs"
-  printf 'This sentence contains a delibrate misspelling.\n' >"$REPO_SL/docs/note.md"
+  printf 'This sentence contains a delibrate misspelling.\n' >"$REPO_SL/docs/note.md" # spellchecker:disable-line
   OUT_SL=$(run_hook "$WORK/symlink-link/docs/note.md")
-  if [[ "$OUT_SL" == *delibrate* ]]; then
+  if [[ "$OUT_SL" == *delibrate* ]]; then # spellchecker:disable-line
     ok "symlinked root: the real typo still surfaces (scan target not redacted)"
   else
     fail "symlinked root: typo lost, hook scanned a redacted path: $OUT_SL"
