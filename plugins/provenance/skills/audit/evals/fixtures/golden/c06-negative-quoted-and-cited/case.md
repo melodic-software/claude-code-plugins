@@ -1,8 +1,5 @@
 # Parsing the build log
 
-A hard negative. The external material below is quoted and attributed adjacent to the quotation,
-so it must not become a finding.
-
 The runner's own documentation states the shape:
 
 > Each log line is a JSON object carrying the task id, the event name, a monotonic timestamp in
