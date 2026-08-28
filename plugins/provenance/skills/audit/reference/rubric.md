@@ -1,16 +1,27 @@
 # The provenance rubric
 
-Rubric version **2**. This catalog is versioned with the plugin: a change to a carve-out or a
+Rubric version **3**. This catalog is versioned with the plugin: a change to a carve-out or a
 criterion lands in `CHANGELOG.md` and **invalidates any golden-set measurement pinned to the
 prior version**. A precision figure measured against rubric 1 says nothing about rubric 3.
 
-**Version 2 is the one exception to that rule, and it is worth stating why rather than asserting
-it.** Version 2 changed no criterion's substance and no carve-out. It corrected an inverted
-polarity in C3's and C4's question wording and worked-example labels, which contradicted the
-verdict rule stated three times elsewhere in this file. The version-1 measurement was computed
-under the verdict rule, not under the inverted labels, and an independent blind adjudication
-returned the same eight positives reading it the same way. So that measurement carries forward.
-Any later change to what a criterion tests does invalidate it, as written above.
+**Version 3 states the scope at which C3 and C4 are graded. It takes the invalidation.** Version
+2 left the scope implicit, and the two criteria resolve in opposite directions under it: grading
+both at the file clears a majority-adapted file twice, grading both at the span makes a
+well-attributed derived file stand every time. A real corpus case was graded by two readers who
+agreed on the verdict and disagreed on which scope produced it, which is what surfaced the gap.
+Fixing that changes what C3 tests — it adds a scope-match test that can decide a case either way
+— so the version-2 measurement does **not** carry forward. **The golden set must be re-scored
+against version 3 before any precision figure is cited against it.** Until that re-score lands,
+the recorded 8 tp / 0 fp / 0 fn / 2 tn belongs to version 2 and should be quoted with the version
+attached. No class becomes fix-eligible on a measurement pinned to a superseded rubric.
+
+**Version 2 was the one exception to the invalidation rule**, kept here because the reasoning is
+the standard the next exception has to meet. It changed no criterion's substance and no carve-out;
+it corrected an inverted polarity in C3's and C4's question wording and worked-example labels,
+which contradicted the verdict rule stated three times elsewhere in this file. The version-1
+measurement was computed under the verdict rule, not under the inverted labels, and an independent
+blind adjudication returned the same eight positives reading it the same way. Version 3 cannot
+make that argument, which is why it does not try.
 
 Read this at the judgment step. Judges apply it blind, three samples by default; unanimity
 renders the verdict and any split routes to the human.
@@ -134,6 +145,25 @@ transformative — so both are phrased below in the negative to keep the directi
 rubric whose criteria disagree about which way PASS points cannot render a verdict at all: under
 the inverse reading nothing could ever stand. That inversion shipped in rubric version 1 and was
 caught by a blind adjudication pass, not by review.
+
+**Scope, stated once because C3 and C4 are graded at different ones.** C1 and C2 are graded on
+the passage; nothing else would mean anything. The other two are not symmetric:
+
+- **C3 is graded outward from the passage, across the whole file.** Attribution sitting *inside*
+  the span is the quotation carve-out, not a C3 question, so C3 must look outside it or it can
+  never find anything. What it asks is whether the attribution's declared **scope matches the
+  derivation's**. File-scope attribution discharges C3 when the derivation is file-wide; it does
+  not when one lift sits inside otherwise-original material, because there the header understates
+  and the reader misallocates which sentences came from upstream. "The attribution exists and is
+  complete" is not the test — that reading lets a single lift into an original file escape.
+- **C4 is graded on the passage**, which is what its worked examples below do. A file can be
+  substantially transformed while the span in question adds nothing over its source, and it is the
+  span that was copied.
+
+Grade both at the file and a majority-adapted file clears twice; grade both at the span and a
+well-attributed derived file stands every time. Neither is the intended reading. This was left
+implicit in version 2 and surfaced by a verifier grading a real corpus case, where the two scopes
+resolved in opposite directions and the answer turned entirely on which was used.
 
 ### C1-span-correspondence
 

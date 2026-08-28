@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.3.0]
+
+### Changed
+
+- **Rubric version 3: C3 and C4 are graded at different scopes, and version 2 never said so.**
+  Applying the rubric to a real corpus passage surfaced it. Two readers reached the same verdict
+  on `plugins/dometrain/skills/grounding/SKILL.md:50-64` (containment 0.589, a 142-word span,
+  cleared on C3) and disagreed on which scope produced it — and under version 2 both readings were
+  available, resolving in opposite directions. Grade C3 and C4 both at the file and a
+  majority-adapted file clears twice. Grade both at the span and a well-attributed derived file
+  stands every time. Neither is the intended reading, and nothing in version 2 chose between them.
+
+  Version 3 states it: **C3 is graded outward across the whole file, C4 on the passage.** C3 has
+  to look outside the span, because attribution *inside* the span is the quotation carve-out
+  rather than a C3 question. What it tests is whether the attribution's declared scope matches the
+  derivation's — file-scope attribution discharges C3 when the derivation is file-wide, and does
+  not when one lift sits inside otherwise-original material, where the header understates and the
+  reader misallocates. C4 stays on the passage, which is what its worked examples already did: a
+  file can be substantially transformed while the copied span adds nothing over its source.
+
+  The rejected reading is worth recording because it is the one a judge reaches for: "the
+  attribution exists and is complete." That is not the test. It would let a single lift into an
+  otherwise-original file escape C3 on the strength of a header line about something else.
+
+- **The version-2 golden-set measurement does not carry forward, and this entry does not argue
+  otherwise.** This file's own rule is that a criterion change invalidates any measurement pinned
+  to the prior version. Version 3 adds a scope-match test to C3 that can decide a case either way,
+  so the rule applies. The recorded 8 tp / 0 fp / 0 fn / 2 tn belongs to version 2 and should be
+  quoted with the version attached; **the golden set must be re-scored against version 3 before
+  any precision figure is cited against it**, and no class becomes fix-eligible on a measurement
+  pinned to a superseded rubric. Version 2 took the one exception to that rule on the argument
+  that it changed no criterion's substance. Version 3 cannot make that argument and does not try.
+
 ## [0.2.1]
 
 ### Fixed
