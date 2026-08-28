@@ -100,9 +100,44 @@
   a reading at a commit, not a constant, and it needs the commit attached or it will not
   reproduce.
 
-  `may` now needs a digit beside it before it counts as a date. Every date form has one, and the
-  modal does not. The other eleven months still match bare, because over-reporting into a bucket a
-  human reads is the safe direction and this fix must not trade it for under-reporting.
+  `may` counts as a date when a digit sits beside it — every date form has one and the modal does
+  not — **or** when the original line capitalises it. The other eleven months still match bare,
+  because over-reporting into a bucket a human reads is the safe direction and this fix must not
+  trade it for under-reporting.
+
+  **The first version of this fix did trade it, and three independent reviewers caught that.**
+  Requiring a digit made a digitless stamp vanish: `Verified this May` and `Checked last May
+  against the vendor page` stopped matching anything, and the loss was *upstream* of the declined
+  bucket rather than inside it — `keyword_window()` returned empty, the caller dropped the line
+  before classification, and `is_stamp()` did the same to the inventory. Not declined, not
+  inventoried, gone. `Verified in June` was still declined and still visible, so the same shape got
+  two different treatments purely because of the modal collision.
+
+  The capital `M` is what fixes it. Both scripts lowercase before matching and so discard the one
+  signal that separates these in edited prose. The rule now lives in a named `may_form()` carried
+  at all three sites rather than three copied regexes.
+
+  **The case signal was measured on this corpus, not assumed.** Over 1,352 files: 1,458 lines carry
+  a lowercase `may`, overwhelmingly the modal; 24 carry a capital `May`, of which about 17 are month
+  dates and 7 are capitalised modals in table cells and bullets; and 34 carry an ALL-CAPS `MAY`, of
+  which **none is a date** — every one is an RFC-2119 modal. So two costs are accepted knowingly.
+  A capitalised modal opening a sentence or a cell now reads as a month when a stamp keyword sits
+  in its window, which over-reports into a bucket a human adjudicates. And ALL-CAPS defeats case, so
+  a digitless `MAY` date stays invisible; buying it back would mean reading `MAY` as a month, which
+  on this corpus means 34 false candidates for a form nobody writes. Both are pinned by tests,
+  including one named for the over-report so it is not rediscovered as a bug.
+
+  **The suites could not have caught this, which is the part worth keeping.** They assert that both
+  scripts return the same count over a shared fixture — an assertion that passes when both are
+  equally wrong, which is exactly what happened. A cross-implementation agreement test detects
+  divergence and is blind to a common error, and a shared definition is what makes a common error
+  likely. The new cases pin a **non-zero** expected count in both suites, so agreement is now
+  backed by a known answer rather than by two implementations nodding at each other.
+
+  Corpus effect of the correction: **none.** Candidates, parsed, declined and findings are all
+  unchanged at 527 / 499 / 28 / 0, because this corpus carries no digitless-May stamp today. The
+  regression was latent here and real in principle; the shapes the reviewers named are ordinary
+  ones this corpus simply does not happen to contain.
 
   Three sites changed, not two: both detectors and **the classifier in `check-stamps.sh`**, which
   a single-site fix would have missed and which decides the decline reason a human then reads.
