@@ -65,8 +65,8 @@
   matched exactly against the three verdict names. The record is still counted in `## Surfaces`, so
   nothing is dropped.
 
-  **Reaching that took five rounds, and each round's fix opened the next hole.** Recorded in full
-  because the sequence, not any one defect, is the finding.
+  **Reaching that took ten rounds, and for the first nine each fix opened the next hole.** Recorded
+  in full because the sequence, not any one defect, is the finding.
 
   1. The first version matched the tier exactly at the top level. An adversarial probe defeated it
      four ways: a padded `"  not-found  "`, an array-valued `["not-found"]`, an object-valued
@@ -89,7 +89,28 @@
   5. The declared `tier` now wins whenever the record has one, falling back to the `verdict` only
      when it does not — and the fallback turns on the slot **naming** a known tier rather than the
      key merely being present, which is what `{"tier":null}`, `{"tier":[]}` and `{"tier":"pending"}`
-     beside a verdict had been slipping through. Invisible characters are trimmed by Unicode class.
+     beside a verdict had been slipping through.
+  6. The same defect one container down: the `verdict` → `verdict.tier` step still keyed off the
+     child being present, so `{"verdict":{"tier":"pending","result":"not-found"}}` declared nothing
+     and printed its outcome verbatim. Both steps now share one definition — the first fix in the
+     sequence to address the class rather than an instance.
+  7. Format characters were stripped only at the ends of a value, so one sitting *inside* the name
+     — a word joiner placed mid-word in `not-found` — failed the exact match and relayed. Stripped
+     everywhere now.
+  8. Stripping was by an enumerated class, which missed a variation selector and a combining
+     grapheme joiner. It now strips by the Unicode property that defines rendering as nothing.
+  9. Three routes at once. A verdict spelled as a **key** (`{"tier":{"not-found":true}}`) was read
+     by neither reader, because both walked string values only. A hyphen homoglyph (U+2010)
+     rendered identically to the name it spelled and relayed, so hyphen-likes now fold to ASCII by
+     the dash class. And `Location` was the one cell carrying input that was never pipe-escaped, so
+     a path like `a|b.md` split the row and a consumer read the Finding cell as a Surface.
+  10. The `searched` key was read literally while `tier` and `verdict` were case-folded, so a
+      sidecar that **did** name its surfaces under `Searched` was refused whole, taking every
+      relay-eligible finding beside it — the one direction that gate has no excuse for failing in.
+      And the stamp rules relayed on any tier at all, which falsified round 9's own safety argument
+      for the homoglyph limit: a Cyrillic-`о` spelling took a relay row instead of the ordinary
+      path. A stamp rule now still relays whatever a record does or does not declare, except when
+      its own `tier` field names no tier this reader knows.
 
   **Every one of these passed review before it was probed.** Across the rounds a bot reviewer, five
   security passes and three code-review passes read this file; all of them characterised the
