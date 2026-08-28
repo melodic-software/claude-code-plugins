@@ -124,32 +124,72 @@ reading `Working tree status:` is the same rendering as a clean tree. Twenty-fiv
 the 26 the first commit message counts; that message states all 26 as unreachable and over-counts by
 one. The squash message merged to the default branch carries the corrected split.
 
-Four sites with the identical unreachable shape were **not** normalized, on purpose:
+Four sites with the identical unreachable shape were **not** normalized by this run, on purpose.
+**They are closed now**, by the separate pass this section asked for, together with the fifth site
+this run recorded under [Recall limits this run declares](#recall-limits-this-run-declares) rather
+than in the table here. The deferral reasoning is kept below in the past tense, because it states
+what that pass had to answer.
 
-| Site | Probe |
-|---|---|
-| `plugins/docs-hygiene/skills/audit-noise/SKILL.md` | `git status --porcelain \| grep -E '\.md"?$' \| head -10 \|\| echo "none"` |
-| `plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md` | same shape, `grep '\.md$'` |
-| `plugins/code-tidying/skills/dissolve-comments/SKILL.md` | same shape, `awk` plus an extension `grep` |
-| `plugins/code-tidying/skills/audit-comment-residue/SKILL.md` | same shape, `-z` parse plus an extension `grep` |
+| Site | Probe as this run left it | Defect |
+|---|---|---|
+| `plugins/docs-hygiene/skills/audit-noise/SKILL.md` | `git status --porcelain \| grep -E '\.md"?$' \| head -10 \|\| echo "none"` | fallback unreachable |
+| `plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md` | same shape, `grep '\.md$'` | fallback unreachable |
+| `plugins/code-tidying/skills/dissolve-comments/SKILL.md` | same shape, `awk` plus an extension `grep` | fallback unreachable |
+| `plugins/code-tidying/skills/audit-comment-residue/SKILL.md` | same shape, `-z` parse plus an extension `grep` | fallback unreachable |
+| `plugins/docs-hygiene/skills/compress/SKILL.md` | `{ git status --porcelain \| grep '\.md$' \|\| echo "none"; } \| head -10` | fallback reachable, both meanings collapse |
+
+The fifth row is not a site this run normalized and then got wrong. Its brace group predates the
+sweep, from `docs-hygiene` 0.15.0 in
+[#2814](https://github.com/melodic-software/claude-code-plugins/pull/2814), and it puts the filter
+*inside* the group, so the group's exit status is `grep`'s: 1 when git failed and 1 when nothing
+matched. Its fallback did run, and printed `none` for both meanings.
 
 These are filtered probes, not status probes, and the difference is not cosmetic. Their fallback
-reads `none`, which for a filtered list is the *correct* answer when the filter matches nothing, so
-an empty render is not a misreading the way an empty working-tree status is. Making the fallback
-reachable would make `none` fire on probe failure too, collapsing "no matching files" and "git did
-not run" into one string and creating the ambiguity the 25-site fix exists to remove. Fixing them
-properly means giving each a distinct failure token and re-deciding what its label asserts, per
-skill, which is a separate pass with its own review. Recorded open here rather than done badly.
+read `none`, which for a filtered list is the *correct* answer when the filter matches nothing, so
+an empty render was not a misreading the way an empty working-tree status is. Making the fallback
+reachable without more would have made `none` fire on probe failure too, collapsing "no matching
+files" and "git did not run" into one string and creating the ambiguity the 25-site fix exists to
+remove. Fixing them properly meant giving each a distinct failure token and re-deciding what its
+label asserts, per skill, which is why this run recorded them open rather than doing it badly.
 
-The shape that pass should use is already in the fleet.
-`plugins/docs-hygiene/skills/audit-derivability/SKILL.md` runs a filtered probe as
+This section proposed one candidate form, from
+`plugins/docs-hygiene/skills/audit-derivability/SKILL.md`:
 `s=$(git status --porcelain 2>/dev/null) && printf '%s\n' "$s" | … | head -20 || echo "(status
 unavailable)"`. Capturing first makes the probe's own exit status the head of an `&&` list, so a
 failed probe short-circuits and the `||` fires; a successful probe with no matches runs the pipeline
 and renders empty under a label that says `empty = none`. Both meanings survive, separately.
 Verified by execution outside a repository: this form prints `(status unavailable)`, and the four
-filtered probes print nothing. That is one candidate form, not a decision — the pass still owes each
-skill its own label wording.
+filtered probes print nothing.
+
+**The pass did not take that candidate.** Capturing into `s` needs a `$` expansion, and
+`plugins/playbooks/skills/skill-authoring/reference/precompute-context.md` requires a pre-compute
+block to carry no `$` expansion other than a bare `$HOME`: an expansion leaves the composed block
+unverifiable to the worktree-isolation guard, and the skill then fails to load from an isolated
+agent (`session-flow` 0.17.16). `audit-derivability` demonstrates the binding, not a form to copy.
+All five sites took an equivalent that adds no `$` at all and heads the same `&&` list with a
+status-only run of the site's own probe:
+
+```text
+git status --porcelain >/dev/null 2>&1 && git status --porcelain 2>/dev/null | … | head -N || echo "(git status unavailable)"
+```
+
+The probe runs twice, which is the price of not capturing it. No line holds a `$` expansion after
+the change: the `$` characters that remain are end-of-line anchors in single-quoted `grep` patterns
+and field references in single-quoted `awk` programs, all pre-existing and none of them expanded by
+the shell. Each site kept its own filter, its own cap and its own label noun; each label gained
+`empty = none`; the failure token is the `(git status unavailable)` string the normalized status
+probes already use. Verified by execution in three states per site: outside a repository each prints
+the token, inside a repository whose dirty files do not match the filter each prints nothing, and
+above the cap the cap holds with no spurious fallback. Landed in `docs-hygiene` 0.21.23 and
+`code-tidying` 0.14.12, which also carry the two `detect.test.sh` extractors that read these lines
+out of `SKILL.md` and were anchored on the old labels.
+
+One filtered probe with the unreachable shape remains open, and is out of this section's scope
+because its probe is not `git status`:
+`plugins/docs-hygiene/skills/rename-references/SKILL.md` renders rename pairs as
+`{ git diff --name-status -M HEAD; git diff --cached --name-status -M; } | grep '^R' | head -15 || echo "none"`.
+Same binding defect, different probe, and `grep '^R'` matching nothing is the ordinary case there.
+Recorded, not fixed.
 
 The per-cluster detail for the sites that were normalized is in the pull request that carries this
 file.
@@ -356,7 +396,9 @@ figures to differ.
   `plugins/docs-hygiene/skills/compress/SKILL.md` already binds its fallback inside the brace group,
   so unlike the four it *is* reachable — but its fallback is `none`, which collapses "no matching
   files" and "git did not run" into one string. Same ambiguity, arrived at from the other direction.
-  A pass that fixes the four should fix this one too.
+  A pass that fixes the four should fix this one too. **It did**: the follow-up pass recorded under
+  [Call-site normalizations](#call-site-normalizations) took all five, and the table there now
+  carries this site as its fifth row.
 - **The `1,536`-character listing cap appeared in 14 tracked files when this was measured**; the
   batch that surfaced it saw three. A later count during this change set's own review found 16, and
   the population keeps moving. That is the point of the paragraph rather than an exception to it:

@@ -1,5 +1,43 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.23]
+
+### Fixed
+
+- **Three filtered-probe injections now tell a failed probe apart from a filter that matched
+  nothing.** 0.21.22 normalized this plugin's status probes and recorded its filtered probes as
+  deliberately left open (`docs/specs/extract-ssot-sweep-2026-08-28.md`). Two of them,
+  `audit-noise` and `audit-progressive-disclosure`, piped `git status --porcelain` through a `grep`
+  into `head -10` before `|| echo "none"`: `||` binds to the whole pipeline, a pipeline's status is
+  its last command's, and `head` exits 0 on empty input, so the fallback could never run and a
+  failed probe rendered as an empty string under a label reading `Uncommitted .md files:`.
+  `compress` carried a different defect. Its fallback sat inside the brace group behind the filter
+  (`{ git status --porcelain 2>/dev/null | grep '\.md$' || echo "none"; } | head -10`), where the
+  exit status is `grep`'s, which is 1 both when git failed and when nothing matched, so the
+  fallback did fire and printed `none` for both meanings.
+  All three lines now head an `&&` list with a status-only run of their own probe
+  (`git status --porcelain >/dev/null 2>&1 && git status --porcelain 2>/dev/null | … | head -10 ||
+  echo "(git status unavailable)"`), so the `||` fires on probe failure alone. Each site keeps its
+  own filter, its own cap of 10 and its own label noun; each label gained `empty = none` so an
+  empty render reads as the filter matching nothing, and the failure token is the
+  `(git status unavailable)` string the fleet's already-normalized probes use. The probe runs twice
+  because the capture-first alternative in `audit-derivability` needs a `$` expansion, and a `$`
+  expansion other than a bare `$HOME` in a pre-compute block makes the skill fail to load from a
+  worktree-isolated agent (`session-flow` 0.17.16). The added text introduces no `$` of any kind,
+  and no line here holds a `$` expansion: the only `$` characters left are the end-of-line anchors
+  inside the pre-existing single-quoted `grep` patterns, which the shell never expands. Verified by
+  execution: outside a repository all three print `(git status unavailable)`, inside a repository
+  whose dirty files do not match they print nothing, and with 15 matching `.md` files the cap holds
+  at 10 with no spurious fallback. `audit-derivability`, whose fallback was already reachable, is
+  unchanged.
+
+- **`audit-noise`'s SKILL.md parity check follows the new line shape.**
+  `scripts/detect.test.sh` extracted the preview `grep` with a `sed` anchored to the entire former
+  line, label and `git status --porcelain 2>/dev/null |` prefix included, so the label and probe
+  change above would have left it matching nothing. It now anchors on the label stem and on the
+  `| grep … | head` segment, and still extracts and executes the real expression rather than a
+  restatement of it. Suite green at 199 checks.
+
 ## [0.21.22]
 
 ### Changed
