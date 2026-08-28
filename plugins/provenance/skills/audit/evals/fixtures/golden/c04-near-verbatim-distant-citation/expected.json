@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 5, "end_line": 9 },
+      "rule": "provenance/audit/rule-verbatim-copy"
+    }
+  ],
+  "notes": {
+    "shape": "The C3 case. The source URL is present in the file, in a 'See also' list two sections below the copied paragraph, and it is the only attribution. This is the shape most often used to argue a finding away.",
+    "carve_outs": "Quotation context does NOT apply: nothing is presented as a quotation, and the URL two sections down is a bibliography entry rather than an attribution adjacent to a quoted span.",
+    "rubric": "C1 holds. C2 holds: the network-capability rule with its stated cache consequence, and the allow-list detail with the key it feeds, are the source's specifics. C3 holds, which is the point of the case: adequate attribution answers what is attributed, to where, and as of when, and a bare link in a list below three unrelated bullets tells a reader none of the first. C4 holds for the copied paragraph. The 'What this costs us' section IS transformative and is deliberately outside the finding's span.",
+    "measured": "fingerprint.mjs at k=5: containment 0.507, jaccard 0.325, longest matched span 68 words at local lines 5-9. Two incidental short spans (5 words at line 3, 7 at line 18) are the shared section heading and the URL itself; neither is the finding and the finding's span excludes both.",
+    "tier_reason": "Both limbs fire against an identity-checked source. Presence of a URL somewhere in the file does not change the tier; it is a C3 argument, and C3 holds."
+  }
+}

@@ -99,6 +99,52 @@ repair, not a defect in the disposition.
 Wiring a repository's link-check lane to notice dead pointers is consuming-repo integration, not
 plugin machinery. This file owns the repair; the consuming repo owns the trigger.
 
+## Adjudications become fixtures
+
+Every disposition is an adjudication, and two of them are measurements the golden set does not
+yet contain. A finding the human rejected is a false positive nobody has scored. A copy someone
+found later, by hand, that this audit walked past is a false negative nobody has scored. Both are
+worth more than the report they appeared in, and both are lost unless the loop below runs.
+
+**Rejected findings and discovered misses are converted into golden cases.** The set lives at
+`skills/audit/evals/fixtures/golden/`, one directory per case, carrying `case.md`, `expected.json`
+and, where the case needs one, `source.md`. It starts at 10 cases and grows toward 20 to 50; every
+class stays report-only until the growth carries it past `min_n_per_class` at or above the
+precision bar, `verbatim` first.
+
+Convert like this, in order:
+
+1. **Rewrite the material synthetically. Never paste the real text.** This is not a preference and
+   it is not about the sweep's convenience. A fixture holding real externally-owned prose would
+   make this repository carry the exact defect this plugin exists to find, in the one tree that
+   is categorically excluded from its own scan and so could never report it. Invent a fictional
+   product and rewrite the passage against it, preserving the SHAPE that produced the wrong
+   verdict — the rotation density, the citation distance, the register, the ratio of copied text
+   to host file — and nothing else. If the shape cannot survive the rewrite, the case is not
+   ready; say so rather than shipping the original.
+2. **Write the verdict you adjudicated, not the verdict the run produced.** A rejected finding
+   becomes a case with `negatives: true` and a note naming the carve-out or the failing criterion
+   that cleared it. A discovered miss becomes a positive with the class, the tier its evidence
+   actually supports, and the span. The point of the case is the disagreement.
+3. **Register it in `evals/evals.json` before you call it landed.** `check-orphaned-fixtures.sh
+   --check` fails on a fixture file no grader names, and a golden case nothing reads is a case
+   that measures nothing. A new case is not landed until `evals.json` names every file it added.
+4. **Re-score the whole set, not the new case.** Precision and recall are properties of the set.
+   Record the new per-class n, precision and recall in `CHANGELOG.md` beside the previous ones, so
+   a class crossing its gate is a visible event with a date rather than a discovery.
+
+Two limits on the loop, both of which matter more as the set grows:
+
+- **A rubric change invalidates the measurement, not the fixtures.** `rubric.md` is versioned with
+  the plugin. A criterion or carve-out that changes means every recorded figure was measured
+  against a rubric that no longer exists, and the set has to be re-scored before any gate decision
+  cites it. The cases survive; the numbers do not.
+- **Cases the sweep produced are not a random sample.** They are the cases this detector already
+  got wrong, which is what makes them worth having and also what makes them a biased estimator of
+  precision on the corpus at large. Report the two populations separately once the adjudicated
+  cases outnumber the authored ones, rather than letting a set of known-hard cases stand as a
+  measurement of ordinary performance.
+
 ## Sweep closure
 
 Under `sweep`, one tracked file at a time: apply the verdicts, run every guard, close the file,
