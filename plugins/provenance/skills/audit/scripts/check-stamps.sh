@@ -304,8 +304,11 @@ function reset(name) {
 # modal verb. Matched bare, prose like "the first read may raise a permission
 # prompt" became a candidate whose date could not be parsed, so it landed in the
 # declined bucket and a reader could not tell it from a real stamp we failed to
-# parse: 13 of the 22 month-name declines in the 2026-08-28 corpus sweep were
-# this word. It now needs a digit beside it, which every date form carries
+# parse: 19 of the 24 month-name declines were this word, measured over 1,352
+# files at --as-of 2026-08-28. That count is tree-dependent and will drift,
+# because the prose in this repo also contains the modal; take it as the shape
+# of the problem, not a constant. It now needs a digit beside it, which every
+# date form carries
 # ("may 2026", "may 17", "17 may") and the modal does not. The tightening is
 # deliberately narrow — the other eleven months still match bare, because
 # over-reporting into a bucket a human reads is the safe direction.

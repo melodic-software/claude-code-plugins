@@ -214,8 +214,10 @@ assert_eq "a date starting past the window is still not a candidate" \
 # "may" is a month name and an ordinary English modal verb. Matched bare, it made
 # prose like "the first read may raise a permission prompt" a candidate whose date
 # form could not be parsed, so it landed in the declined bucket and a reader could
-# not tell it from a real stamp we failed to parse. 13 of the 22 month-name
-# declines in the 2026-08-28 corpus sweep were this word.
+# not tell it from a real stamp we failed to parse. 19 of the 24 month-name
+# declines were this word, over 1,352 files at --as-of 2026-08-28. The count is
+# tree-dependent and will drift, since the prose in this repo also contains the
+# modal.
 #
 # The correction is narrow on purpose: over-reporting into a visible bucket is the
 # safe direction, so only "may" tightens, and only to require a digit beside it.

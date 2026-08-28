@@ -88,7 +88,17 @@
   modal verb, and both stamp detectors matched it bare, so prose like "the first read may raise a
   permission prompt" became a stamp candidate whose date could not be parsed and landed in the
   declined bucket — indistinguishable, to a reader adjudicating that bucket, from a real stamp the
-  parser failed on. 17 of the 22 month-name declines in the 2026-08-28 corpus carried the word.
+  parser failed on. **19 of the 24 month-name declines carried the word**, measured over 1,352
+  files at `--as-of 2026-08-28` on this branch's head.
+
+  That figure is tree-dependent and three different numbers for it appeared during this change,
+  which is worth recording rather than tidying away. An earlier draft said 17 of 22, measured
+  correctly against a branch base that was two commits behind `main` and therefore missing merged
+  changelog entries whose own prose contains the modal; repairing the base moved it to 19 of 24.
+  The script comments said 13, which matched no tree. Both are corrected. The lesson is the same
+  one 0.3.2 records about this file: a count taken over a corpus that includes this repository is
+  a reading at a commit, not a constant, and it needs the commit attached or it will not
+  reproduce.
 
   `may` now needs a digit beside it before it counts as a date. Every date form has one, and the
   modal does not. The other eleven months still match bare, because over-reporting into a bucket a
