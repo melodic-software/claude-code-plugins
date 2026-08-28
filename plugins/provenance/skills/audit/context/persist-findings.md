@@ -94,10 +94,11 @@ Routing one back into `## Unparsed` would print its tier name and its whole payl
 apply relay's input, which is exactly what the clause above forbids. That is a leak, not a
 restored guarantee — do not "fix" it that way.
 
-`## Surfaces` counts the withheld separately by what they ARE. A copy finding declaring neither
-`fingerprint-confirmed` nor a judgment verdict is not relay-eligible and gets its own count; it
-is not a judgment finding, and counting it as one would tell a reader to look for it on the
-human report, where it is not.
+`## Surfaces` counts the withheld separately by what they ARE. A finding whose rule this script
+maps but whose declaration does not authorize the relay — a copy naming no
+`fingerprint-confirmed`, a stamp whose own `tier` field names no tier this reader knows — is not
+relay-eligible and gets its own count; it is not a judgment finding, and counting it as one would
+tell a reader to look for it on the human report, where it is not.
 
 **Where the tier is read and which values name one answer opposite risks, and the script tunes
 them separately.** Reading the wrong field is a silent drop; failing to see through a wrapper
@@ -166,9 +167,13 @@ class, `"not‐found"` spelled with U+2010 walked onto a relay row.
 
 **Homoglyphs beyond the dash class are a stated limit, not a closed one.** No jq predicate closes
 rendering-equivalence in general, and claiming otherwise would be the defect this plugin exists
-to find. Such a tier is an unknown tier, so the record takes the `## Unparsed` path, which is
-visible and which `review:fanout` never auto-classifies — the same reason the free-text limit
-below is safe.
+to find. Such a tier is an unknown tier, and the record takes the ordinary path for its rule id
+— never a relay row it could have reached by declaring a verdict this reader cannot read. That
+holds for the stamp rules too: they fire on date arithmetic that owes the tier nothing and relay
+whatever a record does or does not declare, but a record whose OWN `tier` field names no tier
+this reader knows is not relayed on it. The exception stops at that field; a stamp finding
+carrying a benign `verdict` sibling has declared no tier and still relays, because withholding it
+would be this rule committing the over-capture the boundary exists to avoid.
 
 Both directions matter. Separators and combining marks at large do render, so a separator is
 trimmed at the ends only and a combining mark is not stripped at all: `"not found"` and
@@ -200,7 +205,9 @@ anything.
 
 Two limits, both deliberate. **A tier naming none of them is a tier this producer neither
 withheld nor can relay**, and the record takes the ordinary path for its rule id: `## Unparsed`
-when nothing maps it, and the not-relay-eligible count when a copy rule does. And **the scope is
+when nothing maps it, and the not-relay-eligible count when a rule does map it — a copy rule
+declaring no `fingerprint-confirmed`, or a stamp rule whose own `tier` field names no tier this
+reader knows. And **the scope is
 the DECLARED tier**: a verdict name spelled in some other field, a `note` or a `summary`, is
 opaque payload rather than a verdict, and if nothing else maps the record it goes to
 `## Unparsed` verbatim like any other unmappable row. That second limit is safe because of what

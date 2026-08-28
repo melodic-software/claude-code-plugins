@@ -1409,6 +1409,76 @@ INEL_BODY="$(cat "$INEL")"
 assert_eq "a copy declaring no fingerprint-confirmed tier emits no row" \
   "$(grep -c '^| [0-9]' "$INEL")" "0"
 assert_contains "it is counted as not relay-eligible" "$INEL_BODY" "Not relay-eligible: 1"
+
+# A STAMP rule fires on date arithmetic that owes the tier nothing, so it relays
+# whatever the record does or does not declare — except when its own `tier` field
+# names a tier this reader cannot read. `"nоt-found"` with a Cyrillic o is a homoglyph
+# past the dash class, and the stated limit says such a record takes the ordinary path
+# rather than the relay: relaying on it hands the apply relay a record whose own
+# verdict this producer cannot read.
+write_report stamp-unreadable-tier.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-stamp-expired", "file": "su.md",
+                "line": 3, "tier": "nоt-found", "stamp_date": "2020-01-01",
+                "window_days": 90, "days_over": 5}]
+}'
+SUT="$OUTDIR/stamp-unreadable-tier.md"
+run --report "$REPORTS/stamp-unreadable-tier.json" --out "$SUT" >/dev/null 2>&1
+SUT_BODY="$(cat "$SUT")"
+assert_eq "a stamp rule declaring an unreadable tier emits no relay row" \
+  "$(grep -c '^| [0-9]' "$SUT")" "0"
+assert_contains "and it is counted as not relay-eligible" \
+  "$SUT_BODY" "Not relay-eligible: 1"
+
+# The exception is scoped to the record's OWN tier field. A stamp finding carrying a
+# benign `verdict` has declared no tier and must still relay: withholding it would be
+# the over-capture the whole boundary exists to avoid.
+write_report stamp-benign-verdict.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-stamp-expired", "file": "sb.md",
+                "line": 4, "verdict": {"reviewed_by": "alice", "agents": 2},
+                "stamp_date": "2020-01-01", "window_days": 90, "days_over": 5}]
+}'
+SBV="$OUTDIR/stamp-benign-verdict.md"
+run --report "$REPORTS/stamp-benign-verdict.json" --out "$SBV" >/dev/null 2>&1
+assert_eq "a stamp rule with a benign verdict still relays" \
+  "$(grep -c '^| [0-9]' "$SBV")" "1"
+assert_not_contains "and is not counted as ineligible" \
+  "$(cat "$SBV")" "Not relay-eligible"
+
+# A stamp rule declaring no tier at all is the common case and relays.
+write_report stamp-no-tier.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-trigger-less-stamp", "file": "sn3.md",
+                "line": 5, "stamp_date": "2026-05-05"}]
+}'
+run --report "$REPORTS/stamp-no-tier.json" --out "$OUTDIR/stamp-no-tier.md" >/dev/null 2>&1
+assert_eq "a stamp rule declaring no tier relays" \
+  "$(grep -c '^| [0-9]' "$OUTDIR/stamp-no-tier.md")" "1"
+
+# --- The searched key is case-folded like every other key the reader matches -------
+#
+# The boundary case-folds `tier` and `verdict`; the gate read `searched` literally, so
+# a sidecar that DOES name its surfaces was refused whole, taking every relay-eligible
+# finding beside it.
+write_report gate-searched-cased.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"rule": "provenance/audit/rule-verbatim-copy", "file": "gsc.md",
+     "span": {"start_line": 4}, "tier": "fingerprint-confirmed",
+     "fingerprint": {"longest_span_words": 30, "containment": 0.9},
+     "source": {"url": "https://gsc.example/s"}},
+    {"tier": "not-found", "Searched": ["docs", "web"], "note": "GSCCANARY"}
+  ]
+}'
+GSC="$OUTDIR/gate-searched-cased.md"
+run --report "$REPORTS/gate-searched-cased.json" --out "$GSC" >/dev/null 2>&1
+assert_exit "a differently-cased searched key still names its surfaces" "$?" "0"
+assert_eq "and the relay-eligible finding beside it survives" \
+  "$(grep -c '^| [0-9]' "$GSC")" "1"
+assert_contains "and the not-found finding is withheld and counted" \
+  "$(cat "$GSC")" "1 judgment"
+assert_not_contains "and its payload never reaches the file" "$(cat "$GSC")" "GSCCANARY"
 assert_not_contains "it is not miscounted as a judgment finding" \
   "$INEL_BODY" "judgment findings"
 assert_not_contains "an ineligible copy still leaks no payload" \

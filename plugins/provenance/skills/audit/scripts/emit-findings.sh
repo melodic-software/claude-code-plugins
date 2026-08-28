@@ -173,7 +173,7 @@ fi
 # verdict it happens to start with. Substring matching erased such a record entirely,
 # printing no `## Unparsed` entry for it; an unknown tier now takes the ordinary path
 # for its rule id — the appendix when nothing maps it, the not-relay-eligible count
-# when a copy rule does.
+# when a rule does map it and the declaration does not authorize the relay.
 #
 # Free text in a tier field names no tier under that rule, which is the same answer
 # this producer already gives a verdict name spelled in a `note`. It has to be: a
@@ -279,15 +279,36 @@ def declares_not_found:
   declared_names | any(is_neutral_name);
 def declares_confirmed:
   declares("fingerprint-confirmed");
+# A stamp rule fires on a date arithmetic that owes the tier nothing, so it relays
+# whatever the record does or does not declare — with ONE exception. When the record
+# declares a tier in its OWN `tier` field and that field names no tier this reader
+# knows, the declaration is uninterpretable, and relaying on it hands the apply relay
+# a record whose own verdict this producer cannot read. `"tier": "nоt-found"` with a
+# Cyrillic o is the case that matters: a homoglyph past the dash class, which the
+# stated limit says takes the ordinary path rather than the relay.
+#
+# Scoped to the `tier` field, NOT to the verdict fallback. A stamp finding carrying
+# `"verdict": {"reviewed_by": "alice"}` has declared no tier and must still relay;
+# withholding it would be this fix committing the over-capture the whole boundary
+# exists to avoid.
+def own_tier_unreadable:
+  ([ tier_slot ] | names_in) as $own
+  | ($own | length) > 0 and ($own | any(is_tier_name) | not);
 # `searched` is read wherever the outcome may be DECLARED, through the same slots the
-# tier is read through: the record top level, and anywhere inside the `tier` or
-# `verdict` value. A gate that reads one position while the boundary reads three
-# refuses a sidecar for naming its surfaces where it declared the outcome, which is
-# the one direction this gate has no excuse for failing in.
+# tier is read through and with the key case-folded the same way: the record top level,
+# and anywhere inside the `tier` or `verdict` value. A gate reading one position, or
+# one casing, while the boundary reads three refuses a sidecar for naming its surfaces
+# where it declared the outcome — the one direction this gate has no excuse for failing
+# in, and it costs every well-formed finding in the sidecar beside it.
+def searched_here:
+  if type == "object" then
+    to_entries[] | select(.key | ascii_downcase == "searched") | .value
+  else empty end;
 def searched_slots:
-  [ (if type == "object" then .searched else null end),
-    (tier_slot | .. | objects | .searched),
-    (verdict_slot | .. | objects | .searched) ]
+  [ searched_here,
+    (tier_slot | .. | objects | searched_here),
+    (verdict_slot | .. | objects | searched_here),
+    null ]
   | map(if type == "array" then length else 0 end);
 # For a record with no declared tier to respect, because it is not an object at
 # all. Such a record is bound for `## Unparsed` verbatim, so a verdict name
@@ -396,8 +417,9 @@ def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
 # lumps them together says something false about the records in it:
 #   R  relay-eligible, a table row
 #   W  a declared judgment verdict, withheld and counted as such
-#   X  a copy rule declaring neither fingerprint-confirmed nor a judgment verdict:
-#      not relay-eligible, but not a judgment finding on the human report either
+#   X  a mapped rule whose declaration does not authorize the relay — a copy naming
+#      no fingerprint-confirmed, a stamp whose own tier names no tier this reader
+#      knows: not relay-eligible, but not a judgment finding on the human report
 #   U  unmappable for any other reason, printed verbatim into `## Unparsed`
 #
 # EVERY FIELD READ BELOW IS TYPE-GUARDED, and a record that is not an object at all
@@ -424,7 +446,8 @@ def opt($k): if type == "object" then .[$k] else null end;
       if withheld_verdict then "W"
       elif $slug == "rule-verbatim-copy" then
         (if declares_confirmed then "R" else "X" end)
-      elif $slug == "rule-stamp-expired" or $slug == "rule-trigger-less-stamp" then "R"
+      elif $slug == "rule-stamp-expired" or $slug == "rule-trigger-less-stamp" then
+        (if own_tier_unreadable then "X" else "R" end)
       else "U"
       end) as $kind
   | {
@@ -607,7 +630,7 @@ END {
   if (n_withheld > 0)
     printf(" Withheld from the relay: %d judgment findings, which stay on the human report by contract.", n_withheld)
   if (n_ineligible > 0)
-    printf(" Not relay-eligible: %d copy findings declaring no fingerprint-confirmed tier.", n_ineligible)
+    printf(" Not relay-eligible: %d findings declaring a tier this producer cannot relay on.", n_ineligible)
   if (n_unparsed > 0)
     printf(" Unmapped: %d, listed above.", n_unparsed)
   printf("\n")
