@@ -394,7 +394,7 @@ figures to differ.
   `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14` off
   the predecessor's 34-item L4 roster, which is therefore down to 32), and one adopter-row detail
   in `docs/conventions/detector-findings/README.md`. **What remains is a judgment set, not a
-  backlog**: 18 further in-shape citations were kept with reasons, because each is evidence about
+  backlog**: 23 further in-shape citations were kept with reasons, because each is evidence about
   this checkout rather than an address for an obligation. They are the three worked examples in
   `docs/conventions/plugin-data-report-keying/README.md`, the four location cites in
   `docs/conventions/shell-test-helpers/README.md` (whose subject *is* where the duplicate copies
@@ -403,8 +403,11 @@ figures to differ.
   rows in the `NATIVE-SURFACES` generated region (authored in
   `docs/native-surfaces/records.json`, so a hand-edit of the rendered view would be overwritten and
   the store's copy is the same citation, not a second one), that store's own note on where the
-  overlap seed file lives, the boris-baseline evidence row in `docs/PLUGIN-PHILOSOPHY.md`, and three
-  dated changelog entries that quote a citation as it stood. `docs/SKILL-CHEAT-SHEET.md` is
+  overlap seed file lives, the boris-baseline evidence row in `docs/PLUGIN-PHILOSOPHY.md`, the five
+  file-and-frontmatter cites inside `docs/MIGRATION-PLAYBOOK.md`'s dated `dometrain` security-review
+  record (each asserting what a named file contains, under a record that re-triggers on a version
+  bump), and three dated changelog entries that quote a citation as it stood.
+  `docs/SKILL-CHEAT-SHEET.md` is
   generated too, and the dated records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out
   of scope by the same test.
 - **A fifth filtered probe exists and is not in the four-site table above.**
