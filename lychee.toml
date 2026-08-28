@@ -49,6 +49,15 @@ exclude = [
   # 403 to the checker, 200 with a browser User-Agent (verified 2026-07-30) —
   # the documented bot-block case this list already exists for.
   '^https?://docs\.genius\.com/?([?#].*)?$',
+  # 403 to the checker, 200 with a browser User-Agent (verified 2026-08-27,
+  # dotfiles#551) — same bot-block shape as docs.genius.com, scoped to the two
+  # cited pages so the rest of cursor.com stays checked.
+  '^https?://(www\.)?cursor\.com/(agents|dashboard/cloud-agents)/?([?#].*)?$',
+  # lib.rs rejects the checker's request with 403 while the same page answers
+  # 200 to a plain fetch elsewhere (verified 2026-08-27 for
+  # claude-code-plugins#3340): a per-client bot block on a live crate page,
+  # scoped to the one cited crate.
+  '^https?://lib\.rs/crates/cargo-udeps/?([?#].*)?$',
   # Reported by the checker as "SSL certificate not trusted". The chain verifies
   # locally — `openssl s_client` returns `Verify return code: 0 (ok)` against a
   # Cloudflare TLS Issuing ECC CA intermediate, and curl fetches it 200 under
@@ -74,10 +83,13 @@ exclude = [
   # online lane's credential is the calling repo's GITHUB_TOKEN (or nothing
   # locally), which cannot read any other private repo, so GitHub answers 404.
   # Listed per repo, not per owner, so links to public siblings stay checked.
-  # Keep in sync with actual visibility: add newly created private repos here;
-  # drop an entry when its repo goes public. The optional \.git arm covers
+  # GENERATED, not hand-edited: the two alternations below are derived from
+  # actual repository visibility by components/lychee/private-repo-inventory.sh
+  # (`generate --write` regenerates them; `check` fails CI and the scheduled
+  # lychee-private-inventory workflow when they disagree with visibility, the
+  # drift that produced standards#212 and #483). The optional \.git arm covers
   # HTTPS clone URLs: the dot after the repo name would otherwise miss the
   # [/#?] boundary.
-  '^https?://github\.com/melodic-software/(dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley-archive|medley|melodic-main-archive|provisioning|songwriting)(\.git)?([/#?]|$)',
-  '^https?://raw\.githubusercontent\.com/melodic-software/(dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley-archive|medley|melodic-main-archive|provisioning|songwriting)/',
+  '^https?://github\.com/melodic-software/(claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)(\.git)?([/#?]|$)',
+  '^https?://raw\.githubusercontent\.com/melodic-software/(claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)/',
 ]
