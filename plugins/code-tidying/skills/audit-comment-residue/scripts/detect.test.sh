@@ -285,11 +285,11 @@ else
     # would let the harness mask a mismatch: feeding -z to a v1 program makes the v1 program look
     # correct, because -z output carries no quoting for it to fail at decoding. Reading both ends
     # from SKILL.md means the fixtures below test the line as it actually runs.
-    # The capture runs to the first `|`, so it now takes both halves of the line's `&&` list: the
-    # status-only probe run whose exit status the `||` fallback binds to, and the run whose output
-    # feeds the awk program. Evaluating both is the point — it executes the reachability guard as
-    # written instead of the pipeline the guard protects.
-    skill_porcelain="$(sed -n 's/^Uncommitted code files[^:]*: !`\(git status --porcelain[^|]*\)|.*/\1/p' "$SKILL_MD")"
+    # The line now opens with a status-only probe run that guards the `||` fallback, and the run
+    # whose output feeds awk sits inside the brace group after `&&`. Anchor past `&& {` so the
+    # capture is that data run alone: a capture that swallowed the guard too would eval an
+    # unterminated brace group, and widening what this eval executes buys the parity check nothing.
+    skill_porcelain="$(sed -n 's/^Uncommitted code files[^:]*: !`.*&& { \(git status --porcelain[^|]*\)|.*/\1/p' "$SKILL_MD")"
     if [[ -z "$skill_porcelain" ]]; then
       fail "SKILL.md porcelain invocation extracted" "non-empty command" "no match — line shape changed"
     else

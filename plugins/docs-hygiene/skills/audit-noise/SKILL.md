@@ -13,7 +13,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted .md files (empty = none): !`git status --porcelain >/dev/null 2>&1 && git status --porcelain 2>/dev/null | grep -E '\.md"?$' | head -10 || echo "(git status unavailable)"`
+Uncommitted .md files (empty = none): !`git status --porcelain >/dev/null 2>&1 && { git status --porcelain 2>/dev/null | grep -E '\.md"?$' | head -10; :; } || echo "(git status unavailable)"`
 Noise findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null | grep -E '^(Summary total:|Finding shape:)' | head -20 || echo "none"`
 
 ## Purpose
