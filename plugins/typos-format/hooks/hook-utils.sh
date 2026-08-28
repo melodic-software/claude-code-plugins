@@ -610,6 +610,54 @@ hook::repo_root() {
   return 1
 }
 
+# Repo-relative form of <file> under <repo-root> — the shape the telemetry
+# schema requires of `data.file` ("relative to the consuming repo root").
+#
+# Both sides go through `cygpath -lm` (long name, forward-slash mixed form)
+# when it is available, so the prefix strip compares ONE representation: on
+# Windows Git Bash `git rev-parse --show-toplevel` answers with a drive-letter
+# path while file_path may arrive in POSIX mount form, and the raw strip never
+# matches. On Linux/macOS cygpath is absent and both paths are already POSIX,
+# so the strip runs directly.
+#
+# What survives the strip is not trusted to BE relative. A mount/symlink
+# mismatch, or a cygpath that answers for one side and not the other, leaves
+# the whole absolute path, which embeds the developer's username and breaks the
+# schema contract. Such a path degrades to its basename rather than leaking
+# (#1133), and the answer is DISTINGUISHABLE: return 1 and
+# HOOK_REPO_RELATIVE_DEGRADED=1. Success (return 0) means the path is genuinely
+# repo-relative. Telemetry callers that ignore the status still get the safe
+# value; a caller that feeds the result to a TOOL must branch on it, because a
+# bare basename resolved against the repo root names a different file.
+#   FILE_REL=$(hook::repo_relative_path "$FILE" "$REPO_ROOT")
+# shellcheck disable=SC2034  # public contract: callers may read HOOK_REPO_RELATIVE_DEGRADED
+hook::repo_relative_path() {
+  local file="$1" root="$2" rel="$1"
+  HOOK_REPO_RELATIVE_DEGRADED=0
+  if command -v cygpath >/dev/null 2>&1; then
+    local file_lm root_lm
+    file_lm=$(cygpath -lm "$file" 2>/dev/null)
+    root_lm=$(cygpath -lm "$root" 2>/dev/null)
+    if [[ -n "$file_lm" && -n "$root_lm" ]]; then
+      rel="${file_lm#"$root_lm"/}"
+    fi
+  else
+    rel="${file#"$root"/}"
+  fi
+  # POSIX-absolute, drive-letter, and UNC are the three spellings an unstripped
+  # path arrives in. Trim on either separator: a mixed-form path carries both.
+  case "$rel" in
+  /* | [A-Za-z]:* | \\\\*)
+    rel="${rel##*/}"
+    rel="${rel##*\\}"
+    HOOK_REPO_RELATIVE_DEGRADED=1
+    ;;
+  *) ;; # already repo-relative, nothing to redact
+  esac
+  printf '%s' "$rel"
+  ((HOOK_REPO_RELATIVE_DEGRADED == 0))
+}
+
 # Buffer a complete JSON payload from stdin, tolerating Windows Win32-pipe
 # late-EOF stalls via a bounded read on the inherited fd0. Returns the payload
 # on success; returns 1 on empty/incomplete stdin (caller skips), or 2 when the

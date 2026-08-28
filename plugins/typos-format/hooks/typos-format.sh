@@ -150,22 +150,15 @@ fi
 # Resolve repo root early — used as the CWD typos runs in and to compute
 # the schema-required repo-relative path in data.file.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
-# Repo-relative path: schema requires "relative to the consuming repo root".
-# On Windows Git Bash, git rev-parse --show-toplevel returns a drive-letter path
-# while FILE may be in POSIX mount form. Normalize both through cygpath -lm
-# (long name, forward-slash mixed form) when available so the prefix strip
-# compares the same representation. On Linux/macOS, cygpath is absent and both
-# paths are already POSIX. Falls back to raw FILE on any normalization error.
-FILE_REL="$FILE"
-if command -v cygpath >/dev/null 2>&1; then
-  _file_lm=$(cygpath -lm "$FILE" 2>/dev/null)
-  _root_lm=$(cygpath -lm "$REPO_ROOT" 2>/dev/null)
-  if [[ -n "$_file_lm" && -n "$_root_lm" ]]; then
-    FILE_REL="${_file_lm#"$_root_lm"/}"
-  fi
-else
-  FILE_REL="${FILE#"$REPO_ROOT"/}"
-fi
+# Repo-relative path, serving two consumers: the schema-required data.file, and
+# the argument typos runs on from the repo root. A path the prefix strip could
+# not make relative degrades to its basename, which is right for telemetry but
+# names a DIFFERENT file when resolved against the repo root, so the tool
+# invocation below has to know which of the two it holds. Command substitution
+# runs the helper in a subshell, so its HOOK_REPO_RELATIVE_DEGRADED global never
+# reaches this scope; the return status is the channel that survives.
+FILE_REL_DEGRADED=0
+FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED=1
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # residual-findings JSON array; optional $2 is the applied-corrections JSON
@@ -228,10 +221,12 @@ fi
 # subdirectory's own config) — so running from repo root here does not change
 # which config governs, regardless of nesting depth. Falls back to the
 # absolute path and the file's own directory when the repo root did not
-# resolve or the file is outside it.
+# resolve, the file is outside it, or FILE_REL degraded to a bare basename —
+# that basename is a redaction for telemetry, and resolving it against the repo
+# root would scan a different file or none at all.
 TYPOS_ARG="$FILE"
 RUN_DIR="${root:-$(dirname "$FILE")}"
-if [[ -n "$root" && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
+if [[ -n "$root" && "$FILE_REL_DEGRADED" -eq 0 && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
   TYPOS_ARG="$FILE_REL"
 fi
 

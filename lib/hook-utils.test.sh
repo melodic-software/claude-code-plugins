@@ -2732,6 +2732,38 @@ RR_NOGIT="$(mktemp -d)"
 repo_root_unresolved "$RR_NOGIT"
 rm -rf "$RR_NOGIT"
 
+# --- hook::repo_relative_path: strip, redact, and say which happened ---------
+# The helper answers on three channels like the two above: stdout, the return
+# code, and HOOK_REPO_RELATIVE_DEGRADED. The return code is the one a caller in
+# a command substitution can read, so every case asserts all three.
+#   rrp_case <label> <file> <root> <expected-out> <expected-degraded>
+rrp_case() {
+  local label="$1" file="$2" root="$3" want="$4" want_deg="$5" out rc
+  out=$(hook::repo_relative_path "$file" "$root")
+  rc=$?
+  hook::repo_relative_path "$file" "$root" >/dev/null
+  if [[ "$out" == "$want" ]] && ((rc == want_deg)) && ((HOOK_REPO_RELATIVE_DEGRADED == want_deg)); then
+    ok "repo_relative_path: $label"
+  else
+    fail "repo_relative_path $label: out=$out (want $want) rc=$rc flag=$HOOK_REPO_RELATIVE_DEGRADED (want $want_deg)"
+  fi
+}
+
+if command -v cygpath >/dev/null 2>&1; then
+  echo "skip: repo_relative_path POSIX cases (cygpath present on this host)"
+else
+  rrp_case "strips the repo root" /repo/a/b.md /repo a/b.md 0
+  rrp_case "root mismatch redacts to basename" /elsewhere/a/b.md /repo b.md 1
+  rrp_case "drive-letter path redacts" 'C:/Users/dev/a/b.md' /repo b.md 1
+  # portability-ok: a literal Windows UNC fixture path; the \s and \b are path
+  # separators plus a filename, not GNU regex escapes.
+  rrp_case "UNC path redacts on the backslash" '\\srv\share\b.md' /repo b.md 1
+  rrp_case "an already-relative path passes through" a/b.md /repo a/b.md 0
+  # Only the trailing-slash prefix strips, so the root passed as the file stays
+  # absolute and redacts — the caller never receives an unmarked absolute path.
+  rrp_case "the root as the file redacts" /repo /repo repo 1
+fi
+
 # --- hook::bash_parse_segments: unquoted # comments to EOL --------------------
 bps_last=()
 bps_collect() {

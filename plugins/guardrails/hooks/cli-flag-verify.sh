@@ -371,24 +371,11 @@ done
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  local file_rel="$FILE" findings_json="[]"
-  if command -v cygpath >/dev/null 2>&1; then
-    local _file_lm _root_lm
-    _file_lm=$(cygpath -lm "$FILE" 2>/dev/null)
-    _root_lm=$(cygpath -lm "$REPO_ROOT" 2>/dev/null)
-    [[ -n "$_file_lm" && -n "$_root_lm" ]] && file_rel="${_file_lm#"$_root_lm"/}"
-  else
-    file_rel="${FILE#"$REPO_ROOT"/}"
-  fi
-  # Redaction: if the path could not be made repo-relative, emit the basename
-  # only — never an absolute path (it would embed the developer's username).
-  case "$file_rel" in
-  /* | [A-Za-z]:*)
-    file_rel="${file_rel##*/}"
-    file_rel="${file_rel##*\\}"
-    ;;
-  *) ;;
-  esac
+  # The helper carries the redaction: a path it could not make repo-relative
+  # comes back as the basename, never an absolute path (which would embed the
+  # developer's username).
+  local findings_json="[]" file_rel
+  file_rel="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
   if ((${#FAILURES[@]} > 0)); then
     local f raw="" disp
     for f in "${FAILURES[@]}"; do

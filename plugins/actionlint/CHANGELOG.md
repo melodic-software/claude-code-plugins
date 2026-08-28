@@ -3,6 +3,17 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.25]
+
+### Changed
+
+- **The repo-relative path block moved into the shared lib.** This hook's own
+  `FILE_REL` computation, including the absolute-path degrade added in 0.6.0
+  (#1133), is now `hook::repo_relative_path` in `hooks/hook-utils.sh`. The
+  behavior here is unchanged; eleven sibling call sites that had copied the
+  block without the degrade pick the fix up through it. Copies stay
+  byte-identical via `scripts/sync-hook-utils.sh`.
+
 ## [0.8.24]
 
 ### Changed

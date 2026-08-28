@@ -86,30 +86,9 @@ fi
 # Resolve repo root early — used to compute the schema-required repo-relative
 # path in data.file.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
-# Repo-relative path: schema requires "relative to the consuming repo root".
-# On Windows Git Bash, git rev-parse --show-toplevel returns a drive-letter path
-# while FILE may be in POSIX mount form. Normalize both through cygpath -lm
-# (long name, forward-slash mixed form) when available so the prefix strip
-# compares the same representation. On Linux/macOS, cygpath is absent and both
-# paths are already POSIX. Falls back to raw FILE on any normalization error.
-FILE_REL="$FILE"
-if command -v cygpath >/dev/null 2>&1; then
-  _file_lm=$(cygpath -lm "$FILE" 2>/dev/null)
-  _root_lm=$(cygpath -lm "$REPO_ROOT" 2>/dev/null)
-  if [[ -n "$_file_lm" && -n "$_root_lm" ]]; then
-    FILE_REL="${_file_lm#"$_root_lm"/}"
-  fi
-else
-  FILE_REL="${FILE#"$REPO_ROOT"/}"
-fi
-# The schema's data.file contract is repo-relative. When the prefix strip did
-# not match (mount/symlink mismatch, cygpath disagreement), FILE_REL is still
-# an absolute path -- degrade to the basename rather than leaking the absolute
-# path into telemetry.
-case "$FILE_REL" in
-[A-Za-z]:* | /* | \\\\*) FILE_REL="$(basename "$FILE")" ;;
-*) ;;
-esac
+# Repo-relative path for data.file, degrading to the basename when the prefix
+# strip does not match, so an absolute path never reaches telemetry.
+FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # findings JSON array. jq is authoritative. The fallback is a fixed empty-shape

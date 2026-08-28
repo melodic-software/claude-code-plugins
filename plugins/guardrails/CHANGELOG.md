@@ -3,6 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.20]
+
+### Changed
+
+- **Three independently written path redactions collapse into one helper.**
+  `cli-flag-verify.sh`, `skill-reference-verify.sh`, and `stale-path-verify.sh`
+  each carried their own copy of the cygpath normalization plus a
+  hand-written basename redaction; all three now call
+  `hook::repo_relative_path` in the shared `hooks/hook-utils.sh`, which owns
+  both. Emitted `data.file` values are unchanged, and the helper additionally
+  redacts a UNC path, which the local copies did not match. Copies stay
+  byte-identical via `scripts/sync-hook-utils.sh`.
+
 ## [0.29.19]
 
 ### Changed

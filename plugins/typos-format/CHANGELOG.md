@@ -3,6 +3,26 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.31]
+
+### Fixed
+
+- **Telemetry `data.file` can no longer leak an absolute path (#1133).** The
+  hand-copied `FILE_REL` block is replaced by `hook::repo_relative_path` in the
+  shared `hooks/hook-utils.sh`, which carries the degrade the copies lacked: a
+  path the repo-root prefix strip could not make relative (mount or symlink
+  mismatch, cygpath disagreement) now comes back as its basename instead of an
+  absolute path embedding the developer's username. Copies stay byte-identical
+  via `scripts/sync-hook-utils.sh`.
+
+### Changed
+
+- **The typos invocation branches on the degrade.** `FILE_REL` feeds the tool
+  argument here, not only telemetry, and a redacted basename resolved against
+  the repo root names a different file. The hook now records whether the helper
+  degraded and falls back to the absolute path in that case, so the scan still
+  reads the edited file while the emitted `data.file` stays redacted.
+
 ## [0.6.30]
 
 ### Changed
