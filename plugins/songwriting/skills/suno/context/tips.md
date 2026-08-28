@@ -217,7 +217,7 @@ For a sequel-sounding follow-up: reuse exact mood + key + BPM + production tags.
 
 ### 10. Voice cloning prep
 
-**MEDIUM confidence, community-derived.** One continuous 90-120s acapella clip covering the full dynamic range, same mic, room and distance throughout. Full detail in [voices.md](voices.md#best-practice-recording-session).
+**MEDIUM confidence, community-derived; Suno does not publish a recommendation for clip count or target length.** One continuous 90-120s acapella clip covering the full dynamic range, same mic, room and distance throughout. An earlier revision advised three separate clips and that guidance was deliberately retired, so do not reintroduce it. Full detail, with the mechanism, in [voices.md](voices.md#best-practice-recording-session).
 
 ## When to stop iterating
 

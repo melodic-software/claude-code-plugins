@@ -16,7 +16,7 @@
 - [Emitting more than once](#emitting-more-than-once)
 - [What a minimally conforming producer may omit](#what-a-minimally-conforming-producer-may-omit)
 - [Liveness](#liveness)
-- [Three emitters, one statement of each mechanic](#three-emitters-one-statement-of-each-mechanic)
+- [Many emitters, one statement of each mechanic](#many-emitters-one-statement-of-each-mechanic)
 - [Enforceability](#enforceability)
 - [Adopters](#adopters)
 - [Versioning](#versioning)
@@ -391,7 +391,7 @@ classification** — and an unreachable crosswalk is the no-declaration case, ne
 back to the `Action` cell, which is the trust boundary above read in the direction it matters most.
 That is the status quo rather than a fail-safe worth advertising, and the honest place to say so is
 here. What bounds it in practice is not a rule but a habit every current adopter
-already has: "Three emitters, one statement of each mechanic" below names fetching this contract at
+already has: "Many emitters, one statement of each mechanic" below names fetching this contract at
 run time and refusing to write when unreachable as the demonstrated conforming form, and every
 adopter that persists does exactly that. **That is evidence about the PRODUCER's session, not the
 consumer's** — the two run at different times and may be different machines — so a findings file's
@@ -537,13 +537,13 @@ to an agent-readable channel. Writing a conforming findings file satisfies the s
 the file *is* the agent-readable channel, and the `fix` action is the agent that reads it. A detector
 that writes nothing, reports green, and had findings satisfies neither.
 
-## Three emitters, one statement of each mechanic
+## Many emitters, one statement of each mechanic
 
 Emitting a conforming file means resolving the findings home through its whole rung order, computing
 the branch sub-path, running the self-ignore guard, relativizing paths, escaping cells, and
-formatting a colon-free UTC timestamp. `review:fanout` does it, `mutation-testing:audit` does it, and
-the next detector will be the third. The decision recorded here is **why that is not three copies of
-one thing**, and what would make it become one.
+formatting a colon-free UTC timestamp. Every adopter in the table above does it, and the next
+detector will do it too. The decision recorded here is **why that is not one copy per adopter of one
+thing**, and what would make it become one.
 
 **The shared-source registry cannot hold this, mechanically.**
 [`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh)
@@ -555,7 +555,7 @@ and neither is a preference:
   check rather than recording a decision: it reports `REGISTRY STALE` and exits 1. Verified by adding
   one such line and running `--check`.
 
-And there is no emitter **code** to share. Both existing emitters are prose a model executes, each in
+And there is no emitter **code** to share. Every existing emitter is prose a model executes, each in
 its own plugin's context file. A byte-identity check has no subject.
 
 **What prevents drift is that each mechanic has exactly one owner, reached by pointer:**
@@ -631,7 +631,7 @@ adopter asserts what a reader cannot rely on.
 
 | `claude-config:audit-instructions` | Conforming, opt-in | The first detector whose emitted set is a **strict subset of what its scanner marks**, and the first to carry a structural fence on which findings may reach the relay at all. Its scanner marks ten check families and `restatement-scan.py` marks two more; only the I28 and I29 families have crosswalk rows, so only those are emitted and the other eight are counted as declined with `reason=no-severity-crosswalk-row` — the contract's "no crosswalk row, no relay" rule made visible in `## Surfaces` rather than enforced by silence. Selection is a mechanical byte-sequence and phrase-list scan with no withholding verdict, so the fail-safe criterion is met by construction. **The fence is the novel part.** `plugins/skill-quality/scripts/check-skill.sh:414` hard-FAILs a dropped `'trigger phrase'` versus the base ref, so a remediation editing a `description`, `when_to_use`, or a quoted trigger phrase is an auto-invocation regression rather than a bad suggestion. The producer therefore emits body-scoped rows only: the scanner's `--body-only` flag drops frontmatter hits, and `emit-findings.sh` **recomputes that fence rather than trusting its input** — a fence living only in the caller is one caller away from being bypassed — and additionally declines any body row quoting a trigger phrase present in the file's own description. Both decline classes are counted per rule. An unclosed leading `---` fences the whole file, the fail-safe direction. Persists behind `--persist-findings`; bare invocation reports and stops, which keeps the skill's report-only contract intact — the findings file is an artifact for a relay the human still gates, never an applied edit. Leads every `Finding` cell with the qualified rule id and the fired marker in the run's own values; `Confidence` is `high` on every emitted row. Both rows are `IMPORTANT` and neither is auto-applicable, because the remediation is a **downgrade, never a deletion**: the directive survives byte-for-byte and only its volume changes. Omits `tier:`, `## By dimension`, and `## Unparsed`. |
 
-| `docs-hygiene:audit-noise` | Conforming, opt-in | The third producer to join the crosswalk, and the second to reach the relay from a read-only audit skill. Its `detect.sh` marks six shapes and only `negation` carries a crosswalk row, so the other five are counted in `## Surfaces` as declined with `reason=no-severity-crosswalk-row` rather than dropped in silence. Selection is a mechanical per-sentence scan with no withholding verdict, so the fail-safe-toward-emitting criterion is met by construction: the paired-positive, hard-guardrail, and worked-example boundaries each require their evidence to be PRESENT, so an unresolved judgment selects the emitting rule rather than withholding. Its second rule, `rule-negation-hard-guardrail`, is **non-emitting** and states the ground it uses, the Boundary's "findings that never reach a relay" rather than a tier test, because the claim is that the candidate is not a defect at all. Persists behind `--persist-findings`; bare invocation reports and stops, which keeps the skill's read-only contract intact on the distinction that contract now states: target mutation is forbidden unconditionally, and artifact emission is not target mutation. `emit-findings.sh` **recomputes the frontmatter fence over its input rather than trusting the caller**, and additionally declines any body row quoting a trigger phrase present in the file's own `description` or `when_to_use`. It refuses to write at all when no branch resolves, since the consumer admits a candidate only on an exact branch match and a branch-less file is one the relay could never match. Leads every `Finding` cell with the qualified rule id and the fired prohibition in the run's own values; `Confidence` is `high` on every emitted row, and the authorial judgment the repair needs is said in the crosswalk's `Auto-applicable` cell and the `Action` wording rather than spent as a confidence downgrade. `Location` is repo-relative and IS the remediation site, but every row rewrites to the positive target the prohibition implies, so none is auto-applicable and it declares no remediation owner. Omits `tier:`, `## By dimension`, and `## Unparsed`; keeps `## Surfaces` with per-shape declined counts. |
+| `docs-hygiene:audit-noise` | Conforming, opt-in | A prose detector reaching the relay from a read-only audit skill. Its `lib/noise-shapes.sh` marks eight shapes and `detect.sh` classifies a ninth, `negation`, after paragraph accumulation; only `negation` carries a crosswalk row, so the other eight are counted in `## Surfaces` as declined with `reason=no-severity-crosswalk-row` rather than dropped in silence. Selection is a mechanical per-sentence scan with no withholding verdict, so the fail-safe-toward-emitting criterion is met by construction: the paired-positive, hard-guardrail, and worked-example boundaries each require their evidence to be PRESENT, so an unresolved judgment selects the emitting rule rather than withholding. Its second rule, `rule-negation-hard-guardrail`, is **non-emitting** and states the ground it uses, the Boundary's "findings that never reach a relay" rather than a tier test, because the claim is that the candidate is not a defect at all. Persists behind `--persist-findings`; bare invocation reports and stops, which keeps the skill's read-only contract intact on the distinction that contract now states: target mutation is forbidden unconditionally, and artifact emission is not target mutation. `emit-findings.sh` **recomputes the frontmatter fence over its input rather than trusting the caller**, and additionally declines any body row quoting a trigger phrase present in the file's own `description` or `when_to_use`. It refuses to write at all when no branch resolves, since the consumer admits a candidate only on an exact branch match and a branch-less file is one the relay could never match. Leads every `Finding` cell with the qualified rule id and the fired prohibition in the run's own values; `Confidence` is `high` on every emitted row, and the authorial judgment the repair needs is said in the crosswalk's `Auto-applicable` cell and the `Action` wording rather than spent as a confidence downgrade. `Location` is repo-relative and IS the remediation site, but every row rewrites to the positive target the prohibition implies, so none is auto-applicable and it declares no remediation owner. Omits `tier:`, `## By dimension`, and `## Unparsed`; keeps `## Surfaces` with per-shape declined counts. |
 
 `review:fanout` is not an adopter and is deliberately absent from the table: it is the **reference
 writer** whose file format this contract points at, and it sits on the other side of the boundary

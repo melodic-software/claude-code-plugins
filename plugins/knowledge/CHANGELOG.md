@@ -8,10 +8,10 @@ only after that version increases.
 
 ### Changed
 
-- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
-  The directive had fractured into three forms, all emitted by the same per-plugin de-slop campaign;
-  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause and every site
-  carries one wording. Whole-repo extract-ssot sweep.
+- **`setup`: repaired a broken numbered-list item and a comma splice in the headless-reconfigure
+  recipe.** One continuation line had lost its indentation, which ended the list item early and
+  detached the 2.1.240 verification stamp from the claim it qualifies; the same block also carried
+  the fused-sentence splice the fleet's other setup skills had. Whole-repo extract-ssot sweep.
 
 ## [0.13.20]
 

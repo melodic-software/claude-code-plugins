@@ -31,7 +31,7 @@ Clip length, 2-minute auto-selection, verification, and privacy rows verified 20
 
 > **Drop gender/tone descriptors from the style prompt.** They conflict with the cloned voice and degrade output quality.
 
-**MEDIUM confidence, community-derived.** For best clone quality, record one continuous 90-120s acapella clip covering the full dynamic range, which sits within the 15-second-to-4-minute input limit and 2-minute auto-selection behavior above. Full detail in [voices.md](voices.md#best-practice-recording-session).
+**MEDIUM confidence, community-derived; Suno does not publish a recommendation for clip count or target length.** For best clone quality, record one continuous 90-120s acapella clip covering the full dynamic range, which sits within the 15-second-to-4-minute input limit and 2-minute auto-selection behavior above. An earlier revision advised three separate clips and that guidance was deliberately retired, so do not reintroduce it. Full detail, with the mechanism, in [voices.md](voices.md#best-practice-recording-session).
 
 ### 2. Custom Models (fine-tune on your catalog)
 

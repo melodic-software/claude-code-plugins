@@ -22,6 +22,21 @@ enforceability verdict changes.
   when it is unreachable, so the claim now reads "every current adopter" and "every adopter
   that persists". The claim itself is unchanged and is still evidence about the producer's
   session rather than the consumer's.
+- **The emitter section's heading stops carrying a count.** "Three emitters, one statement of
+  each mechanic" was written at three and read as a standing claim; there are six counting
+  `review:fanout`, and the section's own body had already been corrected away from "both" and
+  "the third". A heading that names a number decays on every adopter, and this table's whole
+  point is that adopters keep arriving, so the heading is now "Many emitters, one statement of
+  each mechanic". The anchor moves with it; the only three references are inside this file and
+  all three were updated. No obligation changes.
+- **Two counts inside the new adopter row were wrong on the day it was written.** The row
+  called `docs-hygiene/audit-noise` "the third producer to join the crosswalk" when the entry
+  above it in this same file correctly says fifth, and said its detector "marks six shapes"
+  with "the other five" declined. `lib/noise-shapes.sh` marks eight shapes and `detect.sh`
+  classifies a ninth, `negation`, after paragraph accumulation, so eight are declined with
+  `reason=no-severity-crosswalk-row`, not five. Both are corrected; the row's ordinal is
+  dropped rather than renumbered, because an ordinal in a table that grows is the same decaying
+  claim as the heading.
 
 ## 2.7.0 — 2026-08-27
 

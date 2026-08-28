@@ -12,10 +12,11 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
   the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
 
-- **Findings-file producer preamble normalized against its contract.** All five producer surfaces
-  now carry byte-identical text apart from the run-name slot; the compressed variant had dropped
-  three load-bearing clauses, including that the contract wins where the two disagree. Whole-repo
-  extract-ssot sweep.
+- **Findings-file producer preamble normalized against its contract.** The four
+  `persist-findings.md` preambles now carry byte-identical text apart from the run-name slot. The
+  fifth producer surface, `testing:audit`, keeps its own shorter numbered-step form by design and
+  regains the three load-bearing clauses it had dropped, including that the contract wins where the
+  two disagree. Whole-repo extract-ssot sweep.
 
 ## [0.3.9]
 

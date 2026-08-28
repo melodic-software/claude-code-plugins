@@ -93,14 +93,47 @@ byte-identity contract and the house style are satisfiable together. The predece
 on a premise that was false at the time it was written: the convention requires identity, so any
 difference is the bug, which makes this the opposite of a refusal.
 
+Two further files carry the same floor as a blockquoted restatement inside a prompt:
+`prompts/loops/loop-lane-prompts.md` and `prompts/loops/loop-lane-profile-claude-code-plugins.md`.
+Both re-wrap the block to a narrower measure and both say in their own text that the quotation sits
+outside the byte-audited block, so neither is under the identity contract and neither is counted in
+the five. Their wording was brought to the same text anyway, because a reader who diffs a quotation
+against its source should find only the wrapping different.
+
 ### Call-site normalizations
 
 Each of these keeps its operable text inline. Plugins ship without this repository, so a
 `plugins/**` site cannot cite a `docs/**` owner at its own runtime; the return is drift elimination
 and one greppable canonical string, never line reduction.
 
-The per-cluster detail, including which sites were deliberately skipped and why, is in the pull
-request that carries this file.
+The unreachable-fallback fix landed at **25** sites, plus one more site with a different defect. The
+25 all pipe the probe into a cap before `||`, which binds the fallback to the pipeline, whose exit
+status is the cap's; `head` exits 0 on empty input, so the fallback can never run.
+`plugins/verification/skills/confirm/SKILL.md` is the fleet's one uncapped site: its `||` already
+bound to the probe, so its fallback was reachable and emitted an empty string, which under a label
+reading `Working tree status:` is the same rendering as a clean tree. Twenty-five plus that one is
+the 26 the first commit message counts; that message states all 26 as unreachable and over-counts by
+one. The squash message merged to the default branch carries the corrected split.
+
+Four sites with the identical unreachable shape were **not** normalized, on purpose:
+
+| Site | Probe |
+|---|---|
+| `plugins/docs-hygiene/skills/audit-noise/SKILL.md` | `git status --porcelain \| grep -E '\.md"?$' \| head -10 \|\| echo "none"` |
+| `plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md` | same shape, `grep '\.md$'` |
+| `plugins/code-tidying/skills/dissolve-comments/SKILL.md` | same shape, `awk` plus an extension `grep` |
+| `plugins/code-tidying/skills/audit-comment-residue/SKILL.md` | same shape, `-z` parse plus an extension `grep` |
+
+These are filtered probes, not status probes, and the difference is not cosmetic. Their fallback
+reads `none`, which for a filtered list is the *correct* answer when the filter matches nothing, so
+an empty render is not a misreading the way an empty working-tree status is. Making the fallback
+reachable would make `none` fire on probe failure too, collapsing "no matching files" and "git did
+not run" into one string and creating the ambiguity the 25-site fix exists to remove. Fixing them
+properly means giving each a distinct failure token and re-deciding what its label asserts, per
+skill, which is a separate pass with its own review. Recorded open here rather than done badly.
+
+The per-cluster detail for the sites that were normalized is in the pull request that carries this
+file.
 
 ## Verified, not applied
 
@@ -109,14 +142,16 @@ this sweep created none and none of these needs one. They are ordered by the har
 
 ### Factual defects
 
+Three of the factual defects this survey found were applied in the same change set and are listed
+under "Applied" above, not here: `auto-mode-dropped-class-roster`,
+`songwriting-title-type-attribution`, and `songwriting-section2-load-list-gate`. What remains:
+
 | Cluster | Sites | Defect |
 |---|---|---|
-| `auto-mode-dropped-class-roster` | `claude-config` audit-permission-state | A recap of upstream's dropped-allow-rule classes elides `Monitor` and then counts "four documented classes" from the elision. Upstream added the category in v2.1.236. A `Monitor` allow rule is dropped on auto-mode entry and reported under none of the audit's classes |
 | `overengineering-branch-identity-mechanism` | 6 files in `overengineering` | `delta`'s copy omits the normalize-then-validate step its siblings require, so an environment supplying `refs/heads/<name>` makes `delta` key a different home than the audit it composes, and the lane reports no delta forever, silently |
 | `check-skill-trigger-fence-line-reference` | 4 prose files | Four surfaces cite `check-skill.sh:414` as the hard FAIL for a dropped trigger phrase. Line 414 is a comment saying trigger moves WARN; the FAIL is at 462. The citation asserts the opposite of what the cited line says |
-| `songwriting-title-type-attribution` | 4 files | Four sites attribute a seven-title-type taxonomy to Pat Pattison. The owner file's own heading says the taxonomy is unaudited and that "the count 'seven' is ours, not Pat's". One site carries that warning and contradicts it five lines later; a shipped prompt template asserts it with no caveat |
-| `songwriting-section2-load-list-gate` | 3 skills | Three skills state a filter's mandatory load list as two files. The filter's own Reference line names seven. Five required files are silently dropped at the gate a prior release added to fix a production failure |
 | `bugs-scan-git-clean-mechanism` | 1 file | "a fresh clone or a `git clean` erases" the memory tier. The tier is self-ignoring by contract, and plain `git clean` does not remove ignored files. The conclusion is right, the mechanism named is not |
+| `babysit-prs-isolation-account` | 1 file | `plugins/source-control/skills/babysit-prs/SKILL.md` asserts the form-based account of the worktree-isolation refusal ("a git-bearing compound command") that `session-flow` 0.17.16 refutes in favour of a `$`-expansion trigger. Pre-existing on `main`; this sweep neither created nor worsened it |
 | `detector-findings-tier-self-restatement` | 1 file | `docs/conventions/detector-findings/README.md` declares "This doc never restates it" about the severity vocabulary and routes tier decisions to `review`'s owner, then restates CRITICAL's tier test inside its own crosswalk table |
 
 Two encapsulation defects the earlier L4 lane's roster of 34 did not carry, both in `docs/**` citing
@@ -211,6 +246,16 @@ Beyond the predecessor's 13. Each was resolved against the real files and refuse
 
 A finding count read as a defect count is worse than no count. An adversarial verifier audited the
 Pass A detector itself; the measurements below are its, not the detector author's.
+
+**Every number in this section is unreproducible from this repository.** The Pass A detector was a
+session tool — a shingling script, a triage driver and a batch runner, written in a scratch
+directory and deliberately not committed, because a one-run measurement instrument is not a
+marketplace artifact and shipping it would create a surface nobody maintains. So these figures
+cannot be re-derived by running anything in the change set; they are a record of what one run
+measured, not a claim any later reader can check. Treat them the way the decay rule at the top of
+this file treats everything else: as a pointer to re-do the work, never as a fact to cite. A pass
+that needs these numbers should rebuild the instrument and re-measure, and should expect its own
+figures to differ.
 
 - **The hard-wrap claim is real and is most of the yield.** Against a control paragraph re-wrapped
   at 62, 72 and 120 columns, the predecessor's line-anchored method shares **zero** lines at every

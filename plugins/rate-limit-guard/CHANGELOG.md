@@ -12,10 +12,10 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   de-slop shards that also introduced a comma splice. All five carriers now hash identically on an
   em-dash-free, grammatical form. Whole-repo extract-ssot sweep.
 
-- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
-  The directive had fractured into three forms, all emitted by the same per-plugin de-slop campaign;
-  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause and every site
-  carries one wording. Whole-repo extract-ssot sweep.
+- **`setup`: rejoined an orphaned clause in the never-writes boundary.** The sentence ended with a
+  period and then continued lowercase ("...settings surface. the printed edit is the operator's to
+  apply."). The `context-guard` sibling carries the identical slot joined with a semicolon, and this
+  one now matches it. Whole-repo extract-ssot sweep.
 
 ## [0.7.16]
 

@@ -7,10 +7,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Changed
 
-- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
-  The directive had fractured into three forms, all emitted by the same per-plugin de-slop campaign;
-  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause and every site
-  carries one wording. Whole-repo extract-ssot sweep.
+- **`setup`: repaired a comma splice in the headless-reconfigure caveat.** An em-dash purge had
+  fused two sentences, leaving "Re-verify before relying on it outside those conditions, a
+  `sensitive` option, or `project`/`local` scope, were not covered", whose subject and verb no
+  longer agree. Now two sentences. Whole-repo extract-ssot sweep.
 
 ## [0.38.14]
 
