@@ -34,7 +34,7 @@ needs an argument Claude derives, or is expensive.
 ## Conventions we pin
 
 These are Melodic Software conventions, not upstream doctrine. **Recheck trigger:** the skills
-docs begin documenting `!` failure/timeout/stderr semantics — revisit both conventions then.
+docs begin documenting `!` failure/timeout/stderr semantics — revisit these conventions then.
 
 ### Defensive fallback is mandatory
 
@@ -49,6 +49,34 @@ an explicit fallback so the rendered skill degrades to a known string rather tha
 
 Use the `|| echo "<fallback>"` form (or the `shell:`-appropriate equivalent) on every
 `` !`command` `` and every line inside a ` ```! ` block.
+
+### Bind the fallback to the probe, not to the pipeline
+
+`||` applies to the whole pipeline, and a pipeline's exit status is its last command's. So
+`probe | head -20 || echo "(unavailable)"` never runs the fallback: `head` exits 0 whether the
+probe produced twenty lines, one line, or nothing at all. The rendered value is an empty string,
+and under a label like `Working tree status:` an empty string reads as a healthy result rather
+than a failed probe.
+
+Put the fallback in a brace group with the probe, and apply the cap outside it:
+
+```text
+Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
+```
+
+Two rules follow from the same reasoning:
+
+- **A probe that exits 0 with empty output needs more than a fallback.** `git branch --show-current`
+  succeeds and prints nothing on a detached HEAD, so `|| echo "unknown"` cannot fire there. Either
+  pick a probe that fails on the condition (`git symbolic-ref --quiet --short HEAD`) or state in the
+  label what an empty value means.
+- **Say in the label what empty means**, so a reader can tell a clean tree from a probe that
+  produced nothing.
+
+Keep the brace group free of `$`. An expansion other than bare `$HOME` leaves the composed
+pre-compute block unverifiable to the worktree-isolation guard, and the skill then fails to load
+from an isolated agent. The fleet holds two competing accounts of that guard's trigger, recorded in
+`session-flow` 0.17.16 and `source-control` 0.51.6; avoiding `$` satisfies both.
 
 ### Windows / `shell:` awareness
 

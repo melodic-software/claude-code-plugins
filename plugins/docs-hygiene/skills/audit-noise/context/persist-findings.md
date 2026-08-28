@@ -34,8 +34,9 @@ Never overwrite: when the path exists, take `-2`, `-3`, the smallest free intege
 
 ## The body-scope fence is not optional and not the caller's alone
 
-`plugins/skill-quality/scripts/check-skill.sh:414` hard-FAILs a dropped `'trigger phrase'` versus
-the base ref ("dropped trigger keyword(s) vs HEAD (auto-invocation regression)"). A remediation
+`plugins/skill-quality/scripts/check-skill.sh`'s trigger-phrase drop check hard-FAILs a dropped
+`'trigger phrase'` versus the base ref ("dropped trigger keyword(s) vs HEAD (auto-invocation
+regression)"). A remediation
 that edits a `description`, a `when_to_use`, or a quoted trigger phrase is therefore a regression
 this repo's own gate rejects — not a debatable suggestion. Two consequences bind every run:
 
@@ -62,10 +63,13 @@ consumer-precedence rule).
 
 ## Which findings enter the file
 
-**Only `negation`.** `detect.sh` marks six shapes; the other five (`citation`, `ghost-ref`,
-`preamble`, `enum-list`, `scope-meta`) have no severity-crosswalk row, and the contract admits no
-row whose tier cannot be looked up from one. They stay in the human report and are counted in
-`## Surfaces` as `reason=no-severity-crosswalk-row` — declined, never silently dropped.
+**Only `negation`.** The scanner marks nine shapes; the other eight (`citation`, `ghost-ref`,
+`preamble`, `enum-list`, `scope-meta`, `plan-reference`, `conversational-antecedent`,
+`ticket-pr-residue`) have no severity-crosswalk row, and the contract admits no row whose tier
+cannot be looked up from one. They stay in the human report and are counted in
+`## Surfaces` as `reason=no-severity-crosswalk-row` — declined, never silently dropped. The count
+is the one `audit_noise_detect_shapes_into` in `scripts/lib/noise-shapes.sh` actually appends, plus
+`negation`; re-derive it there rather than trusting this sentence.
 
 | Scanner shape | Rule id | Tier |
 |---|---|---|

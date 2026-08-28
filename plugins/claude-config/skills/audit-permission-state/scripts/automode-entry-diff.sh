@@ -4,11 +4,14 @@
 #
 # "On entering auto mode, broad allow rules that grant arbitrary code execution
 # are dropped: Blanket Bash(*) or PowerShell(*); Wildcarded interpreters like
-# Bash(python*); Package-manager run commands; Agent allow rules. Narrow rules
-# like Bash(npm test) carry over." This script classifies every effective allow
-# rule from the merge into exactly one of those documented classes or `kept`,
-# using the same shared vocabulary (lib/permission-patterns.sh) that
+# Bash(python*); Package-manager run commands; Agent allow rules; Monitor allow
+# rules, because Claude Code runs Monitor commands through the shell. Narrow
+# rules like Bash(npm test) carry over." This script classifies every effective
+# allow rule from the merge into exactly one of those documented classes or
+# `kept`, using the same shared vocabulary (lib/permission-patterns.sh) that
 # audit-permission-grants check P1 scans with — one definition, two consumers.
+# The two whole-tool classes (Agent, Monitor) carry no shell shape, so they are
+# tested on the tool token here rather than through that vocabulary.
 #
 # `autoMode.classifyAllShell` inverts the carry-over answer wholesale: when
 # true it "suspend[s] every Bash and PowerShell allow rule while auto mode is
@@ -28,8 +31,8 @@
 #   entry-diff kept scopes=<a,b> <rule>                  one per carried-over allow rule
 #   entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 #
-#   class  blanket | interpreter-wildcard | package-manager-run | agent
-#          (the documented four; the vocabulary's script-glob alternative is an
+#   class  blanket | interpreter-wildcard | package-manager-run | agent | monitor
+#          (the documented five; the vocabulary's script-glob alternative is an
 #          interpreter-wildcard shape and reports as that class)
 #
 # Only allow rules change on entry: deny and ask rules are evaluated before the
@@ -178,6 +181,7 @@ fi
 # --- Per-rule classification --------------------------------------------------
 
 n_before=0 n_dropped=0 n_suspended=0 n_kept=0
+monitor_seen=0
 predicted_dropped=""
 diff_lines=""
 while read -r rec kind scopes_field _basis rule; do
@@ -187,6 +191,20 @@ while read -r rec kind scopes_field _basis rule; do
   verdict=""
   if [[ "$rule" == "Agent" || "$rule" == "Agent("* ]]; then
     verdict="dropped class=agent"
+  elif [[ "$rule" == "Monitor" || "$rule" == "Monitor("* ]]; then
+    # Upstream added Monitor to the dropped list in v2.1.236, "because Claude
+    # Code runs Monitor commands through the shell". It behaves like Agent, not
+    # like Bash: the whole class drops, so a scoped Monitor(...) rule is NOT a
+    # narrow carry-over. Reporting one as kept would tell an operator a grant
+    # survives that the harness has already suspended.
+    #
+    # This verdict is version-dependent and this script cannot read the running
+    # version, so it emits a DIFF-NOTE below rather than asserting the verdict
+    # unqualified. Before v2.1.236 a Monitor allow rule stayed in effect, and
+    # reporting it as dropped there is the worse direction of error: it tells an
+    # operator a live grant is already suspended.
+    monitor_seen=1
+    verdict="dropped class=monitor"
   elif [[ "$rule" == "Bash" || "$rule" == "PowerShell" ]]; then
     # A bare tool name is the WHOLE-TOOL grant -- strictly broader than
     # Bash(*), which this same run classifies as blanket. Reporting it as
@@ -216,6 +234,10 @@ while read -r rec kind scopes_field _basis rule; do
   fi
   diff_lines="${diff_lines}entry-diff $verdict $scopes_field $rule"$'\n'
 done <<<"$records"
+
+if [[ "$monitor_seen" == 1 ]]; then
+  echo "DIFF-NOTE: a Monitor allow rule is reported as dropped. Requires Claude Code v2.1.236 or later; earlier versions leave Monitor allow rules in effect in auto mode, so on an older version that rule carries over and this verdict is inverted. This script cannot read the running version; confirm it before acting on a monitor verdict."
+fi
 
 printf '%s' "$diff_lines"
 echo "entry-diff summary allow_before=$n_before dropped=$n_dropped suspended=$n_suspended kept=$n_kept"

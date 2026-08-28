@@ -63,10 +63,10 @@ reports "already configured".
    never hand-edit `pluginConfigs` or write Claude Code settings. Direct the user to
    `/plugin configure knowledge` (interactive, any time). Headless: rerun the install with the new
    value. `claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>`.
-   Against an already-installed plugin it prints `already installed` **and still writes the value**
-Verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default value
+   Against an already-installed plugin it prints `already installed` **and still writes the value**,
+   verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default value
    written to an installed plugin, then restored). The short-circuit is about the install, not the
-   config write. Re-verify before relying on it outside those conditions, a `sensitive` option, or
+   config write. Re-verify before relying on it outside those conditions. A `sensitive` option, or
    `project`/`local` scope, were not covered. Do **not** uninstall to reconfigure: uninstalling
    drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
    Options reference table to its manifest default, which can break extraction on a machine that

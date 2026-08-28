@@ -14,12 +14,16 @@ Coaching posture** (and the output-type section for anything emitted). NAME each
 skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid; silent skips
 are not.
 
-When an action here emits a lyric line, most often `fragment`, the output-type section is §2, and
-§2 has not been run until the files on its own **Reference:** line have been read:
+When an action here emits a lyric line, most often `fragment`, the output-type section is §2. §2's
+**Reference:** line is a load list, not a bibliography: §2 has not been run until the files it
+names have been read this session, at minimum
 [meter](../../context/pat-pattison/research/meter.md) and
 [phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate, plus
 [metaphor](../../context/pat-pattison/research/metaphor.md) when the fragment needs an image or a
-figure. A `Load` cell in the Action Router below is a routing hint; this is a precondition of
+figure. Naming the §2 boxes while those files were never opened attests to the filter instead of
+applying it, per
+[response-filter](../../context/pat-pattison/research/response-filter.md) "§2 Line-writing filter".
+A `Load` cell in the Action Router below is a routing hint; this is a precondition of
 emission. §2's boxes are then cycled inside
 [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md), the full cycle per
 candidate before it is shown. Line emission belongs to `/songwriting:co-write`, and its input gate
@@ -116,10 +120,11 @@ dive. Every scenario routes through
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md), and honor a
-consuming project's own songwriting layout when it defines one. Before loading any bundled
-`templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
-first, a project-level override wins over the bundled default.
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
+"Where generated work persists", and honor a consuming project's own songwriting layout when it
+defines one. Before loading any bundled `templates/<name>.md`, check
+`${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
+override wins over the bundled skill default, first match, per that file's "Template override".
 
 ## What this plugin does not do
 

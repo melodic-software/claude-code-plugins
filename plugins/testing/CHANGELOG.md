@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.12]
+
+### Changed
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
+- **`audit`: the findings-file producer preamble regains three dropped clauses.** This skill states
+  the producer contract as a numbered `apply` step rather than as a `persist-findings.md` preamble,
+  and that compression had dropped the shape's authority, the self-ignore guard, and the whole
+  "where the contract and this file disagree, the contract wins" rule. The step keeps its own form
+  and carries all three again. The four `persist-findings.md` surfaces this sweep touched are
+  byte-identical apart from their run-name slot; this one is deliberately not, and
+  `provenance:audit`'s later preamble is a sixth surface outside that set. Whole-repo extract-ssot
+  sweep.
+
 ## [0.7.11]
 
 ### Changed

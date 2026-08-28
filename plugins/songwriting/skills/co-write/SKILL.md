@@ -13,12 +13,15 @@ and **§2 Line-writing** of [response-filter](../../context/pat-pattison/researc
 skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid; silent skips
 are not.
 
-§2's own **Reference:** line is a load list, not a bibliography. §2 has not been run until
+§2's **Reference:** line is a load list, not a bibliography: §2 has not been run until the files it
+names have been read this session, at minimum
 [meter](../../context/pat-pattison/research/meter.md) and
-[phrasing](../../context/pat-pattison/research/phrasing.md) have been read this session. Plus
+[phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate. Plus
 [metaphor](../../context/pat-pattison/research/metaphor.md) when the request asks for an image or a
 figure. Naming the §2 boxes while those files were never opened attests to the filter instead of
-applying it, and the attestation is what let the bad lines through: the miscounted stresses and the
+applying it, per
+[response-filter](../../context/pat-pattison/research/response-filter.md) "§2 Line-writing filter".
+The attestation is what let the bad lines through: the miscounted stresses and the
 plain description labeled a metaphor both came out of a §2 that was named, not loaded. Loading is
 therefore an input, checked in the hard gate below, not a step recorded afterward.
 
@@ -85,11 +88,12 @@ No action → open the co-write protocol (No-Free-Zone session opener).
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md), and honor a
-consuming project's own songwriting layout when it defines one. Line/section brainstorm output goes
-to `variations/` or `worksheets/` as a labeled menu (not inline). Before loading any bundled
-`templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
-first, a project-level override wins over the bundled default.
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
+"Where generated work persists", and honor a consuming project's own songwriting layout when it
+defines one. Line/section brainstorm output goes to `variations/` or `worksheets/` as a labeled
+menu (not inline). Before loading any bundled `templates/<name>.md`, check
+`${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
+override wins over the bundled skill default, first match, per that file's "Template override".
 
 ## Boundary. This skill owns line emission, and pays for it
 

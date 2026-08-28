@@ -1,5 +1,14 @@
 # Changelog — discovery plugin
 
+## [0.16.16]
+
+### Changed
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
 ## [0.16.15]
 
 ### Changed

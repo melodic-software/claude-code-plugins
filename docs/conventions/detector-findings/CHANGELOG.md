@@ -4,6 +4,57 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.8.0 — 2026-08-28
+
+**Minor under this contract's own rule.** A conforming producer gains its adopter row; no
+producer-owned field's rule moves, no coexistence obligation changes, and no
+enforceability verdict changes.
+
+- **`docs-hygiene/audit-noise` gains its Adopters row.** The producer has carried crosswalk
+  rows since 2.5.0 and conforms today, but the Adopters table never gained the row. A table
+  whose own rule is that a row asserts present-tense conformance under-reported a conforming
+  producer, which is the reverse of the failure the tabled-only-once-it-actually-does rule
+  guards against: a reader consulting the table alone could not tell that a fifth producer
+  reaches the relay. The row states what the producer does today, and adds no obligation.
+- **The reachability paragraph stops saying "both".** "A habit both current adopters already
+  have" and "both adopters that persist do exactly that" were written when there were two.
+  There are five, and every one of them fetches this contract at run time and refuses to write
+  when it is unreachable, so the claim now reads "every current adopter" and "every adopter
+  that persists". The claim itself is unchanged and is still evidence about the producer's
+  session rather than the consumer's.
+- **The emitter section's heading stops carrying a count.** "Three emitters, one statement of
+  each mechanic" was written at three and read as a standing claim; there are six counting
+  `review:fanout`, and the section's own body had already been corrected away from "both" and
+  "the third". A heading that names a number decays on every adopter, and this table's whole
+  point is that adopters keep arriving, so the heading is now "Many emitters, one statement of
+  each mechanic". The anchor moves with it; the only three references are inside this file and
+  all three were updated. No obligation changes.
+- **The `audit-noise` adopter row claimed a mechanical selection the producer does not have.** It
+  said "selection is a mechanical per-sentence scan with no withholding verdict", which is true of
+  the scanner and false of the skill: a model judgment lane sits between the scan and the writer and
+  may dismiss a candidate on the grounds `SKILL.md` enumerates. Its sibling row for
+  `claude-config:audit-instructions` states its model-lane carve-outs; this one did not. The row now
+  scopes the mechanical claim to the scanner and names the lane, and its crosswalk row states the
+  three decline classes — `frontmatter`, `quoted-trigger-phrase`, `judgment-lane-dismissal` — which
+  this contract's "No evidence, no decline" rule requires a declining rule to state there. It also
+  named three of the scanner's four withholding boundaries; the fourth, the clause naming an
+  alternative, requires its evidence present like the other three, so the direction was right and
+  the enumeration short. Found by an adversarial verifier reading the scripts, not the row.
+- **`rule-negation-hard-guardrail`'s `Auto-applicable` cell led with `n/a`.** This contract states
+  four permitted lead forms and `n/a` is not one; its three sibling non-emitting rows all use
+  `Not applicable — no row`. Corrected, argument unchanged.
+- **Two counts inside the new adopter row were wrong on the day it was written.** The row said
+  its detector "marks six shapes" with "the other five" declined.
+  `plugins/docs-hygiene/skills/audit-noise/scripts/lib/noise-shapes.sh` marks
+  eight shapes and `detect.sh` drives a ninth, `negation`, over an accumulated paragraph, so
+  eight are declined with `reason=no-severity-crosswalk-row`, not five. It also opened "the third
+  producer to join the crosswalk", copied from 2.5.0, which says the same. This file cannot have
+  it both ways: 2.2.0 tables `ai-slop:audit` as the third adopter, and 2.8.0 above counts
+  `docs-hygiene/audit-noise` as the fifth producer to reach the relay. 2.5.0 is shipped and is
+  left as written; the new row's ordinal is dropped rather than renumbered, because an ordinal in
+  a table that grows is the same decaying claim as the section heading, and this pair is what that
+  decay looks like two versions later.
+
 ## 2.7.1 — 2026-08-28
 
 **Patch under this contract's own rule** — docs-only clarification. No producer-owned field's rule

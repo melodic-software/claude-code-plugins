@@ -6,9 +6,9 @@ The style/genre prompt tells Suno **what kind of song to make**. v5/v5.5 expande
 
 | Field | Limit | Notes |
 |-------|-------|-------|
-| Style prompt (v5/v5.5) | **~1,000 chars** | Late-prompt attention may decay; silent truncation is unverified — front-load critical content |
+| Style prompt (v5/v5.5) | **~1,000 chars** | Late-prompt attention may decay; silent truncation is unverified. Front-load critical content. |
 | Style prompt (v4 legacy) | ~200 chars | Out of scope for this skill, noted for orientation |
-| Lyrics | **5,000-char hard cap** (v4.5/v5/v5.5) | 3,000 was the v4-era cap. Quality sweet spot stays **~3,000** (~40-60 lines / 200-300 words) — past that Suno rushes, skips sections, or cuts output short |
+| Lyrics | **5,000-char hard cap** (v4.5/v5/v5.5) | 3,000 was the v4-era cap. Quality sweet spot stays **~3,000** (~40-60 lines / 200-300 words). Past that Suno rushes, skips sections, or cuts output short. |
 | Title | **~100 chars** | Up from ~80 in v4. Minimal or no known effect on musical output; community reports differ |
 | Exclude (Custom mode Advanced Options) | Free-text box | Same vocabulary as inline negatives |
 

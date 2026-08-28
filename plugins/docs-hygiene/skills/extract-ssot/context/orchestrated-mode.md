@@ -85,10 +85,10 @@ installed plugin cannot read a sibling plugin's files at runtime.
 - **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 90`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
-- **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale — treat
+- **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
   fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
-  consumer **must** arm a session Monitor on the tee file and re-evaluate on every write — the file
+  consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
   carries **no account-identifier field**, so a write is the only signal that the windows changed
   under you (account switch, another session's refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the

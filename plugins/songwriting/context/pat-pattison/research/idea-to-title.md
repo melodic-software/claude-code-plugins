@@ -137,7 +137,8 @@ in neither *Writing Better Lyrics* (2009) nor *Songwriting Without
 Boundaries* (2011). It is owned by `hook.md` and left as-is here;
 whoever owns `hook.md` should confirm its source.
 
-Pat's seven title types (per `hook.md` "Title generation"):
+The seven title types (per `hook.md` "Title generation", where the
+count is this plugin's, not Pat's):
 
 1. **One-word** — a single noun, verb, or adjective
 2. **Place-name** — a location, real or invented

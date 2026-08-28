@@ -438,9 +438,19 @@ is closed. Setup must be:
 - transparent about what it inferred, changed, skipped, or could not verify;
 - limited to configuration the plugin owns;
 - safe for existing files, preserving unrelated user content;
+- runtime-grounded: `check` probes the artifact it is checking, never the setup skill's own account
+  of it;
 - evidence-bearing: after making or routing a change, it reports the stored value it *observed*,
   and says plainly where it could not observe one — never an unobserved change; and
 - non-interactive when complete arguments are supplied, so automation and headless use remain possible.
+
+The runtime artifact is the single source of truth for what it requires and how it resolves things:
+the hook script and the libraries it sources, the bundled scripts, or the skill and reference files
+the plugin ships. A `setup` skill's prose is a second copy of that account and goes stale without
+saying so, which is why `check` reads the artifact first, probes what it actually does, and reports a
+PASS/FAIL/INFO table with one remediation line per FAIL, modifying nothing. Where the artifact names
+several files, the check reads all of them: an entry script that sources a library will not by itself
+tell the reader what runs.
 
 The readback is a property of the `setup` skill, not of the `apply` verb: it belongs to whichever
 action made or routed the change, so a check-only skill (below) carries it in `check`. Where the
@@ -603,6 +613,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
+| Dynamic-context (`!`) precompute: when to inject, fallback binding, `shell:` declaration | `playbooks` plugin (`skills/skill-authoring/reference/precompute-context.md`) |
 | Skill invocation-mode rubric | [`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |
@@ -615,6 +626,9 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
 | Windows path emission across the Git Bash → native boundary | [`docs/conventions/windows-path-emit/`](conventions/windows-path-emit/README.md) |
 | Pre-PR step order (where outcome verification sits) | [`docs/conventions/pre-pr-ordering/`](conventions/pre-pr-ordering/README.md) |
+| Always-on hook cost ceiling | [`docs/conventions/hook-budget/`](conventions/hook-budget/README.md) |
+| Tracker reference form inside a code comment | [`docs/conventions/tracker-reference-form/`](conventions/tracker-reference-form/README.md) |
+| Untrusted-content framing contract | [`docs/conventions/untrusted-content/`](conventions/untrusted-content/README.md) |
 
 ## Cross-platform contract
 

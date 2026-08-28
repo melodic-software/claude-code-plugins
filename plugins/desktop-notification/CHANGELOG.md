@@ -3,6 +3,18 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.24]
+
+### Changed
+
+- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
+  The directive had fractured under the same per-plugin de-slop campaign;
+  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
+  sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
+  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
+  extract-ssot sweep.
+
 ## [0.6.23]
 
 ### Changed

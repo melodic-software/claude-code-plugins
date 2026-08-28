@@ -11,7 +11,7 @@ metadata:
 
 ## Pre-computed context
 
-Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
+Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
 Rename pairs (git): !`{ git diff --name-status -M HEAD 2>/dev/null; git diff --cached --name-status -M 2>/dev/null; } | grep '^R' | head -15 || echo "none"`
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 

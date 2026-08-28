@@ -23,8 +23,8 @@ Both are non-interactive, so never prompt when the action is given.
 
 The bundled scripts are the single source of truth for what this plugin requires.
 
-**Read it first**, probing what it actually does rather than reciting this file. Then run each probe
-via Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
+Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 The runtime scripts and their tools:
 
