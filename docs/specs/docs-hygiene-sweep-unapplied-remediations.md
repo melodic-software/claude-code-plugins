@@ -342,6 +342,19 @@ The other 55 of the audit's 89 dissolved under
 34 do not. All 34 `path:line` citations were re-verified on 2026-08-26 and every one resolves to the
 citing text the audit quoted.
 
+> **Closure stamp, 2026-08-28. All 34 rows below are closed. The tables are left verbatim as the
+> inventory this record exists to preserve; only this note is added.** The sentence directly above
+> is the one thing in this section that was never true: #3380 wrote it and fixed 32 of the 34 in the
+> same commit, so it asserts a re-verification of citing text it had already deleted. Three separate
+> later passes each re-derived this roster from scratch because of it. Rows closed by
+> [#3380](https://github.com/melodic-software/claude-code-plugins/pull/3380) (`6c7a1032`): 22 of
+> Group 1, **all 8 of Group 2**, and both of Group 3. `V-review-13` and `V-review-14` closed later,
+> in [#3475](https://github.com/melodic-software/claude-code-plugins/pull/3475). Group 2's eight
+> were rewritten from the bare `skills/<s>/<path>` form to the anchored
+> `${CLAUDE_PLUGIN_ROOT}/skills/<s>/<path>` form clause 3 requires, and all seven distinct targets
+> resolve on disk. Group 3's two anchors were dropped to file-level links. **Do not re-derive this
+> roster again; verify against the sweep spec's closure section instead.**
+
 ### Group 1. Cross-plugin and out-of-plugin, 24
 
 Unchanged by ADR 0018. The remedy is `/plugin:skill <action>` routing, or promoting the cited
