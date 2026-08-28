@@ -243,7 +243,7 @@ consonance in the tonic slot, against `blush a / skin x / touch a / breathe x`:
 > [`blush / skin / touch / dawn`] …you can feel dawn trembling, looking back
 > to skin, feeling the pull but tearfully, reluctantly, moving on. Sad.
 
-So never drop a rhyme when what the line wants is an unresolved one — dropping
+So keep the rhyme when what the line wants is an unresolved one — dropping
 it removes the backward pull that the remote rhyme exists to create.
 
 One scheme-level note, p.109, on couplets:

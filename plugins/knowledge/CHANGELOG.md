@@ -4,6 +4,13 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.21]
+
+### Changed
+
+- **Grammar repaired where the em-dash purge left a sentence broken.** `skills/docpage-digest/SKILL.md`. The #2891 substitution replaced a dash without restructuring the sentence, leaving a verbless fragment or a comma splice. Wording only; no rule changed.
+- **Authoring-doctrine pass over `README.md`, `skills/video-digest/context/companion-primary-sources.md`, `skills/video-digest/templates/readme-journey.md`, `skills/video-digest/templates/recommendations/menu.md`.** Fixed pointers and cross-references that did not resolve; counts and inventories that had drifted from the tree. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.13.20]
 
 ### Changed

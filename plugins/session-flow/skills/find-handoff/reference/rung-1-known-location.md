@@ -24,7 +24,7 @@ transcript's last one:** one session can emit several handoffs, so find the rail
 tail read would hand back a later handoff's note, and if the loop was stopped and relaunched
 with a different prompt in between, that re-arms the wrong recurring work, which is worse than
 returning nothing. This is the same correlate-by-content rule the background-delivery screening
-above already runs on. No block names this file, transcript missing, or no note → surface the
+below already runs on. No block names this file, transcript missing, or no note → surface the
 candidate without a note and say which, never block on it. **Exception. Operator says the handoff was
 prompt-only:** then no file is the target (prompt-only writes none), and handoff files
 intentionally accumulate, so a recent file here belongs to some *other* handoff. Skip this

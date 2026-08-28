@@ -120,7 +120,7 @@ unchanged**:
 1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
    or the `no branch ref` string. When it yields the string, the checkout is detached (or absent) and
    **`HEAD` is never accepted as a branch identity**. See "A detached checkout has no branch
-   identity" below for what to do and what not to.
+   identity" in [context/run-states.md](context/run-states.md) for what to do and what not to.
    Resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`, resolve it, never assume the documented
    default's shape. Then emit the opening line above.

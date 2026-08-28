@@ -133,7 +133,7 @@ out of scope until such a signal exists.
   `python3 <<PY` with **no** `-` is an accepted residual, because matching a bare
   trailing interpreter token would block `cat script.py | python3`. On the **Bash**
   tool, **`tee` / `tee -a` and inline writes via other interpreters (`node -e`,
-  `perl -e`, `ruby -e`, `sed -i`, `dd of=`, `awk >`, …) are accepted residuals**.
+  `perl -e`, `ruby -e`, `sed -i`, `dd of=`, `awk >`, …) are accepted residuals**,
   outside the modeled surface, not oversights. A **same-command staged write**
   (`jq . f > /tmp/x && mv /tmp/x <repo-file>`) is blocked since **0.28.29** when the
   effective redirect target is reused as an `mv`/`cp` source toward a destination
@@ -324,9 +324,9 @@ repo-specific policy of their own:
   `enabledPlugins` the way Claude Code merges it across scopes: user-global
   (`$CLAUDE_CONFIG_DIR/settings.json`, else `~/.claude/settings.json`) as the
   base, the project's `.claude/settings.json` overriding it, and
-  `.claude/settings.local.json` overriding that (a local override counts only
-  for a key the project already declares. CC ignores a local-only key per
-  [anthropics/claude-code#27247](https://github.com/anthropics/claude-code/issues/27247)).
+  `.claude/settings.local.json` overriding that. A local override counts only
+  for a key the project already declares: CC ignores a local-only key per
+  [anthropics/claude-code#27247](https://github.com/anthropics/claude-code/issues/27247).
   Each exact `source-control@…` key is resolved independently; if ANY resolves
   enabled the advisory fires. So a plugin enabled **only** at user-global (a
   common install) still triggers it. The project need not carry its own

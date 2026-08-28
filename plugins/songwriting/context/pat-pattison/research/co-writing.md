@@ -215,7 +215,8 @@ Two of the four rules apply to solo drafting:
   drafting invites defensiveness over revision.
 
 The other two (silence-means-keep-going; yes advances the line) are
-co-write-only.
+co-write-only. § Inner critic operating under No-Free Zone below revisits this
+and rules the other way: treat all four as applicable solo.
 
 ## When the rules break
 

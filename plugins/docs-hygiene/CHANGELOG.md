@@ -1,5 +1,11 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.21]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/compress/SKILL.md`, `skills/rename-references/SKILL.md`.** Fixed pointers and cross-references that did not resolve; a recap that had drifted from the source it cites; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.21.20]
 
 ### Changed

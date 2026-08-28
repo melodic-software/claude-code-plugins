@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.27]
+
+### Changed
+
+- **Grammar repaired where the em-dash purge left a sentence broken.** `skills/resolve-conflicts/SKILL.md`. The #2891 substitution replaced a dash without restructuring the sentence, leaving a verbless fragment or a comma splice. Wording only; no rule changed.
+- **Authoring-doctrine pass over `README.md`, `skills/babysit-loop/reference/cycle-shape.md`, `skills/babysit-prs/reference/orchestration.md`, `skills/commit/SKILL.md`.** Fixed pointers and cross-references that did not resolve; counts and inventories that had drifted from the tree; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.55.26]
 
 ### Changed

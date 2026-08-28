@@ -1,5 +1,11 @@
 # Changelog — session-flow plugin
 
+## [0.34.13]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/find-handoff/reference/rung-1-known-location.md`, `skills/workflow/context/continuation.md`.** Fixed pointers and cross-references that did not resolve; counts and inventories that had drifted from the tree; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.34.12]
 
 ### Changed
