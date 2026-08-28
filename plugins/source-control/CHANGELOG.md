@@ -12,13 +12,21 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `skills/babysit-prs/SKILL.md`, whose implied base is the plugin root while its
   real base is `reference/`, the defect class
   [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
-  correction 1 names. It now reads
-  `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/SKILL.md`, the form the same file
-  already uses 65 lines below for `babysit-loop`. Intra-plugin citation, legal
-  under clause 1; this is clause 3 only, so the target is unchanged and no
-  routing moves. Found by a third derivation over the plugin-level
-  `reference/`, `context/` and `agents/` trees whose predecessor could not see
-  citations of a `SKILL.md` itself.
+  correction 1 names. It now names the public invocation,
+  `/source-control:babysit-prs`, keeping the section name.
+
+  **The `${CLAUDE_PLUGIN_ROOT}` form this fix first took was wrong for the reader
+  that most needs it.** `work-items`'s `work` skill fetches this file over
+  `raw.githubusercontent.com`, and for that reader `${CLAUDE_PLUGIN_ROOT}` denotes
+  the `work-items` installation, so the anchor resolved to a `babysit-prs` skill
+  that does not exist there. This sentence is the doc's address for the autonomy
+  obligation, which is the case
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  2026-08-28 amendment routes to the invocation rather than to a path whose
+  meaning depends on which plugin fetched the document. Found by a third
+  derivation over the plugin-level `reference/`, `context/` and `agents/` trees
+  whose predecessor could not see citations of a `SKILL.md` itself; the remedy
+  corrected by review before merge.
 
 ## [0.55.29]
 

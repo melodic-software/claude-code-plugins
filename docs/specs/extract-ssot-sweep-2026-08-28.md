@@ -616,15 +616,24 @@ base of the citing file's directory:
 
 | Citing `path:line` | Token as written | Resolved against | Fixed to |
 |---|---|---|---|
-| `plugins/source-control/reference/config-resolution.md:124` | `skills/babysit-prs/SKILL.md` | `plugins/source-control/reference/`, absent | `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/SKILL.md` |
+| `plugins/source-control/reference/config-resolution.md:124` | `skills/babysit-prs/SKILL.md` | `plugins/source-control/reference/`, absent | `/source-control:babysit-prs`, the public invocation |
 | `plugins/work-items/reference/permission-preflight.md:45` | `skills/work/SKILL.md` | `plugins/work-items/reference/`, absent | `${CLAUDE_PLUGIN_ROOT}/skills/work/SKILL.md` |
 | `plugins/songwriting/context/pat-pattison/research/lyric-melodic-roadmaps.md:203` | `skills/meter-prosody/SKILL.md` | `…/research/`, absent | `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md` |
 
-All three are fixed in this change, each to the form its own file already uses elsewhere:
-`config-resolution.md:189` (which is `V-sc-01`, 65 lines below the defect the pass that verified
-that file did not see) and `permission-preflight.md:214` were already anchored, and
-`songwriting`'s `research/` tree anchors its script paths the same way. Re-running the third
-expression after the fixes returns 119 tokens, 0 failures.
+**Two** are fixed to the form their own file already uses elsewhere: `permission-preflight.md:214`
+was already anchored, and `songwriting`'s `research/` tree anchors its script paths the same way.
+Neither file is fetched from outside its plugin, so `${CLAUDE_PLUGIN_ROOT}` denotes the right
+installation for every reader either has.
+
+**The third is fixed to the public invocation instead**, and the reason is the subsection below.
+`config-resolution.md` is fetched across the plugin boundary, so the anchored form would have named
+a `babysit-prs` skill that does not exist in the fetching plugin. The anchored form was what this
+change first shipped; a review pass caught it before merge. Recorded rather than quietly amended,
+because the wrong remedy was chosen by reasoning this same document had already written down and
+then failed to apply to its own fix.
+
+Re-running the third expression after the fixes leaves no clause-3 failure in the three files. The
+`config-resolution.md` row leaves the path population altogether, since an invocation is not a path.
 
 The token counts differ between derivations because the expressions do — 52 against 119 — and per
 this file's own recall-limits discipline neither is a total. The **failure** count is the claim that
@@ -657,16 +666,31 @@ route, and the counter-instance is in this repo:
 reader is running `work-items`, so `${CLAUDE_PLUGIN_ROOT}` resolves to `work-items` and the
 intra-plugin citations inside the fetched file address paths that are absent for them. The
 mechanism is that a *cross*-plugin fetch drags an intra-plugin citation across the boundary its form
-assumed. This does not overturn the conclusion: clause 1 still legalises the citation, only clause 3
-has teeth on it, and the remedy is still form rather than routing — a fetched reader cannot follow
-`skills/babysit-prs/SKILL.md` either way. It does mean the absolute was too strong, and a pass
-auditing intra-plugin citation forms should treat "who fetches this file" as a live question.
+assumed.
+
+**And that does change the remedy, which the first version of this paragraph denied.** It claimed
+"the remedy is still form rather than routing", on the ground that a fetched reader cannot follow
+`skills/babysit-prs/SKILL.md` either way. True of the bare form, false of the choice it was used to
+justify: the anchored `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/SKILL.md` is *also* unfollowable for
+that reader, because the variable denotes their plugin and not this one, while
+`/source-control:babysit-prs` is followable by every reader regardless of which plugin fetched the
+document. So this row went to the invocation. The paragraph reasoned its way to the exposure and
+then declined to draw the consequence for the fix sitting in the same commit; a review pass drew it.
+
+Clause 1 still legalises the citation and only clause 3 has teeth on it — that much stands. What
+does not is the inference from "clause 3 only" to "path form only". Where a file is fetched across
+the boundary, clause 3 alone can force the invocation, because for the fetched reader no path form
+resolves. A pass auditing intra-plugin citation forms must treat "who fetches this file" as a live
+question, and must treat it as bearing on the remedy, not only on the diagnosis.
 
 So **only clause 3 reaches Group 2**, and clause 3 is a resolvability rule, not an encapsulation
 rule. The amendment's fix-an-address / keep-evidence test does not apply either: that test divides
 clause 2 applications, and these are not clause 2 matters. Had the eight still been open, the remedy
-would have been the path form and nothing else — no routing to a slash invocation, no promotion of
-content to a shared location. **Intra-plugin genuinely is a different case, and the file that says
+would have been the path form for any of them whose file is read only from inside its own plugin,
+and the invocation for any that is fetched across the boundary — never a promotion of content to a
+shared location. **Which of the eight are fetched was not checked**, because all eight were already
+closed; a pass that reopens one owes that check first, on the evidence of the row above, where
+exactly that question decided the remedy. **Intra-plugin genuinely is a different case, and the file that says
 so is the ADR's own correction 1**, which withdrew the bare-relative breakage claim as a category
 error and named this narrower shape as the real defect: an implied base of the plugin root against a
 real base of the citing file's directory.
