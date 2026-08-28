@@ -27,9 +27,8 @@ ordinary audit — an opaque label (`case-a`, `case-b`) and pass that. No direct
 path, fixture id, or other label that encodes the expected class, the tier, an applicable
 carve-out, or the case's design intent goes to any subagent this run dispatches over the case —
 nominating, judging, reviewing, or guarding a fix — and none is inlined into the material its
-prompt carries. The dispatching run holds the
-label-to-path mapping and applies it when composing results, so nothing downstream loses track
-of which file was graded.
+prompt carries. The dispatching run holds the label-to-path mapping and applies it when composing
+results, so nothing downstream loses track of which file was graded.
 
 **What a judge receives instead is everything the criteria are defined over**, and nothing that
 says where it came from: the inputs "Judgment" below enumerates, carried as contents. This takes
