@@ -252,6 +252,57 @@ assert_eq "both scripts agree on which May lines are candidates" \
   "$(echo "$MAY_OUT" | jq -r "$MAY_FILE | .stamp_lines | length")" "$MAY_CANDIDATES"
 assert_eq "and they agree on two" "$MAY_CANDIDATES" "2"
 
+# --- A May date with no digit beside it ------------------------------------------
+#
+# Requiring a digit beside "may" kept the modal out and took a real stamp form
+# with it, so "Verified this May" left this inventory entirely. The month is
+# capitalised in edited prose and the modal is not, so the capital is what
+# separates them, tested on the original line rather than the lowered copy.
+# check-stamps.sh carries the same rule at both of its sites; the agreement
+# between the two candidate definitions is asserted here directly, because the
+# last fix in this area landed in one script and had to be chased with a
+# follow-up commit.
+
+DIGITLESS_DIR="$TEST_TMPDIR/digitless-may"
+mkdir -p "$DIGITLESS_DIR"
+{
+  echo '# Digitless May'                                    # 1
+  echo ''                                                   # 2
+  echo 'Verified this May.'                                 # 3
+  echo 'Checked last May against the vendor page.'          # 4
+  echo 'Verified in May against the vendor page.'           # 5
+  echo 'The first read may raise a permission prompt here.' # 6
+  echo 'Verified that a producer MAY skip that step.'       # 7
+  echo 'Verified MAY 2026 against the vendor changelog.'    # 8
+  echo 'Checked the vendor page. Maybe it moved since.'     # 9
+  echo 'Checked the runner. May the build stay green.'      # 10
+} >"$DIGITLESS_DIR/digitless-may.md"
+
+DIGITLESS_OUT="$(run --files "$DIGITLESS_DIR/digitless-may.md" 2>/dev/null)"
+DIGITLESS_FILE='.directories[0].files[0]'
+assert_eq "a digitless May stamp is inventoried" \
+  "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 3)] | length")" "1"
+assert_eq "a digitless May stamp mid-sentence is inventoried" \
+  "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 4)] | length")" "1"
+assert_eq "a digitless May stamp after a preposition is inventoried" \
+  "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 5)] | length")" "1"
+assert_eq "the lowercase modal is still not a stamp line" \
+  "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 6)] | length")" "0"
+assert_eq "an ALL-CAPS modal is not a stamp line either" \
+  "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 7)] | length")" "0"
+assert_eq "a digit rescues an ALL-CAPS May date" \
+  "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 8)] | length")" "1"
+assert_eq "\"Maybe\" is not a May date" \
+  "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 9)] | length")" "0"
+assert_eq "a capitalised modal opening a sentence over-reports, by design" \
+  "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 10)] | length")" "1"
+
+DIGITLESS_CANDIDATES="$(bash "$SCRIPT_DIR/check-stamps.sh" --as-of 2026-08-28 \
+  "$DIGITLESS_DIR/digitless-may.md" 2>/dev/null | jq -r '.counts.candidates')"
+assert_eq "both scripts agree on which digitless May lines are candidates" \
+  "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | .stamp_lines | length")" "$DIGITLESS_CANDIDATES"
+assert_eq "and they agree on five" "$DIGITLESS_CANDIDATES" "5"
+
 # --- Fences ----------------------------------------------------------------------
 
 COPIED='.directories[0].files[] | select(.file | endswith("copied.md"))'
