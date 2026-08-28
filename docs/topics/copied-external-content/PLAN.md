@@ -250,17 +250,17 @@ and its output names the inline-quote fixture and the span-dilution fixture as p
 `node .../fingerprint.mjs compare --local <fixture> --source <fixture> --json | jq -e
 '.matched_spans'` exits 0.
 
-### Phase 3: Deterministic scripts [TODO]
+### Phase 3: Deterministic scripts [DONE]
 
 The five bash scripts with paired tests, contracts in `design/type-inventory.md`. Each is
 reasoning-free (Brief C1); stdout JSON, stderr diagnostics, non-zero exit only on operational
 failure.
 
-- [ ] `plugins/provenance/skills/audit/scripts/list-corpus.sh` + `.test.sh` CREATE
-- [ ] `plugins/provenance/skills/audit/scripts/extract-breadcrumbs.sh` + `.test.sh` CREATE
-- [ ] `plugins/provenance/skills/audit/scripts/check-stamps.sh` + `.test.sh` CREATE
-- [ ] `plugins/provenance/skills/audit/scripts/emit-findings.sh` + `.test.sh` CREATE
-- [ ] `plugins/provenance/skills/audit/scripts/score-golden.sh` + `.test.sh` CREATE
+- [x] `plugins/provenance/skills/audit/scripts/list-corpus.sh` + `.test.sh` CREATE (46 cases)
+- [x] `plugins/provenance/skills/audit/scripts/extract-breadcrumbs.sh` + `.test.sh` CREATE (42 cases)
+- [x] `plugins/provenance/skills/audit/scripts/check-stamps.sh` + `.test.sh` CREATE (43 cases)
+- [x] `plugins/provenance/skills/audit/scripts/emit-findings.sh` + `.test.sh` CREATE (51 cases)
+- [x] `plugins/provenance/skills/audit/scripts/score-golden.sh` + `.test.sh` CREATE (41 cases)
 
 Contract split for `emit-findings.sh`, following the ai-slop precedent exactly (its
 `context/persist-findings.md` hands the script `--out <resolved path>`): the MODEL resolves
@@ -274,6 +274,26 @@ the dated amendment).
 **Sanity Check:** `for t in plugins/provenance/skills/audit/scripts/*.test.sh; do bash "$t" ||
 exit 1; done` exits 0; `bash scripts/affected-tests.sh --run` (diff vs origin/main) exits 0
 (the `--run` flag executes; bare invocation only lists).
+
+**Sanity Check result, 2026-08-28.** The first command exits 0: all six suites pass, 244 cases
+across the five bash scripts plus the fingerprint wrapper. The second **exits 3, not 0, and the
+plan's expectation of 0 was unreachable from the moment Phase 2 landed** — not a Phase 3
+regression. `affected-tests.sh` reserves exit 1 for a failing suite; exit 3 means every shell
+suite it selected passed AND it also selected a suite in an ecosystem it deliberately refuses to
+guess a runner for. `fingerprint.test.mjs` is permanently such a suite, so any diff touching this
+plugin selects it and the runner can never return 0. Verified both lanes green rather than
+treating the code as a failure: 29 shell suites passed under `--run`, and
+`node plugins/provenance/skills/audit/scripts/fingerprint.test.mjs` exits 0 at 21 of 21. Later
+phases should read this gate as "exit 0, or exit 3 with the Node lane run separately and green".
+
+**Corpus baseline, 2026-08-28** (measured, not projected; `--as-of 2026-08-28`, 1,347 tracked
+markdown files after carve-outs, 20 vendored paths declined): 525 stamp candidates, 482 parsed,
+43 declined (19 month-name forms, 24 bare years), 0 expired at the 180-day default. The oldest
+parsed stamp is 2026-04-08, which is why the default window fires on nothing; at a 60-day window
+the same corpus yields 9 findings. Two findings that cost measurement to reach are recorded in
+`plugins/provenance/CHANGELOG.md` under `[0.1.0]`: mawk's silent interval-expression panic, and
+the keyword-window narrowing that removed an API beta identifier
+(`context-management-2025-06-27`) masquerading as an expired stamp.
 
 ### Phase 4: Reference artifacts [TODO]
 
