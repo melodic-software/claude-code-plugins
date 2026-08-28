@@ -32,6 +32,7 @@ having moved to `:16` when #3380 inserted a `## Contents` index above it.
 - [Verified, not applied](#verified-not-applied)
 - [Contradictions found](#contradictions-found)
 - [New refusals, recorded so nobody re-opens them](#new-refusals-recorded-so-nobody-re-opens-them)
+- [Open remainder after the encapsulation close](#open-remainder-after-the-encapsulation-close)
 - [Recall limits this run declares](#recall-limits-this-run-declares)
 
 ## What this run did differently
@@ -327,6 +328,88 @@ Beyond the predecessor's 13. Each was resolved against the real files and refuse
   block. Each has a live gate that deduplication would break.
 - Plus roughly 120 further per-cluster refusals across the eight triage batches, each recorded with
   its form and ground in the pull request that carries this file.
+
+## Open remainder after the encapsulation close
+
+Recorded, not fixed. A later pass adjudicates these; this section exists so it does not have to
+re-find them. Stamped 2026-08-28 and subject to the decay rule at the top of this file.
+
+### Twelve citations the encapsulation close created and never rostered
+
+The pass that closed the encapsulation floor wrote a convention CHANGELOG entry for each fix, and
+every entry quotes the path it removed. Those quotes are themselves `docs/**` citations of the exact
+shape the pass was sweeping, created by the sweep, counted by nobody. **Verified against
+`origin/main`, twelve of them:**
+
+| File | Lines |
+|---|---|
+| `docs/conventions/config-cascade/CHANGELOG.md` | 12, 13, 14 |
+| `docs/conventions/detector-findings/CHANGELOG.md` | 44, 57 |
+| `docs/conventions/loop-lane/CHANGELOG.md` | 69 |
+| `docs/conventions/native-references/CHANGELOG.md` | 16, 17, 18 |
+| `docs/conventions/permission-rule-hygiene/CHANGELOG.md` | 14 |
+| `docs/conventions/topic-docs/CHANGELOG.md` | 11, 12 |
+
+One correction to the roster this was handed as: the `loop-lane` row was reported at `:14`, which is
+where it sat when the pass wrote it. Release `9.1.0` landed above it, and the citation is at `:69`
+today, inside the `9.0.2` entry. That is the decay rule firing on a record less than a day old, and
+it is why a later pass must **re-derive by the text and never by these numbers.**
+
+**The twelve are disjoint from the three this file already counts, confirmed by differencing the
+tree at the fix commit's parent.** Before that commit, exactly three lines in
+`docs/conventions/*/CHANGELOG.md` cited a plugin skill by path: two in `detector-findings` and one in
+`loop-lane`. Those are the "three dated changelog entries that quote a citation as it stood" in the
+kept set. Every one of the twelve above was written by the fix commit itself, so **the arithmetic is
+16 fixed and 35 kept, not 16 and 23**, and the changelog-evidence class is fifteen rather than three.
+
+**All twelve are keep-correct** under the test now written into
+[ADR 0018](../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+amendment: each is a dated changelog entry whose whole claim is what a named file contained on that
+date. Nothing here needs an edit. What is missing is the judgment, and a pass that re-derives this
+shape finds twelve rows nobody ruled on and has to adjudicate them from scratch to learn they were
+fine. The general lesson is worth more than the twelve rows: **a sweep that documents each fix by
+quoting the citation it removed manufactures new instances of the shape it is sweeping,** so its own
+output has to be swept before the count is closed.
+
+**The pass writing this section did the same thing, deliberately, three more times.**
+`docs/conventions/plugin-data-report-keying/CHANGELOG.md` 1.0.1 quotes the three pins it dropped, so
+the class stands at eighteen. They are keep-correct on the same ground as the twelve, and they are
+declared here rather than left for the next re-derivation to find. That is the only discipline
+available: the alternative is a changelog entry that does not say what it changed.
+
+### Three trees the sweep excluded by fiat
+
+The sweep's encapsulation floor scoped itself to `docs/**` and then dropped five subtrees. Two of the
+exclusions are defensible and stated as such: `docs/SKILL-CHEAT-SHEET.md` (162 citations, generated
+and CI drift-checked, so an edit is reverted by its generator) and `docs/upstream/` (vendored, not
+this repo's prose to style). **The other three rest on nothing.** `docs/specs/` (roughly 265 sites),
+`docs/topics/` (roughly 43) and `docs/adr/` (25) were excluded on the assertion that "the dated
+records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out of scope by the same test", and
+no carve-out in ADR 0018 authorizes any of it.
+
+The assertion is *probably* right and is *not* established. Under the amendment's test most of that
+population is evidence: dated records, and ADR bodies that quote what they cite. But "most of a
+265-site population is evidence" is a hypothesis about 265 sites, argued from the tree a citation
+lives in rather than from what the citation does, which is the form-over-function reasoning the
+amendment rejects. A tree-shaped exclusion is a carve-out; ADR 0018 grants none. Either the pass that
+resumes this samples the three trees and records the ruling, or the ADR gains the carve-out
+explicitly. It should not stay a habit.
+
+Counts re-derived for this record and rounded deliberately: the exact figure moves with the search
+expression, and per this file's own recall-limits discipline none of these numbers is a total.
+
+### A stale record found in passing, not an ADR matter
+
+`docs/MIGRATION-PLAYBOOK.md:943` carries the `dometrain` security-review record: "Reviewed at
+`0.1.0`; a version bump adding a new trust surface re-triggers this review." **The plugin's manifest
+reads `0.2.7` today** (`plugins/dometrain/.claude-plugin/plugin.json`, confirmed against
+`origin/main`). The trigger has had every opportunity to fire across those bumps and the review was
+never re-run, so the record asserts a currency it does not have.
+
+This is not a citation defect and does not belong to the encapsulation lane. It is logged here
+because the encapsulation pass kept that record's five file-and-frontmatter citations *on the
+strength of* its re-trigger clause, which means the clause was read and its own condition was not
+checked. Whoever re-runs the review owns the record; the citations are fine either way.
 
 ## Recall limits this run declares
 
