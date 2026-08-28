@@ -328,14 +328,25 @@ function reset(name) {
 # rather than assumed:
 #
 #   A capitalised modal opening a sentence or a markdown table cell ("May the
-#   build stay green", "| May fail on usage limits") reads as a month. Seven of
-#   the 24 capitalised "May" lines in the corpus are that shape. It over-reports
-#   into a bucket a human reads, which is the safe direction.
+#   build stay green", "| May fail on usage limits") reads as a month. Ten of the
+#   24 capitalised "May" lines are that shape and 14 are month dates, counted by
+#   reading all 24 at commit 3c538bcc. It over-reports into a bucket a human
+#   reads, which is the safe direction.
 #
-#   ALL-CAPS defeats case, so a digitless ALL-CAPS May date stays invisible. All
-#   34 ALL-CAPS "MAY" lines in the corpus are RFC-2119 modals and not one is a
-#   date, so reading that form as a month would cost 34 false candidates to buy a
-#   date form nobody writes.
+#   ALL-CAPS defeats case, so a digitless ALL-CAPS May date stays invisible. Not
+#   one of the 34 ALL-CAPS "MAY" lines is a date; they are permission modals, and
+#   reading that form as a month would cost 34 false candidates to buy a date
+#   form nobody writes.
+#
+# A known under-report, left rather than chased: this function returns on the
+# digit branch, so RSTART belongs to that match. When a digit-adjacent "may"
+# sits BEYOND the window and a capital "May" sits inside it, the guard in the
+# caller (RSTART <= wlen) rejects the out-of-window digit match and the in-window
+# capital is never consulted, so appending a stray "7 may" to a line can remove
+# its candidacy. No corpus line has this shape. Returning the leftmost of the
+# two matches would fix it; trying the capital branch first only mirrors the
+# bug. Both scripts inherit it identically, so their cross-script agreement
+# assertion cannot see it.
 #
 # match() leaves RSTART and RLENGTH set globally, so a caller that needs the
 # offset of the accepted match reads them straight after a true return.

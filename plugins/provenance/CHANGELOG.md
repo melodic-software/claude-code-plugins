@@ -117,15 +117,26 @@
   signal that separates these in edited prose. The rule now lives in a named `may_form()` carried
   at all three sites rather than three copied regexes.
 
-  **The case signal was measured on this corpus, not assumed.** Over 1,352 files: 1,458 lines carry
-  a lowercase `may`, overwhelmingly the modal; 24 carry a capital `May`, of which about 17 are month
-  dates and 7 are capitalised modals in table cells and bullets; and 34 carry an ALL-CAPS `MAY`, of
-  which **none is a date** — every one is an RFC-2119 modal. So two costs are accepted knowingly.
+  **The case signal was measured on this corpus, not assumed.** At `3c538bcc`, over 1,352 files:
+  1,458 lines carry a lowercase `may`, overwhelmingly the modal; 24 carry a capital `May`, of which
+  **14 are month dates and 10 are capitalised modals** in table cells, bullets and sentence
+  openings; and 34 carry an ALL-CAPS `MAY`, of which **none is a date** — they are permission
+  modals. So two costs are accepted knowingly.
   A capitalised modal opening a sentence or a cell now reads as a month when a stamp keyword sits
   in its window, which over-reports into a bucket a human adjudicates. And ALL-CAPS defeats case, so
   a digitless `MAY` date stays invisible; buying it back would mean reading `MAY` as a month, which
   on this corpus means 34 false candidates for a form nobody writes. Both are pinned by tests,
   including one named for the over-report so it is not rediscovered as a bug.
+
+  **A third cost is recorded and left rather than chased.** `may_form()` returns on the digit
+  branch, so `RSTART` belongs to that match; when a digit-adjacent `may` sits beyond the window and
+  a capital `May` sits inside it, the caller rejects the out-of-window digit match and never
+  consults the in-window capital. Appending a stray `7 may` to an otherwise valid line therefore
+  removes its candidacy — under-reporting, the direction this fix exists to prevent. No corpus line
+  has that shape. Returning the leftmost of the two matches would fix it; trying the capital branch
+  first only mirrors the bug, so the obvious one-line swap is not a fix. Both scripts inherit it
+  identically, so their cross-script agreement assertion is blind to it, exactly as it was to the
+  original regression. Recorded at the rule so the next reader is warned rather than surprised.
 
   **The suites could not have caught this, which is the part worth keeping.** They assert that both
   scripts return the same count over a shared fixture — an assertion that passes when both are
@@ -134,10 +145,24 @@
   likely. The new cases pin a **non-zero** expected count in both suites, so agreement is now
   backed by a known answer rather than by two implementations nodding at each other.
 
-  Corpus effect of the correction: **none.** Candidates, parsed, declined and findings are all
-  unchanged at 527 / 499 / 28 / 0, because this corpus carries no digitless-May stamp today. The
-  regression was latent here and real in principle; the shapes the reviewers named are ordinary
-  ones this corpus simply does not happen to contain.
+  Corpus effect of the correction, **at `3c538bcc`**: none. Candidates, parsed, declined and
+  findings all unchanged at 527 / 499 / 28 / 0, the two JSON products byte-identical, because the
+  corpus carried no digitless-May stamp at that commit. The regression was latent there and real in
+  principle.
+
+  **It stopped being latent one commit later, and this entry is why.** The paragraph above quotes
+  `Verified this May` as an example of the shape, inside a `verified` keyword window, in a file the
+  corpus scans. So from the commit that documents the fix onward the corpus does carry a
+  digitless-May stamp — the one written to explain that it carried none. Measured at `a827aa58`:
+  529 / 499 / 30 post-fix against 528 / 499 / 29 pre-fix, an effect of +1 candidate rather than
+  none.
+
+  That is the fourth time on this branch that prose about a detector has moved what the detector
+  reports, after the stale Phase 6 baseline, the figures that went stale as the entry describing
+  them was written, and a count that changed when the branch base was repaired. The rule this file
+  keeps relearning is the one it already states: **a count over a corpus that includes this
+  repository is a reading at a commit, and it needs the commit attached or it will not reproduce.**
+  Every figure in this entry now carries one.
 
   Three sites changed, not two: both detectors and **the classifier in `check-stamps.sh`**, which
   a single-site fix would have missed and which decides the decline reason a human then reads.
