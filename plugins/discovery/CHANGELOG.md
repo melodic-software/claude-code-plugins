@@ -1,5 +1,24 @@
 # Changelog — discovery plugin
 
+## [0.16.17]
+
+### Fixed
+
+- **`reference/topic-docs.md` cited its three agent definitions by a path that
+  resolved against nothing.** The return-payload sentence named `agents/explorer.md`,
+  `agents/researcher.md` and `agents/intent-tracer.md`, whose implied base is the
+  plugin root while their real base is `reference/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. All three now carry `${CLAUDE_PLUGIN_ROOT}/`, the form the
+  next sentence of the same paragraph already uses for the three dispatch docs.
+  This file is not fetched from outside the plugin, so the anchored form resolves
+  for every reader it has and the invocation is not needed.
+
+  Found by the round verifying the sweep's own third derivation. That derivation
+  was `skills/`-scoped and therefore blind by construction to citations naming no
+  skill, which is why three defects of the same class survived it three lines
+  above rows the sweep had already closed.
+
 ## [0.16.16]
 
 ### Changed

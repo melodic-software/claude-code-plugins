@@ -200,7 +200,7 @@ is in the second one. Matching a lyric to a *model lyric* (verse 2 against verse
 *melody* — the frame of this whole file — a mismatch in **either** direction is
 a greedy spot, because either one fights the bar. That two-frame split is the
 plugin's, not Pat's, and it is stated the same way in `prosody.md`, `meter.md`
-and `skills/meter-prosody/SKILL.md`; keep the four consistent.
+and `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md`; keep the four consistent.
 
 Pat's printed passage, which is the *model-lyric* frame:
 

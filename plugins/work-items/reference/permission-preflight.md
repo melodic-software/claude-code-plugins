@@ -42,7 +42,8 @@ matching "arbitrary-code-execution patterns" as routed through the classifier re
 defining that pattern set precisely enough to say which side a script invocation (`work-item-tracker.sh
 reclaim <id>`) falls on. Do not write a rule into the standards floor on the strength of this doc
 alone; confirm the carve-out first. `/work-items:work`'s Step 0 treats a classifier denial of
-`reclaim` as a non-blocking, report-once-and-skip condition (see `skills/work/SKILL.md` "Step 0") —
+`reclaim` as a non-blocking, report-once-and-skip condition (see
+`${CLAUDE_PLUGIN_ROOT}/skills/work/SKILL.md` "Step 0") —
 that is the current mitigation; a permission-rule fix, if one applies, still lives operator-side per
 the pattern above.
 

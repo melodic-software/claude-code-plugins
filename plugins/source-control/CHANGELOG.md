@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.30]
+
+### Fixed
+
+- **`reference/config-resolution.md` cited `babysit-prs` by a path that resolved
+  against nothing.** The autonomy-table pointer read
+  `skills/babysit-prs/SKILL.md`, whose implied base is the plugin root while its
+  real base is `reference/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. It now names the public invocation,
+  `/source-control:babysit-prs`, keeping the section name.
+
+  **The `${CLAUDE_PLUGIN_ROOT}` form this fix first took was wrong for the reader
+  that most needs it.** `work-items`'s `work` skill fetches this file over
+  `raw.githubusercontent.com`, and for that reader `${CLAUDE_PLUGIN_ROOT}` denotes
+  the `work-items` installation, so the anchor resolved to a `babysit-prs` skill
+  that does not exist there. This sentence is the doc's address for the autonomy
+  obligation, which is the case
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  2026-08-28 amendment routes to the invocation rather than to a path whose
+  meaning depends on which plugin fetched the document. Found by a third
+  derivation over the plugin-level `reference/`, `context/` and `agents/` trees
+  whose predecessor could not see citations of a `SKILL.md` itself; the remedy
+  corrected by review before merge.
+
 ## [0.55.29]
 
 ### Changed

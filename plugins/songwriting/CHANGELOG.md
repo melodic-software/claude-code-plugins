@@ -3,6 +3,20 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.18]
+
+### Fixed
+
+- **`lyric-melodic-roadmaps.md` cited `meter-prosody` by an unresolvable path.** The
+  keep-these-four-consistent sentence named `prosody.md` and `meter.md`, which are siblings and
+  resolve, alongside `skills/meter-prosody/SKILL.md`, whose implied base is the plugin root while
+  its real base is `context/pat-pattison/research/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. It now reads `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md`, the
+  anchored form this `research/` tree already uses for the Datamuse script. The sentence is the
+  plugin's own prose, not printed Pat Pattison text, so the distilled-corpus exclusion does not
+  cover it. Intra-plugin citation, legal under clause 1; clause 3 only, so the target is unchanged.
+
 ## [1.4.17]
 
 ### Added
