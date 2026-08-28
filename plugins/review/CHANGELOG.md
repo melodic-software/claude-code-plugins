@@ -3,6 +3,33 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.13]
+
+### Changed
+
+- **Dynamic-context probe fallback made reachable, and its `allowed-tools` grant moved with it.**
+  `quality-gate`'s working-tree-status injection piped its probe into `head` before `||`, so the
+  fallback could never run and a failed probe rendered an empty string under a label that reads as a
+  clean tree. The fallback now sits in a brace group with the probe and the cap applies outside it.
+  This skill is the fleet's only site whose `allowed-tools` entry is a byte copy of the injection it
+  authorizes, so the grant was rewritten in the same edit; changing only the injection would have
+  left the skill unable to run its own probe. The grant does not widen — old and new each authorize
+  exactly one command shape. Whole-repo extract-ssot sweep.
+
+## [0.26.12]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/code-review/SKILL.md`, `skills/quality-gate/context/close-out.md`.** Fixed pointers and cross-references that did not resolve; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.26.11]
+
+### Changed
+
+- **`fanout`'s cross-skill citation of `quality-gate/context/pr.md` uses the anchored form.** The link
+  target resolved; the code span beside it did not, since a bare path resolves against the citing
+  skill's own directory. Coupling pass, apply lane; text only.
+
 ## [0.26.10]
 
 ### Changed

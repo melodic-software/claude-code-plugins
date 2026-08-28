@@ -153,8 +153,8 @@ failure surfaces before the PR exists rather than a CI round trip later.
 the calls that bypass the skill.
 
 Enforcement is keyed to the consuming repository's own policy: it runs only
-where `.github/workflows/pr-issue-linkage.yml` exists, and a body the hook
-cannot read statically always passes, an unexpanded variable, an absent body
+where `.github/workflows/pr-issue-linkage.yml` exists. A body the hook
+cannot read statically always passes: an unexpanded variable, an absent body
 flag, a body flag with no value, an unreadable file, a `--repo`-targeted
 invocation, or a call following a `cd`/`pushd` on the same command line, which
 moves the directory the gate file and any relative `--body-file` resolved
@@ -215,9 +215,9 @@ off; the script remains the documented gate.
   (`fetch-failed-logs`), which exits with a remediation message when it is
   absent. Transient CI-log scratch goes to `${CLAUDE_PLUGIN_DATA}` (or
   `mktemp`).
-- **Graceful degrade.** Adjacent capabilities, review agents, a simplifier,
+- **Graceful degrade.** Adjacent capabilities (review agents, a simplifier,
   a verify skill, a research skill, a work-item tracker, a CI-log-audit
-  agent, a GitHub-events push channel, are used when your environment
+  agent, a GitHub-events push channel) are used when your environment
   provides them and replaced by inline guidance when absent. No phase blocks
   on a missing tool.
 - **Reads your conventions, assumes none.** Commit-subject / PR-title

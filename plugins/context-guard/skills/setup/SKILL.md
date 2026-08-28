@@ -156,7 +156,7 @@ zone bands, zones.json shape) are owned by
 5. **zones.json state**, read-only report: absent (shipped defaults in effect, percentage 50/75
    plus the window-class token bands; valid zero-config state, not a defect), present and valid
    (report the bands in effect, both shapes), or present with a malformed shape (report per shape
-the resolver validates percentage keys and `token_bands` independently and falls back per
+   — the resolver validates percentage keys and `token_bands` independently and falls back per
    shape with a stderr notice; a v1 file without `token_bands` is valid, with shipped token bands
    silently in effect; remediation: `apply`). Note the hooks resolve zones through this same data: a machine with no snapshots gets silent hooks, not errors.
 6. **Hook registration vs hook activation**. THREE separate facts, never collapsed into one
@@ -215,9 +215,10 @@ result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` any
   Otherwise overwrite it (this is the update path after a plugin version bump changes the shim)
   and report the `# shim-revision:` values, old → new.
 - The shim is **inert until wired**: installing it starts nothing. Only the operator's
-  `settings.json` edit. Step 7 of `check`, which this skill never applies. Puts it on the
+  `settings.json` edit — step 7 of `check`, which this skill never applies — puts it on the
   statusline path. Say that explicitly when reporting the write.
-- After installing, print the wiring edit (`check` step 7). Honoring that step's exceptions, so the operator's next action is in front of them when there is one, and note that a
+- After installing, print the wiring edit (`check` step 7) — honoring that step's exceptions —
+  so the operator's next action is in front of them when there is one, and note that a
   statusline already wired to the shim needs NO change now or on any future plugin update.
 
 ### B. Seed or refresh the zones SSOT
@@ -250,7 +251,8 @@ Seed or refresh `~/.claude/context-guard/zones.json` from the shipped defaults
    - `apply defaults`: set ALL recognized band keys (both percentage keys and `token_bands`) to
      the shipped defaults explicitly. This converges forward to a known state; it is not teardown,
      and it never removes the file or any key it does not recognize.
-   - Both modes **preserve every unrecognized key semantically**. Same keys, same JSON values (the file is a shared SSOT the operator's own statusline may extend). Preservation is
+   - Both modes **preserve every unrecognized key semantically** — same keys, same JSON values —
+     (the file is a shared SSOT the operator's own statusline may extend). Preservation is
      value-level, not lexical: a `jq` merge reserializes the document, so formatting and escape
      spellings may normalize (`"blue"` → `"blue"`); consumers of this file must parse it as
      JSON, never depend on its raw bytes. Use `jq` to merge so the result stays valid JSON. If

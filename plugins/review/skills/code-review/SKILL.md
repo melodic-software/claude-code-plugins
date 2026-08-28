@@ -64,7 +64,7 @@ Report only findings a careful senior reviewer would block or flag. Exclude:
 - Anything a linter, formatter, typechecker, or trivial static check catches
 - Pre-existing issues on untouched lines
 - Generic advice, style nits, and "consider adding tests" without a concrete gap
-- Security findings that belong on the security lane (see skip above)
+- Security findings that belong on the security lane (see "Gotchas" above)
 
 ## Adversarial validation (V2 target)
 

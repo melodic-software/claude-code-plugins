@@ -62,7 +62,7 @@ tool that needs it, so long-running workflows can route heavy work away from a d
   cannot trust, never a fabricated zone. The shipped bands are declared judgment defaults: no
   official auto-compaction threshold is documented (verified 2026-07-24); `zones.json` is the
   tuning path. The trigger itself is operator-tunable even though its default is unpublished: `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and
-  `autoCompactEnabled` / `DISABLE_AUTO_COMPACT`, and bands belong **below** whatever it resolves
+  `autoCompactEnabled` / `DISABLE_AUTO_COMPACT`. Bands belong **below** whatever it resolves
   to, normalized into the percentage shape, so the session reaches a boundary decision before the
   harness compacts for it. Note that `used_percentage` always measures against the model's *full*
   window, so a lowered auto-compact window no longer shows up in the percentage. The reader
@@ -98,7 +98,7 @@ flags legacy version-pinned wiring if you have it.
 
 ## Requirements
 
-The scripts run on Bash (Git Bash on native Windows. Install
+The scripts run on Bash (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows); the statusline wiring
 invokes `bash` explicitly) and need [`jq`](https://jqlang.org/download/) on `PATH` for the tee, the
 zone resolver, and the standalone statusline. The snapshot updates only while an interactive
@@ -118,7 +118,7 @@ true), `zone_hook_mode` (`advisory` default | `blocking`), and `zone_gate_grace_
 mode's grace budget, in-script default 20). The snapshot path and the 10-minute staleness rule are
 deliberately **not** configurable: they are contract constants that cross-plugin consumers inline
 from the [reader contract](reference/reader-contract.md); a per-user override would silently split
-the writer from its readers. Band numbers are the one tunable. Via
+the writer from its readers. Band numbers are the one tunable, via
 `~/.claude/context-guard/zones.json` (shape in the reader contract), which the operator's own
 statusline display may read too, so display and consumers never drift. Disabling the tee is the
 operator's edit (remove or unwrap the statusline command); disabling everything is

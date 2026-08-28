@@ -357,8 +357,8 @@ Default chain:
 2. **Object-write the seed's world** — 10 minutes (per [object writing](object-writing.md)).
 3. **Mine** — strongest image, surprising verb, specific noun, title
    fragments.
-4. **Generate 10-15 title candidates** across Pat's 7 title types (per
-   [hook](hook.md) "title generation").
+4. **Generate 10-15 title candidates** across the 7 title types (this
+   plugin's, not Pat's; per [hook](hook.md) "title generation").
 5. **Stressed-vowel analysis** per candidate (stress count, vowel, front-/
    back-heavy).
 6. **Rhyme stability test** per candidate (per [rhyme-generation](rhyme-generation.md)).

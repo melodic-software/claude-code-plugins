@@ -594,6 +594,24 @@
         "realign",
         "skill"
       ]
+    },
+    {
+      "name": "provenance",
+      "displayName": "Provenance",
+      "source": "./plugins/provenance",
+      "category": "quality",
+      "tags": [
+        "provenance",
+        "citation",
+        "attribution",
+        "copied-content",
+        "upstream-drift",
+        "documentation",
+        "detector",
+        "prose",
+        "audit",
+        "skill"
+      ]
     }
   ],
   "renames": {

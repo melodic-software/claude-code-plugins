@@ -9,7 +9,7 @@ shell: bash
 
 ## Pre-computed context
 
-Last upstream sync: !`grep -m1 '^- Last sync:' "${CLAUDE_SKILL_DIR}/UPSTREAM.md" 2>/dev/null | sed 's/^- //' || echo "never — run this skill with --check"`
+Last upstream sync: !`grep -m1 '^- Last sync:' "${CLAUDE_SKILL_DIR}/UPSTREAM.md" >/dev/null 2>&1 && grep -m1 -o 'Last sync:.*' "${CLAUDE_SKILL_DIR}/UPSTREAM.md" 2>/dev/null || echo "never — run this skill with --check"`
 
 ## Purpose
 

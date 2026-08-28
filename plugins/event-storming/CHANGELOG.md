@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.7]
+
+### Changed
+
+- **Authoring-doctrine pass over `skills/methodology/SKILL.md`, `skills/simulation/reference/agentic-simulation.md`, `skills/simulation/reference/iteration-workflow.md`.** Fixed pointers and cross-references that did not resolve; a recap that had drifted from the source it cites. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.6.6]
 
 ### Changed

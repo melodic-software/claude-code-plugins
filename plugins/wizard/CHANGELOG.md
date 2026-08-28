@@ -3,7 +3,7 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.4]
+## [0.2.5]
 
 ### Added
 
@@ -20,6 +20,12 @@ All notable changes to the `wizard` plugin are documented here. Format follows
   proves the no-TTY guard on the unmodified file. Closes the gap where the file mapped to no test
   suite at all under `scripts/affected-tests.sh`, which the repo treats as an error rather than as
   nothing to run.
+
+## [0.2.4]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.2.3]
 

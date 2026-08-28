@@ -4,8 +4,8 @@ A Claude Code plugin that formats Go files and manages their imports the
 moment you edit them. On every `Write` or `Edit` of a `.go` file it runs
 [goimports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports)'s `-w`,
 which adds missing imports, removes unused ones, and applies `gofmt`-
-equivalent formatting, then surfaces any syntax error goimports can't parse
-back to Claude as advisory context.
+equivalent formatting. When `goimports` can't parse the file, the hook
+surfaces the syntax error back to Claude as advisory context.
 
 ## Behavior
 

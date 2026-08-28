@@ -1,0 +1,11 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "Hard negative. Both borrowings are presented as quotations and attributed adjacent to the quoted text: a blockquote with a trailing source line carrying title, URL and read date, and an inline quoted span with its citation in the same sentence.",
+    "carve_outs": "Quotation contexts applies, and it is the reason there is no finding. Carve-outs are evaluated before any criterion, so no criterion is graded here.",
+    "rubric": "Not graded. Had it been, C3 would fail on both borrowings: the attribution names what, to where, and as of when, adjacent to the material it covers.",
+    "measured": "fingerprint.mjs at k=5: containment 0.031, jaccard 0.012, longest matched span 7 words. The separation rule does NOT fire on either limb, so this case is a negative on the deterministic evidence alone, not only on the carve-out.",
+    "residue": "Both borrowings strip to nothing: the blockquote by line, and the inline quotation across the line break it is wrapped over. Inline stripping runs over the paragraph rather than one line at a time, so an opening mark unpaired on its own line still finds its partner on the next; it was the earlier per-line behavior that left a 12-word residue here at containment 0.1. The 7 words that remain at local line 20 are the citation URL matching the source page's own canonical-location line, not quoted prose, and they stay in on purpose: a URL naming the source is evidence of attribution rather than of copying. Carve-out 3 still decides this case, because a stripper that follows quotation marks cannot see a borrowing that carries none. A run that reports a finding here has failed the case; a run that reports the URL overlap as evidence and then clears the candidate under the carve-out has not."
+  }
+}

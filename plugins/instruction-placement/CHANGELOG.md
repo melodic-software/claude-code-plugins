@@ -17,20 +17,31 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   false 1 is the unrecoverable error. `adherence-results.md` carries a correction noting that the
   recorded run's `underscore` and `both` columns were constants, not measurements; the conclusion
   is unchanged, since it rests on the `sealed` criterion, which was scored correctly.
+- **Both class matches now require a non-identifier boundary after the name.** `InvoiceTotal` is a
+  prefix of `InvoiceTotals` and `InvoiceTotalizer`, so a trial that produced a differently named
+  class scored full compliance on both criteria. The boundary still admits the three shapes that
+  occur here: the bare name, `InvoiceTotal {`, and `InvoiceTotal(decimal seed);`.
+- **The underscore criterion credits a FIELD, not any member carrying an underscore name.** The
+  convention is about field naming, but the match accepted an auto-property
+  (`private decimal _total { get; set; }`), an expression-bodied property (`private decimal _Total
+  => x;`) and a method (`private decimal _GetTotal() => x;`). The name must now be followed by a
+  `;` or by an initializer `=` that is not the `=>` of an expression-bodied member. A
+  multi-declarator line credits on its first name only, per the same under-crediting bias.
 - **The usage banner documents `--filler`.** The flag has always been parsed, and
   `adherence-results.md` gives `--filler 120` as the re-run command, but neither the banner nor the
   header comment listed it.
 
 ### Added
 
-- **`adherence-experiment.test.sh` covers the experiment harness.** 49 cases driving the harness
+- **`adherence-experiment.test.sh` covers the experiment harness.** 52 cases driving the harness
   through a stub CLI, so every trial's output is controlled and nothing is skipped: argument
   validation and the exit-3 unmeasurable path, arm construction (identical filler and identical
   seed file in both arms, the convention delivered inline in one and as a `**/*.cs` path-scoped
-  rule in the other), scoring asserted in both directions and against the three C# shapes that
-  decide whether a field from another class is credited, per-trial reset, the ERROR row for a
-  failed trial and its exclusion from the arm's `n`, and fixture cleanup. The file previously
-  mapped to no suite under `scripts/affected-tests.sh`.
+  rule in the other), scoring asserted in both directions, against the three C# shapes that decide
+  whether a field from another class is credited and the three near misses that carry the right
+  characters in the wrong construct, per-trial reset, the ERROR row for a failed trial and its
+  exclusion from the arm's `n`, and fixture cleanup. The file previously mapped to no suite under
+  `scripts/affected-tests.sh`.
 
 ## [0.11.10]
 

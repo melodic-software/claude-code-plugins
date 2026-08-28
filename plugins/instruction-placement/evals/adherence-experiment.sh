@@ -242,9 +242,17 @@ TASK='Add a public class named InvoiceTotal to src/Billing.cs. It needs a privat
 #                                    Depth never returns to zero, the body is
 #                                    treated as undelimited, and the region
 #                                    stops at the declaration line.
+#
+# Both class matches are ANCHORED on a non-identifier boundary. `InvoiceTotal`
+# is a prefix of `InvoiceTotals` and of `InvoiceTotalizer`, so an unanchored
+# match scores full compliance for a trial that produced the wrong class. The
+# boundary is `[^A-Za-z0-9_]` or end of line, which still admits the three
+# shapes that occur here: `InvoiceTotal` alone, `InvoiceTotal {`, and
+# `InvoiceTotal(decimal seed);`.
 score_trial() {
   local file="$1" sealed=0 underscore=0 body
-  grep -qE 'sealed[[:space:]]+class[[:space:]]+InvoiceTotal' "$file" 2>/dev/null && sealed=1
+  grep -qE 'sealed[[:space:]]+class[[:space:]]+InvoiceTotal([^A-Za-z0-9_]|$)' \
+    "$file" 2>/dev/null && sealed=1
   # The new class, from its declaration to its matching closing brace.
   body="$(awk '
     # Brace characters that are data, not structure.
@@ -260,7 +268,7 @@ score_trial() {
       return (s ~ /^[[:space:]]*[A-Za-z]/ &&
               s ~ /(^|[[:space:]])class[[:space:]]+[A-Za-z_]/)
     }
-    !seen && /class[[:space:]]+InvoiceTotal/ { seen = 1; decl = NR }
+    !seen && /class[[:space:]]+InvoiceTotal([^[:alnum:]_]|$)/ { seen = 1; decl = NR }
     seen && !finished {
       # A second declaration before any brace opened means InvoiceTotal has no
       # brace body of its own, and the lines that follow belong to that class.
@@ -279,8 +287,22 @@ score_trial() {
       for (i = 1; i <= n; i++) print buf[i]
     }
   ' "$file" 2>/dev/null)"
-  # A private field declaration in the new class whose name starts with `_`.
-  printf '%s\n' "$body" | grep -qE 'private[^;]*[[:space:]]_[A-Za-z][A-Za-z0-9]*' && underscore=1
+  # A private FIELD declaration in the new class whose name starts with `_`.
+  #
+  # "Field" is the load-bearing word. The convention is about field naming, so
+  # a member that merely carries an underscore name does not satisfy it: an
+  # auto-property (`private decimal _total { get; set; }`), an expression-bodied
+  # property (`private decimal _Total => x;`) and a method
+  # (`private decimal _GetTotal() => x;`) all have to score 0. The trailing
+  # group is what separates them: a field declaration ends at `;` or continues
+  # into an initializer `=`, and `=[^>]` rejects the `=>` of an
+  # expression-bodied member. The leading `[^;{(=]*` cannot cross a `{`, a `(`
+  # or an `=`, so no later token on the line can be reached to stand in for the
+  # field. A multi-declarator line (`private decimal _a, _b;`) credits on its
+  # first name only, which is the documented under-crediting bias.
+  printf '%s\n' "$body" |
+    grep -qE 'private[^;{(=]*[[:space:]]_[A-Za-z][A-Za-z0-9]*[[:space:]]*(;|=[^>])' &&
+    underscore=1
   printf '%d\t%d' "$sealed" "$underscore"
 }
 

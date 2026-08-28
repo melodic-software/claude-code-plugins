@@ -14,11 +14,15 @@ when producing rewritten lines). NAME each box's pass / fail / skip-with-reason 
 reasoning); correct before emission. Skips are valid; silent skips are not. List-and-leave
 critique is the default this filter catches.
 
-`variations` and `rewrite` EMIT lines, and §2 has not been run until the files on its own
-**Reference:** line have been read: [meter](../../context/pat-pattison/research/meter.md) and
-[phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate is written,
+`variations` and `rewrite` EMIT lines. §2's **Reference:** line is a load list, not a bibliography:
+§2 has not been run until the files it names have been read this session, at minimum
+[meter](../../context/pat-pattison/research/meter.md) and
+[phrasing](../../context/pat-pattison/research/phrasing.md) before the first candidate,
 plus [metaphor](../../context/pat-pattison/research/metaphor.md) when the fix calls for an image or
-a figure. The Action Router's `Load` column below is a routing hint; this is a precondition of
+a figure. Naming the §2 boxes while those files were never opened attests to the filter instead of
+applying it, per
+[response-filter](../../context/pat-pattison/research/response-filter.md) "§2 Line-writing filter".
+The Action Router's `Load` column below is a routing hint; this is a precondition of
 emission, a candidate table written before those files were opened has run on model priors, which
 is the failure §2 exists to catch, and naming the §2 boxes does not undo it. On top of that, §2's
 boxes are cycled inside
@@ -77,10 +81,11 @@ No action → route on completion stage (partway draft → `demo`; near-complete
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md), and honor a
-consuming project's own songwriting layout when it defines one. Before loading any bundled
-`templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
-first, a project-level override wins over the bundled default.
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
+"Where generated work persists", and honor a consuming project's own songwriting layout when it
+defines one. Before loading any bundled `templates/<name>.md`, check
+`${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
+override wins over the bundled skill default, first match, per that file's "Template override".
 
 ## Related skills
 

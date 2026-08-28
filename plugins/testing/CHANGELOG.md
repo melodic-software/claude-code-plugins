@@ -3,6 +3,39 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.12]
+
+### Changed
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
+- **`audit`: the findings-file producer preamble regains three dropped clauses.** This skill states
+  the producer contract as a numbered `apply` step rather than as a `persist-findings.md` preamble,
+  and that compression had dropped the shape's authority, the self-ignore guard, and the whole
+  "where the contract and this file disagree, the contract wins" rule. The step keeps its own form
+  and carries all three again. The four `persist-findings.md` surfaces this sweep touched are
+  byte-identical apart from their run-name slot; this one is deliberately not, and
+  `provenance:audit`'s later preamble is a sixth surface outside that set. Whole-repo extract-ssot
+  sweep.
+
+## [0.7.11]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.7.10]
+
+### Changed
+
+- **`run-e2e`'s outcome handoff carries its presence gate in the file that executes it.** `SKILL.md`
+  gated the `/verification:confirm outcome` step on the `verification` plugin being installed and gave
+  a fallback; `context/e2e.md` — which `SKILL.md` names as where the workflow steps live — restated the
+  same step with neither half. The executed copy now matches the owner. Coupling pass, apply lane.
+
 ## [0.7.9]
 
 ### Changed

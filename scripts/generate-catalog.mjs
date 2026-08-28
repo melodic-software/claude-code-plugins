@@ -18,13 +18,18 @@ const root = join(import.meta.dirname, "..");
 const outputPath = join(root, "docs", "CATALOG.md");
 const outputLabel = relative(root, outputPath).split(sep).join("/");
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
+const taxonomyPath = join(root, "docs", "CATALOG-TAXONOMY.md");
+const taxonomyLabel = relative(root, taxonomyPath).split(sep).join("/");
 
 const START = "<!-- catalog:start -->";
 const END = "<!-- catalog:end -->";
 
 // Category render order, conforming to the vocabulary tiers owned by
 // docs/CATALOG-TAXONOMY.md (lifecycle spine, then domain-and-cross-cutting).
-// The generator conforms to that document; it does not redefine the vocabulary.
+// The generator conforms to that document; it does not redefine the vocabulary
+// — and taxonomyCategories() below holds it to that: the list here is asserted
+// equal, in order, to the document's own tables on every run, so editing one
+// side without the other fails --check instead of drifting quietly.
 const CATEGORY_ORDER = [
   "discovery",
   "design",
@@ -46,6 +51,49 @@ const CATEGORY_ORDER = [
   "personal",
 ];
 const KNOWN_CATEGORIES = new Set(CATEGORY_ORDER);
+
+// The document's own statement of the vocabulary: the backticked first column
+// of the two tier tables under "## Vocabulary", in document order. This is a
+// deliberately narrow parse of a stable shape, not a markdown engine — and it
+// FAILS CLOSED on shape: a reworked section that yields no rows, or rows this
+// pattern no longer matches, throws rather than returning a shorter list that
+// happens to compare equal to a shorter CATEGORY_ORDER.
+function taxonomyCategories() {
+  const text = readFileSync(taxonomyPath, "utf8");
+  const section = text.match(/^## Vocabulary$([\s\S]*?)(?=^## )/m);
+  if (!section) {
+    throw new Error(
+      `${taxonomyLabel}: no "## Vocabulary" section followed by another "## " heading; ` +
+        "the taxonomy parity check cannot read the vocabulary it asserts against.",
+    );
+  }
+  const values = [...section[1].matchAll(/^\| `([a-z][a-z0-9-]*)` \|/gm)].map((m) => m[1]);
+  if (values.length === 0) {
+    throw new Error(
+      `${taxonomyLabel}: the "## Vocabulary" section yields no \`category\` table rows; ` +
+        "the taxonomy parity check cannot read the vocabulary it asserts against.",
+    );
+  }
+  return values;
+}
+
+// One-way gates existed before this: an unknown category in marketplace.json
+// hard-errors below, but nothing compared CATEGORY_ORDER back to the document
+// that claims sole ownership of the vocabulary. Assert full order equality on
+// every run (generate and --check both), so a value added, dropped, renamed,
+// or reordered on either side is loud.
+{
+  const documented = taxonomyCategories();
+  if (JSON.stringify(documented) !== JSON.stringify(CATEGORY_ORDER)) {
+    throw new Error(
+      `CATEGORY_ORDER disagrees with ${taxonomyLabel}'s vocabulary tables.\n` +
+        `  document:  ${documented.join(", ")}\n` +
+        `  generator: ${CATEGORY_ORDER.join(", ")}\n` +
+        `${taxonomyLabel} owns the vocabulary; update CATEGORY_ORDER to match it ` +
+        "(or land the taxonomy change there first).",
+    );
+  }
+}
 
 function heading(category) {
   return category

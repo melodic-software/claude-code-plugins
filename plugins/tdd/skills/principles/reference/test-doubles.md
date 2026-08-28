@@ -151,7 +151,7 @@ Beck focuses on the *mechanics* of test doubles (how to build them). Khorikov fo
 
 **Key difference:** Beck's Self Shunt and Log String patterns verify intra-system interactions (the test case implements the interface). Khorikov explicitly warns against this for domain classes — inter-domain interactions are implementation details. Use Beck's patterns for verifying *external-facing* communication; use Khorikov's taxonomy to decide whether to mock at all.
 
-For full details: [observable-behavior-khorikov.md](observable-behavior-khorikov.md) (mock/stub taxonomy, CQS), [integration-testing-khorikov.md](integration-testing-khorikov.md) (managed vs unmanaged, mocking best practices).
+Mock/stub taxonomy and CQS in full: [observable-behavior-khorikov.md](observable-behavior-khorikov.md). Managed vs unmanaged dependencies and the mocking best practices: [integration-testing-khorikov.md](integration-testing-khorikov.md).
 
 ## Replace, Don't Layer (Ousterhout)
 

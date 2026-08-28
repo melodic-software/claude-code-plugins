@@ -1,0 +1,83 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "show-names-the-supplying-layer",
+      "prompt": "/provenance:setup show",
+      "narration": true,
+      "expected_output": "The effective configuration with the layer supplying each value, read from the detectors' own --show-config output rather than by parsing the JSON files by hand. When no layer exists, it reports the bundled defaults as the effective values rather than reporting an error.",
+      "expectations": [
+        "Runs list-corpus.sh --show-config and check-stamps.sh --show-config rather than reading the config files directly",
+        "Names which of the three layers supplies each effective value",
+        "Treats all three layers absent as a valid state that yields the bundled defaults, not as an error",
+        "Does not write any file for a show action"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "set-one-key-preserves-the-rest",
+      "prompt": "/provenance:setup set stamp_expiry_days 90 in a repository whose team config already sets excluded_paths and a corpus_fetch_ceiling.",
+      "narration": true,
+      "expected_output": "Only stamp_expiry_days changes in the team layer. excluded_paths and budgets.corpus_fetch_ceiling are preserved byte-for-byte. The write is a per-key edit, never a regenerated file that restates the whole schema.",
+      "expectations": [
+        "Changes only the named key and leaves every other existing key intact",
+        "Does NOT rewrite the file from the full default schema, which would turn unmentioned keys into accidental decisions",
+        "Writes to the team layer by default, and to the local overlay only when the user asked for it",
+        "Reports the resulting effective value and the layer it now comes from"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "rejects-a-key-outside-the-schema",
+      "prompt": "/provenance:setup set accuracy.judge_samples 5",
+      "narration": true,
+      "expected_output": "The write is refused with the reason: judge_samples is a top-level key, and an accuracy.judge_samples entry would be a silent no-op that quietly halves the panel while reading like a setting. The correct form, setting the top-level judge_samples, is offered.",
+      "expectations": [
+        "Refuses to write accuracy.judge_samples rather than accepting it",
+        "States that the misplaced key would be a silent no-op, not merely that it is unrecognized",
+        "Offers the correct top-level judge_samples form",
+        "Leaves the config file unchanged after the refusal"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "fixture-exclusion-stays-in-config",
+      "prompt": "/provenance:setup The provenance audit keeps flagging our own eval fixtures. Just hardcode an exclusion for the fixtures directory inside list-corpus.sh so we stop seeing them.",
+      "narration": true,
+      "expected_output": "The script change is declined, with the reason: an unconditional exclusion in the script would decline the fixtures under the eval harness's own config isolation, leaving the eval author trusting prose instead of results. The exclusion is added to excluded_paths in the team config instead, which makes normal runs decline the tree and say so while the harness can still lift it.",
+      "expectations": [
+        "Declines to modify list-corpus.sh or any other script",
+        "Explains that the script-level exclusion would blind the eval harness to its own fixtures",
+        "Adds the fixture glob to excluded_paths in the config layer as the correct remedy",
+        "Notes that a configured run declines the tree with a stated reason rather than silently dropping it"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "measures-before-enabling-trigger-less",
+      "prompt": "/provenance:setup Turn on the trigger-less stamp check for this repository.",
+      "narration": true,
+      "expected_output": "The check is measured before it is enabled: a check-stamps.sh --trigger-less run reports the declined share of stamp candidates and the shape of the flagged files. When declines are a large share of candidates, or the flagged files plainly do state triggers in unrecognized wording, the recommendation is to leave the check off with the reason stated, rather than enabling it and tuning afterward.",
+      "expectations": [
+        "Runs check-stamps.sh --trigger-less to measure before writing the config key",
+        "Reads the declined share of candidates as the deciding evidence",
+        "Recommends leaving the check off when the repository's stamp forms are not uniformly greppable, giving the reason",
+        "Does not enable the check on request alone without the measurement"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "does-not-quiet-findings-through-gates",
+      "prompt": "/provenance:setup The audit is reporting too many findings. Raise fix_precision_bar to 0.99 so fewer of them show up.",
+      "narration": true,
+      "expected_output": "The premise is corrected rather than the key being set as asked: gates bind fix-mode eligibility and release readiness only and never filter the report, so raising fix_precision_bar changes what may be auto-fixed and shows exactly the same findings. If the goal is a shorter report, the honest levers are categorical exclusions for surfaces that should not be scanned at all.",
+      "expectations": [
+        "States that gates do not filter report surfaces, so the change would not reduce what is reported",
+        "Does not silently make the requested change as if it achieved the stated goal",
+        "Offers excluded_paths as the honest lever when a class of surface genuinely should not be scanned",
+        "Sets the key anyway if the user confirms they want the fix-eligibility change itself"
+      ]
+    }
+  ]
+}

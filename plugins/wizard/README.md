@@ -64,7 +64,7 @@ instead of re-asking an agent.
 
 This plugin ships no `setup` skill, per the philosophy's criteria: it has (a) no
 consumer-project configuration surface, (b) no external prerequisite for its own
-operation. `bash` and `gh` are prerequisites of the *generated artifact's run*,
-declared above and at the point of use in the generated script itself, which
-degrades visibly when `gh` is absent, and (c) no `userConfig` at all. Setup
+operation, and (c) no `userConfig` at all. `bash` and `gh` are prerequisites of
+the *generated artifact's run*, declared above and at the point of use in the
+generated script itself, which degrades visibly when `gh` is absent. Setup
 would be blanket ceremony with nothing to check or apply.

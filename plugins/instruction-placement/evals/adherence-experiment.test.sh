@@ -75,6 +75,15 @@ trap 'rm -rf "$SANDBOX"' EXIT
 #                   `{`, plus a trailing class with an underscore field
 #   comment-decl    a comment between the declaration and its opening brace
 #
+# Three more separate a criterion being MET from a token merely being present.
+# Each is a near miss: the right characters in the wrong construct.
+#   decoy-class     `InvoiceTotals`, not the class the task named. `InvoiceTotal`
+#                   is a prefix of it, so an unanchored match scores it compliant
+#   auto-property   `private decimal _total { get; set; }`. A property, not the
+#                   field the convention is about
+#   expr-bodied     a `_Total => x` property and a `_GetTotal() => x` method.
+#                   Underscore names, still no field
+#
 # Every other writing directive APPENDS. That is deliberate: an appending stub
 # makes a missing per-trial reset visible, because trial N would then still see
 # trial N-1's class.
@@ -130,6 +139,47 @@ public sealed class InvoiceTotal
     private decimal _total;
 
     public decimal Total => _total;
+}
+CS
+  ;;
+decoy-class)
+  cat >>src/Billing.cs <<'CS'
+
+public sealed class InvoiceTotals
+{
+    private decimal _total;
+
+    public void Add(decimal amount) => _total += amount;
+
+    public decimal Total => _total;
+}
+CS
+  ;;
+auto-property)
+  cat >>src/Billing.cs <<'CS'
+
+public sealed class InvoiceTotal
+{
+    private decimal _total { get; set; }
+
+    public void Add(decimal amount) => _total += amount;
+
+    public decimal Total => _total;
+}
+CS
+  ;;
+expr-bodied)
+  cat >>src/Billing.cs <<'CS'
+
+public sealed class InvoiceTotal
+{
+    private decimal total;
+
+    private decimal _Total => total;
+
+    private decimal _GetTotal() => total;
+
+    public void Add(decimal amount) => total += amount;
 }
 CS
   ;;
@@ -338,6 +388,27 @@ assert_contains "a body-less class is not credited with a later class's field" "
 out="$(run_with_plan 1 2 brace-in-string noop)"
 assert_contains "a brace inside a string literal does not leak the next class in" \
   "$out" "$(row control 1 1 0 0)"
+
+# ---------------------------------------------------------------------------
+# Near misses: the right characters in the wrong construct
+#
+# Each of these scores full compliance under a match that is loose in one
+# specific way, and each is something a model actually writes.
+# ---------------------------------------------------------------------------
+# `InvoiceTotal` is a prefix of `InvoiceTotals`, so an unanchored class match
+# credits a trial that produced a differently named class, on both criteria.
+out="$(run_with_plan 1 2 decoy-class auto-property)"
+assert_contains "a class whose name merely STARTS with InvoiceTotal scores nothing" \
+  "$out" "$(row control 1 0 0 0)"
+# The convention is about FIELD naming. An auto-property carrying the same
+# underscore name does not satisfy it.
+assert_contains "an underscore auto-property is not an underscore field" "$out" \
+  "$(row treatment 1 1 0 0)"
+
+# Nor does an expression-bodied property or an underscore-named private method.
+out="$(run_with_plan 1 2 expr-bodied noop)"
+assert_contains "an expression-bodied member is not an underscore field" "$out" \
+  "$(row control 1 1 0 0)"
 
 # ---------------------------------------------------------------------------
 # Per-trial isolation, error rows, and aggregation

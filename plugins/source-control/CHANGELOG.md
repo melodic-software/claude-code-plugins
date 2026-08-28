@@ -3,6 +3,40 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.28]
+
+### Changed
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
+
+- **Telemetry-upsert reference prose normalized across the three lanes.** An em-dash purge had
+  reached one copy only, leaving a comma splice and a dropped clause about what the creation-race
+  reconcile does to a sibling instance's comment; the two unpurged copies disagreed with each other
+  about it. No executable block changed. Whole-repo extract-ssot sweep.
+
+## [0.55.27]
+
+### Changed
+
+- **Grammar repaired where the em-dash purge left a sentence broken.** `skills/resolve-conflicts/SKILL.md`. The #2891 substitution replaced a dash without restructuring the sentence, leaving a verbless fragment or a comma splice. Wording only; no rule changed.
+- **Authoring-doctrine pass over `README.md`, `skills/babysit-loop/reference/cycle-shape.md`, `skills/babysit-prs/reference/orchestration.md`, `skills/commit/SKILL.md`.** Fixed pointers and cross-references that did not resolve; counts and inventories that had drifted from the tree; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.55.26]
+
+### Changed
+
+- **The last unanchored `safety.md` citation in `review-discipline.md` now resolves.** The file sits at
+  the plugin level, so a bare `reference/safety.md` span resolved against
+  `plugins/source-control/reference/`, where no such file exists. It now uses the
+  `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/safety.md` form the same file already uses for
+  the identical target twice. Coupling pass, apply lane; text only.
+
 ## [0.55.25]
 
 ### Changed

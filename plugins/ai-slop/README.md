@@ -108,7 +108,7 @@ model generation introduces a tic, it is added there first. The workflow, in ord
 2. **Detector second, measurement first.** A `community-attested`+ phrase joins the shipped
    `MODEL_PHRASES` roster in `detect.sh` only in an ANCHORED form measured at (or near) zero
    hits on a real technical corpus; a vocabulary word joins the density list only through the
-   measured-narrowing gate (density gate quiet on legitimate files, firing files genuine
+   measured-narrowing gate (density gate quiet on legitimate files, firing on files with genuine
    residue). Until then the closure for a repo that wants it is `phrase_add`/`vocab_add`.
 3. **Record third.** Date the addition in the section's model-era record with its sources, and
    bump the plugin release per changelog parity. The record's recheck triggers (each release,

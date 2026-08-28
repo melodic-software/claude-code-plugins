@@ -3,6 +3,40 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6]
+
+### Fixed
+
+- **`update`: the "never synced" fallback could not render.** The last-sync probe was
+  `grep -m1 '^- Last sync:' "${CLAUDE_SKILL_DIR}/UPSTREAM.md" 2>/dev/null | sed 's/^- //' || echo
+  "never — run this skill with --check"`. `sed` exits 0 whether `grep` matched, found nothing, or
+  never opened the file, so a missing or unstamped `UPSTREAM.md` rendered an empty value instead of
+  the instruction to run `--check`. Verified by execution: against a missing file the old shape
+  rendered `[]` and the new one renders `[never — run this skill with --check]`; against the real
+  `UPSTREAM.md` both render `Last sync: 2026-05-22`. The probe now guards itself
+  (`grep ... >/dev/null 2>&1 && grep -m1 -o 'Last sync:.*' ... || echo ...`), which also retires the
+  `sed` stage. Every subcommand still starts `grep -m1` and still names `UPSTREAM.md`, so the
+  existing `allowed-tools: Bash(grep -m1 *UPSTREAM.md*)` grant continues to match; nothing was
+  widened.
+
+## [0.5.5]
+
+### Changed
+
+- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
+  The directive had fractured under the same per-plugin de-slop campaign;
+  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
+  sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
+  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
+  extract-ssot sweep.
+
+## [0.5.4]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.5.3]
 
 ### Changed
