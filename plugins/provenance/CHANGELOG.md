@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.0]
+## [0.2.0]
 
 ### Added
 
@@ -180,6 +180,10 @@
   **This run is sidecar-only.** `emit-findings.sh` was not invoked and no relay findings file was
   written, because the crosswalk rows for `rule-verbatim-copy` and the two stamp rules land
   separately. No relay file ever carries a rule id with no row behind it.
+
+## [0.1.0]
+
+### Added
 
 - **Five review findings fixed, each verified by execution first.** All were real:
 
