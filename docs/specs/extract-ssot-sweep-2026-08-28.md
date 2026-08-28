@@ -20,7 +20,7 @@ finding's quoted source text is still present at or near the cited path, the fin
 quote that matches nothing has been applied, superseded, or moved.
 
 Two independent confirmations that this rule is not ceremonial. The predecessor's L3 section recorded
-`setup-never-writes-boundary` as "41 instances, 34 edited"; re-measurement found the 41 exact and the
+`setup-never-writes-boundary` as "41, 34 edited"; re-measurement found the 41 exact and the
 edit set down to **one**, because 33 of the 34 had landed three days before the audit that recorded
 them. And the em dashes it located at `persist-findings.md:1` and `:5` were still present, the second
 having moved to `:16` when #3380 inserted a `## Contents` index above it.
@@ -104,9 +104,14 @@ the fix extends it to the two files they cite, which is a choice this record mak
 
 Two further files carry the same floor as a blockquoted restatement inside a prompt:
 `prompts/loops/loop-lane-prompts.md` and `prompts/loops/loop-lane-profile-claude-code-plugins.md`.
-Both re-wrap the block to a narrower measure and both say in their own text that the quotation sits
-outside the byte-audited block, so neither is under the identity contract and neither is counted in
-the five. Their wording was brought to the same text anyway, because a reader who diffs a quotation
+Both re-wrap the block to a narrower measure. Neither is under the identity contract, for the
+reason §6 gives rather than for anything the prompts say: §6 binds the three consuming lane bodies,
+and a prompt quoting the floor is not a lane. An earlier draft of this paragraph claimed both files
+"say in their own text that the quotation sits outside the byte-audited block". They do not. The
+only sentence in either naming that block reads "Two further reader-contract rules apply alongside
+the floor (outside the byte-audited block)", whose subject is those two rules, not the quotation —
+the same attach-the-quote-to-the-wrong-subject error this record was corrected for once already, in
+the `detector-findings-tier-self-restatement` row. Neither prompt is counted in the five. Their wording was brought to the same text anyway, because a reader who diffs a quotation
 against its source should find only the wrapping different.
 
 ### Call-site normalizations
@@ -201,13 +206,20 @@ this sweep created none and none of these needs one. They are ordered by the har
 
 ### Factual defects
 
-Four of the factual defects this survey found were applied in the same change set and are listed
-under "Applied" above, not here: `auto-mode-dropped-class-roster`,
-`songwriting-title-type-attribution`, `songwriting-section2-load-list-gate`, and
-`check-skill-trigger-fence-line-reference`.
+Four of the factual defects this survey found were applied in the same change set and so are not
+rostered here: `auto-mode-dropped-class-roster`, `songwriting-title-type-attribution`,
+`songwriting-section2-load-list-gate`, and `check-skill-trigger-fence-line-reference`. Their
+per-site detail is in the affected plugins' changelogs — `claude-config`, `songwriting`, and
+`docs-hygiene` respectively — and in the pull request that carried them. An earlier draft said they
+were "listed under Applied above"; that section covers the owner edits, the inline floor, and the
+call-site normalizations, and names none of these four, so a resumer following the pointer found
+nothing.
 
 The last of those is worth recording as a worked example of this file's own decay rule. It was
-written here as an open cluster of four prose surfaces citing
+written here as an open cluster of four *prose* surfaces, and the count was short: a fifth carrier
+sat in a script header, `plugins/docs-hygiene/skills/audit-noise/scripts/emit-findings.sh`, which a
+`*.md`-only grep could not see. All five are closed, but only four were recorded as such at the
+time. The cluster was four prose surfaces citing
 `plugins/skill-quality/scripts/check-skill.sh:414` as the hard FAIL for a dropped trigger phrase.
 Line 414 is inside a comment stating that a trigger **move** WARNs and never blocks; the `err` is at
 462, so each citation asserted the reverse of the line it named. Between this file being written and
@@ -305,7 +317,10 @@ Beyond the predecessor's 13. Each was resolved against the real files and refuse
 - **ADR bodies**, 4 clusters. Treated as immutable throughout. In every case the ADR is the quoting
   party and already carries exact attribution, so citation was the existing state.
 - **Generator-owned twins**, 6 rows, emitted from an adapter README template.
-- **The `discipline` family's shared method pointer**, 14 sites, all citing one plugin-level file.
+- **The `discipline` family's shared method pointer**, 15 skill bodies citing one plugin-level file
+  (`git grep -l re-anchor-audit-correct -- 'plugins/discipline/skills/*/SKILL.md'`), the wording
+  varying between them rather than one reproduced sentence. An earlier draft said 14, which matched
+  neither the family total nor the identical-sentence subset.
   Shared voice is not duplication; only a reproduced rule counts.
 - **CI-registered clusters**: the contract-clause registry, the standards contract mirror, the
   plugin artifact protocol, the zone-combination inline floor, the discovery agents' tool-honesty

@@ -8,8 +8,9 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 ### Fixed
 
 - **Both filtered-probe injections now tell a failed probe apart from a filter that matched
-  nothing.** 0.14.11 normalized this plugin's working-tree status probe and recorded its filtered
-  probes as deliberately left open (`docs/specs/extract-ssot-sweep-2026-08-28.md`).
+  nothing.** 0.14.11 normalized this plugin's one working-tree status probe, in `tidy`, and
+  recorded its filtered probes as deliberately left open
+  (`docs/specs/extract-ssot-sweep-2026-08-28.md`).
   `dissolve-comments` and `audit-comment-residue` each piped `git status --porcelain` through an
   `awk` parse and an extension `grep` into `head -10` before `|| echo "none"`: `||` binds to the
   whole pipeline, a pipeline's status is its last command's, and `head` exits 0 on empty input, so
