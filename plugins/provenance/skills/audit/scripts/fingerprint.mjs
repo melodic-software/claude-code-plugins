@@ -96,6 +96,38 @@ function blankSpan(span) {
   return span.replace(/[^\n]/g, " ");
 }
 
+/**
+ * Index of the closing mark, skipping apostrophes that sit inside a word.
+ *
+ * The opening mark already carries this guard; the closing scan needs it for
+ * the same reason and did not have it. A single-quoted excerpt containing a
+ * contraction closed at the apostrophe in "doesn't", leaving the rest of the
+ * excerpt in the token stream — the false positive the quote stripper exists to
+ * prevent. It only became reachable once pairing widened past a single line,
+ * because before that an excerpt had to open and close on one line to pair at
+ * all. Measured on a five-line fixture: ten words of quoted upstream text
+ * survived, close enough to the 15-word floor that a slightly longer excerpt
+ * would have fired the separation rule.
+ *
+ * The predicate is word chars on BOTH sides, not the opening guard's
+ * preceded-by-a-word-char alone. A closing mark legitimately follows a word
+ * nearly always ("...opts in explicitly'"), so the one-sided test skipped every
+ * real closer and nothing stripped at all. Both-sided isolates the genuine
+ * in-word case: the apostrophe in "doesn't" has `n` before and `t` after, while
+ * a closer has whitespace or punctuation after it.
+ */
+function findClosing(block, closing, from) {
+  const apostrophe = closing === "'" || closing === "’";
+  let at = block.indexOf(closing, from);
+  while (at !== -1) {
+    const wordInternal =
+      apostrophe && /\w/.test(block[at - 1] ?? "") && /\w/.test(block[at + 1] ?? "");
+    if (!wordInternal) return at;
+    at = block.indexOf(closing, at + 1);
+  }
+  return -1;
+}
+
 function stripInlineQuotes(block) {
   let result = "";
   let i = 0;
@@ -110,14 +142,29 @@ function stripInlineQuotes(block) {
       continue;
     }
 
-    // An apostrophe inside a word (don't, teams') is not a quotation mark.
-    if ((char === "'" || char === "‘") && /\w/.test(block[i - 1] ?? "")) {
-      result += char;
-      i += 1;
-      continue;
+    // An apostrophe-family mark OPENS a quotation only where a quotation can
+    // start: at the beginning of the paragraph, after whitespace, or after an
+    // opening bracket. Anything else before it makes it an apostrophe.
+    //
+    // This tests the position rather than just "is the previous character a
+    // word char", which is what it used to do. That older test caught don't and
+    // teams' but not a possessive following markup — `Location`'s, (FILE.md)'s,
+    // forms this repository's own prose is full of — so those opened a phantom
+    // quotation. It stayed survivable only while the closing scan stopped at
+    // the next contraction; once pairing learned to skip those, the phantom ran
+    // to the next stray mark and blanked whole paragraphs of original prose,
+    // measured at 16,031 characters in one tracked file. Over-stripping hides
+    // real copies, which is the worse direction for a detector.
+    if (char === "'" || char === "‘") {
+      const prev = block[i - 1];
+      if (prev !== undefined && !/[\s([{<]/.test(prev)) {
+        result += char;
+        i += 1;
+        continue;
+      }
     }
 
-    const end = block.indexOf(closing, i + 1);
+    const end = findClosing(block, closing, i + 1);
     if (end === -1) {
       // Unpaired within this paragraph: keep the mark and the text after it.
       result += char;

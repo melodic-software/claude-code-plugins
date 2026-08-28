@@ -129,6 +129,36 @@
   reason to exist, because a stripper that follows quotation marks still cannot see a borrowing
   that carries none.
 
+  **Widening the pairing scope exposed two further defects, both caught by review rather than by
+  the suite, and both fixed here.** They are recorded because each one is a case of a fix making a
+  latent bug reachable, which is the failure mode a widened scope invites.
+
+  First, the closing scan had no word-internal apostrophe guard, though the opening mark has had
+  one all along. A single-quoted excerpt containing a contraction closed at the apostrophe in
+  "doesn't", leaving the rest of the excerpt in the token stream. Measured on a five-line fixture:
+  ten words of quoted upstream text survived, close enough to the 15-word floor that a slightly
+  longer excerpt would have fired the separation rule, which is precisely the false positive the
+  stripper exists to prevent. The closing scan now skips apostrophes with word characters on both
+  sides. The predicate is both-sided rather than the opening guard's one-sided test, because a
+  legitimate closer nearly always follows a word (`...opts in explicitly'`) and the one-sided form
+  skipped every real closer, stripping nothing at all.
+
+  Second, and the worse of the two, the opening guard tested only whether a word character preceded
+  the mark. A possessive following markup — `` `Location`'s ``, `(FILE.md)'s ``, forms this
+  repository's own prose is full of — therefore opened a phantom quotation. That was survivable
+  while the closing scan stopped at the next contraction; once pairing learned to skip those, the
+  phantom ran to the next stray mark instead. Measured across 1,393 tracked markdown files, it
+  blanked 16,031 characters in the worst case and whole paragraphs of original prose in 32 of them.
+  **Over-stripping hides real copies, so this was the false-negative direction and the more
+  dangerous one.** The guard now tests the position: an apostrophe opens a quotation only at the
+  start of a paragraph, after whitespace, or after an opening bracket.
+
+  The corpus differential over the same 1,393 files now reports 258 differing, of which 256 strip
+  LESS — recovering prose the previous behavior wrongly blanked — and 2 strip more, both in a file
+  whose subject is regex quoting patterns and whose extra stripping is a genuine wrapped quotation
+  being caught correctly. Line-count drift is zero across every file, and all ten golden cases hold
+  their recorded values.
+
   **`.claude/provenance.json`, this repository's own config, carrying the fixture-tree exclusion.**
   `excluded_paths` lists `**/provenance/skills/audit/evals/fixtures/**`, and that is the whole of
   the file: the separation constants, budgets and gates stay at their bundled defaults because
