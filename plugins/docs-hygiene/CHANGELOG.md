@@ -5,8 +5,9 @@
 ### Fixed
 
 - **Three filtered-probe injections now tell a failed probe apart from a filter that matched
-  nothing.** 0.21.22 normalized this plugin's status probes and recorded its filtered probes as
-  deliberately left open (`docs/specs/extract-ssot-sweep-2026-08-28.md`). Two of them,
+  nothing.** 0.21.22 normalized this plugin's one working-tree status probe, in
+  `rename-references`, and recorded its filtered probes as deliberately left open
+  (`docs/specs/extract-ssot-sweep-2026-08-28.md`). Two of them,
   `audit-noise` and `audit-progressive-disclosure`, piped `git status --porcelain` through a `grep`
   into `head -10` before `|| echo "none"`: `||` binds to the whole pipeline, a pipeline's status is
   its last command's, and `head` exits 0 on empty input, so the fallback could never run and a
