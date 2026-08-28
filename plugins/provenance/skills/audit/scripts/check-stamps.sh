@@ -297,7 +297,18 @@ function reset(name) {
 
 # The stamp keyword list is shared with extract-breadcrumbs.sh on purpose: one
 # definition of what looks like a stamp, so the inventory and the check agree
-# about which lines are candidates.
+# about which lines are candidates. The month list is shared for the same reason
+# — change one and change the other, or the two disagree.
+#
+# "may" is split out of the month list because it is also an ordinary English
+# modal verb. Matched bare, prose like "the first read may raise a permission
+# prompt" became a candidate whose date could not be parsed, so it landed in the
+# declined bucket and a reader could not tell it from a real stamp we failed to
+# parse: 13 of the 22 month-name declines in the 2026-08-28 corpus sweep were
+# this word. It now needs a digit beside it, which every date form carries
+# ("may 2026", "may 17", "17 may") and the modal does not. The tightening is
+# deliberately narrow — the other eleven months still match bare, because
+# over-reporting into a bucket a human reads is the safe direction.
 #
 # "read" gets a much tighter window than the explicit stamp verbs. It is an
 # ordinary English verb, and at the wide window a corpus run turned lines like
@@ -330,7 +341,8 @@ function keyword_window(line,   low, pos, off, kw, wlen) {
     win = substr(low, pos, wlen + 9)
     if (match(win, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /[0-9]+\/[0-9]+\/[0-9]+/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
-    if (match(win, /(january|february|march|april|may|june|july|august|september|october|november|december)/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
+    if (match(win, /(january|february|march|april|june|july|august|september|october|november|december)/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
+    if (match(win, /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /(19|20)[0-9][0-9]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     off = pos
@@ -376,7 +388,8 @@ tolower($0) ~ /((recheck|re-check|revisit|re-derivation|reopening|re-trigger)[^a
   d_line[n_dec] = FNR
   d_text[n_dec] = tsv($0)
   if (win ~ /[0-9]+\/[0-9]+\/[0-9]+/) d_reason[n_dec] = "slash"
-  else if (win ~ /(january|february|march|april|may|june|july|august|september|october|november|december)/) d_reason[n_dec] = "month"
+  else if (win ~ /(january|february|march|april|june|july|august|september|october|november|december)/) d_reason[n_dec] = "month"
+  else if (win ~ /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/) d_reason[n_dec] = "month"
   else if (win ~ /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) d_reason[n_dec] = "month"
   else d_reason[n_dec] = "year"
 }

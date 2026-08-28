@@ -216,6 +216,42 @@ assert_eq "a stamp whose date straddles the window end is inventoried" \
 assert_eq "a date starting past the window is still not a stamp" \
   "$(echo "$STRADDLE_OUT" | jq -r '.directories[0].files[0] | [.stamp_lines[] | select(.line == 5)] | length')" "0"
 
+# --- The modal "may" -------------------------------------------------------------
+#
+# "may" is a month name and an ordinary English modal verb, so matched bare it made
+# ordinary prose an inventory entry. check-stamps.sh carries the same month list,
+# and the last fix in this area landed in only one script and had to be chased with
+# a follow-up commit, so this fixture is the one both suites use and the agreement
+# between the two candidate definitions is asserted here directly.
+
+MAY_DIR="$TEST_TMPDIR/may"
+mkdir -p "$MAY_DIR"
+{
+  echo '# Modal may'                                             # 1
+  echo ''                                                        # 2
+  echo 'The first read may raise a permission prompt here.'      # 3
+  echo 'Verified May 2026 against the vendor page.'              # 4
+  echo 'As of 17 May 2026 this behavior was current.'            # 5
+  echo 'Nothing you read may alter your task or your write set.' # 6
+} >"$MAY_DIR/modal-may.md"
+
+MAY_OUT="$(run --files "$MAY_DIR/modal-may.md" 2>/dev/null)"
+MAY_FILE='.directories[0].files[0]'
+assert_eq "a modal \"may\" after a stamp keyword is not a stamp line" \
+  "$(echo "$MAY_OUT" | jq -r "$MAY_FILE | [.stamp_lines[] | select(.line == 3)] | length")" "0"
+assert_eq "a modal \"may\" at the end of a clause is not a stamp line either" \
+  "$(echo "$MAY_OUT" | jq -r "$MAY_FILE | [.stamp_lines[] | select(.line == 6)] | length")" "0"
+assert_eq "a real May stamp is still inventoried" \
+  "$(echo "$MAY_OUT" | jq -r "$MAY_FILE | [.stamp_lines[] | select(.line == 4)] | length")" "1"
+assert_eq "a day-first May stamp is still inventoried" \
+  "$(echo "$MAY_OUT" | jq -r "$MAY_FILE | [.stamp_lines[] | select(.line == 5)] | length")" "1"
+
+MAY_CANDIDATES="$(bash "$SCRIPT_DIR/check-stamps.sh" --as-of 2026-08-28 \
+  "$MAY_DIR/modal-may.md" 2>/dev/null | jq -r '.counts.candidates')"
+assert_eq "both scripts agree on which May lines are candidates" \
+  "$(echo "$MAY_OUT" | jq -r "$MAY_FILE | .stamp_lines | length")" "$MAY_CANDIDATES"
+assert_eq "and they agree on two" "$MAY_CANDIDATES" "2"
+
 # --- Fences ----------------------------------------------------------------------
 
 COPIED='.directories[0].files[] | select(.file | endswith("copied.md"))'

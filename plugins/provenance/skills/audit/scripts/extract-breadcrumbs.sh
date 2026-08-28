@@ -187,6 +187,10 @@ function first_iso(s) {
 # shipped build" became a candidate purely because a year appeared later in the
 # sentence. check-stamps.sh carries the same two windows — one definition of
 # what looks like a stamp, so the inventory and the check agree.
+# "may" is split out of the month list for the same reason: it is also an
+# ordinary English modal, so it needs a digit beside it ("may 2026", "may 17",
+# "17 may") before it counts as a date. check-stamps.sh carries that split too;
+# its keyword_window() comment records the corpus measurement behind it.
 function is_stamp(line,   low, pos, rest, off, kw, wlen) {
   low = tolower(line)
   off = 0
@@ -209,7 +213,8 @@ function is_stamp(line,   low, pos, rest, off, kw, wlen) {
     if (match(rest, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) && RSTART <= wlen) return 1
     if (match(rest, /[0-9]+\/[0-9]+\/[0-9]+/) && RSTART <= wlen) return 1
     if (match(rest, /(19|20)[0-9][0-9]/) && RSTART <= wlen) return 1
-    if (match(rest, /(january|february|march|april|may|june|july|august|september|october|november|december)/) && RSTART <= wlen) return 1
+    if (match(rest, /(january|february|march|april|june|july|august|september|october|november|december)/) && RSTART <= wlen) return 1
+    if (match(rest, /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/) && RSTART <= wlen) return 1
     if (match(rest, /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) && RSTART <= wlen) return 1
     off = pos
     if (off >= length(low)) return 0

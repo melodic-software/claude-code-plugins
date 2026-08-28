@@ -209,6 +209,43 @@ assert_eq "a straddling stamp is expiry-checked like any other" \
 assert_eq "a date starting past the window is still not a candidate" \
   "$(echo "$OUT" | jq -r '.counts.candidates')" "1"
 
+# --- The modal "may" -------------------------------------------------------------
+#
+# "may" is a month name and an ordinary English modal verb. Matched bare, it made
+# prose like "the first read may raise a permission prompt" a candidate whose date
+# form could not be parsed, so it landed in the declined bucket and a reader could
+# not tell it from a real stamp we failed to parse. 13 of the 22 month-name
+# declines in the 2026-08-28 corpus sweep were this word.
+#
+# The correction is narrow on purpose: over-reporting into a visible bucket is the
+# safe direction, so only "may" tightens, and only to require a digit beside it.
+# A real "May 2026" stamp still has to be a candidate, which lines 4 and 5 pin.
+
+{
+  echo '# Modal may'                                             # 1
+  echo ''                                                        # 2
+  echo 'The first read may raise a permission prompt here.'      # 3
+  echo 'Verified May 2026 against the vendor page.'              # 4
+  echo 'As of 17 May 2026 this behavior was current.'            # 5
+  echo 'Nothing you read may alter your task or your write set.' # 6
+} >"$DIR/modal-may.md"
+
+OUT="$(run "$DIR/modal-may.md" 2>/dev/null)"
+assert_eq "a modal \"may\" after a stamp keyword is not a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 3)] | length')" "0"
+assert_eq "a modal \"may\" at the end of a clause is not a candidate either" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 6)] | length')" "0"
+assert_eq "a real May stamp is still a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 4)] | length')" "1"
+assert_eq "a day-first May stamp is still a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 5)] | length')" "1"
+assert_eq "only the two dated May lines are candidates" \
+  "$(echo "$OUT" | jq -r '.counts.candidates')" "2"
+assert_contains "a real May stamp declines as a month-name form" \
+  "$(echo "$OUT" | jq -r '.declined[].reason')" "month name"
+assert_eq "no May line becomes a finding" \
+  "$(echo "$OUT" | jq -r '.findings | length')" "0"
+
 # --- Trigger-less check ----------------------------------------------------------
 
 OUT="$(run "$DIR/no-trigger.md" 2>/dev/null)"
