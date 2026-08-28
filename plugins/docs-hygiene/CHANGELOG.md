@@ -1,5 +1,17 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.25]
+
+### Added
+
+- **`extract-ssot`'s orchestrated-mode floor copy is now gated, not just correct.** 0.21.22
+  reconciled this file's inlined `rate-limit-guard` operable floor by hand. It is now one of the six
+  registered copies the marketplace repo's `loop-lane-floor-drift-gate` lane holds against the
+  reader contract that owns them, so the next floor change fails CI here rather than leaving this
+  copy behind. The lane also scans every tracked file for the floor and fails on a carrier its
+  registry does not name, so a later `docs-hygiene` surface that inlines the block cannot go
+  unwatched. No content change to the block in this release.
+
 ## [0.21.24]
 
 ### Fixed
