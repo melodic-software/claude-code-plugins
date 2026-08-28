@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.17]
+
+### Fixed
+
+- **`observability`: the repo-slug probe's `unknown` fallback could not render.** The probe was
+  `git rev-parse --show-toplevel 2>/dev/null | sed 's|.*/||' || echo "unknown"`. `sed` exits 0 even
+  when `git rev-parse` failed, so running the skill outside a git work tree rendered an empty slug
+  rather than `unknown`, and every report line keyed to the slug lost its label silently. Verified
+  by execution: run from `/tmp` the old shape rendered `[]` and the new one renders `[unknown]`;
+  run from this repository both render `claude-code-plugins`. The probe now leads with
+  `git rev-parse --show-toplevel >/dev/null 2>&1 &&`. The skill declares no `allowed-tools`, so no
+  grant changed.
+
 ## [0.38.16]
 
 ### Changed
