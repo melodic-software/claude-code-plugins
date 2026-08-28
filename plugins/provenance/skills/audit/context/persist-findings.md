@@ -78,6 +78,28 @@ knowing before you read a written file:
 - **A finding the script cannot map to a relay rule lands in `## Unparsed` verbatim.** That is
   the honest outcome for a malformed or future record, and it is never a silent drop.
 
+Those two clauses meet on one record: a judgment verdict carrying no rule id. They are ordered,
+not opposed. **Withholding is decided on the declared tier, ahead of any rule lookup**, so that
+record is withheld, and `## Unparsed` covers only what is unmappable for some OTHER reason — an
+unknown rule id, an unknown tier, a malformed row. Keeping a withheld verdict out of the
+appendix does not drop it: `## Surfaces` carries it in the "Withheld from the relay: N judgment
+findings" count, which is where the no-silent-drop guarantee is discharged for these records.
+Routing one back into `## Unparsed` would print its tier name and its whole payload into the
+apply relay's input, which is exactly what the clause above forbids. That is a leak, not a
+restored guarantee — do not "fix" it that way.
+
+The tier field is read generously, because every sloppiness in reading it is a leak and none is
+a false relay row: a `tier` key at any depth and in any casing, its value serialized before
+matching, so `"  not-found  "`, `["not-found"]` and `{"name": "llm-suspected"}` are all the
+verdicts they say they are. A valid rule id sitting beside the verdict does not readmit it
+either.
+
+Two limits, both deliberate. A tier naming none of the three verdicts is not something this
+producer withheld, so it keeps its `## Unparsed` path — that is the future-record case the
+appendix exists for. And the scope is the DECLARED tier: a verdict name spelled in some other
+field, free text included, is opaque payload rather than a verdict, and the record carrying it
+goes to `## Unparsed` verbatim like any other unmappable row.
+
 Every cell describes a finding this run actually produced. Never compose an illustrative row,
 and never carry a row forward from a previous run.
 

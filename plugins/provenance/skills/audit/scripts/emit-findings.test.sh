@@ -332,6 +332,175 @@ assert_exit "a finding with no rule id still exits 0" "$?" "0"
 assert_contains "an unrecognized finding lands in Unparsed" "$(cat "$UNP")" "## Unparsed"
 assert_contains "the unparsed finding keeps its raw text" "$(cat "$UNP")" "no rule id"
 
+# --- The relay boundary holds without a rule id ----------------------------------
+#
+# A judgment verdict used to escape the boundary whenever it carried no rule id:
+# nothing classified it, so it fell through to `## Unparsed` and was dumped
+# verbatim — tier name and payload included — into the very file the boundary
+# keeps it out of. Withholding is decided by the DECLARED TIER, ahead of any rule
+# lookup, so no verdict re-enters through the appendix. The finding is still
+# counted in `## Surfaces`: counting is not a silent drop.
+
+write_report withheld-nf.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"tier": "not-found", "file": "a.md", "searched": ["https://LEAKCANARY.example/u"]}
+  ]
+}'
+write_report withheld-sfs.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"tier": "source-fetched-similar", "file": "b.md", "excerpt": "LEAKCANARY-SFS"}
+  ]
+}'
+write_report withheld-llm.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"tier": "llm-suspected", "file": "c.md", "excerpt": "LEAKCANARY-LLM"}
+  ]
+}'
+
+for wcase in "nf:not-found:LEAKCANARY.example" \
+  "sfs:source-fetched-similar:LEAKCANARY-SFS" \
+  "llm:llm-suspected:LEAKCANARY-LLM"; do
+  wname="${wcase%%:*}"
+  wrest="${wcase#*:}"
+  wtier="${wrest%%:*}"
+  wcanary="${wrest#*:}"
+  WOUT="$OUTDIR/withheld-$wname.md"
+  run --report "$REPORTS/withheld-$wname.json" --out "$WOUT" >/dev/null 2>&1
+  assert_exit "a rule-less $wtier finding still exits 0" "$?" "0"
+  WBODY="$(cat "$WOUT")"
+  assert_not_contains "a rule-less $wtier tier name never reaches the file" "$WBODY" "$wtier"
+  assert_not_contains "a rule-less $wtier payload never reaches the file" "$WBODY" "$wcanary"
+  assert_not_contains "a rule-less $wtier finding opens no Unparsed section" "$WBODY" "## Unparsed"
+  assert_contains "a rule-less $wtier finding is counted, not dropped" "$WBODY" "1 judgment"
+done
+
+# Casing is not a way around the boundary: the tier is matched case-folded.
+write_report withheld-cased.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"tier": "LLM-Suspected", "file": "c.md", "excerpt": "LEAKCANARY-CASED"}
+  ]
+}'
+WCASED="$OUTDIR/withheld-cased.md"
+run --report "$REPORTS/withheld-cased.json" --out "$WCASED" >/dev/null 2>&1
+CASED_BODY="$(cat "$WCASED")"
+assert_not_contains "a differently-cased judgment tier is still withheld" \
+  "$CASED_BODY" "LLM-Suspected"
+assert_not_contains "a differently-cased judgment payload is still withheld" \
+  "$CASED_BODY" "LEAKCANARY-CASED"
+assert_contains "a differently-cased judgment finding is counted" "$CASED_BODY" "1 judgment"
+
+# A tier declared below the top level is still a declared tier.
+write_report withheld-nested.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"file": "d.md", "line": 4, "verdict": {"tier": "llm-suspected"},
+     "excerpt": "LEAKCANARY-NEST"}
+  ]
+}'
+WNEST="$OUTDIR/withheld-nested.md"
+run --report "$REPORTS/withheld-nested.json" --out "$WNEST" >/dev/null 2>&1
+NEST_BODY="$(cat "$WNEST")"
+assert_not_contains "a nested judgment tier is still withheld" "$NEST_BODY" "llm-suspected"
+assert_not_contains "a nested judgment payload is still withheld" "$NEST_BODY" "LEAKCANARY-NEST"
+assert_contains "a nested judgment finding is counted" "$NEST_BODY" "1 judgment"
+
+# A tier field is read generously, because every sloppiness here is a leak and
+# none is a false relay row. Each of these declares a withheld verdict in a shape
+# an exact top-level string match would have missed.
+write_report withheld-padded.json '{
+  "findings": [{"tier": "  not-found  ", "file": "a.md", "note": "PADCANARY",
+                "searched": ["https://x.example/"]}]
+}'
+write_report withheld-arraytier.json '{
+  "findings": [{"tier": ["not-found"], "file": "a.md", "note": "ARRCANARY"}]
+}'
+write_report withheld-objtier.json '{
+  "findings": [{"tier": {"name": "llm-suspected"}, "file": "a.md", "note": "OBJCANARY"}]
+}'
+write_report withheld-capkey.json '{
+  "findings": [{"Tier": "not-found", "file": "a.md", "note": "CAPCANARY"}]
+}'
+
+for scase in "padded:not-found:PADCANARY" "arraytier:not-found:ARRCANARY" \
+  "objtier:llm-suspected:OBJCANARY" "capkey:not-found:CAPCANARY"; do
+  sname="${scase%%:*}"
+  srest="${scase#*:}"
+  sverdict="${srest%%:*}"
+  scanary="${srest#*:}"
+  SOUT="$OUTDIR/withheld-$sname.md"
+  run --report "$REPORTS/withheld-$sname.json" --out "$SOUT" >/dev/null 2>&1
+  SBODY="$(cat "$SOUT")"
+  assert_not_contains "a $sname tier declaration names no verdict in the file" \
+    "$SBODY" "$sverdict"
+  assert_not_contains "a $sname tier declaration leaks no payload" "$SBODY" "$scanary"
+  assert_contains "a $sname tier declaration is counted" "$SBODY" "1 judgment"
+done
+
+# The scope is the DECLARED tier. A verdict name spelled in some other field is
+# opaque payload, not a verdict, and does not withhold the record — asserted so
+# the limit stays a stated one rather than an accident.
+write_report unparsed-prose-tier.json '{
+  "findings": [{"file": "a.md", "note": "PROSECANARY mentions llm-suspected in prose"}]
+}'
+PROSE="$OUTDIR/unparsed-prose-tier.md"
+run --report "$REPORTS/unparsed-prose-tier.json" --out "$PROSE" >/dev/null 2>&1
+PROSE_BODY="$(cat "$PROSE")"
+assert_contains "a verdict name in free text is not a tier declaration" \
+  "$PROSE_BODY" "PROSECANARY"
+assert_contains "such a record is reported as unmapped, not withheld" \
+  "$PROSE_BODY" "Unmapped: 1"
+
+# A valid rule id does not readmit a withheld verdict: the tier decides first.
+write_report withheld-with-rule.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"rule": "provenance/audit/rule-stamp-expired", "file": "e.md", "line": 7,
+     "tier": "llm-suspected", "stamp_date": "2025-01-01", "window_days": 180,
+     "days_over": 424}
+  ]
+}'
+WRULE="$OUTDIR/withheld-with-rule.md"
+run --report "$REPORTS/withheld-with-rule.json" --out "$WRULE" >/dev/null 2>&1
+RULE_BODY="$(cat "$WRULE")"
+assert_not_contains "a judgment tier on a stamp rule is still withheld" \
+  "$RULE_BODY" "llm-suspected"
+assert_eq "a judgment tier on a stamp rule emits no relay row" \
+  "$(grep -c '^| [0-9]' "$WRULE")" "0"
+assert_contains "a judgment tier on a stamp rule is counted" "$RULE_BODY" "1 judgment"
+
+# The genuine `## Unparsed` path is untouched. Unmappable for any reason OTHER than
+# a withheld verdict — an unknown rule id, an unknown tier — still lands verbatim.
+write_report unparsed-unknown-rule.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"rule": "provenance/audit/rule-future-thing", "file": "f.md", "line": 9,
+     "note": "UNPARSEDCANARY"}
+  ]
+}'
+UNK_RULE="$OUTDIR/unparsed-unknown-rule.md"
+run --report "$REPORTS/unparsed-unknown-rule.json" --out "$UNK_RULE" >/dev/null 2>&1
+UNK_RULE_BODY="$(cat "$UNK_RULE")"
+assert_contains "an unknown rule id still opens Unparsed" "$UNK_RULE_BODY" "## Unparsed"
+assert_contains "an unknown rule id keeps its raw text" "$UNK_RULE_BODY" "UNPARSEDCANARY"
+assert_contains "an unknown rule id is reported as unmapped" "$UNK_RULE_BODY" "Unmapped: 1"
+
+write_report unparsed-unknown-tier.json '{
+  "counts": {"files": 2},
+  "findings": [
+    {"tier": "some-future-verdict", "file": "g.md", "note": "UNKNOWNTIERCANARY"}
+  ]
+}'
+UNK_TIER="$OUTDIR/unparsed-unknown-tier.md"
+run --report "$REPORTS/unparsed-unknown-tier.json" --out "$UNK_TIER" >/dev/null 2>&1
+UNK_TIER_BODY="$(cat "$UNK_TIER")"
+assert_contains "an unknown tier still opens Unparsed" "$UNK_TIER_BODY" "## Unparsed"
+assert_contains "an unknown tier keeps its raw text" "$UNK_TIER_BODY" "UNKNOWNTIERCANARY"
+assert_contains "an unknown tier is reported as unmapped" "$UNK_TIER_BODY" "Unmapped: 1"
+
 EMPTY="$OUTDIR/empty.md"
 run --report "$REPORTS/empty.json" --out "$EMPTY" >/dev/null 2>&1
 assert_exit "a zero-finding run still exits 0" "$?" "0"

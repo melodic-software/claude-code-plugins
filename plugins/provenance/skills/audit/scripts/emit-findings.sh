@@ -185,13 +185,44 @@ fi
 RECORDS="$(jq -r '
 def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
 
+# The withheld vocabulary, and the predicate that decides a finding against it.
+#
+# WITHHOLDING IS DECIDED BY THE DECLARED TIER, AHEAD OF ANY RULE LOOKUP. A
+# judgment verdict carrying no rule id used to match no branch below and fall
+# through to "U", which prints the record verbatim into `## Unparsed` — tier name
+# and payload landing in the one file the boundary keeps them out of. Deciding on
+# the tier first closes that route and every variant of it: a verdict paired with
+# a valid rule id, and a tier declared below the top level, are withheld too.
+# Matching is case-folded so casing is not a way around the boundary.
+#
+# Read a TIER FIELD generously and match its value generously, because every
+# sloppiness here is a leak and none is a false relay row: a mismatch withholds
+# a record that would otherwise be printed, and withheld records are counted.
+# So the key is matched case-folded at any depth, and the value is serialized
+# before matching, which catches `"  not-found  "`, `["not-found"]` and
+# `{"name": "llm-suspected"}` alike.
+#
+# Scoped to THESE THREE NAMES on purpose. A tier naming none of them is not a
+# verdict this producer withheld, so it keeps the `## Unparsed` path the contract
+# gives a malformed or future record. The scope is the declared TIER: a name
+# spelled in some other field, free text included, is opaque payload, not a
+# verdict, and does not withhold the record.
+def judgment_tier:
+  tostring | ascii_downcase
+  | test("source-fetched-similar|llm-suspected|not-found");
+def withheld_verdict:
+  [ .. | objects | to_entries[]
+    | select(.key | ascii_downcase == "tier") | .value ]
+  | any(judgment_tier);
+
 [ (.findings // [])[]
   | (.rule // "") as $rule
   | ($rule | split("/") | last) as $slug
   | ((.line // .span.start_line) // 0) as $lnum
   | {
       kind: (
-        if $slug == "rule-verbatim-copy" then
+        if withheld_verdict then "W"
+        elif $slug == "rule-verbatim-copy" then
           (if (.tier // "") == "fingerprint-confirmed" then "R" else "W" end)
         elif $slug == "rule-stamp-expired" or $slug == "rule-trigger-less-stamp" then "R"
         else "U"
@@ -215,7 +246,10 @@ def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
         elif $slug == "rule-trigger-less-stamp" then
           "stamp \(.stamp_date // "?") on a surface stating no recheck trigger"
         else "" end),
-      raw: (. | tojson)
+      # Defence in depth for the boundary above: a withheld verdict carries no
+      # payload into the composition stage, so no later edit to the awk half can
+      # print one by accident.
+      raw: (if withheld_verdict then "" else (. | tojson) end)
     }
 ]
 | sort_by(.kind, .rorder, .file, .lnum)
