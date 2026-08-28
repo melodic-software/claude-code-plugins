@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.31]
+## [0.20.33]
 
 ### Changed
 
@@ -11,6 +11,23 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   The directive had fractured into three forms, all emitted by the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause and every site
   carries one wording. Whole-repo extract-ssot sweep.
+
+## [0.20.32]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/clean/reference/unsupported-platform-handoff.md`.** Fixed pointers and cross-references that did not resolve; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.20.31]
+
+### Fixed
+
+- **`safety-model.md` named one valueless scan flag where the guard strips two.** The engine grammar
+  section claimed `--confirmed-large-scan` was "the one valueless scan flag", while
+  `destructive_guard.py` strips at most one each of `--confirmed-large-scan` and `--root-children` —
+  and the same document already documents `--root-children` in its root-children section, so it
+  contradicted itself on a safety surface. The prose now matches the parser. Coupling pass, apply lane;
+  no code change.
 
 ## [0.20.30]
 

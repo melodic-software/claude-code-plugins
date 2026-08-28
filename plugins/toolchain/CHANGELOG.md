@@ -3,7 +3,7 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.13.7]
+## [0.13.8]
 
 ### Changed
 
@@ -11,6 +11,12 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
   empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
   the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
+## [0.13.7]
+
+### Changed
+
+- **Authoring-doctrine pass over `skills/check/SKILL.md`, `skills/lint/SKILL.md`.** Fixed pointers and cross-references that did not resolve; a recap that had drifted from the source it cites. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.13.6]
 

@@ -3,7 +3,7 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.4.15]
+## [1.4.16]
 
 ### Changed
 
@@ -24,6 +24,13 @@ All notable changes to the `songwriting` plugin are documented here. Format foll
   keep an explicit "deliberately retired, do not reintroduce" line rather than only a pointer,
   because an earlier release records that inline note as this plugin's defense against the advice
   regrowing.
+
+## [1.4.15]
+
+### Changed
+
+- **Grammar repaired where the em-dash purge left a sentence broken.** `skills/meter-prosody/SKILL.md`. The #2891 substitution replaced a dash without restructuring the sentence, leaving a verbless fragment or a comma splice. Wording only; no rule changed.
+- **Authoring-doctrine pass over `README.md`, `context/pat-pattison/research/co-writing.md`, `context/pat-pattison/research/metaphor.md`, `context/pat-pattison/research/process.md` and others.** Fixed pointers and cross-references that did not resolve; a recap that had drifted from the source it cites; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [1.4.14]
 

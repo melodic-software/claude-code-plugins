@@ -75,6 +75,7 @@
     "plugin-quality@melodic-software": true,
     "powershell-format@melodic-software": true,
     "prototype@melodic-software": true,
+    "provenance@melodic-software": true,
     "rate-limit-guard@melodic-software": true,
     "repo-fleet-hygiene@melodic-software": true,
     "repo-hygiene@melodic-software": true,

@@ -1387,10 +1387,10 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
    install rather than an uninstall/reinstall — verified for a **non-sensitive option at `user`
    scope** on Claude Code 2.1.240 and **not** at the `--scope project` this step uses, so read the
-   stored value back — for a non-sensitive option, from the **user** `settings.json` `pluginConfigs`
-   per the storage rule above, not from the project settings this command names; a `sensitive` value
-   is absent from settings entirely (smoke-test A) and cannot be verified this way — rather
-   than assuming the write landed. Interactively, `/plugin configure` owns personal
+   stored value back rather than assuming the write landed — for a non-sensitive option, read it
+   from the **user** `settings.json` `pluginConfigs` per the storage rule above, not from the project
+   settings this command names; a `sensitive` value is absent from settings entirely (smoke-test A)
+   and cannot be verified this way. Interactively, `/plugin configure` owns personal
    `userConfig`; an explicit setup skill owns any separate tracked project configuration declared by
    the plugin.
 4. **Headless prompting caveat.** Install never prompts non-interactively — a required `userConfig`

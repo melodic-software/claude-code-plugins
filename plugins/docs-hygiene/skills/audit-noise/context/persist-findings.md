@@ -34,8 +34,9 @@ Never overwrite: when the path exists, take `-2`, `-3`, the smallest free intege
 
 ## The body-scope fence is not optional and not the caller's alone
 
-`plugins/skill-quality/scripts/check-skill.sh:414` hard-FAILs a dropped `'trigger phrase'` versus
-the base ref ("dropped trigger keyword(s) vs HEAD (auto-invocation regression)"). A remediation
+`plugins/skill-quality/scripts/check-skill.sh`'s trigger-phrase drop check hard-FAILs a dropped
+`'trigger phrase'` versus the base ref ("dropped trigger keyword(s) vs HEAD (auto-invocation
+regression)"). A remediation
 that edits a `description`, a `when_to_use`, or a quoted trigger phrase is therefore a regression
 this repo's own gate rejects — not a debatable suggestion. Two consequences bind every run:
 

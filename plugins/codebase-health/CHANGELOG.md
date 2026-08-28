@@ -3,7 +3,7 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.4]
+## [0.8.5]
 
 ### Changed
 
@@ -11,6 +11,13 @@ All notable changes to the `codebase-health` plugin are documented here. Format 
   probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
   empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
   the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
+## [0.8.4]
+
+### Changed
+
+- **Grammar repaired where the em-dash purge left a sentence broken.** `skills/audit/SKILL.md`. The #2891 substitution replaced a dash without restructuring the sentence, leaving a verbless fragment or a comma splice. Wording only; no rule changed.
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.8.3]
 

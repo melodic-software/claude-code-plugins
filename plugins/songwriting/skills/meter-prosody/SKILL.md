@@ -18,8 +18,8 @@ needed, and this skill's own boundary forbids it from making that call.
 
 ## Purpose
 
-The sound-and-motion layer: whether the number, placement, and stress of syllables, and the
-stability of each section. Support the meaning and emotion. Covers scansion, prosody, phrasing,
+The sound-and-motion layer: whether the number, placement, and stress of syllables — and the
+stability of each section — support the meaning and emotion. Covers scansion, prosody, phrasing,
 stable/unstable analysis, and fitting lyric to melody.
 
 Method content is Pat Pattison's, under the plugin-root `../../context/pat-pattison/`; a future

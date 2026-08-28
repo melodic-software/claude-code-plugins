@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.37]
+## [0.39.38]
 
 ### Changed
 
@@ -16,6 +16,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   reached one copy only, leaving a comma splice and a dropped clause about what the creation-race
   reconcile does to a sibling instance's comment; the two unpurged copies disagreed with each other
   about it. No executable block changed. Whole-repo extract-ssot sweep.
+
+## [0.39.37]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed counts and inventories that had drifted from the tree; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.39.36]
 

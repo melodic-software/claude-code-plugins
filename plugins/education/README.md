@@ -21,7 +21,7 @@ verifies you absorbed a completed change.
   high-trust sources (books, courses, docs, communities).
 - **`/education:teach codebase <topic>`**. Learn a concept grounded in the
   repository you launch it from. It discovers the repo's own docs, conventions,
-  and source at teach-time and teaches from what it finds, nothing about the
+  and source at teach-time and teaches from what it finds. Nothing about the
   project is assumed.
 - **`/education:teach primer <domain>`**. A single-session vocabulary primer for
   an unfamiliar domain, so you can prompt or direct work in it precisely. No
@@ -54,7 +54,7 @@ curated resources, and per-concept slices (a lesson, a durable reference
 cheat-sheet, and optional practice). Learning state is treated as **your documents,
 not machine internals**: topic-mode workspaces default to a `Claude Learning/` home
 in your OS Documents folder (when one is eligible), while codebase-mode workspaces
-stay under `${CLAUDE_PLUGIN_DATA}` by default, their lessons can embed snippets
+stay under `${CLAUDE_PLUGIN_DATA}` by default. Their lessons can embed snippets
 from your repo, and Documents folders are often cloud-synced. Either way the state
 survives plugin updates, stays out of your project's tree, and lets you resume a
 topic weeks later; the root is configurable (see Configuration). Durable references
@@ -64,10 +64,10 @@ refreshed before they're taught. See the skill body for the full pedagogy.
 ## Requirements
 
 - **Bash + coreutils** (`sha256sum`/`shasum`, `realpath`, `tr`, `sed`) for the
-  skill's inline mechanics, on native Windows, install
+  skill's inline mechanics. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   they run under Git Bash, which bundles all of them.
-- For `codebase` mode, launch it from the repository you want to learn, the
+- For `codebase` mode, launch it from the repository you want to learn. The
   plugin reads that repo's own docs and source.
 - `topic` mode fetches documentation URLs to ground explanations in primary
   sources; if your setup restricts `WebFetch`, allow it or seed `RESOURCES.md`

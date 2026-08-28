@@ -48,7 +48,7 @@ pending notice must compose them there, never `printf` twice.
 
 **Scope — required for exactly one situation:** a missing runtime prerequisite (binary, config
 file, `jq`) causes the hook to silently no-op instead of performing its check. Doctrine
-(`lib/hook-utils.sh:26-30`): *"a missing runtime prerequisite must surface to BOTH the agent
+(`lib/hook-utils.sh`, its `Prerequisite visibility` section): *"a missing runtime prerequisite must surface to BOTH the agent
 (additionalContext) and the user (systemMessage) — a silently skipped feature is a defect."*
 
 This is the doctrine that fleet hook scripts cite in comments as the **"dim-9 doctrine"** — the

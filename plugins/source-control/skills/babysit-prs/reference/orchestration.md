@@ -721,7 +721,7 @@ interrupted worker may describe nothing:
 - `MERGE_HEAD` exists (the worker died mid-merge): run the escalation path's own preservation
   mechanics — stage the conflicted paths as-is, create the hook-free plumbing preservation commit,
   point the SHA-qualified WIP branch at it, `git merge --abort`. Preserving is not resolving, so
-  this does not breach the orchestrator-never-resolves rule below.
+  this does not breach the orchestrator-never-resolves rule above.
 - Already at the asserted head with a clean tree (`escalate`, whose worker-side sequence already
   ran, and `no-conflict`): nothing to unwind — running the reset here would rewind the real PR
   head by one commit and manufacture the exact stranding this paragraph exists to prevent.

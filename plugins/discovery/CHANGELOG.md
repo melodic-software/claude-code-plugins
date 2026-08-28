@@ -1,6 +1,6 @@
 # Changelog — discovery plugin
 
-## [0.16.15]
+## [0.16.16]
 
 ### Changed
 
@@ -8,6 +8,12 @@
   probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
   empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
   the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
+## [0.16.15]
+
+### Changed
+
+- **Authoring-doctrine pass over `reference/parent-contract.md`.** Fixed pointers and cross-references that did not resolve. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.16.14]
 

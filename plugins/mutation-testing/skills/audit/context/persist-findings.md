@@ -91,7 +91,7 @@ hold everywhere else:
 
    **On the permissive branch this producer writes nothing at all — with one exception, below.** Not
    the guard's `.gitignore`, and not the findings file. The guard's half is the
-   [topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards"
+   [topic-docs convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md) "Runtime guards"
    second invalid case, which owns the rule and why; nothing is re-derived here. The findings file
    follows for the same undecidability applied to this skill's own contract: the destination may be
    an **index-tracked deletion** in the checkout the detection missed, and writing it there produces
@@ -141,7 +141,7 @@ hold everywhere else:
    `.cs`, a `Makefile`. It is a heuristic and is stated as one; it narrows the residual rather than
    closing it.
    The precondition itself is the self-ignore guard's, not this producer's — the
-   [topic-docs convention](../../../../../docs/conventions/topic-docs/README.md) "Runtime guards"
+   [topic-docs convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md) "Runtime guards"
    owns where that guard may heal; what is stated here is only how this producer discharges it before
    its own writes.
 4. **Create the memory root**, **run the self-ignore guard**, then create the destination directory.

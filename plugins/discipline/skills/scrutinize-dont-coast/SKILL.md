@@ -60,7 +60,7 @@ runs in a fresh context"):
    corrects forward on its own, in-tree, now. Here that step becomes collaborative:
    surface the adversarial findings and work the fixes **with** the user rather than
    barrelling ahead into an autonomous rewrite. The reason is the same failure mode
-the remedy for over-confident momentum cannot be *more* unilateral momentum;
+   — the remedy for over-confident momentum cannot be *more* unilateral momentum;
    the user just hit the brakes, so they stay in the loop on what changes. Purely
    mechanical, unambiguous corrections (a typo the pass surfaced) are still fixed
    directly; anything carrying a judgment call is proposed and worked jointly.

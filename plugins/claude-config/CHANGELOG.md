@@ -3,9 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.40.15]
+## [0.40.17]
 
 ### Changed
+
+- **`audit-instructions`: the body-scope fence stops citing a line number that says the opposite.**
+  Both `context/persist-findings.md` and `reference/criteria.md` cited
+  `plugins/skill-quality/scripts/check-skill.sh:414` as the hard FAIL for a dropped trigger phrase.
+  Line 414 sits inside a comment explaining that a trigger **move** WARNs and never blocks; the
+  `err` is at 462. The citation asserted the reverse of the line it pointed at, and would have
+  rotted again on the next edit to that script. Both now name the trigger-phrase drop check rather
+  than a line, matching the fix `detector-findings` 2.7.1 applied to the same claim in the
+  convention doc. Whole-repo extract-ssot sweep.
 
 - **`audit-permission-state`: the dropped-allow-rule roster was missing `Monitor`.** The recap of
   upstream's auto-mode classes elided the category upstream added in v2.1.236 and then counted four
@@ -19,6 +28,23 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   The directive had fractured into three forms, all emitted by the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause and every site
   carries one wording. Whole-repo extract-ssot sweep.
+
+## [0.40.16]
+
+### Changed
+
+- **Authoring-doctrine pass over `skills/audit-pass/SKILL.md`.** Fixed pointers and cross-references that did not resolve. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.40.15]
+
+### Fixed
+
+- **Two citations that resolved to the wrong place, or to nothing.** `README.md` addressed
+  `reference/conflict-criteria.md` from the plugin root, which has no `reference/` directory. And in
+  `conflict-criteria.md`, a passage arguing about `claude-memory:audit`'s catalog wrote a bare
+  `reference/criteria.md` that resolves against the citing file's own directory — onto
+  `audit-instructions`' own catalog, a real file with no C6 — so a reader checking the claim finds it
+  false rather than finding the path wrong. Both now name their base. Coupling pass, apply lane.
 
 ## [0.40.14]
 

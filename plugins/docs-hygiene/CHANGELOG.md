@@ -1,8 +1,15 @@
 # Changelog — docs-hygiene plugin
 
-## [0.21.21]
+## [0.21.22]
 
 ### Changed
+
+- **`audit-noise`: the body-scope fence stops citing a line number that says the opposite.**
+  `context/persist-findings.md` cited `plugins/skill-quality/scripts/check-skill.sh:414` as the hard
+  FAIL for a dropped trigger phrase. Line 414 sits inside a comment explaining that a trigger
+  **move** WARNs and never blocks; the `err` is at 462. It now names the trigger-phrase drop check
+  rather than a line, matching the fix `detector-findings` 2.7.1 applied to the same claim in the
+  convention doc. Whole-repo extract-ssot sweep.
 
 - **`audit-noise`: the declined-shape count corrected from five to eight in all three places that
   state it.** `SKILL.md`, `context/persist-findings.md` and `scripts/emit-findings.sh`'s header each
@@ -24,6 +31,12 @@
   probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
   empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
   the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
+## [0.21.21]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/compress/SKILL.md`, `skills/rename-references/SKILL.md`.** Fixed pointers and cross-references that did not resolve; a recap that had drifted from the source it cites; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.21.20]
 

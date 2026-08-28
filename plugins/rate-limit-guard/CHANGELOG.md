@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.17]
+## [0.7.18]
 
 ### Changed
 
@@ -16,6 +16,12 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   period and then continued lowercase ("...settings surface. the printed edit is the operator's to
   apply."). The `context-guard` sibling carries the identical slot joined with a semicolon, and this
   one now matches it. Whole-repo extract-ssot sweep.
+
+## [0.7.17]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.7.16]
 

@@ -132,7 +132,7 @@ For "run the live app and watch it behave," beyond automated `/testing:run-e2e`,
 ## What this skill does NOT do
 
 - **Does not reimplement the mechanical pass**. `/toolchain:check` (build+test+lint) and `/toolchain:lint` (cross-cutting) are SSOT. Stage 1 delegates to them.
-- **Does not auto-fix**. Identifies failures and gaps; the implementer fixes them. For lint auto-fix, invoke `/toolchain:lint --fix` via the Skill tool.
+- **Does not auto-fix**. Identifies failures and gaps; the implementer fixes them. For lint auto-fix, invoke `/toolchain:lint --fix` via the Skill tool when the `toolchain` plugin is installed; otherwise run the project's own lint fixer.
 - **Does not check design quality for ship-readiness**. That's the project's review/quality-gate flow.
 - **Does not verify measurable-improvement claims**. `/verification:measure` owns the baseline/compare mechanism; this skill redirects improvement claims there.
 - **Does not replace PR prep**, the project's PR flow orchestrates review + verification + cleanup. This skill is the verification component.
@@ -144,4 +144,4 @@ For "run the live app and watch it behave," beyond automated `/testing:run-e2e`,
 - **Don't skip outcome confirmation for "obvious" changes.** Small changes drift from intent unnoticed; the intent check catches scope creep and missed requirements tests don't cover.
 - **Don't quantify improvement claims here.** "Faster" / "simpler" claims route to `/verification:measure` and its baseline discipline. Invoke it via the Skill tool; never assert an improvement from this skill's evidence alone.
 - **Don't re-run Stage 1 if it already passed this conversation** and nothing changed since. Reuse the results.
-- **Live-app fallback is fidelity-preserving.** If the bundled `/run` can't launch the app, fall back to invoking `/testing:run-e2e` via the Skill tool and say so explicitly, never silently swap live observation for a static check.
+- **Live-app fallback is fidelity-preserving.** If the bundled `/run` can't launch the app, fall back to invoking `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed, or a manual orchestrator launch otherwise, and say so explicitly, never silently swap live observation for a static check.

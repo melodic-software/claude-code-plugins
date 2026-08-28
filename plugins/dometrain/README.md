@@ -114,7 +114,7 @@ variable you have to export yourself.
 (`"dometrain"`) in their respective `plugin.json` manifests. Install identity is
 marketplace-scoped (`dometrain@<marketplace>` and `dometrain@dometrain` are distinct,
 coexistable install identities), but skill and MCP-tool namespacing is driven by `plugin.json`
-`name` alone, and Claude Code's documented behavior for two enabled plugins sharing an
+`name` alone, and Claude Code's behavior for two enabled plugins sharing an
 identical name is genuinely undocumented. Pick one.
 
 ## Grounding skill

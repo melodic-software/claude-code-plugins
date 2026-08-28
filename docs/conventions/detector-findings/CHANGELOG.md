@@ -43,14 +43,27 @@ enforceability verdict changes.
 - **`rule-negation-hard-guardrail`'s `Auto-applicable` cell led with `n/a`.** This contract states
   four permitted lead forms and `n/a` is not one; its three sibling non-emitting rows all use
   `Not applicable — no row`. Corrected, argument unchanged.
-- **Two counts inside the new adopter row were wrong on the day it was written.** The row
-  called `docs-hygiene/audit-noise` "the third producer to join the crosswalk" when the entry
-  above it in this same file correctly says fifth, and said its detector "marks six shapes"
-  with "the other five" declined. `lib/noise-shapes.sh` marks eight shapes and `detect.sh`
-  classifies a ninth, `negation`, after paragraph accumulation, so eight are declined with
-  `reason=no-severity-crosswalk-row`, not five. Both are corrected; the row's ordinal is
-  dropped rather than renumbered, because an ordinal in a table that grows is the same decaying
-  claim as the heading.
+- **Two counts inside the new adopter row were wrong on the day it was written.** The row said
+  its detector "marks six shapes" with "the other five" declined. `lib/noise-shapes.sh` marks
+  eight shapes and `detect.sh` drives a ninth, `negation`, over an accumulated paragraph, so
+  eight are declined with `reason=no-severity-crosswalk-row`, not five. It also opened "the third
+  producer to join the crosswalk", copied from 2.5.0, which says the same. This file cannot have
+  it both ways: 2.2.0 tables `ai-slop:audit` as the third adopter, and 2.8.0 above counts
+  `docs-hygiene/audit-noise` as the fifth producer to reach the relay. 2.5.0 is shipped and is
+  left as written; the new row's ordinal is dropped rather than renumbered, because an ordinal in
+  a table that grows is the same decaying claim as the section heading, and this pair is what that
+  decay looks like two versions later.
+
+## 2.7.1 — 2026-08-28
+
+**Patch under this contract's own rule** — docs-only clarification. No producer-owned field's rule
+moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **The `claude-config:audit-instructions` adopter row stops pinning a line number.** It cited the
+  producer's structural fence as `plugins/skill-quality/scripts/check-skill.sh:414`. That line is a
+  comment inside the rationale block, not the check; the guard itself sits ~5 lines earlier, and the
+  pin had already rotted. The row now names the trigger-phrase drop check instead, which survives
+  the next edit to that script.
 
 ## 2.7.0 — 2026-08-27
 

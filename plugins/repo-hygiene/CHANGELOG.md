@@ -3,7 +3,7 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.16]
+## [0.10.17]
 
 ### Changed
 
@@ -16,6 +16,12 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   The directive had fractured into three forms, all emitted by the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause and every site
   carries one wording. Whole-repo extract-ssot sweep.
+
+## [0.10.16]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed counts and inventories that had drifted from the tree; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.10.15]
 

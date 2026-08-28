@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.16]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/generate/references/build-pipeline.md`, `skills/generate/references/slide-generation.md`.** Fixed pointers and cross-references that did not resolve; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
 ## [0.7.15]
 
 ### Changed

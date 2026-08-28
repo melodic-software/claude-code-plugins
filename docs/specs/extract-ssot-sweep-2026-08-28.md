@@ -152,14 +152,26 @@ this sweep created none and none of these needs one. They are ordered by the har
 
 ### Factual defects
 
-Three of the factual defects this survey found were applied in the same change set and are listed
+Four of the factual defects this survey found were applied in the same change set and are listed
 under "Applied" above, not here: `auto-mode-dropped-class-roster`,
-`songwriting-title-type-attribution`, and `songwriting-section2-load-list-gate`. What remains:
+`songwriting-title-type-attribution`, `songwriting-section2-load-list-gate`, and
+`check-skill-trigger-fence-line-reference`.
+
+The last of those is worth recording as a worked example of this file's own decay rule. It was
+written here as an open cluster of four prose surfaces citing
+`plugins/skill-quality/scripts/check-skill.sh:414` as the hard FAIL for a dropped trigger phrase.
+Line 414 is inside a comment stating that a trigger **move** WARNs and never blocks; the `err` is at
+462, so each citation asserted the reverse of the line it named. Between this file being written and
+being merged, `main` fixed one of the four in `detector-findings` 2.7.1, independently and by the
+same reasoning, which left the roster at four wrong within hours. The remaining three were fixed
+here, on `main`'s remedy: name the check, never the line. A line number in a citation is the decay
+rule's clearest case — it is wrong the moment anything above it moves, and nothing tells you.
+
+What remains:
 
 | Cluster | Sites | Defect |
 |---|---|---|
 | `overengineering-branch-identity-mechanism` | 6 files in `overengineering` | `delta`'s copy omits the normalize-then-validate step its siblings require, so an environment supplying `refs/heads/<name>` makes `delta` key a different home than the audit it composes, and the lane reports no delta forever, silently |
-| `check-skill-trigger-fence-line-reference` | 4 prose files | Four surfaces cite `check-skill.sh:414` as the hard FAIL for a dropped trigger phrase. Line 414 is a comment saying trigger moves WARN; the FAIL is at 462. The citation asserts the opposite of what the cited line says |
 | `bugs-scan-git-clean-mechanism` | 1 file | "a fresh clone or a `git clean` erases" the memory tier. The tier is self-ignoring by contract, and plain `git clean` does not remove ignored files. The conclusion is right, the mechanism named is not |
 | `babysit-prs-isolation-account` | 1 file | `plugins/source-control/skills/babysit-prs/SKILL.md` asserts the form-based account of the worktree-isolation refusal ("a git-bearing compound command") that `session-flow` 0.17.16 refutes in favour of a `$`-expansion trigger. Pre-existing on `main`; this sweep neither created nor worsened it |
 | `detector-findings-tier-self-restatement` | 1 file | `docs/conventions/detector-findings/README.md` declares "This doc never restates it" about the severity vocabulary and routes tier decisions to `review`'s owner, then restates CRITICAL's tier test inside its own crosswalk table |

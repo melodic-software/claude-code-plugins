@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.2]
+## [0.5.3]
 
 ### Changed
 
@@ -9,6 +9,12 @@
   fifth producer surface, `testing:audit`, keeps its own shorter numbered-step form by design and
   regains the three load-bearing clauses it had dropped, including that the contract wins where the
   two disagree. Whole-repo extract-ssot sweep.
+
+## [0.5.2]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.5.1]
 
