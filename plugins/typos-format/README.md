@@ -42,8 +42,8 @@ opt-in required.
   blank-correction `extend-words` entry marking a term "disallowed"), or one
   with more than one candidate correction.
 - **Every applied rewrite is disclosed.** A correction changes the content of
-  your file, so the hook reports each one it applied, the word, its
-  replacement, and the line, to Claude *and* to you, capped at ten per run
+  your file, so the hook reports each one it applied (the word, its
+  replacement, and the line) to Claude *and* to you, capped at ten per run
   with a count of the remainder. Nothing this hook writes is silent.
 - **Remediation guidance included.** Both an applied rewrite and a residual
   finding carry the fix: add the term to `extend-words` / `extend-identifiers`

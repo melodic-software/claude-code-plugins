@@ -99,7 +99,9 @@ Attested record shape (the same fenced JSON record, upserted):
   "attestor_role": "<role>",
   "attestation_source": "<reply-event-url>"
 }
-``` Consumers ignore marker records from any author other than the bound
+```
+
+Consumers ignore marker records from any author other than the bound
 automation identity, and dedupe attestation-preservingly (attested outranks unattested;
 latest wins only among equals).
 

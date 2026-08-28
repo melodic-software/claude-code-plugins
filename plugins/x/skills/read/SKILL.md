@@ -187,7 +187,8 @@ hostile article can exhaust the context before the result is ever reported. **25
 ceiling: a fixed number, not a judgement call, because a budget chosen per invocation can be chosen
 as 5 MB and comply. It is far above any real X Article and far below anything that threatens the
 session. Either way the rule on stopping short is the same: say the result is partial and say where
-it stops. A truncated slice is never presented as the complete post or article. See
+it stops. A truncated slice is never presented as the complete post or article.
+Slice mechanics, and why the ceiling is fixed rather than chosen per invocation:
 [`context/failure-modes.md`](context/failure-modes.md).
 
 **Check curl's exit status first, before the HTTP code, before the body.** A nonzero exit means the

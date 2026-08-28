@@ -3,7 +3,7 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.17]
+## [0.7.18]
 
 ### Fixed
 
@@ -25,6 +25,16 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   non-lane consumers it covers. Nothing enforced the mandate before: the general copy-drift gate
   skips `SKILL.md` by basename and clusters copies by identical path-within-plugin, and these six
   sit at six unrelated paths.
+- **The same check also discovers copies nobody registered.** Before comparing anything it scans
+  every tracked file for the floor's opening bullet and fails on any carrier outside its registry,
+  so a seventh consumer inlining this block cannot sit unwatched until the next contract change
+  strands it. The registry stays, because it carries each consumer's comparison mode.
+
+## [0.7.17]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.7.16]
 

@@ -1,5 +1,22 @@
 # Changelog — session-flow plugin
 
+## [0.34.13]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/find-handoff/reference/rung-1-known-location.md`, `skills/workflow/context/continuation.md`.** Fixed pointers and cross-references that did not resolve; counts and inventories that had drifted from the tree; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.34.12]
+
+### Changed
+
+- **`find-handoff` no longer reaches into `claude-ops`' skill-private script.** Rung 1 cited
+  `skills/lanes/scripts/lane-launcher.sh` and its internal `load_sessions` function by path to
+  corroborate a `claude agents --json --all` claim the same sentence already sources first-hand from
+  `claude agents --help`. `session-flow` declares no dependency on `claude-ops`, so that path is
+  absent whenever `session-flow` is installed alone. The corroboration is now presence-framed prose
+  with no path or symbol reach. Coupling pass, apply lane; the normative instruction is unchanged.
+
 ## [0.34.11]
 
 ### Changed

@@ -65,9 +65,9 @@ gracefully when absent, no hard dependencies:
 
 If you had `implementation` installed before the `0.6.0` split, `build`, `lint`, `setup`,
 `test-plan`, `test-write`, `test-e2e`, `test-diagnose`, `verify-changes`, and `verify-improvement`
-no longer live here, nine skills moved into the new `toolchain`, `testing`, and `verification`
+no longer live here. Those nine skills moved into the new `toolchain`, `testing`, and `verification`
 plugins. `implementation` keeps its name, so the marketplace's `renames` map (which migrates a
-renamed or removed plugin automatically) does not apply, install the plugins you relied on:
+renamed or removed plugin automatically) does not apply. Install the plugins you relied on:
 
 ```shell
 /plugin install toolchain@melodic-software      # check (was build), lint, setup

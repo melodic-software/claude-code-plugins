@@ -1337,8 +1337,9 @@ Morning's boiled lobster
 **Diagnostic:** count the shared qualities before choosing. Pat's own
 formulation of the degree test is Coleridge's, and he states it as a
 guideline rather than a rule — few shared qualities, simile; more,
-metaphor. He then declines it in favor of commitment (see below). Do
-not apply a fixed numeric cutoff; the books state none.
+metaphor. He then declines it in favor of commitment, under
+"Coleridge's imagination-vs-fancy distinction" above. Do not apply a
+fixed numeric cutoff; the books state none.
 
 ## Cross-references
 

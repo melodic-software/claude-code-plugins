@@ -256,7 +256,7 @@ each, the summary below is a pointer, not a copy.
   comment) it adopts the most recent comment BY THE AUTHENTICATED USER carrying the
   raw marker text; else it creates one. `STR` is `[A-Za-z0-9:@._-]+` (so it can
   never close the HTML comment early), and one writer identity owns a given marker
-which is what the loop-lane convention's `<lane>@<instance>` suffix makes true
+  — which is what the loop-lane convention's `<lane>@<instance>` suffix makes true
   rather than aspirational (#1295): a marker naming only a lane type is shared by
   every concurrent instance of that lane, so they clobber one another's durable
   state. Both fallback boundaries treat `@` as a marker char, so `lane:x` never

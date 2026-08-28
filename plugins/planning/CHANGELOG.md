@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.13]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/wayfind/SKILL.md`.** Fixed pointers and cross-references that did not resolve; counts and inventories that had drifted from the tree. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.34.12]
+
+### Changed
+
+- **`interview`'s glossary handoff carries its presence gate in the loop file.** `SKILL.md` gated the
+  `/domain-driven-design:curate-language` handoff and gave a fallback; `context/loop.md`, the file the
+  interview loop executes from, restated the step ungated. The restating site now mirrors the owner.
+  Coupling pass, apply lane.
+
 ## [0.34.11]
 
 ### Changed

@@ -58,8 +58,8 @@ identity unless the matched publisher profile establishes it as tracking-only fo
    hyphen runs.
 3. Append `-<hash8>`: the first 8 lowercase hex characters of the canonical URL's SHA-256
    (`printf '%s' '<canonical-url>' | { sha256sum 2>/dev/null || shasum -a 256; }`, the fallback
-   covers stock macOS, where `sha256sum` is absent). Truncate the host+path prefix, never the hash
-so the whole slug is ≤ 40 chars. Truncation is what reintroduces collisions; the hash is the
+   covers stock macOS, where `sha256sum` is absent). Truncate the host+path prefix — never the hash
+   — so the whole slug is ≤ 40 chars. Truncation is what reintroduces collisions; the hash is the
    part a truncated prefix cannot lose, and it recomputes identically on resume. (The hash suffix
    also makes a Windows-reserved base name impossible, so no reserved-name escape is needed.)
 

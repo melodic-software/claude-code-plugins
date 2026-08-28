@@ -5,9 +5,11 @@ Implements the `machine-health` Claude Code skill. `SKILL.md` is the runtime ent
 ## What's here
 
 ```
-machine-health/
+audit/
 ├── SKILL.md                       # runtime entry; seam resolution + OS routing + procedure
 ├── README.md                      # this file
+├── AGENTS.md                      # contributor conventions (CLAUDE.md imports it)
+├── CLAUDE.md                      # one-line @AGENTS.md import
 ├── TODO.md                        # approval policy documentation (holds no state)
 ├── catalog/
 │   ├── checks.jsonc               # OS-tagged, versioned check registry (read-only at runtime)
@@ -17,6 +19,7 @@ machine-health/
 │   ├── windows/                   # Windows-specific check catalog + remediation policy
 │   ├── macos/NOT_IMPLEMENTED.md   # porting stub
 │   └── linux/NOT_IMPLEMENTED.md   # porting stub
+├── evals/                         # evals.json; the skill-quality gate requires it
 ├── scripts/
 │   ├── windows/                   # orchestrator, checks, remediations, lib helpers
 │   ├── macos/NOT_IMPLEMENTED.md   # porting stub

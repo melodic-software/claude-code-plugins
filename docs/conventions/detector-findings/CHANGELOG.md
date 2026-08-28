@@ -4,6 +4,17 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.7.1 — 2026-08-28
+
+**Patch under this contract's own rule** — docs-only clarification. No producer-owned field's rule
+moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **The `claude-config:audit-instructions` adopter row stops pinning a line number.** It cited the
+  producer's structural fence as `plugins/skill-quality/scripts/check-skill.sh:414`. That line is a
+  comment inside the rationale block, not the check; the guard itself sits ~5 lines earlier, and the
+  pin had already rotted. The row now names the trigger-phrase drop check instead, which survives
+  the next edit to that script.
+
 ## 2.7.0 — 2026-08-27
 
 **Minor under this contract's own rule** — one new row on an existing adopter; no

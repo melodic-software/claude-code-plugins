@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## [0.21.21]
+## [0.21.22]
 
 ### Fixed
 
@@ -9,7 +9,15 @@
   moved to the de-slopped wording its loop-lane consumers already shipped. Two sentence breaks
   inside the staleness bullet; no value, path or threshold changed. This file is now one of the six
   copies the marketplace repo's `loop-lane-floor-drift-gate` lane holds against that contract, so a
-  future floor change fails CI here rather than leaving this copy behind.
+  future floor change fails CI here rather than leaving this copy behind. That lane also scans
+  every tracked file for the floor and fails on a carrier outside its registry, so a later
+  `docs-hygiene` surface that inlines the block cannot go unwatched.
+
+## [0.21.21]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`, `skills/compress/SKILL.md`, `skills/rename-references/SKILL.md`.** Fixed pointers and cross-references that did not resolve; a recap that had drifted from the source it cites; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.21.20]
 

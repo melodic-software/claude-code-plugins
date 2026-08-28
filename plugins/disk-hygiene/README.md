@@ -128,7 +128,7 @@ Code treats the non-blocking result as approval, so the destructive Bash/PowerSh
 ungated. The Stop detector emits a `systemMessage` in that case so the blind spot is visible.
 `/disk-hygiene:setup check` resolves the launcher's whole ladder and FAILs only when it is exhausted
 or the interpreter it selects is below the floor. A stubbed `python3` alongside a working `python`
-or `py -3` is a **WARN**, not a FAIL, every guard launches there, and the residual is only that a
+or `py -3` is a **WARN**, not a FAIL: every guard launches there, and the residual is only that a
 bare `python3` typed by hand still opens the Store. To clear it: disable the `python3` App execution
 alias (Settings > Apps > Advanced app settings > App execution aliases) or install real Python ahead
 of WindowsApps on `PATH`. A bare `command -v python3` / `where python3` success is not proof the
@@ -208,7 +208,7 @@ measurements below carry the conditions they were taken under.
   quoted CLI arguments.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
 - **Configuration:** one non-sensitive `userConfig` boolean (`disk_hygiene_enabled`, default
-  `true`) gating the execution tiers, setting it `false` puts `/disk-hygiene:clean` in audit-only
+  `true`) gating the execution tiers. Setting it `false` puts `/disk-hygiene:clean` in audit-only
   mode. Both guard surfaces resolve the toggle by reading `disk_hygiene_enabled` from user-scope
   `pluginConfigs` in `settings.json` (not the process environment). A configured `false` denies Bash
   engine invocations outright on the always-on engine gate (whether or not the clean skill is active);

@@ -23,10 +23,10 @@ and presents the result as markdown or an optional HTML/PPTX deck.
 
 ## Optional build prerequisites
 
-The presentation pipeline follows Playwright's current supported environment matrix
-(verified 2026-07-18 against
-[Playwright system requirements](https://playwright.dev/docs/intro#system-requirements).
-Re-check that page before installing. The matrix moves with Playwright releases):
+The presentation pipeline follows Playwright's current supported environment matrix. The matrix
+moves with Playwright releases, so re-check
+[Playwright system requirements](https://playwright.dev/docs/intro#system-requirements)
+before installing. As verified on 2026-07-18, the pipeline requires:
 
 - the latest Node.js 22.x, 24.x, or 26.x release, with npm;
 - Windows 11+ or Windows Server 2019+;

@@ -3,6 +3,23 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.16]
+
+### Changed
+
+- **Authoring-doctrine pass over `skills/audit-pass/SKILL.md`.** Fixed pointers and cross-references that did not resolve. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
+
+## [0.40.15]
+
+### Fixed
+
+- **Two citations that resolved to the wrong place, or to nothing.** `README.md` addressed
+  `reference/conflict-criteria.md` from the plugin root, which has no `reference/` directory. And in
+  `conflict-criteria.md`, a passage arguing about `claude-memory:audit`'s catalog wrote a bare
+  `reference/criteria.md` that resolves against the citing file's own directory — onto
+  `audit-instructions`' own catalog, a real file with no C6 — so a reader checking the claim finds it
+  false rather than finding the path wrong. Both now name their base. Coupling pass, apply lane.
+
 ## [0.40.14]
 
 ### Changed
