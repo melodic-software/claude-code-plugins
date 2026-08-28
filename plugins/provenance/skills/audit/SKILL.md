@@ -60,7 +60,8 @@ texts, file composition); every judgment about whether a passage is a copy is mo
 
 4. **Nominate.** Dispatch fresh-context subagents per
    [`reference/nomination.md`](reference/nomination.md), handing each a chunk of corpus files
-   plus the whole directory's breadcrumb inventory. Recall-biased: a passage nomination never
+   plus the whole directory's breadcrumb inventory, both under neutral labels per that file's
+   "Neutral labels (required)". Recall-biased: a passage nomination never
    proposes can never be found. `accuracy.nomination_passes` (default 2) runs this more than
    once and the nominations are **unioned**, never intersected.
 

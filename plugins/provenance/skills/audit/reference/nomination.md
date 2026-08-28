@@ -33,9 +33,9 @@ of which file was graded.
 
 **What a judge receives instead is everything the criteria are defined over**, and nothing that
 says where it came from: the inputs "Judgment" below enumerates, carried as contents. This takes
-nothing away from grading and is not a change to it. The prompt fields never carried a location;
-the rule is what keeps one from being added to them, and from arriving inside the material they
-carry.
+no criterion away. None of C1 through C4 reads a location, and no prompt field ever carried the
+case's own; the rule is what keeps one from being added, and from arriving inside the material
+the fields carry.
 
 The golden set is where this matters most. Its directories under `evals/fixtures/golden/` are
 named for what each case tests, so a name states the case's class, its carve-out, and how dense
