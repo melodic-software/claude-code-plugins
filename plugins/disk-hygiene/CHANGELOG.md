@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.31]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** The setup skill's
+  `test_python3_alias_probe.py` replaces `make_file`'s hand-rolled `open(path, "wb")` context
+  manager (with a dead zero-size guard) with the exact stdlib equivalent
+  `path.write_bytes(b"\0" * size)`. Byte-identical file contents and permissions verified
+  empirically for every size the suite uses; refutation-verified; 10/10 tests pass.
+
 ## [0.20.30]
 
 ### Changed
