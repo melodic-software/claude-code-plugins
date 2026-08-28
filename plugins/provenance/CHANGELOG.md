@@ -28,9 +28,12 @@
 
   Two new declines appear, both instances of the separate `may` false positive, where the month-name
   test reads the ordinary English word as a month name: `plugins/planning/skills/interview/SKILL.md`
-  and `plugins/repo-hygiene/skills/clean/context/git-branch-cleanup.md`, each now within reach of
-  the added slack. That defect is untouched here. It over-reports into the declined bucket, which is
-  the direction that stays visible to a reader, and it is left for its own fix.
+  at line 117 and `plugins/repo-hygiene/skills/clean/context/git-branch-cleanup.md` at line 42. In
+  each the word starts inside the window (at offset 60 and 59) and the old slice cut it after one
+  character, so the same truncation that hid the ISO dates had been hiding these. That defect is
+  untouched here, and reproduces identically on the previous script: it over-reports into the
+  declined bucket, which is the direction that stays visible to a reader, and is left for its own
+  fix.
 
   Patch rather than minor: no flag, no output shape and no configuration changes. The counts move
   because the existing expiry check now reaches stamps it had been dropping.
