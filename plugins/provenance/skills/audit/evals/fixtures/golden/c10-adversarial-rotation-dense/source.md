@@ -6,10 +6,6 @@ from a real page.
 
 Canonical location for the purposes of this case: `https://example.invalid/widget-runner/docs/retry`.
 
-This page is the shared basis for the three adversarial synonym-rotation cases (c08, c09, c10),
-which differ only in how densely the passage below is rotated. Holding the source fixed is what
-makes rotation density the single variable.
-
 ## The retry policy
 
 When a task fails, Widget Runner consults the retry policy attached to that task before it
