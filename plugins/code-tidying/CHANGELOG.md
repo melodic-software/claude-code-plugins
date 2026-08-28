@@ -3,6 +3,58 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.15]
+
+### Fixed
+
+- **`dissolve-comments`'s preview filter dropped every C-quoted filename.** It parsed the porcelain
+  record with `awk '{print $NF}'`, which splits on whitespace and hands the extension grep a
+  trailing `"` on any path `git` chose to quote. Proven by execution against a repository holding
+  seven `.py` files whose names carry, respectively, nothing unusual, a space, a single quote, a
+  double quote, a semicolon, a pipe, and a newline: the old parse showed 4 of 7, the `-z` NUL parse
+  it now uses shows 7 of 7. That parse is `audit-comment-residue`'s, adopted verbatim rather than
+  re-derived, because this site already parses fields and the NUL form is correct for every
+  filename instead of one class. IMPACT IS BOUNDED and this entry should not overstate it: the line
+  is a PREVIEW capped at 10 whose own body already instructs the model to re-enumerate the full set
+  with `git status --porcelain -z` at scope time, so the defect misled the model's first look at
+  the tree rather than the scope it actually triages. LIVE and PRE-EXISTING: the parse predates
+  0.14.12 and 0.14.13, which reworked the shape around it and not the filter. The skill declares no
+  `allowed-tools`, so no grant changed. One residual, noted rather than fixed: under `-z` a filename
+  containing a newline reaches the grep as two lines, so it is detected but rendered as its tail.
+  `head -10` and the re-enumeration instruction already tell the reader the render is partial.
+- **The brace group 0.14.13 installed is intact and still correct.** Re-ran the state matrix over
+  both probes in this plugin (healthy, at cap, no match, clean tree, outside a repo, each under
+  `set -o pipefail` and `set +o pipefail`, 20 cells): all exit 0, the at-cap cells render exactly
+  the cap with no failure token, and only the outside-a-repo cells render one. The SIGPIPE
+  inversion 0.14.13 removed has not come back.
+
+### Added
+
+- **`audit-comment-residue`'s SKILL.md parity check is now two-directional.** It compared
+  `detect.sh`'s audited set against the preview in one direction only: a file `detect.sh` audits
+  that the preview misses. It could not see the opposite failure, a preview emitting a path
+  `detect.sh` never audited. Demonstrated by mutation against the shipping tree: dropping the
+  rename skip from the SKILL.md `awk` program makes the preview print the rename's source record
+  offset by the status prefix, a path naming no file, and the suite still passed 53 of 53. The
+  reverse loop now asserts that every path the preview emits is one `detect.sh` audited. Re-running
+  that exact mutation with the new loop in place fails 1 of 54, naming the phantom path; reverting
+  the mutation passes 54 of 54. No existing assertion was weakened or removed. PRE-EXISTING blind
+  spot, test-only change, no shipped behavior touched.
+
+### Changed
+
+- **Both probe labels no longer assert `empty = none`.** `audit-comment-residue` and
+  `dissolve-comments` rendered their filtered preview under a label positively claiming that an
+  empty render meant no matching files. The probe never established that. The brace group's closing
+  `:` makes the outer `||` unreachable, so a failure INSIDE the group also renders empty: a filter
+  binary off PATH, or a second `git` invocation that fails after the guard's copy succeeded, which
+  models `index.lock` contention. Not a regression, the pre-0.14.13 shape was equally silent in
+  both states, but the label was making a claim the plumbing cannot back. The labels now read
+  `empty = none matched or the probe returned nothing`. Fixing the label rather than the plumbing
+  is deliberate: closing those states needs a temp file or a second capture in a block that must
+  stay free of `$`, which costs more than the honesty is worth. The parity test extracts the label
+  by stem, so the wider parenthetical does not disturb it.
+
 ## [0.14.14]
 
 ### Fixed

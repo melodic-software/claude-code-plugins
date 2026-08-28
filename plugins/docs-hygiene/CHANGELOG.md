@@ -1,5 +1,57 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.27]
+
+### Fixed
+
+- **Three `.md` preview filters silently dropped every C-quoted filename.** `git status
+  --porcelain` wraps any path holding a space or a metachar in double quotes, which puts the
+  closing `"` past the extension and moves it off a `$` anchor. `compress` and
+  `audit-progressive-disclosure` anchored with `grep '\.md$'`, `audit-derivability` with
+  `awk '/\.md$/'`, so each showed the model a preview missing files the skill was about to be
+  pointed at, with no signal that anything was missing. Proven by execution against a repository
+  holding seven `.md` files whose names carry, respectively, nothing unusual, a space, a single
+  quote, a double quote, a semicolon, a pipe, and a newline: the old anchors matched 4 of 7, the
+  new `\.md"?$` anchors match 7 of 7. The correct form already shipped next door in `audit-noise`,
+  which keeps its filter unchanged and was the model for the fix. A quoted record still renders
+  C-quoted in the preview (`?? "with space.md"`); these lines are previews, and every one of them
+  tells the reader so. LIVE and PRE-EXISTING: the anchors predate 0.21.23, 0.21.24 and 0.21.26,
+  each of which reworked the shape around them and none of which touched the filters. No grant
+  changed. `audit-progressive-disclosure` keeps `Bash(grep:*)`, whose leading token is still
+  `grep`; `compress` and `audit-derivability` declare no `allowed-tools`.
+- **`audit-derivability` was a roster addition, not a listed finding.** The report that opened this
+  lane named two under-reporting `.md` filters in this plugin. Re-deriving the roster over every
+  `git status --porcelain` injection in the marketplace, and again over every injection carrying an
+  extension-anchored filter, found a third in `audit-derivability`, whose `awk` regex carries the
+  same `$` anchor on the same unquoted porcelain. 0.21.26 fixed that probe's SIGPIPE shape and left
+  its filter as it found it, so the two defects are independent and only one of them is now closed
+  by that release. Same fix and same proof as the other two. Both derivations return the same six
+  filtered probes and no others, so the roster is closed: four were defective, `audit-noise` and
+  `code-tidying`'s `audit-comment-residue` were already correct.
+- **The brace groups 0.21.26 and 0.21.24 installed are intact and still correct.** Re-ran the state
+  matrix over every touched probe (healthy, at cap, no match, clean tree, outside a repo, each
+  under `set -o pipefail` and `set +o pipefail`, 50 cells for this plugin): all exit 0, the at-cap
+  cells render exactly the cap with no failure token, and only the outside-a-repo cells render one.
+  `audit-derivability` was re-verified on the MERGED line, 0.21.26's brace group plus this
+  release's filter, at 25 dirty `.md` files: 20 paths under both settings, no spurious token.
+
+### Changed
+
+- **Four probe labels no longer assert `empty = none`.** `audit-noise`, `compress`,
+  `audit-progressive-disclosure`, and `audit-derivability` all rendered their filtered preview
+  under a label positively claiming that an empty render meant no matching files. The probes never
+  established that. In the brace-group form the closing `:` makes the outer `||` unreachable, so a
+  failure INSIDE the group also renders empty: a filter binary off PATH, or a second `git`
+  invocation that fails after the guard's copy succeeded, which models `index.lock` contention.
+  `audit-derivability`'s capture keeps git's own status outside the pipeline, so it still detects an
+  unavailable `git`, but its filter stage sits inside the same brace group and fails the same way.
+  None of this is a regression, the earlier shapes were equally silent, but the label was making a
+  claim the plumbing cannot back. The labels now read `empty = none matched or the probe returned
+  nothing`. Fixing the label rather than the plumbing is deliberate: closing those states needs a
+  temp file or a second capture in a block that must stay free of `$`, which costs more than the
+  honesty is worth. `audit-noise`'s parity test extracts the label by stem, so the wider
+  parenthetical does not disturb it; its 199 checks stay green.
+
 ## [0.21.26]
 
 ### Fixed
