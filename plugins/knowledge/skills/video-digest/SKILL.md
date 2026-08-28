@@ -9,9 +9,9 @@ shell: bash
 ## Pre-computed context
 
 video-extraction deps: !`node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;process.stdout.write(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')"`
-yt-dlp: !`yt-dlp --version 2>/dev/null | head -1 || echo "MISSING — install yt-dlp (see Prerequisites)"`
-ffmpeg: !`ffmpeg -version 2>/dev/null | head -1 || echo "MISSING — install ffmpeg (watch action only)"`
-ImageMagick: !`magick -version 2>/dev/null | head -1 || echo "MISSING — install ImageMagick 7 (watch action only)"`
+yt-dlp: !`command -v yt-dlp >/dev/null 2>&1 && yt-dlp --version 2>/dev/null | head -1 || echo "MISSING — install yt-dlp (see Prerequisites)"`
+ffmpeg: !`command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || echo "MISSING — install ffmpeg (watch action only)"`
+ImageMagick: !`command -v magick >/dev/null 2>&1 && magick -version 2>/dev/null | head -1 || echo "MISSING — install ImageMagick 7 (watch action only)"`
 
 # Video digest. YouTube and X
 

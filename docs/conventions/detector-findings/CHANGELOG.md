@@ -34,6 +34,33 @@ field's rule moves, no coexistence obligation changes, and no enforceability ver
   tier, but the table asserts conformance today, and this plugin's fix mode ships report-only per
   class until the golden set carries a class past minimum n. The row lands when it does.
 
+## 2.8.1 — 2026-08-28
+
+**Patch under this contract's own rule** — docs-only clarification. No producer-owned field's rule
+moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **"Where the file goes" cited `review:fanout` by a path into its private tree.** The paragraph
+  named the binding, correctly, and then wrote
+  `[`SKILL.md`](../../../plugins/review/skills/fanout/SKILL.md)` for the skill body that points at
+  it. That link resolves only inside the marketplace checkout, and every current adopter fetches
+  this contract over `raw.githubusercontent.com` at run time, so a producer reading the contract the
+  way the contract tells it to could not follow it.
+  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  makes the plugin the encapsulation boundary for citation: name the public invocation, never a path
+  into another plugin's private tree. The sentence now reads "which `/review:fanout` names under
+  'Shared inputs'", keeping the section name so a reader in this checkout still lands in the right
+  place, on the same form [`loop-lane` 9.0.1](../loop-lane/CHANGELOG.md) used. The section's
+  deliberate `plugins/review/reference/topic-docs.md` citation is untouched and stays: that file
+  sits outside every skill directory, the section argues explicitly for naming it by repo path, and
+  the argument it gives is unaffected.
+- **The `docs-hygiene:audit-noise` adopter row stops path-citing the producer's shape library.** It
+  named `plugins/docs-hygiene/skills/audit-noise/scripts/lib/noise-shapes.sh`, which is a reach into
+  a private `scripts/lib/` directory the entry-surface carve-out does not cover, from a contract
+  other repositories read. The row now says "its shape library" and "the scanner", the terms the rest
+  of the row already uses, so the conformance evidence is unchanged and survives the next rename of
+  that file. Same correction the `claude-config:audit-instructions` row took in 2.7.1, for the same
+  reason one step further out. Both found by the whole-repo extract-ssot sweep's encapsulation floor.
+
 ## 2.8.0 — 2026-08-28
 
 **Minor under this contract's own rule.** A conforming producer gains its adopter row; no

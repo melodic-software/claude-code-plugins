@@ -124,7 +124,7 @@ the source level.
 
 Where a description clause is too small for the real distinction, the component's **body** carries a
 fuller section, modeled on the `review` plugin's organic pattern
-(`plugins/review/skills/quality-gate/context/pr.md`, `plugins/review/skills/fanout/SKILL.md`):
+(`/review:quality-gate` and `/review:fanout` each carry one):
 
 ```markdown
 ## Boundary — <the native surfaces this skill overlaps>
@@ -179,8 +179,8 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 
 | Surface | What it carries |
 |---|---|
-| `plugins/claude-ops/skills/audit-install-state/SKILL.md` | Description phrase + `## Boundary` section for the bundled `doctor` skill (verdict `complementary`) |
-| `plugins/review/skills/quality-gate/context/pr.md`, `plugins/review/skills/fanout/SKILL.md` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
+| `/claude-ops:audit-install-state` | Description phrase + `## Boundary` section for the bundled `doctor` skill (verdict `complementary`) |
+| `/review:quality-gate`, `/review:fanout` | The organic Boundary pattern this doc generalizes; adopts the phrasing rules on next touch |
 
 Fleet-wide application is a reserved, separately gated sweep: one plugin per unit — apply, verify,
 PR, close — never a single fleet-wide edit.
@@ -189,8 +189,8 @@ PR, close — never a single fleet-wide edit.
 
 Changing a required part of the description phrase, the canonical gate token, or an enforceability
 verdict is a major change to this contract; additive guidance is minor; clarification is a patch.
-This doc is README-only today; a `CHANGELOG.md` lands here the first time a versioned change is
-made, per the convention-registry shape.
+Version history lives in [`CHANGELOG.md`](CHANGELOG.md), which landed with the first recorded
+change; the doc's README-only original state reads as 1.0.
 
 ## External authority
 
