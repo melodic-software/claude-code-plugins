@@ -1,5 +1,209 @@
 # Changelog
 
+## [0.3.2]
+
+### Fixed
+
+- **The window fix landed in one of the two scripts that share the definition.**
+  `extract-breadcrumbs.sh:is_stamp` still sliced the keyword window at exactly its length after
+  0.3.1 fixed `check-stamps.sh:keyword_window`, so the two disagreed about what a stamp candidate
+  is while the audit flow passes the extractor's output to nomination. Measured across every file
+  the 0.3.1 fix newly parsed, **five** were short a stamp line the extractor should have
+  inventoried: `docs/CLOUD-SESSIONS.md` (3 against 4),
+  `docs/conventions/loop-lane/README.md` (4 against 5),
+  `docs/topics/fresh-eyes-checkpoint-audit/design/design-resolution.md` (1 against 2),
+  `plugins/context-guard/CHANGELOG.md` (4 against 5), and
+  `plugins/session-flow/CHANGELOG.md` (7 against 8). All five agree now.
+
+  An earlier draft of this entry said three, because it sampled five of the seven affected files
+  and reported the differences it happened to catch as the total. The number here comes from
+  sweeping all seven against both versions of the extractor.
+
+  `docs/CLOUD-SESSIONS.md:320` is the worked case, and it is worse than the 0.3.1 one rather than
+  a repeat of it. Its date begins at offset 60 of the 60-character window, so the cut left a bare
+  `2` and **no** form matched — not even the bare-year fallback that at least kept the 0.3.1 case
+  visible in the declined bucket. The line did not decline; it left the inventory entirely, which
+  is the quieter failure of the two.
+
+  The same slack-and-start-boundary rule now applies in both: slice `wlen + 9`, require every
+  match to begin at or before `wlen`. A regression test pins the real corpus line, with a negative
+  control at offset 64 confirming the added slack does not admit a date that starts outside the
+  window.
+
+  One property of `is_stamp` is worth recording, because it masked this and will mask the next
+  attempt to reproduce it: the function rescans from each keyword in turn, so a line carrying a
+  second keyword beside its date (an `as-of` immediately before it, say) matches there regardless
+  of what the first window truncated. A fixture written to exercise the boundary must carry
+  exactly one keyword, or it passes against the unfixed script and proves nothing. Two fixtures
+  written the other way did exactly that here, and a third placed the date by eye rather than by
+  measurement; only lifting a real corpus line verbatim produced a genuine red.
+
+  That sentence is also why this paragraph names no literal date. An earlier draft of it quoted
+  one as an example of the shape, and the corpus run then reported this changelog as carrying an
+  expired stamp, one day over. Prose *about* stamp syntax is indistinguishable from a stamp to a
+  mechanical detector, and this file is inside the corpus it documents.
+
+- **The review dispatch could not execute rubric v3 either.** 0.3.0 gave the judge the containing
+  file and left the reviewer, which runs when `accuracy.review_agents > 0`, holding only the
+  passage, the source text, and the quoted grades. Its job includes checking the C3 grade and
+  whether a carve-out was missed; C3 is graded across the file and carve-outs 1, 4 and 5 are
+  file-level. A reviewer without the file either declines the check or waves through an
+  unsupported C3 PASS — and review is the last stage before fix eligibility, so waving one through
+  is what puts an unsupported finding in reach of an automatic edit. The review prompt now carries
+  `LOCAL FILE:` on the same terms as the judge prompt.
+
+## [0.3.1]
+
+### Fixed
+
+- **A conforming ISO stamp was declined as a bare year, and a declined stamp is never
+  expiry-checked.** `check-stamps.sh` sliced the keyword window at exactly its length (60
+  characters, 30 after `read`), which cut through any date that started inside the window but ended
+  past it. At `docs/upstream/aihero-course.md:127` the window ended mid-date: `as-of 2026-08-17`
+  was read as `2026-08-`, the ISO test failed on the fragment, and the bare-year fallback then
+  matched the `2026` it left behind. Declining routes the line into the reported `declined` bucket
+  and skips it, so the one thing the script exists to do, compare the date against the currency
+  window, never ran on a date that parses perfectly well, and the output said only that the stamp
+  date went unparsed.
+
+  The window is now a distance from the keyword rather than a cut through the text. The slice
+  carries nine more characters, one short of the longest form the tests match, and every form must
+  begin at or before the window length, so the added slack lets a date finish without admitting one
+  that starts outside the window.
+
+  Corpus effect at `--as-of 2026-08-28` over 1,352 tracked files, stated as the delta because that
+  is the part that stays true: **+7 candidates, +7 parsed, declined unchanged** (month-name and
+  bare-year trading 2, as the two below flip), **expiry findings unchanged at 0**. Absolutes
+  measured at `fb11cf6a` are 538 to 545 candidates and 493 to 500 parsed, against 45 declined.
+
+  **Those absolutes will not reproduce at another commit, and the reason is worth more than the
+  numbers.** This changelog is inside the corpus it measures, so each paragraph added here creates
+  new stamp candidates and moves the totals. The figures first published in this entry were taken
+  before the entry itself was written and were already stale by the time it shipped: a smaller,
+  quieter instance of exactly the staleness 0.2.1 was written to correct. The delta is the durable
+  claim; an absolute needs the commit it was taken at, and even then only holds there.
+
+  Two of the seven newly parsed stamps had been declined as bare years
+  (`docs/upstream/aihero-course.md:127`,
+  `plugins/context-guard/reference/cloud-headless-capture.md:78`); the other five were not detected
+  as candidates at all, because truncation left nothing date-shaped in the window. None of the seven
+  is expired — the oldest is 40 days, and the oldest parsed stamp anywhere in the corpus is 142 days
+  against a 180-day window — so no lapsed stamp had been hidden by this.
+
+  Two new declines appear, both instances of the separate `may` false positive, where the month-name
+  test reads the ordinary English word as a month name: `plugins/planning/skills/interview/SKILL.md`
+  at line 117 and `plugins/repo-hygiene/skills/clean/context/git-branch-cleanup.md` at line 42. In
+  each the word starts inside the window (at offset 60 and 59) and the old slice cut it after one
+  character, so the same truncation that hid the ISO dates had been hiding these. That defect is
+  untouched here, and reproduces identically on the previous script: it over-reports into the
+  declined bucket, which is the direction that stays visible to a reader, and is left for its own
+  fix.
+
+  Patch rather than minor: no flag, no output shape and no configuration changes. The counts move
+  because the existing expiry check now reaches stamps it had been dropping.
+
+## [0.3.0]
+
+### Changed
+
+- **Rubric version 3: version 2 never said at which scope C3 is graded.** Applying the rubric to
+  a real corpus passage surfaced it. Two readers reached the same verdict on
+  `plugins/dometrain/skills/grounding/SKILL.md:50-64` at `d7e391da` (containment 0.589, a
+  142-token matched span against `Dometrain/mcp@master` fetched 2026-08-28) and disagreed on which
+  scope produced it. Under version 2 both readings were available and they resolve in opposite
+  directions: grade C3 and C4 both at the file and a majority-adapted file *that carries adequate
+  file-level attribution* clears twice; grade both at the span and a well-attributed derived file
+  stands every time.
+
+  Version 3 states it: **C3 is graded outward across the whole file, C4 on the passage.** What C3
+  tests is whether the attribution's declared scope matches the derivation's — file-scope
+  attribution discharges C3 when the derivation is file-wide, and does not when one lift sits
+  inside otherwise-original material, where the header understates and the reader misallocates.
+  This is a substantive addition, and version 2's "a bare link at the bottom of a long file does
+  not attribute a specific paragraph in the middle of it" cuts against it. **C4's half is only
+  written down**: its worked examples and its closing replacement test were already
+  passage-scoped, so nothing about C4 changes.
+
+  The rejected reading is worth recording because it is the one a judge reaches for: "the
+  attribution exists and is complete." That is not the test. It would let a single lift into an
+  otherwise-original file escape C3 on the strength of a header line about something else.
+
+- **The judge dispatch could not execute the new rule, and now can.** `reference/nomination.md`
+  handed each judge the local passage, the fetched source, and the rubric — never the containing
+  file. A C3 graded across the whole file is unanswerable from that, and both the rubric and the
+  judge prompt instruct UNKNOWN when the text to quote is absent, so a *conforming* judge under
+  version 3 would have graded C3 UNKNOWN on every candidate, stopping every verdict and routing
+  every run to the human. The motivating case proves it: the attribution that clears it sits about
+  35 lines above the passage. The dispatch now supplies `LOCAL FILE:` and says which criteria are
+  graded against which input. Blindness in this panel means blind to the pipeline's own suspicion
+  — the fingerprint numbers, the nomination's reasoning, the other judges — never blind to the
+  material a criterion is defined over. The lens-diversity stance that read for "whether the
+  attribution present already discharges the obligation" was pointing judges at the reading
+  version 3 rejects, and now reads for scope match.
+
+  Carve-outs 1, 4 and 5 are file-level judgments too, and were under-supplied by the
+  passage-only dispatch before this change. That gap predates version 3; it is closed by the same
+  fix.
+
+- **The measurement version 2 stands on does not carry forward.** This file's own rule is that a
+  criterion change invalidates any measurement pinned to the prior version, and version 3 adds a
+  scope-match test to C3 that can decide a case either way. **The golden set must be re-scored
+  against version 3 before any precision figure is cited against it**, and no class becomes
+  fix-eligible on a measurement pinned to a superseded rubric. Version 2 took the one exception to
+  that rule on the argument that it changed no criterion's substance; version 3 cannot make that
+  argument and does not try.
+
+  Said plainly so the figures are not left under a cloud they do not deserve: **no current golden
+  case appears to turn on the scope question.** Seven carry no attribution anywhere, one is
+  declined at a carve-out before grading, one fails C1, and the single case with attribution is a
+  lift inside an otherwise-original file, which resolves identically at either scope. The re-score
+  is expected to reproduce 8 tp / 0 fp / 0 fn / 2 tn. It is still required, because the rule keys
+  on a criterion changing rather than on a recorded case flipping — and inventing a second, weaker
+  exception ("substantive change, but the set does not happen to exercise it") to save a ten-case
+  re-score that costs nothing is the bad trade.
+
+## [0.2.1]
+
+### Fixed
+
+- **The Phase 6 corpus baseline is stale: it reports Phase 3 figures.** The 0.2.0 entry records
+  1,347 tracked files after carve-outs, 525 stamp candidates, 482 parsed, 43 declined, 0 expired,
+  oldest parsed stamp 2026-04-08. All six reproduce exactly at `33dccc59`
+  ("corpus, breadcrumb, and stamp scripts, Phase 3 part 1" — the commit that introduces
+  `list-corpus.sh`), clean tree, running the scripts as they existed there. They were then carried
+  into the Phase 6 paragraph several commits later without re-measuring, so a paragraph presenting
+  itself as the Phase 6 measurement reports a Phase 3 one.
+
+  The current baseline, at `619199ee` with `--as-of 2026-08-28`: **1,352** tracked markdown files
+  after carve-outs (1,395 considered, 43 declined at path level), **535** stamp candidates,
+  **491** parsed, **44** declined at stamp level (20 month-name forms, 24 bare years), **0**
+  expired at the 180-day default, oldest parsed stamp 2026-04-08 at
+  `plugins/work-items/skills/track/actions/add.md:104`, and 9 findings at a 60-day window.
+  `list-corpus`'s path-level `declined: 43` and `check-stamps`'s stamp-level `declined: 44` count
+  different populations and are not an inconsistency.
+
+  **Two of those figures are date-relative and expire**, which is why the as-of date is pinned
+  beside the commit rather than left implicit. `0 expired at the 180-day default` holds only
+  until 2026-10-05 on the current oldest stamp, and `9 findings at a 60-day window` moves daily.
+  `check-stamps.sh --as-of` reproduces both at the recorded date. A baseline recorded without one
+  is the same staleness this entry corrects, one turn later.
+
+  **The delta is not what a first reading of it suggested.** It is not `main` moving across #3467
+  to #3469: those three contribute **+1 in total**, one added file in #3468. #3467 adds 20
+  markdown files and contributes **zero**, because every one lands under `evals/fixtures/golden/`
+  inside the excluded tree — which is why it raises `considered` by 20 and the fixture decline
+  from 3 to 23 while leaving the corpus untouched. The rest of the gap is the four months of
+  corpus growth between Phase 3 and now. Separately, `.claude/provenance.json` is first tracked in
+  `d7e391da`, so the `excluded_paths` layer postdates the figures in the 0.2.0 paragraph.
+
+  **A note on how the wrong diagnosis was nearly recorded instead**, because the method matters
+  more than this particular number. A first pass replayed the carve-out filter across 60 commits
+  reachable from `main`, found 1,347 at none of them, and concluded the figure came from no commit
+  at all. The originating commits sit on the pre-squash build branch, which the squash-merge made
+  unreachable from `main`; the reflog held them throughout. A history replay bounded at a squash
+  boundary cannot answer "does this number come from a commit", and reporting that it can converts
+  a missing sample into a false negative.
+
 ## [0.2.0]
 
 ### Added
@@ -324,6 +528,9 @@
   The declined count is the honest report the design asks for and not a defect to tune away — the
   corpus genuinely carries month-name and bare-year stamp forms, and a parser that guessed at
   them would manufacture findings against dates nobody wrote down.
+
+  **These are Phase 3 figures, carried into this Phase 6 paragraph without re-measuring.** They
+  reproduce exactly at `33dccc59`. See 0.2.1 above for the current baseline and its as-of date.
 
 - **The fingerprint module, the plugin's one pure library.** Word 5-shingles,
   containment, Jaccard, and contiguous matched spans between a local passage and an

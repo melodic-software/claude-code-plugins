@@ -316,12 +316,23 @@ function keyword_window(line,   low, pos, off, kw, wlen) {
     pos = off + RSTART + RLENGTH - 1
     kw = substr(low, off + RSTART, RLENGTH)
     wlen = (kw ~ /read/) ? 30 : 60
-    win = substr(low, pos, wlen)
-    if (win ~ /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) return win
-    if (win ~ /[0-9]+\/[0-9]+\/[0-9]+/) return win
-    if (win ~ /(january|february|march|april|may|june|july|august|september|october|november|december)/) return win
-    if (win ~ /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) return win
-    if (win ~ /(19|20)[0-9][0-9]/) return win
+    # The window is a distance from the keyword, not a cut through the text: a
+    # date that STARTS inside it is read whole. So slice wlen plus 9 more
+    # characters — one short of the longest form matched below — and require
+    # each match to begin at or before wlen. Slicing at exactly wlen truncated
+    # "as-of 2026-08-17" to "2026-08-", the ISO test failed on the fragment,
+    # and the bare-year fallback claimed the "2026" left behind: a conforming
+    # stamp was declined and so never expiry-checked
+    # (docs/upstream/aihero-course.md:127, corpus sweep of 2026-08-28).
+    # Each test returns the window cut at the end of its own match, so the
+    # caller classifies on the match this function accepted and never on one
+    # sitting in the 9 characters of slack.
+    win = substr(low, pos, wlen + 9)
+    if (match(win, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
+    if (match(win, /[0-9]+\/[0-9]+\/[0-9]+/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
+    if (match(win, /(january|february|march|april|may|june|july|august|september|october|november|december)/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
+    if (match(win, /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
+    if (match(win, /(19|20)[0-9][0-9]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     off = pos
     if (off >= length(low)) return ""
   }

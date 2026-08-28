@@ -186,6 +186,36 @@ assert_eq "a non-ISO stamp form is still inventoried" \
 assert_eq "a bare date with no stamp keyword is not a stamp line" \
   "$(echo "$SIB_OUT" | jq -r "$SIB | [.stamp_lines[] | select(.line == 4)] | length")" "0"
 
+# A date that STARTS inside the keyword window but ENDS past it must still make
+# the line a stamp. Slicing the window at exactly its length cut the date and
+# left nothing date-shaped, so the line vanished from the inventory while
+# check-stamps.sh counted it as a candidate. The two scripts promise the same
+# candidate definition, so they have to agree on the boundary.
+STRADDLE_DIR="$TEST_TMPDIR/straddle"
+mkdir -p "$STRADDLE_DIR"
+{
+  printf '# Straddle\n\n'
+  # Taken from docs/CLOUD-SESSIONS.md:320, which check-stamps.sh counts as a
+  # candidate and this extractor did not. One keyword, and the date sits far
+  # enough from it that the 60-character slice cut the year in half. Note the
+  # line must carry no SECOND keyword: "as-of" beside the date would restart
+  # the scan there and mask the truncation entirely.
+  # shellcheck disable=SC2016 # fixture text lifted verbatim from the corpus; the backticks are
+  # literal markdown and part of the character count that puts the date at offset 60.
+  printf '  synced set (verified against the `chore: sync standards components` history on 2026-07-30), so\n\n'
+  # Negative control: the same shape with the date pushed to offset 64,
+  # genuinely past the window. The added slack must not admit it, or the fix
+  # trades a false negative for a false positive.
+  # shellcheck disable=SC2016 # same literal fixture text, date shifted past the window.
+  printf '  synced set (verified against the `chore: sync standards componentsxxxx` history on 2026-07-30), so\n'
+} >"$STRADDLE_DIR/straddle.md"
+
+STRADDLE_OUT="$(run --files "$STRADDLE_DIR/straddle.md" 2>/dev/null)"
+assert_eq "a stamp whose date straddles the window end is inventoried" \
+  "$(echo "$STRADDLE_OUT" | jq -r '.directories[0].files[0] | [.stamp_lines[] | select(.line == 3)] | length')" "1"
+assert_eq "a date starting past the window is still not a stamp" \
+  "$(echo "$STRADDLE_OUT" | jq -r '.directories[0].files[0] | [.stamp_lines[] | select(.line == 5)] | length')" "0"
+
 # --- Fences ----------------------------------------------------------------------
 
 COPIED='.directories[0].files[] | select(.file | endswith("copied.md"))'
