@@ -29,12 +29,13 @@ nominating, judging or reviewing subagent, and none is inlined into the material
 carries. The dispatching run holds the label-to-path mapping and applies it when composing
 results, so nothing downstream loses track of which file was graded.
 
-**What a judge receives instead is everything the criteria are defined over**: the candidate
-passage, the fetched source text, the containing file's contents, the rubric, and its lens
-sentence. No grade needs a path. C1 through C4 are graded on that text, and the carve-outs are
-graded on what the surface says it is for. The two carve-outs that are path-expressible never
-reach a judge at all — `list-corpus.sh` filters vendored trees before a byte is read, and the
-consuming repo declines the fixture tree through `excluded_paths`.
+**What a judge receives instead is everything the criteria are defined over**, and nothing that
+says where it came from: the inputs "Judgment" below enumerates, carrying contents rather than
+locations. No grade needs a location. C1, C2 and C4 are graded on the passage, C3 across the
+containing file, and every carve-out on the passage and the file in front of the judge. Two
+carve-outs do read a path, and neither is a judge's decision to make: `list-corpus.sh` filters
+vendored trees before a byte is read, and the fixture tree is a config entry in the consuming
+repo's `excluded_paths` that an eval run lifts on purpose, so the fixtures report real findings.
 
 The golden set is where this matters most. Its directories under `evals/fixtures/golden/` are
 named for what each case tests, so a name states the case's class, its carve-out, and how dense
@@ -51,8 +52,8 @@ nomination never proposes can never be found. A nomination is a question, not a 
 **Inputs to hand the subagent.** One chunk of corpus files, and the breadcrumb inventory for
 each file's whole DIRECTORY — not just the flagged file's own. Sibling breadcrumbs are the
 point: a neighbor's citation is routinely what identifies an unfenced copy's source, and a
-per-file inventory loses exactly those. Both arrive under neutral labels, per "Neutral labels"
-above.
+per-file inventory loses exactly those. Both arrive under neutral labels, per "Neutral labels
+(required)" above.
 
 **Prompt shape.**
 
@@ -93,7 +94,8 @@ evidence per criterion.
 **Blindness is required, and it is what makes sampling mean anything.** Each judge sees the
 local passage, the fetched source text, **the containing file**, and the rubric. No judge sees:
 the nomination's stated suspicion, the fingerprint numbers, another judge's verdict, how many
-judges are running, or any name for the case beyond the neutral label ("Neutral labels" above).
+judges are running, or any name for the case beyond the neutral label ("Neutral labels
+(required)" above).
 
 **The containing file is an input, not an oversight, and rubric version 3 is why.** C1, C2 and
 C4 are graded on the passage. **C3 is graded outward across the whole file** — it asks whether
@@ -142,7 +144,9 @@ measure self-consistency, which is not the quantity the panel exists to estimate
 > when the verdict is clear, because the grades are read separately from the verdict.
 >
 > LOCAL PASSAGE: [text]
-> SOURCE TEXT: [fetched bytes, with its URL and the rung it came from]
+> SOURCE TEXT: [fetched bytes, with the source's own URL and the rung it came from; where the
+> source was served from a local file instead of fetched, its declared upstream identity and
+> route, never the local path it was read from]
 > LOCAL FILE: [the whole containing file's contents under its neutral label, never its path,
 > with the passage's line range marked]
 >
@@ -166,7 +170,9 @@ Runs when `accuracy.review_agents` > 0, over STANDS verdicts only, before fix el
 > do not have the judges' reasoning beyond those quotes.
 >
 > LOCAL PASSAGE: [text]
-> SOURCE TEXT: [fetched bytes, with its URL and the rung it came from]
+> SOURCE TEXT: [fetched bytes, with the source's own URL and the rung it came from; where the
+> source was served from a local file instead of fetched, its declared upstream identity and
+> route, never the local path it was read from]
 > LOCAL FILE: [the whole containing file's contents under its neutral label, never its path,
 > with the passage's line range marked]
 >
