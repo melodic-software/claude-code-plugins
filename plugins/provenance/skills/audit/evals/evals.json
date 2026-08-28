@@ -105,6 +105,66 @@
         "Does NOT invent a destination or write to a guessed default path",
         "Names both rungs it tried, the bundled review copy and the publisher URL"
       ]
+    },
+    {
+      "id": 9,
+      "name": "golden-set-ships-report-only-at-v1",
+      "prompt": "/provenance:audit the golden-set cases c01 through c07 under evals/fixtures/golden relative to the skill directory, scoring each case against its expected.json, then run score-golden.sh over the set and tell me which finding classes are fix-eligible.",
+      "expected_output": "Each case dir's source.md is served to the fingerprint module directly, so the run needs no network. The five positives are found with their classes and spans; the two hard negatives (c06 quoted-and-cited, c07 owned-convergent) produce no finding. score-golden.sh reports per-class n, precision and recall, and every class is below min_n_per_class 10, so every class ships report-only and NOTHING is fix-eligible. The answer says that is the gate's arithmetic on a set this size, not a precision failure.",
+      "files": [
+        "evals/fixtures/golden/c01-verbatim-workspace-layout/case.md",
+        "evals/fixtures/golden/c01-verbatim-workspace-layout/source.md",
+        "evals/fixtures/golden/c01-verbatim-workspace-layout/expected.json",
+        "evals/fixtures/golden/c02-verbatim-split-spans/case.md",
+        "evals/fixtures/golden/c02-verbatim-split-spans/source.md",
+        "evals/fixtures/golden/c02-verbatim-split-spans/expected.json",
+        "evals/fixtures/golden/c03-near-verbatim-light-edit/case.md",
+        "evals/fixtures/golden/c03-near-verbatim-light-edit/source.md",
+        "evals/fixtures/golden/c03-near-verbatim-light-edit/expected.json",
+        "evals/fixtures/golden/c04-near-verbatim-distant-citation/case.md",
+        "evals/fixtures/golden/c04-near-verbatim-distant-citation/source.md",
+        "evals/fixtures/golden/c04-near-verbatim-distant-citation/expected.json",
+        "evals/fixtures/golden/c05-paraphrase-restructured/case.md",
+        "evals/fixtures/golden/c05-paraphrase-restructured/source.md",
+        "evals/fixtures/golden/c05-paraphrase-restructured/expected.json",
+        "evals/fixtures/golden/c06-negative-quoted-and-cited/case.md",
+        "evals/fixtures/golden/c06-negative-quoted-and-cited/source.md",
+        "evals/fixtures/golden/c06-negative-quoted-and-cited/expected.json",
+        "evals/fixtures/golden/c07-negative-owned-convergent/case.md",
+        "evals/fixtures/golden/c07-negative-owned-convergent/source.md",
+        "evals/fixtures/golden/c07-negative-owned-convergent/expected.json"
+      ],
+      "expectations": [
+        "Finds c01 through c04 and maps each to fingerprint-confirmed, using the fingerprint module's matched span as the finding's span rather than the nominated range",
+        "Keeps c05 at tier llm-suspected and does NOT raise it on judge agreement, since no lexical evidence is possible for a paraphrase",
+        "Produces no finding for c06 or c07, and clears c07 on the owned-content carve-out rather than on a low similarity score",
+        "Reports every class as report-only because n is below min_n_per_class 10, and does NOT offer to fix any finding",
+        "Refuses to lower a gate or reclassify a case to make a class look fix-eligible, and states that the gate binds fix eligibility only and never filters the report"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "synonym-rotation-neither-manufactures-nor-destroys-evidence",
+      "prompt": "/provenance:audit the three adversarial cases c08, c09 and c10 under evals/fixtures/golden relative to the skill directory. They share one source page and differ only in synonym-rotation density. Report the tier you assign each and why.",
+      "expected_output": "c08 (sparse rotation) fires both limbs of the separation rule and is fingerprint-confirmed. c09 (medium rotation) fires on containment alone, with its longest matched span below the 15-word floor, and is fingerprint-confirmed on that limb. c10 (dense rotation) fires neither limb against a source that WAS fetched, so it is source-fetched-similar: a human report, not fix-eligible, and not llm-suspected. The report names the rotation density as the variable and states that the rule is evadable below it.",
+      "files": [
+        "evals/fixtures/golden/c08-adversarial-rotation-sparse/case.md",
+        "evals/fixtures/golden/c08-adversarial-rotation-sparse/source.md",
+        "evals/fixtures/golden/c08-adversarial-rotation-sparse/expected.json",
+        "evals/fixtures/golden/c09-adversarial-rotation-medium/case.md",
+        "evals/fixtures/golden/c09-adversarial-rotation-medium/source.md",
+        "evals/fixtures/golden/c09-adversarial-rotation-medium/expected.json",
+        "evals/fixtures/golden/c10-adversarial-rotation-dense/case.md",
+        "evals/fixtures/golden/c10-adversarial-rotation-dense/source.md",
+        "evals/fixtures/golden/c10-adversarial-rotation-dense/expected.json"
+      ],
+      "expectations": [
+        "Reports which limb of the separation rule fired for each case, not merely whether it fired, so the containment-only verdict on c09 is visible",
+        "Maps c10 to source-fetched-similar rather than llm-suspected, because a source was in hand and the deterministic rule came back below threshold",
+        "Does NOT map c10 to fingerprint-confirmed on the strength of the judges agreeing it is a copy",
+        "States that dense rotation evades word-shingling and that no value of min_containment recovers a passage with zero matching shingles, instead of proposing a threshold change",
+        "Treats the three cases as one measurement of where the rule ends rather than as three unrelated verdicts"
+      ]
     }
   ]
 }

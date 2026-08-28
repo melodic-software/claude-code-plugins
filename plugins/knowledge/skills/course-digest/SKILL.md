@@ -10,8 +10,8 @@ shell: bash
 
 course-extraction deps: !`node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;process.stdout.write(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')"`
 Playwright Chromium: !`node -e "const fs=require('fs'),path=require('path');const b=process.env.PLAYWRIGHT_BROWSERS_PATH||(process.env.CLAUDE_PLUGIN_DATA&&path.join(process.env.CLAUDE_PLUGIN_DATA,'ms-playwright'));const ok=b&&fs.existsSync(b)&&fs.readdirSync(b).some(n=>n.startsWith('chromium'));process.stdout.write(ok?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')"`
-ffmpeg: !`ffmpeg -version 2>/dev/null | head -1 || echo "MISSING — install ffmpeg (see Prerequisites)"`
-ImageMagick: !`magick -version 2>/dev/null | head -1 || echo "MISSING — install ImageMagick 7 (see Prerequisites)"`
+ffmpeg: !`command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || echo "MISSING — install ffmpeg (see Prerequisites)"`
+ImageMagick: !`command -v magick >/dev/null 2>&1 && magick -version 2>/dev/null | head -1 || echo "MISSING — install ImageMagick 7 (see Prerequisites)"`
 
 # Course Digest
 

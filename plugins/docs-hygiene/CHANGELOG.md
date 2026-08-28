@@ -1,5 +1,73 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.25]
+
+### Added
+
+- **`extract-ssot`'s orchestrated-mode floor copy is now gated, not just correct.** 0.21.22
+  reconciled this file's inlined `rate-limit-guard` operable floor by hand. It is now one of the six
+  registered copies the marketplace repo's `loop-lane-floor-drift-gate` lane holds against the
+  reader contract that owns them, so the next floor change fails CI here rather than leaving this
+  copy behind. The lane also scans every tracked file for the floor and fails on a carrier its
+  registry does not name, so a later `docs-hygiene` surface that inlines the block cannot go
+  unwatched. No content change to the block in this release.
+
+## [0.21.24]
+
+### Fixed
+
+- **The filtered-probe guard is now pipefail-proof.** 0.21.23 shipped
+  `probe >/dev/null 2>&1 && probe | filter | head -10 || echo "(git status unavailable)"`. Under
+  `set -o pipefail` the `&&` list takes the pipeline's exit status, and pipefail makes that non-zero
+  in two ordinary situations: `grep` matching nothing, and `git` taking SIGPIPE when `head` closes
+  the pipe at the cap. Both fire the failure token on a healthy probe, which is worse than the
+  defect 0.21.23 removed — the shape it replaced only ever said `none`, while this one positively
+  asserts that `git status` was unavailable when it ran fine. Reproduced on a repository with 3,000
+  dirty files: the 0.21.23 form prints `(git status unavailable)`. The filter pipeline now sits in a
+  brace group closed by `:`, a command that cannot fail, so the `||` is reachable only by the guard
+  short-circuiting. Verified on the committed lines in five states, with and without
+  `set -euo pipefail`: outside a repository, with a `.git` that is not a repository, with no `git`
+  on `PATH`, in a repository whose dirty files do not match, and at the cap with 15 matches.
+
+## [0.21.23]
+
+### Fixed
+
+- **Three filtered-probe injections now tell a failed probe apart from a filter that matched
+  nothing.** 0.21.22 normalized this plugin's one working-tree status probe, in
+  `rename-references`, and recorded its filtered probes as deliberately left open
+  (`docs/specs/extract-ssot-sweep-2026-08-28.md`). Two of them,
+  `audit-noise` and `audit-progressive-disclosure`, piped `git status --porcelain` through a `grep`
+  into `head -10` before `|| echo "none"`: `||` binds to the whole pipeline, a pipeline's status is
+  its last command's, and `head` exits 0 on empty input, so the fallback could never run and a
+  failed probe rendered as an empty string under a label reading `Uncommitted .md files:`.
+  `compress` carried a different defect. Its fallback sat inside the brace group behind the filter
+  (`{ git status --porcelain 2>/dev/null | grep '\.md$' || echo "none"; } | head -10`), where the
+  exit status is `grep`'s, which is 1 both when git failed and when nothing matched, so the
+  fallback did fire and printed `none` for both meanings.
+  All three lines now head an `&&` list with a status-only run of their own probe
+  (`git status --porcelain >/dev/null 2>&1 && git status --porcelain 2>/dev/null | … | head -10 ||
+  echo "(git status unavailable)"`), so the `||` fires on probe failure alone. Each site keeps its
+  own filter, its own cap of 10 and its own label noun; each label gained `empty = none` so an
+  empty render reads as the filter matching nothing, and the failure token is the
+  `(git status unavailable)` string the fleet's already-normalized probes use. The probe runs twice
+  because the capture-first alternative in `audit-derivability` needs a `$` expansion, and a `$`
+  expansion other than a bare `$HOME` in a pre-compute block makes the skill fail to load from a
+  worktree-isolated agent (`session-flow` 0.17.16). The added text introduces no `$` of any kind,
+  and no line here holds a `$` expansion: the only `$` characters left are the end-of-line anchors
+  inside the pre-existing single-quoted `grep` patterns, which the shell never expands. Verified by
+  execution: outside a repository all three print `(git status unavailable)`, inside a repository
+  whose dirty files do not match they print nothing, and with 15 matching `.md` files the cap holds
+  at 10 with no spurious fallback. `audit-derivability`, whose fallback was already reachable, is
+  unchanged.
+
+- **`audit-noise`'s SKILL.md parity check follows the new line shape.**
+  `scripts/detect.test.sh` extracted the preview `grep` with a `sed` anchored to the entire former
+  line, label and `git status --porcelain 2>/dev/null |` prefix included, so the label and probe
+  change above would have left it matching nothing. It now anchors on the label stem and on the
+  `| grep … | head` segment, and still extracts and executes the real expression rather than a
+  restatement of it. Suite green at 199 checks.
+
 ## [0.21.22]
 
 ### Changed

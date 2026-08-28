@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "source-fetched-similar",
+      "span": { "start_line": 7, "end_line": 11 }
+    }
+  ],
+  "notes": {
+    "shape": "Adversarial probe 3 of 3 (design thread T15), and the evasion point. The same source passage as c08 and c09, rotated until a synonym lands at least every fourth word so that no five-word window survives intact. Clause order, enumeration order, and every fact are still the source's.",
+    "carve_outs": "None apply. This is not a paraphrase carve-out and not owned content: the passage carries the source's structure sentence for sentence.",
+    "rubric": "C1 holds, and it holds easily: every clause maps to a clause. C2 holds: the rotation preserves the structure that had alternatives. C3 holds: no attribution. C4 holds: substituting words is not doing work the source does not do.",
+    "measured": "fingerprint.mjs at k=5: containment 0.0, jaccard 0.0, no matched spans. The separation rule does NOT fire on either limb, against a source that was supplied and identity-checked.",
+    "tier_reason": "source-fetched-similar, NOT llm-suspected and NOT fingerprint-confirmed. The source was fetched and the deterministic rule came back below threshold, which is exactly the evidence gate that tier names. It is a human report and it is not fix-eligible. A run that maps this to fingerprint-confirmed has invented lexical evidence; a run that maps it to llm-suspected has thrown away the fact that a source was in hand.",
+    "carries": "The honest reading of this case is that word-level shingling is evadable by an author who wants to evade it, and that the remaining defense is judgment, not arithmetic. This is a finding about the rule's ceiling, recorded here so it is a measured limit rather than an assumption. Tuning the constants does not fix it: no containment threshold above zero recovers a passage with zero matching shingles, so the next axis would have to be lexical rather than a different number on this one. That work is not in scope for v1 and is not attempted here."
+  }
+}

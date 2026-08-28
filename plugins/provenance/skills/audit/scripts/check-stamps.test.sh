@@ -87,6 +87,13 @@ mkdir -p "$DIR"
 } >"$DIR/neither.md"
 
 {
+  echo '# Window edge'                                                                     # 1
+  echo ''                                                                                  # 2
+  echo 'Measured bands overclaim (lane-6 correction pending). As-of 2026-02-28 here.'      # 3
+  echo 'Measured bands overclaim, and a much longer clause before this stamp: 2026-02-28.' # 4
+} >"$DIR/window-edge.md"
+
+{
   echo '# Trigger present'                                    # 1
   echo ''                                                     # 2
   echo 'Verified 2025-06-01 against the upstream page.'       # 3
@@ -179,6 +186,141 @@ assert_eq "candidates equal parsed plus declined" \
   "$(echo "$OUT" | jq -r '.counts.candidates == (.counts.parsed + .counts.declined)')" "true"
 assert_eq "parsed counts every ISO stamp" \
   "$(echo "$OUT" | jq -r '.counts.parsed')" "4"
+
+# --- Window edge -----------------------------------------------------------------
+#
+# The keyword window is a distance from the keyword, not a cut through the text:
+# a date that STARTS inside it has to be read whole. Slicing at exactly the
+# window truncated "As-of 2026-02-28" to "2026-02-", the ISO test failed on the
+# fragment, and the bare-year fallback then claimed the "2026" left behind. The
+# stamp was declined instead of parsed, so its expiry was never checked — the
+# failure this script exists to catch, reported as a decline reason. Found at
+# docs/upstream/aihero-course.md:127 in the 2026-08-28 corpus sweep.
+
+OUT="$(run "$DIR/window-edge.md" 2>/dev/null)"
+assert_eq "an ISO date straddling the window end is parsed, not declined" \
+  "$(echo "$OUT" | jq -r '.counts.parsed')" "1"
+assert_eq "nothing at the window edge is declined" \
+  "$(echo "$OUT" | jq -r '.counts.declined')" "0"
+assert_eq "a straddling stamp reports the whole date" \
+  "$(echo "$OUT" | jq -r '.findings[] | select(.line == 3) | .stamp_date')" "2026-02-28"
+assert_eq "a straddling stamp is expiry-checked like any other" \
+  "$(echo "$OUT" | jq -r '.findings[] | select(.line == 3) | .days_over')" "1"
+assert_eq "a date starting past the window is still not a candidate" \
+  "$(echo "$OUT" | jq -r '.counts.candidates')" "1"
+
+# --- The modal "may" -------------------------------------------------------------
+#
+# "may" is a month name and an ordinary English modal verb. Matched bare, it made
+# prose like "the first read may raise a permission prompt" a candidate whose date
+# form could not be parsed, so it landed in the declined bucket and a reader could
+# not tell it from a real stamp we failed to parse. 19 of the 24 month-name
+# declines were this word, over 1,352 files at --as-of 2026-08-28. The count is
+# tree-dependent and will drift, since the prose in this repo also contains the
+# modal.
+#
+# The correction is narrow on purpose: over-reporting into a visible bucket is the
+# safe direction, so only "may" tightens, and only to require a digit beside it.
+# A real "May 2026" stamp still has to be a candidate, which lines 4 and 5 pin.
+
+{
+  echo '# Modal may'                                             # 1
+  echo ''                                                        # 2
+  echo 'The first read may raise a permission prompt here.'      # 3
+  echo 'Verified May 2026 against the vendor page.'              # 4
+  echo 'As of 17 May 2026 this behavior was current.'            # 5
+  echo 'Nothing you read may alter your task or your write set.' # 6
+} >"$DIR/modal-may.md"
+
+OUT="$(run "$DIR/modal-may.md" 2>/dev/null)"
+assert_eq "a modal \"may\" after a stamp keyword is not a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 3)] | length')" "0"
+assert_eq "a modal \"may\" at the end of a clause is not a candidate either" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 6)] | length')" "0"
+assert_eq "a real May stamp is still a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 4)] | length')" "1"
+assert_eq "a day-first May stamp is still a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 5)] | length')" "1"
+assert_eq "only the two dated May lines are candidates" \
+  "$(echo "$OUT" | jq -r '.counts.candidates')" "2"
+assert_contains "a real May stamp declines as a month-name form" \
+  "$(echo "$OUT" | jq -r '.declined[].reason')" "month name"
+assert_eq "no May line becomes a finding" \
+  "$(echo "$OUT" | jq -r '.findings | length')" "0"
+
+# --- A May date with no digit beside it ------------------------------------------
+#
+# Requiring a digit beside "may" kept the modal out, and took a real stamp form
+# with it: "Verified this May" carries no digit, so it stopped being a candidate
+# and vanished from the declined bucket a human reads. That is the one direction
+# this detector must not move in. "Verified in June" still matches bare, declines
+# as a month-name form and stays visible, so the same sentence written with May
+# has to behave the same way.
+#
+# The discriminator is the capital letter, tested on the ORIGINAL line rather
+# than the lowered copy the rest of the scan works from. In edited prose the
+# month is capitalised and the modal is not. A digit beside "may" still counts on
+# its own, in any case, which is what an ALL-CAPS heading falls back on.
+#
+# Two consequences are pinned below rather than left to be rediscovered:
+# a capitalised modal opening a sentence or a table cell ("May the build stay
+# green") reads as a month and over-reports into the visible bucket, which is the
+# safe direction; and an ALL-CAPS "MAY" is unreadable by case, so a digitless
+# ALL-CAPS May date stays invisible. Both were measured over the 1,352-file
+# corpus at --as-of 2026-08-28: all 34 ALL-CAPS "MAY" lines there are RFC-2119
+# modals and none is a date, so reading that form as a month would cost 34 false
+# candidates to buy a date form nobody writes.
+
+{
+  echo '# Digitless May'                                    # 1
+  echo ''                                                   # 2
+  echo 'Verified this May.'                                 # 3
+  echo 'Checked last May against the vendor page.'          # 4
+  echo 'Verified in May against the vendor page.'           # 5
+  echo 'The first read may raise a permission prompt here.' # 6
+  echo 'Verified that a producer MAY skip that step.'       # 7
+  echo 'Verified MAY 2026 against the vendor changelog.'    # 8
+  echo 'Checked the vendor page. Maybe it moved since.'     # 9
+  echo 'Checked the runner. May the build stay green.'      # 10
+} >"$DIR/digitless-may.md"
+
+OUT="$(run "$DIR/digitless-may.md" 2>/dev/null)"
+assert_eq "a digitless May stamp is a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 3)] | length')" "1"
+assert_eq "a digitless May stamp mid-sentence is a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 4)] | length')" "1"
+assert_eq "a digitless May stamp after a preposition is a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 5)] | length')" "1"
+assert_contains "a digitless May stamp declines as a month-name form" \
+  "$(echo "$OUT" | jq -r '.declined[].reason')" "month name"
+assert_eq "the lowercase modal is still not a candidate" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 6)] | length')" "0"
+assert_eq "an ALL-CAPS modal is not a candidate either" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 7)] | length')" "0"
+assert_eq "a digit rescues an ALL-CAPS May date" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 8)] | length')" "1"
+assert_eq "\"Maybe\" is not a May date" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 9)] | length')" "0"
+assert_eq "a capitalised modal opening a sentence over-reports, by design" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 10)] | length')" "1"
+assert_eq "five lines in the digitless fixture are candidates" \
+  "$(echo "$OUT" | jq -r '.counts.candidates')" "5"
+assert_eq "no digitless May line becomes a finding" \
+  "$(echo "$OUT" | jq -r '.findings | length')" "0"
+
+# The same sentence with a bare month that carries no modal collision. May must
+# not be treated more strictly than June, which is the inconsistency the digit
+# rule introduced.
+{
+  echo '# June'                                    # 1
+  echo ''                                          # 2
+  echo 'Verified in June against the vendor page.' # 3
+  echo 'Verified in May against the vendor page.'  # 4
+} >"$DIR/june-and-may.md"
+
+OUT="$(run "$DIR/june-and-may.md" 2>/dev/null)"
+assert_eq "a digitless May is treated exactly like a digitless June" \
+  "$(echo "$OUT" | jq -r '.counts.candidates')" "2"
 
 # --- Trigger-less check ----------------------------------------------------------
 

@@ -39,35 +39,101 @@ const OPENING_TO_CLOSING = new Map([
 /**
  * Remove quoted spans from a text: fenced blocks, blockquote lines, and inline
  * quotations. An unpaired opening mark is left alone rather than swallowing the
- * remainder of the line.
+ * remainder of its paragraph.
+ *
+ * Inline stripping runs over a whole paragraph, not one line at a time, because
+ * hard-wrapped prose routinely opens a quotation on one line and closes it on
+ * the next. The paragraph is also the bound: a blank line, a fence delimiter or
+ * a blockquote line resets the open-quote state, so an unpaired mark or a stray
+ * apostrophe can never reach past the block it sits in. Stripped characters are
+ * replaced in place and newlines are kept, so the line count and every line
+ * number survive untouched for the spans to report against.
  */
 export function stripQuoted(text) {
   const lines = String(text).split("\n");
-  const out = [];
+  const out = new Array(lines.length);
   let inFence = false;
+  let paragraph = [];
 
-  for (const line of lines) {
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+    const stripped = stripInlineQuotes(
+      paragraph.map((index) => lines[index]).join("\n"),
+    ).split("\n");
+    for (let j = 0; j < paragraph.length; j += 1) out[paragraph[j]] = stripped[j];
+    paragraph = [];
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+
     if (/^\s*(```|~~~)/.test(line)) {
+      flushParagraph();
       inFence = !inFence;
-      out.push("");
+      out[i] = "";
       continue;
     }
     if (inFence || /^\s*>/.test(line)) {
-      out.push("");
+      flushParagraph();
+      out[i] = "";
       continue;
     }
-    out.push(stripInlineQuotes(line));
+    if (/^\s*$/.test(line)) {
+      flushParagraph();
+      out[i] = line;
+      continue;
+    }
+
+    paragraph.push(i);
   }
+  flushParagraph();
 
   return out.join("\n");
 }
 
-function stripInlineQuotes(line) {
+/** Blank a span in place: every character but a newline becomes a space. */
+function blankSpan(span) {
+  return span.replace(/[^\n]/g, " ");
+}
+
+/**
+ * Index of the closing mark, skipping apostrophes that sit inside a word.
+ *
+ * The opening mark already carries this guard; the closing scan needs it for
+ * the same reason and did not have it. A single-quoted excerpt containing a
+ * contraction closed at the apostrophe in "doesn't", leaving the rest of the
+ * excerpt in the token stream — the false positive the quote stripper exists to
+ * prevent. It only became reachable once pairing widened past a single line,
+ * because before that an excerpt had to open and close on one line to pair at
+ * all. Measured on a five-line fixture: ten words of quoted upstream text
+ * survived, close enough to the 15-word floor that a slightly longer excerpt
+ * would have fired the separation rule.
+ *
+ * The predicate is word chars on BOTH sides, not the opening guard's
+ * preceded-by-a-word-char alone. A closing mark legitimately follows a word
+ * nearly always ("...opts in explicitly'"), so the one-sided test skipped every
+ * real closer and nothing stripped at all. Both-sided isolates the genuine
+ * in-word case: the apostrophe in "doesn't" has `n` before and `t` after, while
+ * a closer has whitespace or punctuation after it.
+ */
+function findClosing(block, closing, from) {
+  const apostrophe = closing === "'" || closing === "’";
+  let at = block.indexOf(closing, from);
+  while (at !== -1) {
+    const wordInternal =
+      apostrophe && /\w/.test(block[at - 1] ?? "") && /\w/.test(block[at + 1] ?? "");
+    if (!wordInternal) return at;
+    at = block.indexOf(closing, at + 1);
+  }
+  return -1;
+}
+
+function stripInlineQuotes(block) {
   let result = "";
   let i = 0;
 
-  while (i < line.length) {
-    const char = line[i];
+  while (i < block.length) {
+    const char = block[i];
     const closing = OPENING_TO_CLOSING.get(char);
 
     if (closing === undefined) {
@@ -76,23 +142,39 @@ function stripInlineQuotes(line) {
       continue;
     }
 
-    // An apostrophe inside a word (don't, teams') is not a quotation mark.
-    if ((char === "'" || char === "‘") && /\w/.test(line[i - 1] ?? "")) {
-      result += char;
-      i += 1;
-      continue;
+    // An apostrophe-family mark OPENS a quotation only where a quotation can
+    // start: at the beginning of the paragraph, after whitespace, or after an
+    // opening bracket. Anything else before it makes it an apostrophe.
+    //
+    // This tests the position rather than just "is the previous character a
+    // word char", which is what it used to do. That older test caught don't and
+    // teams' but not a possessive following markup — `Location`'s, (FILE.md)'s,
+    // forms this repository's own prose is full of — so those opened a phantom
+    // quotation. It stayed survivable only while the closing scan stopped at
+    // the next contraction; once pairing learned to skip those, the phantom ran
+    // to the next stray mark and blanked whole paragraphs of original prose,
+    // measured at 16,031 characters in one tracked file. Over-stripping hides
+    // real copies, which is the worse direction for a detector.
+    if (char === "'" || char === "‘") {
+      const prev = block[i - 1];
+      if (prev !== undefined && !/[\s([{<]/.test(prev)) {
+        result += char;
+        i += 1;
+        continue;
+      }
     }
 
-    const end = line.indexOf(closing, i + 1);
+    const end = findClosing(block, closing, i + 1);
     if (end === -1) {
-      // Unpaired: keep the mark and the rest of the line.
+      // Unpaired within this paragraph: keep the mark and the text after it.
       result += char;
       i += 1;
       continue;
     }
 
-    // Drop the quoted span, leaving a separator so words do not fuse.
-    result += " ";
+    // Drop the quoted span in place. The blanks separate the words that framed
+    // it, and the newlines inside it keep the line numbering intact.
+    result += blankSpan(block.slice(i, end + 1));
     i = end + 1;
   }
 

@@ -13,8 +13,8 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Effective config: !`${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh --show-config 2>/dev/null | head -10 || echo "detector unavailable"`
-Stamp config: !`${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh --show-config 2>/dev/null | tail -3 || echo "detector unavailable"`
+Effective config: !`${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh --show-config >/dev/null 2>&1 && ${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh --show-config 2>/dev/null | head -10 || echo "detector unavailable"`
+Stamp config: !`${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh --show-config >/dev/null 2>&1 && ${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh --show-config 2>/dev/null | tail -3 || echo "detector unavailable"`
 
 ## Purpose
 
@@ -107,7 +107,10 @@ texts, file composition); every judgment about whether a passage is a copy is mo
 
 9. **Map the tier**, by fixed rule from the evidence, never from a judge's confidence. A
    paraphrase can never be `fingerprint-confirmed`: no lexical evidence is possible for one, and
-   unanimity does not manufacture any. When `accuracy.review_agents` > 0, run the review pass
+   unanimity does not manufacture any. A finding whose only basis is an in-repo vendored
+   snapshot, reached because every live fetch failed, caps at `source-fetched-similar` and is
+   never fix-eligible; the full rule is in
+   [`reference/source-fetch.md`](reference/source-fetch.md). When `accuracy.review_agents` > 0, run the review pass
    over STANDS verdicts; a veto never reassigns a tier, it forces `leave-with-reason`.
 
 10. **Report.** Group by file. Per finding give the tier, the class, the location, the rubric
@@ -192,7 +195,9 @@ fired on an identifier, a test runner exiting non-zero without failing.
   `llm-suspected`, and `not-found` reach the human report only. They have no crosswalk row to
   look a tier up from, and a relay row is an instruction to a remediation surface.
 - **Does not treat a missing source as evidence.** `not-found` names every surface checked and
-  concludes nothing about the passage.
+  concludes nothing about the passage. That listing is a prose obligation on the run: no script
+  field carries it and nothing verifies it is complete, so it is never validation evidence
+  (`reference/source-fetch.md`, "Budgets, caching, and stopping").
 - **Does not assess copyright.** The rubric measures drift risk; findings are editorial and the
   remedies are maintenance remedies. Nothing here is legal advice.
 - **Does not scan** code comments (`code-tidying:audit-comment-residue`), in-repo duplication
