@@ -26,7 +26,8 @@
 #       itself, because a ref the user typed and got wrong has to be an error
 #       naming it rather than a silent fall-through to origin/main.
 #
-#   changed_files::into <out-array> <base> [--include-deleted] [-- <pathspec>...]
+#   changed_files::into <out-array> <base> [--include-deleted] [--no-renames]
+#                       [-- <pathspec>...]
 #       Fills <out-array> with the paths changed against <base>, sorted and
 #       de-duplicated.
 #
@@ -50,6 +51,15 @@
 # which must still see that a non-docs file was deleted. Making it an explicit
 # argument is the point of the extraction: the two behaviours stay different on
 # purpose and each call site says which it wants.
+#
+# `--no-renames` IS EQUALLY PER-CALLER. Under git's default rename detection a
+# byte-identical move collapses to one record whose --name-only line is the
+# DESTINATION only, so the source path never reaches the caller. A gate that
+# owes a check to BOTH sides of a move (check-vendor-version-bump.sh: the
+# source plugin's vendor deletion is a change its installed consumers must
+# receive) passes this flag to see the move as a delete plus an add; a scanner
+# that only opens files on disk is served by the default, since the vanished
+# source is nothing it could open.
 
 # changed_files::verify_base <ref>
 changed_files::verify_base() {
@@ -81,17 +91,23 @@ changed_files::resolve_base() {
   return 1
 }
 
-# changed_files::into <out-array> <base> [--include-deleted] [-- <pathspec>...]
+# changed_files::into <out-array> <base> [--include-deleted] [--no-renames]
+#                     [-- <pathspec>...]
 changed_files::into() {
   local -n _cf_paths_out="$1"
   local _cf_base="$2"
   shift 2
 
   local -a _cf_filter=(--diff-filter=d)
+  local -a _cf_renames=()
   while (($# > 0)); do
     case "$1" in
     --include-deleted)
       _cf_filter=()
+      shift
+      ;;
+    --no-renames)
+      _cf_renames=(--no-renames)
       shift
       ;;
     --)
@@ -124,7 +140,7 @@ changed_files::into() {
   # verbatim. A quoted `"plugins/..."` misses every suffix and prefix test the
   # callers apply and is silently dropped, the exact silent exclusion the gates
   # forbid.
-  if ! git diff --name-only ${_cf_filter[@]+"${_cf_filter[@]}"} -z "$_cf_base" -- "$@" >"$_cf_tmp"; then
+  if ! git diff --name-only ${_cf_filter[@]+"${_cf_filter[@]}"} ${_cf_renames[@]+"${_cf_renames[@]}"} -z "$_cf_base" -- "$@" >"$_cf_tmp"; then
     rm -f "$_cf_tmp"
     printf 'changed-files: git diff against %s failed; refusing to report an empty change set\n' "$_cf_base" >&2
     return 1
