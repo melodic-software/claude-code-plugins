@@ -22,31 +22,32 @@ the framing travels with the prompt. Carry this in every template below:
 ## Neutral labels (required)
 
 **A case reaches a subagent under a neutral identifier, never under a name that carries its
-answer.** Before filling any template below, assign each case an opaque label (`case-a`,
-`case-b`) and pass that. No directory name, file path, fixture id, or other label that encodes
-the expected class, the tier, an applicable carve-out, or the case's design intent goes to any
-subagent this run dispatches over the case — nominating, judging, reviewing, or guarding a fix —
-and none is inlined into the material its prompt carries. The dispatching run holds the
+answer.** Before filling any template below, assign each case — each candidate file, in an
+ordinary audit — an opaque label (`case-a`, `case-b`) and pass that. No directory name, file
+path, fixture id, or other label that encodes the expected class, the tier, an applicable
+carve-out, or the case's design intent goes to any subagent this run dispatches over the case —
+nominating, judging, reviewing, or guarding a fix — and none is inlined into the material its
+prompt carries. The dispatching run holds the
 label-to-path mapping and applies it when composing results, so nothing downstream loses track
 of which file was graded.
 
 **What a judge receives instead is everything the criteria are defined over**, and nothing that
-says where it came from: the inputs "Judgment" below enumerates, carried as contents. No
-criterion needs a location, which is what makes the rule cheap. Two carve-outs do read one, and
-neither is the judge's to decide: `list-corpus.sh` filters vendored trees before a byte is read,
-and the fixture tree is a config entry in the consuming repo's `excluded_paths` that an eval run
-lifts on purpose so the fixtures report real findings. The judge prompt below says both are
-settled upstream, so a judge without a path is never a judge unable to grade.
+says where it came from: the inputs "Judgment" below enumerates, carried as contents. This takes
+nothing away from grading and is not a change to it. The prompt fields never carried a location;
+the rule is what keeps one from being added to them, and from arriving inside the material they
+carry.
 
 The golden set is where this matters most. Its directories under `evals/fixtures/golden/` are
 named for what each case tests, so a name states the case's class, its carve-out, and how dense
 its rotation is. Those names are for the humans maintaining the fixtures. Handing one to a judge
 is the answer key arriving by another route, and it makes the panel's agreement a measurement of
-the label rather than of the rubric. Each fixture's opening paragraph is the same hazard in the
-body text: the sentences naming the golden set and calling the page invented for these fixtures
-are scaffolding for those maintainers, they say the material is planted, and they are dropped
-before dispatch exactly as the path is. The case's declared canonical URL is not scaffolding —
-it is what "the source's own URL" means for a case served from a local file.
+the label rather than of the rubric. **The same hazard sits in the fixture bytes.** Every golden
+`source.md` opens with a paragraph naming the golden set and calling the page invented for these
+fixtures; it is scaffolding for those maintainers, it says the material is planted, and it is
+dropped from the copy a subagent is handed, exactly as the path is. Two things it is not. The
+case's declared canonical URL is not scaffolding — it is what "the source's own URL" means for a
+source served from a local file. And the deterministic module is not a subagent: `fingerprint.mjs`
+reads the file as committed, so the drop changes no containment or span figure.
 
 ## Nomination
 
@@ -105,7 +106,7 @@ the neutral label ("Neutral labels (required)" above).
 **The containing file is an input, not an oversight, and rubric version 3 is why.** C1, C2 and
 C4 are graded on the passage. **C3 is graded outward across the whole file** — it asks whether
 the attribution's declared scope matches the derivation's, which cannot be answered from a
-passage alone. Carve-outs 4 and 5 are file-level judgments too ("the surface's purpose",
+passage alone. Carve-outs 1, 4 and 5 are file-level judgments too ("the surface's purpose",
 "could this passage have been written without the source in hand"), and were already
 under-supplied by a passage-only dispatch. Withholding the file does not make the panel more
 blind in the sense that matters; it makes a conforming judge grade C3 UNKNOWN on every
@@ -138,10 +139,6 @@ measure self-consistency, which is not the quantity the panel exists to estimate
 >
 > Apply the rubric in `reference/rubric.md` to the candidate below. Evaluate the carve-outs
 > first: if any applies, say which one and stop — do not grade the criteria.
->
-> Evaluate carve-outs 2 through 5. Carve-outs 1 and 6 are settled before this dispatch and are
-> not yours to decide: vendored trees are filtered out of the corpus before it is read, and the
-> fixture tree is a configuration decision in the consuming repository.
 >
 > Otherwise grade each of the four criteria as PASS or FAIL, and for each one quote the exact
 > span of text that decided it. A grade without a quoted span is not a grade. If the text you
@@ -190,7 +187,7 @@ Runs when `accuracy.review_agents` > 0, over STANDS verdicts only, before fix el
 
 **The reviewer gets the containing file for the same reason the judge does.** Its job includes
 checking the C3 grade and whether a carve-out was missed, and C3 is graded across the file while
-carve-outs 4 and 5 are file-level judgments. A reviewer holding only the passage cannot tell a
+carve-outs 1, 4 and 5 are file-level judgments. A reviewer holding only the passage cannot tell a
 file-wide derivation from an isolated lift, so it would either decline the check or wave through
 an unsupported C3 PASS — and this stage is the last one before fix eligibility, so waving one
 through is what puts an unsupported finding in reach of an automatic edit.

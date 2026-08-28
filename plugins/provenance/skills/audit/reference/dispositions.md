@@ -117,10 +117,11 @@ worth more than the report they appeared in, and both are lost unless the loop b
 **Rejected findings and discovered misses are converted into golden cases.** The set lives at
 `skills/audit/evals/fixtures/golden/`, one directory per case, carrying `case.md`, `expected.json`
 and, where the case needs one, `source.md`. Each directory is named for what its case tests, which
-means the name states the case's answer; a case is relabelled before any subagent reads it, per
-`reference/nomination.md` "Neutral labels (required)". It starts at 10 cases and grows toward
-20 to 50; every class stays report-only until the growth carries it past
-`min_n_per_class` at or above the precision bar, `verbatim` first.
+means the name states the case's answer; a case is relabelled, and its harness scaffolding
+dropped, before any subagent reads it, per `reference/nomination.md` "Neutral labels
+(required)". It starts at 10 cases and grows toward 20 to 50; every class stays report-only
+until the growth carries it past `min_n_per_class` at or above the precision bar, `verbatim`
+first.
 
 Convert like this, in order:
 
