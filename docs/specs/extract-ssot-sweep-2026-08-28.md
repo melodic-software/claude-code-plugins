@@ -132,6 +132,16 @@ not run" into one string and creating the ambiguity the 25-site fix exists to re
 properly means giving each a distinct failure token and re-deciding what its label asserts, per
 skill, which is a separate pass with its own review. Recorded open here rather than done badly.
 
+The shape that pass should use is already in the fleet.
+`plugins/docs-hygiene/skills/audit-derivability/SKILL.md` runs a filtered probe as
+`s=$(git status --porcelain 2>/dev/null) && printf '%s\n' "$s" | … | head -20 || echo "(status
+unavailable)"`. Capturing first makes the probe's own exit status the head of an `&&` list, so a
+failed probe short-circuits and the `||` fires; a successful probe with no matches runs the pipeline
+and renders empty under a label that says `empty = none`. Both meanings survive, separately.
+Verified by execution outside a repository: this form prints `(status unavailable)`, and the four
+filtered probes print nothing. That is one candidate form, not a decision — the pass still owes each
+skill its own label wording.
+
 The per-cluster detail for the sites that were normalized is in the pull request that carries this
 file.
 

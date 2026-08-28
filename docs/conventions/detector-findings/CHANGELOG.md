@@ -29,6 +29,20 @@ enforceability verdict changes.
   point is that adopters keep arriving, so the heading is now "Many emitters, one statement of
   each mechanic". The anchor moves with it; the only three references are inside this file and
   all three were updated. No obligation changes.
+- **The `audit-noise` adopter row claimed a mechanical selection the producer does not have.** It
+  said "selection is a mechanical per-sentence scan with no withholding verdict", which is true of
+  the scanner and false of the skill: a model judgment lane sits between the scan and the writer and
+  may dismiss a candidate on the grounds `SKILL.md` enumerates. Its sibling row for
+  `claude-config:audit-instructions` states its model-lane carve-outs; this one did not. The row now
+  scopes the mechanical claim to the scanner and names the lane, and its crosswalk row states the
+  three decline classes — `frontmatter`, `quoted-trigger-phrase`, `judgment-lane-dismissal` — which
+  this contract's "No evidence, no decline" rule requires a declining rule to state there. It also
+  named three of the scanner's four withholding boundaries; the fourth, the clause naming an
+  alternative, requires its evidence present like the other three, so the direction was right and
+  the enumeration short. Found by an adversarial verifier reading the scripts, not the row.
+- **`rule-negation-hard-guardrail`'s `Auto-applicable` cell led with `n/a`.** This contract states
+  four permitted lead forms and `n/a` is not one; its three sibling non-emitting rows all use
+  `Not applicable — no row`. Corrected, argument unchanged.
 - **Two counts inside the new adopter row were wrong on the day it was written.** The row
   called `docs-hygiene/audit-noise` "the third producer to join the crosswalk" when the entry
   above it in this same file correctly says fifth, and said its detector "marks six shapes"

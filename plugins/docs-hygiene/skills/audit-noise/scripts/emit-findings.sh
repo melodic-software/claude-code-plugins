@@ -8,11 +8,15 @@
 # fetch-and-refuse gate, then hands the resolved path in as --out. This script
 # owns only the deterministic composition.
 #
-# ONLY the `negation` shape is emitted. The five older shapes (citation,
-# ghost-ref, preamble, enum-list, scope-meta) carry no severity-crosswalk row,
+# ONLY the `negation` shape is emitted. The eight other shapes (citation,
+# ghost-ref, preamble, enum-list, scope-meta, plan-reference,
+# conversational-antecedent, ticket-pr-residue) carry no severity-crosswalk row,
 # and the detector-findings contract admits no row whose tier cannot be looked
 # up from one — those stay in the human report. Their rows are counted as
-# declined, never silently dropped.
+# declined, never silently dropped. This list mirrors the appends in
+# lib/noise-shapes.sh:audit_noise_detect_shapes_into; that function is the
+# source, and a shape added there without touching this comment makes the
+# comment wrong, not the code.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
 # docs/conventions/detector-findings/README.md ("The severity crosswalk"); that

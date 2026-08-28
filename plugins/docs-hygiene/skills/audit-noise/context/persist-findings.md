@@ -62,10 +62,13 @@ consumer-precedence rule).
 
 ## Which findings enter the file
 
-**Only `negation`.** `detect.sh` marks six shapes; the other five (`citation`, `ghost-ref`,
-`preamble`, `enum-list`, `scope-meta`) have no severity-crosswalk row, and the contract admits no
-row whose tier cannot be looked up from one. They stay in the human report and are counted in
-`## Surfaces` as `reason=no-severity-crosswalk-row` — declined, never silently dropped.
+**Only `negation`.** The scanner marks nine shapes; the other eight (`citation`, `ghost-ref`,
+`preamble`, `enum-list`, `scope-meta`, `plan-reference`, `conversational-antecedent`,
+`ticket-pr-residue`) have no severity-crosswalk row, and the contract admits no row whose tier
+cannot be looked up from one. They stay in the human report and are counted in
+`## Surfaces` as `reason=no-severity-crosswalk-row` — declined, never silently dropped. The count
+is the one `audit_noise_detect_shapes_into` in `scripts/lib/noise-shapes.sh` actually appends, plus
+`negation`; re-derive it there rather than trusting this sentence.
 
 | Scanner shape | Rule id | Tier |
 |---|---|---|
