@@ -2819,7 +2819,7 @@ rrp_case() {
 # The POSIX arm.
 rrp_case nocyg "strips the repo root" /repo/a/b.md /repo a/b.md 0
 rrp_case nocyg "root mismatch redacts to basename" /elsewhere/a/b.md /repo b.md 1
-rrp_case nocyg "drive-letter path redacts" 'C:/Users/dev/a/b.md' /repo b.md 1
+rrp_case nocyg "drive-letter path redacts" 'C:/proj/app/a/b.md' /repo b.md 1
 # portability-ok: a literal Windows UNC fixture path; the \s and \b are path
 # separators plus a filename, not GNU regex escapes.
 rrp_case nocyg "UNC path redacts on the backslash" '\\srv\share\b.md' /repo b.md 1
@@ -2828,9 +2828,9 @@ rrp_case nocyg "an already-relative path passes through" a/b.md /repo a/b.md 0
 # absolute and redacts — the caller never receives an unmarked absolute path.
 rrp_case nocyg "the root as the file redacts" /repo /repo repo 1
 # An empty root anchors nothing. Without the non-empty guard the strip would
-# shave the leading slash and hand back home/dev/repo/a.txt with status 0: still
-# the user's absolute path, no longer matching the redaction's /* arm.
-rrp_case nocyg "an empty root redacts instead of shaving the slash" /home/dev/repo/a.txt "" a.txt 1
+# shave the leading slash and hand back srv/proj/repo/a.txt with status 0: still
+# the caller's absolute path, no longer matching the redaction's /* arm.
+rrp_case nocyg "an empty root redacts instead of shaving the slash" /srv/proj/repo/a.txt "" a.txt 1
 
 # The cygpath arm. The first case is the one the arm exists for: file in POSIX
 # mount form, root in drive-letter form. The nocyg control directly below shows
