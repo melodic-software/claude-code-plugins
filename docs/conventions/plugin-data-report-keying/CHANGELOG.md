@@ -5,6 +5,27 @@ is versioned by the `Version:` stamp in `README.md` (SemVer). A rule whose `[SPE
 tightens is a major bump; a new rule or a new named example is a minor bump; wording and adoption-table
 updates are a patch.
 
+## 1.0.1 — 2026-08-28
+
+Patch under this contract's own rule — wording only. No `[SPEC]` obligation tightens, no rule is
+added, and no worked example is added or removed.
+
+- **Rule 1c's two worked examples and rule 2's reference implementation stop pinning a location
+  inside the cited file.** They read `plugins/bugs/skills/write/SKILL.md:97`,
+  `plugins/claude-config/skills/unhobble/SKILL.md:53-62`, and "steps 6 and 7" of
+  `plugins/machine-health/skills/audit/SKILL.md`. All three resolved when re-derived, so none was
+  broken yet; the pin is the part that rots, and this contract has already lost one to rot —
+  [`detector-findings` 2.7.1](../detector-findings/CHANGELOG.md) dropped a `:414` pin as a class
+  after finding it had drifted onto a comment five lines past the check it named. Each of these
+  three citations already quotes the content it is pointing at, so the pin was carrying nothing the
+  sentence did not. The paths and the plugin name stay, the quotes stay, and the machine-health
+  citation now names what its procedure does — renders the report, then updates state — instead of
+  two step numbers that renumber on the next inserted step.
+- **The citations themselves stay, and [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  amendment of the same date says why.** Each is evidence about this checkout — a worked example
+  whose content is quoted inline — rather than the address a reader must visit to get a rule. The
+  amendment states that test, which until now was applied without being written down.
+
 ## 1.0.0 — 2026-08-12
 
 Initial published contract. Written because the hazard was already understood inside the fleet and

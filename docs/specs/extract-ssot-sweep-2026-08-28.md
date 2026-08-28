@@ -32,6 +32,7 @@ having moved to `:16` when #3380 inserted a `## Contents` index above it.
 - [Verified, not applied](#verified-not-applied)
 - [Contradictions found](#contradictions-found)
 - [New refusals, recorded so nobody re-opens them](#new-refusals-recorded-so-nobody-re-opens-them)
+- [Open remainder after the encapsulation close](#open-remainder-after-the-encapsulation-close)
 - [Recall limits this run declares](#recall-limits-this-run-declares)
 
 ## What this run did differently
@@ -171,11 +172,16 @@ filtered probes print nothing.
 block to carry no `$` expansion other than a bare `$HOME`: an expansion leaves the composed block
 unverifiable to the worktree-isolation guard, and the skill then fails to load from an isolated
 agent (`session-flow` 0.17.16). `audit-derivability` demonstrates the binding, not a form to copy.
-All five sites took an equivalent that adds no `$` at all and heads the same `&&` list with a
-status-only run of the site's own probe:
+All five sites first took an equivalent that adds no `$` at all and heads the same `&&` list with a
+status-only run of the site's own probe. **That form was itself wrong, and is no longer what
+ships.** It is correct only without `set -o pipefail`; under pipefail the `&&` list inherits the
+pipeline's status, which both `grep` matching nothing and `git` taking SIGPIPE at the cap make
+non-zero, firing the failure token on a healthy probe. `docs-hygiene` 0.21.24 and `code-tidying`
+0.14.13 replaced it with the pipeline inside a brace group closed by `:`, a command that cannot
+fail, which is correct under both settings:
 
 ```text
-git status --porcelain >/dev/null 2>&1 && git status --porcelain 2>/dev/null | … | head -N || echo "(git status unavailable)"
+git status --porcelain >/dev/null 2>&1 && { git status --porcelain 2>/dev/null | … | head -N; :; } || echo "(git status unavailable)"
 ```
 
 The probe runs twice, which is the price of not capturing it. No line holds a `$` expansion after
@@ -183,11 +189,14 @@ the change: the `$` characters that remain are end-of-line anchors in single-quo
 and field references in single-quoted `awk` programs, all pre-existing and none of them expanded by
 the shell. Each site kept its own filter, its own cap and its own label noun; each label gained
 `empty = none`; the failure token is the `(git status unavailable)` string the normalized status
-probes already use. Verified by execution in three states per site: outside a repository each prints
-the token, inside a repository whose dirty files do not match the filter each prints nothing, and
-above the cap the cap holds with no spurious fallback. Landed in `docs-hygiene` 0.21.23 and
-`code-tidying` 0.14.12, which also carry the two `detect.test.sh` extractors that read these lines
-out of `SKILL.md` and were anchored on the old labels.
+probes already use. Verified by execution in three states per site, **without pipefail**: outside a
+repository each prints the token, inside a repository whose dirty files do not match the filter each
+prints nothing, and above the cap the cap holds with no spurious fallback. That qualifier is the
+whole lesson: the same three states under pipefail print the token in two of them, which is what
+0.21.24 and 0.14.13 had to correct. A verification that fixes the shell's options and does not say
+so proves less than it appears to. Landed in `docs-hygiene` 0.21.23 and `code-tidying` 0.14.12,
+which also carry the two `detect.test.sh` extractors that read these lines out of `SKILL.md` and
+were anchored on the old labels.
 
 One filtered probe with the unreachable shape remains open, and is out of this section's scope
 because its probe is not `git status`:
@@ -328,6 +337,88 @@ Beyond the predecessor's 13. Each was resolved against the real files and refuse
 - Plus roughly 120 further per-cluster refusals across the eight triage batches, each recorded with
   its form and ground in the pull request that carries this file.
 
+## Open remainder after the encapsulation close
+
+Recorded, not fixed. A later pass adjudicates these; this section exists so it does not have to
+re-find them. Stamped 2026-08-28 and subject to the decay rule at the top of this file.
+
+### Twelve citations the encapsulation close created and never rostered
+
+The pass that closed the encapsulation floor wrote a convention CHANGELOG entry for each fix, and
+every entry quotes the path it removed. Those quotes are themselves `docs/**` citations of the exact
+shape the pass was sweeping, created by the sweep, counted by nobody. **Verified against
+`origin/main`, twelve of them:**
+
+| File | Lines |
+|---|---|
+| `docs/conventions/config-cascade/CHANGELOG.md` | 12, 13, 14 |
+| `docs/conventions/detector-findings/CHANGELOG.md` | 44, 57 |
+| `docs/conventions/loop-lane/CHANGELOG.md` | 69 |
+| `docs/conventions/native-references/CHANGELOG.md` | 16, 17, 18 |
+| `docs/conventions/permission-rule-hygiene/CHANGELOG.md` | 14 |
+| `docs/conventions/topic-docs/CHANGELOG.md` | 11, 12 |
+
+One correction to the roster this was handed as: the `loop-lane` row was reported at `:14`, which is
+where it sat when the pass wrote it. Release `9.1.0` landed above it, and the citation is at `:69`
+today, inside the `9.0.2` entry. That is the decay rule firing on a record less than a day old, and
+it is why a later pass must **re-derive by the text and never by these numbers.**
+
+**The twelve are disjoint from the three this file already counts, confirmed by differencing the
+tree at the fix commit's parent.** Before that commit, exactly three lines in
+`docs/conventions/*/CHANGELOG.md` cited a plugin skill by path: two in `detector-findings` and one in
+`loop-lane`. Those are the "three dated changelog entries that quote a citation as it stood" in the
+kept set. Every one of the twelve above was written by the fix commit itself, so **the arithmetic is
+16 fixed and 35 kept, not 16 and 23**, and the changelog-evidence class is fifteen rather than three.
+
+**All twelve are keep-correct** under the test now written into
+[ADR 0018](../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+amendment: each is a dated changelog entry whose whole claim is what a named file contained on that
+date. Nothing here needs an edit. What is missing is the judgment, and a pass that re-derives this
+shape finds twelve rows nobody ruled on and has to adjudicate them from scratch to learn they were
+fine. The general lesson is worth more than the twelve rows: **a sweep that documents each fix by
+quoting the citation it removed manufactures new instances of the shape it is sweeping,** so its own
+output has to be swept before the count is closed.
+
+**The pass writing this section did the same thing, deliberately, three more times.**
+`docs/conventions/plugin-data-report-keying/CHANGELOG.md` 1.0.1 quotes the three pins it dropped, so
+the class stands at eighteen. They are keep-correct on the same ground as the twelve, and they are
+declared here rather than left for the next re-derivation to find. That is the only discipline
+available: the alternative is a changelog entry that does not say what it changed.
+
+### Three trees the sweep excluded by fiat
+
+The sweep's encapsulation floor scoped itself to `docs/**` and then dropped five subtrees. Two of the
+exclusions are defensible and stated as such: `docs/SKILL-CHEAT-SHEET.md` (162 citations, generated
+and CI drift-checked, so an edit is reverted by its generator) and `docs/upstream/` (vendored, not
+this repo's prose to style). **The other three rest on nothing.** `docs/specs/` (roughly 265 sites),
+`docs/topics/` (roughly 43) and `docs/adr/` (25) were excluded on the assertion that "the dated
+records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out of scope by the same test", and
+no carve-out in ADR 0018 authorizes any of it.
+
+The assertion is *probably* right and is *not* established. Under the amendment's test most of that
+population is evidence: dated records, and ADR bodies that quote what they cite. But "most of a
+265-site population is evidence" is a hypothesis about 265 sites, argued from the tree a citation
+lives in rather than from what the citation does, which is the form-over-function reasoning the
+amendment rejects. A tree-shaped exclusion is a carve-out; ADR 0018 grants none. Either the pass that
+resumes this samples the three trees and records the ruling, or the ADR gains the carve-out
+explicitly. It should not stay a habit.
+
+Counts re-derived for this record and rounded deliberately: the exact figure moves with the search
+expression, and per this file's own recall-limits discipline none of these numbers is a total.
+
+### A stale record found in passing, not an ADR matter
+
+`docs/MIGRATION-PLAYBOOK.md:943` carries the `dometrain` security-review record: "Reviewed at
+`0.1.0`; a version bump adding a new trust surface re-triggers this review." **The plugin's manifest
+reads `0.2.7` today** (`plugins/dometrain/.claude-plugin/plugin.json`, confirmed against
+`origin/main`). The trigger has had every opportunity to fire across those bumps and the review was
+never re-run, so the record asserts a currency it does not have.
+
+This is not a citation defect and does not belong to the encapsulation lane. It is logged here
+because the encapsulation pass kept that record's five file-and-frontmatter citations *on the
+strength of* its re-trigger clause, which means the clause was read and its own condition was not
+checked. Whoever re-runs the review owns the record; the citations are fine either way.
+
 ## Recall limits this run declares
 
 A finding count read as a defect count is worse than no count. An adversarial verifier audited the
@@ -391,8 +482,11 @@ figures to differ.
   this very change set added, written in the bare plugin-relative form ADR 0018 names as its real
   defect class), two conformance rows in `docs/conventions/config-cascade/README.md`, one in
   `docs/conventions/pre-pr-ordering/README.md`, three in
-  `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14` off
-  the predecessor's 34-item L4 roster, which is therefore down to 32), and one adopter-row detail
+  `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14`, the
+  last two rows of the predecessor's 34-item L4 roster still open by that roster's own text test:
+  re-derivation found 22 of its other 32 rows already closed, twelve of them by #3380 itself, so
+  what remains of the 34 is its eight Group 2 intra-plugin path-form defects, untouched here), and
+  one adopter-row detail
   in `docs/conventions/detector-findings/README.md`. **What remains is a judgment set, not a
   backlog**: 23 further in-shape citations were kept with reasons, because each is evidence about
   this checkout rather than an address for an obligation. They are the three worked examples in
