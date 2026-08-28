@@ -154,7 +154,7 @@
   `Verified this May` as an example of the shape, inside a `verified` keyword window, in a file the
   corpus scans. So from the commit that documents the fix onward the corpus does carry a
   digitless-May stamp — the one written to explain that it carried none. Measured at `a827aa58`:
-  529 / 499 / 30 post-fix against 528 / 499 / 29 pre-fix, an effect of +1 candidate rather than
+  529 / 499 / 30 / 0 post-fix against 528 / 499 / 29 / 0 pre-fix, an effect of +1 candidate rather than
   none.
 
   That is the fourth time on this branch that prose about a detector has moved what the detector
