@@ -200,10 +200,13 @@ mkdir -p "$STRADDLE_DIR"
   # enough from it that the 60-character slice cut the year in half. Note the
   # line must carry no SECOND keyword: "as-of" beside the date would restart
   # the scan there and mask the truncation entirely.
+  # shellcheck disable=SC2016 # fixture text lifted verbatim from the corpus; the backticks are
+  # literal markdown and part of the character count that puts the date at offset 60.
   printf '  synced set (verified against the `chore: sync standards components` history on 2026-07-30), so\n\n'
   # Negative control: the same shape with the date pushed to offset 64,
   # genuinely past the window. The added slack must not admit it, or the fix
   # trades a false negative for a false positive.
+  # shellcheck disable=SC2016 # same literal fixture text, date shifted past the window.
   printf '  synced set (verified against the `chore: sync standards componentsxxxx` history on 2026-07-30), so\n'
 } >"$STRADDLE_DIR/straddle.md"
 
