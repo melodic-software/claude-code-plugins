@@ -61,6 +61,16 @@ assert_match() {
 assert_file() {
   if [[ -f "$2" ]]; then pass "$1"; else fail "$1" "exists: $2" "absent"; fi
 }
+# assert_fails <label> <command...>: the command must exit non-zero.
+assert_fails() {
+  local label="$1"
+  shift
+  if "$@" >/dev/null 2>&1; then
+    fail "$label" "non-zero exit" "exit 0"
+  else
+    pass "$label"
+  fi
+}
 
 # --- Fixture repository ----------------------------------------------------------
 
@@ -281,6 +291,30 @@ ABS="$OUTDIR/abs.md"
 run --report "$REPORTS/abs.json" --out "$ABS" >/dev/null 2>&1
 assert_contains "an absolute path is relativized" "$(cat "$ABS")" "| docs/page.md:7 |"
 assert_not_contains "the repo root does not survive into Location" "$(cat "$ABS")" "$REPO/docs"
+
+# --- Write failures --------------------------------------------------------------
+#
+# The worst outcome for a persistence step is reporting success having written
+# nothing: the audit says the findings are relayed, and the consumer never scans
+# a file that does not exist. `set -e` is deliberately not on in this script, so
+# the two writing commands are checked explicitly.
+
+assert_fails "an uncreatable destination directory exits non-zero" \
+  bash "$EMIT" --report "$REPORTS/full.json" --out /proc/nope/deeper/x.md
+
+OUT="$(run --report "$REPORTS/full.json" --out /proc/nope/deeper/x.md 2>&1)"
+assert_not_contains "a failed write never claims it wrote" "$OUT" "wrote"
+
+UNWRITABLE="$TEST_TMPDIR/unwritable"
+mkdir -p "$UNWRITABLE"
+chmod a-w "$UNWRITABLE"
+if [[ ! -w "$UNWRITABLE" ]]; then
+  assert_fails "an unwritable destination exits non-zero" \
+    bash "$EMIT" --report "$REPORTS/full.json" --out "$UNWRITABLE/x.md"
+else
+  pass "an unwritable destination exits non-zero (SKIP: this user ignores mode bits)"
+fi
+chmod u+w "$UNWRITABLE"
 
 # --- Determinism -----------------------------------------------------------------
 

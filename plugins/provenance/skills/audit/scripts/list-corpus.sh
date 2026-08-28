@@ -136,11 +136,17 @@ EXCLUDED_GLOBS=()
 # and matches nothing, so `excluded_paths` silently stops applying on a Windows
 # workstation while CI, which sees LF, agrees with the config (the ai-slop
 # #3343 finding, same jq, same exposure).
+# Presence, not emptiness, decides whether a layer overrides. An explicit `[]`
+# is a value: it means "exclude nothing", and treating it as an absent key left
+# the earlier layer's exclusions in force, so an overlay could add exclusions
+# but never clear one. `!= null` separates "key defined as empty" from "key
+# absent", which is what per-key override actually requires.
 cfg_array() {
   local path="$1" layer v out=""
   for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    v="$(jq -r "($path // empty) | .[]" "$layer" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
-    [[ -n "${v// /}" ]] && out="$v"
+    jq -e "$path != null" "$layer" >/dev/null 2>&1 || continue
+    v="$(jq -r "($path // []) | .[]" "$layer" 2>/dev/null | tr -d '\r' | tr '\n' ' ')"
+    out="$v"
   done
   printf '%s' "$out"
 }
@@ -177,13 +183,25 @@ CANDIDATES=()
 
 rel_to_root() {
   # Repo-relative spelling of a path given relative to the cwd or absolute.
+  #
+  # The repository root has several spellings and every one means "the whole
+  # corpus", so each normalizes to the EMPTY prefix. Without that, `.` reached
+  # the directory filter as a literal prefix, matched no tracked path, and the
+  # run reported an empty corpus with no error — indistinguishable from a
+  # repository with nothing to scan.
   local p="$1" abs
   if [[ "$p" == /* ]]; then
     abs="$p"
   else
     abs="$PWD/$p"
   fi
-  abs="${abs//\/.\//\/}"
+  while [[ "$abs" == */./* ]]; do abs="${abs//\/.\//\/}"; done
+  abs="${abs%/.}"
+  [[ "$abs" != "/" ]] && abs="${abs%/}"
+  if [[ "$abs" == "$ROOT" ]]; then
+    printf ''
+    return 0
+  fi
   printf '%s' "${abs#"$ROOT"/}"
 }
 

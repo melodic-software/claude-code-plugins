@@ -199,6 +199,16 @@ assert_not_contains "the local overlay's exclusion applies" \
   "$(echo "$OVERLAY_OUT" | jq -r '.files[]')" "docs/guide.md"
 assert_contains "the overlay replaces the team value per key" \
   "$(echo "$OVERLAY_OUT" | jq -r '.files[]')" "evals/fixtures/golden/case-1/case.md"
+# Per-key override means a later layer REPLACES the value, and an explicit empty
+# array is a value. Treating "no elements" as "key absent" left the team layer's
+# exclusions in force, so an overlay could add exclusions but never clear them.
+printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/provenance.json"
+printf '%s\n' '{"excluded_paths":[]}' >"$CFG_DIR/provenance.local.json"
+CLEAR_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
+assert_contains "an explicit empty overlay clears an inherited exclusion" \
+  "$(echo "$CLEAR_OUT" | jq -r '.files[]')" "docs/guide.md"
+assert_eq "clearing leaves only the built-in carve-outs declined" \
+  "$(echo "$CLEAR_OUT" | jq -r '[.declined[] | select(.reason | test("excluded_paths"))] | length')" "0"
 rm -f "$CFG_DIR/provenance.local.json" "$CFG_DIR/provenance.json"
 
 mkdir -p "$HOME/.claude"
@@ -235,6 +245,18 @@ assert_eq "a file target names the file" \
 
 run_default no/such/path >/dev/null 2>&1
 assert_exit "a nonexistent target exits 2" "$?" "2"
+
+# The repository root has several spellings and every one of them means "the
+# whole corpus". `.` reaching the directory-prefix filter as a literal prefix
+# matched nothing and reported an empty corpus with no error, which reads as a
+# clean repository rather than as a broken invocation.
+BASE_FILES="$(run_default 2>/dev/null | jq -r '.counts.included')"
+assert_eq "a '.' target scans the whole repository" \
+  "$(run_default . 2>/dev/null | jq -r '.counts.included')" "$BASE_FILES"
+assert_eq "a './' target scans the whole repository" \
+  "$(run_default ./ 2>/dev/null | jq -r '.counts.included')" "$BASE_FILES"
+assert_eq "an absolute repo-root target scans the whole repository" \
+  "$(run_default "$REPO" 2>/dev/null | jq -r '.counts.included')" "$BASE_FILES"
 
 # --- --paths-file ----------------------------------------------------------------
 

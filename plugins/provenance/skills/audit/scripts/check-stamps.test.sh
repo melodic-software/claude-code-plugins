@@ -216,6 +216,19 @@ OUT="$(run --show-config 2>&1)"
 assert_exit "--show-config exits 0" "$?" "0"
 assert_contains "--show-config prints the effective window" "$OUT" "stamp_expiry_days"
 assert_contains "--show-config prints the trigger-less setting" "$OUT" "trigger_less_stamp_check"
+assert_contains "a value with no layer is attributed to the defaults" "$OUT" "bundled default"
+
+# The setup skill promises per-value provenance and tells the operator to read it
+# from here rather than parsing the JSON layers by hand. Listing the layers and
+# then the effective values separately does not deliver that: with two layers
+# present, nothing says which one supplied a given value.
+printf '%s\n' '{"stamp_expiry_days": 45}' >"$CLAUDE_PROJECT_DIR/.claude/provenance.json"
+OUT="$(run --show-config 2>&1)"
+assert_contains "--show-config attributes a value to its supplying layer" \
+  "$OUT" "$CLAUDE_PROJECT_DIR/.claude/provenance.json"
+assert_contains "the attributed value is the effective one" "$OUT" "stamp_expiry_days=45"
+assert_contains "an unset key is still attributed to the defaults" "$OUT" "trigger_less_stamp_check=false (bundled default)"
+rm -f "$CLAUDE_PROJECT_DIR/.claude/provenance.json"
 
 # --- Inputs ----------------------------------------------------------------------
 

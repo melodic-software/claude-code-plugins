@@ -4,6 +4,32 @@
 
 ### Added
 
+- **Five review findings fixed, each verified by execution first.** All were real:
+
+  - **`list-corpus.sh .` reported an empty corpus.** The repository root has several spellings and
+    every one means "the whole corpus", but `.` reached the directory-prefix filter as a literal
+    prefix, matched no tracked path, and returned zero files with no error. On this repository
+    that was 0 instead of 1,353, and it read as a clean repository rather than a broken
+    invocation. Every root spelling now normalizes to the empty prefix.
+  - **An explicit `"excluded_paths": []` could not clear an inherited exclusion.** Treating "no
+    elements" as "key absent" left the earlier layer's value in force, so an overlay could add
+    exclusions but never remove one. Presence, not emptiness, now decides whether a layer
+    overrides, which is what per-key override actually requires.
+  - **`emit-findings.sh` reported success having written nothing.** With `set -e` deliberately
+    off, an uncreatable directory or an unwritable path fell through to the "wrote" message and
+    exit 0. That is the worst failure a persistence step can have, because nothing downstream
+    contradicts it: the audit says the findings are relayed and the consumer never scans a file
+    that does not exist. Both writing steps are now checked, with a new exit 5.
+  - **Configured separation thresholds never reached the fingerprint module.** The module reads
+    no config by design, so a repository that tuned `min_containment` or `min_span_words` silently
+    got the bundled 0.3 and 15 — constants that decide which findings become fix-eligible. The
+    audit flow now resolves them through the cascade and passes them explicitly, and reports the
+    values it used.
+  - **`--show-config` did not say which layer supplied a value.** The setup skill promises
+    per-value provenance and tells the operator to read it from there rather than parsing the
+    layers by hand; listing the layers and the effective values separately did not deliver that.
+    Each value is now attributed to its layer, to the overriding flag, or to the bundled defaults.
+
 - **Design artifacts graduated to `docs/specs/`, contract slice pruned.** The
   `copied-external-content` contract slice was pruned before merge per the topic-docs
   contract-slice lifecycle. Its durable half graduated with history preserved:

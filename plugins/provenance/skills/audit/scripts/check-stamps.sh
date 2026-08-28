@@ -140,8 +140,15 @@ command -v jq >/dev/null 2>&1 || HAVE_JQ=0
 # cfg_scalar <jq-path>: last layer that defines the key wins (per-key override).
 # Carriage returns are stripped because the Windows build of jq emits CRLF; a
 # CR-suffixed value silently stops matching (the ai-slop #3343 finding).
+# CFG_SOURCE carries the layer that supplied the value the last call returned,
+# empty when no layer did. The setup skill tells the operator to read per-value
+# provenance out of `--show-config` rather than parsing the layers by hand, so
+# the effective value alone is not enough: with two layers present, nothing
+# would say which one won.
+CFG_SOURCE=""
 cfg_scalar() {
-  local path="$1" layer v out=""
+  local path="$1" layer v out="" src=""
+  CFG_SOURCE=""
   if [[ "$HAVE_JQ" -eq 0 ]]; then
     printf ''
     return 0
@@ -149,8 +156,12 @@ cfg_scalar() {
   for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
     v="$(jq -r "$path // empty" "$layer" 2>/dev/null)" || continue
     v="${v//$'\r'/}"
-    [[ -n "$v" ]] && out="$v"
+    if [[ -n "$v" ]]; then
+      out="$v"
+      src="$layer"
+    fi
   done
+  CFG_SOURCE="$src"
   printf '%s' "$out"
 }
 
@@ -160,15 +171,40 @@ fi
 
 DEFAULT_EXPIRY_DAYS=180
 EXPIRY_DAYS="$(cfg_scalar '.stamp_expiry_days')"
-[[ "$EXPIRY_DAYS" =~ ^[0-9]+$ ]] || EXPIRY_DAYS="$DEFAULT_EXPIRY_DAYS"
-[[ -n "$EXPIRY_OVERRIDE" ]] && EXPIRY_DAYS="$EXPIRY_OVERRIDE"
+EXPIRY_FROM="$CFG_SOURCE"
+if [[ ! "$EXPIRY_DAYS" =~ ^[0-9]+$ ]]; then
+  EXPIRY_DAYS="$DEFAULT_EXPIRY_DAYS"
+  EXPIRY_FROM=""
+fi
+if [[ -n "$EXPIRY_OVERRIDE" ]]; then
+  EXPIRY_DAYS="$EXPIRY_OVERRIDE"
+  EXPIRY_FROM="--expiry-days"
+fi
 
 TRIGGER_LESS="$(cfg_scalar '.trigger_less_stamp_check')"
-if [[ "$TRIGGER_LESS_FLAG" -eq 1 || "$TRIGGER_LESS" == "true" ]]; then
+TRIGGER_LESS_FROM="$CFG_SOURCE"
+if [[ "$TRIGGER_LESS" != "true" && "$TRIGGER_LESS" != "false" ]]; then
+  TRIGGER_LESS_FROM=""
+fi
+if [[ "$TRIGGER_LESS_FLAG" -eq 1 ]]; then
+  TRIGGER_LESS_CHECK=1
+  TRIGGER_LESS_FROM="--trigger-less"
+elif [[ "$TRIGGER_LESS" == "true" ]]; then
   TRIGGER_LESS_CHECK=1
 else
   TRIGGER_LESS_CHECK=0
 fi
+
+# from_label <source>: how --show-config attributes one effective value.
+from_label() {
+  if [[ -z "$1" ]]; then
+    printf '(bundled default)'
+  elif [[ "$1" == --* ]]; then
+    printf '(from %s)' "$1"
+  else
+    printf '(from %s)' "$1"
+  fi
+}
 
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   echo "Config layers (later refines earlier):"
@@ -177,8 +213,8 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   else
     for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
   fi
-  echo "Effective: stamp_expiry_days=$EXPIRY_DAYS"
-  echo "Effective: trigger_less_stamp_check=$([[ "$TRIGGER_LESS_CHECK" -eq 1 ]] && echo true || echo false)"
+  echo "Effective: stamp_expiry_days=$EXPIRY_DAYS $(from_label "$EXPIRY_FROM")"
+  echo "Effective: trigger_less_stamp_check=$([[ "$TRIGGER_LESS_CHECK" -eq 1 ]] && echo true || echo false) $(from_label "$TRIGGER_LESS_FROM")"
   echo "Effective: as_of=$AS_OF"
   exit 0
 fi

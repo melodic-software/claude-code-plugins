@@ -33,7 +33,8 @@
 #
 # Exit: 0 on success (with findings or none — coverage is the payload), 2 on
 # usage error, 3 when the report carries no findings key at all (not audit
-# output; refusing beats composing from garbage), 4 when jq is absent.
+# output; refusing beats composing from garbage), 4 when jq is absent, 5 when
+# the destination could not be written.
 set -uo pipefail
 
 REPORT=""
@@ -131,7 +132,15 @@ if [[ -e "$OUT" ]]; then
   while [[ -e "${OUT%.md}-$n.md" ]]; do n=$((n + 1)); done
   OUT="${OUT%.md}-$n.md"
 fi
-mkdir -p "$(dirname "$OUT")"
+# Both writing steps are checked explicitly. `set -e` is deliberately off here,
+# so an uncreatable directory or an unwritable path would otherwise let the run
+# fall through to the success message: the audit reports its findings relayed
+# while the consumer never scans a file that does not exist. That is the worst
+# failure a persistence step can have, because nothing downstream contradicts it.
+if ! mkdir -p "$(dirname "$OUT")" 2>/dev/null; then
+  echo "emit-findings.sh: cannot create the destination directory for $OUT" >&2
+  exit 5
+fi
 
 # Repo root for relativizing Location. One directory has several spellings on
 # Git Bash, and matching the wrong one leaves every Location absolute — still a
@@ -333,6 +342,14 @@ END {
     printf(" Unmapped: %d, listed above.", n_unparsed)
   printf("\n")
 }
-' <<<"$RECORDS" >"$OUT"
+' <<<"$RECORDS" >"$OUT" || {
+  echo "emit-findings.sh: failed to write $OUT" >&2
+  exit 5
+}
+
+if [[ ! -s "$OUT" ]]; then
+  echo "emit-findings.sh: wrote nothing to $OUT" >&2
+  exit 5
+fi
 
 echo "emit-findings.sh: wrote $OUT" >&2

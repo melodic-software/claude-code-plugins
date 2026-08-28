@@ -88,6 +88,15 @@ texts, file composition); every judgment about whether a passage is a copy is mo
    as the finding's span for anything that could become fix-eligible: it is exact, where the
    nomination's range is approximate, and exactness is what makes a fix fenceable.
 
+   **Pass the configured separation thresholds explicitly.** The module reads no config by design
+   (it compares two concrete texts and nothing else), so a repository that tuned
+   `separation.min_containment` or `separation.min_span_words` silently gets the bundled 0.3 and
+   15 unless this step forwards them, and those constants decide fix eligibility. Read
+   `.separation` once per run from the three cascade layers with `jq` (user-global, then team,
+   then the local overlay, later winning), add `--min-containment` and `--min-span-words` to every
+   invocation, and report the two values you used beside the fingerprint evidence so a reader can
+   tell a below-threshold verdict from a differently-configured one.
+
 8. **Judge.** Three blind fresh-context judges per candidate (`judge_samples`, default 3, floor
    3 for anything that could become fix-eligible) against
    [`reference/rubric.md`](reference/rubric.md), dispatched per
@@ -171,10 +180,9 @@ instead; it never refuses and never silently skips the escalation.
 
 ## Gotchas
 
-Real failure history for this plugin, each with the symptom it presents as, in
-[`context/gotchas.md`](context/gotchas.md). Read it when a detector returns a surprising zero,
-when a stamp finding looks like it fired on an identifier, or when a test runner exits non-zero
-in a way that is not a failure.
+Real failure history, each with the symptom it presents as, in
+[`context/gotchas.md`](context/gotchas.md): a detector's surprising zero, a stamp finding that
+fired on an identifier, a test runner exiting non-zero without failing.
 
 ## What this skill does NOT do
 
@@ -187,9 +195,8 @@ in a way that is not a failure.
   concludes nothing about the passage.
 - **Does not assess copyright.** The rubric measures drift risk; findings are editorial and the
   remedies are maintenance remedies. Nothing here is legal advice.
-- **Does not scan code comments** (`code-tidying:audit-comment-residue` owns them), in-repo
-  duplication (`docs-hygiene:extract-ssot` and the reference-dont-duplicate standard own it),
-  doc-vs-code drift (`review:doc-drift-detector` and `codebase-health:audit`), or AI-writing
-  style (`ai-slop` owns the same corpus for a different defect).
-- **Does not add per-instance suppressions.** Allowances are categorical. A per-finding keep is
+- **Does not scan** code comments (`code-tidying:audit-comment-residue`), in-repo duplication
+  (`docs-hygiene:extract-ssot`), doc-vs-code drift (`review:doc-drift-detector`,
+  `codebase-health:audit`), or AI-writing style (`ai-slop`, same corpus, different defect).
+- **Does not add per-instance suppressions.** Allowances are categorical; a per-finding keep is
   the operator's, through the finding-suppression convention.
