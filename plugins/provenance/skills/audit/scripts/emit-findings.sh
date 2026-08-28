@@ -32,10 +32,12 @@
 # and the shape contract makes it required of review:fanout's own writer only.
 #
 # Exit: 0 on success (with findings or none — coverage is the payload), 2 on
-# usage error, 3 when the report is not usable audit output (no findings key at
-# all, or a `not-found` finding naming no searched surfaces; refusing beats
-# composing from garbage), 4 when jq is absent, 5 when the destination could not
-# be written.
+# usage error, 3 when the report is not usable audit output (it does not parse, it
+# has no findings key, its findings key is not a list, or a `not-found` finding
+# names no searched surfaces; refusing beats composing from garbage, and each
+# refusal names its own cause), 4 when jq is absent, 5 when the destination could
+# not be written. A single malformed RECORD is none of these: it lands in
+# `## Unparsed` rather than costing the well-formed findings beside it.
 set -uo pipefail
 
 REPORT=""
@@ -112,6 +114,14 @@ if ! jq -e 'has("findings")' "$REPORT" >/dev/null 2>&1; then
   exit 3
 fi
 
+# `findings` present but not a list. Checked HERE and named for what it is, because
+# the next gate iterates it: a `"findings": "none"` sidecar failed there instead and
+# was refused under the not-found message, reporting a cause the input does not have.
+if ! jq -e '(.findings | type) == "array"' "$REPORT" >/dev/null 2>&1; then
+  echo "emit-findings.sh: $REPORT has a findings key that is not a list; not audit output" >&2
+  exit 3
+fi
+
 # --- The declared-tier reader ------------------------------------------------------
 #
 # ONE reader, THREE callers: the searched-surfaces gate immediately below, the
@@ -125,11 +135,18 @@ fi
 # fingerprint-confirmed tier, which its own reader disagrees with. Every caller
 # asking the same question of the same reader is what removes the room for both.
 #
-# WHERE the tier is read is an EXPLICIT KEY ALLOWLIST. The allowlist is the top-level
-# `tier` and the `tier` inside a `verdict` object: both are the record DECLARING its
-# tier, and nothing else is. Keys are matched case-folded so casing is not a way
-# around the boundary, but only at those two positions, so
-# `{"xref": {"TIER": "prior: not-found"}}` stays the cross-reference it reads as.
+# WHERE the tier is read is an EXPLICIT KEY ALLOWLIST: the top-level `tier`, and the
+# whole of a top-level `verdict`. Both are the record DECLARING its tier, and nothing
+# else is. Keys are matched case-folded so casing is not a way around the boundary,
+# but only at those two positions, so `{"xref": {"TIER": "prior: not-found"}}` stays
+# the cross-reference it reads as.
+#
+# A `verdict` is taken WHOLE rather than as `verdict.tier`, because a key named
+# `verdict` is already the declaration: `{"verdict": "not-found"}`,
+# `{"verdict": ["not-found"]}` and `{"verdict": {"result": {"tier": "llm-suspected"}}}`
+# each say the same thing `{"verdict": {"tier": "not-found"}}` does, and reading only
+# the `tier` child let all three past — into a relay row on a stamp rule, or verbatim
+# into `## Unparsed` with no rule id.
 #
 # The narrowness is the point. Reading `tier` at any depth cannot tell the declared
 # tier of a record from an unrelated nested one, and this sidecar is model-authored
@@ -167,12 +184,13 @@ def tier_slot:
 def declared_tiers:
   [ tier_slot,
     (if type == "object" then
-       to_entries[] | select(.key | ascii_downcase == "verdict") | .value | tier_slot
+       to_entries[] | select(.key | ascii_downcase == "verdict") | .value
      else empty end) ];
 def declared_names:
   [ declared_tiers[] | .. | strings
     | ascii_downcase
-    | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "") ];
+    | sub("^[[:space:][:cntrl:]\\x{200b}\\x{feff}]+"; "")
+    | sub("[[:space:][:cntrl:]\\x{200b}\\x{feff}]+$"; "") ];
 def declares($name):
   declared_names | index($name) != null;
 def withheld_verdict:
@@ -201,10 +219,19 @@ def declares_confirmed:
 # row to check and no field to check it in — `searched` is read here and goes no
 # further. Non-empty is all this can assert: nothing here knows which surfaces the
 # run actually checked, so a complete listing and a truncated one look identical.
+#
+# `searched` is read at BOTH positions the outcome may be declared at, for the same
+# reason the tier is: a sidecar keeping the outcome and its surfaces together in the
+# `verdict` object names its surfaces, and refusing it whole would be this gate
+# failing in the one direction it has no excuse for — rejecting input that satisfies
+# the very requirement it enforces.
 if ! jq -e "$TIER_DEFS"'
+  def searched_slot:
+    if type == "object" then .searched else null end;
   [ (.findings // [])[]
     | select(declares_not_found)
-    | select(((.searched // []) | if type == "array" then length else 0 end) == 0)
+    | select((((searched_slot // (.verdict | searched_slot)) // [])
+              | if type == "array" then length else 0 end) == 0)
   ] | length == 0
 ' "$REPORT" >/dev/null 2>&1; then
   echo "emit-findings.sh: $REPORT has a not-found finding whose searched surfaces are not a non-empty array" >&2

@@ -531,14 +531,114 @@ GUN="$OUTDIR/gate-unrelated.md"
 run --report "$REPORTS/gate-unrelated.json" --out "$GUN" >/dev/null 2>&1
 assert_exit "a not-found named outside the declared tier is not gated" "$?" "0"
 
-# --- A verdict name is matched WHOLE, never as a substring ------------------------
+# --- A `verdict` key is a declaration WHOLE, not only its `tier` child -------------
 #
-# `test()` searches, so an extended name such as `not-found-v2` matched the verdict
-# it merely starts with: the record was classified as withheld, its payload erased,
-# and no `## Unparsed` entry emitted — the exact silent drop the appendix exists to
-# prevent for a future record. The match is anchored on both sides against letters,
-# digits, underscore and hyphen, which leaves every accepted wrapper shape intact
-# because a quote, bracket, brace or space is a boundary.
+# Reading `verdict.tier` alone left three shapes saying the same thing outside the
+# boundary: a bare string, a list, and a `tier` one level further down. Each reached
+# the file — a stamp rule carrying one was RELAYED, and one with no rule id printed
+# verbatim into `## Unparsed`. The whole `verdict` value is the declared tier.
+
+write_report verdict-string.json '{
+  "counts": {"files": 2},
+  "findings": [{"verdict": "not-found", "file": "vs.md", "excerpt": "VSTRCANARY",
+                "searched": ["https://vs.example/u"]}]
+}'
+write_report verdict-array.json '{
+  "counts": {"files": 2},
+  "findings": [{"verdict": ["llm-suspected"], "file": "va.md", "excerpt": "VARRCANARY"}]
+}'
+write_report verdict-deep.json '{
+  "counts": {"files": 2},
+  "findings": [{"verdict": {"result": {"tier": "llm-suspected"}}, "file": "vd.md",
+                "excerpt": "VDEEPCANARY"}]
+}'
+write_report verdict-cased.json '{
+  "counts": {"files": 2},
+  "findings": [{"Verdict": "LLM-Suspected", "file": "vc.md", "excerpt": "VCASECANARY"}]
+}'
+write_report verdict-on-stamp.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-stamp-expired", "file": "vst.md",
+                "line": 3, "verdict": "llm-suspected", "stamp_date": "2025-01-01",
+                "window_days": 180, "days_over": 9}]
+}'
+
+for vc in "string:not-found:VSTRCANARY" "array:llm-suspected:VARRCANARY" \
+  "deep:llm-suspected:VDEEPCANARY" "cased:llm-suspected:VCASECANARY" \
+  "on-stamp:llm-suspected:none"; do
+  vn="${vc%%:*}"
+  vr="${vc#*:}"
+  vv="${vr%%:*}"
+  vk="${vr#*:}"
+  VO="$OUTDIR/verdict-$vn.md"
+  run --report "$REPORTS/verdict-$vn.json" --out "$VO" >/dev/null 2>&1
+  VB="$(cat "$VO")"
+  assert_eq "a whole-verdict declaration emits no relay row ($vn)" \
+    "$(grep -c '^| [0-9]' "$VO")" "0"
+  assert_not_contains "a whole-verdict declaration names no verdict in the file ($vn)" \
+    "$VB" "$vv"
+  assert_not_contains "a whole-verdict declaration opens no Unparsed section ($vn)" \
+    "$VB" "## Unparsed"
+  assert_contains "a whole-verdict declaration is counted as judgment ($vn)" \
+    "$VB" "1 judgment"
+  if [[ "$vk" != "none" ]]; then
+    assert_not_contains "a whole-verdict declaration leaks no payload ($vn)" "$VB" "$vk"
+  fi
+done
+
+# A verdict declared beside a relay tier does not slip through on the relay tier.
+write_report verdict-beside-confirmed.json '{
+  "counts": {"files": 2},
+  "findings": [{
+    "rule": "provenance/audit/rule-verbatim-copy", "file": "vb.md",
+    "span": {"start_line": 9}, "tier": "fingerprint-confirmed",
+    "source": {"url": "https://vb.example/s"},
+    "fingerprint": {"containment": 0.9, "longest_span_words": 30},
+    "verdict": "not-found", "searched": ["https://vb.example/u"]
+  }]
+}'
+VBC="$OUTDIR/verdict-beside-confirmed.md"
+run --report "$REPORTS/verdict-beside-confirmed.json" --out "$VBC" >/dev/null 2>&1
+assert_eq "a verdict beside fingerprint-confirmed still withholds the copy" \
+  "$(grep -c '^| [0-9]' "$VBC")" "0"
+assert_contains "and it is counted as a judgment finding" \
+  "$(cat "$VBC")" "1 judgment"
+
+# --- The searched listing is read wherever the outcome is declared ----------------
+#
+# The gate reads the declared tier at two positions; it must read `searched` at both
+# too, or it refuses a sidecar that satisfies the very requirement it enforces.
+write_report gate-verdict-searched.json '{
+  "counts": {"files": 2},
+  "findings": [{"verdict": {"tier": "not-found", "searched": ["https://gv.example/u"]},
+                "file": "gv.md", "note": "GATEVSCANARY"}]
+}'
+GVS="$OUTDIR/gate-verdict-searched.md"
+run --report "$REPORTS/gate-verdict-searched.json" --out "$GVS" >/dev/null 2>&1
+assert_exit "a not-found naming its surfaces beside the verdict is accepted" "$?" "0"
+assert_file "and the accepted sidecar still writes the file" "$GVS"
+assert_contains "and the finding is still withheld and counted" \
+  "$(cat "$GVS")" "1 judgment"
+
+# --- A findings key that is not a list is named for what it is --------------------
+#
+# It used to fail inside the not-found gate and be refused under that gate's message,
+# reporting a cause the input does not have.
+write_report findings-scalar.json '{"findings": "none"}'
+FSC="$OUTDIR/findings-scalar.md"
+FSC_ERR="$(run --report "$REPORTS/findings-scalar.json" --out "$FSC" 2>&1)"
+assert_exit "a non-list findings key exits 3" "$?" "3"
+assert_contains "and says the findings key is not a list" "$FSC_ERR" "not a list"
+assert_not_contains "and does not blame the not-found check" "$FSC_ERR" "not-found finding"
+
+# --- A verdict name is matched EXACTLY, never as a prefix -------------------------
+#
+# `test()` searched for a substring, so an extended name such as `not-found-v2`
+# matched the verdict it merely starts with: the record was classified as withheld,
+# its payload erased, and no `## Unparsed` entry emitted — the exact silent drop the
+# appendix exists to prevent for a future record. A candidate name now has to EQUAL a
+# verdict after trimming and case-folding, which leaves every accepted wrapper shape
+# intact because the wrapper is walked before the names are compared.
 
 write_report tier-extended.json '{
   "counts": {"files": 2},
@@ -579,6 +679,19 @@ assert_not_contains "a verdict wrapped two containers deep is still withheld" \
   "$DW_BODY" "llm-suspected"
 assert_not_contains "a deeply wrapped verdict leaks no payload" "$DW_BODY" "DEEPWRAPCANARY"
 assert_contains "a deeply wrapped verdict is counted" "$DW_BODY" "1 judgment"
+
+# Trimming covers the zero-width characters a reader cannot see. A tier that RENDERS
+# as a verdict name in the written file is a verdict name in the written file.
+write_report tier-zwsp.json '{
+  "findings": [{"tier": "​not-found﻿", "file": "x.md", "note": "ZWSPCANARY",
+                "searched": ["https://z.example/u"]}]
+}'
+ZW="$OUTDIR/tier-zwsp.md"
+run --report "$REPORTS/tier-zwsp.json" --out "$ZW" >/dev/null 2>&1
+ZW_BODY="$(cat "$ZW")"
+assert_not_contains "a zero-width-padded verdict is still withheld" "$ZW_BODY" "not-found"
+assert_not_contains "a zero-width-padded verdict leaks no payload" "$ZW_BODY" "ZWSPCANARY"
+assert_contains "a zero-width-padded verdict is counted" "$ZW_BODY" "1 judgment"
 
 # FREE TEXT in a tier field names no tier, which is the same answer this producer
 # already gives a verdict name spelled in a `note`. It has to be: withholding a

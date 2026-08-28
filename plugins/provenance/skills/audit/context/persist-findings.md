@@ -100,8 +100,8 @@ human report, where it is not.
 them separately.** Reading the wrong field is a silent drop; failing to see through a wrapper
 around a real verdict name is a leak.
 
-The KEY is an explicit allowlist — the top-level `tier`, and the `tier` inside a `verdict`
-object — because a miss THERE is a drop, which is worse than the leak it guards. This sidecar is
+The KEY is an explicit allowlist — the top-level `tier`, and the whole of a top-level `verdict`
+— because a miss THERE is a drop, which is worse than the leak it guards. This sidecar is
 model-authored against no schema, and `tier` is already overloaded across it (the verdict tier,
 and the crosswalk severity). A reader that took a `tier` key at any depth could not tell a
 declared verdict from a nested mention of one, and withheld records that had declared
@@ -109,6 +109,15 @@ declared verdict from a nested mention of one, and withheld records that had dec
 `## Surfaces` count calling them judgment findings on a human report they were never on. Keys
 are matched case-folded, but only at those two positions, so
 `{"xref": {"TIER": "prior: not-found"}}` is the cross-reference it reads as.
+
+A `verdict` is taken WHOLE rather than as `verdict.tier`, because a key named `verdict` is
+already the declaration. `{"verdict": "not-found"}`, `{"verdict": ["not-found"]}` and
+`{"verdict": {"result": {"tier": "llm-suspected"}}}` each say what
+`{"verdict": {"tier": "not-found"}}` says, and reading only the `tier` child let all three past
+the boundary — into a relay row when a stamp rule carried one, and verbatim into `## Unparsed`
+when nothing else mapped the record. Whatever the outcome is declared inside, `searched` is read
+inside it too, so a sidecar keeping the outcome and its surfaces together is not refused for
+naming them where it declared the outcome.
 
 The VALUE is read generously about its WRAPPER and exactly about the NAME. Every string anywhere
 inside the declared value is a candidate, trimmed and case-folded, and it names a tier only when
@@ -178,10 +187,11 @@ relay-eligible count plus the withheld and unmapped counts. Omit `tier:` and `##
 nothing here computes a run-size value, and the relay carries one dimension.
 
 - Findings to emit → write. The input-refusal gates run first and are the one exception: a
-  sidecar with no `findings` key, one that does not parse, or one whose `not-found` finding
-  names no searched surfaces is refused whole at exit 3 and nothing is written, because a file
-  composed from input that concludes nothing is worse than no file. A single malformed RECORD is
-  not that case and never refuses the sidecar.
+  sidecar that does not parse, one with no `findings` key, one whose `findings` is not a list,
+  or one whose `not-found` finding names no searched surfaces is refused whole at exit 3 and
+  nothing is written, because a file composed from input that concludes nothing is worse than no
+  file. Each refusal names its own cause. A single malformed RECORD is not one of these cases
+  and never refuses the sidecar.
 - Files scanned, zero relay-eligible findings → write anyway, with the empty `## Findings`
   header. Coverage is the payload, and a clean corpus is a result.
 - Nothing scanned (empty target set, everything carved out) → write nothing; say so in the
