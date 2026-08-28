@@ -1331,7 +1331,7 @@ markers_count="$(printf '%s\n' "$markers_out" | grep -c '^Finding shape: negatio
 assert_contains "both ordered-list delimiters and both checkbox states reach the cue" \
   "count=$markers_count" "count=4"
 
-# SKILL.md's `Uncommitted .md files (empty = none):` line previews the same discovery with a grep
+# SKILL.md's `Uncommitted .md files (…):` line previews the same discovery with a grep
 # rather than with detect.sh's parse, so it shares the defect CLASS without sharing the code: git
 # C-quotes a path it treats specially, and a quoted record ends with the closing quote, not
 # `.md`. A bare `grep '\.md$'` therefore dropped every spaced, arrowed, backslashed or
@@ -1341,9 +1341,9 @@ assert_contains "both ordered-list delimiters and both checkbox states reach the
 # line rots, which is exactly how the two surfaces drifted apart in the first place.
 SKILL_MD="$SCRIPT_DIR/../SKILL.md"
 if [[ -f "$SKILL_MD" ]]; then
-  # The label carries a parenthetical (`(empty = none)`) and the injection heads its pipeline with
-  # a status-only probe run, so anchor on the label stem and on the ` | grep … | head` segment
-  # rather than on the whole line.
+  # The label carries a parenthetical naming what an empty render can mean, and the injection
+  # heads its pipeline with a status-only probe run, so anchor on the label stem and on the
+  # ` | grep … | head` segment rather than on the whole line.
   skill_grep="$(sed -n 's/^Uncommitted \.md files[^:]*:.*| \(grep [^|]*\) | head.*/\1/p' "$SKILL_MD")"
   if [[ -n "$skill_grep" ]]; then
     skill_out="$(cd "$PORC_REPO" && eval "git status --porcelain 2>/dev/null | $skill_grep")"

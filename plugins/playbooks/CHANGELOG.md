@@ -4,6 +4,27 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.5]
+
+### Added
+
+- **`skill-authoring`: the precompute convention now records the `pipefail` question.** The file
+  said nothing about shell options, and the word appeared nowhere in `docs/`, so every author who
+  reached this convention had to rediscover the same thing: whether Claude Code runs `!` injections
+  under `set -o pipefail` decides whether a `guard && probe | filter | head -N || echo` shape is
+  correct or inverted, and the skills docs do not say. They specify the working directory, stderr
+  merging, timeout, output size and the exit-code semantics of an injected command, and name no
+  shell options. The new subsection states the question as open, states that the brace-group form
+  already prescribed above is correct under both settings, and names the two states that make the
+  `guard && pipeline || token` shape correct under only one: without `pipefail` a failed filter
+  stage renders empty because the pipeline's status is `head`'s, and with `pipefail` a healthy
+  at-cap render gains a spurious failure token because `head` closing the pipe SIGPIPEs the stage
+  upstream. It closes on the brace group's own price, that its final `:` makes the outer `||`
+  unreachable so a failure inside the group renders empty too, which is why the label must never
+  assert a bare `empty = none`. The section's recheck trigger now also fires when the docs begin
+  naming shell options. Documentation only; this is the fix that stops the next author
+  reintroducing the shape.
+
 ## [0.9.4]
 
 ### Changed

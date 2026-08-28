@@ -12,7 +12,7 @@ metadata:
 
 ## Pre-computed context
 
-Status: !`command -v firecrawl >/dev/null 2>&1 && firecrawl --status 2>/dev/null | head -10 || echo "NOT INSTALLED — run: npm install -g firecrawl-cli"`
+Status: !`command -v firecrawl >/dev/null 2>&1 && { firecrawl --status 2>/dev/null | head -10; :; } || echo "NOT INSTALLED — run: npm install -g firecrawl-cli"`
 
 The `firecrawl --status` line above includes auth state. If it shows unauthenticated (or the CLI is missing), the fix is: obtain a key from the <https://firecrawl.dev> dashboard and set `FIRECRAWL_API_KEY` as an OS user environment variable.
 

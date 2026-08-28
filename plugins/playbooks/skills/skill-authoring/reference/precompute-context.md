@@ -33,8 +33,9 @@ needs an argument Claude derives, or is expensive.
 
 ## Conventions we pin
 
-These are Melodic Software conventions, not upstream doctrine. **Recheck trigger:** the skills
-docs begin documenting `!` failure/timeout/stderr semantics — revisit these conventions then.
+These are Melodic Software conventions, not upstream doctrine. **Recheck trigger:** revisit these
+conventions when the skills docs begin documenting `!` failure/timeout/stderr semantics, or the
+shell options injections run under.
 
 ### Defensive fallback is mandatory
 
@@ -77,6 +78,30 @@ Keep the brace group free of `$`. An expansion other than bare `$HOME` leaves th
 pre-compute block unverifiable to the worktree-isolation guard, and the skill then fails to load
 from an isolated agent. The fleet holds two competing accounts of that guard's trigger, recorded in
 `session-flow` 0.17.16 and `source-control` 0.51.6; avoiding `$` satisfies both.
+
+### `pipefail` is an open question; the brace group is correct either way
+
+Whether Claude Code runs `!` injections under `set -o pipefail` is **unsettled**. The skills docs
+specify the working directory, stderr merging, timeout, output size, and the exit-code semantics
+of an injected command, but name no shell options. Assume either setting, and write a probe that
+renders the same under both.
+
+The brace-group form above does. Its fallback fires on the probe's own exit status and its cap
+sits outside the group, so no downstream stage can change what renders.
+
+A `guard && probe | filter | head -N || echo "(unavailable)"` shape does not. It is correct under
+exactly one setting, and which one it needs depends on the state:
+
+- **Without `pipefail`** the pipeline's status is `head`'s, so the trailing `|| echo` never fires
+  and a failed filter stage renders empty under a label claiming the opposite.
+- **With `pipefail`** `head -N` closes the pipe once it has its N lines, the upstream stage takes
+  SIGPIPE, and the pipeline exits 141, so a healthy at-cap render gains a spurious
+  `(unavailable)` line.
+
+The brace group buys that at a price worth naming. Its final `:` makes the outer `||` unreachable,
+so a failure INSIDE the group also renders empty: a filter binary off PATH, or a second `git`
+invocation that fails after the guard's copy succeeded. The label carries that weight instead, and
+must never assert a bare `empty = none`.
 
 ### Windows / `shell:` awareness
 

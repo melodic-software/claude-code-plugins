@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.18]
+## [0.38.19]
 
 ### Changed
 
@@ -13,6 +13,20 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
   because `scripts/sync-hook-utils.sh` keeps every carrying plugin
   byte-identical.
+
+## [0.38.18]
+
+### Fixed
+
+- **`observability`: the repo-slug failure token collided with real data.** 0.38.17 made the
+  `unknown` fallback reachable. It stayed ambiguous: a repository whose toplevel directory is
+  literally named `unknown` rendered the same string as a `git rev-parse` that failed, so the
+  reader could not tell a working probe from a broken one. Verified by execution, both states
+  rendered `unknown` byte for byte. The failure case now renders `(git toplevel unavailable)`,
+  matching the parenthesized convention the rest of the fleet's probes use, which no directory name
+  in practice collides with. A repository named `unknown` still renders `unknown`, now
+  unambiguously. Nothing in the plugin reads the injected value, so no consumer changes. The skill
+  declares no `allowed-tools`, so no grant changed. LIVE and PRE-EXISTING. Minor.
 
 ## [0.38.17]
 
