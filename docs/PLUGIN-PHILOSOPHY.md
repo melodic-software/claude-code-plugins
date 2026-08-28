@@ -613,7 +613,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
-| Dynamic-context (`!`) precompute: when to inject, fallback binding, `shell:` declaration | `playbooks` plugin (`skills/skill-authoring/reference/precompute-context.md`) |
+| Dynamic-context (`!`) precompute: when to inject, fallback binding, `shell:` declaration | `/playbooks:skill-authoring`, which owns and states the precompute contract |
 | Skill invocation-mode rubric | [`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |

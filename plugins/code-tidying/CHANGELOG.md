@@ -3,6 +3,56 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.13]
+
+### Fixed
+
+- **The filtered-probe guard is now pipefail-proof.** 0.14.12 shipped
+  `probe >/dev/null 2>&1 && probe | filter | head -10 || echo "(git status unavailable)"`. Under
+  `set -o pipefail` the `&&` list takes the pipeline's exit status, and pipefail makes that non-zero
+  in two ordinary situations: the filter matching nothing, and `git` taking SIGPIPE when `head`
+  closes the pipe at the cap. Both fire the failure token on a healthy probe, which is worse than
+  the defect 0.14.12 removed — the shape it replaced only ever said `none`, while this one
+  positively asserts that `git status` was unavailable when it ran fine. Reproduced on a repository
+  with 3,000 dirty files. The filter pipeline now sits in a brace group closed by `:`, a command
+  that cannot fail, so the `||` is reachable only by the guard short-circuiting.
+  `audit-comment-residue`'s parity test anchors its porcelain capture past `&& {`, so it evaluates
+  exactly the data run rather than an unterminated brace group. Both detector suites stay green.
+
+## [0.14.12]
+
+### Fixed
+
+- **Both filtered-probe injections now tell a failed probe apart from a filter that matched
+  nothing.** 0.14.11 normalized this plugin's one working-tree status probe, in `tidy`, and
+  recorded its filtered probes as deliberately left open
+  (`docs/specs/extract-ssot-sweep-2026-08-28.md`).
+  `dissolve-comments` and `audit-comment-residue` each piped `git status --porcelain` through an
+  `awk` parse and an extension `grep` into `head -10` before `|| echo "none"`: `||` binds to the
+  whole pipeline, a pipeline's status is its last command's, and `head` exits 0 on empty input, so
+  neither fallback could ever run. Outside a repository both rendered an empty string, which under
+  a label reading `Uncommitted code files:` is indistinguishable from a tree holding no code files.
+  Both lines now head an `&&` list with a status-only run of their own probe, so the `||` fires on
+  probe failure alone and prints `(git status unavailable)`, the token the fleet's
+  already-normalized probes use. Each site keeps its own porcelain form (`-z` in
+  `audit-comment-residue`, v1 in `dissolve-comments`), its own parse, its own extension filter and
+  its own cap of 10; each label gained `empty = none` so an empty render reads as no matching
+  files. The probe runs twice because the capture-first alternative needs a `$` expansion, and a
+  `$` expansion other than a bare `$HOME` in a pre-compute block makes the skill fail to load from
+  a worktree-isolated agent (`session-flow` 0.17.16). The added text introduces no `$` of any kind,
+  and no line here holds a `$` expansion: the `$NF` and `$0` field references inside the two
+  single-quoted `awk` programs, and the anchors inside the single-quoted `grep` patterns, are
+  pre-existing, untouched, and never expanded by the shell. Verified by execution:
+  outside a repository both print `(git status unavailable)`, inside a repository whose dirty files
+  are not code files both print nothing, and a dirty `.py` file still lists.
+
+- **`audit-comment-residue`'s SKILL.md parity check follows the new line shape.**
+  `scripts/detect.test.sh` extracts the `awk` program and the porcelain invocation out of SKILL.md
+  and runs them against its fixture tree; both `sed` extractors were anchored on the exact former
+  label, so the label change above would have left them matching nothing. Both now anchor on the
+  label stem. The porcelain extractor's capture runs to the first `|`, so it now takes the whole
+  `&&` list and evaluates the reachability guard as written. Suite green at 53 checks.
+
 ## [0.14.11]
 
 ### Changed

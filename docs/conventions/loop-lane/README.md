@@ -698,7 +698,7 @@ presence-gated with this inline fallback per the
 |---|---|---|
 | `work-loop` | `work-items` | worker (PR-authoring drain) |
 | `attend-queue` | `work-items` | attended triage / escalation queue |
-| `babysit-loop` | `source-control` | merge lane over [`babysit-prs`](../../../plugins/source-control/skills/babysit-prs/SKILL.md) |
+| `babysit-loop` | `source-control` | merge lane over `/source-control:babysit-prs` |
 
 All three adopters have shipped. This owner doc landed ahead of them, per the convention-registry
 rule; the table above is a live consumer list, not a forward reference.

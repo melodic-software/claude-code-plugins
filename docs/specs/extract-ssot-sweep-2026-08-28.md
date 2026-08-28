@@ -20,7 +20,7 @@ finding's quoted source text is still present at or near the cited path, the fin
 quote that matches nothing has been applied, superseded, or moved.
 
 Two independent confirmations that this rule is not ceremonial. The predecessor's L3 section recorded
-`setup-never-writes-boundary` as "41 instances, 34 edited"; re-measurement found the 41 exact and the
+`setup-never-writes-boundary` as "41, 34 edited"; re-measurement found the 41 exact and the
 edit set down to **one**, because 33 of the 34 had landed three days before the audit that recorded
 them. And the em dashes it located at `persist-findings.md:1` and `:5` were still present, the second
 having moved to `:16` when #3380 inserted a `## Contents` index above it.
@@ -104,9 +104,14 @@ the fix extends it to the two files they cite, which is a choice this record mak
 
 Two further files carry the same floor as a blockquoted restatement inside a prompt:
 `prompts/loops/loop-lane-prompts.md` and `prompts/loops/loop-lane-profile-claude-code-plugins.md`.
-Both re-wrap the block to a narrower measure and both say in their own text that the quotation sits
-outside the byte-audited block, so neither is under the identity contract and neither is counted in
-the five. Their wording was brought to the same text anyway, because a reader who diffs a quotation
+Both re-wrap the block to a narrower measure. Neither is under the identity contract, for the
+reason §6 gives rather than for anything the prompts say: §6 binds the three consuming lane bodies,
+and a prompt quoting the floor is not a lane. An earlier draft of this paragraph claimed both files
+"say in their own text that the quotation sits outside the byte-audited block". They do not. The
+only sentence in either naming that block reads "Two further reader-contract rules apply alongside
+the floor (outside the byte-audited block)", whose subject is those two rules, not the quotation —
+the same attach-the-quote-to-the-wrong-subject error this record was corrected for once already, in
+the `detector-findings-tier-self-restatement` row. Neither prompt is counted in the five. Their wording was brought to the same text anyway, because a reader who diffs a quotation
 against its source should find only the wrapping different.
 
 ### Call-site normalizations
@@ -124,32 +129,72 @@ reading `Working tree status:` is the same rendering as a clean tree. Twenty-fiv
 the 26 the first commit message counts; that message states all 26 as unreachable and over-counts by
 one. The squash message merged to the default branch carries the corrected split.
 
-Four sites with the identical unreachable shape were **not** normalized, on purpose:
+Four sites with the identical unreachable shape were **not** normalized by this run, on purpose.
+**They are closed now**, by the separate pass this section asked for, together with the fifth site
+this run recorded under [Recall limits this run declares](#recall-limits-this-run-declares) rather
+than in the table here. The deferral reasoning is kept below in the past tense, because it states
+what that pass had to answer.
 
-| Site | Probe |
-|---|---|
-| `plugins/docs-hygiene/skills/audit-noise/SKILL.md` | `git status --porcelain \| grep -E '\.md"?$' \| head -10 \|\| echo "none"` |
-| `plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md` | same shape, `grep '\.md$'` |
-| `plugins/code-tidying/skills/dissolve-comments/SKILL.md` | same shape, `awk` plus an extension `grep` |
-| `plugins/code-tidying/skills/audit-comment-residue/SKILL.md` | same shape, `-z` parse plus an extension `grep` |
+| Site | Probe as this run left it | Defect |
+|---|---|---|
+| `plugins/docs-hygiene/skills/audit-noise/SKILL.md` | `git status --porcelain \| grep -E '\.md"?$' \| head -10 \|\| echo "none"` | fallback unreachable |
+| `plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md` | same shape, `grep '\.md$'` | fallback unreachable |
+| `plugins/code-tidying/skills/dissolve-comments/SKILL.md` | same shape, `awk` plus an extension `grep` | fallback unreachable |
+| `plugins/code-tidying/skills/audit-comment-residue/SKILL.md` | same shape, `-z` parse plus an extension `grep` | fallback unreachable |
+| `plugins/docs-hygiene/skills/compress/SKILL.md` | `{ git status --porcelain \| grep '\.md$' \|\| echo "none"; } \| head -10` | fallback reachable, both meanings collapse |
+
+The fifth row is not a site this run normalized and then got wrong. Its brace group predates the
+sweep, from `docs-hygiene` 0.15.0 in
+[#2814](https://github.com/melodic-software/claude-code-plugins/pull/2814), and it puts the filter
+*inside* the group, so the group's exit status is `grep`'s: 1 when git failed and 1 when nothing
+matched. Its fallback did run, and printed `none` for both meanings.
 
 These are filtered probes, not status probes, and the difference is not cosmetic. Their fallback
-reads `none`, which for a filtered list is the *correct* answer when the filter matches nothing, so
-an empty render is not a misreading the way an empty working-tree status is. Making the fallback
-reachable would make `none` fire on probe failure too, collapsing "no matching files" and "git did
-not run" into one string and creating the ambiguity the 25-site fix exists to remove. Fixing them
-properly means giving each a distinct failure token and re-deciding what its label asserts, per
-skill, which is a separate pass with its own review. Recorded open here rather than done badly.
+read `none`, which for a filtered list is the *correct* answer when the filter matches nothing, so
+an empty render was not a misreading the way an empty working-tree status is. Making the fallback
+reachable without more would have made `none` fire on probe failure too, collapsing "no matching
+files" and "git did not run" into one string and creating the ambiguity the 25-site fix exists to
+remove. Fixing them properly meant giving each a distinct failure token and re-deciding what its
+label asserts, per skill, which is why this run recorded them open rather than doing it badly.
 
-The shape that pass should use is already in the fleet.
-`plugins/docs-hygiene/skills/audit-derivability/SKILL.md` runs a filtered probe as
+This section proposed one candidate form, from
+`plugins/docs-hygiene/skills/audit-derivability/SKILL.md`:
 `s=$(git status --porcelain 2>/dev/null) && printf '%s\n' "$s" | … | head -20 || echo "(status
 unavailable)"`. Capturing first makes the probe's own exit status the head of an `&&` list, so a
 failed probe short-circuits and the `||` fires; a successful probe with no matches runs the pipeline
 and renders empty under a label that says `empty = none`. Both meanings survive, separately.
 Verified by execution outside a repository: this form prints `(status unavailable)`, and the four
-filtered probes print nothing. That is one candidate form, not a decision — the pass still owes each
-skill its own label wording.
+filtered probes print nothing.
+
+**The pass did not take that candidate.** Capturing into `s` needs a `$` expansion, and
+`plugins/playbooks/skills/skill-authoring/reference/precompute-context.md` requires a pre-compute
+block to carry no `$` expansion other than a bare `$HOME`: an expansion leaves the composed block
+unverifiable to the worktree-isolation guard, and the skill then fails to load from an isolated
+agent (`session-flow` 0.17.16). `audit-derivability` demonstrates the binding, not a form to copy.
+All five sites took an equivalent that adds no `$` at all and heads the same `&&` list with a
+status-only run of the site's own probe:
+
+```text
+git status --porcelain >/dev/null 2>&1 && git status --porcelain 2>/dev/null | … | head -N || echo "(git status unavailable)"
+```
+
+The probe runs twice, which is the price of not capturing it. No line holds a `$` expansion after
+the change: the `$` characters that remain are end-of-line anchors in single-quoted `grep` patterns
+and field references in single-quoted `awk` programs, all pre-existing and none of them expanded by
+the shell. Each site kept its own filter, its own cap and its own label noun; each label gained
+`empty = none`; the failure token is the `(git status unavailable)` string the normalized status
+probes already use. Verified by execution in three states per site: outside a repository each prints
+the token, inside a repository whose dirty files do not match the filter each prints nothing, and
+above the cap the cap holds with no spurious fallback. Landed in `docs-hygiene` 0.21.23 and
+`code-tidying` 0.14.12, which also carry the two `detect.test.sh` extractors that read these lines
+out of `SKILL.md` and were anchored on the old labels.
+
+One filtered probe with the unreachable shape remains open, and is out of this section's scope
+because its probe is not `git status`:
+`plugins/docs-hygiene/skills/rename-references/SKILL.md` renders rename pairs as
+`{ git diff --name-status -M HEAD; git diff --cached --name-status -M; } | grep '^R' | head -15 || echo "none"`.
+Same binding defect, different probe, and `grep '^R'` matching nothing is the ordinary case there.
+Recorded, not fixed.
 
 The per-cluster detail for the sites that were normalized is in the pull request that carries this
 file.
@@ -161,13 +206,20 @@ this sweep created none and none of these needs one. They are ordered by the har
 
 ### Factual defects
 
-Four of the factual defects this survey found were applied in the same change set and are listed
-under "Applied" above, not here: `auto-mode-dropped-class-roster`,
-`songwriting-title-type-attribution`, `songwriting-section2-load-list-gate`, and
-`check-skill-trigger-fence-line-reference`.
+Four of the factual defects this survey found were applied in the same change set and so are not
+rostered here: `auto-mode-dropped-class-roster`, `songwriting-title-type-attribution`,
+`songwriting-section2-load-list-gate`, and `check-skill-trigger-fence-line-reference`. Their
+per-site detail is in the affected plugins' changelogs — `claude-config`, `songwriting`, and
+`docs-hygiene` respectively — and in the pull request that carried them. An earlier draft said they
+were "listed under Applied above"; that section covers the owner edits, the inline floor, and the
+call-site normalizations, and names none of these four, so a resumer following the pointer found
+nothing.
 
 The last of those is worth recording as a worked example of this file's own decay rule. It was
-written here as an open cluster of four prose surfaces citing
+written here as an open cluster of four *prose* surfaces, and the count was short: a fifth carrier
+sat in a script header, `plugins/docs-hygiene/skills/audit-noise/scripts/emit-findings.sh`, which a
+`*.md`-only grep could not see. All five are closed, but only four were recorded as such at the
+time. The cluster was four prose surfaces citing
 `plugins/skill-quality/scripts/check-skill.sh:414` as the hard FAIL for a dropped trigger phrase.
 Line 414 is inside a comment stating that a trigger **move** WARNs and never blocks; the `err` is at
 462, so each citation asserted the reverse of the line it named. Between this file being written and
@@ -265,7 +317,10 @@ Beyond the predecessor's 13. Each was resolved against the real files and refuse
 - **ADR bodies**, 4 clusters. Treated as immutable throughout. In every case the ADR is the quoting
   party and already carries exact attribution, so citation was the existing state.
 - **Generator-owned twins**, 6 rows, emitted from an adapter README template.
-- **The `discipline` family's shared method pointer**, 14 sites, all citing one plugin-level file.
+- **The `discipline` family's shared method pointer**, 15 skill bodies citing one plugin-level file
+  (`git grep -l re-anchor-audit-correct -- 'plugins/discipline/skills/*/SKILL.md'`), the wording
+  varying between them rather than one reproduced sentence. An earlier draft said 14, which matched
+  neither the family total nor the identical-sentence subset.
   Shared voice is not duplication; only a reproduced rule counts.
 - **CI-registered clusters**: the contract-clause registry, the standards contract mirror, the
   plugin artifact protocol, the zone-combination inline floor, the discovery agents' tool-honesty
@@ -325,19 +380,43 @@ figures to differ.
   plugin's `agents/` directory except three.
 - **Three counts are floors, not totals.** The `worker-return-is-synthesis` roster at 13 files and
   the `read-only-artifact-write-reconciliation` roster at 7 both come from partial reads; neither
-  could shrink, both could grow. The encapsulation roster is the third: it records **two**
-  `docs/**` surfaces citing a plugin skill by filesystem path, which is what the survey found, and
-  a later pass found three more of the identical shape that were on no roster —
-  `docs/conventions/topic-docs/README.md` (two links, `discovery` and `verification` setup skills),
-  `docs/conventions/detector-findings/README.md` (`review/skills/fanout/SKILL.md`), and
-  `docs/conventions/permission-rule-hygiene/README.md`
-  (`claude-config/skills/audit-permission-grants`). ADR 0018 rules all of them out for the same
-  reason; none is fixed here.
+  could shrink, both could grow. The encapsulation roster is the third, and it grew: it recorded
+  **two** `docs/**` surfaces citing a plugin skill by filesystem path, which is what the survey
+  found, and a later pass found three more of the identical shape that were on no roster. **They
+  are closed now**, by a pass that re-derived the shape across all of `docs/**` rather than
+  trusting the roster. That pass resolved **16 citations at 12 sites in 8 files**, every one
+  rewritten to the `/plugin:skill` public invocation on the
+  [`loop-lane` 9.0.1](../conventions/loop-lane/CHANGELOG.md) form. Beyond the five named above it
+  reached `docs/PLUGIN-PHILOSOPHY.md`'s Convention registry (the dynamic-context precompute row
+  this very change set added, written in the bare plugin-relative form ADR 0018 names as its real
+  defect class), two conformance rows in `docs/conventions/config-cascade/README.md`, one in
+  `docs/conventions/pre-pr-ordering/README.md`, three in
+  `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14` off
+  the predecessor's 34-item L4 roster, which is therefore down to 32), and one adopter-row detail
+  in `docs/conventions/detector-findings/README.md`. **What remains is a judgment set, not a
+  backlog**: 23 further in-shape citations were kept with reasons, because each is evidence about
+  this checkout rather than an address for an obligation. They are the three worked examples in
+  `docs/conventions/plugin-data-report-keying/README.md`, the four location cites in
+  `docs/conventions/shell-test-helpers/README.md` (whose subject *is* where the duplicate copies
+  sit), the four `scripts/` entry-surface pointers in `docs/NATIVE-SURFACES.md` and
+  `docs/CLOUD-SESSIONS.md` that the public-surface contract's own carve-out permits, two observation
+  rows in the `NATIVE-SURFACES` generated region (authored in
+  `docs/native-surfaces/records.json`, so a hand-edit of the rendered view would be overwritten and
+  the store's copy is the same citation, not a second one), that store's own note on where the
+  overlap seed file lives, the boris-baseline evidence row in `docs/PLUGIN-PHILOSOPHY.md`, the five
+  file-and-frontmatter cites inside `docs/MIGRATION-PLAYBOOK.md`'s dated `dometrain` security-review
+  record (each asserting what a named file contains, under a record that re-triggers on a version
+  bump), and three dated changelog entries that quote a citation as it stood.
+  `docs/SKILL-CHEAT-SHEET.md` is
+  generated too, and the dated records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out
+  of scope by the same test.
 - **A fifth filtered probe exists and is not in the four-site table above.**
   `plugins/docs-hygiene/skills/compress/SKILL.md` already binds its fallback inside the brace group,
   so unlike the four it *is* reachable — but its fallback is `none`, which collapses "no matching
   files" and "git did not run" into one string. Same ambiguity, arrived at from the other direction.
-  A pass that fixes the four should fix this one too.
+  A pass that fixes the four should fix this one too. **It did**: the follow-up pass recorded under
+  [Call-site normalizations](#call-site-normalizations) took all five, and the table there now
+  carries this site as its fifth row.
 - **The `1,536`-character listing cap appeared in 14 tracked files when this was measured**; the
   batch that surfaced it saw three. A later count during this change set's own review found 16, and
   the population keeps moving. That is the point of the paragraph rather than an exception to it:

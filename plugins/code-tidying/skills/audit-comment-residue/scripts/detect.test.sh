@@ -245,8 +245,8 @@ assert_not_contains "worktree-column rename is not reported as files=0" "$worktr
 assert_contains "worktree-column rename resolves to the new path" "$worktree_rename_out" "Summary file: new.py"
 
 # --- 10. SKILL.md pre-computed-context parser stays at parity with detect.sh (#3126) ----
-# SKILL.md's `Uncommitted code files:` line re-implements the porcelain parse to preview
-# targets to the model. A divergence there is a false negative on the same surface, so the
+# SKILL.md's `Uncommitted code files (empty = none):` line re-implements the porcelain parse to
+# preview targets to the model. A divergence there is a false negative on the same surface, so the
 # program is EXTRACTED from SKILL.md and executed rather than being restated here — a copy
 # would pass while the real line rotted. Fixture names force C-quoting through an embedded
 # quote and backslash, not just a space, since quote-stripping alone passes a spaced name.
@@ -256,7 +256,9 @@ if [[ ! -f "$SKILL_MD" ]]; then
   fail "SKILL.md located for parity check" "file at $SKILL_MD" "missing"
 else
   # Pull the awk program out of: ... | awk '<program>' | grep ...
-  skill_awk="$(sed -n "s/^Uncommitted code files:.*| awk '\(.*\)' | grep .*$/\1/p" "$SKILL_MD")"
+  # Anchor on the label stem, not the whole label: the label carries a parenthetical
+  # (`(empty = none)`) so the fallback can be read as a failed probe rather than an empty filter.
+  skill_awk="$(sed -n "s/^Uncommitted code files[^:]*:.*| awk '\(.*\)' | grep .*$/\1/p" "$SKILL_MD")"
   if [[ -z "$skill_awk" ]]; then
     fail "SKILL.md awk program extracted" "non-empty program" "no match — line shape changed"
   else
@@ -283,7 +285,11 @@ else
     # would let the harness mask a mismatch: feeding -z to a v1 program makes the v1 program look
     # correct, because -z output carries no quoting for it to fail at decoding. Reading both ends
     # from SKILL.md means the fixtures below test the line as it actually runs.
-    skill_porcelain="$(sed -n 's/^Uncommitted code files: !`\(git status --porcelain[^|]*\)|.*/\1/p' "$SKILL_MD")"
+    # The line now opens with a status-only probe run that guards the `||` fallback, and the run
+    # whose output feeds awk sits inside the brace group after `&&`. Anchor past `&& {` so the
+    # capture is that data run alone: a capture that swallowed the guard too would eval an
+    # unterminated brace group, and widening what this eval executes buys the parity check nothing.
+    skill_porcelain="$(sed -n 's/^Uncommitted code files[^:]*: !`.*&& { \(git status --porcelain[^|]*\)|.*/\1/p' "$SKILL_MD")"
     if [[ -z "$skill_porcelain" ]]; then
       fail "SKILL.md porcelain invocation extracted" "non-empty command" "no match — line shape changed"
     else

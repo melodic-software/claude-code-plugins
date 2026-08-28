@@ -13,7 +13,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted .md files (sample, first 10): !`git status --porcelain 2>/dev/null | grep '\.md$' | head -10 || echo "none"`
+Uncommitted .md files (sample, first 10; empty = none): !`git status --porcelain >/dev/null 2>&1 && { git status --porcelain 2>/dev/null | grep '\.md$' | head -10; :; } || echo "(git status unavailable)"`
 
 ## Purpose
 

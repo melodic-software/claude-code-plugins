@@ -59,6 +59,22 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   Two of the six consumers are the blockquoted launch-prompt templates, so the honest statement is
   that all six agree under this check's comparison, byte for byte for the four prose copies and
   after normalization for the two templates.
+## 9.0.2 — 2026-08-28
+
+Corrective, no topology, escalation, tier, or invariant change — §5's consumer table cites
+`babysit-prs` by its public invocation instead of by a filesystem path into another plugin's tree.
+The second half of the defect 9.0.1 closed, recorded open at the time and now closed with it.
+
+- **The `babysit-loop` row linked `../../../plugins/source-control/skills/babysit-prs/SKILL.md`.**
+  9.0.1 fixed the §4 telemetry-upsert citation and the sweep record that produced it noted this
+  table cell as the same shape in the same file, needing its own pass. It is the same failure for
+  the same reason: the link resolves only inside this marketplace checkout, and a lane running with
+  `source-control` installed has no such path on disk.
+  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  makes the plugin the encapsulation boundary for citation. The cell now reads "merge lane over
+  `/source-control:babysit-prs`", which resolves for an installed reader and still names the skill
+  the lane wraps. The table is still a live consumer list; nothing about the lane, its tier, or its
+  escalation path changed.
 
 ## 9.0.1 — 2026-08-28
 

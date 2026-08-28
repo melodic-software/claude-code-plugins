@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.4]
+
+### Fixed
+
+- **`audit`: the `detector unavailable` fallback could not render.** The effective-config probe was
+  `${CLAUDE_SKILL_DIR}/scripts/detect.sh --show-config 2>/dev/null | head -8 || echo "detector
+  unavailable"`. `head` exits 0 no matter how `detect.sh` exited, so a skill directory without the
+  script rendered a blank config line rather than saying the detector was missing, and the reader
+  had no way to tell a detector that reported no config from one that never ran. Verified by
+  execution: with the script absent the old shape rendered `[]` and the new one renders
+  `[detector unavailable]`; with the real script both render the seven-line effective config. The
+  probe now guards itself by running `--show-config` once to `/dev/null` and only then piping the
+  second run into `head`. The double run costs 72 ms measured on this repository. Both subcommands
+  still begin `${CLAUDE_SKILL_DIR}/scripts/detect.sh`, so the existing
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)` grant covers each of them independently, as the
+  permissions docs require for a compound command; `head` keeps its own grant. Nothing was widened.
+
 ## [0.5.3]
 
 ### Changed

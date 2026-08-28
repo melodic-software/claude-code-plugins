@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## [0.21.24]
+## [0.21.25]
 
 ### Added
 
@@ -11,6 +11,23 @@
   copy behind. The lane also scans every tracked file for the floor and fails on a carrier its
   registry does not name, so a later `docs-hygiene` surface that inlines the block cannot go
   unwatched. No content change to the block in this release.
+
+## [0.21.24]
+
+### Fixed
+
+- **The filtered-probe guard is now pipefail-proof.** 0.21.23 shipped
+  `probe >/dev/null 2>&1 && probe | filter | head -10 || echo "(git status unavailable)"`. Under
+  `set -o pipefail` the `&&` list takes the pipeline's exit status, and pipefail makes that non-zero
+  in two ordinary situations: `grep` matching nothing, and `git` taking SIGPIPE when `head` closes
+  the pipe at the cap. Both fire the failure token on a healthy probe, which is worse than the
+  defect 0.21.23 removed — the shape it replaced only ever said `none`, while this one positively
+  asserts that `git status` was unavailable when it ran fine. Reproduced on a repository with 3,000
+  dirty files: the 0.21.23 form prints `(git status unavailable)`. The filter pipeline now sits in a
+  brace group closed by `:`, a command that cannot fail, so the `||` is reachable only by the guard
+  short-circuiting. Verified on the committed lines in five states, with and without
+  `set -euo pipefail`: outside a repository, with a `.git` that is not a repository, with no `git`
+  on `PATH`, in a repository whose dirty files do not match, and at the cap with 15 matches.
 
 ## [0.21.23]
 

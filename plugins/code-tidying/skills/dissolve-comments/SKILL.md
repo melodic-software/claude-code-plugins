@@ -12,7 +12,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted code files (preview, first 10): !`git status --porcelain 2>/dev/null | awk '{print $NF}' | grep -Ei '\.(cs|ts|tsx|js|jsx|py|sh|ps1|go|rs|java|rb|lua|sql|c|h|cpp|hpp|yaml|yml|toml)$' | head -10 || echo "none"`
+Uncommitted code files (preview, first 10; empty = none): !`git status --porcelain >/dev/null 2>&1 && { git status --porcelain 2>/dev/null | awk '{print $NF}' | grep -Ei '\.(cs|ts|tsx|js|jsx|py|sh|ps1|go|rs|java|rb|lua|sql|c|h|cpp|hpp|yaml|yml|toml)$' | head -10; :; } || echo "(git status unavailable)"`
 
 ## Variables
 
