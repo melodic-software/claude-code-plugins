@@ -61,20 +61,83 @@
   (`source-fetched-similar`, `llm-suspected`, `not-found`) carrying no rule id matched no branch in
   the projection and was dumped verbatim into the findings file, tier name and payload included —
   the one file those verdicts are withheld from, and the apply relay's input. Withholding is now
-  decided on the declared tier ahead of any rule lookup, reading the tier at any depth, in any
-  casing, and through an array or object wrapper. The record is still counted in `## Surfaces`, so
+  decided on the **declared** tier ahead of any rule lookup, read from a fixed key allowlist and
+  matched exactly against the three verdict names. The record is still counted in `## Surfaces`, so
   nothing is dropped.
 
-  The first version of this fix matched the tier exactly at the top level, and an adversarial probe
-  defeated it four ways: a padded `"  not-found  "`, an array-valued `["not-found"]`, an
-  object-valued `{"name":"llm-suspected"}`, and a capitalised `"Tier"` key. Each is now a
-  regression assertion.
+  **Reaching that took five rounds, and each round's fix opened the next hole.** Recorded in full
+  because the sequence, not any one defect, is the finding.
+
+  1. The first version matched the tier exactly at the top level. An adversarial probe defeated it
+     four ways: a padded `"  not-found  "`, an array-valued `["not-found"]`, an object-valued
+     `{"name":"llm-suspected"}`, and a capitalised `"Tier"` key.
+  2. Widening it to any key named `tier` at any depth closed those and **silently dropped
+     relay-eligible findings**: a `fingerprint-confirmed` copy carrying an unrelated nested tier —
+     `"review":{"tier":"one agent argued llm-suspected and was vetoed"}`, a note `SKILL.md` invites
+     — was withheld, reaching neither the relay table nor `## Unparsed`, while `## Surfaces` called
+     it a judgment finding that stays on a human report it was never on. Seven vectors.
+  3. Narrowing to a key allowlist fixed the drop and **relayed a judgment verdict**: the allowlist
+     read `verdict.tier` but not `verdict` itself, so `{"verdict":"not-found"}` on a stamp rule
+     reached the relay table.
+  4. Reading a whole `verdict` closed that and re-introduced the drop from a different direction. A
+     `verdict` holds the judges' output while the tier is mapped by fixed rule from the evidence —
+     `SKILL.md` step 9, "never from a judge's confidence" — so a confirmed copy beside
+     `"verdict":{"prior":"llm-suspected"}` was withheld again, and one shape refused the whole
+     sidecar. The same round trimmed invisible characters by enumerating two code points, leaving
+     six other `Cf` characters to walk a verdict onto a relay row; an unhandled one at the end even
+     neutralised a handled one at the start.
+  5. The declared `tier` now wins whenever the record has one, falling back to the `verdict` only
+     when it does not — and the fallback turns on the slot **naming** a known tier rather than the
+     key merely being present, which is what `{"tier":null}`, `{"tier":[]}` and `{"tier":"pending"}`
+     beside a verdict had been slipping through. Invisible characters are trimmed by Unicode class.
+
+  **Every one of these passed review before it was probed.** Across the rounds a bot reviewer, five
+  security passes and three code-review passes read this file; all of them characterised the
+  failure direction as over-withholding and therefore safe. Over-withholding was destroying
+  relay-eligible findings, and the boundary was leaking in two separate rounds. Reading a diff and
+  attacking an invariant are different activities, and only the second found any of this. The suite
+  went from 110 assertions to 307, the gap being almost entirely the direction nobody was testing:
+  that a legitimate finding still **survives**.
+
+  Two limits are stated rather than papered over. A record that is not an object has no declared
+  tier to read, so it is withheld when a verdict name appears anywhere inside it — the blast radius
+  the malformed-record route exists to avoid. And `source-not-identified`, the neutral tier name
+  `SKILL.md` publishes, is not one of the three the reader knows.
 
   `context/persist-findings.md` required both that withheld tier names never appear and that an
   unmappable finding lands in `## Unparsed` verbatim, never a silent drop, without saying how the
   two coexist — a conflict landing precisely on the leaking record. It now states the ordering and
   names the `## Surfaces` count as where the no-silent-drop guarantee is discharged, so the next
   reader does not restore the leak as a bug fix.
+
+- **The relabeling that kept fixture paths away from judges was a habit, not a rule.** 0.4.0 records
+  that the version-3 re-score relabelled cases "so no directory name or path reached a judge".
+  Nothing in the plugin required it: a grep across `SKILL.md`, every `reference/*.md`,
+  `evals/evals.json` and every script found exactly one mention of relabeling in the whole plugin,
+  in that changelog entry. The golden directories are named for their own answers —
+  `c06-negative-quoted-and-cited`, `c08-adversarial-rotation-sparse` — so a judge handed a path
+  reads the class, the carve-out and the rotation density before opening the file.
+
+  `reference/nomination.md`, which constructs all three subagent prompts, now carries "Neutral
+  labels (required)": a case reaches any subagent the run dispatches over it — nominating, judging,
+  reviewing, guarding a fix — under an opaque label, and the run holds the label-to-path mapping.
+  `SKILL.md` and `reference/dispositions.md` reference the rule rather than restating it.
+
+  Two channels beyond the directory name are closed with it. `SOURCE TEXT` said "fetched bytes,
+  with its URL and the rung it came from"; under the vendored-snapshot route and in the golden set
+  the source is served from a local file, so that field could hand over an in-repo path. It now
+  carries the source's declared URL and route, never the local path. And every golden `source.md`
+  opens by naming the golden set and calling the page invented for these fixtures — the answer
+  arriving in the body text once the path was shut — so that paragraph is dropped from the copy a
+  subagent is handed. `fingerprint.mjs` is not a subagent and reads the file as committed, so no
+  containment, jaccard or span figure moves.
+
+  The directories are not renamed: the names carry meaning for the humans maintaining the set, and
+  renaming would churn the 30 paths `evals.json` enumerates for no gain over fixing the dispatch.
+  Four verifier rounds went into this, three of which failed — the third catching that a fix had
+  quietly narrowed the judge prompt to four of the rubric's six carve-outs, which is a grading
+  change this work was not allowed to make. It was reverted. The requirement remains unmeasured:
+  no `evals.json` expectation asserts that a run relabelled before dispatch.
 
 ### Added
 
