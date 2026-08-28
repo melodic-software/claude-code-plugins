@@ -27,8 +27,9 @@
 # change set; its initial release already carries the vendored source. Whether
 # the bump also writes its changelog entry is changelog-parity-gate's half.
 #
-# Exit: 0 no unbumped vendor change; 1 at least one; 2 usage or a base ref
-# git cannot resolve.
+# Exit: 0 no unbumped vendor change; 1 at least one; 2 usage, a base ref git
+# cannot resolve, a failed diff, or missing tooling — a gate that cannot see
+# must refuse to pass, never report "nothing changed".
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -39,6 +40,15 @@ if [[ "${1:-}" != "--check-bump" || -z "${2:-}" || $# -gt 2 ]]; then
   exit 2
 fi
 base="$2"
+
+# jq is how every manifest version is read below; without it the per-plugin
+# reads all come back empty, which the loop would misread as "new plugin,
+# exempt" for every plugin — a full-open gate. Assert it up front so absent
+# tooling is its own loud exit, distinct from "nothing changed".
+if ! jq --version >/dev/null 2>&1; then
+  echo "$(basename "$0"): jq is required to read manifest versions; refusing to pass without it" >&2
+  exit 2
+fi
 
 if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
   echo "$(basename "$0"): cannot resolve base ref: $base" >&2
@@ -56,8 +66,16 @@ fi
 # would never reach the loop and bumping b alone would pass. Disabling
 # detection reports the move as a delete plus an add, one path per side, and
 # both plugins get checked.
+# The diff's own status is checked before its output is consumed: inside the
+# filter pipeline a git failure would drain to an empty plugin list, and an
+# empty list reads as "nothing changed" — a gate that passes when it cannot
+# see. A failed diff exits 2 instead.
+if ! changed_paths="$(git diff --no-renames --name-only "$base" -- plugins/)"; then
+  echo "$(basename "$0"): git diff failed against $base; refusing to pass on a diff this gate could not read" >&2
+  exit 2
+fi
 changed_plugins="$(
-  git diff --no-renames --name-only "$base" -- plugins/ | while IFS= read -r path; do
+  printf '%s\n' "$changed_paths" | while IFS= read -r path; do
     case "$path" in
     plugins/*/vendor/*)
       name="${path#plugins/}"

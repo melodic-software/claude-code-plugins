@@ -183,6 +183,45 @@ else
 fi
 rm -rf "$f"
 
+# --- a failed git diff is a loud exit, not a pass ---------------------------
+# Fault-inject a PATH-front git shim that fails only the diff subcommand, so
+# the gate's own rev-parse still resolves the base ref. Without the gate
+# checking the diff's status, the failure drains to an empty plugin list and
+# the gate reports "nothing changed" over a tree carrying a real violation.
+f="$(base_fixture)"
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+mkdir -p "$f/shim"
+real_git="$(command -v git)"
+# shellcheck disable=SC2016  # the shim's ${1:-} and $@ are the SHIM's own expansions, deliberately unexpanded here
+printf '#!/usr/bin/env bash\nif [ "${1:-}" = diff ]; then echo "fatal: simulated git diff failure" >&2; exit 128; fi\nexec %s "$@"\n' "$real_git" >"$f/shim/git"
+chmod +x "$f/shim/git"
+status=0
+out="$(PATH="$f/shim:$PATH" run_gate "$f" --check-bump HEAD 2>&1)" || status=$?
+if [[ "$status" -eq 2 && "$out" == *"git diff failed"* ]]; then
+  ok "a failed git diff exits 2 instead of passing blind"
+else
+  fail "a failed git diff should exit 2 naming the diff, got status $status: $out"
+fi
+rm -rf "$f"
+
+# --- broken or absent jq is a loud exit, not a blanket exemption ------------
+# With jq unusable every manifest read comes back empty, which the loop would
+# misread as the new-plugin carve-out for every plugin — a full-open gate over
+# a tree carrying a real violation.
+f="$(base_fixture)"
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+mkdir -p "$f/shim"
+printf '#!/usr/bin/env bash\nexit 127\n' >"$f/shim/jq"
+chmod +x "$f/shim/jq"
+status=0
+out="$(PATH="$f/shim:$PATH" run_gate "$f" --check-bump HEAD 2>&1)" || status=$?
+if [[ "$status" -eq 2 && "$out" == *"jq is required"* ]]; then
+  ok "unusable jq exits 2 instead of exempting every plugin"
+else
+  fail "unusable jq should exit 2 naming jq, got status $status: $out"
+fi
+rm -rf "$f"
+
 # --- usage and unresolvable base ref exit 2 ---------------------------------
 f="$(base_fixture)"
 expect_exit_2() {
