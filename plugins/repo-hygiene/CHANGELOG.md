@@ -3,6 +3,16 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.18]
+
+### Changed
+
+- **`scan.sh` stale-refs line no longer repeats its own label.** A two-branch `if` printed the
+  literal `Git stale refs dry-run:` in both arms; it is now one `echo` with `${STALE_REFS:-none}`,
+  matching the sentinel form the preceding worktree line already uses. The label can no longer drift
+  between branches. Output bytes and exit status are unchanged, and the documented contract line in
+  the file header still holds.
+
 ## [0.10.17]
 
 ### Changed

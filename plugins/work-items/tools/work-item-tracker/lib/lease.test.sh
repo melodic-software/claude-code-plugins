@@ -48,7 +48,7 @@ if wit_lease_is_live "$SUPERSEDED" "$NOW"; then fail "superseded lease not live"
 FIXED_NOW=1783828800 # 2026-07-12T04:00:00Z
 BOUNDARY_TTL=1
 BOUNDARY_EXPIRY=$((FIXED_NOW + BOUNDARY_TTL * 3600))
-BOUNDARY_RENEWED_ISO="$(date -u -d "@$((BOUNDARY_EXPIRY - BOUNDARY_TTL * 3600))" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$((BOUNDARY_EXPIRY - BOUNDARY_TTL * 3600))" +%Y-%m-%dT%H:%M:%SZ)" # portability-ok: GNU-first, BSD fallback (#1510)
+BOUNDARY_RENEWED_ISO="$(date -u -d "@$FIXED_NOW" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$FIXED_NOW" +%Y-%m-%dT%H:%M:%SZ)" # portability-ok: GNU-first, BSD fallback (#1510)
 BOUNDARY_LEASE="$(jq -cn --arg t "$BOUNDARY_RENEWED_ISO" --argjson ttl "$BOUNDARY_TTL" '{renewed_at:$t, ttl_hours:$ttl}')"
 if wit_lease_is_live "$BOUNDARY_LEASE" "$((BOUNDARY_EXPIRY - 1))"; then pass "boundary: expiry-1s is live"; else fail "boundary: expiry-1s is live" "live" "not live"; fi
 if wit_lease_is_live "$BOUNDARY_LEASE" "$BOUNDARY_EXPIRY"; then fail "boundary: exact expiry is dead" "not live" "live"; else pass "boundary: exact expiry is dead"; fi
