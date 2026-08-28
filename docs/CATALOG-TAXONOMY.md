@@ -99,3 +99,8 @@ truth for each plugin's `category` and the ordering key; `plugin.json` owns each
 emits the grouped catalog section between markers in `docs/CATALOG.md`, and a CI check fails when the committed
 section drifts from what the manifests would produce. This retires hand-maintained catalog duplication and
 keeps the grouped view and the manifests from diverging.
+
+The generator's render order is held to this document the same way: on every run it parses the two
+Vocabulary tables above (the backticked first-column values, in order) and fails when its own list
+disagrees, so a value added, dropped, renamed, or reordered on either side is loud. Keep that row shape
+when editing the tables — a reshaping the parse cannot read fails the check rather than passing silently.
