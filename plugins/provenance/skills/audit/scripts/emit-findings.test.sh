@@ -996,10 +996,22 @@ write_report tier-invisible-nbsp.json '{
   "findings": [{"tier": " not-found ", "file": "x.md", "note": "INVIS-NBSP",
                 "searched": ["https://z.example/u"]}]
 }'
+# A format character reads as nothing INSIDE the name too, so trimming the ends alone
+# left this rendering as `not-found` in the file while comparing unequal, and walking
+# onto a relay row when a stamp rule carried it.
+write_report tier-invisible-interior.json '{
+  "findings": [{"tier": "not-‍found", "file": "x.md", "note": "INVIS-INTERIOR",
+                "searched": ["https://z.example/u"]}]
+}'
+write_report tier-invisible-interior2.json '{
+  "findings": [{"verdict": {"tier": "source-fetched-​similar"}, "file": "x.md",
+                "note": "INVIS-INTERIOR2"}]
+}'
 for iv in "zwsp:not-found:INVIS-ZWSP" "zwnj:not-found:INVIS-ZWNJ" \
   "wj:llm-suspected:INVIS-WJ" "lrm:llm-suspected:INVIS-LRM" \
   "shy:not-found:INVIS-SHY" "mixed:not-found:INVIS-MIXED" \
-  "nbsp:not-found:INVIS-NBSP"; do
+  "nbsp:not-found:INVIS-NBSP" "interior:not-found:INVIS-INTERIOR" \
+  "interior2:source-fetched-similar:INVIS-INTERIOR2"; do
   ivn="${iv%%:*}"
   ivr="${iv#*:}"
   ivv="${ivr%%:*}"
@@ -1014,6 +1026,18 @@ for iv in "zwsp:not-found:INVIS-ZWSP" "zwnj:not-found:INVIS-ZWNJ" \
   assert_not_contains "an invisibly padded verdict leaks no payload ($ivn)" "$IVB" "$ivk"
   assert_contains "an invisibly padded verdict is counted ($ivn)" "$IVB" "1 judgment"
 done
+
+# A SEPARATOR does render, so it is not stripped from the middle: `not found` is a
+# different string, not this verdict, and keeps the appendix path an unknown tier gets.
+write_report tier-visible-space.json '{
+  "counts": {"files": 2},
+  "findings": [{"tier": "not found", "file": "x.md", "note": "VISIBLESPACECANARY"}]
+}'
+VSP="$OUTDIR/tier-visible-space.md"
+run --report "$REPORTS/tier-visible-space.json" --out "$VSP" >/dev/null 2>&1
+assert_exit "a separator inside the name is not stripped" "$?" "0"
+assert_contains "and the record keeps the unknown-tier appendix path" \
+  "$(cat "$VSP")" "VISIBLESPACECANARY"
 
 # FREE TEXT in a tier field names no tier, which is the same answer this producer
 # already gives a verdict name spelled in a `note`. It has to be: withholding a

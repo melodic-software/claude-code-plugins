@@ -113,8 +113,8 @@ declared verdict from a nested mention of one, and withheld records that had dec
 are matched case-folded, but only at those two positions, so
 `{"xref": {"TIER": "prior: not-found"}}` is the cross-reference it reads as.
 
-**The top-level `tier` IS the declaration whenever the record has one, and the `verdict` beside
-it is not read at all.** A tier is set by fixed rule from the evidence and a `verdict` holds the
+**The top-level `tier` IS the declaration whenever it DECLARES one, and the `verdict` beside it
+is then not read at all.** A tier is set by fixed rule from the evidence and a `verdict` holds the
 judges output — different fields by design — so a record declaring `fingerprint-confirmed` and
 carrying `"verdict": {"prior": "llm-suspected"}` has declared a confirmed copy. Reading the
 verdict beside it is the over-capture drop one container in, and it costs more than a drop: the
@@ -153,10 +153,13 @@ it names a tier only when it EQUALS one — so `"  not-found  "`, `["not-found"]
 unknown tier rather than the verdict it happens to start with. A valid rule id sitting beside a
 verdict does not readmit it either.
 
-Trimming is by Unicode CLASS — every separator and every format character — not by a list of the
-invisible code points someone thought of. A tier that RENDERS as a verdict name in the written
-file is a verdict name in the written file, and an enumeration of two zero-width characters left
-six others walking a verdict onto a relay row.
+A tier that RENDERS as a verdict name in the written file IS a verdict name, so the two kinds of
+invisibility are handled differently and both completely, by Unicode CLASS rather than by a list
+of the code points someone thought of. Format characters render as nothing anywhere, so they are
+stripped everywhere: an enumeration of two zero-width characters left six others walking a
+verdict onto a relay row, and trimming the class at the ends alone still left `"not-‍found"`
+reading as `not-found` to whoever opens the file while comparing unequal. Separators do render,
+so they are trimmed at the ends only — `"not found"` is a different string, not this verdict.
 
 Free text in a tier field therefore names no tier, which is the same answer this producer
 already gives a verdict name spelled in a `note`. It has to be: a `verdict.tier` reading "the

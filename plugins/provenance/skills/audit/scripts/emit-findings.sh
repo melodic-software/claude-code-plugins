@@ -194,7 +194,7 @@ def verdict_slot:
   if type == "object" then
     to_entries[] | select(.key | ascii_downcase == "verdict") | .value
   else empty end;
-# The top-level `tier` IS the declaration whenever the record has one. A `verdict`
+# The top-level `tier` IS the declaration whenever it DECLARES one. A `verdict`
 # is the judges output, and the tier is set by fixed rule from the evidence rather
 # than from a judge — different fields by design — so a record declaring
 # `fingerprint-confirmed` and carrying `"verdict": {"prior": "llm-suspected"}` has
@@ -217,14 +217,17 @@ def verdict_slot:
 # `tier` child. Each printed its verdict name and payload verbatim into `## Unparsed`
 # and skipped the searched-surfaces gate on the way.
 #
-# Trimming is against every separator and format character, not a hand-picked few. A
-# zero-width joiner reads as nothing to whoever opens the findings file, so a tier
-# that RENDERS as a verdict name is a verdict name; an allowlist of the code points
-# someone thought of is an allowlist of the ones they did not.
+# A tier that RENDERS as a verdict name IS a verdict name, so the two invisibilities
+# are handled differently and both completely. Format characters render as nothing
+# ANYWHERE, so they are stripped everywhere — trimming only the ends left
+# `"not-‍found"` reading as `not-found` to whoever opens the file while comparing
+# unequal, which walked it onto a relay row. Separators do render, so they are trimmed
+# at the ends only: `"not found"` is a different string, not this verdict.
 def norm:
   ascii_downcase
-  | sub("^[[:space:][:cntrl:]\\p{Z}\\p{Cf}]+"; "")
-  | sub("[[:space:][:cntrl:]\\p{Z}\\p{Cf}]+$"; "");
+  | gsub("\\p{Cf}"; "")
+  | sub("^[[:space:][:cntrl:]\\p{Z}]+"; "")
+  | sub("[[:space:][:cntrl:]\\p{Z}]+$"; "");
 def names_in:
   [ .[] | .. | strings | norm ];
 # `source-not-identified` is the spelling SKILL.md publishes for the neutral outcome
