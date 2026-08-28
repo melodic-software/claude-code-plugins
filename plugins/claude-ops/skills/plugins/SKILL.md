@@ -272,7 +272,7 @@ in the same render). **Recheck trigger:** re-verify on any Claude Code minor-ver
 touches plugin `userConfig` substitution, or once `plugins-reference` gains text on unset-key
 rendering, the docs are silent on it today, so this claim rests entirely on that one probe, and the
 probe's CLI version has since moved (2.1.218 → 2.1.240) with the claim unre-tested. So for the
-common default-config user. No `pluginConfigs` set anywhere. The
+common default-config user — no `pluginConfigs` set anywhere — the
 **Configured value** line above still shows that literal placeholder token, not `ask`.
 
 Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do NOT

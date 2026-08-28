@@ -24,7 +24,7 @@ and authoring axes of doc upkeep.
 
 - **Bash + git + jq**. Ambient skill mechanics (Git Bash on native Windows;
   the skills' scripts strip CRLF and avoid Windows-hostile constructs).
-- **`markdownlint-cli2`**. **required by `/docs-hygiene:compress`**, whose
+- **`markdownlint-cli2`**. **Required by `/docs-hygiene:compress`**, whose
   post-edit lint pass is the mandatory ship gate. It must be on `PATH` or
   installed in the consuming repo (`node_modules/.bin/markdownlint-cli2`);
   when absent, `compress` stops at the entry point with that remediation

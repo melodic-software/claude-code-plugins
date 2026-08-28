@@ -3,15 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.15]
+## [0.38.16]
 
 ### Changed
 
 - **Vendored `hook-utils.sh` gained `hook::repo_relative_path`.** The shared lib
   now owns the repo-relative path computation twelve sibling hooks had each
-  hand-copied, together with the absolute-path degrade only one copy carried
-  (#1133). This plugin's hooks do not call it; the copy is bumped because
-  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+  hand-copied, together with the absolute-path degrade only four of those twelve
+  copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
+
+## [0.38.15]
+
+### Changed
+
+- **Grammar repaired where the em-dash purge left a sentence broken.** `skills/lanes/SKILL.md`, `skills/plugins/SKILL.md`. The #2891 substitution replaced a dash without restructuring the sentence, leaving a verbless fragment or a comma splice. Wording only; no rule changed.
+- **Authoring-doctrine pass over `README.md`, `skills/lanes/context/restart-consumer.md`.** Fixed pointers and cross-references that did not resolve; sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.38.14]
 

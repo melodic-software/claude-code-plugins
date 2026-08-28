@@ -34,7 +34,7 @@ handoff and remediation is manual in the reported fix-priority order.
 ```
 
 Dimension filters (`--docs-only`, `--code-only`, `--config-only`, `--arch-only`) are mutually
-exclusive. A scope path narrows the file set. An unscoped whole-repo run is gated, the skill
+exclusive. A scope path narrows the file set. An unscoped whole-repo run is gated: the skill
 requires a scope, a filter, or explicit confirmation before fanning out, because a full fan-out spans
 every doc/config/source file.
 
@@ -68,7 +68,7 @@ team config stays tracked.
 ## Consumer conventions
 
 Phase 0 reads the consuming repo's own `CLAUDE.md` / `AGENTS.md` / `.claude/rules/` to learn what
-"correct" looks like, a claim contradicting those conventions is a finding; one following them is a
+"correct" looks like. A claim contradicting those conventions is a finding; one following them is a
 verified non-issue. Nothing project-specific is baked into the plugin.
 
 ## Install

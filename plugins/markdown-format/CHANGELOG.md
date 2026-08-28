@@ -9,11 +9,13 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 - **Telemetry `data.file` can no longer leak an absolute path (#1133).** The
   hand-copied `FILE_REL` block is replaced by `hook::repo_relative_path` in the
-  shared `hooks/hook-utils.sh`, which carries the degrade the copies lacked: a
-  path the repo-root prefix strip could not make relative (mount or symlink
-  mismatch, cygpath disagreement) now comes back as its basename instead of an
-  absolute path embedding the developer's username. Copies stay byte-identical
-  via `scripts/sync-hook-utils.sh`.
+  shared `hooks/hook-utils.sh`, which carries the degrade eight of the twelve
+  copies lacked: a path the repo-root prefix strip could not make relative
+  (mount or symlink mismatch, cygpath disagreement) now comes back as its
+  basename instead of an absolute path embedding the developer's username.
+  `FILE_REL` reaches only the telemetry payload here, never the markdownlint
+  invocation, so the lint target is unaffected. Copies stay byte-identical via
+  `scripts/sync-hook-utils.sh`.
 
 ## [0.11.33]
 

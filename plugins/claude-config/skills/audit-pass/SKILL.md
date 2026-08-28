@@ -334,7 +334,7 @@ deferred to Phase 6 assembly, which is exactly where a run that does not reach P
 
 ## Phase 5: Apply, only under `--fix`
 
-Per-finding confirmation, project scope only, bounded by the table above. Refuse and name the
+Per-finding confirmation, project scope only, bounded by the scope table under "Read-only contract, and where mutation can reach". Refuse and name the
 canonical source if a fix or a suppression would write into a derived-exclusion path.
 
 The apply-verify step judges work this same run produced, so it is delegated: hand the applied diff

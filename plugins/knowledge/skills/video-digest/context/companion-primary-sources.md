@@ -57,4 +57,4 @@ When `source/companion-sources.md` exists:
 | Every section slug in brief has `source/companion-digest/<slug>.md` | Phase 0b — complete subagent fan-out |
 | `mark-phase companion` in `watch.json` | Only after digest complete; before Phase 1 if starting fresh |
 
-See `context/quality-gates.md` phase gates table.
+Phase gates table: `context/quality-gates.md`.

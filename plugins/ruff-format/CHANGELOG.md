@@ -9,11 +9,22 @@ All notable changes to the `ruff-format` plugin are documented here. Format foll
 
 - **Telemetry `data.file` can no longer leak an absolute path (#1133).** The
   hand-copied `FILE_REL` block is replaced by `hook::repo_relative_path` in the
-  shared `hooks/hook-utils.sh`, which carries the degrade the copies lacked: a
-  path the repo-root prefix strip could not make relative (mount or symlink
-  mismatch, cygpath disagreement) now comes back as its basename instead of an
-  absolute path embedding the developer's username. Copies stay byte-identical
-  via `scripts/sync-hook-utils.sh`.
+  shared `hooks/hook-utils.sh`, which carries the degrade eight of the twelve
+  copies lacked: a path the repo-root prefix strip could not make relative
+  (mount or symlink mismatch, cygpath disagreement) now comes back as its
+  basename instead of an absolute path embedding the developer's username.
+  Copies stay byte-identical via `scripts/sync-hook-utils.sh`.
+
+### Changed
+
+- **The Ruff invocation branches on the degrade.** `FILE_REL` feeds the lint
+  target here, not only telemetry, and Ruff runs from the repo root, so a
+  redacted basename resolves to a different file or none: Ruff answered `E902 No
+  such file or directory` and the real diagnostics vanished from an advisory
+  hook. The hook now records whether the helper degraded and lints the absolute
+  path in that case, so the scan still reads the edited file while the emitted
+  `data.file` stays redacted. A symlinked-root regression case in
+  `hooks/ruff-format.test.sh` pins it: the case fails without the branch.
 
 ## [0.6.26]
 

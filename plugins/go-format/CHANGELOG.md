@@ -3,17 +3,25 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.28]
+## [0.3.29]
 
 ### Fixed
 
 - **Telemetry `data.file` can no longer leak an absolute path (#1133).** The
   hand-copied `FILE_REL` block is replaced by `hook::repo_relative_path` in the
-  shared `hooks/hook-utils.sh`, which carries the degrade the copies lacked: a
-  path the repo-root prefix strip could not make relative (mount or symlink
-  mismatch, cygpath disagreement) now comes back as its basename instead of an
-  absolute path embedding the developer's username. Copies stay byte-identical
-  via `scripts/sync-hook-utils.sh`.
+  shared `hooks/hook-utils.sh`, which carries the degrade eight of the twelve
+  copies lacked: a path the repo-root prefix strip could not make relative
+  (mount or symlink mismatch, cygpath disagreement) now comes back as its
+  basename instead of an absolute path embedding the developer's username.
+  `FILE_REL` reaches only the telemetry payload here, never the goimports
+  invocation, so the lint target is unaffected. Copies stay byte-identical via
+  `scripts/sync-hook-utils.sh`.
+
+## [0.3.28]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.3.27]
 

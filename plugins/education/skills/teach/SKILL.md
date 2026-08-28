@@ -169,7 +169,7 @@ Coach through a depth-first, one-question-at-a-time dialog:
 2. Read `GLOSSARY.md`, know what terms are established
 3. Read `NOTES.md`, recall teaching preferences
 4. Scan `learning-records/` for the latest entries, know the current frontier
-5. **Surface due-for-review concepts**. Weigh each floor concept's latest record age against the domain's velocity (see "Staleness"); list what is due for spaced retrieval practice BEFORE advancing the frontier, and open with a quick retrieval question on one due concept when any exist (spacing is how storage strength gets built. See "Fluency vs storage strength")
+5. **Surface due-for-review concepts**. Weigh each floor concept's latest record age against the domain's velocity (see "Staleness"); list what is due for spaced retrieval practice BEFORE advancing the frontier, and open with a quick retrieval question on one due concept when any exist (spacing is how storage strength gets built. See "Fluency vs storage strength" in context/pedagogy.md)
 6. Pick the next concept from the zone of proximal development; open its `concepts/<concept>/` slice
 7. Before re-teaching an existing concept, run the Staleness check (see "Staleness")
 

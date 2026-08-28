@@ -3,16 +3,33 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.25]
+## [0.8.26]
+
+### Fixed
+
+- **A redacted path no longer becomes the lint target.** `FILE_REL` is passed to
+  `actionlint` as the file to lint, but since the degrade landed in 0.6.0
+  (#1133) it can hold a bare basename, which resolves against the repo root to a
+  workflow that is not there. The lint then found nothing and this advisory hook
+  reported a clean pass. It now branches on the helper's degrade status and
+  lints the absolute path in that case. A symlinked-root regression case in
+  `hooks/actionlint-check.test.sh` pins it: the case fails without the branch.
 
 ### Changed
 
 - **The repo-relative path block moved into the shared lib.** This hook's own
   `FILE_REL` computation, including the absolute-path degrade added in 0.6.0
-  (#1133), is now `hook::repo_relative_path` in `hooks/hook-utils.sh`. The
-  behavior here is unchanged; eleven sibling call sites that had copied the
-  block without the degrade pick the fix up through it. Copies stay
-  byte-identical via `scripts/sync-hook-utils.sh`.
+  (#1133), is now `hook::repo_relative_path` in `hooks/hook-utils.sh`. Emitted
+  `data.file` values are unchanged; eight sibling call sites that had copied the
+  block without the degrade pick the fix up through it, and the helper
+  additionally trims a UNC path on its backslash. Copies stay byte-identical via
+  `scripts/sync-hook-utils.sh`.
+
+## [0.8.25]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.8.24]
 

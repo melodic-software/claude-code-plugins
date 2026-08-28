@@ -3,15 +3,22 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.17]
+## [0.7.18]
 
 ### Changed
 
 - **Vendored `hook-utils.sh` gained `hook::repo_relative_path`.** The shared lib
   now owns the repo-relative path computation twelve sibling hooks had each
-  hand-copied, together with the absolute-path degrade only one copy carried
-  (#1133). This plugin's hooks do not call it; the copy is bumped because
-  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+  hand-copied, together with the absolute-path degrade only four of those twelve
+  copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
+
+## [0.7.17]
+
+### Changed
+
+- **Authoring-doctrine pass over `README.md`.** Fixed sentences that parsed two ways. Every edit was verified against the file by an agent that did not propose it. Prose only; no behavior, contract, or trigger phrase changed.
 
 ## [0.7.16]
 

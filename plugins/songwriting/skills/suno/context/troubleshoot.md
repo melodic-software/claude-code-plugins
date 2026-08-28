@@ -48,7 +48,7 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 2. Add periods/commas where natural breath happens
 3. Break long sentences across lines
 4. Simplify rhyme scheme — internal multi-syllable rhymes confuse the model
-5. Verify total char count — paste into a counter; if > 3,000 chars, trim (quality threshold; the 5,000 hard cap is not the problem)
+5. Verify total char count — count the lyrics text rather than sending the writer to a counter; if > 3,000 chars, trim (quality threshold; the 5,000 hard cap is not the problem)
 
 ### "There's too much pause between lines / the delivery is choppy"
 
