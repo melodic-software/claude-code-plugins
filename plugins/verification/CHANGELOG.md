@@ -3,6 +3,16 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.8]
+
+### Changed
+
+- **Two restated collaborator handoffs regained the gates their owners carry.** The live-app fallback
+  restated the `/testing:run-e2e` handoff without the installed-ness condition and fallback the same
+  file states 35 lines earlier, and the lint-auto-fix pointer named `/toolchain:lint --fix`
+  unconditionally where the Stage 1 delegation gates the same plugin. Both now match. Coupling pass,
+  apply lane.
+
 ## [0.5.7]
 
 ### Changed

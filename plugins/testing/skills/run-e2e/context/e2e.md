@@ -146,7 +146,7 @@ When a test element can't be found:
 
 ## After E2E testing
 
-- If all scenarios pass: proceed by invoking `/verification:confirm outcome` via the Skill tool (composes /verification:confirm default + intent + evidence; chains back to /testing:run-e2e if needed)
+- If all scenarios pass: proceed by invoking `/verification:confirm outcome` via the Skill tool when the `verification` plugin is installed (composes /verification:confirm default + intent + evidence; chains back to /testing:run-e2e if needed); otherwise report the captured evidence for outcome sign-off directly
 - If visual bugs found: invoke `/testing:diagnose` via the Skill tool for diagnosis and the fix cycle
 - If API errors found: check the orchestrator's structured logs for root cause
 - Document findings — E2E results are ephemeral. Screenshot evidence persists

@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.12]
+
+### Changed
+
+- **`interview`'s glossary handoff carries its presence gate in the loop file.** `SKILL.md` gated the
+  `/domain-driven-design:curate-language` handoff and gave a fallback; `context/loop.md`, the file the
+  interview loop executes from, restated the step ungated. The restating site now mirrors the owner.
+  Coupling pass, apply lane.
+
 ## [0.34.11]
 
 ### Changed

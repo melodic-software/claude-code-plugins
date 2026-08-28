@@ -4,6 +4,16 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.6.1 — 2026-08-28
+
+Docs-only clarification; patch under this contract's own rule. No required part, canonical name, or
+enforceability verdict changes.
+
+The passage recording that the raw-`.md` fetch route was hoisted from two independently derived
+surfaces named one of them by a path into a skill-private file and the other by slash invocation, in
+a single sentence. Both now use the slash form, which is what ADR 0018 requires of `docs/**` and
+what the sibling clause already demonstrated.
+
 ## 1.6.0 — 2026-08-21
 
 New adopter row: `docs-hygiene:write-for-humans`' source records, four four-part records over the

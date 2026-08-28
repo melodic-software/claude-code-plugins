@@ -3,6 +3,15 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.9]
+
+### Changed
+
+- **Two README citations now resolve.** `scripts/status.sh` and `references/versions.md` were written
+  from the plugin root, which holds neither directory; both files live under `skills/manage/`. They now
+  carry that base, matching how `skills/manage/SKILL.md` already addresses the same two files. Coupling
+  pass, apply lane; text only.
+
 ## [0.7.8]
 
 ### Changed
