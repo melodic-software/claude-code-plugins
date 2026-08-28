@@ -399,13 +399,21 @@ to any of them to get a rule, so none is an address. Three sub-rulings the class
 names "the public invocation that replaced it **in the same sentence**", and that `config-cascade`'s
 entry asserts non-resolution "in the same sentence" as the quoted forms. Neither is accurate as
 written, and the rulings do not depend on it.
-`docs/conventions/detector-findings/CHANGELOG.md:57` names **no** invocation at all — the row "now
-says 'its shape library' and 'the scanner'", which is a rename to the row's own terms rather than a
+The `detector-findings` bullet beginning "The `docs-hygiene:audit-noise` adopter row stops
+path-citing the producer's shape library" names **no slash invocation as the replacement** — the row
+"now says 'its shape library' and 'the scanner'", a rename to the row's own terms rather than a
 routing fix — and the other eleven name the invocation in a **later sentence of the same bullet**.
-`config-cascade`'s non-resolution assertion is likewise the next sentence, at `:13-14`, after the
-quotes at `:11-13`. The unit that carries the evidence claim is the bullet, not the sentence, and
-the substance holds at that unit: every row states what it removed and why, and `:57` states the
-replacement terms even though it names no slash invocation. Read the ruling as scoped to the bullet.
+`config-cascade`'s non-resolution assertion ("All three are plugin-relative paths that resolve
+against nothing from this file") is likewise the sentence that follows the three quoted forms rather
+than the sentence carrying them. The unit that carries the evidence claim is the bullet, not the
+sentence, and the substance holds at that unit: every row states what it removed and why.
+
+A first attempt at this correction said that bullet "names **no** invocation at all", which its own
+text refutes: it names `docs-hygiene:audit-noise` and `claude-config:audit-instructions`, just not as
+the replacement. That attempt also pinned the `config-cascade` sentences at `:13-14` and `:11-13`
+when the quoted forms are on 12, 13 and 14 and the assertion runs 14 to 16 — a line pin written into
+the very file whose decay rule says the check is the text. Both are corrected here on text anchors,
+and both were caught by the round verifying this one.
 
 The judgment is what was missing, and it is now recorded so a pass that re-derives this shape reads
 a ruling instead of buying twelve fresh ones. The general lesson is worth more than the twelve rows:
@@ -562,8 +570,14 @@ actually supports is the near-inverse:
 > **A commit that closes findings inventoried in a record it did not author still owes that record's
 > summary an update.** Cross-file staleness is the default outcome, not the exception: the fix and
 > the record live in different files, nothing in the toolchain links them, and the commit has no
-> reason of its own to open the record. #3380 closed 32 of 34 rows in three plugins' files and left
-> a two-hour-old roster in `docs/specs/` asserting the opposite, and four later passes paid for it.
+> reason of its own to open the record. #3380 closed 32 of 34 rows spread across a `.claude/rules/`
+> file, `docs/PLUGIN-PHILOSOPHY.md`, four convention READMEs and several plugins' trees, and left a
+> two-hour-old roster in `docs/specs/` asserting the opposite, and four later passes paid for it.
+>
+> An earlier version of this paragraph said "three plugins' files", which `git show --stat 6c7a1032`
+> refutes: the majority of the 32 are not plugin files at all. Corrected by the round that verified
+> this one, and left visible because a rule stated over a miscounted example invites the next reader
+> to re-derive it.
 
 The operational form is: when a change closes something a spec has rostered, edit the spec's status
 line in the same PR, even when the spec is somebody else's and the diff would otherwise touch no
@@ -620,8 +634,9 @@ base of the citing file's directory:
 | `plugins/work-items/reference/permission-preflight.md:45` | `skills/work/SKILL.md` | `plugins/work-items/reference/`, absent | `${CLAUDE_PLUGIN_ROOT}/skills/work/SKILL.md` |
 | `plugins/songwriting/context/pat-pattison/research/lyric-melodic-roadmaps.md:203` | `skills/meter-prosody/SKILL.md` | `…/research/`, absent | `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md` |
 
-**Two** are fixed to the form their own file already uses elsewhere: `permission-preflight.md:214`
-was already anchored, and `songwriting`'s `research/` tree anchors its script paths the same way.
+**Two** are fixed to the form their own file already uses elsewhere: `permission-preflight.md`
+already anchors its `preflight.sh` invocation line that way, and `songwriting`'s `research/` tree
+anchors its script paths the same way.
 Neither file is fetched from outside its plugin, so `${CLAUDE_PLUGIN_ROOT}` denotes the right
 installation for every reader either has.
 
@@ -638,9 +653,33 @@ Re-running the third expression after the fixes leaves no clause-3 failure in th
 The token counts differ between derivations because the expressions do — 52 against 119 — and per
 this file's own recall-limits discipline neither is a total. The **failure** count is the claim that
 matters, and 0 was wrong. The lesson generalises past these three rows: **a second derivation
-confirms a first only if it can fail differently.** The first two here shared the assumption that a
-cited skill file lives under a `reference/`-shaped subdirectory, so both were blind to citations of
-a `SKILL.md` itself, and reporting them as independent overstated the evidence.
+confirms a first only if it can fail differently.** The first two here missed the same three rows,
+each of which cites a `SKILL.md` directly rather than a file beneath a `reference/`-shaped
+subdirectory, so reporting them as independent overstated the evidence.
+
+**What is established and what is inferred.** Derivation 1's expression is recorded verbatim in this
+file and does require that subdirectory shape, so its blindness is a fact. Derivation 2's expression
+was never written down anywhere; the record describes it as resolving "every citation token", which
+would not have that blind spot. All that the evidence settles is that derivation 2 was narrower than
+its own description, since it returned 52 tokens and 0 failures where a third expression returns 119
+and 3. The shared *mechanism* is a plausible reconstruction, not a verified one, and an unrecorded
+expression is itself the defect worth carrying forward: a derivation nobody can re-run cannot be
+audited, only believed.
+
+**A fourth derivation is owed and not performed here.** The third is `skills/`-scoped, so it is
+blind by construction to the same defect class in tokens that name no skill. The verifying round
+found three such tokens in `plugins/discovery/reference/topic-docs.md`, whose `agents/explorer.md`,
+`agents/researcher.md` and `agents/intent-tracer.md` imply a base of the plugin root against a real
+base of `reference/`. Verified against the tree, fixed in this change to the anchored form, and
+called out here because of where they sat: **three lines above `V-disc-04` through `V-disc-06`,
+which this sweep did close.** A pass looked at that paragraph, corrected the citations below these
+three, and left these three standing, because its expression could not see them.
+
+That is the strongest available argument that the `skills/`-scoped population was never the right
+population. The class is "a path whose implied base is the plugin root while its real base is the
+citing file's directory", and nothing in that definition mentions skills. Whoever runs the fourth
+derivation should build it from the class, not from the token shape the last three happened to
+share.
 
 The corrected population still strictly contains the eight Group 2 rows, so the roster's closure
 stands unchanged; what does not stand is the claim that the tree around it was clean.

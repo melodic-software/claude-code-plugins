@@ -82,8 +82,9 @@ checkout (worktree or background session) returns findings by value instead, and
 the memory slice.
 
 **Where that rule is reachable from.** A worker does not choose the by-value mode by reading this
-file; it is `persistence: by-value` in the return payload (`agents/explorer.md`,
-`agents/researcher.md`, `agents/intent-tracer.md`), and the parent acts on it at the
+file; it is `persistence: by-value` in the return payload
+(`${CLAUDE_PLUGIN_ROOT}/agents/explorer.md`, `${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`,
+`${CLAUDE_PLUGIN_ROOT}/agents/intent-tracer.md`), and the parent acts on it at the
 `persistence: by-value` rung of each family's recovery ladder —
 `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`,
 `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` and
