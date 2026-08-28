@@ -83,6 +83,14 @@ to the human with the guard's own reason.
 4. **Carve-outs re-checked at edit time.** A passage inside a quotation context, a conforming
    stamped record, or a vendored tree is not edited, even if a finding reached this point.
 
+One gap is flagged here rather than guarded: a corpus file can be the rendered output of a
+generator whose source of record lives outside the markdown corpus (a sweep of this marketplace
+repository found one stale string whose authoritative home is `docs/native-surfaces/records.json`,
+with its rendering marked never-hand-edit). A fix applied to such a rendering edits a file its
+own header forbids editing, and the next regeneration overwrites it. Check the file head for a
+generated-output marker before applying any disposition; when one is present, route the finding
+to the human and name the generator's input as the real fix site. No script enforces this check.
+
 ## The demotion path when a pointer later dies
 
 A pointer that was live at edit time can die later. That is a foreseen state with a defined

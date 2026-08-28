@@ -14,13 +14,19 @@ attribute a specific paragraph in the middle of it" cuts against.
 
 That changes what C3 tests, so the measurement version 2 stands on does **not** carry forward.
 **The golden set must be re-scored against version 3 before any precision figure is cited against
-it**, and no class becomes fix-eligible on a measurement pinned to a superseded rubric. Stated so
-the figures are not left under a cloud they do not deserve: **no current golden case appears to
-turn on the scope question** — seven have no attribution anywhere, one is declined at a carve-out
-before grading, one fails C1, and the single case with attribution is a lift inside an otherwise
-original file, which resolves the same way at either scope. The re-score is expected to reproduce
-8 tp / 0 fp / 0 fn / 2 tn. It is still required, because the rule keys on a criterion changing
-rather than on a recorded case flipping.
+it**, and no class becomes fix-eligible on a measurement pinned to a superseded rubric. That
+re-score has since been run and its outcome is in `CHANGELOG.md`.
+
+**Nothing about a measurement's result belongs in this file, and version 3 shipped a paragraph
+that broke that rule.** The pipeline inlines this whole file into every judge prompt at the
+judgment step, so anything recorded here is read by every judge before they grade. Version 3's
+first draft of the paragraph above also carried the expected tally, the panel size, and an
+enumeration of which golden case turns on which criterion, including the one case the scope change
+exists to restate. Thirty judges read it during the re-score, and the run that found this had to
+withdraw its claim of a blind panel. The prediction and the enumeration are changelog material and
+now live there. **Keep this file to the criteria, the carve-outs, the scope rule, the worked
+examples and the tier table: a judge should be able to read all of it and still not know the
+answer.**
 
 **Version 2 was the one exception to the invalidation rule**, kept here because the reasoning is
 the standard the next exception has to meet. It changed no criterion's substance and no carve-out;

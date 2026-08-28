@@ -180,6 +180,22 @@ function first_iso(s) {
   return ""
 }
 
+# may_form(w, worig): does this window carry the MONTH May rather than the
+# ordinary English modal? "w" is the lowered window and "worig" the same span of
+# the original line. Either signal alone is enough: a digit beside it, which
+# every date form carries ("may 2026", "may 17", "17 may") and the modal does
+# not; or a capital M on the original line, since edited prose capitalises the
+# month and not the modal, and the lowered copy this scan works from throws that
+# signal away. The capital is what keeps a digitless "Verified this May" in this
+# inventory. check-stamps.sh carries the same two tests, and uses them at both
+# of its sites; its copy records the corpus measurements and the two known
+# costs, a capitalised sentence-initial modal and an ALL-CAPS date.
+function may_form(w, worig) {
+  if (match(w, /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/)) return 1
+  if (match(worig, /May([^a-z]|$)/)) return 1
+  return 0
+}
+
 # A stamp line: a stamp keyword whose following window carries something
 # date-shaped. Both halves are required — see the header note.
 # "read" gets a tighter window than the explicit stamp verbs: it is an ordinary
@@ -187,7 +203,10 @@ function first_iso(s) {
 # shipped build" became a candidate purely because a year appeared later in the
 # sentence. check-stamps.sh carries the same two windows — one definition of
 # what looks like a stamp, so the inventory and the check agree.
-function is_stamp(line,   low, pos, rest, off, kw, wlen) {
+# "may" is split out of the month list for the same reason: it is also an
+# ordinary English modal, so may_form() above decides which one a window holds.
+# check-stamps.sh carries that split at both of its sites.
+function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen) {
   low = tolower(line)
   off = 0
   while (1) {
@@ -199,17 +218,25 @@ function is_stamp(line,   low, pos, rest, off, kw, wlen) {
     wlen = (kw ~ /read/) ? 30 : 60
     # Same window rule as check-stamps.sh keyword_window(): the window is a
     # distance from the keyword, not a cut through the text. Slice wlen plus 9
-    # more characters, one short of the longest form matched below, and require
+    # more characters, one short of the longest FIXED-LENGTH form matched below
+    # (the 10-character ISO date; the "may" rule is unbounded and can outrun the
+    # slack, as check-stamps.sh notes at the same rule), and require
     # each match to BEGIN at or before wlen. Slicing at exactly wlen dropped
     # docs/CLOUD-SESSIONS.md:320 from this inventory while check-stamps.sh
     # counted it a candidate: its date starts at offset 60 of 60, so the cut
     # left a bare "2" and no form matched. These two scripts promise the same
     # candidate definition, so the boundary has to be the same in both.
+    # rest_orig is the same span of the ORIGINAL line, cut at the same offsets:
+    # tolower() preserves length, so the two stay aligned character for
+    # character and may_form() can read the capital that separates the month
+    # from the modal.
     rest = substr(low, pos, wlen + 9)
+    rest_orig = substr(line, pos, wlen + 9)
     if (match(rest, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) && RSTART <= wlen) return 1
     if (match(rest, /[0-9]+\/[0-9]+\/[0-9]+/) && RSTART <= wlen) return 1
     if (match(rest, /(19|20)[0-9][0-9]/) && RSTART <= wlen) return 1
-    if (match(rest, /(january|february|march|april|may|june|july|august|september|october|november|december)/) && RSTART <= wlen) return 1
+    if (match(rest, /(january|february|march|april|june|july|august|september|october|november|december)/) && RSTART <= wlen) return 1
+    if (may_form(rest, rest_orig) && RSTART <= wlen) return 1
     if (match(rest, /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) && RSTART <= wlen) return 1
     off = pos
     if (off >= length(low)) return 0

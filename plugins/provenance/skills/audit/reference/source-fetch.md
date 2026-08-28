@@ -74,6 +74,31 @@ the page's own content**, never against the mirror's self-reported sync time, wh
 by the party whose freshness is in question. Corroborate by naming a fact only a sufficiently
 recent sync could carry.
 
+## When every live rung fails and a vendored snapshot exists
+
+A repository can carry an in-repo copy of the upstream under a `vendor/` tree, committed with a
+declared upstream ref and a sync date. When the live fetch fails on every rung (a 404 on the raw
+channel, a dead page, a mirror that cannot be corroborated) and such a snapshot is the only
+available basis, the comparison may run against the snapshot. That evidence is strong on
+provenance and weak on currency: it proves what upstream said at the sync date, not what
+upstream says now, and drift since that date is exactly what this audit exists to find.
+
+The rule, stated so no judge has to improvise it:
+
+- **The finding caps at `source-fetched-similar` and is never fix-eligible**, whatever the
+  fingerprint module reports. `fingerprint-confirmed` requires an identity-checked live fetch
+  because fix eligibility rests on current upstream state, which a snapshot cannot establish.
+  Stale evidence licenses no edit.
+- **Record `source.route: vendored-snapshot`** and name, in the finding: the snapshot path, its
+  declared upstream ref, its sync date, and each live fetch that failed with how it failed. The
+  human report must be able to say the basis was a committed copy, not a live read.
+- **The tier is borrowed knowingly.** `source-fetched-similar` is worded for a fetched source; a
+  snapshot basis is admitted under it as the strongest report-only tier, and the recorded route
+  is what keeps the report honest about the difference. This rule caps the tier and leaves the
+  table in `reference/rubric.md` unchanged.
+- **The follow-up is human.** Recommend re-running the candidate when upstream is reachable
+  again or the snapshot re-syncs; do not hold the finding open waiting for either.
+
 ## A 200 does not mean you got the page you asked for
 
 A fetch can return `200`, the right content type, and a complete untruncated body that is
@@ -118,3 +143,12 @@ Exhausting a budget produces the neutral outcome, not a failure and not a negati
 `source not identified (budget exhausted; searched: ...)`, naming every surface checked. Absence
 of a located source is never evidence that the passage is original. Record the counts in the
 finding's `budget` block so the human report can show what the run spent and where it stopped.
+
+**The searched-surfaces listing is prose-only, and nothing enforces it.** The requirement above,
+and its restatements in `SKILL.md` and `reference/dispositions.md`, binds the run's conduct and
+no schema: `scripts/emit-findings.sh` has no field, count, or budget block for the listing, and
+the relay boundary withholds `not-found` findings from the findings file entirely, so a listing
+that omits a surface is indistinguishable downstream from a complete one. Treat a report's
+listing as the run's own claim, never as validation evidence that no source exists. Making it
+checkable would mean adding a `searched` array to the report sidecar and a schema check in
+`emit-findings.sh`; until such a change lands, this recorded limitation is the contract.

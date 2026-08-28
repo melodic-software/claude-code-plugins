@@ -1,5 +1,212 @@
 # Changelog
 
+## [0.4.0]
+
+### Changed
+
+- **The version-3 re-score is done, and the measurement carries forward unchanged.** Version 3's
+  own rule blocked every precision figure, and with it every class's fix eligibility, on a table
+  pinned to version 2. All ten golden cases were re-judged by a three-judge panel each, thirty
+  judges in independent processes, cases relabelled so no directory name or path reached a judge.
+  Each saw the candidate passage, the fetched source, the whole containing file and the rubric,
+  per the version-3 dispatch; none saw the case's `expected.json`, the fingerprint figures, or
+  another judge's verdict. The deterministic layer was re-run alongside and reproduced every
+  containment, jaccard and matched-span figure the fixtures record.
+
+  Result: **8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall 1.00** — the table version 2
+  recorded, now pinned to version 3. Every panel unanimous, **no verdict moved.** `c04` is the
+  only case whose attribution reaches grading, so it is the only one C3's stated scope could have
+  moved, and all three judges took the new test where version 2 left it: the derivation is one
+  lift inside otherwise-original material, so a `See also` bullet two sections below understates
+  its scope and C3 passes.
+
+  **No class becomes fix-eligible, for the reason that was already there.** Every class measures
+  1.00 against the 0.95 bar and every class sits below `min_n_per_class` 10 (n = 2, 5, 1, 2). The
+  re-score lifts the rubric-version block and leaves the class-size one standing, which is what
+  keeps the sweep in #3465 report-only.
+
+### Fixed
+
+- **The rubric carried its own answer key, and every judge read it.** Version 3's version-history
+  paragraph recorded the expected tally, the panel size, and an enumeration of which golden case
+  turns on which criterion, including the one case the scope change exists to restate. The
+  pipeline inlines the whole rubric into every judge prompt at the judgment step, so all thirty
+  judges in the re-score above read the prediction before grading, and that run had to withdraw
+  its claim of a blind panel. Found by that run's own fresh-context verifier, which returned FAIL
+  on the method while confirming the arithmetic.
+
+  The paragraph was written to keep the figures from sitting under a cloud they did not deserve.
+  Putting it in the file judges read at judgment time is what made a blind measurement against
+  that rubric impossible. The prediction and the enumeration are changelog material and now live
+  here; the rubric keeps the criteria, the carve-outs, the scope rule, the worked examples and the
+  tier table, and says explicitly that a judge should be able to read all of it and still not know
+  the answer.
+
+  **The verdict was tested against the leak rather than assumed safe.** `c04` was re-judged by a
+  second three-judge panel against the same rubric with the version-history preamble removed and
+  every criterion, carve-out, scope sentence and worked example intact. All three returned STANDS
+  with C3 PASS on the same scope-mismatch reasoning. The leak did not drive the verdict; the claim
+  that a fully blind panel produced it is still withdrawn.
+
+  **A second leak of the same kind sits in a fixture and is deliberately NOT fixed here.** The
+  `source.md` shared by `c08`, `c09` and `c10` announces itself as "the shared basis for the three
+  adversarial synonym-rotation cases", naming them and asserting the local text is a rotation,
+  which pre-answers C1 and C2 for nine of the thirty judges. That line is inside the text the
+  fingerprint module compares, so removing it moves every containment and matched-span figure
+  those three cases record. **The fix and a re-score are one atomic change**, and splitting them
+  would leave a recorded measurement that no longer reproduces from its own fixtures. It is filed
+  for the round that next re-scores rather than taken now.
+
+  Two smaller limits, recorded rather than worked around. Four case bodies state their own intended
+  answer (`c06` and `c07` open "A hard negative", `c08` and `c10` open "Adversarial case"), and
+  version 3 requires the judge to read the whole containing file, so those judges saw it;
+  withholding it would mean editing a fixture. And `c07`'s `expected.json` explains the case as a
+  C1 failure while also recording that the owned-content carve-out applies, which the rubric's own
+  order of evaluation makes exclusive. All three judges declined it at the carve-out, which is what
+  that order requires. The route differs, the recorded answer does not, and neither the fixture nor
+  the rubric was changed to match the run.
+
+### Added
+
+- **The evidence-tier contract now covers a vendored-snapshot basis.** Every tier row gated on
+  either a fetched source or no source at all, and the sweep hit a third case the table could not
+  express: a finding compared against an in-repo copy of upstream, carrying a declared upstream ref
+  and a sync date, reached because every live fetch rung failed. Strong provenance, weak currency.
+  It happened at `plugins/playwright/skills/playwright/reference/test-generation.md:80`, where both
+  candidate upstream URLs returned 404 and only the committed baseline remained.
+
+  Such a finding now caps at `source-fetched-similar`, records `source.route: vendored-snapshot`
+  together with each live fetch that failed and how, and is **never fix-eligible**. The reason is
+  the plugin's whole subject: fix eligibility rests on current upstream state, and a snapshot
+  cannot establish it. Stale evidence licenses no edit. The tier borrow is declared deliberate
+  rather than left to read as accurate, since `source-fetched-similar` is worded for a source that
+  was fetched and this one was not; the recorded route is what keeps the report honest about the
+  difference. The follow-up is human: re-run the candidate when upstream is reachable or the
+  snapshot re-syncs, rather than holding the finding open.
+
+- **The modal "may" is no longer read as a month name.** `may` is a month and an ordinary English
+  modal verb, and both stamp detectors matched it bare, so prose like "the first read may raise a
+  permission prompt" became a stamp candidate whose date could not be parsed and landed in the
+  declined bucket — indistinguishable, to a reader adjudicating that bucket, from a real stamp the
+  parser failed on. **19 of the 24 month-name declines carried the word**, measured over 1,352
+  files at `--as-of 2026-08-28` on this branch's head.
+
+  That figure is tree-dependent and three different numbers for it appeared during this change,
+  which is worth recording rather than tidying away. An earlier draft said 17 of 22, measured
+  correctly against a branch base that was two commits behind `main` and therefore missing merged
+  changelog entries whose own prose contains the modal; repairing the base moved it to 19 of 24.
+  The script comments said 13, which matched no tree. Both are corrected. The lesson is the same
+  one 0.3.2 records about this file: a count taken over a corpus that includes this repository is
+  a reading at a commit, not a constant, and it needs the commit attached or it will not
+  reproduce.
+
+  `may` counts as a date when a digit sits beside it — every date form has one and the modal does
+  not — **or** when the original line capitalises it. The other eleven months still match bare,
+  because over-reporting into a bucket a human reads is the safe direction and this fix must not
+  trade it for under-reporting.
+
+  **The first version of this fix did trade it, and three independent reviewers caught that.**
+  Requiring a digit made a digitless stamp vanish: `Verified this May` and `Checked last May
+  against the vendor page` stopped matching anything, and the loss was *upstream* of the declined
+  bucket rather than inside it — `keyword_window()` returned empty, the caller dropped the line
+  before classification, and `is_stamp()` did the same to the inventory. Not declined, not
+  inventoried, gone. `Verified in June` was still declined and still visible, so the same shape got
+  two different treatments purely because of the modal collision.
+
+  The capital `M` is what fixes it. Both scripts lowercase before matching and so discard the one
+  signal that separates these in edited prose. The rule now lives in a named `may_form()` carried
+  at all three sites rather than three copied regexes.
+
+  **The case signal was measured on this corpus, not assumed.** At `3c538bcc`, over 1,352 files:
+  1,458 lines carry a lowercase `may`, overwhelmingly the modal; 24 carry a capital `May`, of which
+  **14 are month dates and 10 are capitalised modals** in table cells, bullets and sentence
+  openings; and 34 carry an ALL-CAPS `MAY`, of which **none is a date** — they are permission
+  modals. So two costs are accepted knowingly.
+  A capitalised modal opening a sentence or a cell now reads as a month when a stamp keyword sits
+  in its window, which over-reports into a bucket a human adjudicates. And ALL-CAPS defeats case, so
+  a digitless `MAY` date stays invisible; buying it back would mean reading `MAY` as a month, which
+  on this corpus means 34 false candidates for a form nobody writes. Both are pinned by tests,
+  including one named for the over-report so it is not rediscovered as a bug.
+
+  **A third cost is recorded and left rather than chased.** `may_form()` returns on the digit
+  branch, so `RSTART` belongs to that match; when a digit-adjacent `may` sits beyond the window and
+  a capital `May` sits inside it, the caller rejects the out-of-window digit match and never
+  consults the in-window capital. Appending a stray `7 may` to an otherwise valid line therefore
+  removes its candidacy — under-reporting, the direction this fix exists to prevent. No corpus line
+  has that shape. Returning the leftmost of the two matches would fix it; trying the capital branch
+  first only mirrors the bug, so the obvious one-line swap is not a fix. Both scripts inherit it
+  identically, so their cross-script agreement assertion is blind to it, exactly as it was to the
+  original regression. Recorded at the rule so the next reader is warned rather than surprised.
+
+  **The suites could not have caught this, which is the part worth keeping.** They assert that both
+  scripts return the same count over a shared fixture — an assertion that passes when both are
+  equally wrong, which is exactly what happened. A cross-implementation agreement test detects
+  divergence and is blind to a common error, and a shared definition is what makes a common error
+  likely. The new cases pin a **non-zero** expected count in both suites, so agreement is now
+  backed by a known answer rather than by two implementations nodding at each other.
+
+  Corpus effect of the correction, **at `3c538bcc`**: none. Candidates, parsed, declined and
+  findings all unchanged at 527 / 499 / 28 / 0, the two JSON products byte-identical, because the
+  corpus carried no digitless-May stamp at that commit. The regression was latent there and real in
+  principle.
+
+  **It stopped being latent one commit later, and this entry is why.** The paragraph above quotes
+  `Verified this May` as an example of the shape, inside a `verified` keyword window, in a file the
+  corpus scans. So from the commit that documents the fix onward the corpus does carry a
+  digitless-May stamp — the one written to explain that it carried none. Measured at `a827aa58`:
+  529 / 499 / 30 / 0 post-fix against 528 / 499 / 29 / 0 pre-fix, an effect of +1 candidate rather than
+  none.
+
+  That is the fourth time on this branch that prose about a detector has moved what the detector
+  reports, after the stale Phase 6 baseline, the figures that went stale as the entry describing
+  them was written, and a count that changed when the branch base was repaired. The rule this file
+  keeps relearning is the one it already states: **a count over a corpus that includes this
+  repository is a reading at a commit, and it needs the commit attached or it will not reproduce.**
+  Every figure in this entry now carries one.
+
+  Three sites changed, not two: both detectors and **the classifier in `check-stamps.sh`**, which
+  a single-site fix would have missed and which decides the decline reason a human then reads.
+  `check-stamps.sh` and `extract-breadcrumbs.sh` change together and their suites now assert the
+  agreement over a shared fixture, because a previous fix in this area landed in one script and
+  needed a follow-up commit to reach its sibling.
+
+  Over 1,352 files: declines 45 to 28, month-name declines 22 to 5, 17 lines removed and none
+  added. **`parsed` is unchanged at 499 and `findings` unchanged at 0** — the load-bearing numbers,
+  because they say no real stamp was reclassified in either direction and none had been masked. A
+  real `May 2026` stamp is still detected in both month-first and day-first forms.
+
+  Two adjacent false positives are deliberately left in place and recorded rather than fixed:
+  `SC2034` read as a bare year, and `read` matching inside `cache_read_input_tokens`. Both have a
+  different root cause (token boundaries, not the month list), and both plausible fixes push toward
+  under-reporting: a year-boundary fix shifts `RSTART` into the window machinery two prior commits
+  tuned, and excluding `_` from the keyword boundary would stop matching a real stamp that exists
+  today: `plugins/work-items/skills/track/actions/add.md:104` carries `"last_checked":
+  "2026-04-08"`, which parses now and would be lost. That exhibit is named because the first draft
+  of this entry cited an invented one; the verifier checked the repo, found no such token, and
+  supplied the real line. The conclusion held, the evidence for it did not.
+
+  The bare-year bucket needs its own designed pass rather than a boundary tweak bolted onto a
+  word-sense fix. Of its 23 declines, a token-boundary change repairs exactly one: the rest carry
+  years that are already token-boundaried, among them an issue number `#1941` and a glob example
+  `photos [2024/**`.
+
+- **The `not-found` searched-surfaces listing is recorded as prose-only and unenforced.** Three
+  separate requirements say a run must list every surface it searched before concluding no source
+  exists. Nothing checks that: `emit-findings.sh` projects no `searched` array and no budget block,
+  and the relay boundary withholds `not-found` findings from the file entirely, so a listing that
+  omits a rung is indistinguishable downstream from a complete one. Rather than leave three
+  requirements reading as though something enforced them, the docs now say a run's listing is that
+  run's own claim and never validation evidence that no source exists, and name what an
+  implementing change would need. This repo's house style prefers a recorded limitation to an
+  asserted capability.
+
+- **The fix contract warns that a corpus file can be a generator's rendered output.** The sweep
+  found one whose authoritative home is `docs/native-surfaces/records.json`, outside the markdown
+  corpus, with its rendering marked never-hand-edit. A fix applied to the rendering would edit a
+  file its own header forbids editing, and the next regeneration would overwrite it. Dispositions
+  now say to check the file head for a generated-output marker and route to the human naming the
+  generator's input as the real fix site. No script enforces this check.
+
 ## [0.3.2]
 
 ### Fixed
