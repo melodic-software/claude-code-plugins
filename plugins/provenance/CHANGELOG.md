@@ -11,8 +11,8 @@
   was read as `2026-08-`, the ISO test failed on the fragment, and the bare-year fallback then
   matched the `2026` it left behind. Declining routes the line into the reported `declined` bucket
   and skips it, so the one thing the script exists to do, compare the date against the currency
-  window, never ran on a date that parses perfectly well, and the output said only that the form
-  was unparseable.
+  window, never ran on a date that parses perfectly well, and the output said only that the stamp
+  date went unparsed.
 
   The window is now a distance from the keyword rather than a cut through the text. The slice
   carries nine more characters, one short of the longest form the tests match, and every form must
