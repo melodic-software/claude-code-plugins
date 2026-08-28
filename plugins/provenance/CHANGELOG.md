@@ -1,5 +1,125 @@
 # Changelog
 
+## [0.5.0]
+
+### Fixed
+
+- **Three statements in 0.4.0 are no longer true, and this entry supersedes them rather than
+  editing them.** That entry deferred a fixture leak as "deliberately NOT fixed here", recorded
+  four case bodies stating their own answer as a limit that could not be worked around without
+  editing a fixture, and said the deterministic layer "reproduced every containment, jaccard and
+  matched-span figure the fixtures record". All three are now overtaken: the leaks are removed and
+  two jaccard figures moved as a direct result. Dated records are not rewritten here, so 0.4.0
+  stands as what was true when it was written and this entry carries what changed.
+
+- **The shared source page for `c08`, `c09` and `c10` named the cases and gave away the answer.**
+  It opened by stating it was the shared basis for the three synonym-rotation cases and that
+  holding it fixed made rotation density the single variable. Judges read `source.md`, so that
+  paragraph settled C1 and C2 before either was graded, and nine of the thirty judges in the
+  version-3 re-score read it.
+
+  **The removal and the re-measurement are one change, because the first moves the second.** The
+  fingerprint compares the case body against `source.md`, so deleting from the source changes the
+  arithmetic those three cases record, and shipping the deletion alone would leave a measurement
+  that no longer reproduced from its own fixtures. Containment, longest matched span and the
+  matched-span set are unchanged, because the removed paragraph shares no five-word shingle with
+  any case body; the union shrank while the intersection did not, so jaccard rises: `c08` 0.232 to
+  0.280, `c09` 0.146 to 0.178, `c10` unchanged at zero. Each case still classifies as its
+  `expected.json` says, `c09` still on the containment limb alone and `c10` on neither, so the
+  density ladder still measures density.
+
+- **Four case bodies stated their own answer, in the graded passage itself.** `c06` and `c07`
+  opened "A hard negative", `c08` called the passage below it "the copied passage", and `c10`
+  supplied its own C1 and C2 findings outright along with a tier hint. 0.4.0 recorded these as
+  accepted because withholding them "would mean editing a fixture" — an objection the fixture edit
+  above overtakes. They are removed under the same fix-and-re-measure discipline, and the affected
+  `notes.measured` figures are corrected in the same commit: `c06` containment 0.031 to 0.039,
+  `c08` 0.473 to 0.570 with jaccard 0.312.
+
+  Two `span` line ranges moved with them. That is a re-anchor, not a verdict change: deleting
+  leading lines shifts every line number below, the shift matches the deleted count exactly, and
+  the spanned text is byte-identical before and after. No `class` or `tier` field was touched.
+
+- **A weaker date signal could delete a stamp instead of reinforcing it.** `may_form()` reports two
+  signals for the month May — a digit beside the word, and a capital M on the original line —
+  through a single `RSTART` that all three call sites read to decide whether the match began inside
+  the keyword window. It returned on whichever branch matched first, so a digit-adjacent "may" out
+  in the window's slack handed back an out-of-window offset, the caller rejected it, and a capital
+  "May" sitting inside the window was never consulted: appending a stray "7 may" to "Verified this
+  May" removed the line from the candidates entirely. Both signals are now evaluated and the
+  leftmost returned, in `check-stamps.sh` and `extract-breadcrumbs.sh` alike, so a signal the
+  window would reject can no longer hide one it would accept. Corpus output is unchanged over
+  1,352 files: 530 candidates, 499 parsed, 31 declined, 0 findings.
+
+  Swapping the branch order was rejected as a fix because it mirrors the bug rather than removing
+  it. The cross-implementation agreement assertion is what let this survive: it compared the two
+  scripts' candidate sets and **passed while both were wrong**, agreeing on one where the answer
+  was two. Agreement tests are blind to a shared error by construction, and the assertion now pins
+  the count rather than only the agreement.
+
+- **The relay boundary leaked through the `## Unparsed` appendix.** A judgment verdict
+  (`source-fetched-similar`, `llm-suspected`, `not-found`) carrying no rule id matched no branch in
+  the projection and was dumped verbatim into the findings file, tier name and payload included —
+  the one file those verdicts are withheld from, and the apply relay's input. Withholding is now
+  decided on the declared tier ahead of any rule lookup, reading the tier at any depth, in any
+  casing, and through an array or object wrapper. The record is still counted in `## Surfaces`, so
+  nothing is dropped.
+
+  The first version of this fix matched the tier exactly at the top level, and an adversarial probe
+  defeated it four ways: a padded `"  not-found  "`, an array-valued `["not-found"]`, an
+  object-valued `{"name":"llm-suspected"}`, and a capitalised `"Tier"` key. Each is now a
+  regression assertion.
+
+  `context/persist-findings.md` required both that withheld tier names never appear and that an
+  unmappable finding lands in `## Unparsed` verbatim, never a silent drop, without saying how the
+  two coexist — a conflict landing precisely on the leaking record. It now states the ordering and
+  names the `## Surfaces` count as where the no-silent-drop guarantee is discharged, so the next
+  reader does not restore the leak as a bug fix.
+
+### Added
+
+- **The `not-found` searched-surfaces listing is schema-checked at the sidecar.**
+  `emit-findings.sh` refuses a report sidecar whose `not-found` finding names no surface at all, on
+  exit 3, the input-refusal code it already uses for a sidecar that is not audit output. The check
+  validates the sidecar rather than an emitted row, and it has to: the relay boundary withholds
+  every `not-found` finding from the findings file, so there is no row to check.
+
+  Presence is all it can assert. Nothing knows which surfaces a run actually visited, so a listing
+  omitting one it checked is still indistinguishable from a complete one, and a report's listing
+  remains the run's own claim rather than validation evidence that no source exists.
+
+### Changed
+
+- **Sweep resume semantics are stated where a run will read them.** The closure ledger is now named
+  by its path, `.work/<topic-slug>/sweep-ledger.md`, rather than left to a repo-local spec no
+  plugin file pointed at, and the three facts the sweep Brief requires and the shipped docs
+  contradicted are recorded: `corpus_fetch_ceiling` is spent across the whole sweep and a resume
+  restores its spend rather than restarting at zero; the response cache is per-sweep and a resume
+  re-validates an entry rather than reusing a body nobody in this sweep read; the ledger is
+  checkout-local, so a sweep resumed elsewhere is a new sweep and reports itself as one.
+  `reference/dispositions.md` carries the entry's required fields.
+
+  **No ledger machinery exists, and the prose says so at every mention.** Nothing in this plugin
+  creates, reads, or validates that file. These are rules for how a run conducts itself, and they
+  hold only as far as the run keeps the ledger honestly.
+
+### Method, and what it does not support
+
+- **The version-3 re-score reported here was not a blind panel, and is not offered as one.** The
+  worker that ran it had no subagent tool, so it graded sequentially inline, one pass per case
+  rather than three. `c01` through `c07` were graded without their `expected.json` ever being
+  opened. `c08`, `c09` and `c10` were graded *after* it, because checking the classification
+  against the answer key required reading it; those three verdicts are worth less than the other
+  seven and are marked contaminated rather than averaged in silently.
+
+  The result reproduces the recorded table — **8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall
+  1.00, no verdict moved** — and no class becomes fix-eligible, every one still below
+  `min_n_per_class` 10 at n = 2, 5, 1, 2. The arithmetic beside it was re-derived independently and
+  holds; it is the *method* claim that is narrower than 0.4.0's.
+
+  `c09` is the control worth noting: it carries no self-describing line, and it graded identically
+  to the two that did.
+
 ## [0.4.0]
 
 ### Changed
