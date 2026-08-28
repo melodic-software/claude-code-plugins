@@ -164,6 +164,12 @@ emit_tel() {
   # basename, so resolve the file's own checkout for that case.
   local file_rel root="${CLAUDE_PROJECT_DIR:-}"
   [[ -n "$root" ]] || root="$(hook::repo_root "$(dirname "$FILE")")"
+  # The helper strips "$root/", so a root that already ends in a separator
+  # makes the prefix "/repo//" and matches nothing: every in-project file
+  # would collapse to its basename. CLAUDE_PROJECT_DIR is caller-supplied and
+  # a trailing slash is a supported spelling, so trim it here. The copy this
+  # replaced did the same, and hook::repo_root never returns one.
+  root="${root%/}"
   file_rel="$(hook::repo_relative_path "$FILE" "$root")"
   local data
   data=$(jq -n --arg file "$file_rel" --argjson violations "$2" \

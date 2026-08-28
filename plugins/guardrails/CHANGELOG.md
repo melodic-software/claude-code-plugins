@@ -18,6 +18,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   arm, and pairs it with `hook::repo_root` so a file with no project dir is
   still reported relative to its own checkout instead of collapsing to a bare
   basename.
+- **A trailing slash on the project dir no longer collapses every path.** The
+  helper strips `"$root/"`, so a root already ending in a separator forms the
+  prefix `/repo//` and matches nothing, degrading every in-project file to its
+  basename. The hand-rolled copies trimmed the separator first and the move to
+  the helper dropped that trim; both call sites now trim it back. A trailing
+  slash is a supported spelling of `CLAUDE_PROJECT_DIR`, which this plugin's
+  own scope tests already exercise. `hook::repo_root` never returns one, so the
+  other call sites of the helper were never exposed.
 
 ### Changed
 

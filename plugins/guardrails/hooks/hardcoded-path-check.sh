@@ -201,8 +201,13 @@ emit_tel() {
   # developer's username) and never a UNC share (which would name an internal
   # host). PROJECT_ROOT is the anchor the envelope itself carries, and the
   # scope guard above guarantees it is set, so no fallback root is needed.
+  # The helper strips "$root/", so a root that already ends in a separator
+  # makes the prefix "/repo//" and matches nothing: every in-project file
+  # would collapse to its basename. PROJECT_ROOT comes from the caller-supplied
+  # CLAUDE_PROJECT_DIR, where a trailing slash is a supported spelling, so trim
+  # it here. The copy this replaced did the same.
   local file_rel
-  file_rel="$(hook::repo_relative_path "$FILE" "$PROJECT_ROOT")"
+  file_rel="$(hook::repo_relative_path "$FILE" "${PROJECT_ROOT%/}")"
   local data
   data=$(jq -n --arg file "$file_rel" --argjson violations "$2" \
     '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||

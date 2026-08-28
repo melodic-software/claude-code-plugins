@@ -531,6 +531,23 @@ else
   bad "telemetry: no envelope written for the repo-relative case"
 fi
 
+# --- Trailing-slash project dir (this one DOES discriminate) ----------------
+# The helper strips "$root/", so a PROJECT_ROOT already ending in a separator
+# makes the prefix "/repo//" and matches nothing: an in-project file collapses
+# to its basename. CLAUDE_PROJECT_DIR is caller-supplied and a trailing slash
+# is a supported spelling, and the hand-rolled copy trimmed it, so the trim has
+# to survive the move to the helper.
+TELPS="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINKPS="$(make_sink "cat >\"$TELPS\"")"
+env HOOK_TELEMETRY_SINK="$SINKPS" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/" \
+  bash "$HOOK" <<<"$(write_json "$TEST_TMPDIR/src/run.sh" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || true
+if wait_for_sink "$TELPS"; then
+  assert_eq "trailing-slash project dir: data.file stays repo-relative" \
+    "src/run.sh" "$(jq -r '.data.file' "$TELPS")"
+else
+  bad "trailing-slash project dir: no envelope written"
+fi
+
 # ===================== PAYLOAD-SIZE BOUNDARY (regression) ====================
 # Guards the here-string deadlock. Bash delivers `<<<` through a pipe it fills
 # ITSELF before the reader is exec'd, and it appends a newline — so a payload of

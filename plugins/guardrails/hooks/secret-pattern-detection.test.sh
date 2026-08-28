@@ -256,6 +256,24 @@ df=$(telemetry_file "$LINKREPO/src/config.env")
 assert_contains "symlinked repo, symlink spelling: basename" "$df" "config.env"
 assert_absent "symlinked repo, symlink spelling: no path separator" "$df" "/"
 
+# --- Trailing-slash project dir ---------------------------------------------
+# The helper strips "$root/", so a root already ending in a separator makes the
+# prefix "/repo//" and matches nothing: every in-project file would collapse to
+# its basename and the envelope would lose the location. A trailing slash is a
+# supported spelling of CLAUDE_PROJECT_DIR (the scope test above uses one), and
+# the hand-rolled copy this replaced trimmed it, so the trim has to survive the
+# move to the helper.
+TELTS="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINKTS="$(make_sink "cat >\"$TELTS\"")"
+env HOOK_TELEMETRY_SINK="$SINKTS" CLAUDE_PROJECT_DIR="$PATHREPO_TL/" bash "$HOOK" \
+  <<<"$(write_json "$PATHREPO_TL/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
+if wait_for_sink "$TELTS"; then
+  assert_eq "trailing-slash project dir: data.file stays repo-relative" \
+    "src/config.env" "$(jq -r '.data.file' "$TELTS")"
+else
+  bad "trailing-slash project dir: no envelope written"
+fi
+
 # ===================== PAYLOAD-SIZE BOUNDARY (regression) ====================
 # Guards the here-string deadlock. Bash delivers `<<<` through a pipe it fills
 # ITSELF before the reader is exec'd, and it appends a newline — so a payload of
