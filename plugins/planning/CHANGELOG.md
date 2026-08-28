@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.12]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** The `check-open-questions` and
+  `goal-condition-length` test suites collapse their hand-rolled inline `--help` exit-code
+  assertions into each suite's own `expect_exit` helper, which every other exit-code case
+  already uses. Passing-path stdout, case labels, and PASS/FAIL counts are byte-identical;
+  refutation-verified including mutated-subject detection-power checks; both suites pass via
+  affected-tests.sh.
+
 ## [0.34.11]
 
 ### Changed

@@ -55,7 +55,7 @@ expect_stdout() {
 }
 
 # 1. --help exits 0.
-if bash "$SUT" --help >/dev/null 2>&1; then pass "--help exits 0"; else fail "--help should exit 0"; fi
+expect_exit "--help exits 0" 0 --help
 
 # 2. --help prints the usage header, not a truncated fragment.
 expect_stdout "--help prints usage" "Usage:" --help
