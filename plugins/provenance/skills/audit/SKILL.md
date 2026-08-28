@@ -101,10 +101,10 @@ texts, file composition); every judgment about whether a passage is a copy is mo
    3 for anything that could become fix-eligible) against
    [`reference/rubric.md`](reference/rubric.md), dispatched per
    [`reference/nomination.md`](reference/nomination.md). Carve-outs are graded before criteria.
-   Judges never see the fingerprint numbers or each other's verdicts, and each case reaches them
-   under a neutral label rather than its path, per that file's "Neutral labels (required)".
-   **Unanimity renders the verdict; any split routes to the human** and the finding is not
-   fix-eligible, whatever the majority said.
+   Judges never see the fingerprint numbers or each other's verdicts, and each case reaches
+   them under a neutral label rather than its path, per `reference/nomination.md` "Neutral
+   labels (required)". **Unanimity renders the verdict; any split routes to the human** and the
+   finding is not fix-eligible, whatever the majority said.
 
 9. **Map the tier**, by fixed rule from the evidence, never from a judge's confidence. A
    paraphrase can never be `fingerprint-confirmed`: no lexical evidence is possible for one, and
