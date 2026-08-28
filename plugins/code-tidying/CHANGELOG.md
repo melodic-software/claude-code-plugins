@@ -3,6 +3,27 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.14]
+
+### Fixed
+
+- **`tidy`: a stray third `unknown` line in the throttle probe under pipefail.** Cosmetic, not a
+  false failure claim. `open-pr-count.sh` exits 1 while printing well-formed output when `gh` cannot
+  reach the API, and the probe was
+  `open-pr-count.sh 2>/dev/null | grep -E '^(Open tidy|Throttle)' || echo "unknown"`. Without
+  `pipefail` the pipeline's status is `grep`'s, which is 0 when it matches, and the `||` stays shut.
+  With `pipefail` the script's 1 becomes the pipeline's status and `unknown` is appended beneath the
+  two well-formed lines, garbling a block that already carries its own `unknown` values. Reproduced
+  and fixed by execution: with the real script under `pipefail` the old shape renders three lines,
+  the third a bare `unknown`, and the new one renders two.
+
+  The `||` moves inside a brace group on the `grep` end of the pipe, so it is driven by the filter's
+  status alone and the script's exit code no longer reaches it. The token still fires when the
+  script is missing entirely, which is the case it exists for, verified under both settings. This
+  form was chosen over the brace-group-first shape used elsewhere precisely to keep the leading
+  token unchanged: the command still begins `${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh`, so the
+  existing grant still matches it and no rule was added or widened.
+
 ## [0.14.13]
 
 ### Fixed
