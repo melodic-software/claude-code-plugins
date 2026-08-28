@@ -69,25 +69,14 @@ REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
 # telemetry-only subprocesses (the tool_name jq parse, and 2× cygpath on
 # Windows).
 #
-# FILE_REL is the repo-relative path for the telemetry data.file. On Windows Git
-# Bash, git rev-parse --show-toplevel returns a drive-letter path while FILE may
-# be in POSIX mount form; normalize both through cygpath -lm (long,
-# forward-slash mixed form) when available so the prefix strip compares the same
-# representation. On Linux/macOS cygpath is absent and both paths are already
-# POSIX. Falls back to raw FILE on any normalization error.
+# FILE_REL is the repo-relative path for the telemetry data.file, degrading to
+# the basename when the prefix strip does not match, so an absolute path never
+# reaches telemetry.
 TOOL=""
 FILE_REL="$FILE"
 if hook::telemetry_enabled; then
   TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-  if command -v cygpath >/dev/null 2>&1; then
-    _file_lm=$(cygpath -lm "$FILE" 2>/dev/null)
-    _root_lm=$(cygpath -lm "$REPO_ROOT" 2>/dev/null)
-    if [[ -n "$_file_lm" && -n "$_root_lm" ]]; then
-      FILE_REL="${_file_lm#"$_root_lm"/}"
-    fi
-  else
-    FILE_REL="${FILE#"$REPO_ROOT"/}"
-  fi
+  FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
 fi
 
 # Build the telemetry data object. jq is authoritative; the fallback is a fixed

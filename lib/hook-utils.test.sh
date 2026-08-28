@@ -2732,6 +2732,117 @@ RR_NOGIT="$(mktemp -d)"
 repo_root_unresolved "$RR_NOGIT"
 rm -rf "$RR_NOGIT"
 
+# --- hook::repo_relative_path: strip, redact, and say which happened ---------
+# The helper answers on three channels like the two above: stdout, the return
+# code, and HOOK_REPO_RELATIVE_DEGRADED. The return code is the one a caller in
+# a command substitution can read, so every case asserts all three.
+#
+# BOTH arms run on EVERY host. Which arm the helper takes is decided by
+# `command -v cygpath`, so each case drives it in a child shell whose PATH holds
+# either nothing (the POSIX direct-strip arm) or ONLY a stub cygpath (the
+# Windows long-name arm). Gating on the real host's cygpath instead would leave
+# whichever arm that host lacks untested everywhere, including on the
+# windows-2025 `hook-utils-windows` lane, which exists to cover exactly this.
+RRP_DIR="$(mktemp -d)"
+mkdir -p "$RRP_DIR/nocyg" "$RRP_DIR/cyg"
+# Stand-in for Git Bash's `cygpath -lm`: POSIX mount form (/c/x) to mixed
+# Windows form (C:/x). Only the conversion the helper depends on is modeled, and
+# modeling it is the point — the arm exists because the two sides of the strip
+# arrive in different spellings and must be brought to one.
+#
+# Builtins only, and an absolute shebang taken from $BASH: the stub runs with
+# the near-empty PATH below, where `/usr/bin/env bash` could not resolve bash
+# and `cut`/`tr` could not resolve at all.
+{
+  printf '#!%s\n' "$BASH"
+  cat <<'CYGEOF'
+p=""
+for a in "$@"; do p="$a"; done
+_lower="abcdefghijklmnopqrstuvwxyz"
+_upper="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+case "$p" in
+/[A-Za-z]/* | /[A-Za-z])
+  d="${p:1:1}"
+  rest="${p:2}"
+  case "$d" in
+  [a-z])
+    _pre="${_lower%%"$d"*}"
+    d="${_upper:${#_pre}:1}"
+    ;;
+  *) ;;
+  esac
+  p="$d:$rest"
+  ;;
+*) ;;
+esac
+printf '%s\n' "$p"
+CYGEOF
+} >"$RRP_DIR/cyg/cygpath"
+chmod +x "$RRP_DIR/cyg/cygpath"
+
+# rrp_case <mode> <label> <file> <root> <expected-out> <expected-degraded>
+#   mode nocyg → no cygpath on PATH, helper takes the direct-strip arm
+#   mode cyg   → stub cygpath on PATH, helper takes the normalization arm
+# The child calls the helper twice on purpose: command substitution captures
+# stdout but runs in a subshell, so the global has to be read from a plain call.
+# Only shell builtins are used inside, because PATH is deliberately near-empty.
+rrp_case() {
+  local mode="$1" label="$2" file="$3" root="$4" want="$5" want_deg="$6" probe
+  probe=$(
+    # $BASH, not a bare `bash`: the PATH below is deliberately near-empty, so a
+    # bare name could not be resolved. shellcheck cannot see that the quoted
+    # argument is a bash script, so it reads the (correctly) unexpanded $1/$2/$3
+    # as a mistake; they are the child's own positional parameters.
+    # shellcheck disable=SC2016
+    PATH="$RRP_DIR/$mode" "$BASH" -c '
+      # shellcheck source=hook-utils.sh
+      source "$1"
+      _out=$(hook::repo_relative_path "$2" "$3")
+      _rc=$?
+      hook::repo_relative_path "$2" "$3" >/dev/null
+      printf "%s\n%s\n%s\n" "$_rc" "$HOOK_REPO_RELATIVE_DEGRADED" "$_out"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$file" "$root"
+  )
+  local rc flag out
+  {
+    read -r rc
+    read -r flag
+    read -r out
+  } <<<"$probe"
+  if [[ "$out" == "$want" ]] && ((rc == want_deg)) && ((flag == want_deg)); then
+    ok "repo_relative_path[$mode]: $label"
+  else
+    fail "repo_relative_path[$mode] $label: out=$out (want $want) rc=$rc flag=$flag (want $want_deg)"
+  fi
+}
+
+# The POSIX arm.
+rrp_case nocyg "strips the repo root" /repo/a/b.md /repo a/b.md 0
+rrp_case nocyg "root mismatch redacts to basename" /elsewhere/a/b.md /repo b.md 1
+rrp_case nocyg "drive-letter path redacts" 'C:/proj/app/a/b.md' /repo b.md 1
+# portability-ok: a literal Windows UNC fixture path; the \s and \b are path
+# separators plus a filename, not GNU regex escapes.
+rrp_case nocyg "UNC path redacts on the backslash" '\\srv\share\b.md' /repo b.md 1
+rrp_case nocyg "an already-relative path passes through" a/b.md /repo a/b.md 0
+# Only the trailing-slash prefix strips, so the root passed as the file stays
+# absolute and redacts — the caller never receives an unmarked absolute path.
+rrp_case nocyg "the root as the file redacts" /repo /repo repo 1
+# An empty root anchors nothing. Without the non-empty guard the strip would
+# shave the leading slash and hand back srv/proj/repo/a.txt with status 0: still
+# the caller's absolute path, no longer matching the redaction's /* arm.
+rrp_case nocyg "an empty root redacts instead of shaving the slash" /srv/proj/repo/a.txt "" a.txt 1
+
+# The cygpath arm. The first case is the one the arm exists for: file in POSIX
+# mount form, root in drive-letter form. The nocyg control directly below shows
+# the same inputs degrading without the normalization, so the case cannot pass
+# for the wrong reason.
+rrp_case cyg "mount-form file under a drive-letter root strips" /c/repo/a/b.md 'C:/repo' a/b.md 0
+rrp_case nocyg "...and the same inputs degrade without cygpath (control)" /c/repo/a/b.md 'C:/repo' b.md 1
+rrp_case cyg "both sides already mixed form" 'C:/repo/a/b.md' 'C:/repo' a/b.md 0
+rrp_case cyg "a root mismatch still redacts through the cygpath arm" /c/elsewhere/b.md 'C:/repo' b.md 1
+rrp_case cyg "an empty root redacts through the cygpath arm" /c/repo/a/b.md "" b.md 1
+rm -rf "$RRP_DIR"
+
 # --- hook::bash_parse_segments: unquoted # comments to EOL --------------------
 bps_last=()
 bps_collect() {
