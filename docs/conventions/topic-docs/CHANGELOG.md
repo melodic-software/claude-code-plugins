@@ -1,5 +1,26 @@
 # Changelog — topic-docs convention
 
+## 2.5.3 — 2026-08-28
+
+Patch under the Versioning rule: no tier moves, no `topic-docs.yaml` key is renamed, the slug spec
+is untouched, and no visibility guarantee changes. "Implementers restate the rules; they do not
+share a source" cites the two setup skills by their public invocation instead of by a filesystem
+path into another plugin's tree.
+
+- **Two cross-plugin path citations could not resolve for the reader this contract is written for.**
+  The byte-for-byte claim carried `[discovery](../../../plugins/discovery/skills/setup/SKILL.md)`
+  and `[verification](../../../plugins/verification/skills/setup/SKILL.md)`. Those links resolve
+  only inside the marketplace checkout, and nineteen plugin surfaces fetch this README over
+  `raw.githubusercontent.com` at run time, so the citation was dead for most of its readership.
+  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  makes the plugin the encapsulation boundary for citation: name the public invocation, never a
+  path into another plugin's private tree. The paragraph now names `/discovery:setup` and
+  `/verification:setup`, which is what the sentence around it was already saying in prose. The
+  section's own point sharpens as a result: it argues that a `SKILL.md` "cannot defer at runtime to
+  a document the consuming repo does not have", and its own evidence links were exactly that.
+  Wrapping changed; the contract did not. Found by the whole-repo extract-ssot sweep's
+  encapsulation floor.
+
 ## 2.5.2 — 2026-08-25
 
 Docs-only: `exports` joins the reserved first-level names under the memory

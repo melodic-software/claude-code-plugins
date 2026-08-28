@@ -325,14 +325,33 @@ figures to differ.
   plugin's `agents/` directory except three.
 - **Three counts are floors, not totals.** The `worker-return-is-synthesis` roster at 13 files and
   the `read-only-artifact-write-reconciliation` roster at 7 both come from partial reads; neither
-  could shrink, both could grow. The encapsulation roster is the third: it records **two**
-  `docs/**` surfaces citing a plugin skill by filesystem path, which is what the survey found, and
-  a later pass found three more of the identical shape that were on no roster —
-  `docs/conventions/topic-docs/README.md` (two links, `discovery` and `verification` setup skills),
-  `docs/conventions/detector-findings/README.md` (`review/skills/fanout/SKILL.md`), and
-  `docs/conventions/permission-rule-hygiene/README.md`
-  (`claude-config/skills/audit-permission-grants`). ADR 0018 rules all of them out for the same
-  reason; none is fixed here.
+  could shrink, both could grow. The encapsulation roster is the third, and it grew: it recorded
+  **two** `docs/**` surfaces citing a plugin skill by filesystem path, which is what the survey
+  found, and a later pass found three more of the identical shape that were on no roster. **They
+  are closed now**, by a pass that re-derived the shape across all of `docs/**` rather than
+  trusting the roster. That pass resolved **16 citations at 12 sites in 8 files**, every one
+  rewritten to the `/plugin:skill` public invocation on the
+  [`loop-lane` 9.0.1](../conventions/loop-lane/CHANGELOG.md) form. Beyond the five named above it
+  reached `docs/PLUGIN-PHILOSOPHY.md`'s Convention registry (the dynamic-context precompute row
+  this very change set added, written in the bare plugin-relative form ADR 0018 names as its real
+  defect class), two conformance rows in `docs/conventions/config-cascade/README.md`, one in
+  `docs/conventions/pre-pr-ordering/README.md`, three in
+  `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14` off
+  the predecessor's 34-item L4 roster, which is therefore down to 32), and one adopter-row detail
+  in `docs/conventions/detector-findings/README.md`. **What remains is a judgment set, not a
+  backlog**: 18 further in-shape citations were kept with reasons, because each is evidence about
+  this checkout rather than an address for an obligation. They are the three worked examples in
+  `docs/conventions/plugin-data-report-keying/README.md`, the four location cites in
+  `docs/conventions/shell-test-helpers/README.md` (whose subject *is* where the duplicate copies
+  sit), the four `scripts/` entry-surface pointers in `docs/NATIVE-SURFACES.md` and
+  `docs/CLOUD-SESSIONS.md` that the public-surface contract's own carve-out permits, two observation
+  rows in the `NATIVE-SURFACES` generated region (authored in
+  `docs/native-surfaces/records.json`, so a hand-edit of the rendered view would be overwritten and
+  the store's copy is the same citation, not a second one), that store's own note on where the
+  overlap seed file lives, the boris-baseline evidence row in `docs/PLUGIN-PHILOSOPHY.md`, and three
+  dated changelog entries that quote a citation as it stood. `docs/SKILL-CHEAT-SHEET.md` is
+  generated too, and the dated records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out
+  of scope by the same test.
 - **A fifth filtered probe exists and is not in the four-site table above.**
   `plugins/docs-hygiene/skills/compress/SKILL.md` already binds its fallback inside the brace group,
   so unlike the four it *is* reachable — but its fallback is `none`, which collapses "no matching

@@ -37,8 +37,8 @@ judgment is only true of the final artifact. So "does it work" stays first; "did
 we set out to do" stays last.
 
 The fleet had already settled this everywhere except the one site: `verification`'s own chaining
-table (`skills/confirm/SKILL.md`) triggers on "review gate passes (no blocking findings)" and
-*then* suggests `/verification:confirm`, and suggests the PR flow only after a CONFIRMED verdict.
+table triggers on "review gate passes (no blocking findings)" and *then* suggests
+`/verification:confirm`, and suggests the PR flow only after a CONFIRMED verdict.
 The skill that renders the verdict, the skill that lists the sequence, and the plugin that opens
 the PR all agreed; `implementation:implement`'s handoff step was the lone dissenter. That made
 this a correction of one surface rather than a choice between two doctrines.
