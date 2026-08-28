@@ -214,4 +214,6 @@ lane telemetry every cycle, per the convention. Three more surfaces inline the s
 Every one of those six copies is drift-checked against the "Operable floor" block above by
 `scripts/check-loop-lane-floor-drift.sh`, which runs in the marketplace repo's
 `loop-lane-floor-drift-gate` CI lane and holds the registry of who inlines the floor. A change to
-the floor block here fails that lane until every copy moves with it.
+the floor block here fails that lane until every copy moves with it. The same check scans every
+tracked file for the floor's opening bullet and fails on a carrier its registry does not name, so a
+seventh consumer cannot inline this block and go unwatched.

@@ -46,13 +46,65 @@
 # A consumer is never silently downgraded to `values`: the mode is written next
 # to the path, so widening one is a reviewable edit rather than a lucky match.
 #
+# THE REGISTRY IS NOT THE CORPUS. A gate that only ever looks where it is told
+# cannot see the copy nobody told it about: a new lane inlines the floor, its
+# author does not add the entry, the six registered paths still agree, CI is
+# green, and the next contract change strands that seventh copy. That is the
+# same blindness that produced the drift this gate exists for, one level up,
+# and it is the false-green shape docs/conventions/liveness-assertion/ names.
+# It is not hypothetical here: the original report of this coupling listed five
+# copies, and building the registry found six.
+#
+# So before comparing anything, every TRACKED file is scanned for the floor's
+# opening bullet and any carrier outside the registry FAILS. Discovery uses the
+# same anchored marker the comparison does, so the blockquoted launch-prompt
+# shape is not a hole in the scan. Tracked, not on-disk, is deliberate and is
+# the corpus every sibling gate in scripts/ reads: a scratch file in someone's
+# working tree ships to nobody, and staging it is what makes it a copy this
+# repository carries.
+#
+# Discovery does not REPLACE the registry, it bounds it. The registry still
+# carries each consumer's comparison mode, which no scan can infer, and still
+# fails on an entry pointing at nothing. The two directions together are what
+# make the consumer set provably equal to the set of files carrying the floor.
+#
+# THE ONE EXEMPTION, annotated in place. A file can carry the floor's opening
+# bullet as DATA rather than as a consumer copy — this gate's own test fixtures
+# are the first such file. It declares that inline:
+#
+#   loop-lane-floor-carrier-ok: <reason>
+#
+# Same shape as `# lane-coverage-ok:` in the CI workflow and `# silent-skip-ok:`
+# in the hook scripts: the reason lives in the file a reviewer is already
+# reading, and there is no second list to drift. Three rules keep it from
+# becoming a quiet off switch. The reason is mandatory, so a bare annotation
+# FAILS rather than passing as "annotated". An annotation on a REGISTERED path
+# fails as stale, because an exemption must not outlive what it excuses. And
+# every exempt file is printed by --list, so the exemptions are enumerable
+# without reading the tree.
+#
 # LIVENESS IS ASSERTED, NOT ASSUMED. The extractor keys on a marker line, and a
 # marker that stops matching would make every block empty and every comparison
 # trivially equal — a gate that passes forever over surfaces it no longer
 # reads. So the source block is checked against the five bullet labels the
 # floor is made of before any consumer is compared, an empty extraction fails,
 # and a marker occurring more than once in a file fails as ambiguous rather
-# than resolving to the first hit.
+# than resolving to the first hit. The repo-wide scan carries the same burden
+# of proof, and a search that silently returned nothing would report a clean
+# corpus over a scan that never ran: the source carries the marker by
+# definition, so a discovery pass that does not find the source is a broken
+# scan and exits 2.
+#
+# LIVENESS-ASSERTION CONVENTION, taxonomy row **Gate / classifier**
+# (docs/conventions/liveness-assertion/README.md). That row requires the verdict
+# to reflect the state actually read, and fail-closed on ambiguity rather than
+# green on a misread signal. This gate satisfies it through the core contract's
+# **fail loud** limb, not the agent-readable one: it blocks. Every input it
+# cannot resolve exits 2 (no git, no work tree, unreadable source, a marker that
+# matches zero or many times, a source block missing a floor bullet, a discovery
+# pass that cannot even find the source), every finding exits 1, and findings go
+# to stderr on a blocking exit where CI and an agent both read them. There is no
+# path on which this script reports success over a comparison it did not make.
 #
 # Test injection, defaulting to this repository:
 #   LOOP_LANE_FLOOR_ROOT   repository root to read
@@ -64,6 +116,19 @@ cd "$ROOT" || {
   echo "check-loop-lane-floor-drift: cannot enter root: $ROOT" >&2
   exit 2
 }
+
+# Fail-closed, never a skip: the repo-wide scan is what makes the registry a
+# bound rather than a wish, and without git there is no tracked-file corpus to
+# scan. Reporting a clean run from a check that could not enumerate anything is
+# the exact failure this gate is arranged against.
+if ! command -v git >/dev/null 2>&1; then
+  echo "check-loop-lane-floor-drift: git not found; the repo-wide scan for unregistered copies cannot run" >&2
+  exit 2
+fi
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "check-loop-lane-floor-drift: $ROOT is not inside a git work tree; the repo-wide scan for unregistered copies cannot run" >&2
+  exit 2
+fi
 
 # The one file that OWNS the floor. Everything below is a copy of this.
 SOURCE="plugins/rate-limit-guard/reference/reader-contract.md"
@@ -96,6 +161,11 @@ BULLETS=(
 
 # The first line of the floor block, in both plain and blockquoted form.
 MARKER='- **Tee file (fixed path):**'
+
+# The inline annotation by which a file declares it carries the marker as data
+# rather than as a consumer copy. Assembled from two halves so this script does
+# not itself contain the literal token it searches for.
+EXEMPT_TOKEN='loop-lane-floor-carrier''-ok:'
 
 MODE=check
 case "${1-}" in
@@ -131,6 +201,40 @@ count_markers() {
     index($0, marker) == 1 || index($0, "> " marker) == 1 { n++ }
     END { print n + 0 }
   ' marker="$MARKER" "$1"
+}
+
+# Every TRACKED file that opens a floor block, one path per line.
+#
+# git grep narrows to files containing the marker anywhere; count_markers then
+# applies the SAME anchored test the comparison uses, so discovery and
+# comparison cannot disagree about what "carries the floor" means. A file that
+# merely quotes the phrase mid-line (a changelog, a review comment) is not a
+# carrier and is not reported.
+discover_carriers() {
+  local file
+  while IFS= read -r -d '' file; do
+    [[ "$(count_markers "$file")" != 0 ]] || continue
+    printf '%s\n' "$file"
+  done < <(git grep -I --name-only -z --fixed-strings -e "$MARKER" -- . 2>/dev/null)
+}
+
+# Print the reason a file gives for carrying the marker as data. Exit status 0
+# means the annotation is present (the reason may still be empty, which the
+# caller fails on); 1 means it is absent.
+carrier_exemption() {
+  awk -v token="$EXEMPT_TOKEN" '
+    {
+      pos = index($0, token)
+      if (pos == 0) next
+      reason = substr($0, pos + length(token))
+      sub(/^[[:blank:]]+/, "", reason)
+      sub(/[[:blank:]]+$/, "", reason)
+      print reason
+      found = 1
+      exit
+    }
+    END { exit(found ? 0 : 1) }
+  ' "$1"
 }
 
 # Strip emphasis and backticks, flatten every whitespace run, trim the ends.
@@ -171,14 +275,68 @@ for bullet in "${BULLETS[@]}"; do
 done
 SRC_NORM="$(printf '%s\n' "$SRC_BLOCK" | norm)"
 
+# --- The corpus ------------------------------------------------------------
+# Run the scan before anything reads its result, so both modes share one
+# answer, and prove it ran: the source carries the marker by definition, so a
+# discovery pass that does not return the source found nothing because it was
+# broken, not because the corpus is clean.
+
+CARRIERS="$(discover_carriers)"
+if ! printf '%s\n' "$CARRIERS" | grep -Fxq "$SOURCE"; then
+  echo "check-loop-lane-floor-drift: the repo-wide scan did not find $SOURCE, which carries the floor by definition; the scan is not working and its result cannot be believed" >&2
+  exit 2
+fi
+
+# is_registered <path>
+is_registered() {
+  local candidate="$1" entry
+  for entry in "${CONSUMERS[@]}"; do
+    [[ "${entry#* }" == "$candidate" ]] && return 0
+  done
+  return 1
+}
+
 if [[ "$MODE" == list ]]; then
   printf 'source  %s (%s lines)\n' "$SOURCE" "$(printf '%s\n' "$SRC_BLOCK" | wc -l | tr -d ' ')"
   for entry in "${CONSUMERS[@]}"; do
     printf 'consumer %-6s %s\n' "${entry%% *}" "${entry#* }"
   done
-  printf 'check-loop-lane-floor-drift: 1 source, %s registered consumer(s).\n' "${#CONSUMERS[@]}"
+  carrier_count=0
+  while IFS= read -r carrier; do
+    [[ -n "$carrier" ]] || continue
+    [[ "$carrier" != "$SOURCE" ]] || continue
+    carrier_count=$((carrier_count + 1))
+    if is_registered "$carrier"; then
+      printf 'carrier registered   %s\n' "$carrier"
+    elif reason="$(carrier_exemption "$carrier")"; then
+      printf 'carrier exempt       %s (%s)\n' "$carrier" "${reason:-NO REASON GIVEN}"
+    else
+      printf 'carrier UNREGISTERED %s\n' "$carrier"
+    fi
+  done <<<"$CARRIERS"
+  printf 'check-loop-lane-floor-drift: 1 source, %s registered consumer(s), %s tracked carrier(s) found by the repo-wide scan.\n' \
+    "${#CONSUMERS[@]}" "$carrier_count"
   exit 0
 fi
+
+# --- Any carrier the registry does not name --------------------------------
+
+while IFS= read -r carrier; do
+  [[ -n "$carrier" ]] || continue
+  [[ "$carrier" != "$SOURCE" ]] || continue
+
+  if reason="$(carrier_exemption "$carrier")"; then
+    if [[ -z "$reason" ]]; then
+      report "BARE EXEMPTION: $carrier declares '$EXEMPT_TOKEN' with no reason after the colon. An undocumented exemption is the silent off switch this scan exists to deny."
+    elif is_registered "$carrier"; then
+      report "STALE EXEMPTION: $carrier is a registered consumer AND declares '$EXEMPT_TOKEN $reason'. It is compared like every other consumer, so drop the annotation."
+    fi
+    continue
+  fi
+
+  is_registered "$carrier" ||
+    report "UNREGISTERED COPY: $carrier inlines the operable floor but is not in this gate's registry. Add it to CONSUMERS in $(basename "$0") with its comparison mode (exact, or values for a re-wrapped blockquote); annotate it '$EXEMPT_TOKEN <reason>' if it carries the marker as data; or remove the inlined block. A copy nothing watches is a copy the next contract change strands."
+done <<<"$CARRIERS"
 
 # --- Every registered consumer ---------------------------------------------
 
@@ -247,5 +405,7 @@ EOF
   exit 1
 fi
 
-printf 'check-loop-lane-floor-drift: %s consumer(s) match the operable floor in %s\n' "$checked" "$SOURCE"
+carriers_found="$(printf '%s\n' "$CARRIERS" | grep -c . || true)"
+printf 'check-loop-lane-floor-drift: %s consumer(s) match the operable floor in %s; the repo-wide scan found %s tracked carrier(s) and no unregistered copy.\n' \
+  "$checked" "$SOURCE" "$((carriers_found - 1))"
 exit 0

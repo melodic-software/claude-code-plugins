@@ -9,12 +9,14 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
 - **The reader contract's operable floor matches the consumers that inline it again.** Two
   uncoordinated de-slop shards rewrote punctuation inside the staleness bullet of all three loop
-  lane bodies and touched neither this contract nor the other three copies, so the lanes stayed
-  identical to each other while all six copies drifted from their source. The floor block here now
-  carries the de-slopped wording the consumers already shipped: the values, the paths and the
-  thresholds are untouched, and only two sentence breaks moved. Reconciling toward the consumers
-  rather than away from them is the direction the repo's own de-slop campaign and its
-  house-style rule set, and three of the consumers are `SKILL.md` files that rule names.
+  lane bodies and touched neither this contract nor the other three copies, so the three lane bodies
+  stayed identical to each other while those same three drifted from their source; the other three
+  copies still matched this contract byte for byte. The floor block here now carries the de-slopped
+  wording the consumers already shipped: the values, the paths and the thresholds are untouched, and
+  only two sentence breaks moved. Reconciling toward the consumers rather than away from them is the
+  direction the repo's own de-slop campaign and its house-style rule set, and three of the consumers
+  are `SKILL.md` files that rule names. The other three copies move with this contract in the same
+  change, which is what returns all seven files to one wording.
 
 ### Added
 
@@ -29,6 +31,13 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   every tracked file for the floor's opening bullet and fails on any carrier outside its registry,
   so a seventh consumer inlining this block cannot sit unwatched until the next contract change
   strands it. The registry stays, because it carries each consumer's comparison mode.
+
+### Changed
+
+- **`setup`'s tee-freshness probe stops restating the staleness window.** Step 4 named the
+  10-minute value inline, which is a copy of a floor constant sitting outside the block the drift
+  check compares, so nothing would have moved it if the contract changed. It now points at the
+  operable floor for the value. Same probe, same verdicts.
 
 ## [0.7.17]
 

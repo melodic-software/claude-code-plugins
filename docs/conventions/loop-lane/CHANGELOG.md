@@ -19,15 +19,31 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   `plugins/rate-limit-guard/reference/reader-contract.md` and compares it against an explicit
   registry: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, and the two
   launch-prompt templates under `prompts/loops/`. Prose copies match byte for byte; the blockquoted
-  prompt templates are re-wrapped to a narrower column, so their registration asserts the values
-  after normalization and leaves only the wrapping free. It runs as the `loop-lane-floor-drift-gate`
-  CI lane with its own suite.
+  prompt templates are re-wrapped to a narrower column, so their registration compares the block
+  after normalization, which strips blockquote markers, backticks and emphasis and flattens
+  whitespace. Line breaks and markup are therefore free in that mode and every word is still
+  asserted: bolding `10 minutes` or not is invisible, dropping `either` from the pause threshold is
+  not. It runs as the `loop-lane-floor-drift-gate` CI lane with its own suite.
+- **The registry is bounded by a repo-wide scan, not trusted on its own.** A gate that only ever
+  looks where it is told cannot see the copy nobody told it about: a new lane inlines the floor, its
+  author forgets the entry, the registered paths still agree, CI is green, and the next contract
+  change strands that copy. That is the same blindness this gate exists for, one level up, and it
+  is not hypothetical: the first report of this coupling named five copies and building the registry
+  found six. The check therefore scans every tracked file for the floor's opening bullet and fails
+  on a carrier its registry does not name. A file holding the marker as data declares that inline
+  with a reason (`loop-lane-floor-carrier-ok:`); a bare annotation, or one left on a registered
+  path, fails. The registry is not replaced, because it carries each consumer's comparison mode.
+- **§6 stops restating a floor value in its own prose.** It named the 90%-of-either-window
+  threshold while introducing the inline-floor rule, which put a seventh copy of that constant
+  outside the block the check compares. The section now names the four items the floor fixes and
+  restates none of their values.
 - **The drift the missing check let through is reconciled.** Two uncoordinated de-slop shards
   rewrote punctuation inside the staleness bullet of all three lane bodies and touched neither the
   reader contract nor the other three copies. The lanes stayed identical to each other, which is the
-  half a reviewer notices, while all three drifted from their source. The source and the two
-  unpurged copies moved to the consumers' de-slopped wording, since that is the direction the repo's
-  de-slop campaign and its house-style rule set. No floor value, path or threshold changed.
+  half a reviewer notices, while all three drifted from their source; the other three copies still
+  matched the contract byte for byte. The source and the three copies that had not been de-slopped
+  moved to the consumers' wording, since that is the direction the repo's de-slop campaign and its
+  house-style rule set. No floor value, path or threshold changed.
 
 ## 9.0.0 — 2026-08-12
 

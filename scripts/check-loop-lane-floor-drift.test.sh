@@ -12,13 +12,26 @@
 # existing is that the prose claim it replaces ("fleet audits check conformance
 # per consumer") was exactly that. So every failure class gets a case: exact
 # drift, values drift, a consumer that stopped inlining the floor, a
-# registration pointing at nothing, and the two ways the extractor could go
-# blind and pass everything forever.
+# registration pointing at nothing, a COPY NOBODY REGISTERED, and the two ways
+# the extractor could go blind and pass everything forever.
+#
+# The fixture root is a throwaway git repository, because the SUT enumerates
+# the corpus with git the way every sibling gate in scripts/ does. It is built
+# through scripts/test-git-helpers.sh, which clears the ambient git environment
+# so a fixture's identity can never land in the caller's checkout (#2840).
+#
+# loop-lane-floor-carrier-ok: the fixture heredocs below open with the floor's
+# marker line as stand-in test data, so the SUT's repo-wide scan sees this file
+# as a carrier. It is a test fixture, not a consumer copy: nothing here ships,
+# and the values are deliberately abridged so a real floor change must not
+# touch this file.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh" || exit 2
+# shellcheck source=test-git-helpers.sh
+. "$SCRIPT_DIR/test-git-helpers.sh" || exit 2
 
 SUT="$SCRIPT_DIR/check-loop-lane-floor-drift.sh"
 if [[ ! -r "$SUT" ]]; then
@@ -29,6 +42,11 @@ fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+git_init_test_repo "$TMP" || {
+  fail "could not initialize the fixture repository"
+  test_harness::report
+  exit 1
+}
 
 SOURCE_REL="plugins/rate-limit-guard/reference/reader-contract.md"
 EXACT_CONSUMERS=(
@@ -76,6 +94,15 @@ no_floor() {
   printf 'This lane no longer inlines anything.\n'
 }
 
+# A file holding the marker as DATA, declaring so inline. The token is printed
+# in two halves so that grepping this suite for the annotation finds the one at
+# the top of the file, which is this suite's own declaration, rather than a
+# fixture string that belongs to a single case.
+annotated_carrier() {
+  printf 'loop-lane-floor-carrier%s a fixture, not a consumer copy\n\n' '-ok:'
+  floor_block
+}
+
 write_file() {
   # write_file <relative path> <body-producing function>
   local rel="$1" body="$2"
@@ -95,7 +122,15 @@ seed_tree() {
   for c in "${VALUES_CONSUMERS[@]}"; do write_file "$c" floor_block_quoted; done
 }
 
+# The SUT enumerates tracked files, so every case stages the fixture tree
+# before invoking it. Staging inside run() rather than at the end of seed_tree
+# is deliberate: a case that adds or deletes a file after seeding then needs no
+# second call, and no case can forget one.
 run() {
+  git_test_config "$TMP" add -A || {
+    fail "could not stage the fixture tree"
+    return 2
+  }
   LOOP_LANE_FLOOR_ROOT="$TMP" bash "$SUT" "$@" 2>&1
 }
 
@@ -305,6 +340,138 @@ if ((rc == 0)) && ((${#missing[@]} == 0)); then
   ok "every registered consumer exists in this checkout"
 else
   fail "registered consumer(s) missing from the checkout: ${missing[*]-} (rc=$rc)"
+fi
+
+# --- 17. An unregistered file carrying the floor fails ---------------------
+# The registry alone only ever looks where it is told, so a seventh consumer
+# would inline the floor, pass CI, and go stale at the next contract change.
+# That is the class that produced the original drift: the general copy-drift
+# gate could not see these files either.
+
+seed_tree
+write_file "plugins/some-new-plugin/skills/new-lane/SKILL.md" floor_block
+out="$(run --check)"
+rc=$?
+if ((rc == 1)) && grep -q 'UNREGISTERED COPY: plugins/some-new-plugin/skills/new-lane/SKILL.md' <<<"$out"; then
+  ok "a new file carrying the floor fails until it is registered"
+else
+  fail "unregistered copy should fail (rc=$rc): $out"
+fi
+
+# --- 18. It fails even when the unregistered copy matches perfectly --------
+# The failure is about being unwatched, not about being wrong today. A copy
+# that matches now is exactly the one that silently goes stale later, so a
+# byte-perfect unregistered copy must still be reported.
+
+if grep -q 'DRIFT' <<<"$out"; then
+  fail "the unregistered copy matches the source, so no DRIFT should be reported: $out"
+else
+  ok "an unregistered copy fails for being unregistered, not for drifting"
+fi
+
+# --- 19. A blockquoted unregistered copy is discovered too -----------------
+# Discovery uses the same anchored marker the comparison does, or the
+# launch-prompt shape would be a hole in the scan.
+
+seed_tree
+write_file "prompts/loops/some-new-template.md" floor_block_quoted
+out="$(run --check)"
+rc=$?
+if ((rc == 1)) && grep -q 'UNREGISTERED COPY: prompts/loops/some-new-template.md' <<<"$out"; then
+  ok "a blockquoted unregistered copy is discovered"
+else
+  fail "blockquoted unregistered copy should fail (rc=$rc): $out"
+fi
+
+# --- 20. The owning contract is never reported as an unregistered copy -----
+
+seed_tree
+out="$(run --check)"
+rc=$?
+if ((rc == 0)) && ! grep -q 'UNREGISTERED' <<<"$out"; then
+  ok "the owning contract is not reported as an unregistered copy"
+else
+  fail "clean tree should stay clean (rc=$rc): $out"
+fi
+
+# --- 21. An untracked copy is not a CI failure -----------------------------
+# Discovery enumerates TRACKED files, the corpus every sibling gate reads. A
+# scratch file in someone's working tree ships to nobody and must not turn the
+# gate red; the moment it is staged, case 17 applies.
+
+seed_tree
+git_test_config "$TMP" add -A >/dev/null
+write_file "plugins/scratch/notes.md" floor_block
+out="$(LOOP_LANE_FLOOR_ROOT="$TMP" bash "$SUT" --check 2>&1)"
+rc=$?
+if ((rc == 0)); then
+  ok "an untracked copy does not fail the gate"
+else
+  fail "untracked copy should not fail (rc=$rc): $out"
+fi
+
+# --- 22. --list reports the discovered carriers ----------------------------
+
+seed_tree
+out="$(run --list)"
+rc=$?
+if ((rc == 0)) && grep -q '^carrier .*plugins/work-items/skills/work-loop/SKILL.md' <<<"$out"; then
+  ok "--list reports what the repo-wide scan found"
+else
+  fail "--list should report discovered carriers (rc=$rc): $out"
+fi
+
+# --- 23. An annotated data carrier is exempt -------------------------------
+# A file can hold the marker as data rather than as a consumer copy. This
+# suite is the first such file. The annotation is what makes that a decision
+# on the record instead of a hardcoded path filter.
+
+seed_tree
+write_file "plugins/some-plugin/fixtures/sample.md" annotated_carrier
+out="$(run --check)"
+rc=$?
+if ((rc == 0)); then
+  ok "a carrier annotated with a reason is exempt from the registry"
+else
+  fail "annotated data carrier should pass (rc=$rc): $out"
+fi
+
+# --- 24. A bare annotation is not an exemption -----------------------------
+
+mutate "$TMP/plugins/some-plugin/fixtures/sample.md" 's/-ok: a fixture, not a consumer copy/-ok:/'
+out="$(run --check)"
+rc=$?
+if ((rc == 1)) && grep -q 'BARE EXEMPTION: plugins/some-plugin/fixtures/sample.md' <<<"$out"; then
+  ok "an annotation with no reason fails instead of exempting"
+else
+  fail "bare exemption should fail (rc=$rc): $out"
+fi
+
+# --- 25. An exemption on a registered consumer is stale --------------------
+# Same stale-guard rule the sibling gates use: an exemption must not outlive
+# what it excuses, and a registered path is compared regardless.
+
+seed_tree
+printf '\nloop-lane-floor-carrier%s no longer true\n' '-ok:' \
+  >>"$TMP/plugins/work-items/skills/work-loop/SKILL.md"
+out="$(run --check)"
+rc=$?
+if ((rc == 1)) && grep -q 'STALE EXEMPTION: plugins/work-items/skills/work-loop/SKILL.md' <<<"$out"; then
+  ok "an exemption on a registered consumer fails as stale"
+else
+  fail "stale exemption should fail (rc=$rc): $out"
+fi
+
+# --- 26. The live repository carries no unregistered copy ------------------
+# Runs the scan against the real tree, which is where a new copy actually
+# appears. Case 17 proves the mechanism; this proves today's corpus is closed.
+
+live="$(bash "$SUT" --check 2>&1)"
+rc=$?
+if ((rc == 0)) && ! grep -q 'UNREGISTERED' <<<"$live"; then
+  ok "no unregistered copy of the floor exists in this checkout"
+else
+  fail "live repository carries an unregistered floor copy (rc=$rc): $live"
 fi
 
 test_harness::report

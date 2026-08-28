@@ -762,8 +762,10 @@ than left as an unstated assumption, on the model §6 uses for the single-accoun
 
 All three lanes consume the shared subscription rate-limit windows (§3). An installed plugin cannot
 read a sibling plugin's files or this repo's `docs/` at runtime, so each consuming lane body
-**inlines the operable floor** — the fixed tee-file path, the 90%-of-either-window pause threshold,
-the staleness rule, and drain-then-pause — and cites the guard's reader contract for provenance only.
+**inlines the operable floor** — the fixed tee-file path, the pause threshold, the staleness rule,
+and drain-then-pause — and cites the guard's reader contract for provenance only. This section names
+those four items and deliberately restates none of their values: a number written here would be a
+seventh copy, outside the block the check below compares.
 That reader contract is
 [`plugins/rate-limit-guard/reference/reader-contract.md`](../../../plugins/rate-limit-guard/reference/reader-contract.md),
 shipped with the `rate-limit-guard` plugin. This convention records the inline-floor rule so the
@@ -774,12 +776,24 @@ block from the reader contract and compares it against an explicit registry of e
 inlines it: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, and the two
 launch-prompt templates under `prompts/loops/`. The four prose copies must match byte for byte; the
 prompt templates carry the floor inside a blockquote re-wrapped to a narrower column, so their
-registration asserts the values after normalization and leaves only the wrapping free. The check
+registration compares the block after normalization. Normalization strips blockquote markers,
+backticks and emphasis, and flattens whitespace runs, so **line breaks and markup are free in that
+mode while every word is still asserted**: bolding `10 minutes` or not is invisible to the check,
+dropping `either` from the pause threshold or weakening `must` to `may` is not. The check
 runs in CI as the `loop-lane-floor-drift-gate` lane, with its own suite
-`scripts/check-loop-lane-floor-drift.test.sh`. A new copy of the floor anywhere is registered in the
-same change that adds it.
+`scripts/check-loop-lane-floor-drift.test.sh`.
 
-**The registry is explicit because path shape cannot find this set.**
+**The registry does not decide what gets checked; the corpus does.** Before comparing anything, the
+check scans every tracked file for the floor's opening bullet and fails on any carrier its registry
+does not name. That is what keeps registration from being optional: a new lane that inlines the
+floor and forgets the entry turns the lane red on the pull request that adds it, rather than passing
+green and going stale at the next contract change. A file that carries the marker as data rather
+than as a consumer copy declares that inline with a reason, `loop-lane-floor-carrier-ok:`, and a
+bare annotation or one left on a registered path fails. The registry stays because it carries each
+consumer's comparison mode, which no scan can infer; the scan bounds the registry, so the two
+together make the checked set provably equal to the set of files carrying the floor.
+
+**Neither half is optional, and path shape cannot supply either.**
 `scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, is blind here by
 construction: it skips `SKILL.md` by basename, and it clusters copies by identical
 path-within-plugin, while these six sit at six unrelated paths. Until the check above landed, this
@@ -787,7 +801,8 @@ section claimed conformance was audited per consumer and nothing audited it. Wha
 the record: two uncoordinated de-slop shards rewrote punctuation inside the staleness bullet of all
 three lane bodies and touched neither the reader contract nor the other copies, so the lanes stayed
 identical to each other, which is the half a reviewer notices, while all three drifted from their
-source.
+source. The scan exists because a registry alone repeats that shape one level up: the first report
+of this coupling named five copies, and building the registry found six.
 
 **Single-account-per-machine is a known gap, not a safe assumption.** The tee file is
 last-writer-wins and carries no account identifier, so a machine running lanes under more than one
