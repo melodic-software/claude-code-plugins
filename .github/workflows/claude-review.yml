@@ -68,9 +68,15 @@ jobs:
       # statement of ADR 0002's ratified list, read through its one parser. The
       # value used to be restated inline here (and at four sibling sites), and
       # the restatement drifted (2b4d8abf).
+      # Plain assignment first, never inside the echo: a command substitution
+      # in echo's argument returns ECHO's status under bash -e, so a parser
+      # failure would emit `list=` and the step would stay green. The
+      # assignment form fails the step the moment the read fails.
       - name: Read the ratified skip-actors list
         id: skip-actors
-        run: echo "list=$(scripts/read-skip-actors.sh)" >> "$GITHUB_OUTPUT"
+        run: |
+          list="$(scripts/read-skip-actors.sh)"
+          echo "list=$list" >> "$GITHUB_OUTPUT"
       - name: Verify claude-review invoked the skill
         env:
           GH_TOKEN: ${{ github.token }}

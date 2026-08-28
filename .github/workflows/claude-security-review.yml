@@ -29,13 +29,21 @@ jobs:
   # The ratified skip-actors list lives in .github/claude-skip-actors — the
   # one statement of ADR 0002's skip-actor exception, formerly restated at
   # five sites (which drifted: 2b4d8abf). A workflow-call `with:` value cannot
-  # read a file, so this job reads the list and hands it across `needs`. It
-  # reads the PR's BASE copy, mirroring the reusable's own `paths-file`
-  # discipline, so a PR cannot edit the list's CONTENT to skip its own
-  # security review; a base that predates the file falls back to the head
-  # copy (the adopting PR itself). A failed read here skips the lane, which a
-  # ruleset would read as success — the evidence job below fails closed on
-  # that shape.
+  # read a file, so this job reads the list and hands it across `needs`.
+  #
+  # It reads the PR's BASE copy of the list, the same discipline as the
+  # reusable's `paths-file` — and that is CONTENT protection only. On a
+  # pull_request event this workflow file, scripts/read-skip-actors.sh, and
+  # the checkout-with-base composite all come from the PR HEAD, so a head
+  # that rewrites the parser can still feed the lane a different list. That
+  # is the pre-existing trust boundary, not a regression (the literal used to
+  # live in this same head-controlled file), and it stays bounded by the
+  # reusable's allowed_bots gate on who can trigger a privileged run; the
+  # base read closes the cheap one-line list edit, not a determined head
+  # rewrite. A base that predates the file falls back to the head copy (the
+  # adopting PR itself), announced with a ::notice rather than silently. A
+  # failed read here skips the lane, which a ruleset would read as success —
+  # the evidence job below fails closed on that shape.
   skip-actors:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -48,16 +56,28 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base
+      # Each fallback is its own announced branch, never a silent 2>/dev/null
+      # catch-all: an unresolvable base ref is a hard failure (on pull_request
+      # the composite above fetched it, so its absence means something is
+      # broken, not merely pre-adoption), while the list file absent at a
+      # resolvable base is the one legitimate head-copy fallback — the
+      # adopting PR. The parser reads are plain assignments so a read failure
+      # fails the step under bash -e.
       - name: Read the ratified skip-actors list
         id: read
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          if [ -n "$BASE_REF" ] &&
-            git show "origin/$BASE_REF:.github/claude-skip-actors" \
-              >"$RUNNER_TEMP/claude-skip-actors" 2>/dev/null; then
+          src=".github/claude-skip-actors"
+          if [ -z "$BASE_REF" ] || ! git rev-parse --verify --quiet "origin/$BASE_REF" >/dev/null; then
+            echo "::error::base ref '${BASE_REF:-<empty>}' is unavailable; refusing to guess which skip-actors list applies"
+            exit 1
+          fi
+          if git cat-file -e "origin/$BASE_REF:$src" 2>/dev/null; then
+            git show "origin/$BASE_REF:$src" >"$RUNNER_TEMP/claude-skip-actors"
             list="$(scripts/read-skip-actors.sh "$RUNNER_TEMP/claude-skip-actors")"
           else
+            echo "::notice::$src absent at origin/$BASE_REF (pre-adoption base); reading the head copy"
             list="$(scripts/read-skip-actors.sh)"
           fi
           echo "list=$list" >> "$GITHUB_OUTPUT"
