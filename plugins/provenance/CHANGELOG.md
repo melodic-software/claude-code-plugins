@@ -1,5 +1,74 @@
 # Changelog
 
+## [0.4.0]
+
+### Added
+
+- **The evidence-tier contract now covers a vendored-snapshot basis.** Every tier row gated on
+  either a fetched source or no source at all, and the sweep hit a third case the table could not
+  express: a finding compared against an in-repo copy of upstream, carrying a declared upstream ref
+  and a sync date, reached because every live fetch rung failed. Strong provenance, weak currency.
+  It happened at `plugins/playwright/skills/playwright/reference/test-generation.md:80`, where both
+  candidate upstream URLs returned 404 and only the committed baseline remained.
+
+  Such a finding now caps at `source-fetched-similar`, records `source.route: vendored-snapshot`
+  together with each live fetch that failed and how, and is **never fix-eligible**. The reason is
+  the plugin's whole subject: fix eligibility rests on current upstream state, and a snapshot
+  cannot establish it. Stale evidence licenses no edit. The tier borrow is declared deliberate
+  rather than left to read as accurate, since `source-fetched-similar` is worded for a source that
+  was fetched and this one was not; the recorded route is what keeps the report honest about the
+  difference. The follow-up is human: re-run the candidate when upstream is reachable or the
+  snapshot re-syncs, rather than holding the finding open.
+
+### Fixed
+
+- **The modal "may" is no longer read as a month name.** `may` is a month and an ordinary English
+  modal verb, and both stamp detectors matched it bare, so prose like "the first read may raise a
+  permission prompt" became a stamp candidate whose date could not be parsed and landed in the
+  declined bucket — indistinguishable, to a reader adjudicating that bucket, from a real stamp the
+  parser failed on. 17 of the 22 month-name declines in the 2026-08-28 corpus carried the word.
+
+  `may` now needs a digit beside it before it counts as a date. Every date form has one, and the
+  modal does not. The other eleven months still match bare, because over-reporting into a bucket a
+  human reads is the safe direction and this fix must not trade it for under-reporting.
+
+  Three sites changed, not two: both detectors and **the classifier in `check-stamps.sh`**, which
+  a single-site fix would have missed and which decides the decline reason a human then reads.
+  `check-stamps.sh` and `extract-breadcrumbs.sh` change together and their suites now assert the
+  agreement over a shared fixture, because a previous fix in this area landed in one script and
+  needed a follow-up commit to reach its sibling.
+
+  Over 1,352 files: declines 45 to 28, month-name declines 22 to 5, 17 lines removed and none
+  added. **`parsed` is unchanged at 499 and `findings` unchanged at 0** — the load-bearing numbers,
+  because they say no real stamp was reclassified in either direction and none had been masked. A
+  real `May 2026` stamp is still detected in both month-first and day-first forms.
+
+  Two adjacent false positives are deliberately left in place and recorded rather than fixed:
+  `SC2034` read as a bare year, and `read` matching inside `cache_read_input_tokens`. Both have a
+  different root cause (token boundaries, not the month list), and both plausible fixes push toward
+  under-reporting: a year-boundary fix shifts `RSTART` into the window machinery two prior commits
+  tuned, and excluding `_` from the keyword boundary would stop matching a real `last_verified_...`
+  stamp.
+
+### Changed
+
+- **The `not-found` searched-surfaces listing is recorded as prose-only and unenforced.** Three
+  separate requirements say a run must list every surface it searched before concluding no source
+  exists. Nothing checks that: `emit-findings.sh` projects no `searched` array and no budget block,
+  and the relay boundary withholds `not-found` findings from the file entirely, so a listing that
+  omits a rung is indistinguishable downstream from a complete one. Rather than leave three
+  requirements reading as though something enforced them, the docs now say a run's listing is that
+  run's own claim and never validation evidence that no source exists, and name what an
+  implementing change would need. This repo's house style prefers a recorded limitation to an
+  asserted capability.
+
+- **The fix contract warns that a corpus file can be a generator's rendered output.** The sweep
+  found one whose authoritative home is `docs/native-surfaces/records.json`, outside the markdown
+  corpus, with its rendering marked never-hand-edit. A fix applied to the rendering would edit a
+  file its own header forbids editing, and the next regeneration would overwrite it. Dispositions
+  now say to check the file head for a generated-output marker and route to the human naming the
+  generator's input as the real fix site. No script enforces this check.
+
 ## [0.3.2]
 
 ### Fixed
