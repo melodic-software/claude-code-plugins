@@ -63,10 +63,13 @@ says" below.
 ## The relay boundary, and why the script enforces it
 
 **Only fingerprint-confirmed copy findings and the two deterministic stamp rules enter the
-file.** Judgment verdicts — `source-fetched-similar`, `llm-suspected`, and the neutral
-`not-found` outcome — go to the human report only. They have no crosswalk row to look a tier up
+file.** Judgment verdicts — `source-fetched-similar`, `llm-suspected`, and the neutral outcome
+under both the names this skill uses for it, `not-found` and the `source-not-identified` that
+`SKILL.md` publishes — go to the human report only. They have no crosswalk row to look a tier up
 from, and a relay row is an instruction to a remediation surface, not a place to record a
-suspicion.
+suspicion. Both spellings are recognized because the sidecar is model-authored against that
+published description: recognizing one name too many can only withhold a record, and one too few
+walks a judgment verdict onto a relay row.
 
 The script applies this filter itself rather than trusting the sidecar to arrive pre-filtered,
 and it counts what it withheld in `## Surfaces` rather than dropping it. Two consequences worth
@@ -110,14 +113,30 @@ declared verdict from a nested mention of one, and withheld records that had dec
 are matched case-folded, but only at those two positions, so
 `{"xref": {"TIER": "prior: not-found"}}` is the cross-reference it reads as.
 
-A `verdict` is taken WHOLE rather than as `verdict.tier`, because a key named `verdict` is
-already the declaration. `{"verdict": "not-found"}`, `{"verdict": ["not-found"]}` and
-`{"verdict": {"result": {"tier": "llm-suspected"}}}` each say what
-`{"verdict": {"tier": "not-found"}}` says, and reading only the `tier` child let all three past
-the boundary — into a relay row when a stamp rule carried one, and verbatim into `## Unparsed`
-when nothing else mapped the record. Whatever the outcome is declared inside, `searched` is read
-inside it too, so a sidecar keeping the outcome and its surfaces together is not refused for
-naming them where it declared the outcome.
+**The top-level `tier` IS the declaration whenever the record has one, and the `verdict` beside
+it is not read at all.** A tier is set by fixed rule from the evidence and a `verdict` holds the
+judges output — different fields by design — so a record declaring `fingerprint-confirmed` and
+carrying `"verdict": {"prior": "llm-suspected"}` has declared a confirmed copy. Reading the
+verdict beside it is the over-capture drop one container in, and it costs more than a drop: the
+same record with `"superseded_by": "not-found"` there would refuse the whole sidecar for naming
+no searched surfaces.
+
+A record with NO `tier` falls back to its `verdict`, which is then the only tier it has: the
+`tier` child when it has one, and otherwise the whole value. `{"verdict": "not-found"}`,
+`{"verdict": ["not-found"]}` and `{"verdict": {"result": {"tier": "llm-suspected"}}}` each say
+what `{"verdict": {"tier": "not-found"}}` says, and reading only the `tier` child let all three
+past the boundary — onto a relay row when a stamp rule carried one, and verbatim into
+`## Unparsed` when nothing else mapped the record. `searched` is read through those same slots,
+so a sidecar keeping the outcome and its surfaces together is not refused for naming them where
+it declared the outcome.
+
+**A record that is not an object at all has no declared tier to respect**, and it is bound for
+`## Unparsed` verbatim, so a verdict name appearing anywhere inside it would print into the file
+the boundary keeps it out of. Such a record is withheld when a verdict name appears anywhere in
+it: `[{"tier": "not-found", "excerpt": "..."}]` is a verdict in the wrong wrapper, not a future
+record. Naming a verdict EXACTLY is the test, so a malformed record that merely mentions one
+still takes the appendix path, and one that names none never costs the well-formed findings
+beside it.
 
 The VALUE is read generously about its WRAPPER and exactly about the NAME. Every string anywhere
 inside the declared value is a candidate, trimmed and case-folded, and it names a tier only when
@@ -126,13 +145,19 @@ it EQUALS one — so `"  not-found  "`, `["not-found"]`, `{"name": "llm-suspecte
 unknown tier rather than the verdict it happens to start with. A valid rule id sitting beside a
 verdict does not readmit it either.
 
+Trimming is by Unicode CLASS — every separator and every format character — not by a list of the
+invisible code points someone thought of. A tier that RENDERS as a verdict name in the written
+file is a verdict name in the written file, and an enumeration of two zero-width characters left
+six others walking a verdict onto a relay row.
+
 Free text in a tier field therefore names no tier, which is the same answer this producer
 already gives a verdict name spelled in a `note`. It has to be: a `verdict.tier` reading "the
 llm-suspected nomination was overruled" is a review note, and withholding the
 fingerprint-confirmed copy that carries it is the same drop as reading a `tier` key at any depth.
 
-**Four names, and one reader for all three questions.** The three withheld verdicts, plus
-`fingerprint-confirmed`, the one tier a copy finding may be relayed on. The searched-surfaces
+**Five names, and one reader for all three questions.** The three withheld verdicts, counting
+both spellings of the neutral one, plus `fingerprint-confirmed`, the one tier a copy finding may
+be relayed on. The searched-surfaces
 refusal, the withhold predicate and the eligibility test all ask that one reader. A caller with
 its own, laxer notion of the tier is the defect, twice over: a `{"Tier": "not-found"}` sidecar
 passed the schema check unexamined and was then withheld silently, and a
@@ -140,7 +165,7 @@ passed the schema check unexamined and was then withheld silently, and a
 declaration at all when relaying, so it was dropped under a count that denied it had declared
 anything.
 
-Two limits, both deliberate. **A tier naming none of the four is a tier this producer neither
+Two limits, both deliberate. **A tier naming none of them is a tier this producer neither
 withheld nor can relay**, and the record takes the ordinary path for its rule id: `## Unparsed`
 when nothing maps it, and the not-relay-eligible count when a copy rule does. And **the scope is
 the DECLARED tier**: a verdict name spelled in some other field, a `note` or a `summary`, is

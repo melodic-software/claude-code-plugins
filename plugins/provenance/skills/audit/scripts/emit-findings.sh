@@ -109,6 +109,15 @@ command -v jq >/dev/null 2>&1 || {
   exit 4
 }
 
+# Parse first, and say so. `has("findings")` fails on unparsable input too, so every
+# truncated or non-JSON sidecar used to be refused for having no findings key — a
+# cause the input does not have, and one that sends a reader looking for a key in a
+# file that has no keys at all.
+if ! jq -e 'type == "object"' "$REPORT" >/dev/null 2>&1; then
+  echo "emit-findings.sh: $REPORT is not a JSON object; not audit output" >&2
+  exit 3
+fi
+
 if ! jq -e 'has("findings")' "$REPORT" >/dev/null 2>&1; then
   echo "emit-findings.sh: $REPORT has no findings key; not audit output" >&2
   exit 3
@@ -181,25 +190,78 @@ def tier_slot:
   if type == "object" then
     to_entries[] | select(.key | ascii_downcase == "tier") | .value
   else empty end;
+def verdict_slot:
+  if type == "object" then
+    to_entries[] | select(.key | ascii_downcase == "verdict") | .value
+  else empty end;
+# The top-level `tier` IS the declaration whenever the record has one. A `verdict`
+# is the judges output, and the tier is set by fixed rule from the evidence rather
+# than from a judge — different fields by design — so a record declaring
+# `fingerprint-confirmed` and carrying `"verdict": {"prior": "llm-suspected"}` has
+# declared a confirmed copy, and reading the verdict beside it is the over-capture
+# drop one container in.
+#
+# A record with NO `tier` falls back to its `verdict`, which is then the only tier it
+# has: its `tier` child when it has one, and otherwise the whole value, because
+# `{"verdict": "not-found"}`, `{"verdict": ["not-found"]}` and
+# `{"verdict": {"result": {"tier": "llm-suspected"}}}` each say what
+# `{"verdict": {"tier": "not-found"}}` says. Reading only the `tier` child let all
+# three past the boundary — onto a relay row on a stamp rule, and verbatim into
+# `## Unparsed` with no rule id.
+def verdict_declared:
+  verdict_slot
+  | if (type == "object") and ((to_entries | map(select(.key | ascii_downcase == "tier")) | length) > 0)
+    then tier_slot else . end;
 def declared_tiers:
-  [ tier_slot,
-    (if type == "object" then
-       to_entries[] | select(.key | ascii_downcase == "verdict") | .value
-     else empty end) ];
+  . as $rec
+  | [ tier_slot ]
+  | if length > 0 then . else [ $rec | verdict_declared ] end;
+# Trimmed against every separator and format character, not a hand-picked few.
+# A zero-width joiner reads as nothing to whoever opens the findings file, so a
+# tier that RENDERS as a verdict name is a verdict name; an allowlist of the
+# code points someone thought of is an allowlist of the ones they did not.
+def norm:
+  ascii_downcase
+  | sub("^[[:space:][:cntrl:]\\p{Z}\\p{Cf}]+"; "")
+  | sub("[[:space:][:cntrl:]\\p{Z}\\p{Cf}]+$"; "");
+# `source-not-identified` is the spelling SKILL.md publishes for the neutral outcome
+# this file elsewhere calls `not-found`. Both are recognized, because the sidecar is
+# written against that description and a name this reader does not know is a verdict
+# that walks into the relay. Recognizing one name too many can only withhold a
+# record; recognizing one too few relays a judgment verdict.
+def is_verdict_name:
+  . == "source-fetched-similar" or . == "llm-suspected"
+  or . == "not-found" or . == "source-not-identified";
+def is_neutral_name:
+  . == "not-found" or . == "source-not-identified";
 def declared_names:
-  [ declared_tiers[] | .. | strings
-    | ascii_downcase
-    | sub("^[[:space:][:cntrl:]\\x{200b}\\x{feff}]+"; "")
-    | sub("[[:space:][:cntrl:]\\x{200b}\\x{feff}]+$"; "") ];
+  [ declared_tiers[] | .. | strings | norm ];
 def declares($name):
   declared_names | index($name) != null;
 def withheld_verdict:
-  declares("source-fetched-similar") or declares("llm-suspected")
-  or declares("not-found");
+  declared_names | any(is_verdict_name);
 def declares_not_found:
-  declares("not-found");
+  declared_names | any(is_neutral_name);
 def declares_confirmed:
   declares("fingerprint-confirmed");
+# `searched` is read wherever the outcome may be DECLARED, through the same slots the
+# tier is read through: the record top level, and anywhere inside the `tier` or
+# `verdict` value. A gate that reads one position while the boundary reads three
+# refuses a sidecar for naming its surfaces where it declared the outcome, which is
+# the one direction this gate has no excuse for failing in.
+def searched_slots:
+  [ (if type == "object" then .searched else null end),
+    (tier_slot | .. | objects | .searched),
+    (verdict_slot | .. | objects | .searched) ]
+  | map(if type == "array" then length else 0 end);
+# For a record with no declared tier to respect, because it is not an object at
+# all. Such a record is bound for `## Unparsed` verbatim, so a verdict name
+# ANYWHERE inside it would print into the file the boundary keeps it out of —
+# `[{"tier": "not-found", "excerpt": "..."}]` is a verdict in the wrong wrapper,
+# not a future record. Naming a verdict exactly is the test, so a note that merely
+# mentions one still takes the appendix path the contract gives it.
+def stray_verdict:
+  [ .. | strings | norm ] | any(is_verdict_name);
 '
 
 # The searched-surfaces schema check, on the same input-refusal exit code as the
@@ -226,12 +288,9 @@ def declares_confirmed:
 # failing in the one direction it has no excuse for — rejecting input that satisfies
 # the very requirement it enforces.
 if ! jq -e "$TIER_DEFS"'
-  def searched_slot:
-    if type == "object" then .searched else null end;
   [ (.findings // [])[]
     | select(declares_not_found)
-    | select((((searched_slot // (.verdict | searched_slot)) // [])
-              | if type == "array" then length else 0 end) == 0)
+    | select((searched_slots | max) == 0)
   ] | length == 0
 ' "$REPORT" >/dev/null 2>&1; then
   echo "emit-findings.sh: $REPORT has a not-found finding whose searched surfaces are not a non-empty array" >&2
@@ -317,8 +376,9 @@ def opt($k): if type == "object" then .[$k] else null end;
 
 [ (.findings // [])[]
   | if type != "object" then
-      { kind: "U", rorder: 3, rule: "", slug: "", file: "", lnum: 0,
-        detail: "", raw: (. | tojson) }
+      (if stray_verdict then "W" else "U" end) as $kind
+      | { kind: $kind, rorder: 3, rule: "", slug: "", file: "", lnum: 0,
+          detail: "", raw: (if $kind == "U" then (. | tojson) else "" end) }
     else
   (if (.rule | type) == "string" then .rule else "" end) as $rule
   | ($rule | split("/") | last) as $slug

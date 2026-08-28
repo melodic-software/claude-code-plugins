@@ -552,9 +552,14 @@ write_report verdict-deep.json '{
   "findings": [{"verdict": {"result": {"tier": "llm-suspected"}}, "file": "vd.md",
                 "excerpt": "VDEEPCANARY"}]
 }'
+# The KEY casing is what this case tests, so the VALUE is spelled the way the needle
+# below is. It read `"LLM-Suspected"` against a lowercase needle through a
+# case-sensitive glob, so reverting the whole-verdict read left this iteration
+# passing while its three siblings failed: an assertion that cannot fail on the
+# regression it names.
 write_report verdict-cased.json '{
   "counts": {"files": 2},
-  "findings": [{"Verdict": "LLM-Suspected", "file": "vc.md", "excerpt": "VCASECANARY"}]
+  "findings": [{"Verdict": "llm-suspected", "file": "vc.md", "excerpt": "VCASECANARY"}]
 }'
 write_report verdict-on-stamp.json '{
   "counts": {"files": 2},
@@ -586,7 +591,14 @@ for vc in "string:not-found:VSTRCANARY" "array:llm-suspected:VARRCANARY" \
   fi
 done
 
-# A verdict declared beside a relay tier does not slip through on the relay tier.
+# --- The drop direction of the whole-`verdict` read --------------------------------
+#
+# The `verdict` fallback applies ONLY to a record that declares no `tier`. A record
+# that declares one has declared its tier: the tier is set by fixed rule from the
+# evidence and a `verdict` is the judges output, different fields by design, so
+# reading the verdict beside a declared tier is the over-capture drop one container
+# in. Taking the WHOLE verdict makes that worse, because every sibling key inside it
+# becomes a tier declaration.
 write_report verdict-beside-confirmed.json '{
   "counts": {"files": 2},
   "findings": [{
@@ -594,31 +606,190 @@ write_report verdict-beside-confirmed.json '{
     "span": {"start_line": 9}, "tier": "fingerprint-confirmed",
     "source": {"url": "https://vb.example/s"},
     "fingerprint": {"containment": 0.9, "longest_span_words": 30},
-    "verdict": "not-found", "searched": ["https://vb.example/u"]
+    "verdict": {"prior": "llm-suspected", "agents": 2}
   }]
 }'
 VBC="$OUTDIR/verdict-beside-confirmed.md"
 run --report "$REPORTS/verdict-beside-confirmed.json" --out "$VBC" >/dev/null 2>&1
-assert_eq "a verdict beside fingerprint-confirmed still withholds the copy" \
-  "$(grep -c '^| [0-9]' "$VBC")" "0"
-assert_contains "and it is counted as a judgment finding" \
-  "$(cat "$VBC")" "1 judgment"
+assert_exit "a declared tier beside a judges verdict exits 0" "$?" "0"
+assert_eq "a declared fingerprint-confirmed tier wins over a verdict beside it" \
+  "$(grep -c '^| [0-9]' "$VBC")" "1"
+assert_not_contains "and the copy is not counted as a judgment finding" \
+  "$(cat "$VBC")" "judgment findings"
+
+# The same rule keeps a confirmed copy out of the whole-sidecar refusal: a `verdict`
+# is not consulted at all when a `tier` is declared, so a superseded outcome named
+# beside it demands no searched listing.
+write_report verdict-superseded.json '{
+  "counts": {"files": 2},
+  "findings": [{
+    "rule": "provenance/audit/rule-verbatim-copy", "file": "vsup.md",
+    "span": {"start_line": 10}, "tier": "fingerprint-confirmed",
+    "source": {"url": "https://vsup.example/s"},
+    "fingerprint": {"containment": 0.9, "longest_span_words": 31},
+    "verdict": {"superseded_by": "not-found"}
+  }]
+}'
+VSUP="$OUTDIR/verdict-superseded.md"
+run --report "$REPORTS/verdict-superseded.json" --out "$VSUP" >/dev/null 2>&1
+assert_exit "a superseded outcome beside a declared tier refuses nothing" "$?" "0"
+assert_eq "and the confirmed copy still reaches the relay" \
+  "$(grep -c '^| [0-9]' "$VSUP")" "1"
+
+# With no top-level tier, the verdict IS the declaration, and its `tier` child is the
+# tier when it has one — a sibling key inside the verdict is not.
+write_report verdict-child-confirmed.json '{
+  "counts": {"files": 2},
+  "findings": [{
+    "rule": "provenance/audit/rule-verbatim-copy", "file": "vch.md",
+    "span": {"start_line": 11},
+    "verdict": {"tier": "fingerprint-confirmed", "superseded_by": "not-found"},
+    "source": {"url": "https://vch.example/s"},
+    "fingerprint": {"containment": 0.9, "longest_span_words": 32}
+  }]
+}'
+VCH="$OUTDIR/verdict-child-confirmed.md"
+run --report "$REPORTS/verdict-child-confirmed.json" --out "$VCH" >/dev/null 2>&1
+assert_exit "a verdict declaring a confirmed tier child refuses nothing" "$?" "0"
+assert_eq "and its copy reaches the relay" "$(grep -c '^| [0-9]' "$VCH")" "1"
+assert_not_contains "and it is not counted as withheld" \
+  "$(cat "$VCH")" "judgment findings"
+
+# --- A record that is not an object carries no verdict into the appendix -----------
+#
+# The malformed-record route runs BEFORE any tier is read, so one array layer around
+# a verdict declaration used to bypass the boundary and the searched gate alike, and
+# print the tier name and the payload verbatim into `## Unparsed`. A record with no
+# declared tier to respect is withheld when a verdict name appears anywhere inside
+# it: `[{"tier": "not-found", "excerpt": "..."}]` is a verdict in the wrong wrapper.
+write_report record-wrapped-object.json '{
+  "counts": {"files": 2},
+  "findings": [[{"tier": "not-found", "excerpt": "WRAPOBJCANARY"}]]
+}'
+write_report record-bare-string.json '{
+  "counts": {"files": 2}, "findings": ["not-found"]
+}'
+write_report record-nested-array.json '{
+  "counts": {"files": 2}, "findings": [[["llm-suspected"]]]
+}'
+for rw in "wrapped-object:not-found:WRAPOBJCANARY" "bare-string:not-found:none" \
+  "nested-array:llm-suspected:none"; do
+  rn="${rw%%:*}"
+  rr="${rw#*:}"
+  rv="${rr%%:*}"
+  rk="${rr#*:}"
+  RO="$OUTDIR/record-$rn.md"
+  run --report "$REPORTS/record-$rn.json" --out "$RO" >/dev/null 2>&1
+  RB="$(cat "$RO")"
+  assert_not_contains "a wrapped verdict record names no verdict in the file ($rn)" \
+    "$RB" "$rv"
+  assert_not_contains "a wrapped verdict record opens no Unparsed section ($rn)" \
+    "$RB" "## Unparsed"
+  assert_contains "a wrapped verdict record is counted ($rn)" "$RB" "1 judgment"
+  if [[ "$rk" != "none" ]]; then
+    assert_not_contains "a wrapped verdict record leaks no payload ($rn)" "$RB" "$rk"
+  fi
+done
+
+# A malformed record naming no verdict keeps the appendix path, and never costs the
+# well-formed findings beside it.
+write_report record-wrapped-benign.json '{
+  "counts": {"files": 2},
+  "findings": [
+    [{"note": "BENIGNWRAPCANARY"}],
+    {"rule": "provenance/audit/rule-stamp-expired", "file": "ok.md", "line": 4,
+     "stamp_date": "2025-01-01", "window_days": 180, "days_over": 9}
+  ]
+}'
+RWB="$OUTDIR/record-wrapped-benign.md"
+run --report "$REPORTS/record-wrapped-benign.json" --out "$RWB" >/dev/null 2>&1
+RWB_BODY="$(cat "$RWB")"
+assert_contains "a benign wrapped record still lands in Unparsed" \
+  "$RWB_BODY" "BENIGNWRAPCANARY"
+assert_contains "and the well-formed finding beside it still relays" "$RWB_BODY" "ok.md:4"
 
 # --- The searched listing is read wherever the outcome is declared ----------------
 #
-# The gate reads the declared tier at two positions; it must read `searched` at both
-# too, or it refuses a sidecar that satisfies the very requirement it enforces.
+# The gate reads the declared tier through slots that are case-folded and generous
+# about wrappers; it must read `searched` through the same ones, or it refuses a
+# sidecar that satisfies the very requirement it enforces.
 write_report gate-verdict-searched.json '{
   "counts": {"files": 2},
   "findings": [{"verdict": {"tier": "not-found", "searched": ["https://gv.example/u"]},
                 "file": "gv.md", "note": "GATEVSCANARY"}]
 }'
-GVS="$OUTDIR/gate-verdict-searched.md"
-run --report "$REPORTS/gate-verdict-searched.json" --out "$GVS" >/dev/null 2>&1
-assert_exit "a not-found naming its surfaces beside the verdict is accepted" "$?" "0"
-assert_file "and the accepted sidecar still writes the file" "$GVS"
-assert_contains "and the finding is still withheld and counted" \
-  "$(cat "$GVS")" "1 judgment"
+write_report gate-verdict-cased-searched.json '{
+  "counts": {"files": 2},
+  "findings": [{"Verdict": {"tier": "not-found", "searched": ["https://gvc.example/u"]},
+                "file": "gvc.md", "note": "GATEVCCANARY"}]
+}'
+write_report gate-tier-object-searched.json '{
+  "counts": {"files": 2},
+  "findings": [{"tier": {"name": "not-found", "searched": ["https://gt.example/u"]},
+                "file": "gt.md", "note": "GATETOCANARY"}]
+}'
+write_report gate-verdict-list-searched.json '{
+  "counts": {"files": 2},
+  "findings": [{"verdict": [{"tier": "not-found", "searched": ["https://gl.example/u"]}],
+                "file": "gl.md", "note": "GATEGLCANARY"}]
+}'
+for gs in verdict-searched verdict-cased-searched tier-object-searched \
+  verdict-list-searched; do
+  GO="$OUTDIR/gate-$gs.md"
+  run --report "$REPORTS/gate-$gs.json" --out "$GO" >/dev/null 2>&1
+  assert_exit "a not-found naming its surfaces where it declared the outcome ($gs)" \
+    "$?" "0"
+  assert_file "and the accepted sidecar still writes the file ($gs)" "$GO"
+  assert_contains "and the finding is still withheld and counted ($gs)" \
+    "$(cat "$GO")" "1 judgment"
+done
+
+# --- The neutral outcome under the name SKILL.md publishes ------------------------
+#
+# `SKILL.md` publishes the neutral tier as `source-not-identified` while this file
+# elsewhere calls it `not-found`. The sidecar is model-authored against that
+# description, so a reader that knows one spelling relays the other. Recognizing one
+# name too many can only withhold a record; one too few walks a judgment verdict
+# onto a relay row.
+write_report neutral-published-name.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-stamp-expired", "file": "sn.md",
+                "line": 5, "tier": "source-not-identified", "excerpt": "SNICANARY",
+                "stamp_date": "2025-01-01", "window_days": 180, "days_over": 9,
+                "searched": ["https://sn.example/u"]}]
+}'
+SNI="$OUTDIR/neutral-published-name.md"
+run --report "$REPORTS/neutral-published-name.json" --out "$SNI" >/dev/null 2>&1
+SNI_BODY="$(cat "$SNI")"
+assert_eq "the published neutral tier emits no relay row" \
+  "$(grep -c '^| [0-9]' "$SNI")" "0"
+assert_not_contains "the published neutral tier names no verdict in the file" \
+  "$SNI_BODY" "source-not-identified"
+assert_not_contains "the published neutral tier leaks no payload" "$SNI_BODY" "SNICANARY"
+assert_contains "the published neutral tier is counted" "$SNI_BODY" "1 judgment"
+
+write_report neutral-published-ungated.json '{
+  "counts": {"files": 2},
+  "findings": [{"tier": "source-not-identified", "file": "sn2.md", "note": "SNI2"}]
+}'
+run --report "$REPORTS/neutral-published-ungated.json" \
+  --out "$OUTDIR/neutral-published-ungated.md" >/dev/null 2>&1
+assert_exit "the published neutral tier names its surfaces like the other spelling" \
+  "$?" "3"
+
+# --- A sidecar that does not parse says so ----------------------------------------
+#
+# `has("findings")` fails on unparsable input too, so every truncated or non-JSON
+# sidecar was refused for having no findings key — a cause the input does not have.
+write_report truncated.json '{"findings": [{"rule": "x"'
+TRUNC_ERR="$(run --report "$REPORTS/truncated.json" --out "$OUTDIR/truncated.md" 2>&1)"
+assert_exit "a truncated sidecar exits 3" "$?" "3"
+assert_contains "and says it is not a JSON object" "$TRUNC_ERR" "not a JSON object"
+assert_not_contains "and does not blame a missing findings key" \
+  "$TRUNC_ERR" "no findings key"
+GARB_ERR="$(run --report "$REPORTS/garbage.json" --out "$OUTDIR/garbage2.md" 2>&1)"
+assert_contains "non-JSON input says it is not a JSON object" \
+  "$GARB_ERR" "not a JSON object"
 
 # --- A findings key that is not a list is named for what it is --------------------
 #
@@ -680,18 +851,55 @@ assert_not_contains "a verdict wrapped two containers deep is still withheld" \
 assert_not_contains "a deeply wrapped verdict leaks no payload" "$DW_BODY" "DEEPWRAPCANARY"
 assert_contains "a deeply wrapped verdict is counted" "$DW_BODY" "1 judgment"
 
-# Trimming covers the zero-width characters a reader cannot see. A tier that RENDERS
-# as a verdict name in the written file is a verdict name in the written file.
-write_report tier-zwsp.json '{
-  "findings": [{"tier": "​not-found﻿", "file": "x.md", "note": "ZWSPCANARY",
+# Trimming covers every invisible character, by Unicode CLASS rather than by a list
+# of the ones someone thought of: a tier that RENDERS as a verdict name in the
+# written file is a verdict name in the written file. An enumeration of two code
+# points left six others leaking, and a trailing unhandled one anchored the
+# end-of-string trim so it neutralized a leading code point that WAS handled.
+write_report tier-invisible-zwsp.json '{
+  "findings": [{"tier": "​not-found﻿", "file": "x.md", "note": "INVIS-ZWSP",
                 "searched": ["https://z.example/u"]}]
 }'
-ZW="$OUTDIR/tier-zwsp.md"
-run --report "$REPORTS/tier-zwsp.json" --out "$ZW" >/dev/null 2>&1
-ZW_BODY="$(cat "$ZW")"
-assert_not_contains "a zero-width-padded verdict is still withheld" "$ZW_BODY" "not-found"
-assert_not_contains "a zero-width-padded verdict leaks no payload" "$ZW_BODY" "ZWSPCANARY"
-assert_contains "a zero-width-padded verdict is counted" "$ZW_BODY" "1 judgment"
+write_report tier-invisible-zwnj.json '{
+  "findings": [{"tier": "‌not-found", "file": "x.md", "note": "INVIS-ZWNJ",
+                "searched": ["https://z.example/u"]}]
+}'
+write_report tier-invisible-wj.json '{
+  "findings": [{"tier": "⁠llm-suspected", "file": "x.md", "note": "INVIS-WJ"}]
+}'
+write_report tier-invisible-lrm.json '{
+  "findings": [{"tier": "‎llm-suspected‏", "file": "x.md", "note": "INVIS-LRM"}]
+}'
+write_report tier-invisible-shy.json '{
+  "findings": [{"tier": "­not-found", "file": "x.md", "note": "INVIS-SHY",
+                "searched": ["https://z.example/u"]}]
+}'
+write_report tier-invisible-mixed.json '{
+  "findings": [{"tier": "​not-found⁠", "file": "x.md", "note": "INVIS-MIXED",
+                "searched": ["https://z.example/u"]}]
+}'
+write_report tier-invisible-nbsp.json '{
+  "findings": [{"tier": " not-found ", "file": "x.md", "note": "INVIS-NBSP",
+                "searched": ["https://z.example/u"]}]
+}'
+for iv in "zwsp:not-found:INVIS-ZWSP" "zwnj:not-found:INVIS-ZWNJ" \
+  "wj:llm-suspected:INVIS-WJ" "lrm:llm-suspected:INVIS-LRM" \
+  "shy:not-found:INVIS-SHY" "mixed:not-found:INVIS-MIXED" \
+  "nbsp:not-found:INVIS-NBSP"; do
+  ivn="${iv%%:*}"
+  ivr="${iv#*:}"
+  ivv="${ivr%%:*}"
+  ivk="${ivr#*:}"
+  IVO="$OUTDIR/tier-invisible-$ivn.md"
+  run --report "$REPORTS/tier-invisible-$ivn.json" --out "$IVO" >/dev/null 2>&1
+  IVB="$(cat "$IVO")"
+  assert_eq "an invisibly padded verdict emits no relay row ($ivn)" \
+    "$(grep -c '^| [0-9]' "$IVO")" "0"
+  assert_not_contains "an invisibly padded verdict is still withheld ($ivn)" \
+    "$IVB" "$ivv"
+  assert_not_contains "an invisibly padded verdict leaks no payload ($ivn)" "$IVB" "$ivk"
+  assert_contains "an invisibly padded verdict is counted ($ivn)" "$IVB" "1 judgment"
+done
 
 # FREE TEXT in a tier field names no tier, which is the same answer this producer
 # already gives a verdict name spelled in a `note`. It has to be: withholding a
