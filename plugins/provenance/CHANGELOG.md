@@ -204,6 +204,41 @@
   `c09` is the control worth noting: it carries no self-describing line, and it graded identically
   to the two that did.
 
+## [0.4.1]
+
+### Fixed
+
+- **`audit`: the two config probes broke on any install path containing a space.** Both expansions
+  were unquoted, so an install under a path with a space in it (a Windows profile directory named
+  `<First Last>`, a macOS `Application Support` tree) word-split into two arguments, the script was
+  never found, and the guard short-circuited to `detector unavailable` on scripts that are present
+  and working. Reproduced by copying a detector into a directory whose name contains a space:
+  unquoted renders `detector unavailable`, quoted renders the config, and on a space-free path both
+  render it. Both the guard run and the data run are quoted now, matching the form
+  `firecrawl:update` already ships.
+
+  Quoting changes the literal command string, and Bash permission rules are globs over that literal
+  string, so the existing `Bash(${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh:*)` and
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh:*)` rules no longer match the quoted
+  invocations. A companion quoted rule is added for each. The unquoted rules are kept, because the
+  audit flow's own steps 1 and 3 still invoke both scripts unquoted. Each pair names one script
+  under the same `${CLAUDE_SKILL_DIR}` anchor with the same `:*` argument scope, so this authorizes
+  nothing the plugin could not already run.
+
+### Changed
+
+- **Both config probes adopt the pipefail-proof filtered-probe shape, on shape rather than on an
+  observed failure.** `list-corpus.sh --show-config` emits 7 lines against a `head -10` cap, so
+  `head` never closes the pipe early, and `check-stamps.sh --show-config` is piped into `tail -3`,
+  which drains its input and cannot raise SIGPIPE at all. Both were verified by execution in three
+  states under both `pipefail` settings and neither showed any difference: **these were latent by
+  shape, not live defects, and nothing observable is fixed here.** The change is that a later
+  `--show-config` growing past ten lines would silently start asserting `detector unavailable`
+  under a correct detector, which is exactly what happened to `ai-slop:audit`. Confirmed by
+  substituting a 500-line detector: the old shape renders 10 lines plus the token under `pipefail`,
+  the new one renders 10 lines. The filter pipelines now sit in a brace group closed by `:`, the
+  shape `docs-hygiene` 0.21.23 and `code-tidying` 0.14.13 established.
+
 ## [0.4.0]
 
 ### Changed

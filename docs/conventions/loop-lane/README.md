@@ -762,12 +762,60 @@ than left as an unstated assumption, on the model §6 uses for the single-accoun
 
 All three lanes consume the shared subscription rate-limit windows (§3). An installed plugin cannot
 read a sibling plugin's files or this repo's `docs/` at runtime, so each consuming lane body
-**inlines the operable floor** — the fixed tee-file path, the 90%-of-either-window pause threshold,
-the staleness rule, and drain-then-pause — and cites the guard's reader contract for provenance only.
+**inlines the operable floor** — the fixed tee-file path, the pause threshold, the staleness rule,
+and drain-then-pause — and cites the guard's reader contract for provenance only. This section names
+those four items and deliberately restates none of their values: a number written here would be a
+seventh copy, outside the block the check below compares.
 That reader contract is
 [`plugins/rate-limit-guard/reference/reader-contract.md`](../../../plugins/rate-limit-guard/reference/reader-contract.md),
 shipped with the `rate-limit-guard` plugin. This convention records the inline-floor rule so the
-values stay byte-identical across lanes; fleet audits check conformance per consumer.
+values stay byte-identical across lanes and to that contract's own floor block.
+
+**A named check enforces the rule.** `scripts/check-loop-lane-floor-drift.sh` extracts the floor
+block from the reader contract and compares it against an explicit registry of every surface that
+inlines it: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, and the two
+launch-prompt templates under `prompts/loops/`. The four prose copies must match byte for byte; the
+prompt templates carry the floor inside a blockquote re-wrapped to a narrower column, so their
+registration compares the block after normalization. Normalization strips blockquote markers,
+backticks and emphasis, and flattens whitespace runs, so **line breaks and markup are free in that
+mode while every word is still asserted**: bolding `10 minutes` or not is invisible to the check,
+dropping `either` from the pause threshold or weakening `must` to `may` is not. The check
+runs in CI as the `loop-lane-floor-drift-gate` lane, with its own suite
+`scripts/check-loop-lane-floor-drift.test.sh`.
+
+**The registry does not decide what gets checked; the corpus does.** Before comparing anything, the
+check scans every tracked file for the floor's opening bullet and fails on any carrier its registry
+does not name. That is what keeps registration from being optional: a new lane that inlines the
+floor and forgets the entry turns the lane red on the pull request that adds it, rather than passing
+green and going stale at the next contract change. The registry stays because it carries each
+consumer's comparison mode, which no scan can infer; the scan bounds the registry.
+
+**What that pair guarantees, stated exactly.** Every tracked file carrying the floor is either a
+registered consumer, compared on every run, or a member of the check's own `DATA_CARRIERS` list,
+which is what a file holding the marker as test data or illustration goes on. Both lists live in the
+check, both are printed on every run including `--check`, and both fail on an entry that has gone
+stale. So the checked set equals the carried set minus a finite, enumerated, reviewed exception
+list. It is deliberately not phrased as an equality: an exception list exists, and a claim of
+"provably equal" would be exactly the unbacked assurance this section was rewritten to remove.
+
+**A file cannot excuse itself, and that is why the exception list is not an in-file annotation.**
+The first version of this check used one, on the shape `# lane-coverage-ok:` and `# silent-skip-ok:`
+use. Those anchor to a syntactic site, a job key or a guard line, which bounds what the annotation
+can excuse; a file has no such site, so any file mentioning the token anywhere, in prose or in a
+fixture string, silently exempted its own floor copy. A real lane could inline the floor, apply it,
+name the token in a sentence, and drift unwatched. Moving the exception list into the check removes
+that: a new data carrier costs an edit to the gate, which is the review the exception needs.
+
+**Neither half is optional, and path shape cannot supply either.**
+`scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, is blind here by
+construction: it skips `SKILL.md` by basename, and it clusters copies by identical
+path-within-plugin, while these six sit at six unrelated paths. Until the check above landed, this
+section claimed conformance was audited per consumer and nothing audited it. What that cost is on
+the record: two uncoordinated de-slop shards rewrote punctuation inside the staleness bullet of all
+three lane bodies and touched neither the reader contract nor the other copies, so the lanes stayed
+identical to each other, which is the half a reviewer notices, while all three drifted from their
+source. The scan exists because a registry alone repeats that shape one level up: the first report
+of this coupling named five copies, and building the registry found six.
 
 **Single-account-per-machine is a known gap, not a safe assumption.** The tee file is
 last-writer-wins and carries no account identifier, so a machine running lanes under more than one

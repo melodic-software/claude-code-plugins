@@ -245,7 +245,7 @@ assert_not_contains "worktree-column rename is not reported as files=0" "$worktr
 assert_contains "worktree-column rename resolves to the new path" "$worktree_rename_out" "Summary file: new.py"
 
 # --- 10. SKILL.md pre-computed-context parser stays at parity with detect.sh (#3126) ----
-# SKILL.md's `Uncommitted code files (empty = none):` line re-implements the porcelain parse to
+# SKILL.md's `Uncommitted code files (…):` line re-implements the porcelain parse to
 # preview targets to the model. A divergence there is a false negative on the same surface, so the
 # program is EXTRACTED from SKILL.md and executed rather than being restated here — a copy
 # would pass while the real line rotted. Fixture names force C-quoting through an embedded
@@ -256,8 +256,8 @@ if [[ ! -f "$SKILL_MD" ]]; then
   fail "SKILL.md located for parity check" "file at $SKILL_MD" "missing"
 else
   # Pull the awk program out of: ... | awk '<program>' | grep ...
-  # Anchor on the label stem, not the whole label: the label carries a parenthetical
-  # (`(empty = none)`) so the fallback can be read as a failed probe rather than an empty filter.
+  # Anchor on the label stem, not the whole label: the label carries a parenthetical naming
+  # what an empty render can mean, so the fallback reads as a failed probe, not an empty filter.
   skill_awk="$(sed -n "s/^Uncommitted code files[^:]*:.*| awk '\(.*\)' | grep .*$/\1/p" "$SKILL_MD")"
   if [[ -z "$skill_awk" ]]; then
     fail "SKILL.md awk program extracted" "non-empty program" "no match — line shape changed"
@@ -306,9 +306,17 @@ else
     assert_not_contains "SKILL.md parser leaves no rename arrow" "$skill_out" ' -> '
     assert_not_contains "SKILL.md parser leaves no escaped quote" "$skill_out" '\"'
 
-    # Parity with detect.sh over the same tree: every code file detect.sh audits must also
-    # appear in the preview, or the model is shown a tree the audit does not agree with.
+    # Parity with detect.sh over the same tree, checked in BOTH directions. Forward: every code
+    # file detect.sh audits must also appear in the preview, or the model is shown a tree the
+    # audit does not agree with. Reverse: every path the preview emits must be one detect.sh
+    # audited, or the model is shown a target that does not exist. A forward-only check cannot
+    # see an over-reporting preview: drop the awk rename skip and the src record is printed
+    # offset by the status prefix ("...amed-src.py"), a path naming no file, while every forward
+    # assertion still passes. REPO13 holds only code files, so the two sets must match exactly;
+    # a non-code fixture added here would need the preview's extension filter extracted
+    # alongside the awk program before the reverse direction stays true.
     detect_out="$(cd "$REPO13" && bash "$DETECT")"
+    mapfile -t audited_paths < <(printf '%s\n' "$detect_out" | sed -n 's/^Summary file: \(.*\) | T1=.*$/\1/p')
     parity_ok=1
     while IFS= read -r audited; do
       [[ -z "$audited" ]] && continue
@@ -324,6 +332,27 @@ else
       pass "SKILL.md preview covers every file detect.sh audits"
     else
       fail "SKILL.md preview covers every file detect.sh audits" "full coverage" "see above"
+    fi
+
+    reverse_ok=1
+    while IFS= read -r previewed; do
+      [[ -z "$previewed" ]] && continue
+      matched=0
+      for audited in ${audited_paths[@]+"${audited_paths[@]}"}; do
+        if [[ "$previewed" == "$audited" ]]; then
+          matched=1
+          break
+        fi
+      done
+      if [[ "$matched" -eq 0 ]]; then
+        reverse_ok=0
+        printf '  preview emitted a path detect.sh did not audit: %s\n' "$previewed" >&2
+      fi
+    done < <(printf '%s\n' "$skill_out")
+    if [[ "$reverse_ok" -eq 1 ]]; then
+      pass "SKILL.md preview emits no path detect.sh did not audit"
+    else
+      fail "SKILL.md preview emits no path detect.sh did not audit" "no extra paths" "see above"
     fi
   fi
 fi

@@ -3,6 +3,45 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.20]
+
+### Changed
+
+- **Vendored `hook-utils.sh` gained `hook::repo_relative_path`.** The shared lib
+  now owns the repo-relative path computation twelve sibling hooks had each
+  hand-copied, together with the absolute-path degrade only four of those twelve
+  copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
+
+## [0.7.19]
+
+### Added
+
+- **The inline-floor mandate is enforced instead of asserted.** `scripts/check-loop-lane-floor-drift.sh`
+  in the marketplace repository extracts the "Operable floor" block from this file and compares it
+  against an explicit registry of the six surfaces that inline it, running as the
+  `loop-lane-floor-drift-gate` CI lane. The `Consumers` section now names that check and the three
+  non-lane consumers it covers. Nothing enforced the mandate before: the general copy-drift gate
+  skips `SKILL.md` by basename and clusters copies by identical path-within-plugin, and these six
+  sit at six unrelated paths.
+- **The same check also discovers copies nobody registered.** Before comparing anything it scans
+  every tracked file for the floor's opening bullet and fails on any carrier outside its registry,
+  so a seventh consumer inlining this block cannot sit unwatched until the next contract change
+  strands it. The registry stays, because it carries each consumer's comparison mode.
+- **Why this lands after 0.7.18 rather than with it.** 0.7.18 reconciled the drift by hand, from the
+  other direction, while this check was in review. That is the argument for the check rather than an
+  objection to it: the same two sentence breaks were found and repaired twice, independently, weeks
+  apart, because nothing was watching the block. The floor block is unchanged here; 0.7.18's
+  wording stands as the one this gate now holds every copy to.
+
+### Changed
+
+- **`setup`'s tee-freshness probe stops restating the staleness window.** Step 4 named the
+  10-minute value inline, which is a copy of a floor constant sitting outside the block the drift
+  check compares, so nothing would have moved it if the contract changed. It now points at the
+  operable floor for the value. Same probe, same verdicts.
+
 ## [0.7.18]
 
 ### Changed

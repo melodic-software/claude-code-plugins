@@ -27,6 +27,9 @@ internals become public invocations.
 - **Two of the three were standing findings.** They are `V-review-13` and `V-review-14` in
   [`docs-hygiene-sweep-unapplied-remediations.md`](../../specs/docs-hygiene-sweep-unapplied-remediations.md)'s
   L4 group of 34, recorded open on 2026-08-26 and unapplied since. That roster is a point-in-time
-  record and is not edited here, per its own decay rule; it is down to 32. Found by the whole-repo
+  record and is not edited here, per its own decay rule, and re-deriving it against its own text
+  test shows most of it is already closed: these two were the last open rows of its 24-row Group 1,
+  twelve of the rest having been closed by #3380 itself, and its eight Group 2 rows remain. Found by
+  the whole-repo
   extract-ssot sweep's encapsulation floor, which re-derived the shape rather than trusting the
   roster and reached the third site the roster did not carry.

@@ -1,7 +1,7 @@
 # Plugin-data report keying, retention, and overwrite
 
-Version: 1.0.0
-Last updated: 2026-08-12
+Version: 1.0.1
+Last updated: 2026-08-28
 
 A marketplace-wide contract for **how a plugin names what it writes under `${CLAUDE_PLUGIN_DATA}`** —
 the key, the retention shape, and whether a write may overwrite. It does not govern *what* may live
@@ -95,7 +95,7 @@ skill's namespace during review.
 
 ### 1c — the "looks scoped but isn't" case, named so it is not repeated
 
-`plugins/bugs/skills/write/SKILL.md:97` keys on the **kebab-cased basename of the project
+`plugins/bugs/skills/write/SKILL.md` keys on the **kebab-cased basename of the project
 root**:
 
 > `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/` … The plugin data directory is per-plugin, not
@@ -105,7 +105,7 @@ root**:
 The line states the hazard correctly and then picks a colliding key: two same-named checkouts — a
 fork, a same-named worktree, `~/work/api` and `~/oss/api` — share one slug directory, and the
 duplicate scan cross-matches between them. It escapes *overwrite* only because its filenames are
-timestamped. `plugins/claude-config/skills/unhobble/SKILL.md:53-62` names the same insufficiency in
+timestamped. `plugins/claude-config/skills/unhobble/SKILL.md` names the same insufficiency in
 prose: "`${CLAUDE_PLUGIN_DATA}` is machine-global, so two checkouts sharing a basename…".
 
 **This is recorded here as the worked example, not filed as a `bugs` defect.** A basename is
@@ -120,8 +120,9 @@ writer; it obliges the next one not to repeat it.
 | Read back and served to the operator | `<state-key>/<name>` **and** the read must derive the same key | Serving the newest ≠ serving this project's |
 | A trend or a history | one file per run **plus** an appended line | A same-day rerun must not erase the earlier point |
 
-The reference implementation of the third row is `plugins/machine-health/skills/audit/SKILL.md`, steps
-6 and 7: `<OutputBase>/reports/health-<UTC-timestamp>.md` — "one file per run, so a same-day rerun
+The reference implementation of the third row is `plugins/machine-health/skills/audit/SKILL.md`, where
+its procedure renders the report and then updates state:
+`<OutputBase>/reports/health-<UTC-timestamp>.md` — "one file per run, so a same-day rerun
 does not overwrite the earlier report" — plus `<StateBase>/state/latest.json` and one appended line in
 `<StateBase>/state/history.jsonl`, "the trend source of truth". Note it is *not* an adopter of rule 1:
 its roots are passed in explicitly by the caller rather than keyed, for a reason that file states — a

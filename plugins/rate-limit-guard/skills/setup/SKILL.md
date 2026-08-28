@@ -121,8 +121,10 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      comparison against `${CLAUDE_PLUGIN_ROOT}` applies or is meaningful here; the shim resolves
      the tee at run time.
 4. **Tee freshness.** Probe the fixed contract path `~/.claude/rate-limit-guard/rate-limits.json`:
-   - `jq -e '.rate_limits and .captured_at'` passes and `captured_at` is within the reader
-     contract's 10-minute staleness window → PASS (proactive mode available).
+   - `jq -e '.rate_limits and .captured_at'` passes and `captured_at` is within the staleness
+     window the reader contract's operable floor fixes (read the value there, never from here;
+     a number restated in this file is a copy nothing keeps in step with the contract) → PASS
+     (proactive mode available).
    - File fresh but `rate_limits` absent → INFO: this session's auth exposes no subscription
      windows (API-key or enterprise auth); consumers correctly run reactive-only. Not a defect.
    - File absent or stale while the wiring in step 3 looked correct → FAIL: the wrapper is wired
