@@ -181,6 +181,7 @@ fi
 # --- Per-rule classification --------------------------------------------------
 
 n_before=0 n_dropped=0 n_suspended=0 n_kept=0
+monitor_seen=0
 predicted_dropped=""
 diff_lines=""
 while read -r rec kind scopes_field _basis rule; do
@@ -196,6 +197,13 @@ while read -r rec kind scopes_field _basis rule; do
     # like Bash: the whole class drops, so a scoped Monitor(...) rule is NOT a
     # narrow carry-over. Reporting one as kept would tell an operator a grant
     # survives that the harness has already suspended.
+    #
+    # This verdict is version-dependent and this script cannot read the running
+    # version, so it emits a DIFF-NOTE below rather than asserting the verdict
+    # unqualified. Before v2.1.236 a Monitor allow rule stayed in effect, and
+    # reporting it as dropped there is the worse direction of error: it tells an
+    # operator a live grant is already suspended.
+    monitor_seen=1
     verdict="dropped class=monitor"
   elif [[ "$rule" == "Bash" || "$rule" == "PowerShell" ]]; then
     # A bare tool name is the WHOLE-TOOL grant -- strictly broader than
@@ -226,6 +234,10 @@ while read -r rec kind scopes_field _basis rule; do
   fi
   diff_lines="${diff_lines}entry-diff $verdict $scopes_field $rule"$'\n'
 done <<<"$records"
+
+if [[ "$monitor_seen" == 1 ]]; then
+  echo "DIFF-NOTE: a Monitor allow rule is reported as dropped. Requires Claude Code v2.1.236 or later; earlier versions leave Monitor allow rules in effect in auto mode, so on an older version that rule carries over and this verdict is inverted. This script cannot read the running version; confirm it before acting on a monitor verdict."
+fi
 
 printf '%s' "$diff_lines"
 echo "entry-diff summary allow_before=$n_before dropped=$n_dropped suspended=$n_suspended kept=$n_kept"

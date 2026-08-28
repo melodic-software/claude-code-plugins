@@ -83,6 +83,13 @@ assert_contains "a narrow exact rule carries over" "$OUT" "entry-diff kept scope
 assert_eq "all five classes appear in the dropped set" 5 "$(count_matching "$OUT" '^entry-diff dropped ')"
 assert_contains "the summary reconciles" "$OUT" "entry-diff summary allow_before=6 dropped=5 suspended=0 kept=1"
 
+# The monitor verdict is version-dependent: before v2.1.236 a Monitor allow rule
+# stayed in effect, so reporting it dropped on an older version is inverted in
+# the direction that matters. The script cannot read the running version, so it
+# must say so rather than assert the verdict unqualified.
+assert_contains "a monitor verdict carries its version bound" "$OUT" \
+  "Requires Claude Code v2.1.236 or later"
+
 # A SCOPED Agent rule is dropped too: auto mode drops all Agent allow rules
 # categorically, unlike Bash where narrow rules survive.
 SCOPED_AGENT=$(
@@ -119,6 +126,8 @@ EOF
 OUT=$(diff_only "$DENY_ASK")
 assert_eq "deny and ask rules produce no diff records" 0 "$(count_matching "$OUT" '^entry-diff (dropped|suspended|kept) ')"
 assert_contains "the summary shows an empty allow set, not a missing one" "$OUT" "entry-diff summary allow_before=0"
+assert_not_contains "no monitor note when no Monitor allow rule was classified" "$OUT" \
+  "Requires Claude Code v2.1.236 or later"
 
 # --- Case 2: classifyAllShell inverts the carry-over answer -------------------
 # "suspend[s] every Bash and PowerShell allow rule while auto mode is active."

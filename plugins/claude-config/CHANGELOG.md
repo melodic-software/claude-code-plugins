@@ -9,8 +9,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 - **`audit-permission-state`: the dropped-allow-rule roster was missing `Monitor`.** The recap of
   upstream's auto-mode classes elided the category upstream added in v2.1.236 and then counted four
-  classes from the elision, so a dropped `Monitor` allow rule was reported under none of them.
-  Whole-repo extract-ssot sweep.
+  classes from the elision, so a dropped `Monitor` allow rule was reported under none of them. The
+  verdict is version-dependent and the diff now says so: the category arrived in v2.1.236 and
+  earlier versions leave `Monitor` rules in effect, so classifying one emits a `DIFF-NOTE` naming
+  that bound rather than asserting the verdict unqualified, since the script cannot read the running
+  version. Whole-repo extract-ssot sweep.
 
 - **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
   The directive had fractured into three forms, all emitted by the same per-plugin de-slop campaign;

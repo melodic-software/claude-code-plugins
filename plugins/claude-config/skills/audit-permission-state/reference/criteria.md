@@ -167,6 +167,12 @@ to share, so the diff driver tests them on the tool token instead.
   allow rules through its own `scan_agent` and has no `Monitor` equivalent, so a fragile `Monitor`
   grant is reported by the entry diff and not by that check. A clean P1 run is not evidence that a
   `Monitor` allow rule survives auto mode.
+- **The `monitor` verdict is version-dependent and the diff says so.** Before v2.1.236 a `Monitor`
+  allow rule stayed in effect, so reporting it dropped on an older version is inverted in the
+  direction that matters: it tells an operator a live grant is already suspended. The script cannot
+  read the running version, so whenever it classifies a `Monitor` rule it emits a `DIFF-NOTE`
+  naming the v2.1.236 bound rather than asserting the verdict unqualified. Confirm the running
+  version before acting on a `monitor` verdict.
 
 - **Only allow rules are in scope.** Deny and ask are evaluated before the classifier in every mode.
 - **`autoMode.classifyAllShell` (v2.1.193+) inverts the carry-over answer.** When true it "suspend[s]
