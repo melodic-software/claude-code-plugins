@@ -77,6 +77,7 @@
 .editorconfig
 .shellcheckrc
 .node-version
+.python-version
 *.toml
 
 # Docs-sync generator executed directly by the plugin-options-docs-gate CI

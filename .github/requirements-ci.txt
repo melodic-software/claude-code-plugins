@@ -18,7 +18,9 @@ pytest==9.1.1 \
 # (#2569): YAML has no jq, and a hand-rolled walk lost three review rounds to
 # spellings it had not anticipated. Unlike the pure-Python pins above this is a
 # C-extension wheel, so its hashes are ABI-specific — the cp314 set covers the
-# CI interpreter (3.14) on Linux x64 plus the platforms the fleet develops on;
+# CI interpreter (3.14, pinned in the root .python-version that every ci.yml
+# setup-python step resolves; a bump there and the cpXY hash sets here move
+# together) on Linux x64 plus the platforms the fleet develops on;
 # the cp311 set covers the cloud VM system Python (3.11) and the same fleet
 # platforms (#2654). scripts/check-hook-exec-form.sh reads this pin directly
 # and borrows the same version through `uv run --with` when a local python
