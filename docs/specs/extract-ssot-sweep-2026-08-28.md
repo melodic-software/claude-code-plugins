@@ -172,11 +172,16 @@ filtered probes print nothing.
 block to carry no `$` expansion other than a bare `$HOME`: an expansion leaves the composed block
 unverifiable to the worktree-isolation guard, and the skill then fails to load from an isolated
 agent (`session-flow` 0.17.16). `audit-derivability` demonstrates the binding, not a form to copy.
-All five sites took an equivalent that adds no `$` at all and heads the same `&&` list with a
-status-only run of the site's own probe:
+All five sites first took an equivalent that adds no `$` at all and heads the same `&&` list with a
+status-only run of the site's own probe. **That form was itself wrong, and is no longer what
+ships.** It is correct only without `set -o pipefail`; under pipefail the `&&` list inherits the
+pipeline's status, which both `grep` matching nothing and `git` taking SIGPIPE at the cap make
+non-zero, firing the failure token on a healthy probe. `docs-hygiene` 0.21.24 and `code-tidying`
+0.14.13 replaced it with the pipeline inside a brace group closed by `:`, a command that cannot
+fail, which is correct under both settings:
 
 ```text
-git status --porcelain >/dev/null 2>&1 && git status --porcelain 2>/dev/null | … | head -N || echo "(git status unavailable)"
+git status --porcelain >/dev/null 2>&1 && { git status --porcelain 2>/dev/null | … | head -N; :; } || echo "(git status unavailable)"
 ```
 
 The probe runs twice, which is the price of not capturing it. No line holds a `$` expansion after
@@ -184,11 +189,14 @@ the change: the `$` characters that remain are end-of-line anchors in single-quo
 and field references in single-quoted `awk` programs, all pre-existing and none of them expanded by
 the shell. Each site kept its own filter, its own cap and its own label noun; each label gained
 `empty = none`; the failure token is the `(git status unavailable)` string the normalized status
-probes already use. Verified by execution in three states per site: outside a repository each prints
-the token, inside a repository whose dirty files do not match the filter each prints nothing, and
-above the cap the cap holds with no spurious fallback. Landed in `docs-hygiene` 0.21.23 and
-`code-tidying` 0.14.12, which also carry the two `detect.test.sh` extractors that read these lines
-out of `SKILL.md` and were anchored on the old labels.
+probes already use. Verified by execution in three states per site, **without pipefail**: outside a
+repository each prints the token, inside a repository whose dirty files do not match the filter each
+prints nothing, and above the cap the cap holds with no spurious fallback. That qualifier is the
+whole lesson: the same three states under pipefail print the token in two of them, which is what
+0.21.24 and 0.14.13 had to correct. A verification that fixes the shell's options and does not say
+so proves less than it appears to. Landed in `docs-hygiene` 0.21.23 and `code-tidying` 0.14.12,
+which also carry the two `detect.test.sh` extractors that read these lines out of `SKILL.md` and
+were anchored on the old labels.
 
 One filtered probe with the unreachable shape remains open, and is out of this section's scope
 because its probe is not `git status`:
@@ -474,8 +482,11 @@ figures to differ.
   this very change set added, written in the bare plugin-relative form ADR 0018 names as its real
   defect class), two conformance rows in `docs/conventions/config-cascade/README.md`, one in
   `docs/conventions/pre-pr-ordering/README.md`, three in
-  `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14` off
-  the predecessor's 34-item L4 roster, which is therefore down to 32), and one adopter-row detail
+  `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14`, the
+  last two rows of the predecessor's 34-item L4 roster still open by that roster's own text test:
+  re-derivation found 22 of its other 32 rows already closed, twelve of them by #3380 itself, so
+  what remains of the 34 is its eight Group 2 intra-plugin path-form defects, untouched here), and
+  one adopter-row detail
   in `docs/conventions/detector-findings/README.md`. **What remains is a judgment set, not a
   backlog**: 23 further in-shape citations were kept with reasons, because each is evidence about
   this checkout rather than an address for an obligation. They are the three worked examples in
