@@ -235,6 +235,8 @@ assert_eq "repeat runs produce identical output" "$RUN_A" "$RUN_B"
 
 {
   echo '# Escaping'
+  # portability-ok: literal fixture prose carrying a backslash, asserted through the script's
+  # JSON escaper; the \s here is document text, never a GNU regex class
   echo 'Verified 2025-01-01 against "the quoted page" and a back\slash.'
 } >"$DIR/esc.md"
 ESC="$(run "$DIR/esc.md" 2>/dev/null)"

@@ -3,7 +3,7 @@ description: "Audit tracked markdown for prose restating content an external sou
 argument-hint: "[audit|fix|sweep] [target]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/extract-breadcrumbs.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/score-golden.sh:*)", "Bash(node:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/extract-breadcrumbs.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/score-golden.sh:*)", "Bash(node ${CLAUDE_SKILL_DIR}/scripts/fingerprint.mjs:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime

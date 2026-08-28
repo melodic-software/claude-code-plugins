@@ -32,7 +32,7 @@
 # in the conservative direction: it under-reports rather than inventing
 # findings on a fleet whose stamp forms are not uniformly greppable.
 #
-# Contract: docs/topics/copied-external-content/design/type-inventory.md.
+# Contract: docs/specs/provenance-type-inventory.md.
 # Exit: 0 on a clean run (with findings or none), 2 on usage or input error.
 set -uo pipefail
 

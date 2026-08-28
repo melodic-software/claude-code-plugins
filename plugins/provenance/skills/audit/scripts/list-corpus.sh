@@ -27,7 +27,7 @@
 # Declined paths are counted and reported with a reason, never silently dropped
 # (detector-findings declined-candidate rule).
 #
-# Contract: docs/topics/copied-external-content/design/type-inventory.md.
+# Contract: docs/specs/provenance-type-inventory.md.
 # Exit: 0 on a clean run (with corpus or empty), 2 on usage or target error.
 set -uo pipefail
 

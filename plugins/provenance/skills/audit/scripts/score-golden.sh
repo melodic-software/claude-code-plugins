@@ -30,7 +30,7 @@
 # surface (the Q16 posture). A class below `min_n_per_class` ships report-only:
 # a precision bar measured on three cases is not a measurement.
 #
-# Contract: docs/topics/copied-external-content/design/type-inventory.md
+# Contract: docs/specs/provenance-type-inventory.md
 # (golden-set case shape) and capability 16 in the capability matrix.
 # Exit: 0 on a clean run, 2 on usage or input error, 3 when the golden
 # directory holds no scoreable case, 4 when jq is absent.

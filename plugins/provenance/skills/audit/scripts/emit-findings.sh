@@ -23,7 +23,7 @@
 # verdict this producer withheld on purpose.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
-# docs/topics/copied-external-content/design/type-inventory.md, which lands in
+# docs/specs/provenance-type-inventory.md, which lands in
 # docs/conventions/detector-findings/README.md at registration (Phase 7). That
 # table is the source of truth — a tier change lands there first and is copied
 # here, never the reverse.

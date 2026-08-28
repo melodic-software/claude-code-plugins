@@ -4,6 +4,16 @@
 
 ### Added
 
+- **Design artifacts graduated to `docs/specs/`, contract slice pruned.** The
+  `copied-external-content` contract slice was pruned before merge per the topic-docs
+  contract-slice lifecycle. Its durable half graduated with history preserved:
+  `provenance-type-inventory.md` (script contracts, finding record, tier enum, config schema,
+  golden-set case shape, draft crosswalk rows), `provenance-capability-matrix.md`,
+  `provenance-design-threads.md`, `provenance-plugin-topology.md`, and
+  `provenance-convention-engagement.md`. Remaining phases 6 to 8 graduated to the work-item
+  tracker. Every in-plugin pointer to the old `docs/topics/` paths was rewritten, so a script
+  header names a contract that still resolves.
+
 - **The two skills, their evals, and the leaf-name registration.** `/provenance:audit` (default
   read-only, plus explicit `fix` and `sweep`) and `/provenance:setup` (`check` by default,
   `apply` on request), with 8 and 6 eval cases and a `context/gotchas.md` recording the build's
@@ -117,8 +127,8 @@
   stamped-record marker forms, and the prerequisites, including what the audit still does when web
   search is unavailable (breadcrumb-only resolution, with the rest landing on the neutral
   `not-found` disposition). The skills, scripts, rubric, and evals land in later phases; the
-  contract they build against is `docs/topics/copied-external-content/PLAN.md` and its `design/`
-  artifacts.
+  contract they build against is the graduated specs under `docs/specs/provenance-*.md`, chiefly
+  `provenance-type-inventory.md` and `provenance-capability-matrix.md`.
 
   The rubric catalog is versioned with this plugin, so a criterion or carve-out change lands here
   and invalidates any golden-set measurement pinned to the prior version.
