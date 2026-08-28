@@ -322,6 +322,53 @@ OUT="$(run "$DIR/june-and-may.md" 2>/dev/null)"
 assert_eq "a digitless May is treated exactly like a digitless June" \
   "$(echo "$OUT" | jq -r '.counts.candidates')" "2"
 
+# --- A second May signal out in the window's slack --------------------------------
+#
+# may_form() reports TWO signals through one RSTART, and the caller reads that
+# RSTART to decide whether the match it accepted began inside the window. So the
+# function has to hand back the LEFTMOST of the two, or a signal the caller would
+# have rejected can hide one it would have taken: a digit-adjacent "may" out in
+# the 9 characters of slack used to be tested first and returned first, so the
+# capital "May" sitting inside the window was never consulted and the line
+# stopped being a candidate. A weaker second date signal REMOVED candidacy, which
+# is the one direction this detector must not move in. Trying the capital first
+# only mirrors the bug; leftmost is what fixes it.
+#
+# The offsets below are measured, not eyeballed. The keyword match ends at column
+# 9 of the line, so window offset = column - 8, wlen is 60 and the slice is
+# wlen + 9 = 69 characters:
+#
+#   "Verified this May " is 18 columns, so the capital "May" sits at window
+#   offset 7, well inside the window.
+#   The 52-character filler runs to column 70, so the "7" lands at column 71 =
+#   window offset 63 — three past wlen, inside the slack — and the whole "7 may"
+#   tail (offsets 63 to 67) is still inside the 69-character slice, which is what
+#   makes the digit branch match there at all.
+#
+# The filler is built rather than typed so the 52 above is the number in the
+# file. Line 3 is the same sentence without the tail, so the two lines differ by
+# nothing but the added signal.
+
+SLACK_FILLER="$(printf '%052d' 0 | tr '0' 'a')"
+{
+  echo '# May in the slack'                      # 1
+  echo ''                                        # 2
+  echo 'Verified this May.'                      # 3
+  echo "Verified this May ${SLACK_FILLER}7 may." # 4
+} >"$DIR/slack-may.md"
+
+OUT="$(run "$DIR/slack-may.md" 2>/dev/null)"
+assert_eq "a digitless May stamp is a candidate on its own" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 3)] | length')" "1"
+assert_eq "a stray digit-adjacent \"may\" out in the slack does not remove candidacy" \
+  "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 4)] | length')" "1"
+assert_eq "both May lines in the slack fixture are candidates" \
+  "$(echo "$OUT" | jq -r '.counts.candidates')" "2"
+assert_contains "the line with the slack signal still declines as a month-name form" \
+  "$(echo "$OUT" | jq -r '.declined[].reason')" "month name"
+assert_eq "no slack May line becomes a finding" \
+  "$(echo "$OUT" | jq -r '.findings | length')" "0"
+
 # --- Trigger-less check ----------------------------------------------------------
 
 OUT="$(run "$DIR/no-trigger.md" 2>/dev/null)"
