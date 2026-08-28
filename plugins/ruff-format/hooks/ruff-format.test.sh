@@ -494,6 +494,47 @@ else
   fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
 fi
 
+# --- Symlinked repo root: the lint target must stay the edited file ----------
+# The hook passes Ruff a repo-relative path so diagnostics read cleanly, and it
+# computes that path with hook::repo_relative_path, which REDACTS to a bare
+# basename when the repo-root prefix strip does not match. Reaching one repo
+# through a symlink produces exactly that mismatch: file_path keeps the
+# symlinked spelling while `git rev-parse --show-toplevel` answers with the
+# physical path. A basename resolved against the repo root is a DIFFERENT file
+# (here: none), so without the degrade branch Ruff lints the wrong path and the
+# real finding disappears from an advisory hook. The file sits one directory
+# deep so a same-named file at the root cannot mask the bug.
+if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
+  REPO_SL="$WORK/symlink-real"
+  new_ruff_repo "$REPO_SL"
+  mkdir -p "$REPO_SL/pkg"
+  printf 'x = undefined_name_here\n' >"$REPO_SL/pkg/mod.py"
+  OUT_SL=$(run_hook "$WORK/symlink-link/pkg/mod.py")
+  if [[ "$OUT_SL" == *F821* ]]; then
+    ok "symlinked root: the real finding still surfaces (lint target not redacted)"
+  else
+    fail "symlinked root: F821 lost, hook linted a redacted path: $OUT_SL"
+  fi
+  if [[ "$OUT_SL" != *E902* ]]; then
+    ok "symlinked root: no 'no such file' error from a basename-only target"
+  else
+    fail "symlinked root: Ruff got a nonexistent target: $OUT_SL"
+  fi
+  # The redaction itself must still hold on the telemetry side: data.file is
+  # the basename, never the absolute path that embeds the developer's username.
+  SL_OUT="$WORK/sl-telemetry.json"
+  SL_SINK=$(make_sink "cat >\"$SL_OUT\"")
+  run_hook_env "$WORK/symlink-link/pkg/mod.py" \
+    CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SL_SINK" >/dev/null
+  if wait_for_sink "$SL_OUT" && [[ "$(jq -r '.data.file' "$SL_OUT" 2>/dev/null)" == "mod.py" ]]; then
+    ok "symlinked root: telemetry data.file stays redacted to the basename"
+  else
+    fail "symlinked root: data.file was $(jq -r '.data.file' "$SL_OUT" 2>/dev/null)"
+  fi
+else
+  echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

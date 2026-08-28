@@ -449,6 +449,48 @@ else
   fail "actionlint-absent latch/PATH diagnostic wrong: $OUT_MIN"
 fi
 
+# --- Symlinked repo root: the lint target must stay the edited file ----------
+# The hook cd's to the repo root and passes actionlint a repo-relative path so
+# diagnostics read cleanly. That path comes from hook::repo_relative_path, which
+# REDACTS to a bare basename when the repo-root prefix strip does not match.
+# Reaching one repo through a symlink produces exactly that mismatch: file_path
+# keeps the symlinked spelling while `git rev-parse --show-toplevel` answers with
+# the physical path. Workflow files always sit under .github/workflows/, so the
+# redacted basename resolves against the repo root to a file that is not there,
+# and without the degrade branch a real violation vanishes from an advisory hook.
+if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
+  REPO_SL="$WORK/symlink-real"
+  new_repo "$REPO_SL"
+  # shellcheck disable=SC2016  # literal workflow YAML fixture: ${{ }} must stay unexpanded
+  printf 'name: bad\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "${{ steps.missing.outputs.x }}"\n' \
+    >"$REPO_SL/.github/workflows/violation.yml"
+  OUT_SL=$(run_hook "$WORK/symlink-link/.github/workflows/violation.yml")
+  CTX_SL=$(printf '%s' "$OUT_SL" | jq -r '.hookSpecificOutput.additionalContext // ""' 2>/dev/null)
+  if printf '%s' "$CTX_SL" | grep -q 'missing'; then
+    ok "symlinked root: the real violation still surfaces (lint target not redacted)"
+  else
+    fail "symlinked root: violation lost, hook linted a redacted path: $OUT_SL"
+  fi
+  if ! printf '%s' "$CTX_SL" | grep -qiE 'could not read|no such file'; then
+    ok "symlinked root: no unreadable-target error from a basename-only target"
+  else
+    fail "symlinked root: actionlint got a nonexistent target: $CTX_SL"
+  fi
+  # The redaction itself must still hold on the telemetry side: data.file is
+  # the basename, never the absolute path that embeds the developer's username.
+  SL_OUT="$WORK/sl-telemetry.json"
+  SL_SINK=$(make_sink "cat >\"$SL_OUT\"")
+  run_hook_env "$WORK/symlink-link/.github/workflows/violation.yml" \
+    CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$SL_SINK" >/dev/null
+  if wait_for_sink "$SL_OUT" && [[ "$(jq -r '.data.file' "$SL_OUT" 2>/dev/null)" == "violation.yml" ]]; then
+    ok "symlinked root: telemetry data.file stays redacted to the basename"
+  else
+    fail "symlinked root: data.file was $(jq -r '.data.file' "$SL_OUT" 2>/dev/null)"
+  fi
+else
+  echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

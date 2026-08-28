@@ -630,19 +630,31 @@ hook::repo_root() {
 # value; a caller that feeds the result to a TOOL must branch on it, because a
 # bare basename resolved against the repo root names a different file.
 #   FILE_REL=$(hook::repo_relative_path "$FILE" "$REPO_ROOT")
+#
+# Callers under `set -e` must not take the status from a bare assignment: a
+# degraded answer returns 1, and `FILE_REL=$(hook::repo_relative_path ...)`
+# would abort the shell. Append `|| <flag>=1` (what every tool-feeding caller
+# here does) or `|| :` to keep the failure handled.
 # shellcheck disable=SC2034  # public contract: callers may read HOOK_REPO_RELATIVE_DEGRADED
 hook::repo_relative_path() {
   local file="$1" root="$2" rel="$1"
   HOOK_REPO_RELATIVE_DEGRADED=0
-  if command -v cygpath >/dev/null 2>&1; then
-    local file_lm root_lm
-    file_lm=$(cygpath -lm "$file" 2>/dev/null)
-    root_lm=$(cygpath -lm "$root" 2>/dev/null)
-    if [[ -n "$file_lm" && -n "$root_lm" ]]; then
-      rel="${file_lm#"$root_lm"/}"
+  # An empty root anchors nothing, and the strip must not run against one:
+  # `${file#""/}` merely shaves the leading slash, handing back a path that is
+  # still the caller's absolute path but no longer LOOKS absolute to the
+  # redaction below, so it would leak with a success status. Skipping the strip
+  # leaves rel as the input, which the redaction then degrades correctly.
+  if [[ -n "$root" ]]; then
+    if command -v cygpath >/dev/null 2>&1; then
+      local file_lm root_lm
+      file_lm=$(cygpath -lm "$file" 2>/dev/null)
+      root_lm=$(cygpath -lm "$root" 2>/dev/null)
+      if [[ -n "$file_lm" && -n "$root_lm" ]]; then
+        rel="${file_lm#"$root_lm"/}"
+      fi
+    else
+      rel="${file#"$root"/}"
     fi
-  else
-    rel="${file#"$root"/}"
   fi
   # POSIX-absolute, drive-letter, and UNC are the three spellings an unstripped
   # path arrives in. Trim on either separator: a mixed-form path carries both.

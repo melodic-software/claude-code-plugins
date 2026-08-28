@@ -86,9 +86,15 @@ fi
 # Resolve repo root early — used to compute the schema-required repo-relative
 # path in data.file.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
-# Repo-relative path for data.file, degrading to the basename when the prefix
-# strip does not match, so an absolute path never reaches telemetry.
-FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+# Repo-relative path, serving two consumers: the schema-required data.file, and
+# the argument actionlint runs on from the repo root. A path the prefix strip
+# could not make relative degrades to its basename, which is right for telemetry
+# but names a DIFFERENT file when resolved against the repo root, so the
+# invocation below has to know which of the two it holds. Command substitution
+# runs the helper in a subshell, so its HOOK_REPO_RELATIVE_DEGRADED global never
+# reaches this scope; the return status is the channel that survives.
+FILE_REL_DEGRADED=0
+FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED=1
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
@@ -131,7 +137,14 @@ if ! cd "$REPO_ROOT" 2>/dev/null; then
   emit_tel "error" '[]'
   exit 0
 fi
-AL_OUTPUT=$(actionlint -shellcheck= -pyflakes= -- "$FILE_REL" 2>&1)
+# The lint target is the repo-relative path so diagnostics echo it, but only
+# when it IS repo-relative. A degraded FILE_REL is a bare basename redacted for
+# telemetry; resolved against the repo root it names a different workflow or
+# none, and this advisory hook would drop real findings silently. Fall back to
+# the absolute path there.
+AL_TARGET="$FILE_REL"
+((FILE_REL_DEGRADED == 0)) || AL_TARGET="$FILE"
+AL_OUTPUT=$(actionlint -shellcheck= -pyflakes= -- "$AL_TARGET" 2>&1)
 AL_STATUS=$?
 
 # actionlint exits 0 (clean) or 1 (problems found); anything else -- 2 invalid

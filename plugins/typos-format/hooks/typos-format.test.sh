@@ -1676,6 +1676,42 @@ else
   fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
 fi
 
+# --- Symlinked repo root: the scan target must stay the edited file ----------
+# The hook passes typos a repo-relative path so diagnostics read cleanly, and it
+# computes that path with hook::repo_relative_path, which REDACTS to a bare
+# basename when the repo-root prefix strip does not match. Reaching one repo
+# through a symlink produces exactly that mismatch: file_path keeps the
+# symlinked spelling while `git rev-parse --show-toplevel` answers with the
+# physical path. A basename resolved against the repo root is a DIFFERENT file
+# (here: none), so without the degrade branch the scan reads the wrong path and
+# the real typo disappears. The file sits one directory deep so a same-named
+# file at the root cannot mask the bug.
+if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
+  REPO_SL="$WORK/symlink-real"
+  new_typos_repo "$REPO_SL"
+  mkdir -p "$REPO_SL/docs"
+  printf 'This sentence contains a delibrate misspelling.\n' >"$REPO_SL/docs/note.md"
+  OUT_SL=$(run_hook "$WORK/symlink-link/docs/note.md")
+  if [[ "$OUT_SL" == *delibrate* ]]; then
+    ok "symlinked root: the real typo still surfaces (scan target not redacted)"
+  else
+    fail "symlinked root: typo lost, hook scanned a redacted path: $OUT_SL"
+  fi
+  # The redaction itself must still hold on the telemetry side: data.file is
+  # the basename, never the absolute path that embeds the developer's username.
+  SL_OUT="$WORK/sl-telemetry.json"
+  SL_SINK=$(make_sink "cat >\"$SL_OUT\"")
+  run_hook_env "$WORK/symlink-link/docs/note.md" \
+    CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SL_SINK" \
+    PATH="$(dirname "$REAL_TYPOS"):$PATH" >/dev/null
+  if wait_for_sink "$SL_OUT" && [[ "$(jq -r '.data.file' "$SL_OUT" 2>/dev/null)" == "note.md" ]]; then
+    ok "symlinked root: telemetry data.file stays redacted to the basename"
+  else
+    fail "symlinked root: data.file was $(jq -r '.data.file' "$SL_OUT" 2>/dev/null)"
+  fi
+else
+  echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

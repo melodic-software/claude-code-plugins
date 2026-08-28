@@ -86,9 +86,15 @@ fi
 # Resolve repo root early — used to bound the config opt-in walk and to compute
 # the schema-required repo-relative path in data.file.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
-# Repo-relative path for data.file, degrading to the basename when the prefix
-# strip does not match, so an absolute path never reaches telemetry.
-FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")"
+# Repo-relative path, serving two consumers: the schema-required data.file, and
+# the argument Ruff runs on from the repo root. A path the prefix strip could
+# not make relative degrades to its basename, which is right for telemetry but
+# names a DIFFERENT file when resolved against the repo root, so the invocation
+# below has to know which of the two it holds. Command substitution runs the
+# helper in a subshell, so its HOOK_REPO_RELATIVE_DEGRADED global never reaches
+# this scope; the return status is the channel that survives.
+FILE_REL_DEGRADED=0
+FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED=1
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
@@ -194,10 +200,13 @@ fi
 # NOT enough on Windows Git Bash, where the same directory can surface as
 # /tmp/..., /c/..., or a short-name (KYLESE~1) form depending on how it was
 # reached. Falls back to the absolute path when the repo root did not resolve
-# (RUN_DIR would not anchor FILE_REL) or the file is outside it.
+# (RUN_DIR would not anchor FILE_REL), the file is outside it, or FILE_REL
+# degraded to a bare basename — that basename is a redaction for telemetry, and
+# resolving it against the repo root would lint a different file or none, which
+# on this advisory hook means real findings silently disappear.
 RUFF_ARG="$FILE"
 RUN_DIR="${root:-$FILE_DIR_POSIX}"
-if [[ -n "$root" && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
+if [[ -n "$root" && "$FILE_REL_DEGRADED" -eq 0 && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
   RUFF_ARG="$FILE_REL"
 fi
 
