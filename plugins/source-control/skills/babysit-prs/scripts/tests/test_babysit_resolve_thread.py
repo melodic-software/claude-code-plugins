@@ -472,8 +472,8 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
         # The production combination: a worker-tier invocation
         # (--autonomous --only-outdated) against a pre-push-outdated bot
         # thread the worker already replied to with a classification table
-        # that restates the source finding's severity. Both halves of the fix
-        # -- botOnly and severityFlagged -- must hold together here, or the
+        # that restates the source finding's severity. Both halves of the guard
+        # pair -- botOnly and severityFlagged -- must hold together here, or the
         # thread is stranded under skipped-severity-marked instead.
         record = {
             "id": "T1",

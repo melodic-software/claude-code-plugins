@@ -118,24 +118,11 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 
 # Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
 # env-assignment prefixes stripped and the token basenamed. Never the full
-# command.
-bash_subject() {
-  local cmd="$1" tok
-  tok="${cmd%%[[:space:]]*}"
-  while [[ "$tok" == "sudo" || "$tok" == *=* ]] &&
-    [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
-    cmd="${cmd#*[[:space:]]}"
-    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-    tok="${cmd%%[[:space:]]*}"
-  done
-  printf 'Bash:%s' "${tok##*/}"
-}
-
-if [[ "$TOOL_NAME" == "Bash" ]]; then
-  SUBJECT=$(bash_subject "$COMMAND")
-else
-  SUBJECT="$TOOL_NAME"
-fi
+# command. The shared helper is used rather than a local copy so the aborts that
+# keep an assignment VALUE out of the subject — a quoted value spanning the
+# whitespace the tokenizer splits on, and a bare/trailing `NAME=value` no
+# following command consumed — hold here too (#3372).
+SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
@@ -478,12 +465,12 @@ _cat_redir='(^|[[:space:];|&()]+)cat([[:space:]]*>|[[:space:]]+1>)'
 # `&`, and the `&` in the target class is what keeps `cat 1>&2` and `cat 1>&-`
 # out: a dup leaves NO file target, and both consumers — cat_redirect_bypass and
 # producer_redirect_bypass — skip a segment whose target came back empty.
-# Both SENTINELS are excluded as well, and that is not redundant. The restore was
-# silently version-dependent until it was fixed: on bash >= 5.2 an unquoted `&` in
-# a substitution replacement means "the text just matched", so the sentinel was
-# restored to itself and survived into the segment (see the `\&` note in
-# normalize_segments). Excluding both bytes means a dup is rejected whichever one
-# arrives, so a regression in the restore cannot silently turn one into a write.
+# Both SENTINELS are excluded as well, and that is not redundant. The restore is
+# version-sensitive: on bash >= 5.2 an unquoted `&` in a substitution replacement
+# means "the text just matched", so a sentinel can be restored to itself and
+# survive into the segment (see the `\&` note in normalize_segments). Excluding
+# both bytes means a dup is rejected whichever one arrives, so a regression in
+# the restore cannot silently turn one into a write.
 # One stdout redirect and its target word. `[^0-9&]` before the operator keeps
 # other-fd (`2>`, `21>`) and combined (`&>`) redirects out, while the optional
 # `1` admits the EXPLICIT stdout spelling — `1>file` is stdout exactly as `>file`
@@ -1251,12 +1238,11 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # string now blocks; here-string mentions stay inert (blanked first, like the git
   # lane).
   #
-  # The interpreter TOKEN was the literal `python3` in both lanes, so `python -c`,
-  # `py -c`, `py3 -c`, `python2 -c` and `python3.11 -c` were the same write going
-  # unseen; both are the python family now (#2217). The stdin heredoc that this
-  # comment previously recorded as an ACCEPTED RESIDUAL is a Bash-tool construct
-  # and is covered in the Bash lane as of #2217 — see the reopening note there.
-  # It stays out of scope here because PowerShell has no heredoc.
+  # The interpreter TOKEN is the python FAMILY in both lanes (#2217): `python -c`,
+  # `py -c`, `py3 -c`, `python2 -c` and `python3.11 -c` are the same write as
+  # `python3 -c`. Heredoc stdin is a Bash-tool construct covered in the Bash lane
+  # (see the reopening note there); it stays out of scope here because PowerShell
+  # has no heredoc.
   ps::blank_herestrings "$COMMAND"
   if py_write_indicator "$COMMAND_LC" && ps::might_write_via_python3 "$PS_BLANKED"; then
     block_bypass "python-write" "python inline-code file write bypasses Write/Edit hooks"

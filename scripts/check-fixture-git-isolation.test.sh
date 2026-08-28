@@ -284,9 +284,9 @@ else
 fi
 
 # --- an identity write via `config --local` is caught --------------------------
-# The narrower earlier form required `config` immediately followed by `user.`,
-# so this spelling escaped. A suite whose ONLY fixture work is a --local
-# identity write is the case that used to slip through entirely.
+# A pattern requiring `config` immediately followed by `user.` would let this
+# spelling escape. A suite whose ONLY fixture work is a --local identity write
+# is the case that would slip through entirely.
 new_repo
 r="$REPO"
 cat >"$r/local-ident.test.sh" <<'SH'

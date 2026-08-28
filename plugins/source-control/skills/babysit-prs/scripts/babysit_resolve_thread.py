@@ -1316,7 +1316,10 @@ def main() -> int:
                 )
         results.append(entry)
 
-    resolved_count = len([r for r in results if r["action"] == "resolved"])
+    def acted(*actions: str) -> int:
+        return sum(1 for row in results if row["action"] in actions)
+
+    resolved_count = acted("resolved")
 
     print(
         json.dumps(
@@ -1334,46 +1337,28 @@ def main() -> int:
                 # reported a human-thread action that never happened (#512). The
                 # opening-author test matches the `--include-human` eligibility
                 # decision, via the shared `is_bot` authorship classifier.
-                "humanThreadsActed": len(
-                    [
-                        r
-                        for r in results
-                        if not is_bot(r["author"], r["authorType"], extra_bot_logins)
-                        and r["action"] in ("would-resolve", "resolved")
-                    ]
+                "humanThreadsActed": sum(
+                    1
+                    for row in results
+                    if not is_bot(row["author"], row["authorType"], extra_bot_logins)
+                    and row["action"] in ("would-resolve", "resolved")
                 ),
-                "eligibleCount": len(
-                    [r for r in results if r["action"] in ("would-resolve", "resolved")]
-                ),
+                "eligibleCount": acted("would-resolve", "resolved"),
                 "resolvedCount": resolved_count,
-                "skippedNotOutdated": len(
-                    [r for r in results if r["action"] == "skipped-not-outdated"]
-                ),
-                "skippedSeverityMarked": len(
-                    [r for r in results if r["action"] == "skipped-severity-marked"]
-                ),
-                "skippedMultiFinding": len(
-                    [
-                        r
-                        for r in results
-                        if r["action"] == "skipped-multi-finding-thread"
-                    ]
-                ),
+                "skippedNotOutdated": acted("skipped-not-outdated"),
+                "skippedSeverityMarked": acted("skipped-severity-marked"),
+                "skippedMultiFinding": acted("skipped-multi-finding-thread"),
                 # Independent-resolver refusals, rolled up alongside the other
                 # skip counters so a caller sees "the evidence did not hold"
                 # without re-deriving it from the per-thread action values.
-                "refusedEvidence": len(
-                    [
-                        r
-                        for r in results
-                        if isinstance(r["action"], str)
-                        and cast(str, r["action"]).startswith("refused-")
-                        and r["action"] != "refused-stale-pin"
-                    ]
+                "refusedEvidence": sum(
+                    1
+                    for row in results
+                    if isinstance(row["action"], str)
+                    and cast(str, row["action"]).startswith("refused-")
+                    and row["action"] != "refused-stale-pin"
                 ),
-                "humanThreads": len(
-                    [r for r in results if r["action"] == "skipped-human-thread"]
-                ),
+                "humanThreads": acted("skipped-human-thread"),
                 "threads": results,
             },
             indent=2,

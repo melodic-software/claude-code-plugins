@@ -109,7 +109,8 @@ gitea_write_binding
 # --- a failing per-item blocker count keeps its own status ---
 # The status cases below fail the ISSUE page and never reach the per-item count. These
 # seed a healthy page and break only the dependencies request, so the failure is the one
-# that used to exit inside $( ) and reach the caller as this adapter's internal error.
+# that would otherwise exit inside $( ) and reach the caller as this adapter's internal
+# error.
 gitea_reset_routes
 gitea_seed "/dependencies" 401 '{"message":"token required"}'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'listed')]"
@@ -178,9 +179,9 @@ else
 fi
 
 # --- the declared ceiling counts ROWS RETURNED, not pages × requested size ---
-# These diverge under exactly the clamp this change is about. With page_size 100 against a
-# server capping at 50, `PAGE * page_size` reaches 1000 after ten pages that returned only
-# 500 issues — so the walk stopped half way and announced it had hit a ceiling it never
+# These diverge under exactly the server-side clamp. With page_size 100 against a server
+# capping at 50, `PAGE * page_size` reaches 1000 after ten pages that returned only 500
+# issues — a walk counting that way would stop half way and announce a ceiling it never
 # reached. Simulated here by asking for 100 and having the mock answer 50 every time, with a
 # total-count far above the ceiling so only the ceiling can end the walk.
 gitea_reset_routes

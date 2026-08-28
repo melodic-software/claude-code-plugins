@@ -75,37 +75,61 @@ mk_skill beta-dir check
 TARGET="$REPO/notes.md"
 : >"$TARGET"
 
+# run <content> — hook stdout+stderr lands in the global OUT; the hook's exit
+# code is RETURNED, so `run …` then `assert_exit … "$?"` is the call shape.
+#
+# Never `OUT=$(run …)` (#3373): a command substitution runs the helper in a
+# subshell, so an `RC=$?` assigned inside it never reaches the parent and every
+# `assert_exit` after the call silently compares a stale outer value — the
+# suite would stay green through a hook that regressed to a nonzero exit.
+# HOOK_OVERRIDE lets a case point the helpers at a stub hook; unset elsewhere.
 run() {
-  local out
-  out=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$TARGET" "$1")" 2>&1)
-  RC=$?
-  printf '%s' "$out"
+  local rc
+  OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "${HOOK_OVERRIDE:-$HOOK}" \
+    <<<"$(write_json "$TARGET" "$1")" 2>&1)
+  rc=$?
+  return "$rc"
 }
 run_edit() {
-  local out
-  out=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$TARGET" "$1")" 2>&1)
-  RC=$?
-  printf '%s' "$out"
+  local rc
+  OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "${HOOK_OVERRIDE:-$HOOK}" \
+    <<<"$(edit_json "$TARGET" "$1")" 2>&1)
+  rc=$?
+  return "$rc"
 }
+
+# --- The run helpers must carry the hook's exit code out (#3373) -------------
+# Guards the assertion machinery itself: point the helpers at a stub that exits
+# nonzero and the returned code must be that code. Under the old
+# `OUT=$(run …)` + inner `RC=$?` shape this read 0, which is what made every
+# run-based `assert_exit` below vacuous.
+STUB_HOOK="$TEST_TMPDIR/rc-stub-hook.sh"
+printf '#!/usr/bin/env bash\nexit 3\n' >"$STUB_HOOK"
+HOOK_OVERRIDE="$STUB_HOOK"
+run 'anything'
+assert_exit "run propagates a nonzero hook exit" 3 "$?"
+run_edit 'anything'
+assert_exit "run_edit propagates a nonzero hook exit" 3 "$?"
+unset HOOK_OVERRIDE
 
 # ============================ MUST FIRE =====================================
 
-OUT=$(run 'Run `/alpha:nonexistent` next.')
-assert_exit "unresolved skill → exit 0 (advisory)" 0 "$RC"
+run 'Run `/alpha:nonexistent` next.'
+assert_exit "unresolved skill → exit 0 (advisory)" 0 "$?"
 assert_contains "unresolved skill → named" "$OUT" "UNRESOLVED_SKILL: /alpha:nonexistent"
 assert_contains "unresolved skill → names the searched plugin dir" "$OUT" "plugins/alpha/skills/"
 
-OUT=$(run 'Both `/alpha:ghost` and `/beta:missing` are gone.')
+run 'Both `/alpha:ghost` and `/beta:missing` are gone.'
 assert_contains "two unresolved → count" "$OUT" "2 skill reference(s) do not resolve"
 assert_contains "two unresolved → manifest-named plugin resolves to its real dir" "$OUT" \
   "plugins/beta-dir/skills/"
 
-OUT=$(run_edit 'Now cites `/alpha:vanished`.')
+run_edit 'Now cites `/alpha:vanished`.'
 assert_contains "Edit hunk scanned via new_string" "$OUT" "UNRESOLVED_SKILL: /alpha:vanished"
 
 # The advisory must state its tier — the issue this guard ships under requires
 # the third guard never read as deterministic.
-OUT=$(run 'Run `/alpha:nonexistent`.')
+run 'Run `/alpha:nonexistent`.'
 assert_contains "advisory states detect-then-judge tier" "$OUT" "Detect-then-judge"
 
 # Repro-first regressions for review findings on #1284.
@@ -114,7 +138,7 @@ assert_contains "advisory states detect-then-judge tier" "$OUT" "Detect-then-jud
 # command, so the advisory must still fire — the old directory-only test
 # suppressed it.
 mkdir -p "$REPO/plugins/alpha/skills/ghost"
-OUT=$(run 'Run `/alpha:ghost`.')
+run 'Run `/alpha:ghost`.'
 assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost"
 # Naming the searched directories must not have changed how the conventional
@@ -125,64 +149,64 @@ assert_contains "a plugin declaring no paths still reads as plugins/<plugin>/ski
 # A frontmatter name carrying a trailing YAML comment is a valid rename and must
 # resolve; the old end-of-line-anchored parser extracted nothing.
 mk_skill alpha commented-dir 'commented-name # public command'
-OUT=$(run 'Run `/alpha:commented-name`.')
+run 'Run `/alpha:commented-name`.'
 assert_silent "frontmatter name with trailing YAML comment → resolves" "$OUT"
 
 # The DIRECTORY name of a renamed skill is not an alias. `skills/legacy-dir/`
 # declaring `name: renamed-command` answers to /alpha:renamed-command only — the
 # stale pre-rename spelling must still fire, since suppressing it defeats the
 # guard's whole purpose.
-OUT=$(run 'Stale ref `/alpha:legacy-dir`.')
+run 'Stale ref `/alpha:legacy-dir`.'
 assert_contains "renamed skill's directory name is NOT an alias → fires" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:legacy-dir"
-OUT=$(run 'Current ref `/alpha:renamed-command`.')
+run 'Current ref `/alpha:renamed-command`.'
 assert_silent "the declared frontmatter name still resolves" "$OUT"
 
 # A skill declaring no frontmatter name answers to its directory name.
-OUT=$(run 'Run `/alpha:setup`.')
+run 'Run `/alpha:setup`.'
 assert_silent "no frontmatter name → directory name is the command" "$OUT"
 
 # An invocation carrying arguments is the common form in this repo. The reference
 # is the leading token of the span, not the whole span.
-OUT=$(run 'Run `/alpha:ghost-arg --apply` now.')
+run 'Run `/alpha:ghost-arg --apply` now.'
 assert_contains "argument-bearing invocation → leading token extracted" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-arg"
-OUT=$(run 'Run `/alpha:audit --dry-run <target>`.')
+run 'Run `/alpha:audit --dry-run <target>`.'
 assert_silent "argument-bearing invocation of a real skill → silent" "$OUT"
 
 # ============================ MUST STAY QUIET ===============================
 
-OUT=$(run 'Run `/alpha:setup` and `/alpha:audit` first.')
-assert_exit "resolving skills → exit 0" 0 "$RC"
+run 'Run `/alpha:setup` and `/alpha:audit` first.'
+assert_exit "resolving skills → exit 0" 0 "$?"
 assert_silent "resolving skills → silent" "$OUT"
 
 # Manifest name diverges from directory name; the reference uses the manifest name.
-OUT=$(run 'Run `/beta:check`.')
+run 'Run `/beta:check`.'
 assert_silent "plugin resolved via manifest name, not directory name → silent" "$OUT"
 
 # Frontmatter name diverges from the skill directory name.
-OUT=$(run 'Run `/alpha:renamed-command`.')
+run 'Run `/alpha:renamed-command`.'
 assert_silent "skill resolved via frontmatter name → silent" "$OUT"
 
-OUT=$(run 'Run `/alpha:quoted-name`.')
+run 'Run `/alpha:quoted-name`.'
 assert_silent "skill resolved via quoted frontmatter name → silent" "$OUT"
 
 # PLUGIN-SCOPE GATE: this repo does not own the plugin, so it has no authority.
-OUT=$(run 'Install `/some-other-market:thing` from elsewhere.')
+run 'Install `/some-other-market:thing` from elsewhere.'
 assert_silent "unowned plugin → not adjudicated" "$OUT"
 
 # A reference to a directory that exists but carries no manifest is not a plugin.
 mkdir -p "$REPO/plugins/not-a-plugin/skills/x"
-OUT=$(run 'Run `/not-a-plugin:x`.')
+run 'Run `/not-a-plugin:x`.'
 assert_silent "directory without a manifest → not a plugin, silent" "$OUT"
 
-OUT=$(run 'Unbackticked /alpha:nonexistent in prose is not a command.')
+run 'Unbackticked /alpha:nonexistent in prose is not a command.'
 assert_silent "unbackticked reference → not scanned" "$OUT"
 
-OUT=$(run 'A URL fragment `https://x.test/a:b` and a time `12:30` are not references.')
+run 'A URL fragment `https://x.test/a:b` and a time `12:30` are not references.'
 assert_silent "URL fragment and time → silent" "$OUT"
 
-OUT=$(run 'Uppercase `/Alpha:Setup` does not match the command grammar.')
+run 'Uppercase `/Alpha:Setup` does not match the command grammar.'
 assert_silent "uppercase reference → silent (not command-shaped)" "$OUT"
 
 # PLUGINS-ROOT GATE: outside a marketplace repo there is no local authority.
@@ -538,9 +562,9 @@ assert_contains "a reference reconstructed out of multibyte content is intact" "
 # WHICH separator has that property is a property of the host's C library, not of
 # this hook, and it is NOT portable. glibc removed U+00A0 and U+202F from `space`
 # in 2.26 (a no-break space is deliberately not a separator); Cygwin/MSYS still
-# classifies them. An earlier revision of this case hardcoded U+00A0 and so passed
-# on Windows and failed on Linux CI — asserting a libc's classification table as if
-# it were this hook's behavior.
+# classifies them. Hardcoding U+00A0 in this case passes on Windows and fails on
+# Linux CI, asserting a libc's classification table as if it were this hook's
+# behavior.
 #
 # So the separator is DISCOVERED rather than assumed: take the first candidate this
 # host actually classifies differently between the two locales, probed through the
@@ -747,21 +771,21 @@ printf -- '---\nname: solo-command\ndescription: x\n---\n' \
 MSYS_NO_PATHCONV=1 jq -n '{name:"gamma",version:"0.1.0",skills:["./custom/extras/","./solo/"]}' \
   >"$REPO/plugins/gamma/.claude-plugin/plugin.json"
 
-OUT=$(run 'Run `/gamma:declared`.')
+run 'Run `/gamma:declared`.'
 RC=$?
 assert_exit "manifest-declared skill path → exit 0" 0 "$RC"
 assert_silent "skill under a manifest-declared path resolves" "$OUT"
 
-OUT=$(run 'Run `/gamma:solo-command`.')
+run 'Run `/gamma:solo-command`.'
 assert_silent "declared path pointing AT a skill directory resolves" "$OUT"
 
 # Declared paths ADD to `skills/`; the conventional directory must still resolve.
-OUT=$(run 'Run `/gamma:conventional`.')
+run 'Run `/gamma:conventional`.'
 assert_silent "declared paths add to skills/, they do not replace it" "$OUT"
 
 # The guard must not go blind for a plugin that declares paths — a command in
 # neither location still fires.
-OUT=$(run 'Run `/gamma:nowhere`.')
+run 'Run `/gamma:nowhere`.'
 assert_contains "declared paths do not suppress a genuinely missing command" "$OUT" \
   "UNRESOLVED_SKILL: /gamma:nowhere"
 # The message names WHERE it looked, and the advisory's next line tells the reader
@@ -772,7 +796,7 @@ assert_contains "the advisory names every directory the search covered" "$OUT" \
   "(no such skill under plugins/gamma/skills/, plugins/gamma/custom/extras/, plugins/gamma/solo/)"
 
 # A declared skill's DIRECTORY name is no more an alias than a conventional one's.
-OUT=$(run 'Run `/gamma:solo`.')
+run 'Run `/gamma:solo`.'
 assert_contains "declared skill's directory name is NOT an alias" "$OUT" \
   "UNRESOLVED_SKILL: /gamma:solo"
 
@@ -783,7 +807,7 @@ printf -- '---\nname: one\ndescription: x\n---\n' \
   >"$REPO/plugins/delta/elsewhere/one/SKILL.md"
 MSYS_NO_PATHCONV=1 jq -n '{name:"delta",version:"0.1.0",skills:"./elsewhere/"}' \
   >"$REPO/plugins/delta/.claude-plugin/plugin.json"
-OUT=$(run 'Run `/delta:one`.')
+run 'Run `/delta:one`.'
 assert_silent "a string skills value resolves like a one-element array" "$OUT"
 
 # The single-skill plugin layout: a SKILL.md at the plugin root, no `skills/`
@@ -791,9 +815,9 @@ assert_silent "a string skills value resolves like a one-element array" "$OUT"
 # frontmatter.
 mk_plugin epsilon epsilon
 printf -- '---\nname: eps-command\ndescription: x\n---\n' >"$REPO/plugins/epsilon/SKILL.md"
-OUT=$(run 'Run `/epsilon:eps-command`.')
+run 'Run `/epsilon:eps-command`.'
 assert_silent "root SKILL.md with no skills/ and no manifest key auto-loads" "$OUT"
-OUT=$(run 'Run `/epsilon:missing`.')
+run 'Run `/epsilon:missing`.'
 assert_contains "single-skill plugin still fires for a command it does not have" "$OUT" \
   "UNRESOLVED_SKILL: /epsilon:missing"
 
@@ -803,7 +827,7 @@ assert_contains "single-skill plugin still fires for a command it does not have"
 mk_plugin zeta zeta
 mk_skill zeta real
 printf -- '---\nname: zeta-root\ndescription: x\n---\n' >"$REPO/plugins/zeta/SKILL.md"
-OUT=$(run 'Run `/zeta:zeta-root`.')
+run 'Run `/zeta:zeta-root`.'
 assert_contains "root SKILL.md beside a populated skills/ is not auto-loaded" "$OUT" \
   "UNRESOLVED_SKILL: /zeta:zeta-root"
 

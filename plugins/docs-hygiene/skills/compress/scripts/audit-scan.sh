@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Mechanical audit scan for /docs-hygiene:compress audit action.
 # Implements the six-signal heuristic in context/target-types.md as a script
-# so runs do not re-implement awk/grep counting in-session (auditor M7).
+# so runs do not re-implement awk/grep counting in-session.
 #
 # Output: one markdown table row per file, then an aggregate line.
 # Exit: 0 on scan paths; 2 on unknown args.
@@ -49,7 +49,7 @@ FLAVOR_RE='just|really|basically|actually|simply|perhaps|somewhat|very|quite|mig
 is_signal1_path() {
   local f="$1" base
   base="$(basename "$f")"
-  [[ "$f" == *'/.claude/rules/'* || "$f" == */.claude/rules/* ]] && return 0
+  [[ "$f" == *'/.claude/rules/'* ]] && return 0
   [[ "$base" == 'AGENTS.md' || "$base" == 'CLAUDE.md' || "$base" == 'SKILL.md' ]] && return 0
   return 1
 }

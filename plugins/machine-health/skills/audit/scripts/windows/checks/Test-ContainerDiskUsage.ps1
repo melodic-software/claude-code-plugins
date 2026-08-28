@@ -41,7 +41,6 @@ try {
     $wslBytes = $null
     $notes = [System.Collections.Generic.List[string]]::new()
 
-    # Docker.
     if (Get-Command docker -ErrorAction SilentlyContinue) {
         try {
             $raw = docker system df --format '{{json .}}' 2>&1
@@ -67,7 +66,6 @@ try {
         }
     }
 
-    # WSL distros.
     if (Get-Command wsl -ErrorAction SilentlyContinue) {
         try {
             # Probe wsl availability; output is unused, only the failure path matters.

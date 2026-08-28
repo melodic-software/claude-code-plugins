@@ -14,10 +14,9 @@
 # WHY THE COUNTS COME FROM discover.sh. Orientation that disagrees with the
 # engine is worse than no orientation: a header reading "Rules files: 1" over a
 # repository the check gate walks three rules in reads as "there is barely
-# anything here" and sets the wrong expectation before any work starts. The
-# open-coded `find .claude/rules` these lines used to run is the exact line
-# whose four bugs motivated the shared layer — it sees only the root tree and
-# only real directories, so a nested `packages/*/.claude/rules` and a symlinked
+# anything here" and sets the wrong expectation before any work starts. An
+# open-coded `find .claude/rules` sees only the root tree and only real
+# directories, so a nested `packages/*/.claude/rules` and a symlinked
 # rule set are both invisible to it. Counting through the same functions the
 # engines use is what keeps the header and the gate telling one story.
 #

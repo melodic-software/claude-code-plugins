@@ -107,9 +107,8 @@ Describe 'New-InvalidCatalogEntryResult' -Tag 'lib' {
         }
 
         It 'falls back to reliability when category is outside the enum' {
-            # Field instance that motivated #2575 before config was added, and
-            # any future typo: invalid category must not make the synthetic
-            # result itself fail Assert-CheckResult.
+            # Covers any category typo: an invalid category must not make the
+            # synthetic result itself fail Assert-CheckResult.
             $entry = New-NearlyValidEntry -Overrides @{ category = 'platform' }
             $result = New-InvalidCatalogEntryResult -Entry $entry -Index 4 `
                 -ErrorMessage "CatalogEntry 'chezmoi-drift' category 'platform' not in allowed set"
@@ -154,7 +153,7 @@ Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
         }
         $invalidCategory = New-NearlyValidEntry -Overrides @{ category = 'platform' }
         $invalidId = New-NearlyValidEntry -Overrides @{ id = 'NotKebab' }
-        # A valid custom check whose id matches the old collision-prone fallback
+        # A valid custom check whose id occupies the synthetic fallback
         # namespace — synthetic ids must still be unique against it.
         $occupyingFallback = New-NearlyValidEntry -Overrides @{
             id       = 'invalid-catalog-entry-2'

@@ -304,11 +304,10 @@ emit_refs() {
 # size no matter how short the anchor is. Extrapolated: ~67 s at 1 MiB, ~18
 # minutes at 4 MiB.
 #
-# The locale label is not a footnote: this curve was originally recorded without
-# one, and under a UTF-8 locale the same scans cost ~6.5x more, which made the
-# table describe a locale the hook did not then run in. reconstruct_partial_edit
-# now pins LC_ALL=C for its own scanning, so C IS the locale these figures
-# describe. Re-checked rather than re-measured, on a second host of the same shape
+# The locale label is not a footnote: under a UTF-8 locale the same scans cost
+# ~6.5x more. reconstruct_partial_edit pins LC_ALL=C for its own scanning, so C
+# IS the locale these figures describe.
+# Re-checked rather than re-measured, on a second host of the same shape
 # (lightly loaded, not quiescent — ~18% CPU across 32 cores): 0.054 s at 32 KiB,
 # 0.221 s at 64 KiB, 0.880 s at 128 KiB, 3.410 s at 256 KiB — the same curve
 # within host-to-host spread.
@@ -425,9 +424,8 @@ anchor_offsets() {
 
 # Partial-replacement context reconstruction (Edit only). The same shape lives in
 # stale-path-verify and cli-flag-verify, which still take the whole located line
-# and filter it by word token (stale-path-verify was fixed for the line-anchoring
-# half of this defect class by a2d98f8a); this one keeps only the part of the line
-# the hunk reaches, so the three are not identical.
+# and filter it by word token; this one keeps only the part of the line the hunk
+# reaches, so the three are not identical.
 #
 # An Edit may replace an arbitrary substring: swapping `setup` for `ghost` inside
 # an existing `/alpha:setup` leaves `/alpha:ghost` on disk, but the hunk is the
@@ -558,10 +556,10 @@ reconstruct_partial_edit() {
   # WHICH separators those are is the host C library's table, not this hook's, and
   # it is not portable: glibc dropped U+00A0 and U+202F from `space` in 2.26, while
   # Cygwin/MSYS still classifies them; U+3000 and U+2028 are admitted by both.
-  # Measured, after a first revision of the regression case hardcoded U+00A0 and so
-  # passed on Windows and failed on Linux CI. The case now DISCOVERS a separator
-  # this host actually classifies differently, so it asserts this hook's behavior
-  # rather than a libc's table.
+  # Measured. The regression case DISCOVERS a separator this host actually
+  # classifies differently rather than hardcoding one: a hardcoded byte (U+00A0,
+  # say) passes on one platform and fails on another, asserting a libc's table
+  # rather than this hook's behavior.
   #
   # Scope and lifetime were verified rather than assumed: assigning LC_ALL re-runs
   # setlocale even for a `local` (and even with `+x`), and bash restores the

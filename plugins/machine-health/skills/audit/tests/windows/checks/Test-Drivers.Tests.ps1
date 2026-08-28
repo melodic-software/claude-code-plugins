@@ -5,9 +5,9 @@
 Tests for scripts/windows/checks/Test-Drivers.ps1.
 
 .DESCRIPTION
-Pins this rubric rewrite:
+Pins the rubric:
 
-1. IsSigned=false is no longer a WARN trigger. It produces false
+1. IsSigned=false is not a WARN trigger. It produces false
    positives on modern Windows 10/11 -- cross-signed, attestation-
    signed, and user-mode drivers routinely report false. Secure Boot
    already blocks genuinely-unsigned kernel drivers from loading, so
@@ -31,9 +31,7 @@ script in a scope where the mock isn't visible (Pester issue #515,
 confirmed by maintainer nohwnd). The check script exposes
 Invoke-DriversCheck and uses a `$MyInvocation.InvocationName -eq '.'`
 guard so tests can dot-source it and call the function directly, with
-mocks applying in the test scope. See
-.claude/rules/powershell/testing.md "Mocks do NOT propagate
-through `&`-invoked .ps1 scripts" for the canonical pattern.
+mocks applying in the test scope.
 #>
 
 BeforeAll {

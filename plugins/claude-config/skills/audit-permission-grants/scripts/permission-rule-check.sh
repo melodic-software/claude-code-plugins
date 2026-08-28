@@ -99,11 +99,11 @@ EOF
 }
 
 case "${1:-}" in
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *) ;;
+-h | --help)
+  usage
+  exit 0
+  ;;
+*) ;;
 esac
 
 canonical_path() {
@@ -227,14 +227,14 @@ findings=()
 # construction, and `reconcile_frontmatter` asserts it: every enumerated
 # candidate is excluded, unreadable, block-free, or parsed. Nothing may fall
 # out of the walk without landing in one of them.
-fm_candidates=0        # frontmatter files the walk returned
+fm_candidates=0            # frontmatter files the walk returned
 fm_excluded_non_loadable=0 # …removed by the loadability filter
-fm_unreadable=0        # …enumerated but not openable (or gone) — NOT audited
-fm_no_block=0          # …read fine, carried no allowed-tools block
-fm_with_block=0        # …read fine, carried a non-empty allowed-tools block
-allow_rules_read=0     # allow rules actually parsed, across all settings scopes
-scopes_read=0          # settings scopes successfully read
-unparsable_settings=0  # settings files present but not valid JSON — SKIPPED, not clean
+fm_unreadable=0            # …enumerated but not openable (or gone) — NOT audited
+fm_no_block=0              # …read fine, carried no allowed-tools block
+fm_with_block=0            # …read fine, carried a non-empty allowed-tools block
+allow_rules_read=0         # allow rules actually parsed, across all settings scopes
+scopes_read=0              # settings scopes successfully read
+unparsable_settings=0      # settings files present but not valid JSON — SKIPPED, not clean
 plugin_manifests=0
 plugin_settings_parsed=0
 plugin_settings_unparsable=0
@@ -255,12 +255,12 @@ inert_grant_remedy() {
   # inert_grant_remedy <source-file-path> — branch the P4 remedy per #2397 A7b.
   local file="$1"
   case "$file" in
-    */skills/*/SKILL.md)
-      printf '%s' "replace with \${CLAUDE_SKILL_DIR} for a script bundled in this skill (substituted in allowed-tools Bash rules per the skills page)"
-      ;;
-    *)
-      printf '%s' "relocate the helper to a stable bare command on PATH and allow that name narrowly — do not prescribe plugin bin/ (see permission-rule-hygiene convention known gap)"
-      ;;
+  */skills/*/SKILL.md)
+    printf '%s' "replace with \${CLAUDE_SKILL_DIR} for a script bundled in this skill (substituted in allowed-tools Bash rules per the skills page)"
+    ;;
+  *)
+    printf '%s' "relocate the helper to a stable bare command on PATH and allow that name narrowly — do not prescribe plugin bin/ (see permission-rule-hygiene convention known gap)"
+    ;;
   esac
 }
 
@@ -377,18 +377,18 @@ frontmatter_is_loadable() {
   # this frontmatter file per the skills/agents/commands discovery rules.
   local file="$1" rel="${1#"$ROOT"/}"
   case "$file" in
-    */SKILL.md)
-      [[ "$rel" =~ (^|/)\.claude/skills/[^/]+/SKILL\.md$ ]] && return 0
-      [[ "$rel" =~ ^plugins/[^/]+/skills/[^/]+/SKILL\.md$ ]] && return 0
-      return 1
-      ;;
-    *)
-      [[ "$rel" =~ (^|/)\.claude/agents/[^/]+\.md$ ]] && return 0
-      [[ "$rel" =~ (^|/)\.claude/commands/[^/]+\.md$ ]] && return 0
-      [[ "$rel" =~ ^plugins/[^/]+/agents/[^/]+\.md$ ]] && return 0
-      [[ "$rel" =~ ^plugins/[^/]+/commands/[^/]+\.md$ ]] && return 0
-      return 1
-      ;;
+  */SKILL.md)
+    [[ "$rel" =~ (^|/)\.claude/skills/[^/]+/SKILL\.md$ ]] && return 0
+    [[ "$rel" =~ ^plugins/[^/]+/skills/[^/]+/SKILL\.md$ ]] && return 0
+    return 1
+    ;;
+  *)
+    [[ "$rel" =~ (^|/)\.claude/agents/[^/]+\.md$ ]] && return 0
+    [[ "$rel" =~ (^|/)\.claude/commands/[^/]+\.md$ ]] && return 0
+    [[ "$rel" =~ ^plugins/[^/]+/agents/[^/]+\.md$ ]] && return 0
+    [[ "$rel" =~ ^plugins/[^/]+/commands/[^/]+\.md$ ]] && return 0
+    return 1
+    ;;
   esac
 }
 #
@@ -440,11 +440,11 @@ done < <(
 scan_settings_allow() {
   # scan_settings_allow <file> <finding-label> <coverage-label>
   #
-  # Both early returns used to be silent, so a scope that was absent and a scope
-  # whose JSON would not parse left no trace and the run still printed a clean
-  # bill. They now record which one happened. An unparsable settings file is the
-  # sharper of the two: its rules were never read, and a rules file that fails to
-  # parse is exactly where a fragile grant would sit unexamined.
+  # Both early returns record which case happened: a scope that is absent, or a
+  # scope whose JSON will not parse. Neither may leave no trace behind a clean
+  # bill. An unparsable settings file is the sharper of the two: its rules were
+  # never read, and a rules file that fails to parse is exactly where a fragile
+  # grant would sit unexamined.
   local file="$1" label="$2" short="$3" rule n=0
   if [[ ! -f "$file" ]]; then
     scope_status+=("$short: absent")
@@ -617,8 +617,8 @@ fi
 if [[ "${#findings[@]}" -eq 0 ]]; then
   if [[ "$audited" -eq 0 ]]; then
     # NOT a clean bill. "No fragile permission grants found." and "there was
-    # nothing here to find them in" were the same string; they are now different
-    # strings, because only one of them is a statement about the grants.
+    # nothing here to find them in" are deliberately different strings: only
+    # one of them is a statement about the grants.
     if [[ "$blocked" -gt 0 ]]; then
       printf 'NOTHING TO AUDIT, AND %d INPUT(S) COULD NOT BE READ: nothing was successfully examined on any of the three axes, and the run failed to open or parse %d of its own inputs. This is neither a clean bill nor an empty tree — it is a scan whose inputs were unavailable. See the coverage block below.\n' "$blocked" "$blocked"
     else

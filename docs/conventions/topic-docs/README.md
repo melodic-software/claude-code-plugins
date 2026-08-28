@@ -23,8 +23,10 @@ content out of the working directory when it outgrows the task.
 
 This directory is the source of truth: this README (tiers, resolution
 order, slug spec, lifecycle), `topic-docs.schema.json` (the tracked
-concern file's shape), `CHANGELOG.md` (version history), `examples/`
-(one worked slice).
+concern file's shape), `CHANGELOG.md` (version history),
+[examples/worked-slice.md](examples/worked-slice.md) (read for one topic
+slice from birth to graduation, when the lifecycle rules need a concrete
+instance).
 
 ## Why this exists
 

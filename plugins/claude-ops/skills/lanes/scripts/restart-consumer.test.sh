@@ -571,9 +571,10 @@ OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
 assert_contains "without one, the placeholder still says what to substitute" "$OUT" "<the CLAUDE_PLUGIN_DATA dir skill runs use>"
 
 # --- 22. A broken lock STORE is not reported as a held lock (#1759 P1) --------
-# An ignored `mkdir` failure used to fall through to the contention branch, so an
-# unattended consumer with a mistyped path or an unavailable volume reported
-# `lock-held` and exited 0 forever while Task Scheduler logged healthy ticks.
+# An unusable lock store must exit non-zero as `lock store is unusable`, never
+# fall through to the contention branch: an unattended consumer with a mistyped
+# path or an unavailable volume would report `lock-held` and exit 0 forever
+# while Task Scheduler logged healthy ticks.
 NOTADIR="$TMP/notadir"
 : >"$NOTADIR" # a FILE where a directory must be: mkdir -p can never succeed
 TEL="$TMP/tel-22.json"
@@ -649,7 +650,7 @@ OUT="$(RESTART_CONSUMER_FAKE_ALIVE_PIDS='4242' run_consumer run --max-restarts 0
 assert_contains "past the hard ceiling an unverifiable pid never wedges forever" "$OUT" "reclaiming a lock"
 release_seeded_lock
 
-# --- 28. A failed session re-read fails CLOSED (#1760 review) -----------------
+# --- 28. A failed session re-read fails CLOSED (#1760) ------------------------
 # `read_sessions && lane_is_running` would fall through to the launcher on a
 # transient read failure, still holding the stale snapshot — the exact race the
 # recheck exists to prevent.
@@ -679,7 +680,7 @@ assert_contains "a failed re-read is an error decision" "$OUT" "| work | error |
 assert_contains "and says it refused to act on a stale snapshot" "$OUT" "stale snapshot"
 assert_eq "a failed re-read exits non-zero" "5" "$RC"
 
-# --- 29. A POST-launch ledger failure fails the lane (#1760 review) -----------
+# --- 29. A POST-launch ledger failure fails the lane (#1760) ------------------
 # The preflight probe cannot cover storage that disappears DURING the launcher's
 # unbounded work: a relaunch that leaves no breaker row would be repeatable.
 LEDGER_DIR_PATH="$DATA/lanes/$KEY"

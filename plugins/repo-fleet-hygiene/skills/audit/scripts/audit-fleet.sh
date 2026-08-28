@@ -762,11 +762,10 @@ if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
 fi
 
 # Scope provenance: which rung actually supplied the audited roots/repos. This is a different
-# question from which config FILE was consumed, and the header used to answer it with a fixed
-# literal that could contradict the run's own inputs two lines later. Config-supplied scope is
-# ADDITIVE to any CLI-supplied scope, so both contributions are named rather than one masking the
-# other. Bare positional paths are snapshotted into CLI_ROOT_COUNT (same as --root), so the
-# command-line segment attributes them as --root/bare-path rather than conflating with --repo.
+# question from which config FILE was consumed. Config-supplied scope is ADDITIVE to any
+# CLI-supplied scope, so both contributions are named rather than one masking the other. Bare
+# positional paths are snapshotted into CLI_ROOT_COUNT (same as --root), so the command-line
+# segment attributes them as --root/bare-path rather than conflating with --repo.
 config_scope_count=$((${#ROOT_ARGS[@]} - CLI_ROOT_COUNT + ${#REPO_ARGS[@]} - CLI_REPO_COUNT))
 cli_scope_label=""
 [[ "$CLI_REPO_COUNT" -gt 0 ]] && cli_scope_label="${CLI_REPO_COUNT} --repo"
@@ -2457,13 +2456,13 @@ if [[ "$GH_READY" == "true" && -n "$GH_ACCOUNT" ]]; then
 else
   printf 'GitHub evidence: %s\n' "$([[ "$GH_READY" == "true" ]] && echo available || echo unavailable)"
 fi
-# Two different quantities previously shared the bare label "repositories": this one counts
-# discovery targets, the Summary line counts repositories that completed a local audit. Both are
-# qualified so a reader cannot read a shortfall as a discrepancy.
+# Two different quantities: this one counts discovery targets, the Summary line counts
+# repositories that completed a local audit. Both are qualified so a reader cannot read a
+# shortfall as a discrepancy.
 printf 'Repositories discovered (audit targets after deduplication): %s\n' "${#TARGETS[@]}"
 # One line per repository of record, listing every path that resolved into it. A separate line per
 # retargeted path would print N lines for a repository the count above reports once, which reads as
-# N repositories -- the same header-contradicts-itself defect this report is being corrected for.
+# N repositories.
 RT_REPORTED=()
 for ((rt_index = 0; rt_index < ${#RETARGETED_TO[@]}; rt_index++)); do
   rt_to="${RETARGETED_TO[$rt_index]}"

@@ -6,6 +6,26 @@ date: 2026-07-24
 
 # Phase 2.5 — proportionality gate on D1–D7
 
+## Contents
+
+- [The test](#the-test)
+- [Dispositions](#dispositions)
+  - [D5's trigger, split in two](#d5s-trigger-split-in-two)
+- [Escalation](#escalation)
+  - [Re-derived shape](#re-derived-shape)
+  - [Ground-truth verification independently strengthened this](#ground-truth-verification-independently-strengthened-this)
+  - [Reconciling with the Brief's one-anchored-source criterion](#reconciling-with-the-briefs-one-anchored-source-criterion)
+- [Homing map — Phase 5, folded in](#homing-map--phase-5-folded-in)
+  - [The determinism contract, re-verified against check 21](#the-determinism-contract-re-verified-against-check-21)
+- [`OPINION`-tier policy](#opinion-tier-policy)
+- [D1 scope questions, answered](#d1-scope-questions-answered)
+  - [D1's detection rule is narrower than "two instructions differ"](#d1s-detection-rule-is-narrower-than-two-instructions-differ)
+- [Corrections this gate forces on upstream documents](#corrections-this-gate-forces-on-upstream-documents)
+- [The design tier, actually re-derived](#the-design-tier-actually-re-derived)
+- [Deferred tool loading — a remainder that is not D6's](#deferred-tool-loading--a-remainder-that-is-not-d6s)
+- [What this gate does not decide](#what-this-gate-does-not-decide)
+- [Independent verification](#independent-verification)
+
 The record PLAN.md's Phase 2.5 sanity checks assert against. It carries every detector's
 disposition with its reason, the escalation verdict, the operator's decision on that escalation, the
 `OPINION`-tier policy, the D1 scope answers the corroboration document parked here, and the homing

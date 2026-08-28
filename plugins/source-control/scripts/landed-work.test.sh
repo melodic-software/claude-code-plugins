@@ -173,11 +173,11 @@ assert_eq "nothing unpushed is ok" "ok" "$(col "$R" $C_RISK)"
 # A branch whose only unique work is a DELETION is not landed
 # --------------------------------------------------------------------------
 
-# The case that retired the direction test. `git diff base..HEAD` reports
+# A direction test ("additions are zero") misclassifies this fixture as landed
+# while the deletion commit exists nowhere else: `git diff base..HEAD` reports
 # deletions both for a branch that is merely BEHIND the base and for a branch
-# whose own unique work IS a deletion — the numstat rows are identical. So
-# "additions are zero" proved nothing, and this fixture is what it classified as
-# landed while the deletion commit existed nowhere else.
+# whose own unique work IS a deletion — the numstat rows are identical, so zero
+# additions prove nothing.
 W="$(mkfixture)"
 WT_DEL="$TEST_TMPDIR/wt-delete-only"
 commit_in "$W" doomed.txt "keep
@@ -192,12 +192,12 @@ assert_eq "a delete-only branch is NOT landed" "no" "$(col "$R" $C_LANDED)"
 assert_eq "a delete-only branch is STRANDED" "STRANDED" "$(col "$R" $C_RISK)"
 
 # --------------------------------------------------------------------------
-# Behind the base is no longer proven landed by content alone
+# Behind the base is not proven landed by content alone
 # --------------------------------------------------------------------------
 
 # The base takes the branch's content AND more of the same file, so its commit is
-# a different patch — no patch-id matches, and the two-dot is non-empty. With the
-# direction test retired this reports `no`: over-cautious by exactly one
+# a different patch — no patch-id matches, and the two-dot is non-empty. With no
+# direction test this reports `no`: over-cautious by exactly one
 # confirmation prompt, and indistinguishable-from-data-loss if it said otherwise.
 # The genuinely landed shapes are caught by the range patch-id above instead.
 W="$(mkfixture)"
@@ -241,14 +241,15 @@ assert_eq "a whitespace-only difference is not landed" "no" "$(col "$R" $C_LANDE
 # Path spellings the two-dot fallback must not be defeated by
 # --------------------------------------------------------------------------
 
-# The fallback used to compare two diff invocations' TEXT output, and the two did
-# not agree on how a path is spelled. `--name-only` octal-escapes a non-ASCII byte
-# under git's default `core.quotePath=true`; the numstat side was pinned to false.
-# The join then matched nothing, and matching nothing is the same shape as
-# "identical to the base" — an unproven `landed=yes` on a commit that exists
-# nowhere else. Pinning quotepath on both sides closed that byte class and left
-# another, since git escapes `"`, `\` and control characters regardless of the
-# setting. Handing the paths back to git as literal pathspecs closes the class.
+# A fallback that compares two diff invocations' TEXT output would join paths
+# the two invocations spell differently. `--name-only` octal-escapes a non-ASCII
+# byte under git's default `core.quotePath=true`; a numstat side pinned to false
+# does not. The join then matches nothing, and matching nothing is the same
+# shape as "identical to the base" — an unproven `landed=yes` on a commit that
+# exists nowhere else. Pinning quotepath on both sides closes that byte class
+# but leaves another, since git escapes `"`, `\` and control characters
+# regardless of the setting. Handing the paths back to git as literal pathspecs
+# closes the class.
 #
 # Three spellings, all of which must classify as STRANDED: a non-ASCII name, a
 # name containing a glob metacharacter (which must be matched literally, not as a
@@ -416,6 +417,44 @@ assert_eq "a bare hub has no landed verdict to give" "n/a" "$(col "$R" $C_LANDED
 OUT="$(bash "$ENGINE" --worktree "$TEST_TMPDIR/does-not-exist" --no-peers)"
 R="$(row "$OUT" "does-not-exist")"
 assert_eq "an absent path is notgit, never silently omitted" "notgit" "$(col "$R" $C_RISK)"
+
+# A head-less row must survive the consumer loop this file's callers are told to
+# use. `col` splits with `awk -F'\t'`, which does NOT collapse a run of tabs, so
+# it cannot see this: only `while IFS=$'\t' read` can, because a tab is IFS
+# whitespace there and an empty head silently shifts every later column left
+# (#3371). Consumed here exactly as a caller would, with all 15 field names.
+notgit_head=""
+notgit_risk=""
+notgit_reason=""
+# shellcheck disable=SC2034  # every column is named on purpose: the collapse this
+# guards against is only visible when the read consumes the full 15-field contract.
+while IFS=$'\t' read -r f_path f_branch f_head f_unpushed f_landed f_method f_base \
+  f_inprogress f_staged f_unstaged f_conflicted f_untracked f_peers f_risk f_reason; do
+  [[ "$f_path" == *does-not-exist* ]] || continue
+  notgit_head="$f_head"
+  notgit_risk="$f_risk"
+  notgit_reason="$f_reason"
+done < <(printf '%s\n' "$OUT" | tail -n +2)
+assert_eq "a head-less row emits '-', never an empty field" "-" "$notgit_head"
+assert_eq "notgit risk lands in the risk column under IFS-tab read" "notgit" "$notgit_risk"
+assert_eq "notgit reason lands in the reason column under IFS-tab read" \
+  "path-absent" "$notgit_reason"
+
+# Same contract on the other head-less row class: a bare hub.
+BARE_HUB2="$(mktemp -d "$TEST_TMPDIR/hub2XXXXXX")/hub2.bare"
+git init -q --bare -b main "$BARE_HUB2" >/dev/null 2>&1
+OUT="$(bash "$ENGINE" --repo-dir "$BARE_HUB2" --no-peers)"
+bare_head=""
+bare_risk=""
+# shellcheck disable=SC2034  # same full-contract read as the notgit case above.
+while IFS=$'\t' read -r f_path f_branch f_head f_unpushed f_landed f_method f_base \
+  f_inprogress f_staged f_unstaged f_conflicted f_untracked f_peers f_risk f_reason; do
+  [[ "$f_path" == *hub2.bare* ]] || continue
+  bare_head="$f_head"
+  bare_risk="$f_risk"
+done < <(printf '%s\n' "$OUT" | tail -n +2)
+assert_eq "a bare hub's head column is '-'" "-" "$bare_head"
+assert_eq "bare risk lands in the risk column under IFS-tab read" "bare" "$bare_risk"
 
 # --------------------------------------------------------------------------
 # Degradation paths each carry a reason

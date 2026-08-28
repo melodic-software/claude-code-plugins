@@ -678,10 +678,10 @@ def evaluate_autopilot_tier(
         for row in review_comments
     )
     # A configured approver/lane account GitHub misreports as a `User` classifies
-    # as a bot here, so its clean review body ("no blocking issues") no longer
-    # self-blocks the very approval `find_distinct_bot_approval` accepted --
-    # extending the existing "a bot's blocking-looking prose is not a human stop"
-    # rule to configured bots that lack a `[bot]` suffix.
+    # as a bot here, so its clean review body ("no blocking issues") does not
+    # self-block the very approval `find_distinct_bot_approval` accepted -- the
+    # "a bot's blocking-looking prose is not a human stop" rule extends to
+    # configured bots that lack a `[bot]` suffix.
     for item in corpus:
         if actor_kind(item, tier.automation_actor_config) != "human":
             continue

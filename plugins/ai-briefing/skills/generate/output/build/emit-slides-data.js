@@ -14,6 +14,7 @@ import { validateDeck } from "./lib/schema.js";
 import { brand as DEFAULT_BRAND, theme as DEFAULT_THEME } from "./brand.js";
 import { resolveBrand } from "./lib/brand-overlay.js";
 import { buildOutDir, configDir, meetingsDir, slidesDataPath, stateRoot } from "./lib/paths.js";
+import { formatWindow, parseWindowRange } from "./lib/window.js";
 
 const PROVIDER_LOGOS = {
   anthropic: "assets/logo-anthropic.svg",
@@ -53,14 +54,6 @@ async function readState() {
   }
 }
 
-function formatWindow(openIso, closeIso) {
-  const a = new Date(openIso);
-  const b = new Date(closeIso);
-  const days = Math.round((b - a) / (1000 * 60 * 60 * 24));
-  const fmt = (d) => d.toISOString().slice(0, 10);
-  return `${fmt(a)} to ${fmt(b)} (~${days} days)`;
-}
-
 function asJsLiteral(v) {
   return JSON.stringify(v, null, 2);
 }
@@ -93,13 +86,11 @@ async function main() {
     configDir: configDir(),
   });
 
-  // Resolve meeting number + window from state (or args)
   const state = await readState();
   const dateStr = args.date || new Date().toISOString().slice(0, 10);
   const meetingNumber =
     args.meetingN || state?.current_meeting_window?.meeting_n || state?.meeting_n || 1;
 
-  // Pick briefing path
   const briefingPath = args.briefing
     ? path.resolve(args.briefing)
     : path.join(meetingsDir(), `meeting-${meetingNumber}.md`);
@@ -133,8 +124,8 @@ async function main() {
   let windowStr;
   if (briefing.meta.window) {
     // briefing.meta.window e.g. "2026-04-24T19:00:00Z → 2026-05-05T20:30:00Z (~11 days)"
-    const m = briefing.meta.window.match(/([0-9T:Z\-]+)\s*[→-]+\s*([0-9T:Z\-]+)/);
-    if (m) windowStr = formatWindow(m[1], m[2]);
+    const range = parseWindowRange(briefing.meta.window);
+    if (range) windowStr = formatWindow(range.open, range.close);
     else windowStr = briefing.meta.window;
   } else if (state?.current_meeting_window?.opened_date) {
     windowStr = formatWindow(state.current_meeting_window.opened_date, new Date().toISOString());
@@ -150,7 +141,6 @@ async function main() {
   );
   if (logoResult.missing.length) console.log(`  Missing: ${logoResult.missing.join(", ")}`);
 
-  // Build context
   const ctx = {
     meetingNumber,
     date: dateStr,
@@ -158,7 +148,6 @@ async function main() {
     org: BRAND.org,
   };
 
-  // Emit slides
   const slides = emitSlides(briefing, ctx);
 
   const meta = {
@@ -171,7 +160,6 @@ async function main() {
     logoWhite: BRAND.logoWhite,
   };
 
-  // Validate before writing
   const deck = { meta, theme: THEME, providerLogos: PROVIDER_LOGOS, slides };
   validateDeck(deck);
 

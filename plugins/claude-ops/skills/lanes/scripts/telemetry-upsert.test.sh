@@ -610,9 +610,9 @@ log="$(cat "$LOG")"
 assert_eq "PATCH response with no id still exits 0" 0 "$rc"
 assert_contains "id-less PATCH reads back the resolved target id" "$log" "method=GET url=repos/$REPO/issues/comments/222"
 
-# A response carrying an id but NO html_url still exits 0. The trailing
-# `[[ -n "$html_url" ]] && printf` used to be the script's last command, so its
-# false branch became the exit status and a verified upsert reported failure.
+# A response carrying an id but NO html_url still exits 0: the false branch of
+# the trailing `[[ -n "$html_url" ]] && printf` must not become the script's
+# exit status, or a verified upsert reports failure.
 out="$(STUB_NO_HTML_URL=1 run "$TMP/empty.json" 2>&1)"
 rc=$?
 assert_eq "verified write with no html_url still exits 0" 0 "$rc"

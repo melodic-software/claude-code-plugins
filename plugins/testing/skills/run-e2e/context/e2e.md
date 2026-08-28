@@ -24,12 +24,12 @@ Before ANY live testing, verify tool availability. The e2e orchestrator and any 
 
 ## Token Optimization: CLI by default
 
-**Critical for context budget.** Playwright MCP consumes ~114K tokens for a multi-step workflow. Playwright CLI consumes ~27K tokens for the same work — 4.2x reduction. CLI writes snapshots and screenshots to disk so the agent reads only what it needs.
+**Critical for context budget.** Playwright MCP streams snapshots and screenshots into context on every step; Playwright CLI writes them to disk so the agent reads only what it needs — a substantially smaller per-workflow token cost.
 
 | Approach | When to use | Token cost |
 |----------|------------|------------|
-| **Playwright CLI** (via `/playwright:playwright` when installed) | Default — all navigation, interaction, snapshots, screenshots | ~27K tokens/workflow |
-| **Playwright MCP** | Opt-in for stateful exploratory flows needing a continuous in-context browser (check how the consuming project enables/disables it in its MCP config) | ~114K tokens/workflow |
+| **Playwright CLI** (via `/playwright:playwright` when installed) | Default — all navigation, interaction, snapshots, screenshots | Low — artifacts on disk, paths in context |
+| **Playwright MCP** | Opt-in for stateful exploratory flows needing a continuous in-context browser (check how the consuming project enables/disables it in its MCP config) | High — payloads stream into context |
 | **Orchestrator MCP + curl** | API-only verification, health checks, structured log inspection | Minimal |
 
 **CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks): see `/playwright:playwright`, when the playwright plugin is installed. This skill (`/testing:run-e2e`) owns the broader orchestrator + API + UI story.

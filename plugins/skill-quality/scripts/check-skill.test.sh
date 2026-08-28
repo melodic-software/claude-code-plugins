@@ -1709,7 +1709,7 @@ else
 fi
 
 # 37j. Check 21: a stray backtick on one line does not blind later lines — the
-#      scanner no longer carries span state across lines.
+#      scanner does not carry span state across lines.
 make_skill fe-span-stray '---
 name: fe-span-stray
 description: "Fresh-eyes fixture. Use when: '"'"'fe stray backtick fixture'"'"'."
@@ -2339,8 +2339,8 @@ fi
 
 # 38f. Check 22 reads the metadata BLOCK, not the first indented `summary:` line
 #      anywhere in the frontmatter. An indented line inside a `description:`
-#      block scalar used to be read as the summary while the cheat-sheet
-#      generator read the real one: two readers disagreeing about WHICH value
+#      block scalar would be read as the summary while the cheat-sheet
+#      generator reads the real one: two readers disagreeing about WHICH value
 #      they are reading. The decoy here would fail the contract if read.
 make_skill summary-decoy '---
 name: summary-decoy

@@ -2,14 +2,12 @@
 # discover-instruction-surfaces.sh — enumerate the CLAUDE.md and rules files in audit scope,
 # each tagged with the scope it loads from.
 #
-# Why this exists: Step 1 discovery used to be two bare `find` commands rooted at the
-# current directory (`find . -maxdepth 1 -name CLAUDE.md`, `find .claude/rules ...`), so it
-# could only ever see PROJECT-scope files. The user-global surfaces — `~/.claude/CLAUDE.md`
-# and `~/.claude/rules/*.md` — load in every session and were reachable by neither this
-# skill nor `claude-config:audit-instructions` (I15 now defers to C6 once both anchors are
-# in this population, including user↔project; at the time this comment was written, neither
-# check reached them). One skill's conflict pass deferred a user-global surface; the
-# receiving skill's discovery could not reach it, so nothing audited it.
+# Why this exists: this script enumerates BOTH project and user-global surfaces. Bare
+# `find` commands rooted at the current directory (`find . -maxdepth 1 -name CLAUDE.md`,
+# `find .claude/rules ...`) can only ever see PROJECT-scope files, while the user-global
+# surfaces — `~/.claude/CLAUDE.md` and `~/.claude/rules/*.md` — load in every session and
+# must be in this population for `claude-config:audit-instructions` to reach them (I15
+# defers to C6 once both anchors are here, including user↔project).
 #
 # Scope tagging is not cosmetic. Several criteria are project-scoped (C9 is the live case),
 # and widening discovery WITHOUT a scope field would make them fire on personal files that
@@ -80,22 +78,22 @@ EOF
 done
 
 emit() {
-  # $1 scope, $2 kind, $3 path
+  local scope="$1" kind="$2" path="$3"
   # A `both` record satisfies every filter: the file really is reachable by each layer,
   # so suppressing it from either view would hide a surface that view is about.
   case "$SCOPE_FILTER" in
   all) ;;
-  "$1") ;;
-  *) [[ "$1" == "both" ]] || return 0 ;;
+  "$scope") ;;
+  *) [[ "$scope" == "both" ]] || return 0 ;;
   esac
-  printf '%s\t%s\t%s\n' "$1" "$2" "$3"
+  printf '%s\t%s\t%s\n' "$scope" "$kind" "$path"
 }
 
 emit_rules() {
-  # $1 rules dir, $2 scope
+  local rules_dir="$1" scope="$2"
   while IFS= read -r rule; do
-    [[ -n "$rule" ]] && emit "$2" rule "$rule"
-  done < <(find "$1" -name "*.md" -type f 2>/dev/null | LC_ALL=C sort)
+    [[ -n "$rule" ]] && emit "$scope" rule "$rule"
+  done < <(find "$rules_dir" -name "*.md" -type f 2>/dev/null | LC_ALL=C sort)
 }
 
 # Canonical physical path of a directory, or empty when it does not resolve.

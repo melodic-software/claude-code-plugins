@@ -1,5 +1,43 @@
 # Changelog — session-flow plugin
 
+## [0.34.11]
+
+### Changed
+
+- **Shared `parse-concern-value.sh` comment cleanup.** Comment-only sync from `lib/parse-concern-value.sh`: the pre-centralization history narration in the header is now a present-tense rationale; no behavior change.
+
+## [0.34.10]
+
+### Changed
+
+- **`keep-going`'s `check-usage-limit-reset.py` collapses a boolean ladder.** An if/else returning
+  booleans is now the expression itself, and the UTC-fallback branch is
+  `resolve_zone(name) or resolve_zone("UTC")`. Same results on every input. Code-tidying sweep,
+  behavior-preserving.
+
+## [0.34.9]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed one zero-information
+  comment in `skills/retro/scripts/parse_transcript.py` (it inaccurately restated the adjacent
+  prepend condition); no behavior change.
+
+## [0.34.8]
+
+### Changed
+
+- **Long files carry a `## Contents` index.** The 438-line plugin README and the 442-line
+  reference/structure.md gained Contents sections, including the handoff document's own body
+  sections as lookup targets. Purely additive. Progressive-disclosure audit, missing-toc
+  treatment.
+
+## [0.34.7]
+
+### Changed
+
+- **`retro`'s ecosystem-improvement catalog points at the hook-events docs instead of copying them.** The ~25-row Hook Events table (a capability list the official docs own, and one that grows faster than a copy can track) is replaced by a pointer to <https://code.claude.com/docs/en/hooks>. From the repo-wide derivability/point-dont-copy audit (PR #3387).
+
 ## [0.34.6]
 
 ### Changed

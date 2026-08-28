@@ -30,12 +30,11 @@ const sampleTalk = () =>
 // resolved dir, not from the storage constant.
 const SLICE_DIR = path.join("/custom-root", ".work", "any-epic", "talk-abc");
 
-// In-memory fs fakes seeded with a fresh sample watch.json, for runMarkPhase tests.
-function seededStore() {
-  const sliceDir = "/tmp/slice";
-  const store = new Map([
-    [watchStatePath(sliceDir), `${JSON.stringify(sampleTalk(), null, 2)}\n`],
-  ]);
+// In-memory fs fakes: a Map-backed readFile/writeFile/mkdir triple, optionally
+// pre-seeded so a test can read a watch.json it never wrote.
+/** @param {Iterable<[string, string]>} [seed] */
+function memoryStore(seed = []) {
+  const store = new Map(seed);
   const readFile = vi.fn(async (p) => {
     const value = store.get(p);
     if (value === undefined) throw new Error("ENOENT");
@@ -45,7 +44,16 @@ function seededStore() {
     store.set(p, data);
   });
   const mkdir = vi.fn(async () => {});
-  return { sliceDir, store, readFile, writeFile, mkdir };
+  return { store, readFile, writeFile, mkdir };
+}
+
+// Seeded with a fresh sample watch.json, for runMarkPhase tests.
+function seededStore() {
+  const sliceDir = "/tmp/slice";
+  return {
+    sliceDir,
+    ...memoryStore([[watchStatePath(sliceDir), `${JSON.stringify(sampleTalk(), null, 2)}\n`]]),
+  };
 }
 
 describe("watch state phase map", () => {
@@ -160,16 +168,7 @@ describe("synthesis target (resolved --target, resume recovery)", () => {
   });
 
   it("round-trips target through writeWatchState/readWatchState", async () => {
-    const store = new Map();
-    const writeFile = vi.fn(async (path, data) => {
-      store.set(path, data);
-    });
-    const readFile = vi.fn(async (path) => {
-      const value = store.get(path);
-      if (value === undefined) throw new Error("ENOENT");
-      return value;
-    });
-
+    const { readFile, writeFile, mkdir } = memoryStore();
     const sliceDir = "/tmp/slice";
     const initial = createWatchState({
       videoId: "abc",
@@ -178,33 +177,15 @@ describe("synthesis target (resolved --target, resume recovery)", () => {
       title: "Talk",
       target: "acme/webapp",
     });
-    await writeWatchState(
-      sliceDir,
-      initial,
-      writeFile,
-      vi.fn(async () => {}),
-    );
+    await writeWatchState(sliceDir, initial, writeFile, mkdir);
     const loaded = await readWatchState(sliceDir, readFile);
     expect(loaded?.target).toBe("acme/webapp");
   });
 });
 
 describe("source metadata persistence (source:* envelope subset)", () => {
-  const persistenceFns = () => {
-    const store = new Map();
-    const writeFile = vi.fn(async (path, data) => {
-      store.set(path, data);
-    });
-    const readFile = vi.fn(async (path) => {
-      const value = store.get(path);
-      if (value === undefined) throw new Error("ENOENT");
-      return value;
-    });
-    return { writeFile, readFile };
-  };
-
   it("persists a flagged snowflake aliasing to disk", async () => {
-    const { writeFile, readFile } = persistenceFns();
+    const { writeFile, readFile, mkdir } = memoryStore();
     const aliasing = { deltaMs: 4_000_000, suspectedKind: "quote-or-retweet" };
     const initial = createWatchState({
       videoId: "1001551417340022785",
@@ -216,19 +197,14 @@ describe("source metadata persistence (source:* envelope subset)", () => {
         "source:snowflakeAliasing": aliasing,
       },
     });
-    await writeWatchState(
-      "/tmp/slice",
-      initial,
-      writeFile,
-      vi.fn(async () => {}),
-    );
+    await writeWatchState("/tmp/slice", initial, writeFile, mkdir);
     const loaded = await readWatchState("/tmp/slice", readFile);
     expect(loaded?.sourceMetadata?.["source:snowflakeAliasing"]).toEqual(aliasing);
     expect(loaded?.sourceMetadata?.["source:displayId"]).toBe("1001551623938805763");
   });
 
   it("writes no sourceMetadata key for an unflagged run", async () => {
-    const { writeFile, readFile } = persistenceFns();
+    const { writeFile, readFile, mkdir } = memoryStore();
     const initial = createWatchState({
       videoId: "abc",
       videoSlug: "talk-abc",
@@ -237,12 +213,7 @@ describe("source metadata persistence (source:* envelope subset)", () => {
       sourceMetadata: {},
     });
     expect(JSON.stringify(initial)).not.toContain('"sourceMetadata"');
-    await writeWatchState(
-      "/tmp/slice",
-      initial,
-      writeFile,
-      vi.fn(async () => {}),
-    );
+    await writeWatchState("/tmp/slice", initial, writeFile, mkdir);
     const loaded = await readWatchState("/tmp/slice", readFile);
     expect(loaded && "sourceMetadata" in loaded).toBe(false);
   });
@@ -250,24 +221,10 @@ describe("source metadata persistence (source:* envelope subset)", () => {
 
 describe("watch state persistence (resume scaffolding)", () => {
   it("round-trips watch.json via injected writeFile/readFile", async () => {
-    const store = new Map();
-    const writeFile = vi.fn(async (path, data) => {
-      store.set(path, data);
-    });
-    const readFile = vi.fn(async (path) => {
-      const value = store.get(path);
-      if (value === undefined) throw new Error("ENOENT");
-      return value;
-    });
-
+    const { readFile, writeFile, mkdir } = memoryStore();
     const sliceDir = "/tmp/slice";
     const initial = sampleTalk();
-    await writeWatchState(
-      sliceDir,
-      initial,
-      writeFile,
-      vi.fn(async () => {}),
-    );
+    await writeWatchState(sliceDir, initial, writeFile, mkdir);
     const loaded = await readWatchState(sliceDir, readFile);
     expect(loaded?.videoSlug).toBe("talk-abc");
     expect(writeFile).toHaveBeenCalledWith(
@@ -286,22 +243,14 @@ describe("watch state persistence (resume scaffolding)", () => {
   });
 
   it("writes continuation-prompt.md from interrupted state", async () => {
-    const store = new Map();
-    const writeFile = vi.fn(async (path, data) => {
-      store.set(path, data);
-    });
+    const { store, writeFile, mkdir } = memoryStore();
 
     let state = sampleTalk();
     state = markPhaseComplete(state, "acquire");
     state = markPhaseComplete(state, "transcript");
     state = markPhaseComplete(state, "watching", { selectedCount: 42 });
 
-    const prompt = await writeContinuationPrompt(
-      "/tmp/slice",
-      state,
-      writeFile,
-      vi.fn(async () => {}),
-    );
+    const prompt = await writeContinuationPrompt("/tmp/slice", state, writeFile, mkdir);
     expect(prompt).toContain("vision");
     expect(store.has(continuationPromptPath("/tmp/slice"))).toBe(true);
   });
@@ -432,10 +381,9 @@ describe("terminal phase completes the slice", () => {
     for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research"]) {
       state = markPhaseComplete(state, phase);
     }
-    const store = new Map([[watchStatePath(sliceDir), `${JSON.stringify(state, null, 2)}\n`]]);
-    const readFile = vi.fn(async (p) => store.get(p));
-    const writeFile = vi.fn(async (p, data) => store.set(p, data));
-    const mkdir = vi.fn(async () => {});
+    const { store, readFile, writeFile, mkdir } = memoryStore([
+      [watchStatePath(sliceDir), `${JSON.stringify(state, null, 2)}\n`],
+    ]);
 
     await runMarkPhase(sliceDir, "synthesis", { readFile, writeFile, mkdir });
 

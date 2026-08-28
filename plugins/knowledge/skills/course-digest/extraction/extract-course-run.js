@@ -229,7 +229,7 @@ async function processLesson(module, lesson, ctx) {
 }
 
 export async function runLessonExtraction(ctx) {
-  const { course, log, modulesDir } = ctx;
+  const { course, log } = ctx;
 
   for (const module of course.modules) {
     log.info(`  Module ${module.position}: ${module.title}`);
@@ -237,8 +237,6 @@ export async function runLessonExtraction(ctx) {
       await processLesson(module, lesson, ctx);
     }
   }
-
-  return { modulesDir };
 }
 
 export function createRunStats() {

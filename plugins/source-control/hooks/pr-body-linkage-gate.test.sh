@@ -107,7 +107,7 @@ GOOD=$'Closes #5'"$SECTIONS"
 NO_RELATED=$'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx'
 NO_KEYWORD=$'## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- refs #9'
 # #3205 reproduction: linkage + Summary + Verification + Related, no Fix.
-# Local gates used to allow this; CI rejected it.
+# CI rejects this body; the local gate must too.
 ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidence\n\n## Related\n\n- N/A'
 NESTED=$'Closes #5\n\n## Summary\n\n### why\n\nbody\n\n## Fix\n\n### how\n\nbody\n\n## Verification\n\n### evidence\n\nbody\n\n## Related\n\n### links\n\n- x'
 
@@ -140,9 +140,10 @@ assert_block "a ## Fix that exists only inside a fenced sample is not the sectio
 assert_block "a ## Fix that exists only as indented code is not the section" "$GATED" "gh pr create -t T --body-file indented-fix.md"
 assert_block "a ## Fix that exists only in an inline span is not the section" "$GATED" "gh pr create -t T --body-file inline-fix.md"
 assert_allow "a real ## Fix is not hidden by a later fenced sample" "$GATED" "gh pr create -t T --body-file real-plus-fenced-fix.md"
-# A line of unmatched, strictly-increasing backtick-run lengths used to
-# rescan the remainder from each opener (O(L^1.5)). The pair-after-collect
-# scan must still finish quickly and still fail-closed on a missing section.
+# On a line of unmatched, strictly-increasing backtick-run lengths, the
+# pair-after-collect scan must not rescan the remainder from each opener
+# (superlinear): it must finish quickly and still fail-closed on a missing
+# section.
 {
   printf 'Closes #5\n\n## Summary\n\nx\n\n'
   printf 'crafted '

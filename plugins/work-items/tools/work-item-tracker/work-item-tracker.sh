@@ -66,6 +66,11 @@ Contract: tools/work-item-tracker/CONTRACT.md
 EOF
 }
 
+fail_usage() {
+  usage
+  exit "$EX_USAGE"
+}
+
 fail_config() {
   printf 'work-item-tracker: %s\n' "$1" >&2
   exit "$EX_CONFIG"
@@ -99,10 +104,7 @@ main() {
     usage 2>&1
     exit 0
   fi
-  if [[ -z "$verb" ]]; then
-    usage
-    exit "$EX_USAGE"
-  fi
+  [[ -n "$verb" ]] || fail_usage
   shift
 
   command -v jq >/dev/null 2>&1 ||
@@ -157,10 +159,7 @@ main() {
       fi
     done
     ;;
-  *)
-    usage
-    exit "$EX_USAGE"
-    ;;
+  *) fail_usage ;;
   esac
 
   # gh >= 2.94 buys exactly one thing: the native sub-issue/dependency surface
@@ -204,25 +203,16 @@ main() {
         shift
         ;;
       --parent)
-        [[ $# -ge 2 ]] || {
-          usage
-          exit "$EX_USAGE"
-        }
+        [[ $# -ge 2 ]] || fail_usage
         parent="$2"
         shift 2
         ;;
       --repo)
-        [[ $# -ge 2 ]] || {
-          usage
-          exit "$EX_USAGE"
-        }
+        [[ $# -ge 2 ]] || fail_usage
         list_args+=(--repo "$2")
         shift 2
         ;;
-      *)
-        usage
-        exit "$EX_USAGE"
-        ;;
+      *) fail_usage ;;
       esac
     done
     if [[ -n "$parent" && ${#list_args[@]} -gt 0 ]]; then

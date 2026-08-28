@@ -129,10 +129,10 @@ class SkillContractTests(unittest.TestCase):
         self.assertNotIn("<snapshotted-head-sha>", paragraph)
 
     def test_autopilot_step3_points_at_safety_for_the_tier_wired_command(self) -> None:
-        # Autopilot §3 no longer inlines a base-only merge command (the coherence
-        # gap #675 closed): it points at safety.md, which holds both the base and
-        # enabled-tier merge paths as one home so an enabled config cannot merge
-        # via the flagless base path. The push discipline stays in the paragraph.
+        # Autopilot §3 must not inline a base-only merge command (#675): it
+        # points at safety.md, which holds both the base and enabled-tier merge
+        # paths as one home so an enabled config cannot merge via the flagless
+        # base path. The push discipline stays in the paragraph.
         autopilot = _reference("autopilot.md")
         paragraph = _paragraph_containing(autopilot, "After the worker's final push")
         self.assertIn("fresh post-push snapshot", paragraph)
@@ -173,7 +173,9 @@ class SkillContractTests(unittest.TestCase):
             "This gate's `ready` field is the sole authority for calling a PR merge-ready",
             paragraph,
         )
-        self.assertIn("never the finding-classification gate's `READINESS_OK`", paragraph)
+        self.assertIn(
+            "never the finding-classification gate's `READINESS_OK`", paragraph
+        )
         self.assertIn("Two Gates, One Merge-Ready Authority", paragraph)
 
     def test_safety_md_separates_the_two_gates(self) -> None:
@@ -181,7 +183,8 @@ class SkillContractTests(unittest.TestCase):
 
         self.assertIn("## Two Gates, One Merge-Ready Authority", safety)
         self.assertIn(
-            "**Only the merge gate's `ready` field determines merge-readiness.**", safety
+            "**Only the merge gate's `ready` field determines merge-readiness.**",
+            safety,
         )
         for marker in (
             "finding-classification gate",
@@ -218,8 +221,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("always route them through a worker", paragraph)
         self.assertIn("never directly to the merge gate", paragraph)
         self.assertIn("In autopilot, that worker assesses", paragraph)
-        self.assertIn("a completed draft is marked ready with `gh pr ready`",
-                      paragraph)
+        self.assertIn("a completed draft is marked ready with `gh pr ready`", paragraph)
         self.assertIn("a genuinely in-progress draft stays draft", paragraph)
         self.assertIn("reported and escalated with the reason", paragraph)
 
@@ -257,7 +259,9 @@ class SkillContractTests(unittest.TestCase):
             with self.subTest(header=header):
                 self.assertIn(header, sections)
 
-        worker = sections["Conflict-Worker Contract (local only — never writes to GitHub)"]
+        worker = sections[
+            "Conflict-Worker Contract (local only — never writes to GitHub)"
+        ]
         for marker in (
             "git merge origin/<base-branch>",
             "never rebase",
@@ -320,7 +324,10 @@ class SkillContractTests(unittest.TestCase):
         loop_skill = SKILL.parent.parent / "babysit-loop" / "SKILL.md"
         loop = loop_skill.read_text(encoding="utf-8")
         reference = (
-            SKILL.parent.parent / "babysit-loop" / "reference" / "promotion-evidence-resolution.md"
+            SKILL.parent.parent
+            / "babysit-loop"
+            / "reference"
+            / "promotion-evidence-resolution.md"
         )
 
         self.assertTrue(reference.is_file())
@@ -383,9 +390,7 @@ class SkillContractTests(unittest.TestCase):
             "--block-labels <merge-block-labels>",
             safety,
         )
-        self.assertIn(
-            "*only* autopilot merge path once the tier is enabled", safety
-        )
+        self.assertIn("*only* autopilot merge path once the tier is enabled", safety)
 
         # Second-account approve mechanic — distinct approver identity, clean pass only.
         self.assertIn("gh pr review owner/repo#N --approve", safety)

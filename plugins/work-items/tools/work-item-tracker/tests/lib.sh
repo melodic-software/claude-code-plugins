@@ -12,9 +12,6 @@
 # them in the caller's scope. PASS lines go to stdout, FAIL lines to stderr.
 # Test files exit non-zero at the end:  [[ $FAILED -eq 0 ]] || exit 1
 #
-# Param order: subject (actual) BEFORE expected — reads as "in <subject>,
-# expect <something>".
-#
 # Duplicated across plugins by design, not drift — see
 # docs/conventions/shell-test-helpers/README.md at the repo root.
 

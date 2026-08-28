@@ -195,9 +195,9 @@ assert_contains "non-crosswalk families are declined with a reason" \
 # lane edits the --from file to drop carve-out rows, and a source file touched in
 # that window (or a stale scan-output file reused) leaves a row whose line number
 # no longer exists. source_line() then returns "", and the row must become a
-# COUNTED decline rather than a finding with an empty excerpt. The fail-safe
-# direction was already right; what was missing is the assertion that keeps an
-# off-by-one in source_line's counting loop from silently changing it.
+# COUNTED decline rather than a finding with an empty excerpt. This assertion
+# pins that fail-safe direction against an off-by-one in source_line's
+# counting loop silently changing it.
 # Uses its own output variable: `OUT` is read by later cases (10, 11) that expect
 # the downgrade fixture's output, and clobbering it would make those cases assert
 # against this empty run instead.
@@ -211,11 +211,10 @@ assert_contains "the unreadable-source decline is counted, never silent" \
 assert_not_contains "no row is emitted with an empty excerpt" "$EOF_OUT" "frontmatter-emphasis.md:9999"
 
 # --- Case 8c: unmatched --from lines are counted, never silent (#3279) ------
-# nrows++ used to live inside the intake pattern, so I28-d (well-formed except
-# suffix outside [a-c]), prose, and a blank incremented nothing and reached no
-# decline bucket. Count first, classify second: those lines increment Scan
-# rows read and land in reason=unparsable-row. I100-a still matches and
-# declines as no-severity-crosswalk-row; I28-a still emits.
+# Count first, classify second: I28-d (well-formed except suffix outside
+# [a-c]), prose, and a blank increment Scan rows read and land in
+# reason=unparsable-row. I100-a still matches and declines as
+# no-severity-crosswalk-row; I28-a still emits.
 UNPARSABLE="$TEST_TMPDIR/unparsable.txt"
 {
   printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-a"
@@ -238,7 +237,7 @@ assert_contains "I100-a still declines as no-severity-crosswalk-row" \
   "$UNP_OUT" "Declined candidates: I100-a count=1 reason=no-severity-crosswalk-row"
 
 # A CRLF-terminated matching row is parsed, not dropped. The intake pattern
-# used to anchor on $ without stripping CR, so a CR-terminated I28-a vanished.
+# must strip CR before anchoring on $, or a CR-terminated I28-a vanishes.
 CRLF_ROW="$TEST_TMPDIR/crlf-row.txt"
 printf '%s\r\n' "$FIXTURES/quoted-trigger.md:8:I28-a" >"$CRLF_ROW"
 CRLF_ROW_OUT=$(emit "$CRLF_ROW" "$TEST_TMPDIR/crlf-row.md")
@@ -473,7 +472,7 @@ assert_eq "so the row still parses as one 7-column row" "9" "$ALREADY_COLS"
 # --- Case 13c: repo-root spelling mismatch does not fail-close an in-repo file
 # This producer fails CLOSED: a path it cannot prove is under the root is
 # declined. On Git Bash, git's toplevel and the caller's pwd can name the
-# same directory differently, which used to decline every in-repo hit.
+# same directory differently; that mismatch must not decline in-repo hits.
 # A symlink makes the two spellings disagree on Linux too.
 SPELL_REAL="$TEST_TMPDIR/spell-real"
 SPELL_LINK="$TEST_TMPDIR/spell-link"

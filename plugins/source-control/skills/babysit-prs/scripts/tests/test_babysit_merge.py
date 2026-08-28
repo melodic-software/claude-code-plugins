@@ -142,20 +142,30 @@ class TierEvaluateHarness(unittest.TestCase):
             mock.patch.object(merge, "gh_json", side_effect=gh_json),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
             mock.patch.object(
-                merge, "fetch_pull_request_reviews",
+                merge,
+                "fetch_pull_request_reviews",
                 return_value=(CLEAN_APPROVAL if reviews is None else reviews),
             ) as reviews_mock,
             mock.patch.object(
-                merge, "fetch_issue_comments",
+                merge,
+                "fetch_issue_comments",
                 side_effect=issue_comments_side_effect,
             ) as comments_mock,
             mock.patch.object(
-                merge, "fetch_pull_request_review_comments",
+                merge,
+                "fetch_pull_request_review_comments",
                 return_value=(review_comments or []),
             ) as review_comments_mock,
         ):
             result = merge.evaluate(
-                "owner/repo", PR_NUMBER, HEAD, {"owner"}, frozenset(), False, False, tier,
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset(),
+                False,
+                False,
+                tier,
             )
         result["_reviews_called"] = reviews_mock.called
         result["_comments_called"] = comments_mock.called
@@ -180,16 +190,14 @@ class TierPassesWhenEveryCriterionHolds(TierEvaluateHarness):
     def test_ratified_decision_default_marker_passes(self) -> None:
         # A maintainer (OWNER) comment strictly after the marker ratifies it.
         ratify = _comment(
-            "maintainer", "Ratified — proceed.", association="OWNER",
+            "maintainer",
+            "Ratified — proceed.",
+            association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
-        result = self._evaluate(
-            _pr(), linked_issue_comments=[DECISION_MARKER, ratify]
-        )
+        result = self._evaluate(_pr(), linked_issue_comments=[DECISION_MARKER, ratify])
         self.assertTrue(result["ready"], result["blockers"])
-        self.assertEqual(
-            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], []
-        )
+        self.assertEqual(result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [])
 
 
 class TierFallsBackPerCriterion(TierEvaluateHarness):
@@ -238,9 +246,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
 
     def test_stale_approval_off_head_blocks(self) -> None:
         # An approval left on a superseded commit is not "unchanged since review".
-        result = self._evaluate(
-            _pr(), reviews=[_approval(f"{APPROVER}[bot]", STALE)]
-        )
+        result = self._evaluate(_pr(), reviews=[_approval(f"{APPROVER}[bot]", STALE)])
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
         self.assertTrue(any("distinct-bot" in b for b in result["blockers"]))
 
@@ -251,9 +257,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
     def test_unconfigured_bot_approval_is_rejected(self) -> None:
         # An unrelated installed App's [bot] approval must not satisfy the tier:
         # being a bot is not enough, it must be the configured approver identity.
-        result = self._evaluate(
-            _pr(), reviews=[_approval("random-app[bot]", HEAD)]
-        )
+        result = self._evaluate(_pr(), reviews=[_approval("random-app[bot]", HEAD)])
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
         self.assertFalse(result["ready"])
 
@@ -264,7 +268,9 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         }
         result = self._evaluate(_pr(), issue_comments=[comment])
         self.assertFalse(result["ready"])
-        self.assertIn("maintainer", result["autopilotMergeTier"]["humanBlockingComments"])
+        self.assertIn(
+            "maintainer", result["autopilotMergeTier"]["humanBlockingComments"]
+        )
         self.assertTrue(any("human blocking comment" in b for b in result["blockers"]))
 
     def test_superseded_bot_approval_is_ignored(self) -> None:
@@ -274,9 +280,13 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         result = self._evaluate(
             _pr(),
             reviews=[
-                _approval(f"{APPROVER}[bot]", HEAD, submitted_at="2026-01-01T00:00:00Z"),
                 _approval(
-                    f"{APPROVER}[bot]", HEAD, state="CHANGES_REQUESTED",
+                    f"{APPROVER}[bot]", HEAD, submitted_at="2026-01-01T00:00:00Z"
+                ),
+                _approval(
+                    f"{APPROVER}[bot]",
+                    HEAD,
+                    state="CHANGES_REQUESTED",
                     submitted_at="2026-01-02T00:00:00Z",
                 ),
             ],
@@ -290,7 +300,9 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
             "body": "Please do not merge this PR yet.",
         }
         result = self._evaluate(_pr(), issue_comments=[comment])
-        self.assertIn("maintainer", result["autopilotMergeTier"]["humanBlockingComments"])
+        self.assertIn(
+            "maintainer", result["autopilotMergeTier"]["humanBlockingComments"]
+        )
         self.assertFalse(result["ready"])
 
     def test_inline_review_comment_veto_blocks(self) -> None:
@@ -302,7 +314,9 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         }
         result = self._evaluate(_pr(), review_comments=[row])
         self.assertTrue(result["_review_comments_called"])
-        self.assertIn("maintainer", result["autopilotMergeTier"]["humanBlockingComments"])
+        self.assertIn(
+            "maintainer", result["autopilotMergeTier"]["humanBlockingComments"]
+        )
         self.assertFalse(result["ready"])
 
     def test_unratified_decision_default_marker_blocks(self) -> None:
@@ -316,12 +330,12 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
     def test_non_maintainer_comment_does_not_ratify(self) -> None:
         # A later comment from a non-maintainer is not the veto-holder's ratification.
         later = _comment(
-            "drive-by", "looks fine to me", association="NONE",
+            "drive-by",
+            "looks fine to me",
+            association="NONE",
             created_at="2026-02-01T00:00:00Z",
         )
-        result = self._evaluate(
-            _pr(), linked_issue_comments=[DECISION_MARKER, later]
-        )
+        result = self._evaluate(_pr(), linked_issue_comments=[DECISION_MARKER, later])
         self.assertFalse(result["ready"])
         self.assertEqual(
             result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
@@ -362,12 +376,12 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         # A later maintainer comment with no explicit ratification signal (a bare
         # "thanks") must not clear the veto.
         chatter = _comment(
-            "maintainer", "thanks, nice work here", association="OWNER",
+            "maintainer",
+            "thanks, nice work here",
+            association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
-        result = self._evaluate(
-            _pr(), linked_issue_comments=[DECISION_MARKER, chatter]
-        )
+        result = self._evaluate(_pr(), linked_issue_comments=[DECISION_MARKER, chatter])
         self.assertFalse(result["ready"])
         self.assertEqual(
             result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
@@ -376,12 +390,12 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
     def test_ratification_signal_before_marker_does_not_clear(self) -> None:
         # A ratification signal that predates the marker is not a ratification of it.
         early = _comment(
-            "maintainer", "approved", association="OWNER",
+            "maintainer",
+            "approved",
+            association="OWNER",
             created_at="2025-12-01T00:00:00Z",
         )
-        result = self._evaluate(
-            _pr(), linked_issue_comments=[early, DECISION_MARKER]
-        )
+        result = self._evaluate(_pr(), linked_issue_comments=[early, DECISION_MARKER])
         self.assertFalse(result["ready"])
         self.assertEqual(
             result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
@@ -391,23 +405,27 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         # A withheld/negated approval must not clear the veto even though it
         # contains an approval token.
         negated = _comment(
-            "maintainer", "not approved yet — hold this", association="OWNER",
+            "maintainer",
+            "not approved yet — hold this",
+            association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
-        result = self._evaluate(
-            _pr(), linked_issue_comments=[DECISION_MARKER, negated]
-        )
+        result = self._evaluate(_pr(), linked_issue_comments=[DECISION_MARKER, negated])
         self.assertFalse(result["ready"])
 
     def test_ratified_then_revoked_holds(self) -> None:
         # The latest decisive maintainer signal wins: a later revocation ("do not
         # merge") re-holds a marker an earlier comment had ratified.
         ratify = _comment(
-            "maintainer", "Ratified — proceed.", association="OWNER",
+            "maintainer",
+            "Ratified — proceed.",
+            association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
         revoke = _comment(
-            "maintainer", "Actually, do not merge — hold this.", association="OWNER",
+            "maintainer",
+            "Actually, do not merge — hold this.",
+            association="OWNER",
             created_at="2026-02-02T00:00:00Z",
         )
         result = self._evaluate(
@@ -422,49 +440,57 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         # Latest wins in the other direction: a ratification newer than an earlier
         # revocation clears the veto.
         revoke = _comment(
-            "maintainer", "not approved yet — hold this", association="OWNER",
+            "maintainer",
+            "not approved yet — hold this",
+            association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
         ratify = _comment(
-            "maintainer", "Re-reviewed — ratified, proceed.", association="OWNER",
+            "maintainer",
+            "Re-reviewed — ratified, proceed.",
+            association="OWNER",
             created_at="2026-02-02T00:00:00Z",
         )
         result = self._evaluate(
             _pr(), linked_issue_comments=[DECISION_MARKER, revoke, ratify]
         )
         self.assertTrue(result["ready"], result["blockers"])
-        self.assertEqual(
-            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], []
-        )
+        self.assertEqual(result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [])
 
     def test_non_decisive_comment_after_ratification_leaves_it_standing(self) -> None:
         # A non-decisive later comment (a bare "thanks") does not disturb a prior
         # ratification.
         ratify = _comment(
-            "maintainer", "Ratified — proceed.", association="OWNER",
+            "maintainer",
+            "Ratified — proceed.",
+            association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
         chatter = _comment(
-            "maintainer", "thanks, nice work here", association="OWNER",
+            "maintainer",
+            "thanks, nice work here",
+            association="OWNER",
             created_at="2026-02-02T00:00:00Z",
         )
         result = self._evaluate(
             _pr(), linked_issue_comments=[DECISION_MARKER, ratify, chatter]
         )
         self.assertTrue(result["ready"], result["blockers"])
-        self.assertEqual(
-            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], []
-        )
+        self.assertEqual(result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [])
 
     def test_same_timestamp_ratify_and_revoke_holds(self) -> None:
         # Ambiguity is fail-closed: a ratify/revoke tie at the same timestamp holds
         # (ratification must be strictly newer than every revocation to clear).
         ratify = _comment(
-            "maintainer", "Ratified — proceed.", association="OWNER",
+            "maintainer",
+            "Ratified — proceed.",
+            association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
         revoke = _comment(
-            "maintainer", "do not merge", association="OWNER",
+            "maintainer",
+            "do not merge",
+            association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
         result = self._evaluate(
@@ -508,12 +534,13 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         # its own default). The OWNER association proves the bot classification --
         # not the association -- holds it.
         ratify = _comment(
-            LANE, "Ratified — proceed.", typename="User", association="OWNER",
+            LANE,
+            "Ratified — proceed.",
+            typename="User",
+            association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
-        result = self._evaluate(
-            _pr(), linked_issue_comments=[DECISION_MARKER, ratify]
-        )
+        result = self._evaluate(_pr(), linked_issue_comments=[DECISION_MARKER, ratify])
         self.assertFalse(result["ready"])
         self.assertEqual(
             result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
@@ -658,7 +685,7 @@ class DependencyHoldIntegrationTests(unittest.TestCase):
     through the real evaluate() with gh seams stubbed -- a pure-function test of
     `is_dependency_author` would pass even if the config never reached the call,
     so this exercises the actual wiring: CLI-arg-shaped frozenset -> evaluate()
-    param -> the line-715 hold.
+    param -> the dependency-manager hold in `babysit_merge.evaluate`.
     """
 
     DEP_BOT = "acme-bot"
@@ -677,17 +704,26 @@ class DependencyHoldIntegrationTests(unittest.TestCase):
             mock.patch.object(merge, "gh_json", side_effect=gh_json),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
             mock.patch.object(
-                merge, "fetch_pull_request_reviews",
+                merge,
+                "fetch_pull_request_reviews",
                 return_value=[_approval("some-reviewer[bot]", HEAD)],
             ),
             mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
             mock.patch.object(
-                merge, "fetch_pull_request_review_comments", return_value=[],
+                merge,
+                "fetch_pull_request_review_comments",
+                return_value=[],
             ),
         ):
             return merge.evaluate(
-                "owner/repo", PR_NUMBER, HEAD, {"owner"}, frozenset(),
-                False, False, None,
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset(),
+                False,
+                False,
+                None,
                 extra_dependency_manager_logins=extra,
             )
 
@@ -750,16 +786,26 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
             mock.patch.object(merge, "gh_json", side_effect=gh_json),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
             mock.patch.object(
-                merge, "fetch_pull_request_reviews", return_value=[],
+                merge,
+                "fetch_pull_request_reviews",
+                return_value=[],
             ),
             mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
             mock.patch.object(
-                merge, "fetch_pull_request_review_comments", return_value=[],
+                merge,
+                "fetch_pull_request_review_comments",
+                return_value=[],
             ),
         ):
             result = merge.evaluate(
-                "owner/repo", PR_NUMBER, HEAD, {"owner"},
-                frozenset({self.SELF}), False, allow_unprotected, tier,
+                "owner/repo",
+                PR_NUMBER,
+                HEAD,
+                {"owner"},
+                frozenset({self.SELF}),
+                False,
+                allow_unprotected,
+                tier,
             )
         result["_repo_reads"] = len(repo_calls)
         return result
@@ -980,9 +1026,15 @@ class NoAbbreviatedFlags(unittest.TestCase):
         # resolved behavior diverge.
         with (
             mock.patch.object(
-                sys, "argv",
-                ["babysit_merge.py", "owner/repo#1",
-                 "--allowed-owners", "owner", "--mer"],
+                sys,
+                "argv",
+                [
+                    "babysit_merge.py",
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    "--mer",
+                ],
             ),
             contextlib.redirect_stdout(io.StringIO()),
             mock.patch("sys.stderr", new=io.StringIO()),

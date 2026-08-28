@@ -74,6 +74,9 @@ FILE_ATTRIBUTE_SPARSE_FILE = 0x00000200
 CLOUD_PLACEHOLDER_ATTRIBUTES = (
     FILE_ATTRIBUTE_OFFLINE | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
 )
+FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+FILE_ATTRIBUTE_NORMAL = 0x00000080
+OPEN_EXISTING = 3
 # st_blocks is documented in units of 512-byte blocks on every Unix Python
 # cares about (POSIX, Linux, macOS). Multiplying here is the cheap allocated-
 # size read; Windows lstat does not expose st_blocks, so allocated_size stays
@@ -773,18 +776,18 @@ def entry_reclaimable_local_bytes(entry: dict[str, Any]) -> int | None:
 
 def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
     """Sum of per-entry reclaimable local bytes across an inventory."""
-    total = 0
-    for entry in entries:
-        value = entry_reclaimable_local_bytes(entry)
-        if value is not None:
-            total += value
-    return total
-
-
+    return sum(
+        value
+        for entry in entries
+        if (value := entry_reclaimable_local_bytes(entry)) is not None
+    )
 
 def entry_is_empty_directory(
     entry: dict[str, Any],
-    inventory: dict[str, dict[str, Any]] | list[dict[str, Any]] | set[str] | None = None,
+    inventory: dict[str, dict[str, Any]]
+    | list[dict[str, Any]]
+    | set[str]
+    | None = None,
     *,
     parents_with_children: set[str] | None = None,
     unknown_paths: set[str] | None = None,
@@ -815,9 +818,7 @@ def entry_is_empty_directory(
         return relative not in parents_with_children
     if inventory is None:
         paths: Iterable[str] = ()
-    elif isinstance(inventory, dict):
-        paths = inventory
-    elif isinstance(inventory, set):
+    elif isinstance(inventory, (dict, set)):
         paths = inventory
     else:
         paths = (
@@ -913,9 +914,7 @@ def children_rollup(
             continue
         name = child_rollup_name(path)
         gaps.setdefault(name, set()).add(
-            reasons.get(path, "not-walked")
-            if path == name
-            else "descendant-not-walked"
+            reasons.get(path, "not-walked") if path == name else "descendant-not-walked"
         )
     totals: dict[str, dict[str, Any]] = {}
     for entry in entries:
@@ -2553,10 +2552,9 @@ def windows_handle_state(path: Path) -> tuple[str, str | None]:
         ctypes.c_void_p,
     ]
     create_file.restype = ctypes.c_void_p
-    flags = 0x02000000 if path.is_dir() else 0x00000080  # BACKUP_SEMANTICS / NORMAL
-    handle = create_file(
-        str(path), 0, 0, None, 3, flags, None
-    )  # OPEN_EXISTING, exclusive share
+    flags = FILE_FLAG_BACKUP_SEMANTICS if path.is_dir() else FILE_ATTRIBUTE_NORMAL
+    # Share mode 0 requests exclusive access; an already-open file fails the probe.
+    handle = create_file(str(path), 0, 0, None, OPEN_EXISTING, flags, None)
     invalid = ctypes.c_void_p(-1).value
     if handle == invalid:
         error = ctypes.get_last_error()

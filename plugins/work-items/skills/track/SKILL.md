@@ -30,6 +30,17 @@ actions below in particular:
   every query. When a role defaults because the file or entry is absent, warn loudly rather than
   substituting silently; a present malformed/empty/non-string value is a hard stop.
 
+`add` and `recheck` also draw on reference files the seam doc above does not itself carry:
+
+- [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md):
+  the 8-group label structure `add` validates against and `list --category` filters by.
+- [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md):
+  the title convention `add` applies.
+- [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md):
+  the brief template `add --agent-ready` uses instead of the default body.
+- [`${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md`](${CLAUDE_PLUGIN_ROOT}/reference/standing-item-preconditions.md):
+  the precondition `recheck` evaluates before advancing dates or closing the associated item.
+
 ## Scope
 
 `track` is the centralized, concurrent-safe backlog-CRUD surface: create, claim, close, list,

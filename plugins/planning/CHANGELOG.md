@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.11]
+
+### Changed
+
+- **`plan`'s argument-gated sections are on-demand spokes.** Plan Review Mode and the close-out
+  procedure (including the ADR admission test and spec-container ritual) moved verbatim to
+  `context/review-mode.md` and `context/close-out.md` behind their existing router rows.
+- **`interview`'s relentless-only framing is an on-demand spoke.** The two exclusively-`me`
+  paragraphs moved to `context/relentless-mode.md`; the per-question template stays inline because
+  every questioning mode uses it. Behavior unchanged. Progressive-disclosure audit, oversize-hub
+  treatments.
+
 ## [0.34.10]
 
 ### Changed

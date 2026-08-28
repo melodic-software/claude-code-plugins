@@ -194,6 +194,33 @@ EOF
     fail "shfmt gate ON -> missing systemMessage disclosure: $OUT"
   fi
 
+  # Rewrite AND findings -> ONE JSON document, both channels (#3406). The
+  # unindented if-block makes shfmt rewrite; the unassigned-var reference makes
+  # ShellCheck report SC2154. Disclosure and findings must compose into a
+  # single document — a second printed object is an invalid hook response and
+  # either message can be lost.
+  # shellcheck disable=SC2016  # $undefined_variable must stay literal in the emitted fixture (it is what makes ShellCheck report SC2154)
+  printf '#!/usr/bin/env bash\nif true; then\necho "$undefined_variable"\nfi\n' >"$REPO_YES/src/both.sh"
+  OUT=$(run_hook "$REPO_YES/src/both.sh")
+  DOCS=$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)
+  if [[ "$DOCS" == "1" ]]; then
+    ok "rewrite+findings -> exactly one JSON document (#3406)"
+  else
+    fail "rewrite+findings -> $DOCS documents on stdout (#3406): $OUT"
+  fi
+  if printf '%s' "$OUT" | jq -e '.systemMessage' >/dev/null 2>&1 &&
+    printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
+    CTX=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext')
+    MSG=$(printf '%s' "$OUT" | jq -r '.systemMessage')
+    if printf '%s' "$CTX" | grep -q 'SC2154' && printf '%s' "$MSG" | grep -qi 'reformatted'; then
+      ok "rewrite+findings -> both channels carried in the one document"
+    else
+      fail "rewrite+findings -> channels malformed (ctx=$CTX msg=$MSG)"
+    fi
+  else
+    fail "rewrite+findings -> a channel is missing: $OUT"
+  fi
+
   # Gate OFF: no .editorconfig anywhere in the repo -> bytes untouched.
   REPO_NO="$WORK/no-config"
   new_repo "$REPO_NO"
@@ -273,8 +300,7 @@ EOF
 
   # A brace-list section naming sh (`[*.{sh,bash}]`) governs shell files:
   # section_applies_to_shell matches the `{,sh,}` / `{sh,` / `,sh}` shapes, so
-  # formatting opts in. Regression guard for the documented brace-list form,
-  # previously exercised only via section_applies_to_shell's implementation.
+  # formatting opts in. Regression guard for the documented brace-list form.
   REPO_BRACE="$WORK/brace-config"
   new_repo "$REPO_BRACE"
   printf 'root = true\n[*.{sh,bash}]\nindent_style = space\nindent_size = 2\n' >"$REPO_BRACE/.editorconfig"

@@ -321,8 +321,8 @@ resolve_base() {
 # in <range>, one per line.
 #
 # One `git log -p` stream into one `git patch-id` process computes the whole set;
-# the per-commit `git show | git patch-id` loop it replaces cost ~13s per
-# worktree and bought nothing.
+# a per-commit `git show | git patch-id` loop costs ~13s per worktree and buys
+# nothing.
 #
 # `--no-merges` is explicit rather than incidental: `git log -p` emits no diff for
 # a merge commit, so a merge-only range would otherwise produce an empty id set
@@ -338,9 +338,9 @@ resolve_base() {
 # 2.54: both spellings produce `7ad14294…` under `--stable` and different ids
 # under `--verbatim`. The two flags are mutually exclusive.
 #
-# What `--verbatim` costs is the whitespace tolerance that used to let an
-# EOL-renormalized branch match: that case now falls through to the two-dot
-# fallback and, failing there too, reports `no`. That is the fail-closed
+# What `--verbatim` costs is whitespace tolerance: an EOL-renormalized branch
+# does not match here — it falls through to the two-dot fallback and, failing
+# there too, reports `no`. That is the fail-closed
 # direction — a prompt rather than a loss — and it is the correct trade for a
 # guard. What it does NOT cost is the squash case: the branch's range id still
 # equals the squash commit's, and still matches after the base advances. Both
@@ -503,14 +503,13 @@ classify_landed() {
   # branch's touched paths differ from the base at all — and that is the only
   # question it is now asked.
   #
-  # The direction test that used to live here is gone, and its removal is the
-  # point rather than a simplification: `git diff base..HEAD` reports deletions
-  # for a branch that is merely BEHIND the base, and reports deletions for a
-  # branch whose own unique work IS a deletion. Those two are byte-identical in
-  # numstat, so "additions are zero" proved nothing and classified a
-  # delete-only branch as landed — a false `yes` in the direction that destroys
-  # work. The behind-not-stranded case it was written for is already caught by
-  # the range patch-id above, which is why nothing needs to replace it.
+  # There is deliberately NO direction test here: `git diff base..HEAD` reports
+  # deletions for a branch that is merely BEHIND the base, and reports deletions
+  # for a branch whose own unique work IS a deletion. Those two are
+  # byte-identical in numstat, so "additions are zero" proves nothing and
+  # classifies a delete-only branch as landed — a false `yes` in the direction
+  # that destroys work. The behind-not-stranded case such a test would target is
+  # already caught by the range patch-id above, which is why none is needed.
   #
   # A verdict from here is only valid against the base tip stamped in L_BASE.
   touched="$WORKDIR/touched"
@@ -863,8 +862,15 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   # reason string out of the risk column. Found by using this output from a
   # `while IFS=$'\t' read` loop, which is the most natural way to consume it and
   # the one this file's own callers are told to use.
+  #
+  # The head column is sliced BEFORE the fallback applies: `${T_HEAD[$idx]:0:12}`
+  # on an empty value yields empty, not `-`, so a `${T_HEAD[$idx]:--}` written
+  # inline with the slice would still emit nothing. notgit and bare-hub rows
+  # carry no HEAD by design (the `-z "${T_HEAD[$idx]}"` checks above), so those
+  # are exactly the rows this contract was written for.
+  head_col="${T_HEAD[$idx]:0:12}"
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "${T_PATH[$idx]:--}" "${T_BRANCH[$idx]:--}" "${T_HEAD[$idx]:0:12}" "${R_UNPUSHED[$idx]:--}" \
+    "${T_PATH[$idx]:--}" "${T_BRANCH[$idx]:--}" "${head_col:--}" "${R_UNPUSHED[$idx]:--}" \
     "${R_LANDED[$idx]:--}" "${R_METHOD[$idx]:--}" "${R_BASE[$idx]:--}" "${R_INPROGRESS[$idx]:--}" \
     "${R_STAGED[$idx]:--}" "${R_UNSTAGED[$idx]:--}" "${R_CONFLICTED[$idx]:--}" "${R_UNTRACKED[$idx]:--}" \
     "${PEERS[$idx]:--}" "${risk:--}" "${reason:--}"

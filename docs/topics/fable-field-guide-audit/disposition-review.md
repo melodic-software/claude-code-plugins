@@ -185,9 +185,9 @@ therefore a two-site edit with operative text at both, not one line plus a point
   Row 12 verified against `trust-and-authority.md:56-60`, an authorization gate with no
   comprehension component, as asserted.
 - **Row-level completeness of §6** — spot-checked against S1, S5, S6, S7, S11, S13; every ledger row
-  survives. The attribution of that property to `coverage-reconcile.md` is loose — that file checks
-  article-line, pattern, quadrant and ledger coverage, not ledger-row survival — but the property
-  holds.
+  survives. The attribution of that property to the audit's coverage-reconcile check (a working
+  file removed after absorption) is loose — that check covered article-line, pattern, quadrant and
+  ledger coverage, not ledger-row survival — but the property holds.
 - **The twelve cost-asymmetry sites** — eleven verify cleanly; `planning.md:51` ("Information gain
   per unit cost sets the order") is an ordering rule and a soft fit.
 - **R15-R17, R19, R20, R24 citations** — `context-economy.md:37`, `execution.md:128`/`:133`,

@@ -112,10 +112,9 @@ EXP_MARKER="$(marker alice "$PAST" 24)"
 lease_array 123 "$EXP_MARKER" >"$GH_STUB_DIR/lease-comments"
 jq -cn --arg b "$EXP_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
 # `|| rc=$?` rather than a `set +e` / `set -e` pair: this file runs under
-# `set -uo pipefail` with errexit deliberately OFF, and the pair used to restore
-# it with `set -e 2>/dev/null || true`, which ENABLES errexit rather than
-# restoring the prior state. Every later case that expected a non-zero exit then
-# aborted the suite at that line instead of asserting on it.
+# `set -uo pipefail` with errexit deliberately OFF, and such a pair would
+# ENABLE errexit rather than restore the prior state, aborting every later
+# case that expects a non-zero exit instead of letting it assert.
 rc=0
 bash "$RENEW" "$ID" --lease-comment-id 123 >/dev/null 2>&1 || rc=$?
 assert_eq "renew-lease returns conflict (7) for an expired active lease" "7" "$rc"

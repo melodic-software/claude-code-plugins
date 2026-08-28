@@ -702,7 +702,6 @@ while IFS="$TAB" read -r c_file c_line c_shape c_excerpt; do
   [[ -n "$c_shape" ]] || continue
   ts="${FILE_TS[$c_file]:-}"
   if [[ -z "$ts" ]]; then
-    ts=""
     if [[ "$GIT_OK" == '1' && -f "$c_file" ]]; then
       ts="$(git log -1 --format=%ct -- "$c_file" 2>/dev/null | tr -d '\r')"
     fi

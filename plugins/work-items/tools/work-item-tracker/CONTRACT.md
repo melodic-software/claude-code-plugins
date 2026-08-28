@@ -1,5 +1,29 @@
 # Work-item tracker seam — contract
 
+## Contents
+
+- [Prerequisites](#prerequisites)
+  - [Degradation without `gh` (cloud / MCP-only sessions)](#degradation-without-gh-cloud--mcp-only-sessions)
+- [Setup (binding file)](#setup-binding-file)
+- [Verbs (core public surface)](#verbs-core-public-surface)
+- [Adapter contract](#adapter-contract)
+- [Adapter resolution](#adapter-resolution)
+- [JSON output contract](#json-output-contract)
+- [ID grammar](#id-grammar)
+- [Exit codes](#exit-codes)
+- [Lease protocol](#lease-protocol)
+- [Containers and state](#containers-and-state)
+  - [Multi-provider topology — the role-split model (recorded decision, not yet built)](#multi-provider-topology--the-role-split-model-recorded-decision-not-yet-built)
+- [Capabilities manifest](#capabilities-manifest)
+  - [Contract-version handshake](#contract-version-handshake)
+- [Identity routing (GitHub adapter)](#identity-routing-github-adapter)
+- [local-markdown adapter](#local-markdown-adapter)
+  - [Branch, worktree, and lease confinement](#branch-worktree-and-lease-confinement)
+- [jira adapter](#jira-adapter)
+- [linear adapter](#linear-adapter)
+- [gitea adapter](#gitea-adapter)
+- [Conformance](#conformance)
+
 Provider-neutral CLI contract for work-item tracker operations. Skills and scripts call the
 core dispatcher (`work-item-tracker.sh`) only; the bound provider adapter executes the
 operation. The seam ships bundled with the `work-items` plugin and resolves plugin-dir

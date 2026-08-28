@@ -1,5 +1,15 @@
 # ladder-climb-roadmap — PLAN
 
+## Contents
+
+- [Brief](#brief)
+- [Plan](#plan)
+- [Blast radius](#blast-radius)
+- [Stress-test summary](#stress-test-summary)
+- [Execution shape](#execution-shape)
+- [Open questions](#open-questions)
+- [Handoff to implementation](#handoff-to-implementation)
+
 ## Brief
 
 Interview complete (25/25 resolved, verification-backed — ledger committed alongside this plan:

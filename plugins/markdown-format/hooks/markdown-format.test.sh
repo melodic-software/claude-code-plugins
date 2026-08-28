@@ -655,10 +655,11 @@ done
 
 # Fail-closed case for the three skips above: with git absent and
 # CLAUDE_PROJECT_DIR unset, even a symlink whose target resolves INSIDE the
-# repository must be skipped. `hook::read_file_path` no longer falls back to
-# unscoped admission (#1091); link survival plus an unfixed target proves
-# --fix never ran. (When CLAUDE_PROJECT_DIR is set, the project-dir branch
-# still admits in-repo paths without git — covered separately below.)
+# repository must be skipped. `hook::read_file_path` never falls back to
+# unscoped admission (the #1091 regression this case pins); link survival plus
+# an unfixed target proves --fix never ran. (When CLAUDE_PROJECT_DIR is set,
+# the project-dir branch still admits in-repo paths without git — covered
+# separately below.)
 NOGIT_INSIDE_TARGET="$REPO/docs/insideNoGitTarget.md"
 NOGIT_INSIDE_LINK="$REPO/docs/insideNoGitLink.md"
 printf '# Inside\n\n* inside item\n' >"$NOGIT_INSIDE_TARGET"
@@ -1517,8 +1518,8 @@ else
 fi
 rm -f "$ORIGINAL_CONFIG"
 
-# The same test applies to .yaml, which the escape tier previously did not scan
-# for quoted escapes at all — only \x/\u/\U, escaped line joins and !! tags. A
+# The same test applies to .yaml: an escape tier scanning only \x/\u/\U,
+# escaped line joins and !! tags would miss quoted escapes entirely. A
 # double-quoted YAML scalar decodes the same repertoire JSON does and more, so a
 # backslash anywhere inside one is the signal, whatever follows it.
 cat >"$REPO/.markdownlint-cli2.yaml" <<YAML

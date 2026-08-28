@@ -159,17 +159,17 @@ DISPLAY_NAME="$(sget '.display_name')"
 [[ "$DISPLAY_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9\ ._/+-]*$ ]] ||
   die_spec "display_name must be letters, digits, spaces, and . _ / + - only, starting alphanumeric (found: $DISPLAY_NAME) — it is substituted literally into generated shell, including a double-quoted expansion where \$(…) would execute"
 
-BASE_PATH="$(jq -r '.api.base_path // ""' <<<"$SPEC_JSON")"
+BASE_PATH="$(sget '.api.base_path')"
 [[ "$BASE_PATH" =~ ^(/[A-Za-z0-9._~-]+)*$ ]] ||
   die_spec "api.base_path must be empty or a slash-led path of [A-Za-z0-9._~-] segments (found: $BASE_PATH)"
 
-HOST_SUFFIX="$(jq -r '.api.host_suffix // ""' <<<"$SPEC_JSON")"
+HOST_SUFFIX="$(sget '.api.host_suffix')"
 if [[ -n "$HOST_SUFFIX" ]]; then
   [[ "$HOST_SUFFIX" =~ ^\.[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] ||
     die_spec "api.host_suffix must be empty or a dot-led domain suffix (found: $HOST_SUFFIX)"
 fi
 
-AUTH_SCHEME="$(jq -r '.api.auth_scheme // ""' <<<"$SPEC_JSON")"
+AUTH_SCHEME="$(sget '.api.auth_scheme')"
 case "$AUTH_SCHEME" in
 bearer | token | basic | raw) ;;
 *) die_spec "api.auth_scheme must be one of: bearer, token, basic, raw (found: ${AUTH_SCHEME:-none})" ;;
@@ -382,10 +382,7 @@ SAMPLE_ID="$(jq -r --arg d "$default_sample_id" '.api.sample_id // $d' <<<"$SPEC
 [[ "${BASH_REMATCH[1]}" == "$PROVIDER" ]] ||
   die_spec "api.sample_id '$SAMPLE_ID' names provider '${BASH_REMATCH[1]}', not '$PROVIDER'"
 # The generated test asserts the parsed number, so it has to come from the sample id
-# rather than a constant. It was hardcoded `12`, which both shipped specs happen to use
-# — so any consumer whose sample_id ends in anything else got a FAILING test the moment
-# their adapter was generated, against a template that promises the opposite ("every
-# case here is real and passes the moment the adapter is generated").
+# rather than a constant.
 SAMPLE_ID_NUMBER="${SAMPLE_ID##*#}"
 
 # These are substitution VALUES, so they interpolate $DISPLAY_NAME directly rather than

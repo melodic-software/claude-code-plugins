@@ -3,6 +3,49 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.14]
+
+### Changed
+
+- **Shared `hook-utils.sh` comment cleanup.** Comment-only sync from `lib/hook-utils.sh`: history-narration comments rewritten as present-tense rules; no behavior change.
+
+## [0.38.13]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `inventory`'s inventory.py
+  hoists the duplicated `candidate_binaries()` call into one reused snapshot and normalizes a
+  docstring's em dashes to the file's hyphen idiom (plus formatter-hook layout churn, AST-verified
+  neutral); `plugins`'s normalize-enabled-plugins.sh drops a dead `shellcheck disable=SC2064`
+  directive above a single-quoted trap. Emitted JSON, exit codes, and suite assertions unchanged;
+  refutation-verified byte-identical on smoke runs.
+
+## [0.38.12]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed zero-information comments:
+  restatement subcommand labels and name-restating docstrings in `known-issues`'s
+  `registry_manager.py`, and a dead plan reference ("Item 2") in `lanes`'s `lane-launcher.sh`.
+  No behavior change; `registry_manager.py` also picked up the pinned formatter's canonical layout.
+
+## [0.38.11]
+
+### Changed
+
+- **`observability`'s operator-setup leaves are one hop from the hub.** The context ladder gained
+  direct conditioned rows for operator-setup-collector-daemon.md, operator-setup-retention.md, and
+  operator-setup-emission-privacy.md, previously reachable only through intermediate spokes; the
+  363-line plugin README gained a `## Contents` index. Behavior unchanged. Progressive-disclosure
+  audit, deep-nesting and missing-toc treatments.
+
+## [0.38.10]
+
+### Changed
+
+- **`audit-install-state` surfaces table caught up to the current `claude-directory` docs** (verified 2026-08-26): adds the swept `uploads/<session>/`, `feedback/drafts/` (shorter-of-two-windows retention), and `usage-data/` rows, and splits `image-cache/` from `paste-cache/` to record its distinct all-other-sessions sweep rule — load-bearing for the skill's `age-exceeds-window` reasoning.
+- **`observability` read-routing retention summary became a pointer** at `operator-setup-retention.md#retention-knobs` instead of a duplicated defaults table. From the repo-wide derivability/point-dont-copy audit (PR #3387).
+
 ## [0.38.9]
 
 ### Changed

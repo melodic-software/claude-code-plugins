@@ -10,12 +10,11 @@ Every skill and plugin name in the marketplace denotes what it actually does, fo
 
 ### Locked decisions
 
-**Naming grammar (codify in PLUGIN-PHILOSOPHY, PR 1):**
+**Naming grammar (codified in PR 1):** the grammar shipped and now lives in
+[`docs/PLUGIN-PHILOSOPHY.md` § Naming](../../PLUGIN-PHILOSOPHY.md#naming), which supersedes the
+bullet list this plan carried (it has since grown further exceptions decided after this plan).
+Read it there.
 
-- Imperative verbs; namespace supplies the object. Documented deviation from the official gerund preference (cite the page, copy nothing) — rationale: sentence-composability ("/explore X, then /research, then /interview me") and collection-consistency (itself official guidance).
-- Verb meanings: `audit`/`scan` = read-only report; `check` = deterministic pass/fail gate; `clean`/`tidy`/`fix` = mutates; `setup` = plugin config; `update` = vendor refresh.
-- `audit` mutation: read-only by default; mutation only behind an explicit user override (flag/argument), safety qualifiers permitted. Bare invocation never mutates.
-- Sanctioned exceptions: nouns for knowledge routers (`principles`, `methodology`) and lifecycle-object routers (`worktree`, `pull-request`); vendor-wrapper stutter (`firecrawl:firecrawl`); `-deep` suffix = heavier isolated execution tier.
 - Cross-plugin references: required-for-contract → declared plugin dependency (native auto-install; link the official doc); optional enhancement → "if installed" soft reference with graceful degradation; bare unguarded references forbidden.
 
 **Skill renames** (dir + frontmatter `name` move together; description sharpened third-person what+when):

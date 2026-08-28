@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 # Self-tests for verify-security-review-evidence.sh.
 #
-# These EXECUTE the guard rather than re-implement its shapes. That became
-# possible when the guard stopped scraping the lane's job log and started
-# reading the lane's declared outputs: every input is now an environment
-# variable, and the one API read left behind lives in a function the tests
-# substitute. The previous harness could only copy the guard's regexes into
-# itself and assert on the copies, which is why it agreed with a guard that was
-# reddening every pull request it exists to approve (#2517).
+# These EXECUTE the guard rather than re-implement its shapes: every input is
+# an environment variable, and the one API read lives in a function the tests
+# substitute. A harness that copied the guard's regexes into itself and
+# asserted on the copies would agree with the guard whatever the guard did.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

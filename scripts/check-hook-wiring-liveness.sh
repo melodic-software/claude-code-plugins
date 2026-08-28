@@ -6,13 +6,9 @@
 #   scripts/check-hook-wiring-liveness.sh    fail on any unwired hook script
 #
 # Why: #2959 / #2960. A hook can sit checked-in with a header claiming
-# enforcement while settings.json no longer wires it, and nothing notices.
-# #2188 stripped hooks as a bare-baseline reset ("an instruction returns only
-# with ledger evidence"); #2655 restored only SessionStart. The repo-local
-# pr-linkage-mcp-gate.sh stayed behind, unwired, and its header kept claiming
-# it loaded in every session. Policy enforcement already survives via the
-# source-control plugin hook plus required CI `pr-issue-linkage`. This gate
-# is the wiring-liveness half — it does not restore the stripped hook.
+# enforcement while settings.json no longer wires it, and nothing notices
+# (#2188, #2655). This gate is the wiring-liveness half — it does not restore
+# a stripped hook.
 #
 # Scope: .claude/hooks/*.sh minus *.test.sh. A script whose repo-relative
 # path, or whose basename as a bounded path segment, does not appear in

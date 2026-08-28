@@ -5,10 +5,7 @@
 # ${CLAUDE_PLUGIN_ROOT} / ${CLAUDE_PLUGIN_DATA}, and those placeholders only
 # ever appear in a PLUGIN-provided hook. Category B's third baseline narrowing
 # demotes a missing deny pattern to `info` when a LIVE PreToolUse hook already
-# blocks the family. Both need to know what hooks are installed — and until this
-# script, the skill read settings-declared hooks only and three of its own
-# surfaces said so in prose. This is the enumeration path those surfaces were
-# describing the absence of.
+# blocks the family. Both need to know what hooks are installed.
 #
 # WHAT IT ENUMERATES.
 #   1. Settings-declared hooks: project settings.json, project
@@ -28,8 +25,7 @@
 # WHAT IT DOES NOT DO. It does not decide whether a hook covers a permission
 # family. That judgment is the audit's, and required-permissions.md "Narrowing
 # the baseline" carries the three preconditions it has to apply. This script
-# answers only "what is installed", which is the question that previously had no
-# answer at all.
+# answers only "what is installed".
 #
 # Read-only: opens JSON and prints. Never executes a hook command.
 #

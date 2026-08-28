@@ -5,10 +5,11 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: get-item <id>" "$@"
+usage='usage: get-item <id>'
+wit_help_if_requested "$usage" "$@"
 
 id="${1:-}"
-[[ -n "$id" && $# -eq 1 ]] || wit_usage_error "usage: get-item <id>"
+[[ -n "$id" && $# -eq 1 ]] || wit_usage_error "$usage"
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id (expected local-markdown:<owner>/<repo>#<number>)"
 
 wit_need_storage

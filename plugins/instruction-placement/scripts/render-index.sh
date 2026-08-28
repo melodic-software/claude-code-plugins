@@ -126,9 +126,9 @@ rule_title() {
 # Comma-joined `paths:` values, or empty when the rule is unscoped.
 #
 # Parsing is `ip_parse_paths` in lib/discover.sh — one parser, three consumers.
-# This file used to carry its own copy; all three split the inline flow form on
-# brace commas, so `["src/*.{ts,tsx}"]` rendered as a corrupted glob here and
-# failed validation there, from the same defect in three places.
+# A private copy here would risk the brace-comma bug: splitting the inline flow
+# form `["src/*.{ts,tsx}"]` on the brace comma turns one correct glob into two
+# broken ones.
 rule_globs() {
   ip_parse_paths "$1" | paste -sd, - | sed 's/,/, /g'
 }
@@ -219,7 +219,7 @@ PREAMBLE
         $((${#rows[@]} - MAX_ROWS))
       # shellcheck disable=SC2016 # strips the markdown code span, not an expansion
       printf '%s\n' "${rows[@]}" | LC_ALL=C sort | tail -n +$((MAX_ROWS + 1)) |
-        sed 's/^| `//; s/`.*$//' | sed 's|/[^/]*$||' |
+        sed 's/^| `//; s/`.*$//; s|/[^/]*$||' |
         LC_ALL=C sort | uniq -c |
         awk '{ printf "- `%s/` — %d surface(s)\n", $2, $1 }'
       printf '\n%s\n\n' \

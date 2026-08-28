@@ -6,6 +6,27 @@ date: 2026-07-24
 
 # Phase 4 — the re-run contract
 
+## Contents
+
+- [1. Finding identity](#1-finding-identity)
+  - [`surface` — the physical file, never the loading entry point](#surface--the-physical-file-never-the-loading-entry-point)
+  - [`anchor` — content-derived, versioned, and granularity-tagged](#anchor--content-derived-versioned-and-granularity-tagged)
+  - [Excerpt extraction, per surface class](#excerpt-extraction-per-surface-class)
+  - [Registered cluster copies canonicalize before identity](#registered-cluster-copies-canonicalize-before-identity)
+  - [`finding_id`, and why the truncations are what they are](#finding_id-and-why-the-truncations-are-what-they-are)
+  - [Assertions](#assertions)
+  - [Borrowed vocabulary, and two deliberate divergences](#borrowed-vocabulary-and-two-deliberate-divergences)
+  - [Matching across runs — the tiered table](#matching-across-runs--the-tiered-table)
+- [2. Where the report lives](#2-where-the-report-lives)
+- [3. Run state, keying, and concurrency](#3-run-state-keying-and-concurrency)
+- [4. Suppression, per target class](#4-suppression-per-target-class)
+- [5. Mid-run resumability](#5-mid-run-resumability)
+- [6. The idempotence properties](#6-the-idempotence-properties)
+  - [The tiers had to be re-derived first — the two-tier split did not survive contact](#the-tiers-had-to-be-re-derived-first--the-two-tier-split-did-not-survive-contact)
+  - [Inputs to the derived tier that are not the tree](#inputs-to-the-derived-tier-that-are-not-the-tree)
+  - [The properties](#the-properties)
+- [Sanity check](#sanity-check)
+
 Task #35. Idempotence is the Brief's headline acceptance criterion, and after the proportionality
 gate it carries more weight than it did: the argument for the sweep existing at all is that *the
 checks are delegated but the run semantics are not*. If this document lands as prose intent, that

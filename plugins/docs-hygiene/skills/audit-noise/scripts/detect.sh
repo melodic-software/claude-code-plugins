@@ -93,8 +93,8 @@ LIMIT=$((10#$LIMIT))
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 
 # Resolve relative CLI / paths-file targets against the caller's cwd BEFORE any
-# cd into the repo root (F10: cd-before-target-resolution used to silently skip
-# relative paths given from another working directory).
+# cd into the repo root, or relative targets given from another working
+# directory are silently skipped.
 resolve_existing_path() {
   local raw="$1"
   if [[ "$raw" == /* ]]; then
@@ -177,20 +177,10 @@ mapfile -d '' -t SORTED < <(printf '%s\0' "${TARGETS[@]}" | LC_ALL=C sort -uz)
 
 # Chunk affordance: slice the sorted list so a parent can fan out without a
 # per-file shell loop (hook-bypass-safe single process per chunk).
-if [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
-  CHUNKED=()
-  idx=0
-  for file in "${SORTED[@]}"; do
-    if [[ "$idx" -ge "$OFFSET" ]]; then
-      if [[ "$LIMIT" -eq 0 || ${#CHUNKED[@]} -lt "$LIMIT" ]]; then
-        CHUNKED+=("$file")
-      else
-        break
-      fi
-    fi
-    idx=$((idx + 1))
-  done
-  SORTED=(${CHUNKED[@]+"${CHUNKED[@]}"})
+if [[ "$LIMIT" -gt 0 ]]; then
+  SORTED=("${SORTED[@]:OFFSET:LIMIT}")
+elif [[ "$OFFSET" -gt 0 ]]; then
+  SORTED=("${SORTED[@]:OFFSET}")
 fi
 
 if [[ ${#SORTED[@]} -eq 0 ]]; then
@@ -200,8 +190,8 @@ if [[ ${#SORTED[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# Hoist convention-root resolution once per run (also repairs F6: contract
-# root must survive into the ghost-ref exemption check).
+# Hoist convention-root resolution once per run: the contract root must
+# survive into the ghost-ref exemption check.
 AUDIT_NOISE_REPO_ROOT="${AUDIT_NOISE_REPO_ROOT:-${repo_root:-.}}"
 audit_noise_resolve_convention_roots
 
@@ -260,7 +250,7 @@ audit_file() {
   # finding_rows is written via nameref in audit_noise_record_finding.
   # shellcheck disable=SC2034
   local -a shapes=() finding_rows=()
-  local shape tier excerpt line heading_text
+  local shape excerpt line heading_text
   local fence_delim fence_dchar fence_dlen
   local is_heading=0
   # Negation is paragraph-scoped: accumulate soft-wrapped lines, then classify.
@@ -365,9 +355,9 @@ audit_file() {
       continue
     fi
 
-    # Any ATX heading level toggles section exemption (F7: ##-only toggles let
-    # an exempt ## Sources followed by an H1 stay exempt to EOF, and ### Sources
-    # was never recognized).
+    # Any ATX heading level toggles section exemption: an ##-only toggle would
+    # let an exempt ## Sources followed by an H1 stay exempt to EOF, and would
+    # never recognize ### Sources.
     if [[ "$line" =~ ^(#{1,6})[[:space:]]+(.*)$ ]]; then
       # Capture before flushing, for the same reason as the fence branch above.
       heading_text="${BASH_REMATCH[2]}"
@@ -383,7 +373,7 @@ audit_file() {
       # blank line (unreachable in MD022-clean markdown; robustness only).
       in_ignored_para=0
     fi
-    # Opt-out markers: require a well-formed HTML comment line (F4). Prose that
+    # Opt-out markers: require a well-formed HTML comment line. Prose that
     # merely mentions the marker name must not act as a live marker. Order
     # matters: -line first.
     if audit_noise_is_ignore_line_marker "$line"; then

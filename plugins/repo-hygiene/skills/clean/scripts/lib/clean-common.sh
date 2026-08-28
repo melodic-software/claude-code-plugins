@@ -243,11 +243,11 @@ clean_branch_matches_protected_pattern() {
 
 # --- enumeration + manifest engine -------------------------------------------
 #
-# The selective build/caches tiers formerly ran one unpruned full-tree `find`
-# per pattern (~10 walks/repo); the `! -path` exclusions filtered output but did
-# not `-prune`, so every walk still descended `.git/`, `node_modules/`, `.venv/`.
-# The engine below replaces that with ONE pruned walk per tier that never
-# descends those three trees, then classifies, sizes, and manifests the result.
+# The engine below runs ONE pruned walk per tier that never descends `.git/`,
+# `node_modules/`, or `.venv/`, then classifies, sizes, and manifests the
+# result. Per-pattern `! -path` exclusions without `-prune` would filter the
+# output but still descend those three trees on every walk (~10 walks/repo for
+# the selective build/caches tiers).
 # Measured on a large .NET + node repo (Windows/NTFS): one pruned walk incl. `du`
 # sizing ~17s vs a 10-walk unpruned dry-run that exceeded 10 min (killed).
 

@@ -196,7 +196,7 @@ else
   fail "a co-owner named in the surface cell should not reach the carve-out: $out"
 fi
 
-# --- 3. The substring the old gate accepted is no longer the pass condition:
+# --- 3. Mentioning apply in prose is not a carve-out declaration:
 #        a carve-out-shaped skill whose body only mentions apply in prose. ---
 reset_fixture
 make_plugin alpha alpha_api_key

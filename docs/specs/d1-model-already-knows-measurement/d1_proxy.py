@@ -275,12 +275,8 @@ def is_instruction(s):
     plain = re.sub(r"\*\*|__|\*|_", "", plain).strip()
     if not plain:
         return False
-    first = re.split(r"[\s,;:]", plain, 1)[0].lower().strip(".*_-—:")
-    if first in IMPERATIVE_OPENERS:
-        return True
-    if MODALS.search(s):
-        return True
-    return False
+    first = re.split(r"[\s,;:]", plain, maxsplit=1)[0].lower().strip(".*_-—:")
+    return first in IMPERATIVE_OPENERS or bool(MODALS.search(s))
 
 
 # ---------------------------------------------------------------- stage 4

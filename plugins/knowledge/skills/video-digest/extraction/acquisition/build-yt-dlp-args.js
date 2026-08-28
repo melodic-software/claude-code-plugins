@@ -111,7 +111,7 @@ export function resolveYtDlpAuthArgs(
   if (jsRuntimes === "off" || jsRuntimes === "0") {
     return args;
   }
-  args.push("--js-runtimes", jsRuntimes && jsRuntimes.length > 0 ? jsRuntimes : "node");
+  args.push("--js-runtimes", jsRuntimes || "node");
   return args;
 }
 

@@ -1,5 +1,22 @@
 # Changelog — discovery plugin
 
+## [0.16.14]
+
+### Changed
+
+- **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
+## [0.16.13]
+
+### Changed
+
+- **`trace-intent` links the topic-docs binding its siblings already link.** The hub gained the
+  sibling-phrased conditioned pointer to `reference/topic-docs.md` at its persist step.
+- **`research` and `explore` park by-value binding detail in their dispatch spokes.** The
+  conditions that bind the persistence-by-value exception moved verbatim into each skill's
+  existing dispatch spoke behind the by-value pointer; envelopes, preload tokens, and acceptance
+  gates stay inline. Behavior unchanged. Progressive-disclosure audit treatments.
+
 ## [0.16.12]
 
 ### Changed

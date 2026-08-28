@@ -14,6 +14,9 @@
 # Dedicated check: scripts/sync-hook-utils.sh --check (CI: hook-utils-sync)
 hooks/hook-utils.sh
 
+# Dedicated check: scripts/sync-rewrite-guard.sh --check (CI: rewrite-guard-sync)
+hooks/rewrite-guard.sh
+
 # Dedicated check: scripts/validate-plugin-contracts.mjs (lifecycleProtocolCopies)
 reference/artifact-protocol.md
 

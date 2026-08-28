@@ -3,6 +3,48 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.14]
+
+### Changed
+
+- **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
+## [0.40.13]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `audit-instructions`'s
+  restatement-scan.py dropped a redundant `nunit and` truthiness test (the preceding length
+  guard already excludes empty units) and its `main()` empty-file-list special case (the
+  general path is byte-identical for an empty list); `audit-permission-state`'s
+  automode-block-lint.test.sh dropped a duplicate `command -v bash` reassignment. All output
+  bytes, exit codes, and assertions unchanged; each change adversarially refutation-verified
+  (20k-case differential fuzz on the scanner).
+
+## [0.40.12]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed zero-information
+  comment fragments: branch/merge-session narration in `lib/permission-patterns.sh` and
+  `audit-permission-state`'s `permission-state.sh`. The surviving comments keep the #2382
+  precision rationale and the mutation-coverage rationale; no behavior change.
+
+## [0.40.11]
+
+### Changed
+
+- **Long reference files carry a `## Contents` index.** `audit-instructions`'s 1,741-line
+  criteria.md gained a Contents section with its per-ID catalog entries and a grep recipe for
+  lookup by ID; `audit-pass`'s run-state-and-resumability.md gained a Contents section. Purely
+  additive. Progressive-disclosure audit, missing-toc treatment.
+
+## [0.40.10]
+
+### Changed
+
+- **`audit-pass` doctor-handoff treats `DISABLE_DOCTOR_COMMAND` as unconfirmed throughout.** A 2026-08-26 re-check (two fetch routes) found the env-vars row absent again — its documented status has now flipped twice — so the item title, the re-check note, and the suppression-channels paragraph all route it through the existing detection-over-prediction posture instead of citing a documented basis. From the repo-wide derivability/point-dont-copy audit, tightened per PR #3387 review.
+
 ## [0.40.9]
 
 ### Changed

@@ -5,19 +5,16 @@
 Tests for scripts/windows/checks/Test-Services.ps1.
 
 .DESCRIPTION
-Pins the fixes landing in Phase 5c:
+Pins the rubric:
 
-1. Trigger-start services stopped are EXPECTED, not a finding. The
-   previous code flagged any Automatic service in Stopped state as WARN,
-   which produced false positives for modern Windows trigger-start
-   services (dnscache, WSearch, gupdate, edgeupdate, MapsBroker, and
-   many more).
+1. Trigger-start services stopped are EXPECTED, not a finding. Flagging
+   any Automatic service in Stopped state as WARN would produce false
+   positives for modern Windows trigger-start services (dnscache,
+   WSearch, gupdate, edgeupdate, MapsBroker, and many more).
 
-2. DelayedAutoStart + uptime-based downgrade still works, but no longer
-   masks a concurrent plain-Auto stopped service. The new bucket
-   structure sorts stopped services by kind before computing severity.
-
-3. OTBS + empty-catch PSSA fixes.
+2. The DelayedAutoStart + uptime-based downgrade never masks a
+   concurrent plain-Auto stopped service: the bucket structure sorts
+   stopped services by kind before computing severity.
 #>
 
 BeforeAll {

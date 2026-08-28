@@ -106,9 +106,7 @@ read_window() {
 #   - ambiguous             no signature, but exitCode is 126 or 127. Both
 #                           readings stay possible; the message says so plainly
 #                           and gives both remedies rather than picking one.
-# This deliberately REFINES acceptance criterion 2 of #2849, which kept the
-# launch-failure wording for 126/127 OR a signature. That `or` is too loose for
-# the reason above; the refinement is disclosed in the PR body and the CHANGELOG.
+# #2849's 126/127-OR-signature rule is too loose for the reason above.
 #
 # The signature set stays narrow on purpose — `command not found`, `cannot
 # execute`, and cmd.exe's `is not recognized as an internal or external command`
@@ -120,9 +118,7 @@ read_window() {
 #
 # One accepted residual remains, resolved toward the launch-failure label because
 # nothing in the attachment can settle it: a launched hook can print `execvpe`
-# about a child of its own. The other former residual — a wrapper that launched
-# and then exited 126/127 from a command it ran — is no longer resolved at all;
-# it IS the `ambiguous` class.
+# about a child of its own.
 #
 # The class is counted PER RECORD, not read off the last one. `group_by` below
 # collapses a registration's records into one line, and a registration can fail
@@ -130,7 +126,7 @@ read_window() {
 # between two runs of the same hook). Inheriting the class from `last` the way
 # `exitCode` and `stderr` do would relabel the whole group by whichever record
 # happened to come last, and would drop the other classes' sentences from the
-# message entirely — the same misclassification defect this change exists to fix,
+# message entirely — the same misclassification defect this hook exists to fix,
 # in a narrower shape. The per-class counts below keep every class present in a
 # group visible, and the message flags are computed from those counts, never
 # from a single collapsed value.

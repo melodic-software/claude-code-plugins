@@ -3,6 +3,36 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.15]
+
+### Changed
+
+- **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
+## [0.7.14]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed zero-information comments
+  in the `generate` skill's build pipeline (`run.js`, `emit-slides-data.js`, `lib/emit-slides.js`,
+  `validate.js`): flow narration and call-site labels that restated the adjacent code. No behavior
+  change.
+
+## [0.7.13]
+
+### Fixed
+
+- **ASCII `->` window headers rendered a nonsense date range on the slides (#3364).**
+  `emit-slides-data.js` parsed the briefing header window with
+  `([0-9T:Z\-]+)\s*[→-]+\s*([0-9T:Z\-]+)`. That separator class matches `-` but not `>`, so
+  on the ASCII spelling the engine backtracked and satisfied the split INSIDE the first
+  timestamp: `2026-04-24T19:00:00Z -> 2026-05-05T20:30:00Z` parsed as `2026-04` and
+  `24T19:00:00Z`, and `formatWindow` rendered garbage. The parse now anchors each endpoint on
+  a full `YYYY-MM-DD` shape, which makes the mid-timestamp split structurally impossible
+  rather than dependent on backtracking order, and accepts `→`, `->`, an en/em dash, and a
+  bare hyphen as separators. Parsing and rendering moved to `lib/window.js` so they are unit
+  testable; `emit-slides-data.js` runs `main()` on import and could not be exercised directly.
+
 ## [0.7.12]
 
 ### Changed

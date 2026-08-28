@@ -43,9 +43,15 @@ Evaluate **raw intake**, any untriaged item carrying the raw marker, whoever aut
 
 **Classification vocabulary.** Autonomous routing uses the `work-class:` label axis (`read-only`,
 `mechanical`, `scoped`, `structural`, `untrusted-provenance`). Human-readable aliases of the
-autonomy plugin's `C1`–`C5` contract. Retired scaffolding: `T1`/`T2`/`T3` and
+autonomy plugin's `C1`–`C5` contract. Canonical members and migration status:
+[`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md);
+read it before the work-class pairing step below applies a member. Retired scaffolding: `T1`/`T2`/`T3` and
 `simple`/`medium`/`complex` are not classification metadata here; loop-lane status lines may
-still report simple/medium/complex counts as lane-local telemetry only.
+still report simple/medium/complex counts as lane-local telemetry only. The separate frontier
+capability-tier stamp (`capability-tier: frontier`) has its own canonical member and migration
+status in
+[`${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md);
+read it before applying that stamp in step 5.
 
 **Raw intake is defined by triage state, not authorship.** An item is raw intake when it is untriaged. Unlabeled, or carrying the raw marker (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under). Regardless of who authored it. External bug reports, incoming feature requests, and unsolicited PRs are the common sources, but a **team-authored self-observation / dogfood issue** filed with only the raw marker ([`${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md`](${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md)) is raw intake too: it carries no routing decision yet, surfaces in the same attention view, and needs the same evaluation (priority normalization, tier routing, brief drafting). The boundary is *untriaged vs. already-triaged*, never *external vs. team-authored*.
 

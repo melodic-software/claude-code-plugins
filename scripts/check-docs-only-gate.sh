@@ -9,18 +9,13 @@
 # WHY. The heavy lanes short-circuit on a diff confined to the docs-only
 # allowlist. That short-circuit is a fail-open shape by construction: getting it
 # wrong makes a lane report success without running, which is exactly the
-# false-green docs/conventions/liveness-assertion/ names. The contract used to
-# live as a step output re-derived independently in six jobs, with every
-# consumer spelling the gate as `steps.scope.outputs.docs_only != 'true'` — an
-# INVERSE-polarity test whose correctness was maintained by a prose comment.
-# Forty-eight hand-maintained references to a string flag, each of which had to
-# independently know that the value is the string `true`, that the safe
-# direction is to RUN, and that the negation must be spelled that exact way.
-#
-# A consumer that wrote `== 'false'` instead of `!= 'true'` would skip its lane
-# whenever the detector emitted anything unexpected. The asymmetry is why the
-# comment existed. This gate is what replaces the comment: the properties below
-# are the ones the comment used to assert, checked against the workflow itself.
+# false-green docs/conventions/liveness-assertion/ names. Consumers spell the
+# gate as `steps.scope.outputs.docs_only != 'true'`, an INVERSE-polarity test
+# of a string flag. A consumer that wrote `== 'false'` instead of `!= 'true'`
+# would skip its lane whenever the detector emitted anything unexpected: the
+# value is the string `true`, the safe direction is to RUN, and the negation
+# must be spelled that exact way. That asymmetry is why this gate exists: the
+# properties below are checked against the workflow itself.
 #
 # WHAT IS CHECKED:
 #   1. SINGLE RESOLUTION  — the detector is invoked from exactly one job, that

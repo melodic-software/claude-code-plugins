@@ -7,6 +7,26 @@ resolution live in the sibling `save-point.md` engine doc).
 Reader is a session with NO prior context. It will act on this file. Be specific — vague handoffs
 cost the next session a re-investigation, which is the cost this document exists to avoid.
 
+## Contents
+
+- [Body sections](#body-sections)
+  - [Original goal](#original-goal)
+  - [Resumption brief](#resumption-brief)
+  - [Completion criteria](#completion-criteria)
+  - [Constraints that must hold](#constraints-that-must-hold)
+  - [Environment to re-establish](#environment-to-re-establish)
+  - [Side effects already applied](#side-effects-already-applied)
+  - [File roles in this work](#file-roles-in-this-work)
+  - [Decisions already settled](#decisions-already-settled)
+  - [Approaches tried and abandoned](#approaches-tried-and-abandoned)
+  - [Findings that cost effort to discover](#findings-that-cost-effort-to-discover)
+  - [Remaining actions, in order](#remaining-actions-in-order)
+  - [Open questions to investigate](#open-questions-to-investigate)
+  - [Blockers needing an outside decision](#blockers-needing-an-outside-decision)
+  - [Suggested skills](#suggested-skills)
+- [How this document is referenced elsewhere](#how-this-document-is-referenced-elsewhere)
+- [Full-path write procedure](#full-path-write-procedure)
+
 ## Body sections
 
 Ordered so the cheapest useful layer comes first. A reader can stop after **Original goal** plus

@@ -3,6 +3,43 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.27]
+
+### Changed
+
+- **Shared `hook-utils.sh` comment cleanup.** Comment-only sync from `lib/hook-utils.sh`: history-narration comments rewritten as present-tense rules; no behavior change.
+
+## [0.3.26]
+
+### Fixed
+
+- **Snapshot leak on the error arms (#3405).** The content-mutation snapshot was
+  released only on the clean arm; a run reaching the syntax-error arm or the
+  tool-break catch-all leaked one mktemp file. The disclosure now runs through the
+  shared `rewrite-guard` lib, whose EXIT trap releases the snapshot on every arm,
+  and the error arms now also disclose a rewrite goimports made before failing,
+  composed with the diagnostic context into one JSON document.
+
+### Changed
+
+- **Adopted the shared rewrite-guard lib (#3409).** The hand-rolled
+  snapshot/compare/disclose/release block is replaced by
+  `hooks/rewrite-guard.sh` (synced from `lib/rewrite-guard.sh`); the test suite
+  gained snapshot-hygiene and single-document assertions for the error arms.
+
+## [0.3.25]
+
+### Fixed
+
+- **Telemetry stdout-leak assertion was vacuous (#3367).** `go-format.test.sh` claimed the
+  telemetry envelope "never leaked into hook's own stdout", but it grepped `$OUT` — last
+  assigned by the kill-switch case, whose own assertion proves that capture is EMPTY. The
+  telemetry run itself discarded its stdout, so the assertion checked output that run never
+  produced and passed unconditionally. It now captures the telemetry run's own stdout and
+  greps that, with a preceding guard asserting the capture is non-empty so an empty capture
+  can never make the check vacuous again. Verified by mutation: with an envelope echoed onto
+  the hook's stdout the old assertion still passed (46/0) and the new one fails.
+
 ## [0.3.24]
 
 ### Changed

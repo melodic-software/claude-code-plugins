@@ -147,6 +147,58 @@ else
 fi
 rm -rf "$f"
 
+# --- a cluster path containing a space iterates ONCE, not once per word ----
+#
+# Pre-#3376 discover mode iterated an UNQUOTED command substitution, so every
+# cluster key was word-split on IFS whitespace and glob-expanded against the
+# working directory; and the cluster accumulator was space-joined, so
+# load_cluster split each entry's path apart again and handed sha256sum a
+# truncated name, which is fatal under this script's `set -e`. A space-bearing
+# path therefore iterated wrongly with no error signal, in the one mode whose
+# job is showing a human the cluster inventory.
+f="$(new_fixture)"
+plugin_file "$f" alpha "hooks/shared file.sh" "same"
+plugin_file "$f" beta "hooks/shared file.sh" "same"
+registry "$f" "hooks/shared file.sh"
+if out="$(run_discover "$f" 2>&1)"; then
+  hits="$(grep -c 'shared file\.sh' <<<"$out" || true)"
+  if [[ "$hits" == "1" ]] &&
+    grep -q 'IDENTICAL.*hooks/shared file\.sh  (plugins: alpha beta) \[registered\]' <<<"$out"; then
+    ok "discover lists a space-bearing cluster path exactly once, naming both plugins"
+  else
+    fail "expected ONE IDENTICAL line for 'hooks/shared file.sh' naming alpha and beta (saw $hits), got: $out"
+  fi
+else
+  fail "discover should exit 0 on a space-bearing cluster path, got: $out"
+fi
+if out="$(run_check "$f" 2>&1)"; then
+  ok "--check accepts a registered identical space-bearing cluster"
+else
+  fail "--check should pass for a registered identical space-bearing cluster, got: $out"
+fi
+rm -rf "$f"
+
+# --- discover on a tree with NO clusters at all ----------------------------
+#
+# The empty-array edge the #3376 fix has to get right, and the one the obvious
+# rewrite gets wrong: `printf '%s\n'` with no arguments still prints one blank
+# line, so `mapfile -t < <(printf '%s\n' "${!cluster_status[@]}" | sort)` hands
+# the loop a single EMPTY key, which dies on `${cluster_entries[]}` under
+# `set -u`. The old unquoted `$(...)` was accidentally safe here, so a fix that
+# only addressed word-splitting would trade one silent bug for a loud one.
+f="$(new_fixture)"
+plugin_file "$f" alpha hooks/only-here.sh "content"
+if out="$(run_discover "$f" 2>&1)"; then
+  if [[ -z "$out" ]]; then
+    ok "discover on a cluster-free tree exits 0 and prints nothing"
+  else
+    fail "discover on a cluster-free tree should print nothing, got: $out"
+  fi
+else
+  fail "discover on a cluster-free tree should exit 0, got: $out"
+fi
+rm -rf "$f"
+
 # --- production registry: every cluster documents its enforcement path (#2404) -
 REGISTRY="$SELF_DIR/cross-plugin-source-registry.txt"
 if [[ ! -f "$REGISTRY" ]]; then

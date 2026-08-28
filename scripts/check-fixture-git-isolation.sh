@@ -91,7 +91,7 @@
 #           printed is exactly the under-selection this gate calls unsafe. SOURCE
 #           counts here because sourcing an isolating harness grants credit just
 #           as directly as clearing; and because CLEARS registers a file's
-#           BASENAME as an isolating harness, a heredoc-only clear used to make
+#           BASENAME as an isolating harness, a heredoc-only clear would make
 #           the enclosing file excuse every OTHER file that sources it.
 #   FIXTURE — still READ inside a heredoc body. Conscripting a suite into scope
 #           over text it only wrote costs that suite one `unset` line, which is
@@ -288,9 +288,9 @@ scan() {
     #
     # Any run of option-and-argument pairs may sit between the command word and
     # the subcommand, so `git -C <dir> init`, `git -c init.defaultBranch=main
-    # init` and a bare `git init` all match. Anchoring only on `-C` (the
-    # narrower earlier form) missed `git -c … init`, which is live in this
-    # corpus — an under-selection, the direction this gate calls unsafe.
+    # init` and a bare `git init` all match. Anchoring only on `-C` would miss
+    # `git -c … init`, which is live in this corpus — an under-selection, the
+    # direction this gate calls unsafe.
     # Likewise the identity intent tolerates option words between `config` and
     # `user.`, so `git config --local user.email X` is matched, and the
     # transient `-c user.email=X` spelling counts as fixture work even though it

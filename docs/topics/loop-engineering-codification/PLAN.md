@@ -1,5 +1,10 @@
 # PLAN — loop-engineering-codification
 
+## Contents
+
+- [Brief](#brief)
+- [Plan](#plan)
+
 ## Brief
 
 ### TLDR

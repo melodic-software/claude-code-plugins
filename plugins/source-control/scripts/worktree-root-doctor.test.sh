@@ -42,13 +42,17 @@ run() {
 mkrepo() {
   local repo
   repo="$(mktemp -d "$TEST_TMPDIR/${1:-repo}XXXXXX")"
-  GIT_CONFIG_GLOBAL="$TEST_TMPDIR/empty-gitconfig" GIT_CONFIG_NOSYSTEM=1 \
-    git -C "$repo" init -q -b main >/dev/null 2>&1
+  fgit -C "$repo" init -q -b main >/dev/null 2>&1
   printf '%s' "$repo"
 }
 : >"$TEST_TMPDIR/empty-gitconfig"
 
 EMPTY_GCFG="$TEST_TMPDIR/empty-gitconfig"
+
+# Every fixture-building git call runs against the pinned empty global config, so
+# the host's real ~/.gitconfig can never leak an includeIf into a fixture. One
+# wrapper rather than the prefix repeated per call, so no site can omit it.
+fgit() { GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git "$@"; }
 
 # --- CLI contract ---------------------------------------------------------------
 
@@ -83,8 +87,7 @@ assert_contains "the unset finding names the fallthrough rungs" "$OUT" "worktree
 # --- A set key: named with its origin, exit 0 ------------------------------------
 
 KEYED="$(mkrepo keyed)"
-GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 \
-  git -C "$KEYED" config melodic.worktreeroot "$TEST_TMPDIR/wt-root"
+fgit -C "$KEYED" config melodic.worktreeroot "$TEST_TMPDIR/wt-root"
 run "$EMPTY_GCFG" "$KEYED"
 assert_exit "a conforming keyed repo exits 0" 0 "$RC"
 assert_contains "the winning value is reported ok with its value" "$OUT" \
@@ -98,8 +101,7 @@ assert_contains "the winner names the file that supplied it" "$OUT" "supplied by
 INCREPO_PARENT="$(mktemp -d "$TEST_TMPDIR/incparentXXXXXX")"
 INCREPO="$INCREPO_PARENT/increpo-fixture"
 mkdir -p "$INCREPO"
-GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 \
-  git -C "$INCREPO" init -q -b main >/dev/null 2>&1
+fgit -C "$INCREPO" init -q -b main >/dev/null 2>&1
 INC_FILE="$TEST_TMPDIR/identity-work.inc"
 printf '[melodic]\n\tworktreeroot = %s\n' "$TEST_TMPDIR/work-root" >"$INC_FILE"
 INC_GCFG="$TEST_TMPDIR/gitconfig-include"
@@ -181,8 +183,7 @@ assert_contains "the layered winner is the include's value" "$OUT" \
 # --- The root itself must not sit inside a working tree --------------------------
 
 NESTED_ROOT_REPO="$(mkrepo nestroot)"
-GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 \
-  git -C "$NESTED_ROOT_REPO" config melodic.worktreeroot "$NESTED_ROOT_REPO/worktrees"
+fgit -C "$NESTED_ROOT_REPO" config melodic.worktreeroot "$NESTED_ROOT_REPO/worktrees"
 mkdir -p "$NESTED_ROOT_REPO/worktrees"
 run "$EMPTY_GCFG" "$NESTED_ROOT_REPO"
 assert_exit "a root inside a working tree is a finding (exit 1)" 1 "$RC"
@@ -194,8 +195,7 @@ assert_contains "the nested root names the invariant it violates" "$OUT" \
 IDREPO_PARENT="$(mktemp -d "$TEST_TMPDIR/idparentXXXXXX")"
 IDREPO="$IDREPO_PARENT/identity-fixture"
 mkdir -p "$IDREPO"
-GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 \
-  git -C "$IDREPO" init -q -b main >/dev/null 2>&1
+fgit -C "$IDREPO" init -q -b main >/dev/null 2>&1
 PARTIAL_INC="$TEST_TMPDIR/identity-partial.inc"
 printf '[user]\n\temail = work@example.com\n' >"$PARTIAL_INC"
 PARTIAL_GCFG="$TEST_TMPDIR/gitconfig-partial"
@@ -223,15 +223,14 @@ assert_not_contains "a complete identity include is not flagged as partial" "$OU
 # --- A linked worktree classifies with its repository -----------------------------
 
 WTREPO="$(mkrepo wthost)"
-GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git -C "$WTREPO" config user.email t@t.t
-GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git -C "$WTREPO" config user.name t
-GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git -C "$WTREPO" config commit.gpgsign false
+fgit -C "$WTREPO" config user.email t@t.t
+fgit -C "$WTREPO" config user.name t
+fgit -C "$WTREPO" config commit.gpgsign false
 printf 'seed\n' >"$WTREPO/README.md"
-GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git -C "$WTREPO" add README.md >/dev/null 2>&1
-GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git -C "$WTREPO" commit -qm init >/dev/null 2>&1
+fgit -C "$WTREPO" add README.md >/dev/null 2>&1
+fgit -C "$WTREPO" commit -qm init >/dev/null 2>&1
 LINKED="$TEST_TMPDIR/linked-wt"
-if GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 \
-  git -C "$WTREPO" worktree add -q "$LINKED" -b feat/doctor >/dev/null 2>&1; then
+if fgit -C "$WTREPO" worktree add -q "$LINKED" -b feat/doctor >/dev/null 2>&1; then
   run "$EMPTY_GCFG" "$LINKED"
   assert_contains "a linked worktree's classification rule is surfaced" "$OUT" \
     "classify this worktree WITH its repository"

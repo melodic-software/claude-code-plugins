@@ -121,8 +121,8 @@ hook::require_jq_blocking "guardrails-block-dangerous-git" "block_dangerous_git_
 # directory measured the wrong repository's hash format whenever the two differed
 # — a payload cwd in a SHA-256 repository with the hook process in a SHA-1 one
 # cleared a 40-hex lease that is a movable REF NAME where the push actually runs.
-# block-noncanonical-commit has read this field since it shipped; this guard did
-# not, and the same chain is adopted here rather than a second mechanism.
+# The same `.cwd` chain as block-noncanonical-commit is used here, not a second
+# mechanism.
 #
 # The NUL check below is a separate branch — payload integrity vs value-space.
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 2
@@ -528,7 +528,7 @@ lease_ref_claimed() {
   while IFS= read -r r; do
     [[ -z "$r" ]] && continue
     lease_refs_equivalent "$r" "$ref" && return 0
-  done <<< "$seen"
+  done <<<"$seen"
   return 1
 }
 

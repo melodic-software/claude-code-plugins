@@ -10,9 +10,10 @@
 #   R6 checklist completeness — the iteration checklist (babysit-prs loop.md
 #                               §5.5) has no unticked box
 #
-# Why a gate, not prose: the audit proved the advisory "MANDATORY subagent
-# dispatch for >=3 findings" rule produced ZERO of its mandated per-finding
-# tables across multi-finding PRs — one audit classified 16 findings of ~32.
+# Why a gate, not prose: the 2026-05-28 audit (AUDIT.md) proved the advisory
+# "MANDATORY subagent dispatch for >=3 findings" rule produced ZERO of its
+# mandated per-finding tables across multi-finding PRs — one audit classified
+# 16 findings of ~32.
 # Prose "MANDATORY" is a word; this gate counts rows, not intentions, and
 # refuses to let readiness be declared while the counts don't add up.
 #
@@ -79,14 +80,13 @@
 #   READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n|unknown>
 #
 # The READINESS_UNPROVEN token is the fail-closed third verdict, and the reason
-# this gate emits on the paths where it used to write stderr only: a caller that
-# greps stdout for a verdict saw NOTHING on those paths, which is
-# indistinguishable from a run that was never attempted — the exact confusion
-# that let a blocked gate be reported as readiness (#787). UNPROVEN means
-# readiness was NOT proven; it never licenses substituting live `gh` state
-# (mergeStateStatus, the check rollup) for the gate's verdict. See
-# skills/babysit-prs/reference/safety.md "Lane-Script Reachability". Exit codes
-# are unchanged — the token is additive.
+# every path emits one: a stderr-only failure path shows a caller that greps
+# stdout for a verdict NOTHING, which is indistinguishable from a run that was
+# never attempted — the exact confusion that lets a blocked gate be reported as
+# readiness (#787). UNPROVEN means readiness was NOT proven; it never licenses
+# substituting live `gh` state (mergeStateStatus, the check rollup) for the
+# gate's verdict. See skills/babysit-prs/reference/safety.md "Lane-Script
+# Reachability".
 #
 # Every header line describing a verdict stays indented or mid-sentence: an
 # unindented `READINESS_*` here would leave `--help` output matching a caller's
@@ -265,8 +265,8 @@ fi
 # The counters below consume this payload as a JSON ARRAY (`.[]`) and read
 # `.author` and `.body` off every element. Anything else — a truncated or
 # hand-edited snapshot, a scalar, an object, an error document a fetch returned
-# with exit 0 — used to reach them unchecked: jq failed, the counts stayed 0, and
-# the gate printed `READINESS_OK findings=0`. That is a ready verdict derived
+# with exit 0 — would reach them unchecked: jq fails, the counts stay 0, and
+# the gate prints `READINESS_OK findings=0`. That is a ready verdict derived
 # from data the gate never read, which is exactly the fail-open this script
 # exists to close. Validated once here, on the RESOLVED payload, so the snapshot
 # path and the live-fetch path are both covered.
@@ -487,7 +487,7 @@ classified=${classified:-0}
 # severity vocabulary as ONE source of truth rather than a second bash copy that
 # can drift from the snapshot classifier (the divergence class #534 exists to
 # close), and it discounts a severity marker carried in a resolved or outdated
-# thread, so a lifetime badge no longer inflates the count into a false
+# thread, so a lifetime badge cannot inflate the count into a false
 # READINESS_BLOCKED (#465). It also credits classifications per surface — a
 # PR-level (non-thread) row cannot offset a finding raised fresh in an open
 # review thread — closing a fail-open the thread-blind bash degrade cannot see

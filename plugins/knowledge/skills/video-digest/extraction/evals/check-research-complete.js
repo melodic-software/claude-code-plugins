@@ -7,10 +7,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 
 /**
@@ -38,8 +38,8 @@ export function checkResearchComplete(sliceDir) {
     return 1;
   }
 
-  // The agenda is required, not optional: without it the gate previously fell
-  // through to success with no auditable claim-resolution plan.
+  // The agenda is required, not optional: without it, success would carry no
+  // auditable claim-resolution plan.
   if (!fs.existsSync(agendaPath)) {
     writeStderr(`FAIL: missing ${agendaPath}`);
     return 1;
@@ -75,10 +75,7 @@ export function checkResearchComplete(sliceDir) {
   return 0;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node evals/check-research-complete.js <slice-dir>");

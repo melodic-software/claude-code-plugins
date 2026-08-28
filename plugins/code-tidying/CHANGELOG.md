@@ -3,6 +3,21 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.9]
+
+### Changed
+
+- **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
+## [0.14.8]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 11 (batch-simplify).** dead-code-scan.sh
+  drops a dead store (`ts=""` inside the branch that only runs when `ts` is already empty).
+  Adversarially refutation-verified (branch-body trace plus git and no-git fixture runs
+  byte-identical); suite 162/162 green; portability gate clean.
+
 ## [0.14.7]
 
 ### Changed

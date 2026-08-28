@@ -1,5 +1,10 @@
 # audit-pass — run state, concurrency, and resumability
 
+## Contents
+
+- [3. Run state, keying, and concurrency](#3-run-state-keying-and-concurrency)
+- [5. Mid-run resumability](#5-mid-run-resumability)
+
 This file owns §3 and §5: how the run tree is keyed, the applying lock, the lease that tells a live
 run from an abandoned one, and what `--resume` re-runs rather than carries forward.
 

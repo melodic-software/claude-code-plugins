@@ -76,9 +76,9 @@ out=$(printf '' | bash "$HOOK" 2>&1)
 assert_silent "empty stdin is a no-op" "$out"
 
 # ============================ TELEMETRY ====================================
-# docs/conventions/hook-observability/: this hook previously emitted zero
-# telemetry on any path — repro-first, these cases fail against the pre-fix
-# hook (no HOOK_TELEMETRY_SINK-wired envelope ever appears) and pass after.
+# docs/conventions/hook-observability/: repro-verified, these assertions
+# discriminate (with telemetry absent, no HOOK_TELEMETRY_SINK-wired envelope
+# ever appears and they fail).
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \

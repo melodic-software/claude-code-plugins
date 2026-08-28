@@ -62,11 +62,10 @@ trap _wit_claim_rollback EXIT
 wit_read_assignees "$owner" "$repo" "$number"
 assignees="$WIT_GH_OUT"
 # Confirm our own assignment actually landed. REST POST /assignees returns 201
-# and silently drops a login that cannot be assigned (no push access), where
-# `gh issue edit --add-assignee` used to fail loudly. Without this check a
-# silently-dropped assignment would report a held claim while list-frontier
-# still saw the item unassigned — two workers on one item, the exact race the
-# lease exists to prevent.
+# and silently drops a login that cannot be assigned (no push access). Without
+# this check a silently-dropped assignment would report a held claim while
+# list-frontier still saw the item unassigned — two workers on one item, the
+# exact race the lease exists to prevent.
 if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$assignees" >/dev/null; then
   printf 'claim: assignment of %s did not take effect (insufficient permission to self-assign on %s/%s)\n' \
     "$login" "$owner" "$repo" >&2

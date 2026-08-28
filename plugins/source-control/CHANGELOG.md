@@ -3,6 +3,73 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.25]
+
+### Changed
+
+- **Shared `hook-utils.sh` comment cleanup.** Comment-only sync from `lib/hook-utils.sh`: history-narration comments rewritten as present-tense rules; no behavior change.
+
+## [0.55.24]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 8 (batch-simplify).** Each change
+  adversarially refutation-verified with emitted bytes unchanged and the full 643-test babysit
+  suite green. babysit-prs: `human_stop_from_feedback` extracted as the single definition of
+  the human-stop record, with `classify_pr` delegating to it (1,800-case differential matrix
+  confirmed field-, key-set-, and key-order-identical outputs, closing a real two-copy drift
+  risk on the `external_required` presence branch); `babysit_resolve_thread` folds seven
+  repeated summary-count comprehensions into one `acted()` counter; `request_review` folds
+  eight `record_attempt_problem` call sites over the same five fixed arguments into a
+  `record_problem` closure; `babysit_review_trigger` extracts the thrice-spelled gate-context
+  predicate into `is_gate()` (400-fixture differential, De Morgan asymmetry preserved); a
+  stale line-number anchor in a merge-test docstring replaced with a symbol anchor. scripts:
+  `worktree-claim.sh` collapses the main-vs-linked flush branches; the readiness-gate suite
+  resolves its Python probe once; `worktree-root-doctor.test.sh` gains `fgit()` wrapping the
+  git-config-isolation prefix at ten fixture sites; the reap suite hoists `uname -s`;
+  `reap-project-plugin-records.sh` uses `$'\t'` directly. Suite counts identical throughout
+  (53/163/37/45); shellcheck and the portability gate clean.
+
+## [0.55.23]
+
+### Fixed
+
+- **`landed-work.sh` emits `-` for a head-less row, honoring its own non-empty TSV contract.** Every
+  field in the row `printf` carried a `:--` fallback except the head column, whose `:0:12` slice
+  yields empty (not `-`) when `T_HEAD` is empty. notgit and bare-hub rows carry no HEAD by design, so
+  those rows emitted an empty field, and a consumer reading the documented 15-column contract through
+  `while IFS=$'\t' read` — the form this file's own callers are told to use — had every later column
+  shift left: `risk` read the reason string and `reason` read empty. The slice now lands in a
+  `head_col` variable and the fallback applies after it. Covered by cases that consume a notgit row
+  and a bare-hub row through `while IFS=$'\t' read` with all 15 field names. (#3371)
+- **`worktree-claim.test.sh`'s lock-failure case no longer reports a defect that does not exist under
+  root.** The case forced the failure with `chmod a-w` on the worktree admin directory, which uid 0
+  writes straight through, so the batch claim succeeded and the case failed in root containers with
+  no code change behind it. The permission fixture is now probed before it is trusted and skipped
+  with its reason named when it did not take, and a new root-proof arm — a stub `git` on PATH that
+  fails only `worktree lock` — covers the lock-failure exit-code propagation on every platform and
+  every uid, so the skip vacates no discriminating coverage. (#3378)
+
+## [0.55.22]
+
+### Changed
+
+- **`babysit-prs`'s flag documentation has one home.** The Guarded mutations section keeps the
+  operative invariants and per-tier mode selection plus one conditioned pointer; exact wrapper
+  flag documentation deduped into `skills/babysit-prs/reference/safety.md`, which first gained the
+  semantics it was missing (merge-form self-logins composition, the `--admin` capability bound,
+  the merge-gate evaluation set, the per-thread action vocabulary). No semantics changed.
+- **Long files carry a `## Contents` index.** The 401-line README and 337-line
+  reference/review-discipline.md gained Contents sections; the heading-less 394-line
+  skills/setup/reference/apply-convention.md gained an orientation block with a grep recipe.
+  Progressive-disclosure audit, tier-mismatch and missing-toc treatments.
+
+## [0.55.21]
+
+### Changed
+
+- **`worktree-root-convention` version-floors row hedges the git 2.56 `worktree:`/`worktree/i:` includeIf claim** as unreleased as of 2026-08-26 (latest upstream tag v2.55.0; the 2.55 docs do not list the condition), so a config is not authored against an unshipped floor. From the repo-wide derivability/point-dont-copy audit (PR #3387).
+
 ## [0.55.20]
 
 ### Changed

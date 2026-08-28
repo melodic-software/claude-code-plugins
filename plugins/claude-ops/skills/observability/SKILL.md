@@ -41,6 +41,9 @@ This skill reads **your** captured telemetry and ops signals.
 | [context/otel-pipeline.md](context/otel-pipeline.md) | Collector/dashboard down, store empty, service health |
 | [context/otel-queries.md](context/otel-queries.md) | DuckDB SQL, Aspire CLI, views |
 | [context/operator-setup.md](context/operator-setup.md) | Install, env profile, retention scripts |
+| [context/operator-setup-collector-daemon.md](context/operator-setup-collector-daemon.md) | Collector/Aspire service down or unhealthy, lifecycle repair |
+| [context/operator-setup-retention.md](context/operator-setup-retention.md) | Prune mechanics, retention knobs, scheduled prune task |
+| [context/operator-setup-emission-privacy.md](context/operator-setup-emission-privacy.md) | Emission tiers, content-capture keys, privacy toggle |
 | [context/data-sources.md](context/data-sources.md) | JSONL + ccusage jq (batch reports) |
 | [context/output-format.md](context/output-format.md) | Rendering scope reports |
 | [context/privacy.md](context/privacy.md) | Before any user-visible output |

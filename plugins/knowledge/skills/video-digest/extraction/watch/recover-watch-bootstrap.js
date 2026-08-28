@@ -9,7 +9,6 @@
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { probeVideoDuration } from "@melodic/video-digestion/media/ffprobe-duration";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
@@ -18,6 +17,7 @@ import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser"
 import { resolveSourceAdapter } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { computeCoveragePlan } from "../watching/compute-coverage-plan.js";
 import { findDensificationWindows, scoreFramePriority } from "../watching/densification.js";
@@ -133,21 +133,56 @@ export function resolveWorkArtifacts(workDir) {
   };
 }
 
+export const RECOVER_USAGE =
+  "Usage: node watch/recover-watch-bootstrap.js <slice-dir> <workDir> <framesDir> <contactSheetsDir>";
+
+/**
+ * Stratified downsample of a frame selection to the frame count the contact
+ * sheets already on disk can hold.
+ *
+ * Split out so the WARN reports the count it downsampled FROM: reassigning
+ * `selection` before reading `selection.selected.length` printed the
+ * post-downsample count on both sides of the arrow, so the log claimed
+ * "N → N" and hid how many frames were dropped.
+ *
+ * @param {import('../watching/models.js').SelectedFrame[]} selected
+ * @param {number} targetFrameCount
+ * @returns {{ selected: import('../watching/models.js').SelectedFrame[], droppedCount: number, warning: string|null }}
+ */
+export function downsampleSelectedFrames(selected, targetFrameCount) {
+  const beforeCount = selected.length;
+  if (beforeCount <= targetFrameCount) {
+    return { selected, droppedCount: 0, warning: null };
+  }
+  const step = beforeCount / targetFrameCount;
+  const downsampled = [];
+  for (let i = 0; i < targetFrameCount; i++) {
+    downsampled.push(selected[Math.floor(i * step)]);
+  }
+  return {
+    selected: downsampled,
+    droppedCount: beforeCount - downsampled.length,
+    warning: `WARN: downsampled ${beforeCount} → ${downsampled.length} frames (stratified, ${beforeCount - downsampled.length} dropped)`,
+  };
+}
+
 /**
  * @param {string[]} argv
  */
 export async function recoverWatchBootstrapCli(argv) {
-  const sliceDir = path.resolve(argv[2]);
-  const workDir = path.resolve(argv[3]);
-  const framesDir = path.resolve(argv[4]);
-  const contactSheetsDir = path.resolve(argv[5]);
-
-  if (!sliceDir || !workDir || !framesDir || !contactSheetsDir) {
-    writeStderr(
-      "Usage: node watch/recover-watch-bootstrap.js <slice-dir> <workDir> <framesDir> <contactSheetsDir>",
-    );
+  // Validate BEFORE resolving: `path.resolve(undefined)` throws a TypeError,
+  // so resolving first made this usage branch unreachable and turned a bad
+  // invocation into a stack trace.
+  const [sliceDirArg, workDirArg, framesDirArg, contactSheetsDirArg] = argv.slice(2, 6);
+  if (!sliceDirArg || !workDirArg || !framesDirArg || !contactSheetsDirArg) {
+    writeStderr(RECOVER_USAGE);
     return 1;
   }
+
+  const sliceDir = path.resolve(sliceDirArg);
+  const workDir = path.resolve(workDirArg);
+  const framesDir = path.resolve(framesDirArg);
+  const contactSheetsDir = path.resolve(contactSheetsDirArg);
 
   const sourceUrl = await resolveRecoverySourceUrl(sliceDir);
   if (!sourceUrl) {
@@ -196,20 +231,14 @@ export async function recoverWatchBootstrapCli(argv) {
   const expectedSheetCount = sheetFiles.length;
   const expectedFrameCount = expectedSheetCount * 16;
 
-  if (selection.selected.length > expectedFrameCount) {
-    const step = selection.selected.length / expectedFrameCount;
-    const downsampled = [];
-    for (let i = 0; i < expectedFrameCount; i++) {
-      downsampled.push(selection.selected[Math.floor(i * step)]);
-    }
+  const downsample = downsampleSelectedFrames(selection.selected, expectedFrameCount);
+  if (downsample.warning) {
     selection = {
       ...selection,
-      selected: downsampled,
+      selected: downsample.selected,
       candidateCount: merged.length,
     };
-    writeStderr(
-      `WARN: downsampled ${selection.selected.length} → ${expectedFrameCount} frames (stratified) to match ${expectedSheetCount} contact sheets`,
-    );
+    writeStderr(`${downsample.warning} to match ${expectedSheetCount} contact sheets`);
   }
 
   const batches = batchFramesForContactSheets(selection.selected, 16);
@@ -310,10 +339,7 @@ export async function recoverWatchBootstrapCli(argv) {
   return 0;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   recoverWatchBootstrapCli(process.argv)
     .then((code) => {
       process.exitCode = code;

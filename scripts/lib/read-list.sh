@@ -67,7 +67,14 @@ read_list::into() {
     case "$1" in
     --comments)
       _rl_mode="${2-}"
-      shift 2 || true
+      # Shift only what is actually there. `shift 2` with `--comments` as the
+      # LAST argument shifts nothing and returns non-zero, and the `|| true`
+      # this replaces swallowed that: `$#` stayed at 1 and the loop reprocessed
+      # `--comments` forever (#3363) instead of ever reaching the rc-2 branch
+      # below. Draining to `$# == 0` lets a bare `--comments` fall through to
+      # the existing "mode is required" error, the same answer `--comments ''`
+      # already gave.
+      shift $(($# > 1 ? 2 : 1))
       ;;
     *)
       printf 'read-list: unknown option %s\n' "$1" >&2

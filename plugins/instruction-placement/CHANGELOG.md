@@ -3,6 +3,20 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.10]
+
+### Changed
+
+- **Shared `hook-utils.sh` comment cleanup.** Comment-only sync from `lib/hook-utils.sh`: history-narration comments rewritten as present-tense rules; no behavior change.
+
+## [0.11.9]
+
+### Changed
+
+- **`glob-tools.sh` collapses a bracket-negation if/elif chain.** The two branches computed the
+  same result; one expression now does. `render-index.sh` merges two consecutive `sed` passes
+  into one. Output is byte-identical in both scripts. Code-tidying sweep, behavior-preserving.
+
 ## [0.11.8]
 
 ### Changed

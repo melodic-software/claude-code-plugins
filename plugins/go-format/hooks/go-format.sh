@@ -39,6 +39,8 @@ set -uo pipefail
 # twice would drain the pipe on the second call.
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# shellcheck source=rewrite-guard.sh
+source "$(dirname "${BASH_SOURCE[0]}")/rewrite-guard.sh"
 
 hook::check_enabled "GO_FORMAT"
 
@@ -186,7 +188,7 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
   fi
   if [[ "$_trimmed" == /\** ]]; then
     [[ "$_trimmed" == *'*/'* ]] || IN_BLOCK=1 # opens a block comment spanning further lines
-    continue # an indented /* ... */ comment (single- or multi-line): still within the leading block
+    continue                                  # an indented /* ... */ comment (single- or multi-line): still within the leading block
   fi
   break # first non-comment, non-blank line: leading block ended, marker absent
 done <"$FILE"
@@ -227,10 +229,10 @@ GOIMPORTS_ARGS=(-w -l)
 
 # Content-mutation disclosure (#1596): goimports rewrites imports and layout
 # only; name the rewrite on the user channel and stay silent on no-op paths.
-_go_before=""
-if _go_before=$(mktemp 2>/dev/null); then
-  cp "$FILE" "$_go_before" 2>/dev/null || _go_before=""
-fi
+# Snapshot lifecycle and single-document composition live in the shared
+# rewrite-guard lib (#3405, #3409).
+GO_REWRITE_MESSAGE="go-format: reformatted $(basename "$FILE") via goimports (imports and layout only)."
+hook::rewrite_guard_begin "$FILE"
 # -w writes the fix in place; -l (combined with -w) lists the changed
 # filename on stdout, which this hook doesn't need (a successful autofix
 # carries no advisory noise, same posture as a successful ruff/typos fix
@@ -247,15 +249,10 @@ STDERR=$("$GOIMPORTS_BIN" "${GOIMPORTS_ARGS[@]}" -- "$FILE" 2>&1 >/dev/null)
 RC=$?
 
 if [[ $RC -eq 0 ]]; then
-  if [[ -n "$_go_before" ]]; then
-    if ! cmp -s "$_go_before" "$FILE" 2>/dev/null; then
-      hook::emit_system_message "go-format: reformatted $(basename "$FILE") via goimports (imports and layout only)."
-    fi
-    rm -f "$_go_before"
-  fi
   # Clean, or fixed silently (formatting/import changes carry no advisory
   # noise — same posture as a successful ruff/typos autofix pass).
   emit_tel "ok" '[]'
+  hook::rewrite_disclose PostToolUse "$FILE" "$GO_REWRITE_MESSAGE"
   exit 0
 fi
 
@@ -263,21 +260,23 @@ if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   # goimports ran and produced a judgment: the file has a syntax error it
   # cannot parse. This is a finding, not a tool break — mirrors how
   # ruff-format surfaces a mid-edit syntax error as a finding.
-  hook::ctx_reset
-  hook::ctx_append "go-format: $(basename "$FILE") has a syntax error goimports could not parse (advisory):"
+  GO_CTX="go-format: $(basename "$FILE") has a syntax error goimports could not parse (advisory):"
   findings_raw=""
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    hook::ctx_append "  $line"
+    GO_CTX+=$'\n'"  $line"
     findings_raw+="$line"$'\n'
   done <<<"$STDERR"
-  hook::ctx_flush PostToolUse
 
   FINDINGS_JSON='[]'
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
   emit_tel "ok" "$FINDINGS_JSON"
+  # Findings AND a rewrite disclosure compose into one document (#3406 class);
+  # the take also releases the snapshot this arm previously leaked (#3405).
+  hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
+  hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
 fi
 
@@ -285,12 +284,15 @@ fi
 # code) — no judgment was made. Surface the diagnostic via additionalContext
 # (NOT stderr — an advisory hook's exit-0 stderr can trip a false "Hook
 # Error" label). Record as "skipped" (the tool never ran to judgment).
-hook::ctx_reset
-hook::ctx_append "go-format: goimports failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
+GO_CTX="go-format: goimports failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
-  hook::ctx_append "  $line"
+  GO_CTX+=$'\n'"  $line"
 done <<<"$STDERR"
-hook::ctx_flush PostToolUse
 emit_tel "skipped" '[]'
+# goimports may have written the file before breaking; take the disclosure
+# (which also releases the snapshot this arm previously leaked, #3405) and
+# compose it with the tool-break context as one document.
+hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
+hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
 exit 0

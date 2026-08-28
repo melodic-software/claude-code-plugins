@@ -314,6 +314,50 @@ else
   fail "syntax error -> no additionalContext JSON: $OUT"
 fi
 
+# --- Case 7b: snapshot hygiene (#3405) ---------------------------------------
+# The disclosure snapshot must be released on EVERY arm. Each run gets its own
+# empty TMPDIR; mktemp honors it, so a leftover file IS the leaked snapshot.
+# Non-vacuity: the rewrite run proves snapshots land in this TMPDIR (the
+# disclosure fires only when a snapshot exists to compare against).
+SNAP_TMP="$WORK/snap-tmp"
+
+mkdir -p "$SNAP_TMP"
+printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/snap-clean.go"
+OUT=$(run_hook_env "$REPO/snap-clean.go" TMPDIR="$SNAP_TMP" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
+if printf '%s' "$OUT" | jq -e '.systemMessage' >/dev/null 2>&1; then
+  ok "snapshot: rewrite run under isolated TMPDIR discloses (snapshots live here)"
+else
+  fail "snapshot: rewrite run did not disclose under isolated TMPDIR: $OUT"
+fi
+LEFT=$(find "$SNAP_TMP" -type f 2>/dev/null | wc -l | tr -d '[:space:]')
+if [[ "$LEFT" == "0" ]]; then ok "snapshot: clean arm leaves no temp file"; else fail "snapshot: clean arm left $LEFT temp file(s)"; fi
+
+rm -rf "$SNAP_TMP" && mkdir -p "$SNAP_TMP"
+printf 'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}\n' >"$REPO/snap-syntax.go"
+OUT=$(run_hook_env "$REPO/snap-syntax.go" TMPDIR="$SNAP_TMP" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
+LEFT=$(find "$SNAP_TMP" -type f 2>/dev/null | wc -l | tr -d '[:space:]')
+if [[ "$LEFT" == "0" ]]; then ok "snapshot: syntax-error arm leaves no temp file (#3405)"; else fail "snapshot: syntax-error arm left $LEFT temp file(s) (#3405)"; fi
+DOCS=$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)
+if [[ "$DOCS" == "1" ]]; then ok "syntax-error arm emits exactly one JSON document"; else fail "syntax-error arm emitted $DOCS documents: $OUT"; fi
+
+# --- Case 7c: tool-break arm releases the snapshot (#3405) -------------------
+# A goimports stub that dies with an unexpected exit code drives the
+# catch-all arm; the snapshot must still be released and the diagnostic must
+# be one JSON document.
+BREAK_BIN="$WORK/break-bin"
+mkdir -p "$BREAK_BIN"
+printf '#!/usr/bin/env bash\necho "internal panic" >&2\nexit 3\n' >"$BREAK_BIN/goimports"
+chmod +x "$BREAK_BIN/goimports"
+rm -rf "$SNAP_TMP" && mkdir -p "$SNAP_TMP"
+printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/snap-break.go"
+OUT=$(run_hook_env "$REPO/snap-break.go" TMPDIR="$SNAP_TMP" PATH="$BREAK_BIN:$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
+RC=$?
+if [[ $RC -eq 0 ]]; then ok "tool break -> exit 0 (advisory)"; else fail "tool break exit $RC"; fi
+LEFT=$(find "$SNAP_TMP" -type f 2>/dev/null | wc -l | tr -d '[:space:]')
+if [[ "$LEFT" == "0" ]]; then ok "snapshot: tool-break arm leaves no temp file (#3405)"; else fail "snapshot: tool-break arm left $LEFT temp file(s) (#3405)"; fi
+DOCS=$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)
+if [[ "$DOCS" == "1" ]]; then ok "tool-break arm emits exactly one JSON document"; else fail "tool-break arm emitted $DOCS documents: $OUT"; fi
+
 # --- Case 8: kill switch bypasses hook ---------------------------------------
 printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/kill.go"
 BEFORE_K="$(cat "$REPO/kill.go")"
@@ -340,7 +384,11 @@ fi
 printf 'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}\n' >"$REPO/tel.go"
 TEL="$(mktemp)"
 SINK="$(make_sink "cat >\"$TEL\"")"
-run_hook_env "$REPO/tel.go" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
+# Capture THIS run's stdout (#3367). Discarding it and grepping a `$OUT` last
+# assigned by an earlier case made the stdout-leak assertion below vacuous: it
+# checked output the telemetry run never produced, so it would have kept
+# passing had the hook started printing the envelope.
+TEL_OUT=$(run_hook_env "$REPO/tel.go" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK")
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -359,7 +407,15 @@ if [[ -s "$TEL" ]]; then
   FREL=$(jq -r '.data.file' "$TEL")
   if [[ -n "$FREL" && "$FREL" != /* && "$FREL" != ?:* ]]; then ok "envelope: data.file repo-relative ($FREL)"; else fail "envelope: data.file not repo-relative: $FREL"; fi
   if jq -e '.duration_ms | type == "number" and . >= 0 and floor == .' "$TEL" >/dev/null 2>&1; then ok "envelope: duration_ms non-negative int"; else fail "envelope: duration_ms invalid ($(jq .duration_ms "$TEL"))"; fi
-  if ! printf '%s' "$OUT" | grep -q schema_version 2>/dev/null; then ok "envelope: never leaked into hook's own stdout"; else fail "envelope leaked into stdout"; fi
+  # Staleness guard: the fixture is a syntax-error file, so THIS run must have
+  # put its advisory additionalContext JSON on stdout. An empty capture means
+  # the assertion below is grepping nothing and proves nothing.
+  if [[ -n "$TEL_OUT" ]]; then
+    ok "envelope: telemetry run's own stdout captured (leak assertion has something to check)"
+  else
+    fail "envelope: telemetry run produced no stdout — leak assertion would be vacuous"
+  fi
+  if ! printf '%s' "$TEL_OUT" | grep -q schema_version 2>/dev/null; then ok "envelope: never leaked into hook's own stdout"; else fail "envelope leaked into stdout: $TEL_OUT"; fi
 else
   fail "telemetry/stub-sink: no envelope written"
 fi

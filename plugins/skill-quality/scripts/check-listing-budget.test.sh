@@ -262,9 +262,9 @@ else
 fi
 
 # 13. The fixed budget takes precedence over the token reconstruction, per the
-#     documented contract ("skips the token/fraction reconstruction"). The
-#     reconstruction branch used to win and silently discard the fixed value,
-#     which could flip the OK/WARN verdict.
+#     documented contract ("skips the token/fraction reconstruction"). Guards a
+#     regression where the reconstruction branch would win and silently discard
+#     the fixed value, which could flip the OK/WARN verdict.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=99999 CHECK_SKILL_LISTING_CONTEXT_TOKENS=200000 \
   bash "$SUT" "$ROOT_A" 2>&1)"
 rc=$?
@@ -325,8 +325,8 @@ fi
 
 # 15. A trailing YAML comment on `description` / `when_to_use` is NOT part of
 #     the value a YAML reader delivers, so it must not be measured. It also
-#     hides the surrounding quotes from `strip_quotes`, which used to leave the
-#     quoting in the count too: this fixture measured 52 chars instead of 15.
+#     hides the surrounding quotes from `strip_quotes`, which would leave the
+#     quoting in the count too (this fixture would measure 52 chars instead of 15).
 #     `make_skill` always emits a quoted scalar, so the raw file is written here.
 mkdir -p "$TMP/yaml-comment-root/commented"
 {

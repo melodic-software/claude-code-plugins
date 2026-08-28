@@ -5,6 +5,20 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.12.19]
+
+### Changed
+
+- **The plugin README carries a `## Contents` index.** The 461-line README's per-skill sections
+  and configuration subsections are now anchor-linked from the top. Purely additive.
+  Progressive-disclosure audit, missing-toc treatment.
+
+## [0.12.18]
+
+### Changed
+
+- **`setup` step 6 fork-mode framing matches current docs.** Fork subagents are on by default in interactive sessions on Claude Code >= v2.1.232 (off by default in non-interactive `-p` and Agent SDK sessions; `CLAUDE_CODE_FORK_SUBAGENT` overrides either way, re-checked 2026-08-26) — the step no longer frames fork-spawning as needing explicit enabling. From the repo-wide derivability/point-dont-copy audit (PR #3387).
+
 ## [0.12.17]
 
 ### Changed

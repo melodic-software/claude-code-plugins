@@ -903,9 +903,8 @@ hook::buffer_stdin() {
 #
 # Fed through `printf | jq`, never a here-string: bash fills a here-string's pipe
 # itself, so a payload at or above the pipe capacity (65536 bytes here) blocks
-# before jq is exec'd. Callers pass the WHOLE buffered hook payload, which now
-# routinely exceeds that — a bounded stdin read used to reject anything that
-# large before it reached this helper.
+# before jq is exec'd. Callers pass the WHOLE buffered hook payload, which
+# routinely exceeds that.
 #   FIELD=$(hook::jq_field "$INPUT" '.tool_input.file_path') || exit 0
 hook::jq_field() {
   local field
@@ -932,11 +931,10 @@ hook::jq_field() {
 # and yield twice the records). Advisory callers allow on both codes; a blocking
 # guard branches on the codes and exits 2 on rc 2 (#2157). An advisory caller
 # spells that `|| exit 0`, a PreToolUse ALLOW, so what can reach it matters. NUL
-# CONTENT no longer can (#2122). A payload jq itself rejects — malformed JSON, a
-# wrongly typed field, an empty buffer — still does, exactly as it did before
-# this change; that path is untouched here, and process substitution means jq's
-# own exit status is not observed either. Values are CR-stripped, as in
-# hook::jq_field.
+# CONTENT cannot (#2122). A payload jq itself rejects — malformed JSON, a
+# wrongly typed field, an empty buffer — still can, and process substitution
+# means jq's own exit status is not observed either. Values are CR-stripped, as
+# in hook::jq_field.
 #
 # HOOK_JQ_FIELDS_NUL is set on EVERY call — "1" when any REQUESTED field carried
 # a NUL byte, "0" otherwise, and "0" on every failure path — so a caller can
@@ -945,10 +943,10 @@ hook::jq_field() {
 #
 # Fields are NUL-separated on the wire, and every value has its own NUL bytes
 # REMOVED jq-side first, so the delimiter provably cannot occur inside a value
-# and the record count no longer depends on what a PARSEABLE payload holds. jq
-# used to emit the raw byte, the value split in two, the cardinality check below
-# failed, and the callers' `|| exit 0` turned a PreToolUse BLOCK into a silent
-# ALLOW (#2122).
+# and the record count does not depend on what a PARSEABLE payload holds.
+# Without the jq-side strip, a raw NUL would split the value in two, fail the
+# cardinality check below, and the callers' `|| exit 0` would turn a PreToolUse
+# BLOCK into a silent ALLOW (#2122).
 #
 # The FLAG is computed from the values as the payload carried them, BEFORE the
 # strip — the ordering is load-bearing and is the one thing a textual merge of
@@ -1048,8 +1046,8 @@ hook::jq_fields() {
     values+=("$clean")
   done < <(printf '%s' "$input" | jq -j "$prog" 2>/dev/null)
   # One record for the flag plus one per filter. Short of that, jq produced no
-  # usable output — it is absent, it failed, or it rejected the payload. What can
-  # no longer shorten it is NUL CONTENT: the values carry no separator byte.
+  # usable output — it is absent, it failed, or it rejected the payload. What
+  # cannot shorten it is NUL CONTENT: the values carry no separator byte.
   ((${#values[@]} == $# + 1)) || return 2
   HOOK_JQ_FIELDS_NUL="${values[0]}"
   HOOK_JQ_FIELDS=("${values[@]:1}")
@@ -1533,12 +1531,13 @@ hook::git_resolve_index() {
           # because the split words are env's OWN arguments: `-S` exists so a
           # shebang line can carry env options, and GNU documents exactly that
           # (`#!/usr/bin/env -S -i some-program`). Restarting at the command
-          # dispatcher instead read a leading option in the split string as the
-          # COMMAND NAME and abandoned the whole segment — `env -S '-C <dir> git
-          # push --force'` resolved to no git at all, so every guard skipped a
-          # real force-push, and `env -S '-C <sha256-repo> git push
-          # --force-with-lease=main:<40-hex>'` skipped a lease against a movable
-          # ref name. Staying in this loop also keeps `env_ci` in scope, so
+          # dispatcher instead would read a leading option in the split string
+          # as the COMMAND NAME and abandon the whole segment — `env -S '-C
+          # <dir> git push --force'` would resolve to no git at all, so every
+          # guard would skip a real force-push, and `env -S '-C <sha256-repo>
+          # git push --force-with-lease=main:<40-hex>'` would skip a lease
+          # against a movable ref name. Staying in this loop also keeps
+          # `env_ci` in scope, so
           # `env -C a -S '-C b git …'` is last-wins in the one slot GNU env
           # keeps, exactly as an unspliced `env -C a -C b` already is.
           #

@@ -71,4 +71,4 @@ The workflow steps themselves live in [context/e2e.md](context/e2e.md).
 
 - **Semantic locators ONLY**. Accessibility-based element refs from snapshots, never CSS selectors or XPath that break on cosmetic changes
 - Orchestrator version coupling + health-check waits. Wait for the orchestrator's health signal before driving flows; don't poll blindly
-- Playwright CLI vs MCP token budget (~27K vs ~114K per workflow). CLI by default; detail in [context/e2e.md](context/e2e.md)
+- Playwright CLI vs MCP token budget: CLI is substantially cheaper (artifacts go to disk, only paths enter context). CLI by default; detail in [context/e2e.md](context/e2e.md)

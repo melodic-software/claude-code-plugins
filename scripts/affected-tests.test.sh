@@ -201,12 +201,13 @@ else
 fi
 
 # --- a FAILING git grep is fatal, never a narrower selection ---------------
-# The reverse lookup used to read from `< <(git grep ... 2>/dev/null || true)`,
-# which discarded git's diagnostic and erased its exit code, making a git ERROR
-# (>=2) identical to NO MATCH (1). Both came back as "no dependents": a change
-# that normally fans out to many suites selected one or none, at exit 0. That is
-# under-selection reported as success — the exact fail-open this tool exists to
-# refuse — so the shim below makes `git grep` fail and demands a loud exit.
+# A reverse lookup reading from `< <(git grep ... 2>/dev/null || true)` would
+# discard git's diagnostic and erase its exit code, making a git ERROR (>=2)
+# identical to NO MATCH (1). Both would come back as "no dependents": a change
+# that normally fans out to many suites would select one or none, at exit 0.
+# That is under-selection reported as success — the exact fail-open this tool
+# exists to refuse — so the shim below makes `git grep` fail and demands a loud
+# exit.
 #
 # The shim delegates every other subcommand to the REAL git, captured as an
 # absolute path so the shim cannot recurse into itself via PATH.
@@ -249,10 +250,10 @@ for flag in --base --print-fanout; do
 done
 
 # --- a sync-*.sh that is not a manifest is skipped, not fatal --------------
-# build_sync_map used to exit 2 on ANY scripts/sync-*.sh without a published
-# src. This suite runs in a REQUIRED CI lane, so the first future helper that
-# merely shares the prefix would have turned that lane red repo-wide. Half a
-# manifest (one published key, not the other) must still be fatal.
+# If build_sync_map exited 2 on ANY scripts/sync-*.sh without a published src,
+# the first helper that merely shares the prefix would turn this suite's
+# REQUIRED CI lane red repo-wide. Half a manifest (one published key, not the
+# other) must still be fatal.
 printf '#!/usr/bin/env bash\necho "a helper, not a copy manifest"\n' >"$repo/scripts/sync-helper.sh"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
@@ -347,8 +348,8 @@ else
 fi
 
 # --- a broken diff is fatal, never an empty selection ----------------------
-# The producer used to run inside a process substitution, so its fatal exit
-# killed only the subshell: mapfile succeeded with nothing and the run reported
+# A producer running inside a process substitution would confine its fatal exit
+# to the subshell: mapfile would succeed with nothing and the run would report
 # "nothing to select" and exit 0. A validation caller would read that as clean.
 out="$(cd "$repo" && bash scripts/affected-tests.sh --base definitely-not-a-ref 2>&1)"
 RC=$?
@@ -521,14 +522,13 @@ else
 fi
 
 # --- LIVE repo: reference YAML with no lane is UNMAPPED, not silently clean --
-# The no-suite list used to carry bare *.yaml and *.yml entries whose comment
-# named actionlint, zizmor, the workflow check-jsonschema step and the
-# runner-policy lane. That is true for workflow YAML and false for the reference
-# YAML under plugins/toolchain/ and docs/conventions/ecosystem-commands/, which
-# NO lane reads: no yamllint step exists, every check-jsonschema step names its
-# files and none names these, validate-plugin-contracts.mjs never mentions yaml,
-# and plugins/toolchain ships no *.test.sh. The entries were removed so these
-# fail loud instead of reporting a covering lane that does not exist.
+# The reference YAML under plugins/toolchain/ and docs/conventions/
+# ecosystem-commands/ is read by NO lane: no yamllint step exists, every
+# check-jsonschema step names its files and none names these,
+# validate-plugin-contracts.mjs never mentions yaml, and plugins/toolchain
+# ships no *.test.sh. A bare *.yaml/*.yml no-suite entry (true for workflow
+# YAML, false for these) would report a covering lane that does not exist, so
+# these must fail loud instead.
 #
 # This case pins that. If someone gives these files a real lane and records the
 # class again, this assertion is SUPPOSED to fail — update it together with the

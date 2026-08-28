@@ -68,7 +68,6 @@ try {
             $stabilityAvg = [math]::Round(($stabilityIndices | Measure-Object -Average).Average, 2)
         }
 
-        # Group records by SourceName + EventIdentifier for the top-N report.
         $topEvents = @($records | Group-Object -Property SourceName, EventIdentifier |
                 Sort-Object Count -Descending | Select-Object -First 5 |
                 ForEach-Object {
@@ -92,7 +91,6 @@ try {
                 $_.SourceName -match 'hardware|disk|memory|bugcheck|kernel-power|WER-SystemErrorReporting'
             }).Count
 
-        # Same product crashing >=5 times in last 7 days is a WARN signal.
         $repeatCrashCount = @($records |
                 Group-Object -Property ProductName |
                 Where-Object { $_.Count -ge 5 }).Count

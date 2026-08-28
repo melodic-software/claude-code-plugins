@@ -79,13 +79,35 @@ PLUGIN_COMPONENTS: dict[str, dict[str, str]] = {
     "commands": {"dir": "commands", "manifest": "commands", "kind": "dir-of-files"},
     "agents": {"dir": "agents", "manifest": "agents", "kind": "dir-of-files"},
     "workflows": {"dir": "workflows", "manifest": "workflows", "kind": "dir-of-files"},
-    "output-styles": {"dir": "output-styles", "manifest": "outputStyles", "kind": "dir-of-files"},
-    "themes": {"dir": "themes", "manifest": "experimental.themes", "kind": "dir-of-files"},
-    "monitors": {"dir": "monitors", "manifest": "experimental.monitors", "kind": "dir-of-files"},
+    "output-styles": {
+        "dir": "output-styles",
+        "manifest": "outputStyles",
+        "kind": "dir-of-files",
+    },
+    "themes": {
+        "dir": "themes",
+        "manifest": "experimental.themes",
+        "kind": "dir-of-files",
+    },
+    "monitors": {
+        "dir": "monitors",
+        "manifest": "experimental.monitors",
+        "kind": "dir-of-files",
+    },
     "hooks": {"dir": "hooks", "manifest": "hooks", "kind": "dir-of-files"},
     "bin": {"dir": "bin", "manifest": "", "kind": "dir-of-files"},
-    "mcp-servers": {"dir": "", "manifest": "mcpServers", "kind": "file", "file": ".mcp.json"},
-    "lsp-servers": {"dir": "", "manifest": "lspServers", "kind": "file", "file": ".lsp.json"},
+    "mcp-servers": {
+        "dir": "",
+        "manifest": "mcpServers",
+        "kind": "file",
+        "file": ".mcp.json",
+    },
+    "lsp-servers": {
+        "dir": "",
+        "manifest": "lspServers",
+        "kind": "file",
+        "file": ".lsp.json",
+    },
     "settings": {"dir": "", "manifest": "", "kind": "file", "file": "settings.json"},
 }
 
@@ -141,7 +163,8 @@ def pick_binary(explicit: str | None) -> tuple[Path | None, str]:
             return None, f"--binary {explicit} is not a file"
         return p, "explicit --binary"
 
-    for p in candidate_binaries():
+    candidates = candidate_binaries()
+    for p in candidates:
         try:
             if not p.is_file():
                 continue
@@ -151,10 +174,13 @@ def pick_binary(explicit: str | None) -> tuple[Path | None, str]:
         if size > 20_000_000:
             return p, "auto-detected native build"
         # Keep looking; a shim may precede the real binary on PATH.
-    for p in candidate_binaries():
+    for p in candidates:
         try:
             if p.is_file():
-                return p, "auto-detected (small file - likely an npm launcher, not a native build)"
+                return (
+                    p,
+                    "auto-detected (small file - likely an npm launcher, not a native build)",
+                )
         except OSError:
             continue
     return None, "no claude executable found on PATH or in the usual install roots"
@@ -250,8 +276,19 @@ def detect_container(data: bytes) -> str:
 _ID_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$")
 _REGEX_PRECEDERS = set("(,=:[!&|?{};+-*%^~<>") | {"\n"}
 _REGEX_KEYWORDS = {
-    "return", "typeof", "instanceof", "in", "of", "new", "delete", "void",
-    "case", "do", "else", "yield", "await",
+    "return",
+    "typeof",
+    "instanceof",
+    "in",
+    "of",
+    "new",
+    "delete",
+    "void",
+    "case",
+    "do",
+    "else",
+    "yield",
+    "await",
 }
 
 
@@ -413,15 +450,21 @@ def _unescape(raw: str) -> str:
 # --------------------------------------------------------------------------
 
 _TYPE_RE = re.compile(r'type:"(local|local-jsx|prompt)"')
-_NAME_RE = re.compile(r'(?:^|[,{])name:' + _STR)
+_NAME_RE = re.compile(r"(?:^|[,{])name:" + _STR)
 _UFN_RE = re.compile(r"userFacingName\(\)\{return" + _STR)
-_DESC_RE = re.compile(r'(?:^|[,{])description:' + _STR)
+_DESC_RE = re.compile(r"(?:^|[,{])description:" + _STR)
 _MENUDESC_RE = re.compile(r"(?:menuDescription|description):" + _STR)
 _ALIAS_RE = re.compile(r"aliases:\[([^\]]*)\]")
 _NAME_OK = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9:_-]{0,40}")
 
 # Names that exist in the build but are never typed by a user.
-INTERNAL_NAMES = {"mcp__", "workflow-launch-exec", "pro-trial-expired", "rate-limit-options", "stub"}
+INTERNAL_NAMES = {
+    "mcp__",
+    "workflow-launch-exec",
+    "pro-trial-expired",
+    "rate-limit-options",
+    "stub",
+}
 
 
 def extract_builtin_commands(src: str, braces: BraceMap) -> dict[str, dict[str, Any]]:
@@ -728,8 +771,8 @@ def scan_installed(root: Path) -> dict[str, Any]:
     """Plugins actually installed under the config dir's plugin cache.
 
     A marketplace checkout is a catalog of what is *available*; this is what is
-    present locally. The two can disagree — a plugin can be installed from a
-    marketplace that is no longer cached — so neither substitutes for the other.
+    present locally. The two can disagree - a plugin can be installed from a
+    marketplace that is no longer cached - so neither substitutes for the other.
     """
     cache = root / "plugins" / "cache"
     out: dict[str, Any] = {}
@@ -740,7 +783,10 @@ def scan_installed(root: Path) -> dict[str, Any]:
         for entry in sorted(p for p in marketplace.iterdir() if p.is_dir()):
             # Installs may nest one version directory below the plugin name.
             candidate = entry
-            if not (entry / ".claude-plugin").is_dir() and not (entry / "skills").is_dir():
+            if (
+                not (entry / ".claude-plugin").is_dir()
+                and not (entry / "skills").is_dir()
+            ):
                 subdirs = [d for d in sorted(entry.iterdir()) if d.is_dir()]
                 if len(subdirs) == 1:
                     candidate = subdirs[0]
@@ -804,7 +850,9 @@ def _manifest_paths(manifest: dict[str, Any], key: str) -> list[str] | None:
     return None
 
 
-def _scan_component(root: Path, spec: dict[str, str], manifest: dict[str, Any]) -> list[str]:
+def _scan_component(
+    root: Path, spec: dict[str, str], manifest: dict[str, Any]
+) -> list[str]:
     declared = _manifest_paths(manifest, spec.get("manifest", ""))
     kind = spec["kind"]
 
@@ -843,7 +891,9 @@ def scan_config_scope(root: Path) -> dict[str, Any]:
     skills = root / "skills"
     if skills.is_dir():
         out["skills"] = sorted(
-            e.name for e in skills.iterdir() if e.is_dir() and (e / "SKILL.md").is_file()
+            e.name
+            for e in skills.iterdir()
+            if e.is_dir() and (e / "SKILL.md").is_file()
         )
     for name, sub in (("agents", "agents"), ("commands", "commands")):
         d = root / sub
@@ -907,11 +957,15 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
                 report["bundled_skills"] = skills
                 report["bundled_skill_notes"] = skill_notes
                 report["plugin_backed"] = plugin_backed
-                report["integrity"] = check_integrity(src, commands, skills, skill_notes)
+                report["integrity"] = check_integrity(
+                    src, commands, skills, skill_notes
+                )
 
     if not args.binary_only:
         report["sources"]["disk"] = {"available": True}
-        report["disk"] = scan_disk(Path(args.config_dir) if args.config_dir else config_dir())
+        report["disk"] = scan_disk(
+            Path(args.config_dir) if args.config_dir else config_dir()
+        )
 
         # Project scope is a third place components come from, and it is the one
         # that changes as you move between repos: a project's .claude tree adds
@@ -921,7 +975,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         report["project"] = {
             "root": str(project_root),
             "present": project_claude.is_dir(),
-            "components": scan_config_scope(project_claude) if project_claude.is_dir() else {},
+            "components": scan_config_scope(project_claude)
+            if project_claude.is_dir()
+            else {},
         }
 
     return report
@@ -939,8 +995,12 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Enumerate the Claude Code ecosystem on this machine (read-only)."
     )
-    ap.add_argument("--binary", help="path to the claude executable (default: auto-detect)")
-    ap.add_argument("--config-dir", help="config dir (default: $CLAUDE_CONFIG_DIR or ~/.claude)")
+    ap.add_argument(
+        "--binary", help="path to the claude executable (default: auto-detect)"
+    )
+    ap.add_argument(
+        "--config-dir", help="config dir (default: $CLAUDE_CONFIG_DIR or ~/.claude)"
+    )
     ap.add_argument(
         "--project-dir", help="project root whose .claude tree to scan (default: cwd)"
     )
@@ -976,8 +1036,10 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"BROKEN: {reason}")
             return 1
-        print(f"{integrity['status'].upper()}: cli {integrity['cli_version']}, "
-              f"validated against {integrity['validated_against']}")
+        print(
+            f"{integrity['status'].upper()}: cli {integrity['cli_version']}, "
+            f"validated against {integrity['validated_against']}"
+        )
         for p in integrity["problems"]:
             print(f"  problem:  {p}")
         for a in integrity["advisories"]:

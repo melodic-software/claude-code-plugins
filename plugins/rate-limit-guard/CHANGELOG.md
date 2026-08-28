@@ -3,6 +3,22 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.16]
+
+### Changed
+
+- **Shared `hook-utils.sh` comment cleanup.** Comment-only sync from `lib/hook-utils.sh`: history-narration comments rewritten as present-tense rules; no behavior change.
+
+## [0.7.15]
+
+### Changed
+
+- **`statusline-tee.sh` names its bash-version and settings-read logic.** Repeated inline
+  `BASH_VERSINFO` comparisons became a `_rlg_bash_at_least` helper (keeping each call site's own
+  4.1/4.2 floor), the duplicated settings-JSON read became a `_rlg_read_settings_json` helper
+  (non-caching, same reads), and an append uses `lines+=()`. Behavior is unchanged. Code-tidying
+  sweep, behavior-preserving.
+
 ## [0.7.14]
 
 ### Changed

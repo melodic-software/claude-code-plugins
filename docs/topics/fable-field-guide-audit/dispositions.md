@@ -6,6 +6,45 @@ under `plugins/playbooks/skills/fable-5/**` was edited; the repo is on `main` wi
 Written in a clean context deliberately. Where this document contradicts a ledger, the contradiction
 is stated in §4 with the evidence, not merged away.
 
+## Contents
+
+- [1. How to read this](#1-how-to-read-this)
+- [2. The four dedup calls](#2-the-four-dedup-calls)
+  - [Judgment 1 — S2 Q4b, S5 C4, S13 F1](#judgment-1--s2-q4b-s5-c4-s13-f1-one-root-cause-and-the-ledgers-put-it-in-the-wrong-cell)
+  - [Judgment 2 — S2 Q2, S5 C8, S7 C6](#judgment-2--s2-q2-s5-c8-s7-c6-s7s-one-missing-mechanism-is-refuted-by-s7s-own-body)
+  - [Judgment 3 — S11 Claim 3 and S13 F4](#judgment-3--s11-claim-3-and-s13-f4-neither-of-s11s-landings-hosts-f4-and-f4-does-not-need-one)
+  - [Judgment 4 — S14 C14.5a](#judgment-4--s14-c145a-independent-and-a-prerequisite-for-the-rest)
+- [3. Three decisions the operator owns](#3-three-decisions-the-operator-owns)
+  - [D1 — The `problem-framing.md:60` trigger](#d1--the-problem-framingmd60-trigger)
+  - [D2 — `context/opus-adaptation.md`](#d2--contextopus-adaptationmd)
+  - [D3 — The contradictions against the divergent-spread tactic (S6 C4)](#d3--the-contradictions-against-the-divergent-spread-tactic-s6-c4)
+  - [D4 — Scope-setting pass as an opener (S6 C5)](#d4--scope-setting-pass-as-an-opener-s6-c5)
+- [4. Corrections to the ledgers](#4-corrections-to-the-ledgers)
+- [5. The remediation set](#5-the-remediation-set)
+  - [Tier 0 — prerequisite](#tier-0--prerequisite)
+  - [Tier 1 — the operator-evaluability cluster](#tier-1--the-operator-evaluability-cluster)
+  - [Tier 2 — the show-moves](#tier-2--the-show-moves)
+  - [Tier 3 — independent, single-home](#tier-3--independent-single-home)
+  - [Tier 4 — low priority](#tier-4--low-priority)
+- [6. The claim ledger](#6-the-claim-ledger)
+  - [S1 — map and territory](#s1--map-and-territory)
+  - [S2 — the four quadrants](#s2--the-four-quadrants)
+  - [S3 — unknown-reduction is the skill](#s3--unknown-reduction-is-the-skill)
+  - [S4 — specificity balance, discovery accelerator, starting point](#s4--specificity-balance-discovery-accelerator-starting-point)
+  - [S5 — blind spot pass](#s5--blind-spot-pass)
+  - [S6 — brainstorms and prototypes](#s6--brainstorms-and-prototypes)
+  - [S7 — interviews](#s7--interviews)
+  - [S8 — references](#s8--references)
+  - [S9 — implementation plans](#s9--implementation-plans)
+  - [S10 — fresh session and implementation notes](#s10--fresh-session-and-implementation-notes)
+  - [S11 — pitches and explainers](#s11--pitches-and-explainers)
+  - [S12 — quizzes](#s12--quizzes)
+  - [S13 — the launch-video worked example](#s13--the-launch-video-worked-example)
+  - [S14 — closing claims](#s14--closing-claims)
+- [7. Audit-originated findings — not article-derived](#7-audit-originated-findings--not-article-derived)
+- [8. Remediations rejected on constraint grounds](#8-remediations-rejected-on-constraint-grounds)
+- [9. Sequencing, if any of this is adopted](#9-sequencing-if-any-of-this-is-adopted)
+
 ## 1. How to read this
 
 **Verdict** (per the brief): `covered` / `partial` / `missing` / `contradicted` /
@@ -28,7 +67,8 @@ one root cause appears once as a remediation and many times as evidence. **R13, 
 reclassified during synthesis** — as A2 (§7), D1 (§3) and D4 (§3) respectively — so those three
 numbers are absent from §5 by design, not by omission. Every row from every
 ledger survives as a row here, including the no-change ones — collapsing them would discard the
-completeness property `coverage-reconcile.md` established.
+completeness property the audit's coverage-reconcile check established (that working file was
+removed once its conclusion was absorbed here).
 
 Audit-originated findings (not derivable from any article claim) are quarantined in §7 so they
 cannot be laundered into article-derived gaps.

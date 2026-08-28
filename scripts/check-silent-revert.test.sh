@@ -450,10 +450,10 @@ build_basename_changing_relocation() {
 }
 
 # #2883. A path whose .gitattributes say `-diff` produces "Binary files
-# differ" and zero hunks, so attribute_file used to return without
-# blaming. Blame itself is fine -- the detector just never asked. The
+# differ" and zero hunks, so attribute_file would return without
+# blaming. Blame itself is fine -- the detector just never asks. The
 # issue's own fixture: 320 lock lines + a binary png churn + 25 text
-# lines. As shipped that saw only the 25. `--text` would also see the
+# lines; a path-limited diff sees only the 25. `--text` would also see the
 # png as hundreds of fake lines and is forbidden; blob-to-blob recovery
 # sees the lock (text) and not the png (binary content).
 t_minus_diff_lock_file_is_attributed() {
@@ -741,8 +741,7 @@ t_ext_diff_pin_is_load_bearing() {
 # this fixture duplicates lines rather than prepending them. A transformer that
 # only PREPENDS shifts the hunk's starting offset while leaving its length
 # alone, so all four arms report the identical count and the case passes
-# vacuously -- it did exactly that, agreeing at 300 on every arm, until the
-# transformer was changed to one that doubles. Measured here with `sed p`:
+# vacuously. Measured here with `sed p`:
 #
 #        shipped (both pinned)                300   <- the truth
 #        neither pinned                       600   <- diff and blame agree, wrongly
@@ -1328,7 +1327,7 @@ t_replay_asserts_the_recorded_attribution() {
   fi
 
   # A recorded attribution the run does not produce at all -- the two-culprit
-  # shape from cc58cbc53, where the surviving finding used to carry the row.
+  # shape from cc58cbc53, where a surviving finding would carry the row.
   printf 'fires %s [%s=40,%s=301] one attribution never reproduces\n' \
     "$sha" "$culprit" "$other" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
@@ -1345,10 +1344,10 @@ t_replay_asserts_the_recorded_attribution() {
   # exists to remove.
   local bad
   # The last two shapes have no closing bracket. They matter most: a leading `[`
-  # that is never closed used to fail the field-detection glob outright, so the
-  # remainder became free-text note and the row fell back to passing on exit
-  # status alone -- reintroducing the pre-#2833 gap by the one route nobody
-  # would think to look at. Raised on #2843 by two independent review lanes.
+  # that is never closed would fail the field-detection glob outright, so the
+  # remainder would become free-text note and the row would fall back to
+  # passing on exit status alone -- reopening the pre-#2833 gap by the one
+  # route nobody would think to look at.
   for bad in "[${culprit:0:9}=40]" "[$culprit=many]" "[$culprit]" "[]" \
     "[$culprit=40" "["; do
     printf 'fires %s %s malformed\n' "$sha" "$bad" >"$repo/scripts/inc.txt"
@@ -1363,9 +1362,9 @@ t_replay_asserts_the_recorded_attribution() {
   done
 
   # All four empty-entry comma positions must exit 2. Word splitting under
-  # IFS=',' drops a trailing empty field, so `[sha=n,]` used to parse as
-  # `[sha=n]` and pass while leading / doubled / comma-only already died --
-  # the grammar enforced in three of four positions (#2875).
+  # IFS=',' drops a trailing empty field, so `[sha=n,]` would parse as
+  # `[sha=n]` and pass while leading / doubled / comma-only die -- the
+  # grammar enforced in only three of four positions.
   for bad in "[$culprit=40,]" "[,$culprit=40]" "[$culprit=40,,$other=1]" "[,]"; do
     printf 'fires %s %s comma\n' "$sha" "$bad" >"$repo/scripts/inc.txt"
     SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
@@ -1464,9 +1463,9 @@ t_replay_asserts_clean_row_attribution() {
   fi
 }
 
-# A failed diff or blame used to be indistinguishable from "this file had
+# A failed diff or blame would be indistinguishable from "this file had
 # nothing to attribute": stderr discarded, empty output, return 0. That
-# is the quiet pass the header contract forbids (#2880).
+# is the quiet pass the header contract forbids.
 t_attribute_file_git_failure_is_exit_2() {
   local repo real_git shimdir sha out
   repo="$(mk_repo)"
@@ -2006,7 +2005,7 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
 
   # THE amplifier case, in its strongest form: the target content is nowhere in
   # the repo, but the marker text is sitting in the corpus file itself. A
-  # pathspec of `.` used to report it restored.
+  # pathspec of `.` would report it restored.
   {
     printf 'fires %s a real drop\n' "$sha"
     printf 'marker %s . NEVER_PRESENT_ANYWHERE\n' "$sha"

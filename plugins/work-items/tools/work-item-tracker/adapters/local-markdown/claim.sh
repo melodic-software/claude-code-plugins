@@ -8,30 +8,31 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]" "$@"
+usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]'
+wit_help_if_requested "$usage" "$@"
 
 id="${1:-}"
-[[ -n "$id" ]] || wit_usage_error "usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]"
+[[ -n "$id" ]] || wit_usage_error "$usage"
 shift
 ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --ttl-hours)
-      [[ $# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
-      ttl="$2"
-      shift 2
-      ;;
-    --ttl-minutes)
-      [[ $# -ge 2 ]] || wit_usage_error "--ttl-minutes needs a value"
-      ttl_minutes="$2"
-      shift 2
-      ;;
-    --session-id)
-      [[ $# -ge 2 ]] || wit_usage_error "--session-id needs a value"
-      session_id="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --ttl-hours)
+    [[ $# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
+    ttl="$2"
+    shift 2
+    ;;
+  --ttl-minutes)
+    [[ $# -ge 2 ]] || wit_usage_error "--ttl-minutes needs a value"
+    ttl_minutes="$2"
+    shift 2
+    ;;
+  --session-id)
+    [[ $# -ge 2 ]] || wit_usage_error "--session-id needs a value"
+    session_id="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id"

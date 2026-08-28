@@ -128,7 +128,8 @@ So the parent does the writing, which it can — this is the checkout-not-proces
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to
 take. It is not an acceptance value, and treating it as one would let a run be believed on the
-agent's own word — the exact thing the gate exists to refuse.
+agent's own word — the exact thing the gate exists to refuse. Why the mode exists and where its
+boundary sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
 **Exit 1 with the agent still live — resume it; do not re-dispatch it.** A resume costs one message;
 a re-dispatch pays the full six dimensions over again. Address the agent by the **agent ID**, not by

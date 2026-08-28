@@ -106,14 +106,14 @@ gate::refuse() {
 }
 
 # Disabled does NOT mean "let Claude Code use its own default" — see the header:
-# no such channel exists, and the exit-0/empty-stdout shape this used to take
-# fails the creation anyway, with a generic harness error that never mentions the
-# option the user just set. So the disabled path refuses OUT LOUD instead, and
-# the one thing it must do is name the real stand-downs.
+# no such channel exists, and an exit-0/empty-stdout skip fails the creation
+# anyway, with a generic harness error that never mentions the option the user
+# just set. So the disabled path refuses OUT LOUD instead, and the one thing it
+# must do is name the real stand-downs.
 #
 # The flag is read directly rather than through `hook::check_enabled`, which EXITS
 # 0 itself instead of returning — anything a caller writes after it is dead code,
-# and an exit-0 skip is precisely the shape being removed here.
+# and an exit-0 skip is precisely the shape this path must avoid.
 if [[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED:-true}" != "true" ]]; then
   gate::refuse \
     'to let Claude Code place worktrees itself, set worktree.bgIsolation to "none" in settings, or disable this plugin — turning this option off cannot hand placement back' \
@@ -213,18 +213,14 @@ fi
 
 # The assignment stands alone so `$?` is the HELPER's status. Inside the body of
 # `if ! cmd`, `$?` is the status of the negated compound — which is 0 exactly when
-# `cmd` failed — so the previous form reported a constant 0 for every failure. A
-# constant that looks like a real exit code is worse than no code at all: it is
-# what produced, and cost a verification pass to unwind, the theory that a hook
-# had exited 0 while failing.
+# `cmd` failed — so reading it there reports a constant 0 for every failure, and a
+# constant that looks like a real exit code is worse than no code at all.
 path="$(bash "$helper" "${args[@]}")"
 status=$?
 
 # The helper's stderr is not captured, so its own guidance has already reached the
 # user by the time this runs. What is added here is the translation of its
-# documented exit taxonomy (worktree-create.sh, "Exit codes") into a remedy — the
-# taxonomy used to be discarded, collapsing "not a repository", "no worktree_root
-# configured" and "illegal branch name" into one indistinguishable line.
+# documented exit taxonomy (worktree-create.sh, "Exit codes") into a remedy.
 if ((status != 0)); then
   case "$status" in
   2)

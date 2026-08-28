@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Launch every disk-hygiene hook through a Python 3 interpreter resolved
 # independently of a bare `python3` on PATH (#1504) — the two wired hooks in
-# hooks.json and, since #2568, the clean skill's frontmatter belt.
+# hooks.json and the clean skill's frontmatter belt.
 #
 # When `python3` is absent, broken, or resolves to the zero-length WindowsApps
 # App Execution Alias stub, both the guard and its Stop detector died the same
@@ -34,9 +34,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE="$SCRIPT_DIR/../skills/clean/scripts/hygiene.py"
 # One read of the engine, stopped at the MIN_PYTHON line (#2853). This launcher
 # sits behind an always-on `Bash|PowerShell` PreToolUse matcher, so every shell
-# tool call pays whatever happens here; the previous form ran TWO separate sed
-# passes and neither stopped at the match, scanning the whole ~3,500-line
-# engine twice to recover a constant that sits near the top of the file.
+# tool call pays whatever happens here.
 #
 # The ADDRESS BLOCK is what makes it stop. The obvious one-liner
 # `sed -n 's/^MIN_PYTHON = (...).*/\1 \2/p;/^MIN_PYTHON/q'` does NOT quit: by

@@ -822,7 +822,6 @@ def main() -> None:
                 2,
             )
         chain_sids = extract_chain_from_handoff(ns.chain_from, ns.base)
-        # Prepend current session-id if supplied AND not already first
         all_sids: list[str] = []
         if ns.current_session and ns.current_session not in chain_sids:
             all_sids.append(ns.current_session)

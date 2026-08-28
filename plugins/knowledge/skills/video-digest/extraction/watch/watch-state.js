@@ -6,11 +6,10 @@
  */
 
 import fs from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-session-paths.js";
 
@@ -334,10 +333,7 @@ export async function runMarkPhase(sliceDir, phase, { readFile, writeFile, mkdir
   return 0;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   const [command, sliceDir, phase] = process.argv.slice(2);
   if (command !== "mark-phase" || !sliceDir || !phase) {
     writeStderr("Usage: node watch/watch-state.js mark-phase <slice-dir> <phase>\n");

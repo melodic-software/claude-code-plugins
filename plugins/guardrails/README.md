@@ -4,6 +4,22 @@ A Claude Code plugin bundling fourteen **safety guards** that catch risky agent
 actions the moment they happen, before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
+## Contents
+
+- [The guards](#the-guards)
+  - [Enforceability tiers](#enforceability-tiers)
+  - [Scope notes](#scope-notes)
+- [Per-hook kill switches](#per-hook-kill-switches)
+- [Consumer seams](#consumer-seams)
+- [Telemetry (opt-in)](#telemetry-opt-in)
+- [Requirements](#requirements)
+- [Install](#install)
+- [Configuration](#configuration)
+  - [Options reference](#options-reference)
+  - [How to set these](#how-to-set-these)
+  - [Upstream documentation](#upstream-documentation)
+- [License](#license)
+
 ## The guards
 
 | Guard | Event / matcher | Behavior | What it catches |

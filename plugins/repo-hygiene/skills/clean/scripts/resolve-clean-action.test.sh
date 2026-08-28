@@ -63,8 +63,7 @@ assert_action "sweep-batch alias" "sweep-batch" "all-batch"
 # all-batch must NOT be preempted by the fleet-phrase upgrade that targets bare `all`.
 assert_action "all-batch is selective, not tree-batch" "all-batch" "all-batch"
 # A selective tier token + a fleet indicator must route to the (non-destructive)
-# selective batch form, never the destructive tree-batch. This is the safety fix:
-# "clean caches across all repos" previously went to menu / risked tree-batch.
+# selective batch form, never the destructive tree-batch.
 assert_action "caches + across-all-repos phrase -> caches-batch" "clean caches across all repos" "caches-batch"
 assert_action "caches + bare fleet token -> caches-batch (not tree-batch)" "caches fleet" "caches-batch"
 assert_action "build + all-my-repos phrase -> build-batch" "clear build artifacts across all my repos" "build-batch"

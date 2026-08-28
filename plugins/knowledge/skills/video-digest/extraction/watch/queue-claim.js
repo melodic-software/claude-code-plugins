@@ -12,10 +12,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { YOUTUBE_WATCH_EPIC_DIR } from "../transcript/derive-video-slug.js";
 
@@ -263,6 +263,6 @@ function main(argv) {
   process.exit(1);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main(process.argv);
 }

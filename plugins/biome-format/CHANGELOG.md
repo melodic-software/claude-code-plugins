@@ -3,6 +3,31 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.25]
+
+### Changed
+
+- **Shared `hook-utils.sh` comment cleanup.** Comment-only sync from `lib/hook-utils.sh`: history-narration comments rewritten as present-tense rules; no behavior change.
+
+## [0.6.24]
+
+### Fixed
+
+- **Two JSON documents on a rewrite-plus-findings run (#3406).** The rewrite
+  disclosure was emitted immediately as its own JSON document; a run that then
+  reported findings (or a tool break) printed a second one, against the
+  single-document stdout contract documented in hook-utils. The disclosure is now
+  taken once after the check and composed with the exiting arm's context into one
+  document.
+
+### Changed
+
+- **Adopted the shared rewrite-guard lib (#3409).** The hand-rolled
+  snapshot/compare/disclose/release block is replaced by
+  `hooks/rewrite-guard.sh` (synced from `lib/rewrite-guard.sh`); the test suite
+  gained a rewrite-plus-findings case asserting exactly one JSON document
+  carrying both channels.
+
 ## [0.6.23]
 
 ### Changed

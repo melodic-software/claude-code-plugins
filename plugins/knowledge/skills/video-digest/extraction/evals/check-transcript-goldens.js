@@ -7,8 +7,8 @@
  */
 
 import fs from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+
+import { isMainModule } from "../lib/cli-entrypoint.js";
 
 /**
  * @param {string} value
@@ -126,10 +126,7 @@ export async function runCheckTranscriptGoldensCli(argv) {
   return 0;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   runCheckTranscriptGoldensCli(process.argv)
     .then((code) => process.exit(code))
     .catch((err) => {

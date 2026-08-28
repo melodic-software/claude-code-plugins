@@ -142,10 +142,11 @@ if [[ -n "$LABELS" ]]; then
       printf 'create-item.sh: could not accumulate label page %s for %s\n' "$PAGE" "$REPO" >&2
       exit "$EX_INTERNAL"
     }
-    LABEL_SEEN=$((LABEL_SEEN + $(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0)))
+    LABEL_GOT="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0)"
+    LABEL_SEEN=$((LABEL_SEEN + LABEL_GOT))
     # An empty page ends the walk whatever the header claimed — a count that never gets
     # satisfied must not turn into an unbounded loop.
-    (($(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0) == 0)) && break
+    ((LABEL_GOT == 0)) && break
     PAGE=$((PAGE + 1))
   done
   # ORGANIZATION-WIDE labels are usable on this repo's issues and are NOT in the repo label
@@ -160,12 +161,11 @@ if [[ -n "$LABELS" ]]; then
   if [[ "$WIT_GITEA_STATUS" != "404" ]]; then
     wit_gitea_require_ok "listing organization labels for $WIT_GITEA_OWNER"
     # Same walk as the repo labels above, and deliberately the SAME SHAPE: this endpoint sets
-    # X-Total-Count too, so the header decides. An earlier draft here used a largest-page-seen
-    # heuristic instead, which was wrong twice over — it always spent one extra request (the
-    # page that establishes the baseline can never be shorter than it), and against same-sized
-    # consecutive pages it walked to the ceiling and reported a truncation that had not
-    # happened, turning a genuinely-missing label name into a misleading "the label list was
-    # truncated" message.
+    # X-Total-Count too, so the header decides. A largest-page-seen heuristic would be wrong
+    # twice over — it always spends one extra request (the page that establishes the baseline
+    # can never be shorter than it), and against same-sized consecutive pages it walks to the
+    # ceiling and reports a truncation that has not happened, turning a genuinely-missing
+    # label name into a misleading "the label list was truncated" message.
     ORG_PAGE="$WIT_GITEA_BODY"
     ORG_TOTAL="$WIT_GITEA_TOTAL_COUNT"
     ORG_SEEN=0

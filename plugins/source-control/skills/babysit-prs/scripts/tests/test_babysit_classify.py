@@ -52,16 +52,22 @@ class ActorKindTests(unittest.TestCase):
         # structural signal, matching `is_bot`. This is the one case the field
         # documents itself for, so `actor_kind` must not settle it as human first.
         config = bc.FeedbackConfig(extra_bot_logins=frozenset({"svc-account"}))
-        item = {"author": {"login": "svc-account", "__typename": "User", "is_bot": False}}
+        item = {
+            "author": {"login": "svc-account", "__typename": "User", "is_bot": False}
+        }
         self.assertEqual(bc.actor_kind(item, config), "bot")
 
     def test_unconfigured_user_is_human(self) -> None:
         config = bc.FeedbackConfig(extra_bot_logins=frozenset({"svc-account"}))
-        item = {"author": {"login": "maintainer", "__typename": "User", "is_bot": False}}
+        item = {
+            "author": {"login": "maintainer", "__typename": "User", "is_bot": False}
+        }
         self.assertEqual(bc.actor_kind(item, config), "human")
 
     def test_default_empty_config_relies_on_structure(self) -> None:
-        item = {"author": {"login": "svc-account", "__typename": "User", "is_bot": False}}
+        item = {
+            "author": {"login": "svc-account", "__typename": "User", "is_bot": False}
+        }
         self.assertEqual(bc.actor_kind(item), "human")
 
 
@@ -81,8 +87,8 @@ class SelfLoginTests(unittest.TestCase):
         self.assertFalse(bc.is_self_login("someone-else", selves))
 
     def test_empty_self_set_is_dormant(self) -> None:
-        # #497: an empty self set (single-`--pr` mode before the fix) matches
-        # nobody, so every self-gated behavior stays off rather than misfiring.
+        # #497: an empty self set matches nobody, so every self-gated
+        # behavior stays off rather than misfiring.
         self.assertEqual(bc.normalize_self_logins([]), frozenset())
         self.assertFalse(bc.is_self_login("anyone", frozenset()))
 
@@ -106,7 +112,10 @@ class FindingLifetimeTests(unittest.TestCase):
 
     def test_self_classification_rows_do_not_mint_phantom_findings(self) -> None:
         comments = [
-            {"author": "me[bot]", "body": "| 1 | CRITICAL null deref | VALID | fixed |"},
+            {
+                "author": "me[bot]",
+                "body": "| 1 | CRITICAL null deref | VALID | fixed |",
+            },
         ]
         self.assertEqual(bc.count_findings(comments, SELF), 0)
 
@@ -122,7 +131,10 @@ class FindingLifetimeTests(unittest.TestCase):
         -- else the row leaks through and its embedded CRITICAL re-counts as a
         phantom finding."""
         comments = [
-            {"author": "me[bot]", "body": "| 1 | CRITICAL null deref | Valid | fixed |"},
+            {
+                "author": "me[bot]",
+                "body": "| 1 | CRITICAL null deref | Valid | fixed |",
+            },
         ]
         self.assertEqual(bc.count_findings(comments, SELF), 0)
 
@@ -193,7 +205,10 @@ class ClassificationCountTests(unittest.TestCase):
         for cell in ("valid2", "VALID_TOKEN", "2valid"):
             with self.subTest(cell=cell):
                 comments = [
-                    {"author": "me[bot]", "body": f"| 1 | finding | {cell} | pending |"},
+                    {
+                        "author": "me[bot]",
+                        "body": f"| 1 | finding | {cell} | pending |",
+                    },
                 ]
                 self.assertEqual(bc.count_classified(comments, SELF), 0)
 
@@ -279,7 +294,10 @@ class EffectiveClassifiedTests(unittest.TestCase):
         # bucket and the classification credits normally -- restricting credit to
         # threads would have permanently blocked this path.
         comments = [
-            {"author": "claude[bot]", "body": "### 1. [CRITICAL] a\n### 2. [IMPORTANT] b"},
+            {
+                "author": "claude[bot]",
+                "body": "### 1. [CRITICAL] a\n### 2. [IMPORTANT] b",
+            },
             {
                 "author": "me[bot]",
                 "body": "| 1 | a | VALID | fixed |\n| 2 | b | INCORRECT | refuted |",
@@ -325,8 +343,16 @@ class EffectiveClassifiedTests(unittest.TestCase):
         # path). Without the tag inference both share the non-thread bucket and
         # the row false-passes the finding.
         comments = [
-            {"type": "inline", "author": "codex[bot]", "body": "[CRITICAL] inline finding"},
-            {"type": "review", "author": "me[bot]", "body": "| 1 | old | VALID | fixed |"},
+            {
+                "type": "inline",
+                "author": "codex[bot]",
+                "body": "[CRITICAL] inline finding",
+            },
+            {
+                "type": "review",
+                "author": "me[bot]",
+                "body": "| 1 | old | VALID | fixed |",
+            },
         ]
         self.assertEqual(bc.comment_surface(comments[0]), bc.THREAD_SURFACE)
         self.assertEqual(bc.comment_surface(comments[1]), bc.PR_LEVEL_SURFACE)

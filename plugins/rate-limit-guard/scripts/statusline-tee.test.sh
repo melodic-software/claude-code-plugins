@@ -24,15 +24,15 @@ set -uo pipefail
 unset CLAUDE_CONFIG_DIR CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED
 unset RLG_TEE_ASYNC RLG_TEE_DISABLED_RECHECK
 
-# The render path no longer writes the snapshot itself: it spools a per-session
-# record with zero forks and ONE elected render per cadence drains the batch
-# into the contract file (see THE SPOOL in statusline-tee.sh). Pinning the
-# cadence to zero makes every refresh the elected one, which is exactly the
-# synchronous visibility every case below already assumes — "the snapshot has
-# been written" observable the moment the wrapper returns, so an assertion that
-# a snapshot was NOT written cannot pass vacuously against a race. EXPORTED, not
-# assigned: the suite runs the tee as a child process. Election itself is proven
-# in dedicated cases at the end, which set their own cadence per invocation.
+# The render path spools a per-session record with zero forks; ONE elected
+# render per cadence drains the batch into the contract file (see THE SPOOL in
+# statusline-tee.sh). Pinning the cadence to zero makes every refresh the
+# elected one, which is exactly the synchronous visibility every case below
+# already assumes — "the snapshot has been written" observable the moment the
+# wrapper returns, so an assertion that a snapshot was NOT written cannot pass
+# vacuously against a race. EXPORTED, not assigned: the suite runs the tee as a
+# child process. Election itself is proven in dedicated cases at the end, which
+# set their own cadence per invocation.
 export RLG_TEE_DRAIN_INTERVAL=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

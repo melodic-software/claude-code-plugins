@@ -7,10 +7,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-session-paths.js";
 import { watchStatePath } from "./watch-state.js";
@@ -120,10 +120,7 @@ export function sanitizeSliceTempPaths(sliceDir) {
   return touched;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/sanitize-slice-temp-paths.js <slice-dir>");

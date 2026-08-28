@@ -40,15 +40,11 @@ ALLOWLIST="scripts/hook-userconfig-argv-allowlist.txt"
 # shellcheck disable=SC2016  # single quotes are deliberate: the token is matched literally, never expanded
 TOKEN='${user_config.'
 
-# The allowlist is read ONCE here and both consumers below share the result.
-# They used to disagree: `allowed()` grep-matched raw lines (no comment
-# stripping, no trimming — so an entry with trailing whitespace silently never
-# matched), while the stale guard skipped leading-`#` lines and stripped a CR.
-# One read means one answer to "what is an active entry" (#3161).
+# The allowlist is read ONCE here and both consumers below share the result:
+# one read means one answer to "what is an active entry".
 #
-# `leading`: entries are hook-config paths and the prior behaviour treated `#`
-# as a comment only at line start, so this preserves it exactly. CRLF tolerance
-# (Windows / Git Bash) now lives in the shared reader.
+# `leading`: entries are hook-config paths, so `#` is a comment only at line
+# start. CRLF tolerance (Windows / Git Bash) lives in the shared reader.
 declare -a ALLOWED_ENTRIES=()
 if [[ -f "$ALLOWLIST" ]]; then
   read_list::into ALLOWED_ENTRIES "$ALLOWLIST" --comments leading

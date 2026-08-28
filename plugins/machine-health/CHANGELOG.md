@@ -3,6 +3,75 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.13]
+
+### Changed
+
+- **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
+## [0.11.12]
+
+### Changed
+
+- **Behavior-preserving simplification sweep, wave 7 (batch-simplify).** Two edits, each
+  adversarially refutation-verified by empirical pwsh probes: Clear-TempFiles.ps1 drops a
+  dead `$skippedReparse = $skipCounter.Value` sync-back (the `[ref]` writes through — probe
+  confirmed identical `after.skipped_reparse` with and without); Invoke-MachineHealthTests.ps1
+  hoists the duplicated failed-container predicate into one `$failedContainers` computed once
+  behind the existing `$result.Containers` guard (7-case differential harness under
+  StrictMode 3.0 shows identical annotation and summary output). All other audit lib,
+  checks, catalog, and test-infra files reviewed clean.
+
+## [0.11.11]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** Removed zero-information
+  comments (section markers restating adjacent code) in the orchestrator, several checks,
+  and lib helpers, and dropped stale comment references to files that do not exist in this
+  repository (`.claude/rules/powershell/testing.md`, `powershell/conventions.md`,
+  `tools/shared/pester/`), keeping the substantive rationale in place. No behavior change.
+
+## [0.11.10]
+
+### Fixed
+
+- **`Get-GpuDriverInfo` asks `nvidia-smi` for the fields it meant to ask for.** The query and
+  format flags were written bare with a space after each comma
+  (`--query-gpu=name, driver_version`), which PowerShell's argument-mode comma operator turns
+  into an array that spreads into four separate argv entries. `nvidia-smi` rejected them
+  (`Option driver_version is not recognized`, exit 2), so the NVIDIA branch silently produced
+  nothing on real hardware while the suite's argument-agnostic mocks stayed green. Both flags
+  are now single quoted tokens, and the suite gained a shadowing `nvidia-smi` stub that
+  captures and asserts the exact argument vector.
+- **`approved_by` records one backslash between host and user, not two.** The TODO.md migration
+  built the identity as `"$env:COMPUTERNAME\\$env:USERNAME"`; PowerShell double-quoted strings
+  do not treat `\` as an escape, so every migrated approval persisted a literal `HOST\\user`.
+  The field is free-form audit metadata (`catalog/schemas/approvals.schema.json`) and no code
+  path compares it — `Test-ApprovalGranted` reads only `approved` — so previously persisted
+  values need no migration; the one-shot TODO.md path writes only when `approvals.json` is
+  absent, which further bounds the reach.
+
+## [0.11.9]
+
+### Changed
+
+- **The orphaned shared references are reachable from the audit README.** The maintainer README
+  gained pointers to `references/shared/correlation-rules.md` (how the orchestrator applies
+  correlation rules) and `references/shared/testing.md` (Pester test conventions). Purely
+  additive. Progressive-disclosure audit, orphan-spoke treatment.
+
+## [0.11.8]
+
+### Added
+
+- **The audit skill's directory carries a nested `AGENTS.md` with its `CLAUDE.md` shim.** Three
+  contributor conventions from the human-only skill README (semantics-vs-implementation layout,
+  dual-invocation script contract, stateless-checks invariant) now load for Claude on any read
+  under `skills/audit/`, as pointers back to the README rather than copies. Applied from an
+  instruction-placement audit (findings IP-005 through IP-007); the README remains the single
+  source of truth.
+
 ## [0.11.7]
 
 ### Changed

@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.5.1]
+
+### Changed
+
+- **Comment-residue cleanup (`/code-tidying:audit-comment-residue`).** History narration, plan/session references, and stale back-references in code comments rewritten as present-tense rationale or removed. Comment-only, no behavior change.
+
+## [0.5.0]
+
+### Added
+
+- **The catalog gained a repo-owned "Model-era additions" section** — an evolving,
+  evidence-graded inventory of 2025-2026 model-vocabulary tells (the Claude-ism layer neither
+  Wikipedia's source page nor Cursor's unslop skill carries yet): four entries with era,
+  model-attribution, and evidence-grade fields, a dated model-era record in the
+  upstream-drift-record shape, and a placement gate the test suite enforces (a
+  `locally-observed` phrase can be `recorded-only` or a rubric cue, never a shipped script
+  rule). The judgment rubric's metaphor-cue list gained `load-bearing` and `seam` with
+  deliberately broad literal-sense boundaries; base rates on this repo's own corpus are
+  recorded in the calibration record's fourth pass.
+
+- **New script rule `rule-model-era-phrases`** — per-occurrence detection of distinctive
+  model stock constructions, shipped as three anchored ERE fragments (`the part most people
+  skip`, `(the|my) honest take`, `that.s the unlock`; the bare bigrams are recorded-only, one
+  on a measured domain-literal false positive). Measured 0 findings across this repo's 1,361
+  tracked markdown files; new findings will appear in corpora that carry the constructions.
+  The severity crosswalk gained the argued SUGGESTION row (detector-findings convention
+  2.7.0) and `emit-findings.sh` the rule's rewrite action.
+
+- **New config keys `phrase_add` / `phrase_remove`** tune the phrase roster per layer
+  (replace-wholesale, the `vocab_add` precedent). Fragments are whole EREs — spaces allowed,
+  apostrophes spelled `.` — read through a separator-preserving reader, and validated at
+  config-read time: an empty element is dropped (an empty alternation branch would match
+  every line) and an invalid ERE is skipped with a stderr note naming it (an unbalanced
+  paren would otherwise error every grep for the rule into a `findings=0` row
+  indistinguishable from a clean corpus). Removing every phrase leaves the rule inert.
+  Replacement is keyed on the key being present (Codex review): an explicit
+  `"phrase_add": []` in a later layer clears an inherited list instead of reading as an
+  absent key, and a config layer that fails to parse whole (for example one caught
+  mid-write, a valid object followed by truncated bytes) is refused for these keys rather
+  than partially applied — jq's own exit status guards the read, the `cfg_scalar` posture.
+
+- **`pre-existing` joined the shipped vocabulary list** on the leverage precedent: 61 files
+  in this corpus contain the word and the density gate fired on none. The rest of the
+  measured frequency cluster (gating, dedup, verdict, drift, and kin) stays `recorded-only`
+  with the single-pool caveat; the README lists them as `vocab_add` candidates.
+
+### Fixed
+
+- **`rule_allowed_paths` exemptions no longer break when the detector runs from a directory
+  where the configured glob expands.** `rule_allowed()` passed its globs unquoted, so the
+  shell pathname-expanded them against the caller's cwd before matching — from a cwd with
+  matching files (the repo root being the worst case), the configured pattern was replaced by
+  a local file listing and the exemption silently failed. Behavior change to know about: the
+  fix applies to `em_dash_allowed_paths` too (same code path), and these are shell
+  case-match globs — `*` and `**` both cross `/` — now stated in the README and pinned by
+  regression tests.
+
 ## [0.4.2]
 
 ### Changed

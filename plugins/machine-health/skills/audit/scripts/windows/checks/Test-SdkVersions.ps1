@@ -78,7 +78,6 @@ try {
     $now = Get-Date
     $findings = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    # .NET
     if (Get-Command dotnet -ErrorAction SilentlyContinue) {
         try {
             $sdks = @(& dotnet --list-sdks 2>$null) -split "`r?`n" | Where-Object { $_ }
@@ -91,7 +90,6 @@ try {
         }
     }
 
-    # Node
     if (Get-Command node -ErrorAction SilentlyContinue) {
         try {
             $nodeVer = (& node --version 2>$null).Trim()
@@ -104,7 +102,6 @@ try {
         }
     }
 
-    # Python
     $pyCmd = Get-Command python -ErrorAction SilentlyContinue
     if (-not $pyCmd) { $pyCmd = Get-Command python3 -ErrorAction SilentlyContinue }
     if ($pyCmd) {

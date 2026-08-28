@@ -5,11 +5,9 @@
  * Usage: node watch/run-resume.js <slice-slug>
  */
 
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { isMainModule } from "../lib/cli-entrypoint.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { resolveWorkSliceDir } from "../transcript/derive-video-slug.js";
 import {
@@ -67,10 +65,7 @@ export async function runResumeCli(argv) {
   return 0;
 }
 
-const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
-
-if (isMain) {
+if (isMainModule(import.meta.url)) {
   runResumeCli(process.argv)
     .then((code) => {
       process.exitCode = code;

@@ -116,6 +116,15 @@
 set -uo pipefail
 
 INPUT=""
+
+# True when the running bash is at least MAJOR.MINOR. Three separate floors
+# matter in this file (`read -N` at 4.1, printf's `%()T` at 4.2), and each is the
+# same compound comparison, easy to get subtly wrong; naming it once keeps them
+# spelled identically. A builtin arithmetic test, so no call site pays a process.
+_rlg_bash_at_least() {
+  ((BASH_VERSINFO[0] > $1 || (BASH_VERSINFO[0] == $1 && BASH_VERSINFO[1] >= $2)))
+}
+
 # Bounded buffered read of the whole stdin payload (Win32 pipes can stall
 # before EOF; a truncated payload just fails jq below and tees nothing this
 # refresh). read -N buffers in blocks, which matters on Windows/MSYS pipes
@@ -128,7 +137,7 @@ INPUT=""
 # guard at the bottom so its enablement gate can be driven by the test suite, and
 # a top-level read would consume the sourcing shell's stdin before `main` runs.
 read_tee_input() {
-  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1))); then
+  if _rlg_bash_at_least 4 1; then
     IFS= read -r -N 1048576 -t 5 INPUT || true
   else
     IFS= read -r -d '' -t 5 INPUT || true
@@ -229,13 +238,11 @@ tee_snapshot() {
   local dir="$HOME/.claude/rate-limit-guard"
   local target="$dir/rate-limits.json"
   # Create-and-harden only when the directory is not already there. Both calls
-  # were unconditional and both are processes, so on every refresh after the
-  # first they were paying ~50 ms to re-assert a state that already held.
-  # Tradeoff, accepted deliberately: the owner-only mode is now asserted at
-  # creation instead of re-asserted on every refresh, so a mode a user or tool
-  # later loosens on this directory is no longer silently corrected. There is no
-  # builtin that can read a mode, so the alternative is a stat process per
-  # refresh — the same cost this removes.
+  # are processes, and re-asserting a state that already holds would cost ~50 ms
+  # on every refresh after the first. Tradeoff, accepted deliberately: the
+  # owner-only mode is asserted only at creation, so a mode a user or tool later
+  # loosens on this directory is not corrected. There is no builtin that can
+  # read a mode, so checking first would itself be a stat process per refresh.
   if [[ ! -d "$dir" ]]; then
     mkdir -p "$dir" 2>/dev/null || return 0
     # Owner-only contract dir: keeps other local users from pre-planting
@@ -249,8 +256,7 @@ tee_snapshot() {
   # Window-bearing stays a structural property — jq's has(), never a substring
   # test: a forwarded value that merely contains the string "rate_limits"
   # (e.g. "session_name":"rate_limits") must not count as window-bearing and
-  # overwrite a snapshot holding real windows. It is asked of the BUILT payload,
-  # exactly as it was when this function ran its own jq.
+  # overwrite a snapshot holding real windows. It is asked of the BUILT payload.
   local payload="$_RLG_PAYLOAD" has_windows="$_RLG_HAS_WINDOWS"
   [[ -n "$payload" ]] || return 0
 
@@ -460,6 +466,26 @@ _RLG_BODY_JQ='def rlg_body($ts): {captured_at: $ts}
                       or .key == "session_name" or (.key | test("account"; "i"))))
          | from_entries);'
 
+# The USER-scope settings document, read into _RLG_SETTINGS_JSON for the jq
+# passes below to hand over in the ENVIRONMENT. Shared verbatim by _rlg_probe and
+# _rlg_drain for the same anti-drift reason the filter text above is shared.
+#
+# BASH opens the file (`$(<file)`), never jq: a native jq on Windows cannot open
+# an MSYS-style path, and argv is world-readable while a settings file can hold
+# credentials. See _RLG_DOC_JQ above for the full note. An absent, unreadable or
+# empty file yields the literal 'null', which the filter's own `// "null"`
+# fallback already expects.
+_RLG_SETTINGS_JSON='null'
+_rlg_read_settings_json() {
+  local file="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
+  _RLG_SETTINGS_JSON='null'
+  if [[ -r "$file" ]]; then
+    _RLG_SETTINGS_JSON="$(<"$file")"
+    [[ -n "$_RLG_SETTINGS_JSON" ]] || _RLG_SETTINGS_JSON='null'
+  fi
+  return 0
+}
+
 _rlg_settings_option() {
   local file="$1" out
   [[ -r "$file" ]] || return 1
@@ -529,21 +555,20 @@ _rlg_tee_enabled() {
 
 # ONE jq pass for everything this script needs to decide and to write: the
 # snapshot body, the window-bearing verdict, and the USER-scope enablement
-# verdict. Each of those used to be its own jq — three spawns per refresh, at
-# ~42 ms each on Windows, on a path that fires on every assistant message AND
-# every refreshInterval tick with as many concurrent sessions as the user has
-# windows open.
+# verdict. Separate jq spawns would cost ~42 ms each on Windows, on a path that
+# fires on every assistant message AND every refreshInterval tick with as many
+# concurrent sessions as the user has windows open.
 #
 # The settings document is read by BASH (`$(<file)`, which bash performs without
 # forking) and handed over in the ENVIRONMENT, never opened by jq and never placed
-# in its argv: a native jq on Windows cannot open an MSYS-style path (the same
-# reason the shell redirection was there before), and argv is world-readable while
-# a settings file can hold credentials. See _RLG_DOC_JQ above for the full note.
+# in its argv: a native jq on Windows cannot open an MSYS-style path, and argv is
+# world-readable while a settings file can hold credentials. See _RLG_DOC_JQ
+# above for the full note.
 #
 # Everything is wrapped so that no single malformed input can cost more than the
 # thing it feeds: a settings file that will not parse yields an empty verdict
-# (fail-open, as before) without disturbing the snapshot, and a payload that will
-# not parse yields an empty payload without disturbing the gate.
+# (fail-open) without disturbing the snapshot, and a payload that will not
+# parse yields an empty payload without disturbing the gate.
 _RLG_PAYLOAD=""
 _RLG_HAS_WINDOWS=false
 _RLG_USER_VERDICT=""
@@ -561,7 +586,7 @@ _rlg_absorb_jq_lines() {
   local line
   local -a lines=()
   while IFS= read -r line || [[ -n "$line" ]]; do
-    lines[${#lines[@]}]="$line"
+    lines+=("$line")
   done <<<"$1"
   _RLG_PAYLOAD="${lines[0]:-}"
   [[ "${lines[1]:-}" == true ]] && _RLG_HAS_WINDOWS=true
@@ -574,10 +599,10 @@ _rlg_absorb_jq_lines() {
 
 _rlg_probe() {
   command -v jq >/dev/null 2>&1 || return 0
-  local ts settings_file settings_json out
+  local ts out
   # printf's %()T is a bash 4.2+ builtin; macOS statusline Bash 3.2 needs date -u.
   ts=""
-  if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
+  if _rlg_bash_at_least 4 2; then
     TZ=UTC printf -v ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || ts=""
   fi
   if [[ -z "$ts" ]]; then
@@ -585,12 +610,7 @@ _rlg_probe() {
   fi
   [[ -n "$ts" ]] || return 0
 
-  settings_file="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
-  settings_json='null'
-  if [[ -r "$settings_file" ]]; then
-    settings_json="$(<"$settings_file")"
-    [[ -n "$settings_json" ]] || settings_json='null'
-  fi
+  _rlg_read_settings_json
 
   # Settings ride in the environment so credentials never land in jq's argv and no
   # temp file is created; the payload stays on stdin.
@@ -598,7 +618,7 @@ _rlg_probe() {
   # Three lines out, in a fixed order: payload, window-bearing, user verdict.
   # `jq -c` escapes any newline inside a string and the other two are bare
   # tokens, so every line is single-line by construction and the split is exact.
-  out="$(RLG_SETTINGS_DOC="$settings_json" jq -rc --arg ts "$ts" "
+  out="$(RLG_SETTINGS_DOC="$_RLG_SETTINGS_JSON" jq -rc --arg ts "$ts" "
     $_RLG_BODY_JQ
     $_RLG_DOC_JQ"'
     | (rlg_body($ts)) as $p
@@ -752,13 +772,8 @@ _rlg_drain() {
     batch+="$line"$'\n'
   done
 
-  local settings_file settings_json out
-  settings_file="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json"
-  settings_json='null'
-  if [[ -r "$settings_file" ]]; then
-    settings_json="$(<"$settings_file")"
-    [[ -n "$settings_json" ]] || settings_json='null'
-  fi
+  local out
+  _rlg_read_settings_json
 
   # ONE jq pass, same three lines in the same order _rlg_probe emits, so
   # everything downstream is shared code. Lines are read raw and parsed under
@@ -768,7 +783,7 @@ _rlg_drain() {
   # one-second stamp are broken in favour of THIS render's own shard, whose
   # observation is the freshest by construction.
   if [[ -n "$batch" ]]; then
-    out="$(RLG_SETTINGS_DOC="$settings_json" jq -Rrcn --arg self "$self" "
+    out="$(RLG_SETTINGS_DOC="$_RLG_SETTINGS_JSON" jq -Rrcn --arg self "$self" "
       $_RLG_BODY_JQ
       $_RLG_DOC_JQ"'
       | [ inputs
@@ -873,7 +888,7 @@ _rlg_spool_dispatch() {
 
 rlg_tee_dispatch() {
   if [[ "${RLG_TEE_ASYNC:-0}" != "1" ]]; then
-    if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 2))); then
+    if _rlg_bash_at_least 4 2; then
       _rlg_spool_dispatch
     else
       _rlg_tee_run

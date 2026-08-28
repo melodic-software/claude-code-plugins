@@ -3,6 +3,30 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6]
+
+### Changed
+
+- **Shared `parse-concern-value.sh` comment cleanup.** Comment-only sync from `lib/parse-concern-value.sh`: the pre-centralization history narration in the header is now a present-tense rationale; no behavior change.
+
+## [0.11.5]
+
+### Changed
+
+- **Comment triage pass (`/code-tidying:dissolve-comments`).** In the audit skill's
+  `discover-instruction-surfaces.sh`, positional-parameter comments dissolved into named
+  locals; the test helper's parameter comment, restated by the line below it, removed.
+  No behavior change; suite green before and after.
+
+## [0.11.4]
+
+### Changed
+
+- **`audit` reaches its cross-skill dependency directly.** The hub gained a direct conditioned
+  pointer to `skills/stateless/context/status.md`, which reference/criteria.md names as the only
+  correct resolution path; the 449-line criteria.md gained a `## Contents` index. Behavior
+  unchanged. Progressive-disclosure audit, deep-nesting and missing-toc treatments.
+
 ## [0.11.3]
 
 ### Changed

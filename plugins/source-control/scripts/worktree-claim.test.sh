@@ -169,20 +169,71 @@ assert_exit "--all-unclaimed with nothing left is exit 0" 0 "$?"
 assert_contains "no-op --all-unclaimed says so" "$ERR" "no unclaimed"
 
 # A lock failure in the batch must not be reported as success (`if ! cmd;
-# then rc=$?` used to store 0).
+# then rc=$?` stores 0, hiding the failure).
 git -C "$REPO" worktree add -q "$EXT/wt-lockfail" -b feat/lockfail
+
+# Root-proof arm (#3378). The chmod fixture below cannot make the admin
+# directory unwritable for uid 0, and some filesystems ignore the write bits
+# too, so on those platforms it proves nothing. A stub `git` that fails ONLY
+# `worktree lock` reproduces the failure on every platform and every uid.
+# worktree-claim.sh resolves git through PATH (`git_unlocated` invokes a plain
+# `git`), so a stub earlier on PATH intercepts it; the real binary is resolved
+# BEFORE the stub dir is prepended, and everything else is delegated to it.
+STUB_BIN="$TEST_TMPDIR/stub-bin"
+mkdir -p "$STUB_BIN"
+REAL_GIT="$(command -v git)"
+{
+  printf '#!/usr/bin/env bash\n'
+  # The invocation is `-C <dir> worktree lock --reason <text> <path>`, so match
+  # positionally: the fixture path and the arbitrary reason text must not be
+  # able to trip this by carrying the word "lock".
+  # shellcheck disable=SC2016  # the $3/$4 belong to the generated stub, not here.
+  printf 'if [[ "${3:-}" == worktree && "${4:-}" == lock ]]; then\n'
+  printf '  echo "stub git: worktree lock refused" >&2\n'
+  printf '  exit 1\n'
+  printf 'fi\n'
+  printf 'exec %q "$@"\n' "$REAL_GIT"
+} >"$STUB_BIN/git"
+chmod +x "$STUB_BIN/git"
+PATH_SAVED="$PATH"
+PATH="$STUB_BIN:$PATH"
+run_claim claim --all-unclaimed --repo-dir "$REPO" --session-id batch-stubfail
+stub_rc=$?
+PATH="$PATH_SAVED"
+if [[ "$stub_rc" -ne 0 ]]; then
+  pass "--all-unclaimed propagates a lock failure through a stub git (exit $stub_rc)"
+else
+  fail "--all-unclaimed propagates a lock failure through a stub git" "non-zero" "0"
+fi
+assert_contains "the failing batch names the tree whose lock failed" "$ERR" "wt-lockfail"
+
 admin="$REPO/.git/worktrees/wt-lockfail"
 if [[ ! -d "$admin" ]]; then
   admin="$(git -C "$EXT/wt-lockfail" rev-parse --absolute-git-dir)"
 fi
 chmod a-w "$admin" 2>/dev/null || true
-run_claim claim --all-unclaimed --repo-dir "$REPO" --session-id batch-fail
-lockfail_rc=$?
-chmod u+w "$admin" 2>/dev/null || true
-if [[ "$lockfail_rc" -ne 0 ]]; then
-  pass "--all-unclaimed preserves a lock failure (exit $lockfail_rc)"
+# Probe whether that chmod actually took. uid 0 writes through a cleared write
+# bit, and some filesystems do not enforce it at all; asserting on a fixture
+# that did not take reports a product defect which does not exist, which is how
+# this case became red noise in root containers. Skip with the reason named
+# instead — the posture the sibling suites already use (repo-fleet-hygiene
+# audit-fleet, testing cant-fail-scan).
+# discriminating-skip-ok: the stub-git arm directly above covers lock-failure
+# exit-code propagation on every platform and uid, so this skip vacates no
+# discriminating coverage — only the redundant permission-bits fixture.
+if : >"$admin/.write-probe" 2>/dev/null; then
+  rm -f "$admin/.write-probe"
+  chmod u+w "$admin" 2>/dev/null || true
+  skip_case "lock-failure permission fixture — chmod a-w left the worktree admin dir writable (uid $(id -u)); the stub-git arm above covers this contract here"
 else
-  fail "--all-unclaimed preserves a lock failure" "non-zero" "0"
+  run_claim claim --all-unclaimed --repo-dir "$REPO" --session-id batch-fail
+  lockfail_rc=$?
+  chmod u+w "$admin" 2>/dev/null || true
+  if [[ "$lockfail_rc" -ne 0 ]]; then
+    pass "--all-unclaimed preserves a lock failure (exit $lockfail_rc)"
+  else
+    fail "--all-unclaimed preserves a lock failure" "non-zero" "0"
+  fi
 fi
 
 # --- usage / environment ------------------------------------------------------
