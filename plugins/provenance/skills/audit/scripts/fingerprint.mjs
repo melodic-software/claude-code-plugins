@@ -39,35 +39,69 @@ const OPENING_TO_CLOSING = new Map([
 /**
  * Remove quoted spans from a text: fenced blocks, blockquote lines, and inline
  * quotations. An unpaired opening mark is left alone rather than swallowing the
- * remainder of the line.
+ * remainder of its paragraph.
+ *
+ * Inline stripping runs over a whole paragraph, not one line at a time, because
+ * hard-wrapped prose routinely opens a quotation on one line and closes it on
+ * the next. The paragraph is also the bound: a blank line, a fence delimiter or
+ * a blockquote line resets the open-quote state, so an unpaired mark or a stray
+ * apostrophe can never reach past the block it sits in. Stripped characters are
+ * replaced in place and newlines are kept, so the line count and every line
+ * number survive untouched for the spans to report against.
  */
 export function stripQuoted(text) {
   const lines = String(text).split("\n");
-  const out = [];
+  const out = new Array(lines.length);
   let inFence = false;
+  let paragraph = [];
 
-  for (const line of lines) {
+  const flushParagraph = () => {
+    if (paragraph.length === 0) return;
+    const stripped = stripInlineQuotes(
+      paragraph.map((index) => lines[index]).join("\n"),
+    ).split("\n");
+    for (let j = 0; j < paragraph.length; j += 1) out[paragraph[j]] = stripped[j];
+    paragraph = [];
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+
     if (/^\s*(```|~~~)/.test(line)) {
+      flushParagraph();
       inFence = !inFence;
-      out.push("");
+      out[i] = "";
       continue;
     }
     if (inFence || /^\s*>/.test(line)) {
-      out.push("");
+      flushParagraph();
+      out[i] = "";
       continue;
     }
-    out.push(stripInlineQuotes(line));
+    if (/^\s*$/.test(line)) {
+      flushParagraph();
+      out[i] = line;
+      continue;
+    }
+
+    paragraph.push(i);
   }
+  flushParagraph();
 
   return out.join("\n");
 }
 
-function stripInlineQuotes(line) {
+/** Blank a span in place: every character but a newline becomes a space. */
+function blankSpan(span) {
+  return span.replace(/[^\n]/g, " ");
+}
+
+function stripInlineQuotes(block) {
   let result = "";
   let i = 0;
 
-  while (i < line.length) {
-    const char = line[i];
+  while (i < block.length) {
+    const char = block[i];
     const closing = OPENING_TO_CLOSING.get(char);
 
     if (closing === undefined) {
@@ -77,22 +111,23 @@ function stripInlineQuotes(line) {
     }
 
     // An apostrophe inside a word (don't, teams') is not a quotation mark.
-    if ((char === "'" || char === "‘") && /\w/.test(line[i - 1] ?? "")) {
+    if ((char === "'" || char === "‘") && /\w/.test(block[i - 1] ?? "")) {
       result += char;
       i += 1;
       continue;
     }
 
-    const end = line.indexOf(closing, i + 1);
+    const end = block.indexOf(closing, i + 1);
     if (end === -1) {
-      // Unpaired: keep the mark and the rest of the line.
+      // Unpaired within this paragraph: keep the mark and the text after it.
       result += char;
       i += 1;
       continue;
     }
 
-    // Drop the quoted span, leaving a separator so words do not fuse.
-    result += " ";
+    // Drop the quoted span in place. The blanks separate the words that framed
+    // it, and the newlines inside it keep the line numbering intact.
+    result += blankSpan(block.slice(i, end + 1));
     i = end + 1;
   }
 

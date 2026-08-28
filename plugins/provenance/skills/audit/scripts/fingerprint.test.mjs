@@ -182,6 +182,137 @@ const SOURCE_TEXT = [
   );
 }
 
+// --- case: wrapped_quote_fixture --------------------------------------------
+// Hard-wrapped prose is ordinary markdown, so a quotation routinely opens on
+// one line and closes on the next. Stripping per line left that excerpt in and
+// reported it as overlap. Inline stripping now runs over the paragraph.
+{
+  const half = Math.floor(UPSTREAM_SENTENCE.length / 2);
+  const wrapAt = UPSTREAM_SENTENCE.indexOf(" ", half);
+  const wrapped =
+    UPSTREAM_SENTENCE.slice(0, wrapAt) + "\n" + UPSTREAM_SENTENCE.slice(wrapAt + 1);
+
+  const localWrapped = [
+    "# Why we cap parallelism",
+    "",
+    `The vendor's reference puts it plainly: "${wrapped}"`,
+    "(https://example.com/docs/flowlite, read 2026-08-27; recheck on the next major).",
+    "",
+    "Our own runner pins parallelism to two because the fixtures share a sqlite file.",
+  ].join("\n");
+
+  const r = compare(localWrapped, SOURCE_TEXT);
+  check(
+    "wrapped_quote_fixture: a quotation closing on the next line strips to nothing",
+    r.matched_spans.length === 0 && r.longest_span_words === 0,
+    `spans=${JSON.stringify(r.matched_spans)} longest=${r.longest_span_words}`,
+  );
+  check(
+    "wrapped_quote_fixture: separation does not fire on a wrapped cited quotation",
+    r.separation.fired === false && r.containment === 0,
+    `fired=${r.separation.fired} containment=${r.containment}`,
+  );
+
+  const localCurly = localWrapped.replace(`"${wrapped}"`, `“${wrapped}”`);
+  const rc = compare(localCurly, SOURCE_TEXT);
+  check(
+    "wrapped_quote_fixture: curly marks strip across the line break identically",
+    rc.matched_spans.length === 0 && rc.separation.fired === false,
+    `spans=${rc.matched_spans.length} fired=${rc.separation.fired}`,
+  );
+
+  check(
+    "wrapped_quote_fixture: stripping preserves the line count exactly",
+    stripQuoted(localWrapped).split("\n").length === localWrapped.split("\n").length,
+    `${stripQuoted(localWrapped).split("\n").length} vs ${localWrapped.split("\n").length}`,
+  );
+}
+
+// --- case: quote_cannot_escape_paragraph -------------------------------------
+// The bound that makes paragraph-wide stripping safe. An opening mark with no
+// partner in its own paragraph must stay put rather than pairing with a mark
+// further down the document and swallowing everything between.
+{
+  const localBlank = [
+    'An unpaired " quote mark opens here and never closes.',
+    "It runs on to a second line of the very same paragraph.",
+    "",
+    `${UPSTREAM_SENTENCE} And then a stray " mark much later on.`,
+  ].join("\n");
+  const rb = compare(localBlank, SOURCE_TEXT);
+  check(
+    "quote_cannot_escape_paragraph: a blank line resets the open-quote state",
+    rb.longest_span_words >= DEFAULTS.min_span_words,
+    `longest=${rb.longest_span_words} containment=${rb.containment}`,
+  );
+
+  const localQuote = [
+    'An unpaired " quote mark opens here and never closes.',
+    "> a blockquote line sits between the two marks",
+    `${UPSTREAM_SENTENCE} And then a stray " mark much later on.`,
+  ].join("\n");
+  check(
+    "quote_cannot_escape_paragraph: a blockquote line resets the open-quote state",
+    compare(localQuote, SOURCE_TEXT).longest_span_words >= DEFAULTS.min_span_words,
+    `longest=${compare(localQuote, SOURCE_TEXT).longest_span_words}`,
+  );
+
+  const localFence = [
+    'An unpaired " quote mark opens here and never closes.',
+    "```text",
+    "fenced material",
+    "```",
+    `${UPSTREAM_SENTENCE} And then a stray " mark much later on.`,
+  ].join("\n");
+  check(
+    "quote_cannot_escape_paragraph: a fence delimiter resets the open-quote state",
+    compare(localFence, SOURCE_TEXT).longest_span_words >= DEFAULTS.min_span_words,
+    `longest=${compare(localFence, SOURCE_TEXT).longest_span_words}`,
+  );
+
+  const stripped = stripQuoted(localBlank);
+  check(
+    "quote_cannot_escape_paragraph: prose after the unpaired mark survives verbatim",
+    stripped.includes("never closes") && stripped.includes("Flowlite reads configuration"),
+    JSON.stringify(stripped.slice(0, 160)),
+  );
+}
+
+// --- case: wrapped_quote_line_numbering --------------------------------------
+// Spans report local line offsets and the fix flow edits against them, so a
+// wrapped quotation earlier in the file must not shift what comes after it.
+{
+  const half = Math.floor(UPSTREAM_SENTENCE.length / 2);
+  const wrapAt = UPSTREAM_SENTENCE.indexOf(" ", half);
+  const lines = [
+    "# Notes",
+    "",
+    `Quoted upstream: "${UPSTREAM_SENTENCE.slice(0, wrapAt)}`,
+    `${UPSTREAM_SENTENCE.slice(wrapAt + 1)}" (https://example.com/docs/flowlite).`,
+    "",
+    "Our own paragraph sits between the quotation and the planted copy below.",
+    "",
+    UPSTREAM_SENTENCE,
+    "",
+    "Trailing prose of our own.",
+  ];
+  const local = lines.join("\n");
+  const plantedLine = 8;
+
+  check(
+    "wrapped_quote_line_numbering: stripQuoted returns the same number of lines",
+    stripQuoted(local).split("\n").length === lines.length,
+    `${stripQuoted(local).split("\n").length} vs ${lines.length}`,
+  );
+
+  const r = compare(local, SOURCE_TEXT);
+  check(
+    "wrapped_quote_line_numbering: the planted copy keeps its true line offset",
+    r.matched_spans.length === 1 && r.matched_spans[0].local_lines[0] === plantedLine,
+    JSON.stringify(r.matched_spans),
+  );
+}
+
 // --- case: stripQuoted_unit -------------------------------------------------
 {
   const stripped = stripQuoted('Lead in "quoted words here" and trailing text.');

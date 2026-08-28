@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 5, "end_line": 9 },
+      "rule": "provenance/audit/rule-verbatim-copy"
+    }
+  ],
+  "notes": {
+    "shape": "Unattributed verbatim paste of one source section into a local note. The simplest positive in the set, and the reference point the harder positives are read against.",
+    "carve_outs": "None apply. Not a vendored tree, not a conforming stamped record (no basis, no date, no trigger), not a quotation context (no quotation marks, no blockquote, no attribution), not owned content (every specific is the vendor's product behavior, not this repository's), not a distilled-product surface (the file's job is local debugging notes).",
+    "rubric": "C1 holds: the local paragraph corresponds sentence for sentence to the source's 'Where the runner keeps its state'. C2 holds: the four-directory enumeration, in that order, with each directory's purpose spelled out, had alternatives and took the source's. C3 holds: there is no attribution anywhere in the file, so nothing discharges the obligation. C4 holds: replace the paragraph with a link and a reader loses nothing that is not on the other side of it.",
+    "measured": "fingerprint.mjs at k=5: containment 0.643, jaccard 0.336, longest matched span 76 words, one span at local lines 5-9. The separation rule fires on both limbs.",
+    "tier_reason": "A source was supplied and identity-checked, and a matched span sits far above the separation rule, so the evidence gate for fingerprint-confirmed is met. This case is fix-eligible in principle; the class-level gate is what keeps it report-only at v1."
+  }
+}

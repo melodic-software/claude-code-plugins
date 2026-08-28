@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "paraphrase",
+      "tier": "llm-suspected",
+      "span": { "start_line": 3, "end_line": 9 }
+    }
+  ],
+  "notes": {
+    "shape": "A real paraphrase: the source's two sections restated with a different clause order, different vocabulary, and no shared phrasing. Every claim still comes from the source and none of it could have been written without that page in hand.",
+    "carve_outs": "Owned content does NOT apply. The discriminator is direction: this states what an external product does, carrying specifics nobody here would know first-hand (dependency order then declaration order within a ready set, the core-count default, the over-budget kill with its stated reason).",
+    "rubric": "C1 holds despite the rewording: 'among the tasks that are all equally ready, by where they appear in the manifest' corresponds to the source's 'within a ready set, in declaration order'. C2 holds: the tie-break rule and the no-retry-on-memory reasoning are not the only way to write these facts. C3 holds: no attribution. C4 holds: nothing local is added.",
+    "measured": "fingerprint.mjs at k=5: containment 0.0, jaccard 0.0, no matched spans. The separation rule does not fire and cannot: there is no lexical overlap to gate on.",
+    "tier_reason": "llm-suspected, permanently. No lexical evidence is possible for a paraphrase, so unanimity among judges cannot raise the tier and the finding can never become fix-eligible. It reaches the human report and stops there. No rule id: the finding never reaches the relay, so it has no crosswalk row.",
+    "carries": "This is the case that pins the tier-mapping rule. A run that reported this at fingerprint-confirmed, or that offered to fix it, has broken the contract even if its class and span are right."
+  }
+}

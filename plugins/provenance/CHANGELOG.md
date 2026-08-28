@@ -4,6 +4,153 @@
 
 ### Added
 
+- **Rubric version 2: an inverted polarity in C3 and C4, caught by blind adjudication.** The
+  verdict rule says a finding STANDS only if all four criteria PASS, and it says so three times.
+  But C3 and C4 were phrased as questions whose intuitive "yes" is exculpatory — is the
+  attribution adequate, does the text transform — and their worked examples labelled that
+  exculpatory answer PASS. Read literally, the two halves of the file contradicted each other and
+  **no finding could ever stand**.
+
+  Nothing measured was wrong: the version-1 run and the independent blind pass both graded on the
+  operative verdict rule rather than the labels, and both returned the same eight positives. The
+  defect was in what the file told the next judge to do. Both criteria are now phrased in the
+  negative so all four point the same way, the four worked-example labels are corrected, and the
+  polarity is stated once, explicitly, at the head of the criteria section. Version 2 carries the
+  version-1 measurement forward and says why, which is the single exception to this catalog's own
+  invalidation rule.
+
+  Worth recording how it was found: three review passes and a self-check had read this file
+  without noticing. What surfaced it was asking an agent to actually apply the rubric with the
+  expectations withheld — the first reader with no way to infer the intended answer.
+
+- **A contested class the golden set records rather than settles.** Case `c10` is a copy rotated
+  until no five-word window survives. The pipeline classed it `near-verbatim` at tier
+  `source-fetched-similar`, on the grounds that a source was fetched and compared; the blind
+  adjudicator classed it `paraphrase` at `llm-suspected`, on the grounds that zero lexical
+  evidence is available to a reader who does not already know it was rotated. Both readings are
+  defensible under the current tier table, which is the finding: a rotated copy with a fetched
+  source fits neither tier cleanly. The practical stakes are nil today — both tiers are
+  report-only and neither is fix-eligible — so the disagreement is recorded here and carried to
+  the growth round rather than resolved by picking the answer that flatters the score.
+
+- **The golden set, the first measurement, and the loop that grows it.** Ten synthetic cases under
+  `skills/audit/evals/fixtures/golden/`, one directory each carrying `case.md`, `expected.json`,
+  and the `source.md` the case is judged against, so every case runs offline: the source is served
+  to the fingerprint module directly and the fetch stage is short-circuited rather than mocked.
+  Coverage is two verbatim positives, five near-verbatim, one paraphrase, and two hard negatives —
+  a quoted-and-cited excerpt, and the paraphrase-styled-never-copied distractor, which is the false
+  positive this detector is most likely to produce. Every fixture describes the same fictional
+  build tool the earlier fixtures use. A golden set holding real copied prose would make this
+  repository carry the defect the plugin exists to find, in the one tree its own scan is
+  categorically forbidden to read.
+
+  **The gate decision table**, from `score-golden.sh` over the run recorded at the same date.
+  Classes are the scorer's own grouping: a case's class is its first expected finding's class, and
+  a hard negative groups as `negative`.
+
+  | Class | n | Precision | Recall | Gate outcome |
+  |---|---|---|---|---|
+  | `verbatim` | 2 | 1.00 | 1.00 | report-only (n=2 below `min_n_per_class` 10) |
+  | `near-verbatim` | 5 | 1.00 | 1.00 | report-only (n=5 below `min_n_per_class` 10) |
+  | `paraphrase` | 1 | 1.00 | 1.00 | report-only (n=1 below `min_n_per_class` 10) |
+  | `negative` | 2 | n/a | n/a | report-only (n=2 below `min_n_per_class` 10) |
+  | *overall* | 10 | 1.00 | 1.00 | 8 tp, 0 fp, 0 fn, 2 tn, 0 declined |
+
+  **Every class ships report-only, and that is the gate's arithmetic rather than a shortfall.** Ten
+  cases across four groupings cannot put any class at n=10, so no class is fix-eligible at v1 and
+  the precision column decides nothing yet. The numbers were not tuned to change that and the gate
+  was not lowered to meet them: gates bind fix eligibility and release readiness only, never what
+  the report shows. `verbatim` and `near-verbatim` reaching n=10 at or above the 0.95 bar is the
+  named exit condition of the first growth round. At n near 10 that bar behaves as a ratchet rather
+  than as a statistic — one error demotes a class — and that is accepted.
+
+  **What a perfect score here does and does not establish.** It does not say the detector is
+  accurate on a corpus. Ten cases were authored at chosen points on the separation curve, and in
+  this first round the agent that wrote the expectations is the agent that ran the pipeline, so
+  recall is measured against expectations written by the same hand. What it does establish is a
+  floor: the deterministic half is genuinely measured, not asserted, and the run would have failed
+  the set on any contract violation — a paraphrase promoted to `fingerprint-confirmed`, a hard
+  negative that fired, a span the scorer could not overlap. The adjudication loop below is what
+  breaks the circularity, because a case converted from a rejected finding is a case nobody
+  authored to pass. One limit of the tally is worth stating so it is not read as broader than it
+  is: `score-golden.sh` matches on class equality and span overlap and never compares tiers, so
+  tier fidelity is pinned by the two new eval cases rather than by this table.
+
+  An independent blind pass was attempted and did not land. A separate agent was given the ten
+  `case.md` and `source.md` pairs and the rubric, with the expectations and every lexical
+  measurement withheld, so that its verdicts could stand as the run instead of the author's. It
+  completed, but no channel was available to retrieve its per-case verdicts, so nothing it produced
+  contributed to the table above and the figures are single-agent. Recorded as an open item rather
+  than quietly dropped: the first growth round should re-run that pass and record whether a blind
+  judge clears both hard negatives, since the distractor in `c07` is the case most likely to
+  separate an independent judge from this one.
+
+  **The adversarial synonym-rotation probe (design thread T15) returned a real answer.** Cases c08,
+  c09 and c10 share one source page and differ only in rotation density, which makes density the
+  single variable. At roughly one substitution every nineteen words the copy is untouched:
+  containment 0.473 with a 22-word span, both limbs of the separation rule firing. At one every
+  nine words the span limb dies and containment alone carries it: 0.413 with a longest span of 10,
+  below the 15-word floor. At one every four words nothing survives: containment 0.0, no matched
+  spans, against a source that was fetched and identity-checked, which lands the finding at
+  `source-fetched-similar` — a human report, not fix-eligible, and deliberately not
+  `llm-suspected`, because a source was in hand.
+
+  Three consequences, recorded rather than acted on. The two-limb rule is load-bearing: dropping
+  either limb loses c09. Word-shingling is evadable by an author who intends to evade it, and no
+  value of `min_containment` above zero recovers a passage with zero matching shingles, so the
+  answer is not a different number on this axis — which is why the constants were left at the
+  bundled 0.3 and 15. And c09's containment only clears the threshold because the copy dominates a
+  short file; the same rotation inside a long host file would dilute containment toward noise while
+  the 10-word spans stayed under the floor, which is the dilution the span axis was added to
+  survive and which rotation now defeats. A related note for fix mode: c09's eight matched spans
+  are too fragmented to fence an edit against, so `fingerprint-confirmed` is not by itself evidence
+  that a fix is applicable.
+
+  **One measured behavior in the quoted-and-cited negative, found blind and then fixed.** The
+  blockquote always stripped to nothing, as designed, but a 12-word residue survived at local lines
+  19-20 because that fixture's inline quotation opens on one line and closes on the next, and the
+  inline-quote stripper worked one line at a time: the opening mark is unpaired on its own line and
+  was left in place rather than swallowing the rest of it. `c06` still cleared, the residue sitting
+  far below both thresholds with carve-out 3 covering it, and this entry first recorded the gap as
+  an accepted measurement. The blind adjudication pass rejected that reading, and it was right to.
+  Hard-wrapped prose is ordinary markdown, so the clearance was luck rather than design: the same
+  wrapped quotation carried a few words further would have cleared the 15-word span floor and
+  fired, on a passage that is quoted and attributed. Inline stripping now runs over the paragraph
+  rather than the line. The paragraph is also the bound, since a blank line, a fence delimiter or a
+  blockquote line resets the open-quote state, so an unpaired mark or a stray apostrophe still
+  cannot reach past the block it sits in, which is the conservatism the per-line behavior was
+  protecting. Stripped characters are blanked in place and newlines are kept, so the line count and
+  every reported line offset survive untouched and the fix step still has spans it can fence an
+  edit against. Measured: `c06` moves from containment 0.100, jaccard 0.045 and a 12-word longest
+  span to containment 0.031, jaccard 0.012 and a 7-word longest span, and the other nine golden
+  cases do not move at all. The 7 words that remain at line 20 are not quotation residue but the
+  citation URL matching the source page's own canonical-location line, and they stay in on purpose:
+  a URL naming the source is evidence of attribution rather than of copying. Carve-out 3 keeps its
+  reason to exist, because a stripper that follows quotation marks still cannot see a borrowing
+  that carries none.
+
+  **`.claude/provenance.json`, this repository's own config, carrying the fixture-tree exclusion.**
+  `excluded_paths` lists `**/provenance/skills/audit/evals/fixtures/**`, and that is the whole of
+  the file: the separation constants, budgets and gates stay at their bundled defaults because
+  nothing measured here justified moving one. The exclusion lives in config and never in
+  `list-corpus.sh`, which is the #3041 resolution — an unconditional exclusion would decline the
+  fixtures under the eval harness's own config isolation and leave the eval author reading prose
+  instead of results. Measured over `plugins/provenance` with the file in place: 33 considered, 10
+  included, 23 declined against that one pattern with its reason named.
+
+  **The adjudication-to-fixture loop, in `reference/dispositions.md`.** A finding the human rejected
+  and a copy the audit walked past are both measurements the set does not yet contain, and both are
+  lost unless they are converted. The section states the conversion in order — synthetic rewrite
+  preserving the shape and never the text, the adjudicated verdict rather than the run's,
+  registration in `evals.json` before the case counts as landed, and a re-score of the whole set —
+  plus the two limits that matter as it grows: a rubric change invalidates every recorded figure
+  while leaving the fixtures intact, and cases harvested from a sweep are a biased estimator
+  because they are the cases this detector already got wrong.
+
+  **This run is sidecar-only.** `emit-findings.sh` was not invoked and no relay findings file was
+  written, because the crosswalk rows for `rule-verbatim-copy` and the two stamp rules land
+  separately. No relay file ever carries a rule id with no row behind it.
+
 - **Five review findings fixed, each verified by execution first.** All were real:
 
   - **`list-corpus.sh .` reported an empty corpus.** The repository root has several spellings and
@@ -59,7 +206,8 @@
   Eval fixtures describe a fictional build tool. A fixture that planted real copied text would
   make the plugin's own repository carry the defect it exists to find.
 
-- **The reference artifacts, the audit's judgment half.** `rubric.md` (rubric version 1),
+- **The reference artifacts, the audit's judgment half.** `rubric.md` (shipped at version 1 here,
+  corrected to version 2 above before this release closed),
   `dispositions.md`, `source-fetch.md`, `nomination.md`, and `context/persist-findings.md`. Each
   is read at the step that needs it rather than preloaded, so a read-only audit never pays for
   the fix discipline and a run with no fetch never reads the fetch route.

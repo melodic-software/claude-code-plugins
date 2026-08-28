@@ -1,0 +1,24 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 5, "end_line": 8 },
+      "rule": "provenance/audit/rule-verbatim-copy"
+    },
+    {
+      "class": "verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 12, "end_line": 14 },
+      "rule": "provenance/audit/rule-verbatim-copy"
+    }
+  ],
+  "notes": {
+    "shape": "Two verbatim sections of one source page, separated by a sentence of genuine local content. Two findings rather than one: they are disjoint spans and a fix would fence each separately. A case that collapsed them into a single finding would report a span covering local prose the edit must not touch.",
+    "carve_outs": "None apply. The interleaved local sentence is not a distillation product and does not make the surrounding surface one.",
+    "rubric": "C1 holds for both spans. C2 holds: the unresolvable-input rule's 'not scheduled and not skipped' framing and the cycle section's stated reason are the source author's choices, not the only way to write the facts. C3 holds: no attribution anywhere. C4 holds: the one local sentence is about this repository's rebases and survives either disposition; it does not make the copied text transformative.",
+    "measured": "fingerprint.mjs at k=5: containment 0.713, jaccard 0.477, spans of 59 words at local lines 5-8 and 41 words at 12-14. The separation rule fires on both limbs.",
+    "tier_reason": "Source supplied and identity-checked, matched spans far above the rule."
+  }
+}

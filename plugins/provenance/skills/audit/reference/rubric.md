@@ -1,8 +1,16 @@
 # The provenance rubric
 
-Rubric version **1**. This catalog is versioned with the plugin: a change to a carve-out or a
+Rubric version **2**. This catalog is versioned with the plugin: a change to a carve-out or a
 criterion lands in `CHANGELOG.md` and **invalidates any golden-set measurement pinned to the
-prior version**. A precision figure measured against rubric 1 says nothing about rubric 2.
+prior version**. A precision figure measured against rubric 1 says nothing about rubric 3.
+
+**Version 2 is the one exception to that rule, and it is worth stating why rather than asserting
+it.** Version 2 changed no criterion's substance and no carve-out. It corrected an inverted
+polarity in C3's and C4's question wording and worked-example labels, which contradicted the
+verdict rule stated three times elsewhere in this file. The version-1 measurement was computed
+under the verdict rule, not under the inverted labels, and an independent blind adjudication
+returned the same eight positives reading it the same way. So that measurement carries forward.
+Any later change to what a criterion tests does invalidate it, as written above.
 
 Read this at the judgment step. Judges apply it blind, three samples by default; unanimity
 renders the verdict and any split routes to the human.
@@ -118,6 +126,15 @@ without a quote is not a grade; if the text you would need to quote is not in fr
 grade UNKNOWN and say what you would need. UNKNOWN is not a FAIL and not a PASS — it stops the
 verdict and routes to the human.
 
+**Polarity, stated once because it is easy to invert: PASS always means the criterion SUPPORTS
+the finding.** All four criteria point the same way, so all four PASS is what makes a verdict
+STAND. A criterion that clears the candidate is a FAIL. This reads backwards for C3 and C4,
+where the exculpatory answer is the intuitive "yes" — adequately attributed, genuinely
+transformative — so both are phrased below in the negative to keep the direction uniform. A
+rubric whose criteria disagree about which way PASS points cannot render a verdict at all: under
+the inverse reading nothing could ever stand. That inversion shipped in rubric version 1 and was
+caught by a blind adjudication pass, not by review.
+
 ### C1-span-correspondence
 
 **Does a specific span of the local text correspond to a specific span of the named source?**
@@ -159,36 +176,38 @@ numbers bound the evidence; they do not render the verdict.
 
 ### C3-attribution-adequacy
 
-**Does the attribution already present discharge the obligation?**
+**Is the attribution already present INADEQUATE to discharge the obligation?**
 
 Adequate attribution answers three things for a reader who wants to check: *what* is being
 attributed, *to where*, and *as of when* if the claim is time-bound. A bare link at the bottom of
-a long file does not attribute a specific paragraph in the middle of it.
+a long file does not attribute a specific paragraph in the middle of it. So adequate attribution
+FAILS this criterion and clears the candidate; inadequate attribution PASSES it.
 
-- **PASS (criterion fails, no finding), worked.** A blockquote followed by
-  `— <source title>, <url>, read 2026-08-12`, adjacent to the quoted text.
-- **FAIL (criterion holds, finding stands), worked.** Three paragraphs of restated behavior,
-  with the source URL appearing once in a `See also` list two sections below. The reader cannot
-  tell which sentences came from there, and neither can the next maintainer.
+- **PASS, worked.** Three paragraphs of restated behavior, with the source URL appearing once in
+  a `See also` list two sections below. The reader cannot tell which sentences came from there,
+  and neither can the next maintainer.
+- **FAIL, worked.** A blockquote followed by `— <source title>, <url>, read 2026-08-12`, adjacent
+  to the quoted text.
 
 Grade what is on the page, not what a reasonable author probably intended. This criterion is
 also the one most often used to argue a finding away; the quoted-span requirement is what keeps
-that honest. Quote the attribution you are calling adequate.
+that honest. Quote the attribution you are grading, whichever way you grade it.
 
 ### C4-transformative-use
 
-**Does the local text do work the source does not?**
+**Is the use NON-transformative — does the local text add nothing the source does not carry?**
 
 Selection, synthesis across sources, application to this repository's own context, worked
 examples the source lacks — these make a passage this repository's own even where it began from
-someone else's material. Reformatting does not: a table of the source's prose is the source's
-content in a table.
+someone else's material, and they FAIL this criterion, clearing the candidate. Reformatting is
+not transformation: a table of the source's prose is the source's content in a table, and it
+PASSES.
 
-- **PASS (criterion fails, no finding), worked.** A paragraph that takes three upstream
-  parameters, explains which one this repository uses and why the other two are wrong here, and
-  cites the page. The judgment is local and does not exist upstream.
-- **FAIL (criterion holds, finding stands), worked.** The same three parameters, re-listed with
-  their upstream descriptions lightly reworded, no local judgment added.
+- **PASS, worked.** Three upstream parameters re-listed with their upstream descriptions lightly
+  reworded, no local judgment added.
+- **FAIL, worked.** A paragraph that takes those same three parameters, explains which one this
+  repository uses and why the other two are wrong here, and cites the page. The judgment is local
+  and does not exist upstream.
 
 The honest failure mode here is generosity. Almost any restatement feels a little transformative
 to the person reading it. Ask instead: **if this passage were replaced by a link, what could a

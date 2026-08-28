@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 3, "end_line": 6 },
+      "rule": "provenance/audit/rule-verbatim-copy"
+    }
+  ],
+  "notes": {
+    "shape": "A copy with four light edits: an opening clause re-cast as a possessive, 'produces' to 'yields', 'a runner upgrade' to 'upgrading the runner', and 'reused' to 'shared'. The kind of copy an author produces while retyping rather than pasting.",
+    "carve_outs": "None apply.",
+    "rubric": "C1 holds: three specific local sentences correspond to three specific source sentences. C2 holds: the three-part key composition and the byte-identical-inputs caveat with its stated reason are the source's structure. C3 holds: no attribution. C4 holds: the closing local sentence draws an operational consequence, but the corresponding text itself adds nothing the source does not already say.",
+    "measured": "fingerprint.mjs at k=5: containment 0.436, jaccard 0.208, longest matched span 22 words, four spans across local lines 3-6. Light editing lowers containment against the verbatim cases without approaching either threshold.",
+    "tier_reason": "Both limbs of the separation rule fire. The class is near-verbatim rather than verbatim because no sentence survives unedited end to end."
+  }
+}

@@ -4,6 +4,36 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.8.0 — 2026-08-28
+
+**Minor under this contract's own rule** — a new producer's rows are added; no producer-owned
+field's rule moves, no coexistence obligation changes, and no enforceability verdict changes.
+
+- **`provenance/audit` joins the crosswalk (#3458)**, the sixth producer's rule set and the first
+  whose findings are about externally-owned facts a tracked file restates. Three rows, all
+  **IMPORTANT**, so the map stays flat across this producer's emitting set:
+  - `rule-verbatim-copy` — a fingerprint-confirmed matched span, argued on **both** IMPORTANT
+    limbs rather than one: the stated-rule limb (the org standard `documentation-and-citations.md`
+    prefers citing and fetching at read time over storing a snapshot) and the degradation limb
+    with a named trigger (the upstream page's next change strands the copy).
+  - `rule-stamp-expired` — a four-part record past its configured window, argued from the
+    degradation limb: the currency ceiling has lapsed and the next reader acts on an assertion
+    nobody has re-derived.
+  - `rule-trigger-less-stamp` — a dated stamp stating no recheck trigger, argued from the
+    stated-rule limb against upstream-drift required part 4. Repo-override only, and the row says
+    why the portable default stays off so the selection decision is not read as tier argument.
+  `Auto-applicable: No` on all three: each repair is a judgment the relay surfaces rather than
+  applies.
+- **The judgment verdicts deliberately have no rows.** `source-fetched-similar`, `llm-suspected`,
+  and split rubric outcomes never reach the relay, so they sit in the Boundary's "findings that
+  never reach a relay" case rather than in the tier vocabulary. The fail-safe direction holds
+  structurally instead of by carve-out: the three deterministic rules carry no withholding
+  verdict, and every model uncertainty falls toward a report-only human surface, never toward
+  silence.
+- **No adopter row yet.** The producer's rows are registered so the relay can look a rule id up a
+  tier, but the table asserts conformance today, and this plugin's fix mode ships report-only per
+  class until the golden set carries a class past minimum n. The row lands when it does.
+
 ## 2.7.1 — 2026-08-28
 
 **Patch under this contract's own rule** — docs-only clarification. No producer-owned field's rule

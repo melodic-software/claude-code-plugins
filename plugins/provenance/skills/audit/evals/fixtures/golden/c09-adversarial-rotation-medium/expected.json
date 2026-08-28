@@ -1,0 +1,19 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 3, "end_line": 8 },
+      "rule": "provenance/audit/rule-verbatim-copy"
+    }
+  ],
+  "notes": {
+    "shape": "Adversarial probe 2 of 3 (design thread T15). The same source passage as c08 and c10, rotated at roughly one substitution every nine words. This is the density at which the span limb of the separation rule dies and the containment limb is the only thing still holding.",
+    "carve_outs": "None apply.",
+    "rubric": "C1 holds. C2 holds. C3 holds: no attribution. C4 holds.",
+    "measured": "fingerprint.mjs at k=5: containment 0.413, jaccard 0.146, longest matched span 10 words, eight spans across local lines 3-8. The rule fires on containment ONLY: 0.413 is above the 0.3 threshold while 10 words is below the 15-word floor.",
+    "tier_reason": "fingerprint-confirmed, on the containment limb alone.",
+    "carries": "This is the case that answers the T15 question, and it answers it in two parts. First, containment does the work the span floor cannot at this density, so the two-limb rule is load-bearing and dropping either limb would lose this finding. Second, the containment figure only stays above threshold because the copy dominates the file: the case body is the copied passage and almost nothing else. On a long host file the same rotation would dilute containment toward noise while the 10-word spans stayed below the floor, which is the dilution the module's span axis was added to survive and which rotation now defeats. Read c09 and c10 together as one measurement of where the rule ends rather than as two independent cases. A consequence for fix mode, recorded rather than acted on: the eight matched spans here are too fragmented to fence an edit against, so a fingerprint-confirmed verdict is not by itself evidence that a fix is applicable."
+  }
+}
