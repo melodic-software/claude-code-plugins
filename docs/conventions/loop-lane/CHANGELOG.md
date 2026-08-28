@@ -59,6 +59,7 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   Two of the six consumers are the blockquoted launch-prompt templates, so the honest statement is
   that all six agree under this check's comparison, byte for byte for the four prose copies and
   after normalization for the two templates.
+
 ## 9.0.2 — 2026-08-28
 
 Corrective, no topology, escalation, tier, or invariant change — §5's consumer table cites
