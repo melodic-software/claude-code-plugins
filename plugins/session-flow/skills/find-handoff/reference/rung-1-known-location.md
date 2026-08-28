@@ -53,9 +53,8 @@ lists ACTIVE sessions only. A background session that has reached a terminal sta
 by the CLI and surfaces only under `--all`, where it carries a `state` (observed: `done`, which
 reports completion, and `stopped`, which does not) in place of the active `status` (observed:
 `idle`, `busy`). That is `claude agents --help` ("`--all`. With --json: also include completed
-background sessions") and the same
-verified contract this repo already relies on in `claude-ops`'
-`skills/lanes/scripts/lane-launcher.sh` (`load_sessions`). **So absence from the bare list is
+background sessions"), the same verified contract the `claude-ops` lane launcher relies on when
+that plugin is installed. **So absence from the bare list is
 NOT evidence of failure: a continuation that finished the work successfully looks exactly like
 one that died.** Resolve four ways, and never collapse them:
 

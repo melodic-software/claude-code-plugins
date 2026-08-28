@@ -1,5 +1,16 @@
 # Changelog — session-flow plugin
 
+## [0.34.12]
+
+### Changed
+
+- **`find-handoff` no longer reaches into `claude-ops`' skill-private script.** Rung 1 cited
+  `skills/lanes/scripts/lane-launcher.sh` and its internal `load_sessions` function by path to
+  corroborate a `claude agents --json --all` claim the same sentence already sources first-hand from
+  `claude agents --help`. `session-flow` declares no dependency on `claude-ops`, so that path is
+  absent whenever `session-flow` is installed alone. The corroboration is now presence-framed prose
+  with no path or symbol reach. Coupling pass, apply lane; the normative instruction is unchanged.
+
 ## [0.34.11]
 
 ### Changed
