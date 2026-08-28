@@ -7,10 +7,17 @@
 - **The window fix landed in one of the two scripts that share the definition.**
   `extract-breadcrumbs.sh:is_stamp` still sliced the keyword window at exactly its length after
   0.3.1 fixed `check-stamps.sh:keyword_window`, so the two disagreed about what a stamp candidate
-  is while the audit flow passes the extractor's output to nomination. Measured over the corpus,
-  three files were short a stamp line that `check-stamps.sh` counted:
-  `docs/CLOUD-SESSIONS.md` (3 against 4), `docs/conventions/loop-lane/README.md` (4 against 5),
-  and `plugins/session-flow/CHANGELOG.md` (7 against 8). All three agree now.
+  is while the audit flow passes the extractor's output to nomination. Measured across every file
+  the 0.3.1 fix newly parsed, **five** were short a stamp line the extractor should have
+  inventoried: `docs/CLOUD-SESSIONS.md` (3 against 4),
+  `docs/conventions/loop-lane/README.md` (4 against 5),
+  `docs/topics/fresh-eyes-checkpoint-audit/design/design-resolution.md` (1 against 2),
+  `plugins/context-guard/CHANGELOG.md` (4 against 5), and
+  `plugins/session-flow/CHANGELOG.md` (7 against 8). All five agree now.
+
+  An earlier draft of this entry said three, because it sampled five of the seven affected files
+  and reported the differences it happened to catch as the total. The number here comes from
+  sweeping all seven against both versions of the extractor.
 
   `docs/CLOUD-SESSIONS.md:320` is the worked case, and it is worse than the 0.3.1 one rather than
   a repeat of it. Its date begins at offset 60 of the 60-character window, so the cut left a bare
@@ -25,9 +32,16 @@
 
   One property of `is_stamp` is worth recording, because it masked this and will mask the next
   attempt to reproduce it: the function rescans from each keyword in turn, so a line carrying a
-  second keyword beside its date (`as-of 2026-02-28`) matches there regardless of what the first
-  window truncated. A fixture written to exercise the boundary must carry exactly one keyword, or
-  it passes against the unfixed script and proves nothing.
+  second keyword beside its date (an `as-of` immediately before it, say) matches there regardless
+  of what the first window truncated. A fixture written to exercise the boundary must carry
+  exactly one keyword, or it passes against the unfixed script and proves nothing. Two fixtures
+  written the other way did exactly that here, and a third placed the date by eye rather than by
+  measurement; only lifting a real corpus line verbatim produced a genuine red.
+
+  That sentence is also why this paragraph names no literal date. An earlier draft of it quoted
+  one as an example of the shape, and the corpus run then reported this changelog as carrying an
+  expired stamp, one day over. Prose *about* stamp syntax is indistinguishable from a stamp to a
+  mechanical detector, and this file is inside the corpus it documents.
 
 - **The review dispatch could not execute rubric v3 either.** 0.3.0 gave the judge the containing
   file and left the reviewer, which runs when `accuracy.review_agents > 0`, holding only the
@@ -57,12 +71,24 @@
   begin at or before the window length, so the added slack lets a date finish without admitting one
   that starts outside the window.
 
-  Corpus effect at `--as-of 2026-08-28` over 1,352 tracked files: candidates 535 to 542, parsed 491
-  to 498, declined 44 to 44, expiry findings 0 to 0. Two of the seven newly parsed stamps had been
-  declined as bare years (`docs/upstream/aihero-course.md:127`,
-  `plugins/context-guard/reference/cloud-headless-capture.md`); the other five were not detected as
-  candidates at all, because truncation left nothing date-shaped in the window. None of the seven is
-  expired, so no lapsed stamp had been hidden by this.
+  Corpus effect at `--as-of 2026-08-28` over 1,352 tracked files, stated as the delta because that
+  is the part that stays true: **+7 candidates, +7 parsed, declined unchanged** (month-name and
+  bare-year trading 2, as the two below flip), **expiry findings unchanged at 0**. Absolutes
+  measured at `fb11cf6a` are 538 to 545 candidates and 493 to 500 parsed, against 45 declined.
+
+  **Those absolutes will not reproduce at another commit, and the reason is worth more than the
+  numbers.** This changelog is inside the corpus it measures, so each paragraph added here creates
+  new stamp candidates and moves the totals. The figures first published in this entry were taken
+  before the entry itself was written and were already stale by the time it shipped: a smaller,
+  quieter instance of exactly the staleness 0.2.1 was written to correct. The delta is the durable
+  claim; an absolute needs the commit it was taken at, and even then only holds there.
+
+  Two of the seven newly parsed stamps had been declined as bare years
+  (`docs/upstream/aihero-course.md:127`,
+  `plugins/context-guard/reference/cloud-headless-capture.md:78`); the other five were not detected
+  as candidates at all, because truncation left nothing date-shaped in the window. None of the seven
+  is expired — the oldest is 40 days, and the oldest parsed stamp anywhere in the corpus is 142 days
+  against a 180-day window — so no lapsed stamp had been hidden by this.
 
   Two new declines appear, both instances of the separate `may` false positive, where the month-name
   test reads the ordinary English word as a month name: `plugins/planning/skills/interview/SKILL.md`
