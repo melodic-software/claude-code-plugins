@@ -329,7 +329,9 @@ function keyword_window(line,   low, pos, off, kw, wlen) {
     wlen = (kw ~ /read/) ? 30 : 60
     # The window is a distance from the keyword, not a cut through the text: a
     # date that STARTS inside it is read whole. So slice wlen plus 9 more
-    # characters — one short of the longest form matched below — and require
+    # characters — one short of the longest FIXED-LENGTH form matched below, the
+    # 10-character ISO date; the "may" rule is unbounded and can outrun the slack,
+    # for which see the note under it — and require
     # each match to begin at or before wlen. Slicing at exactly wlen truncated
     # "as-of 2026-08-17" to "2026-08-", the ISO test failed on the fragment,
     # and the bare-year fallback claimed the "2026" left behind: a conforming
@@ -342,6 +344,15 @@ function keyword_window(line,   low, pos, off, kw, wlen) {
     if (match(win, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /[0-9]+\/[0-9]+\/[0-9]+/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /(january|february|march|april|june|july|august|september|october|november|december)/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
+    # "may" is a month and an ordinary English modal, so it needs a digit beside
+    # it to count as a date. Every date form has one ("may 2026", "may 17",
+    # "17 may"); the modal does not. Unlike every other form here this one is
+    # unbounded in length, so a contrived "may" + 10 or more non-letters + year
+    # starting at exactly wlen runs past the 9 characters of slack and stops
+    # being a candidate. Latent: no such line exists in the corpus, and the
+    # ordinary "may 2026" at the same offset is still caught. Widening the slack
+    # to cover it would move the RSTART <= wlen boundary that two earlier
+    # commits tuned, for a form nobody writes.
     if (match(win, /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /(jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[^a-z]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     if (match(win, /(19|20)[0-9][0-9]/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)

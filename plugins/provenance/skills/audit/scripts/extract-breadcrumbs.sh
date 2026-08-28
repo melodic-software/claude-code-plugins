@@ -203,7 +203,9 @@ function is_stamp(line,   low, pos, rest, off, kw, wlen) {
     wlen = (kw ~ /read/) ? 30 : 60
     # Same window rule as check-stamps.sh keyword_window(): the window is a
     # distance from the keyword, not a cut through the text. Slice wlen plus 9
-    # more characters, one short of the longest form matched below, and require
+    # more characters, one short of the longest FIXED-LENGTH form matched below
+    # (the 10-character ISO date; the "may" rule is unbounded and can outrun the
+    # slack, as check-stamps.sh notes at the same rule), and require
     # each match to BEGIN at or before wlen. Slicing at exactly wlen dropped
     # docs/CLOUD-SESSIONS.md:320 from this inventory while check-stamps.sh
     # counted it a candidate: its date starts at offset 60 of 60, so the cut

@@ -109,8 +109,16 @@
   `SC2034` read as a bare year, and `read` matching inside `cache_read_input_tokens`. Both have a
   different root cause (token boundaries, not the month list), and both plausible fixes push toward
   under-reporting: a year-boundary fix shifts `RSTART` into the window machinery two prior commits
-  tuned, and excluding `_` from the keyword boundary would stop matching a real `last_verified_...`
-  stamp.
+  tuned, and excluding `_` from the keyword boundary would stop matching a real stamp that exists
+  today: `plugins/work-items/skills/track/actions/add.md:104` carries `"last_checked":
+  "2026-04-08"`, which parses now and would be lost. That exhibit is named because the first draft
+  of this entry cited an invented one; the verifier checked the repo, found no such token, and
+  supplied the real line. The conclusion held, the evidence for it did not.
+
+  The bare-year bucket needs its own designed pass rather than a boundary tweak bolted onto a
+  word-sense fix. Of its 23 declines, a token-boundary change repairs exactly one: the rest carry
+  years that are already token-boundaried, among them an issue number `#1941` and a glob example
+  `photos [2024/**`.
 
 - **The `not-found` searched-surfaces listing is recorded as prose-only and unenforced.** Three
   separate requirements say a run must list every surface it searched before concluding no source
