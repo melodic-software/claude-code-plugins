@@ -4,11 +4,14 @@
 #
 # "On entering auto mode, broad allow rules that grant arbitrary code execution
 # are dropped: Blanket Bash(*) or PowerShell(*); Wildcarded interpreters like
-# Bash(python*); Package-manager run commands; Agent allow rules. Narrow rules
-# like Bash(npm test) carry over." This script classifies every effective allow
-# rule from the merge into exactly one of those documented classes or `kept`,
-# using the same shared vocabulary (lib/permission-patterns.sh) that
+# Bash(python*); Package-manager run commands; Agent allow rules; Monitor allow
+# rules, because Claude Code runs Monitor commands through the shell. Narrow
+# rules like Bash(npm test) carry over." This script classifies every effective
+# allow rule from the merge into exactly one of those documented classes or
+# `kept`, using the same shared vocabulary (lib/permission-patterns.sh) that
 # audit-permission-grants check P1 scans with — one definition, two consumers.
+# The two whole-tool classes (Agent, Monitor) carry no shell shape, so they are
+# tested on the tool token here rather than through that vocabulary.
 #
 # `autoMode.classifyAllShell` inverts the carry-over answer wholesale: when
 # true it "suspend[s] every Bash and PowerShell allow rule while auto mode is
@@ -28,8 +31,8 @@
 #   entry-diff kept scopes=<a,b> <rule>                  one per carried-over allow rule
 #   entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 #
-#   class  blanket | interpreter-wildcard | package-manager-run | agent
-#          (the documented four; the vocabulary's script-glob alternative is an
+#   class  blanket | interpreter-wildcard | package-manager-run | agent | monitor
+#          (the documented five; the vocabulary's script-glob alternative is an
 #          interpreter-wildcard shape and reports as that class)
 #
 # Only allow rules change on entry: deny and ask rules are evaluated before the
@@ -187,6 +190,13 @@ while read -r rec kind scopes_field _basis rule; do
   verdict=""
   if [[ "$rule" == "Agent" || "$rule" == "Agent("* ]]; then
     verdict="dropped class=agent"
+  elif [[ "$rule" == "Monitor" || "$rule" == "Monitor("* ]]; then
+    # Upstream added Monitor to the dropped list in v2.1.236, "because Claude
+    # Code runs Monitor commands through the shell". It behaves like Agent, not
+    # like Bash: the whole class drops, so a scoped Monitor(...) rule is NOT a
+    # narrow carry-over. Reporting one as kept would tell an operator a grant
+    # survives that the harness has already suspended.
+    verdict="dropped class=monitor"
   elif [[ "$rule" == "Bash" || "$rule" == "PowerShell" ]]; then
     # A bare tool name is the WHOLE-TOOL grant -- strictly broader than
     # Bash(*), which this same run classifies as blanket. Reporting it as

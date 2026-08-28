@@ -3,6 +3,20 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.15]
+
+### Changed
+
+- **`audit-permission-state`: the dropped-allow-rule roster was missing `Monitor`.** The recap of
+  upstream's auto-mode classes elided the category upstream added in v2.1.236 and then counted four
+  classes from the elision, so a dropped `Monitor` allow rule was reported under none of them.
+  Whole-repo extract-ssot sweep.
+
+- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
+  The directive had fractured into three forms, all emitted by the same per-plugin de-slop campaign;
+  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause and every site
+  carries one wording. Whole-repo extract-ssot sweep.
+
 ## [0.40.14]
 
 ### Changed

@@ -25,7 +25,7 @@ The hook and launcher are the single source of truth for what they require and h
 `${CLAUDE_PLUGIN_ROOT}/hooks/observer-arm.sh`, `${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/arm_observer.py`,
 and `observer.py` beside it.
 
-**Read it first**. Probe what it actually does, don't recite this file. Then run each probe via
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
 Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 When the observer is disabled (`observer_enabled` off AND no `arm` invocation in use), every

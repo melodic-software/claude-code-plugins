@@ -1,5 +1,19 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.21]
+
+### Changed
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor identical across carriers; hashing found three distinct texts, the drift traceable to two
+  de-slop shards that also introduced a comma splice. All five carriers now hash identically on an
+  em-dash-free, grammatical form. Whole-repo extract-ssot sweep.
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
 ## [0.21.20]
 
 ### Changed

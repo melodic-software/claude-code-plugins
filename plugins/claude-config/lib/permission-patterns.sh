@@ -24,8 +24,13 @@
 
 # The rule classes upstream documents as dropped on entering auto mode: blanket
 # `Bash(*)`/`PowerShell(*)`, wildcarded interpreters, package-manager run
-# commands, and all `Agent` allow rules. Narrow rules such as `Bash(npm test)`
-# carry over and must never match.
+# commands, all `Agent` allow rules, and all `Monitor` allow rules (added
+# upstream in v2.1.236, because Claude Code runs Monitor commands through the
+# shell). Narrow rules such as `Bash(npm test)` carry over and must never match.
+#
+# The bodies below cover the three SHELL shapes only. `Agent` and `Monitor` are
+# whole-tool classes with no command shape to match, so each consuming driver
+# tests them on the tool token; there is nothing here for them to share.
 #
 # python accepts version suffixes (python3, python3.11, python2.7): pinned
 # minor-version binaries are the same interpreter-led grant shape.

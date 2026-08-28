@@ -13,7 +13,7 @@ metadata:
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
-Working tree status: !`git status --porcelain 2>/dev/null | head -10 || echo "clean"`
+Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -10`
 
 ## Variables
 

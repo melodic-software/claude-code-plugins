@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.2]
+
+### Changed
+
+- **Findings-file producer preamble normalized against its contract.** All five producer surfaces
+  now carry byte-identical text apart from the run-name slot; the compressed variant had dropped
+  three load-bearing clauses, including that the contract wins where the two disagree. Whole-repo
+  extract-ssot sweep.
+
 ## [0.5.1]
 
 ### Changed

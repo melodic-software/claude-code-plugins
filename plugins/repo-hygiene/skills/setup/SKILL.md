@@ -26,7 +26,7 @@ each remediation. Both are non-interactive, never prompt when the action is give
 The clean skill and its bundled scripts (`${CLAUDE_PLUGIN_ROOT}/skills/clean/`) are the single
 source of truth for what each tier requires.
 
-**Read it first**. Probe what it actually does, don't recite this file. Then run each probe via
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
 Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 Install nothing, and run no mutating tier.
@@ -80,7 +80,7 @@ nothing. Re-running it after everything passes changes nothing and reports "alre
   prints `already installed` **and still writes the value**. Verified on Claude Code 2.1.240 (a
   non-sensitive option at `user` scope: a non-default value written to an installed plugin, then
   restored). The short-circuit is about the install, not the config write. Re-verify before relying
-  on it outside those conditions, a `sensitive` option, or `project`/`local` scope, were not
+  on it outside those conditions. A `sensitive` option, or `project`/`local` scope, were not
   covered. Do **not** uninstall to reconfigure: uninstalling drops this plugin's entire stored
   `pluginConfigs` entry, resetting every option in the README's Options reference table to its
   manifest default. `-s` defaults to `user`, so pass the scope `claude plugin list` reports for this

@@ -46,7 +46,8 @@ Read the writer's object-write. Extract:
 
 ## Step 4 — Generate 10-15 title candidates
 
-Across Pat's 7 title types:
+Across the 7 title types (this plugin's taxonomy, unaudited against the
+books, per `hook.md` "Title generation"):
 
 1. One-word
 2. Place-name

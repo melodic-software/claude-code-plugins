@@ -12,7 +12,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree: !`git status --porcelain 2>/dev/null | head -5 || echo "clean"`
+Working tree (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -5`
 
 ## Variables
 

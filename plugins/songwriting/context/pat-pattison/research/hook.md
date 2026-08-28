@@ -790,8 +790,9 @@ sources that cannot be verified against the corpus, which is exactly where an
 invented quote is hardest to detect. Treat the table, the counts ("5+", "20+"),
 and both quotes as unverified until someone checks the cited web sources.
 
-For situations where the writer has an idea but no title, Pat
-catalogs title types and a Nashville generation method.
+For situations where the writer has an idea but no title, this file
+catalogs title types and a Nashville generation method attributed to Pat
+by non-book sources.
 
 ### Title types (unaudited — the count "seven" is ours, not Pat's)
 

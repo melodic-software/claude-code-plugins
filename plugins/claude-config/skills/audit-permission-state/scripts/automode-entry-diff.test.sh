@@ -59,26 +59,29 @@ diff_only() { printf '%s\n' "$1" | bash "$SCRIPT" --diff-only; }
 # --- Case 1: one rule of each documented drop class, plus a narrow survivor ---
 # "On entering auto mode, broad allow rules that grant arbitrary code execution
 # are dropped: Blanket Bash(*) or PowerShell(*); Wildcarded interpreters like
-# Bash(python*); Package-manager run commands; Agent allow rules. Narrow rules
-# like Bash(npm test) carry over."
-FOUR_CLASSES=$(
+# Bash(python*); Package-manager run commands; Agent allow rules; Monitor allow
+# rules, because Claude Code runs Monitor commands through the shell. Narrow
+# rules like Bash(npm test) carry over."
+FIVE_CLASSES=$(
   cat <<'EOF'
 user settings present /fx/home/.claude/settings.json
 effective allow scopes=user precedence_basis=uncontested Bash(*)
 effective allow scopes=user precedence_basis=uncontested Bash(python3 *)
 effective allow scopes=user precedence_basis=uncontested Bash(npx *)
 effective allow scopes=user precedence_basis=uncontested Agent
+effective allow scopes=user precedence_basis=uncontested Monitor
 effective allow scopes=user precedence_basis=uncontested Bash(git status)
 EOF
 )
-OUT=$(diff_only "$FOUR_CLASSES")
+OUT=$(diff_only "$FIVE_CLASSES")
 assert_contains "blanket Bash(*) is dropped" "$OUT" "entry-diff dropped class=blanket scopes=user Bash(*)"
 assert_contains "a wildcarded interpreter is dropped" "$OUT" "entry-diff dropped class=interpreter-wildcard scopes=user Bash(python3 *)"
 assert_contains "a package-manager run command is dropped" "$OUT" "entry-diff dropped class=package-manager-run scopes=user Bash(npx *)"
 assert_contains "a bare Agent allow rule is dropped" "$OUT" "entry-diff dropped class=agent scopes=user Agent"
+assert_contains "a bare Monitor allow rule is dropped" "$OUT" "entry-diff dropped class=monitor scopes=user Monitor"
 assert_contains "a narrow exact rule carries over" "$OUT" "entry-diff kept scopes=user Bash(git status)"
-assert_eq "all four classes appear in the dropped set" 4 "$(count_matching "$OUT" '^entry-diff dropped ')"
-assert_contains "the summary reconciles" "$OUT" "entry-diff summary allow_before=5 dropped=4 suspended=0 kept=1"
+assert_eq "all five classes appear in the dropped set" 5 "$(count_matching "$OUT" '^entry-diff dropped ')"
+assert_contains "the summary reconciles" "$OUT" "entry-diff summary allow_before=6 dropped=5 suspended=0 kept=1"
 
 # A SCOPED Agent rule is dropped too: auto mode drops all Agent allow rules
 # categorically, unlike Bash where narrow rules survive.
@@ -90,6 +93,19 @@ EOF
 )
 OUT=$(diff_only "$SCOPED_AGENT")
 assert_contains "a scoped Agent allow rule is dropped like a bare one" "$OUT" "entry-diff dropped class=agent scopes=user Agent(model:haiku)"
+
+# A SCOPED Monitor rule is dropped for the same reason: upstream drops the whole
+# Monitor class (v2.1.236+), so the parenthesized form is not a narrow survivor.
+# Reporting it kept is the silent failure this class exists to prevent.
+SCOPED_MONITOR=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+effective allow scopes=user precedence_basis=uncontested Monitor(npm test)
+EOF
+)
+OUT=$(diff_only "$SCOPED_MONITOR")
+assert_contains "a scoped Monitor allow rule is dropped like a bare one" "$OUT" "entry-diff dropped class=monitor scopes=user Monitor(npm test)"
+assert_not_contains "a scoped Monitor rule is never reported kept" "$OUT" "entry-diff kept"
 
 # Deny and ask rules are evaluated before the classifier in every mode; the
 # entry diff must not touch them.
@@ -213,6 +229,22 @@ help_out=$(bash "$SCRIPT" --help </dev/null 2>&1) || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 assert_contains "--help prices the oracle" "$help_out" "real token cost"
 
+# The oracle cases below need a rule set with predicted drops in it; which
+# classes those drops fall into is not what they assert. They carry their own
+# fixture so that adding a drop class to Case 1 does not silently change an
+# oracle union count, which is an assertion about the comparison and not about
+# the vocabulary.
+ORACLE_INPUT=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+effective allow scopes=user precedence_basis=uncontested Bash(*)
+effective allow scopes=user precedence_basis=uncontested Bash(python3 *)
+effective allow scopes=user precedence_basis=uncontested Bash(npx *)
+effective allow scopes=user precedence_basis=uncontested Agent
+effective allow scopes=user precedence_basis=uncontested Bash(git status)
+EOF
+)
+
 # --- Case 5: oracle OFF by default — no spawn, no scratch file ----------------
 # A recording stub claude sits FIRST on PATH; if anything invoked it, the
 # marker file would exist.
@@ -225,7 +257,7 @@ exit 0
 EOF
 chmod +x "$STUB/claude"
 
-OUT=$(printf '%s\n' "$FOUR_CLASSES" | PATH="$STUB:$PATH" bash "$SCRIPT" --diff-only 2>&1)
+OUT=$(printf '%s\n' "$ORACLE_INPUT" | PATH="$STUB:$PATH" bash "$SCRIPT" --diff-only 2>&1)
 if [[ -e "$TEST_TMPDIR/claude-invocations.txt" ]]; then
   fail "no flag, no spawn" "stub claude was invoked: $(cat "$TEST_TMPDIR/claude-invocations.txt")"
 else
@@ -236,7 +268,7 @@ assert_not_contains "no flag, no oracle output" "$OUT" "oracle"
 # --- Case 6: oracle ON spawns only after the cost notice ----------------------
 # The stub writes an empty capture, so this also proves a dead spawn is
 # reported as unavailable rather than as an empty drop set.
-OUT=$(printf '%s\n' "$FOUR_CLASSES" | PATH="$STUB:$PATH" bash "$SCRIPT" --diff-only --oracle 2>&1)
+OUT=$(printf '%s\n' "$ORACLE_INPUT" | PATH="$STUB:$PATH" bash "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "the cost notice printed" "$OUT" "ORACLE COST NOTICE"
 if [[ -s "$TEST_TMPDIR/claude-invocations.txt" ]]; then
   pass "with the flag, the spawn happened"
@@ -260,7 +292,7 @@ for tool in cat grep sed sort mktemp rm tr; do
   printf '#!%s\nexec "%s" "$@"\n' "$real_bash" "$src" >"$NOCLAUDE/$tool"
   chmod +x "$NOCLAUDE/$tool"
 done
-OUT=$(printf '%s\n' "$FOUR_CLASSES" | PATH="$NOCLAUDE" "$real_bash" "$SCRIPT" --diff-only --oracle 2>&1)
+OUT=$(printf '%s\n' "$ORACLE_INPUT" | PATH="$NOCLAUDE" "$real_bash" "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "notice before any spawn attempt" "$OUT" "ORACLE COST NOTICE"
 assert_contains "a missing claude degrades to unavailable" "$OUT" "'claude' is not on PATH"
 
@@ -294,7 +326,7 @@ EOF
 # Prediction: Bash(*), Bash(python3 *), Bash(npx *), Agent dropped. Oracle:
 # Bash(*), Bash(python3 *), Bash(uv run *). Union: 5 rules, 2 agreements,
 # 2 predicted-only, 1 oracle-only.
-OUT=$(printf '%s\n' "$FOUR_CLASSES" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE" bash "$SCRIPT" --diff-only --oracle 2>&1)
+OUT=$(printf '%s\n' "$ORACLE_INPUT" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE" bash "$SCRIPT" --diff-only --oracle 2>&1)
 assert_eq "one verdict line per rule in the union, exactly" 5 "$(count_matching "$OUT" '^oracle (AGREES|DIVERGES) ')"
 assert_contains "agreement is stated per rule" "$OUT" "oracle AGREES Bash(*)"
 assert_contains "a predicted drop the oracle kept diverges" "$OUT" "oracle DIVERGES prediction=dropped oracle=kept Bash(npx *)"
@@ -358,7 +390,7 @@ CAPTURE_NODROPS="$TEST_TMPDIR/capture-nodrops.log"
 cat >"$CAPTURE_NODROPS" <<'EOF'
 [DEBUG] Applying permission update: Adding 3 allow rule(s) to destination 'userSettings': [...]
 EOF
-OUT=$(printf '%s\n' "$FOUR_CLASSES" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_NODROPS" bash "$SCRIPT" --diff-only --oracle 2>&1)
+OUT=$(printf '%s\n' "$ORACLE_INPUT" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_NODROPS" bash "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "zero drop lines with predicted drops reads as unavailable" "$OUT" "treat the oracle as unavailable rather than as an empty drop set"
 assert_eq "no verdict is emitted from it" 0 "$(count_matching "$OUT" '^oracle (AGREES|DIVERGES) ')"
 
@@ -368,7 +400,7 @@ CAPTURE_ALIEN="$TEST_TMPDIR/capture-alien.log"
 cat >"$CAPTURE_ALIEN" <<'EOF'
 [DEBUG] something else entirely
 EOF
-OUT=$(printf '%s\n' "$FOUR_CLASSES" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_ALIEN" bash "$SCRIPT" --diff-only --oracle 2>&1)
+OUT=$(printf '%s\n' "$ORACLE_INPUT" | ENTRY_DIFF_ORACLE_CAPTURE="$CAPTURE_ALIEN" bash "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "a capture without merge narration is unavailable" "$OUT" "no permission-merge narration"
 
 # --- Case 9: end to end — reader conf record reaches the diff -----------------

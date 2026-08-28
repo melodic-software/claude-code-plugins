@@ -3,6 +3,16 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.15]
+
+### Changed
+
+- **Attribution and load-list corrections, plus persistence-block normalization.** Four sites
+  credited a seven-title-type taxonomy to Pat Pattison that this plugin's own owner file records as
+  unaudited and not his; three skills stated a filter's mandatory load list as two files where the
+  filter names seven; nine skills had dropped the canonical's `first match` qualifier from the
+  template-override rule. Whole-repo extract-ssot sweep.
+
 ## [1.4.14]
 
 ### Changed

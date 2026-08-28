@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.37]
+
+### Changed
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor identical across carriers; hashing found three distinct texts, the drift traceable to two
+  de-slop shards that also introduced a comma splice. All five carriers now hash identically on an
+  em-dash-free, grammatical form. Whole-repo extract-ssot sweep.
+
+- **Telemetry-upsert reference prose normalized across the three lanes.** An em-dash purge had
+  reached one copy only, leaving a comma splice and a dropped clause about what the creation-race
+  reconcile does to a sibling instance's comment; the two unpurged copies disagreed with each other
+  about it. No executable block changed. Whole-repo extract-ssot sweep.
+
 ## [0.39.36]
 
 ### Changed

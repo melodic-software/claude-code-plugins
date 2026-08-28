@@ -287,7 +287,7 @@ fallback lives in the file that was just deleted.
 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
   contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace
-  repository). Nor `settings.json` (user or project) or any other Claude Code settings surface.
+  repository). Nor `settings.json` (user or project) or any other Claude Code settings surface;
   the printed edit is the operator's to apply.
 - Install `jq` or any system package.
 - Write to the contract files. The wrapper and the hook own `rate-limits.json` and

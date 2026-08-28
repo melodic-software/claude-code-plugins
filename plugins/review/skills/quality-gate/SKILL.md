@@ -3,7 +3,7 @@ description: "Single-lens review checkpoint between 'code works' and 'code is re
 argument-hint: "[mode] (e.g., /review:quality-gate, /review:quality-gate self, /review:quality-gate security, /review:quality-gate spec [--spec <path|id>], /review:quality-gate close-out [--container <id>] [--dry-run], /review:quality-gate downstream, /review:quality-gate slice <name>)"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch --show-current 2>/dev/null || echo \"unknown\")", "Bash(git status --porcelain 2>/dev/null | head -20 || echo \"unavailable\")", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(gh api graphql:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)"]
+allowed-tools: ["Bash(git branch --show-current 2>/dev/null || echo \"unknown\")", "Bash({ git status --porcelain 2>/dev/null || echo \"(git status unavailable)\"; } | head -20)", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(gh api graphql:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -13,7 +13,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "unavailable"`
+Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
 Open PRs (match headRefName to current branch above; baseRefName is the PR's real base): !`gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo "unknown"`
 
 ## Purpose

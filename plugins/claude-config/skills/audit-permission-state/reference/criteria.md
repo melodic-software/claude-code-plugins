@@ -14,8 +14,8 @@
 - [Open upstream discrepancy — carry this caveat on any `ask` finding](#open-upstream-discrepancy--carry-this-caveat-on-any-ask-finding)
 - [Managed policy, and what it does not buy](#managed-policy-and-what-it-does-not-buy)
 
-Version: 1.0.0
-Last updated: 2026-08-11
+Version: 1.1.0
+Last updated: 2026-08-28
 
 This file defines what `permission-merge.sh` may claim and on which documented mechanic each claim
 rests. It exists because an *effective* permission set is a precedence claim, and a precedence claim
@@ -149,13 +149,24 @@ Neither is a limitation to apologise for; both change what a finding means.
 
 > "On entering auto mode, broad allow rules that grant arbitrary code execution are dropped: Blanket
 > `Bash(*)` or `PowerShell(*)`; Wildcarded interpreters like `Bash(python*)`; Package-manager run
-> commands; `Agent` allow rules… Narrow rules like `Bash(npm test)` carry over. Dropped rules are
-> restored when you leave auto mode."
+> commands; `Agent` allow rules; `Monitor` allow rules, because Claude Code runs Monitor commands
+> through the shell. Narrow rules like `Bash(npm test)` carry over. Dropped rules are restored when
+> you leave auto mode."
+>
+> Source: [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode),
+> "How the classifier evaluates actions", re-fetched 2026-08-26. The `Monitor` category was added
+> upstream in v2.1.236; before that version Monitor allow rules stayed in effect in auto mode.
 
-Four documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
-`interpreter-wildcard`, `package-manager-run`, `agent`. The patterns are not defined here — they live
-in `lib/permission-patterns.sh`, shared with `audit-permission-grants` check P1, so a class change
-lands once.
+Five documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
+`interpreter-wildcard`, `package-manager-run`, `agent`, `monitor`. The shell-shape patterns are not
+defined here: they live in `lib/permission-patterns.sh`, shared with `audit-permission-grants` check
+P1, so a class change lands once. `agent` and `monitor` are whole-tool classes with no shell pattern
+to share, so the diff driver tests them on the tool token instead.
+
+- **`monitor` is carried by this skill only.** `audit-permission-grants` check P1 flags `Agent`
+  allow rules through its own `scan_agent` and has no `Monitor` equivalent, so a fragile `Monitor`
+  grant is reported by the entry diff and not by that check. A clean P1 run is not evidence that a
+  `Monitor` allow rule survives auto mode.
 
 - **Only allow rules are in scope.** Deny and ask are evaluated before the classifier in every mode.
 - **`autoMode.classifyAllShell` (v2.1.193+) inverts the carry-over answer.** When true it "suspend[s]

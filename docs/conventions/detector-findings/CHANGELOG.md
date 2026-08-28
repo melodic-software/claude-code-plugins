@@ -4,6 +4,25 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## 2.8.0 — 2026-08-28
+
+**Minor under this contract's own rule.** A conforming producer gains its adopter row; no
+producer-owned field's rule moves, no coexistence obligation changes, and no
+enforceability verdict changes.
+
+- **`docs-hygiene/audit-noise` gains its Adopters row.** The producer has carried crosswalk
+  rows since 2.5.0 and conforms today, but the Adopters table never gained the row. A table
+  whose own rule is that a row asserts present-tense conformance under-reported a conforming
+  producer, which is the reverse of the failure the tabled-only-once-it-actually-does rule
+  guards against: a reader consulting the table alone could not tell that a fifth producer
+  reaches the relay. The row states what the producer does today, and adds no obligation.
+- **The reachability paragraph stops saying "both".** "A habit both current adopters already
+  have" and "both adopters that persist do exactly that" were written when there were two.
+  There are five, and every one of them fetches this contract at run time and refuses to write
+  when it is unreachable, so the claim now reads "every current adopter" and "every adopter
+  that persists". The claim itself is unchanged and is still evidence about the producer's
+  session rather than the consumer's.
+
 ## 2.7.0 — 2026-08-27
 
 **Minor under this contract's own rule** — one new row on an existing adopter; no

@@ -85,11 +85,12 @@ Routing means invoking that skill, not summarizing what you believe it would say
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md), and honor a
-consuming project's own songwriting layout when it defines one. Metaphor menus go to the song's
-`worksheets/` as a labeled menu, not an inline dump. Before loading any bundled
-`templates/<name>.md`, check `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`
-first, a project-level override wins over the bundled default.
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
+"Where generated work persists", and honor a consuming project's own songwriting layout when it
+defines one. Metaphor menus go to the song's `worksheets/` as a labeled menu, not an inline dump.
+Before loading any bundled `templates/<name>.md`, check
+`${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
+override wins over the bundled skill default, first match, per that file's "Template override".
 
 ## Related skills
 

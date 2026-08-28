@@ -85,9 +85,10 @@ consumes:
 
 1. **Read the producer contract before the first write**.
    <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.
-   It owns where the file goes, the producer-computed fields, coexistence, and what a minimal
-   producer may omit. If it cannot be fetched, do not write. Report and stop; a guessed destination
-   reports success while the consumer never scans that path.
+   It owns the shape's authority, where the file goes, the producer-computed fields, the coexistence
+   obligations, the self-ignore guard, and what a minimal producer may omit. Where the two disagree,
+   the contract wins and this file is the defect. If it cannot be fetched, do not write. Report and
+   stop; a guessed destination reports success while the consumer never scans that path.
 2. Resolve the destination per the contract "Where the file goes": run the **whole rung order**, take
    the **non-interactive collapse** where this context cannot ask or persist config, and honor the
    **self-ignore guard** including its invalid-root rule.
