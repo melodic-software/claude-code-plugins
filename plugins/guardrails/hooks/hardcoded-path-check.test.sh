@@ -511,6 +511,12 @@ HOOK_SRC=$(cat "$HOOK")
 assert_contains "path helper: uses hook::repo_relative_path" "$HOOK_SRC" 'hook::repo_relative_path'
 assert_absent "path helper: no hand-rolled prefix strip" "$HOOK_SRC" '_fwd#'
 
+# REGRESSION PIN, NOT A FAIL-THEN-PASS CASE. This one passes against the
+# pre-helper hook too, and is not evidence of the UNC fix. It exists because the
+# computation MOVED into emit_tel and this suite asserted nothing about
+# data.file before, so without it a relocation mistake (an out-of-scope
+# PROJECT_ROOT, an empty file_rel) would pass every other case here.
+#
 # The value that computation produces is unchanged for the only shape that
 # reaches it: the scope guard guarantees a project dir that is a git work tree
 # and a file inside it, so data.file stays repo-relative.

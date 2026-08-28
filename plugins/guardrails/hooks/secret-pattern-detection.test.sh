@@ -225,8 +225,10 @@ UNC_HOST='srv'
 # shellcheck disable=SC1003  # BS is a literal single backslash, not a quote escape
 BS='\'
 UNC_FILE="${BS}${BS}${UNC_HOST}${BS}share${BS}secrets.env"
+# Equality, not containment: the leaked path ENDS in the basename, so a
+# containment check passes against the pre-fix hook for the wrong reason.
 df=$(telemetry_file "$UNC_FILE")
-assert_contains "UNC/no-project: data.file is the basename" "$df" "secrets.env"
+assert_eq "UNC/no-project: data.file is exactly the basename" "secrets.env" "$df"
 assert_absent "UNC/no-project: data.file keeps no backslash" "$df" "$BS"
 assert_absent "UNC/no-project: data.file drops the share host" "$df" "$UNC_HOST"
 
