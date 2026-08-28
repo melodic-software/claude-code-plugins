@@ -5,6 +5,30 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## 9.1.0 — 2026-08-28
+
+Additive, minor. §6 replaces an unbacked conformance claim with the name of a real check. No
+topology, escalation-contract, tier-vocabulary or loop-layer invariant changed, and the inline-floor
+rule itself is unchanged: what changes is that the rule is now enforced.
+
+- **"Fleet audits check conformance per consumer" was false and is gone.** Nothing checked
+  conformance. The repo's general copy-drift gate structurally cannot: it skips `SKILL.md` by
+  basename, and it clusters copies by identical path-within-plugin, while the six surfaces inlining
+  the floor sit at six unrelated paths.
+- **§6 names `scripts/check-loop-lane-floor-drift.sh`.** It extracts the floor block from
+  `plugins/rate-limit-guard/reference/reader-contract.md` and compares it against an explicit
+  registry: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, and the two
+  launch-prompt templates under `prompts/loops/`. Prose copies match byte for byte; the blockquoted
+  prompt templates are re-wrapped to a narrower column, so their registration asserts the values
+  after normalization and leaves only the wrapping free. It runs as the `loop-lane-floor-drift-gate`
+  CI lane with its own suite.
+- **The drift the missing check let through is reconciled.** Two uncoordinated de-slop shards
+  rewrote punctuation inside the staleness bullet of all three lane bodies and touched neither the
+  reader contract nor the other three copies. The lanes stayed identical to each other, which is the
+  half a reviewer notices, while all three drifted from their source. The source and the two
+  unpurged copies moved to the consumers' de-slopped wording, since that is the direction the repo's
+  de-slop campaign and its house-style rule set. No floor value, path or threshold changed.
+
 ## 9.0.0 — 2026-08-12
 
 Major — §2 gains a **Cross-lane PR hold** subsection, a change to the escalation contract

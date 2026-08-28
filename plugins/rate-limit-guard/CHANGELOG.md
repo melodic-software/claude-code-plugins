@@ -3,6 +3,29 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.17]
+
+### Fixed
+
+- **The reader contract's operable floor matches the consumers that inline it again.** Two
+  uncoordinated de-slop shards rewrote punctuation inside the staleness bullet of all three loop
+  lane bodies and touched neither this contract nor the other three copies, so the lanes stayed
+  identical to each other while all six copies drifted from their source. The floor block here now
+  carries the de-slopped wording the consumers already shipped: the values, the paths and the
+  thresholds are untouched, and only two sentence breaks moved. Reconciling toward the consumers
+  rather than away from them is the direction the repo's own de-slop campaign and its
+  house-style rule set, and three of the consumers are `SKILL.md` files that rule names.
+
+### Added
+
+- **The inline-floor mandate is enforced instead of asserted.** `scripts/check-loop-lane-floor-drift.sh`
+  in the marketplace repository extracts the "Operable floor" block from this file and compares it
+  against an explicit registry of the six surfaces that inline it, running as the
+  `loop-lane-floor-drift-gate` CI lane. The `Consumers` section now names that check and the three
+  non-lane consumers it covers. Nothing enforced the mandate before: the general copy-drift gate
+  skips `SKILL.md` by basename and clusters copies by identical path-within-plugin, and these six
+  sit at six unrelated paths.
+
 ## [0.7.16]
 
 ### Changed

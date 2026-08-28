@@ -1,5 +1,16 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.21]
+
+### Fixed
+
+- **`extract-ssot`'s orchestrated mode carries the current rate-limit floor.** Its inlined copy of
+  the `rate-limit-guard` operable floor is reconciled with the reader contract that owns it, which
+  moved to the de-slopped wording its loop-lane consumers already shipped. Two sentence breaks
+  inside the staleness bullet; no value, path or threshold changed. This file is now one of the six
+  copies the marketplace repo's `loop-lane-floor-drift-gate` lane holds against that contract, so a
+  future floor change fails CI here rather than leaving this copy behind.
+
 ## [0.21.20]
 
 ### Changed

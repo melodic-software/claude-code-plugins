@@ -14,10 +14,10 @@ loop-lane convention (`docs/conventions/loop-lane/README.md` §6 in the marketpl
 - **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 90`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
-- **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale — treat
+- **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
   fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
-  consumer **must** arm a session Monitor on the tee file and re-evaluate on every write — the file
+  consumer **must** arm a session Monitor on the tee file and re-evaluate on every write, the file
   carries **no account-identifier field**, so a write is the only signal that the windows changed
   under you (account switch, another session's refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
@@ -207,4 +207,11 @@ sweeping the directory expects them:
 
 The loop-lane convention's three lanes: `work-items` `work-loop`, `work-items` `attend-queue`, and
 `source-control` `babysit-loop`. Each records its guard mode (proactive / reactive / unknown) in its
-lane telemetry every cycle, per the convention.
+lane telemetry every cycle, per the convention. Three more surfaces inline the same floor: the
+`docs-hygiene` `extract-ssot` orchestrated mode, and the two loop-lane launch-prompt templates under
+`prompts/loops/` in the marketplace repository.
+
+Every one of those six copies is drift-checked against the "Operable floor" block above by
+`scripts/check-loop-lane-floor-drift.sh`, which runs in the marketplace repo's
+`loop-lane-floor-drift-gate` CI lane and holds the registry of who inlines the floor. A change to
+the floor block here fails that lane until every copy moves with it.

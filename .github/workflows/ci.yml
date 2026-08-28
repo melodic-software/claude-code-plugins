@@ -662,6 +662,29 @@ jobs:
       - name: Run cross-plugin-source-drift tests
         run: bash scripts/check-cross-plugin-source-drift.test.sh
 
+  # The rate-limit guard's operable floor is INLINED into six surfaces on
+  # purpose: an installed plugin cannot read a sibling plugin's files at
+  # runtime, so a lane body that only cited the contract could never apply it.
+  # cross-plugin-source-drift above cannot see that set — it skips SKILL.md by
+  # basename and clusters on identical path-within-plugin, while these copies
+  # sit at six unrelated paths — and until this lane nothing else did either:
+  # the convention claimed conformance was audited per consumer and no audit
+  # existed, which is how two de-slop shards drifted all three lane bodies from
+  # their source. Self-test first so a broken extractor cannot mask a
+  # regression behind a green gate.
+  loop-lane-floor-drift-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run loop-lane floor drift tests
+        run: bash scripts/check-loop-lane-floor-drift.test.sh
+      - name: Check every inlined rate-limit floor matches its reader contract
+        run: scripts/check-loop-lane-floor-drift.sh --check
+
   detector-findings-crosswalk-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1613,6 +1636,7 @@ jobs:
       - resolve-convention-pattern-sync
       - standards-contract-sync
       - cross-plugin-source-drift
+      - loop-lane-floor-drift-gate
       - detector-findings-crosswalk-gate
       - skill-leaf-name-gate
       - skill-count-claim-gate

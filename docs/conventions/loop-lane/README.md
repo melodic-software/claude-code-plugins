@@ -767,7 +767,27 @@ the staleness rule, and drain-then-pause — and cites the guard's reader contra
 That reader contract is
 [`plugins/rate-limit-guard/reference/reader-contract.md`](../../../plugins/rate-limit-guard/reference/reader-contract.md),
 shipped with the `rate-limit-guard` plugin. This convention records the inline-floor rule so the
-values stay byte-identical across lanes; fleet audits check conformance per consumer.
+values stay byte-identical across lanes and to that contract's own floor block.
+
+**A named check enforces the rule.** `scripts/check-loop-lane-floor-drift.sh` extracts the floor
+block from the reader contract and compares it against an explicit registry of every surface that
+inlines it: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, and the two
+launch-prompt templates under `prompts/loops/`. The four prose copies must match byte for byte; the
+prompt templates carry the floor inside a blockquote re-wrapped to a narrower column, so their
+registration asserts the values after normalization and leaves only the wrapping free. The check
+runs in CI as the `loop-lane-floor-drift-gate` lane, with its own suite
+`scripts/check-loop-lane-floor-drift.test.sh`. A new copy of the floor anywhere is registered in the
+same change that adds it.
+
+**The registry is explicit because path shape cannot find this set.**
+`scripts/check-cross-plugin-source-drift.sh`, the repo's general copy-drift gate, is blind here by
+construction: it skips `SKILL.md` by basename, and it clusters copies by identical
+path-within-plugin, while these six sit at six unrelated paths. Until the check above landed, this
+section claimed conformance was audited per consumer and nothing audited it. What that cost is on
+the record: two uncoordinated de-slop shards rewrote punctuation inside the staleness bullet of all
+three lane bodies and touched neither the reader contract nor the other copies, so the lanes stayed
+identical to each other, which is the half a reviewer notices, while all three drifted from their
+source.
 
 **Single-account-per-machine is a known gap, not a safe assumption.** The tee file is
 last-writer-wins and carries no account identifier, so a machine running lanes under more than one
