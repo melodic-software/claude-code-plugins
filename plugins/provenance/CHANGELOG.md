@@ -1,37 +1,99 @@
 # Changelog
 
+## [0.3.1]
+
+### Fixed
+
+- **A conforming ISO stamp was declined as a bare year, and a declined stamp is never
+  expiry-checked.** `check-stamps.sh` sliced the keyword window at exactly its length (60
+  characters, 30 after `read`), which cut through any date that started inside the window but ended
+  past it. At `docs/upstream/aihero-course.md:127` the window ended mid-date: `as-of 2026-08-17`
+  was read as `2026-08-`, the ISO test failed on the fragment, and the bare-year fallback then
+  matched the `2026` it left behind. Declining routes the line into the reported `declined` bucket
+  and skips it, so the one thing the script exists to do, compare the date against the currency
+  window, never ran on a date that parses perfectly well, and the output said only that the form
+  was unparseable.
+
+  The window is now a distance from the keyword rather than a cut through the text. The slice
+  carries nine more characters, one short of the longest form the tests match, and every form must
+  begin at or before the window length, so the added slack lets a date finish without admitting one
+  that starts outside the window.
+
+  Corpus effect at `--as-of 2026-08-28` over 1,352 tracked files: candidates 535 to 542, parsed 491
+  to 498, declined 44 to 44, expiry findings 0 to 0. Two of the seven newly parsed stamps had been
+  declined as bare years (`docs/upstream/aihero-course.md:127`,
+  `plugins/context-guard/reference/cloud-headless-capture.md`); the other five were not detected as
+  candidates at all, because truncation left nothing date-shaped in the window. None of the seven is
+  expired, so no lapsed stamp had been hidden by this.
+
+  Two new declines appear, both instances of the separate `may` false positive, where the month-name
+  test reads the ordinary English word as a month name: `plugins/planning/skills/interview/SKILL.md`
+  and `plugins/repo-hygiene/skills/clean/context/git-branch-cleanup.md`, each now within reach of
+  the added slack. That defect is untouched here. It over-reports into the declined bucket, which is
+  the direction that stays visible to a reader, and it is left for its own fix.
+
+  Patch rather than minor: no flag, no output shape and no configuration changes. The counts move
+  because the existing expiry check now reaches stamps it had been dropping.
+
 ## [0.3.0]
 
 ### Changed
 
-- **Rubric version 3: C3 and C4 are graded at different scopes, and version 2 never said so.**
-  Applying the rubric to a real corpus passage surfaced it. Two readers reached the same verdict
-  on `plugins/dometrain/skills/grounding/SKILL.md:50-64` (containment 0.589, a 142-word span,
-  cleared on C3) and disagreed on which scope produced it — and under version 2 both readings were
-  available, resolving in opposite directions. Grade C3 and C4 both at the file and a
-  majority-adapted file clears twice. Grade both at the span and a well-attributed derived file
-  stands every time. Neither is the intended reading, and nothing in version 2 chose between them.
+- **Rubric version 3: version 2 never said at which scope C3 is graded.** Applying the rubric to
+  a real corpus passage surfaced it. Two readers reached the same verdict on
+  `plugins/dometrain/skills/grounding/SKILL.md:50-64` at `d7e391da` (containment 0.589, a
+  142-token matched span against `Dometrain/mcp@master` fetched 2026-08-28) and disagreed on which
+  scope produced it. Under version 2 both readings were available and they resolve in opposite
+  directions: grade C3 and C4 both at the file and a majority-adapted file *that carries adequate
+  file-level attribution* clears twice; grade both at the span and a well-attributed derived file
+  stands every time.
 
-  Version 3 states it: **C3 is graded outward across the whole file, C4 on the passage.** C3 has
-  to look outside the span, because attribution *inside* the span is the quotation carve-out
-  rather than a C3 question. What it tests is whether the attribution's declared scope matches the
-  derivation's — file-scope attribution discharges C3 when the derivation is file-wide, and does
-  not when one lift sits inside otherwise-original material, where the header understates and the
-  reader misallocates. C4 stays on the passage, which is what its worked examples already did: a
-  file can be substantially transformed while the copied span adds nothing over its source.
+  Version 3 states it: **C3 is graded outward across the whole file, C4 on the passage.** What C3
+  tests is whether the attribution's declared scope matches the derivation's — file-scope
+  attribution discharges C3 when the derivation is file-wide, and does not when one lift sits
+  inside otherwise-original material, where the header understates and the reader misallocates.
+  This is a substantive addition, and version 2's "a bare link at the bottom of a long file does
+  not attribute a specific paragraph in the middle of it" cuts against it. **C4's half is only
+  written down**: its worked examples and its closing replacement test were already
+  passage-scoped, so nothing about C4 changes.
 
   The rejected reading is worth recording because it is the one a judge reaches for: "the
   attribution exists and is complete." That is not the test. It would let a single lift into an
   otherwise-original file escape C3 on the strength of a header line about something else.
 
-- **The version-2 golden-set measurement does not carry forward, and this entry does not argue
-  otherwise.** This file's own rule is that a criterion change invalidates any measurement pinned
-  to the prior version. Version 3 adds a scope-match test to C3 that can decide a case either way,
-  so the rule applies. The recorded 8 tp / 0 fp / 0 fn / 2 tn belongs to version 2 and should be
-  quoted with the version attached; **the golden set must be re-scored against version 3 before
-  any precision figure is cited against it**, and no class becomes fix-eligible on a measurement
-  pinned to a superseded rubric. Version 2 took the one exception to that rule on the argument
-  that it changed no criterion's substance. Version 3 cannot make that argument and does not try.
+- **The judge dispatch could not execute the new rule, and now can.** `reference/nomination.md`
+  handed each judge the local passage, the fetched source, and the rubric — never the containing
+  file. A C3 graded across the whole file is unanswerable from that, and both the rubric and the
+  judge prompt instruct UNKNOWN when the text to quote is absent, so a *conforming* judge under
+  version 3 would have graded C3 UNKNOWN on every candidate, stopping every verdict and routing
+  every run to the human. The motivating case proves it: the attribution that clears it sits about
+  35 lines above the passage. The dispatch now supplies `LOCAL FILE:` and says which criteria are
+  graded against which input. Blindness in this panel means blind to the pipeline's own suspicion
+  — the fingerprint numbers, the nomination's reasoning, the other judges — never blind to the
+  material a criterion is defined over. The lens-diversity stance that read for "whether the
+  attribution present already discharges the obligation" was pointing judges at the reading
+  version 3 rejects, and now reads for scope match.
+
+  Carve-outs 1, 4 and 5 are file-level judgments too, and were under-supplied by the
+  passage-only dispatch before this change. That gap predates version 3; it is closed by the same
+  fix.
+
+- **The measurement version 2 stands on does not carry forward.** This file's own rule is that a
+  criterion change invalidates any measurement pinned to the prior version, and version 3 adds a
+  scope-match test to C3 that can decide a case either way. **The golden set must be re-scored
+  against version 3 before any precision figure is cited against it**, and no class becomes
+  fix-eligible on a measurement pinned to a superseded rubric. Version 2 took the one exception to
+  that rule on the argument that it changed no criterion's substance; version 3 cannot make that
+  argument and does not try.
+
+  Said plainly so the figures are not left under a cloud they do not deserve: **no current golden
+  case appears to turn on the scope question.** Seven carry no attribution anywhere, one is
+  declined at a carve-out before grading, one fails C1, and the single case with attribution is a
+  lift inside an otherwise-original file, which resolves identically at either scope. The re-score
+  is expected to reproduce 8 tp / 0 fp / 0 fn / 2 tn. It is still required, because the rule keys
+  on a criterion changing rather than on a recorded case flipping — and inventing a second, weaker
+  exception ("substantive change, but the set does not happen to exercise it") to save a ten-case
+  re-score that costs nothing is the bad trade.
 
 ## [0.2.1]
 

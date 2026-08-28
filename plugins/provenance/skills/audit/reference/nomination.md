@@ -67,8 +67,22 @@ candidate URL lists.
 evidence per criterion.
 
 **Blindness is required, and it is what makes sampling mean anything.** Each judge sees the
-local passage, the fetched source text, and the rubric. No judge sees: the nomination's stated
-suspicion, the fingerprint numbers, another judge's verdict, or how many judges are running.
+local passage, the fetched source text, **the containing file**, and the rubric. No judge sees:
+the nomination's stated suspicion, the fingerprint numbers, another judge's verdict, or how many
+judges are running.
+
+**The containing file is an input, not an oversight, and rubric version 3 is why.** C1, C2 and
+C4 are graded on the passage. **C3 is graded outward across the whole file** — it asks whether
+the attribution's declared scope matches the derivation's, which cannot be answered from a
+passage alone. Carve-outs 1, 4 and 5 are file-level judgments too ("the surface's purpose",
+"could this passage have been written without the source in hand"), and were already
+under-supplied by a passage-only dispatch. Withholding the file does not make the panel more
+blind in the sense that matters; it makes a conforming judge grade C3 UNKNOWN on every
+candidate, because the rubric and the prompt below both require a quoted span and instruct
+UNKNOWN when the text to quote is absent. That stops every verdict and routes the whole run to
+the human. Blindness here means blind to *the pipeline's own suspicion* — the fingerprint
+numbers, the nomination's reasoning, the other judges — never blind to the material the
+criteria are defined over.
 Handing a judge the fingerprint containment tells it the answer and turns three samples into one
 sample repeated, which measures nothing.
 
@@ -80,8 +94,11 @@ not noise to be averaged away.
 **Lens diversity.** With `accuracy.judge_lens_diversity` on (the default), give each judge a
 distinct reading stance rather than the same prompt three times: one reads for whether the local
 text could have been written without the source in hand; one reads for what a reader loses if
-the passage is replaced by a link; one reads for whether the attribution present already
-discharges the obligation. Same rubric, same criteria, different entry point. Identical prompts
+the passage is replaced by a link; one reads for whether the attribution's declared scope covers
+the derivation it is being asked to discharge. Same rubric, same criteria, different entry point.
+That third stance is deliberately not "is the attribution present and complete" — under rubric
+version 3 that is the rejected reading, and pointing a judge at it biases the lens toward
+clearing every well-headed file. Identical prompts
 measure self-consistency, which is not the quantity the panel exists to estimate.
 
 **Prompt shape.**
@@ -102,6 +119,10 @@ measure self-consistency, which is not the quantity the panel exists to estimate
 >
 > LOCAL PASSAGE: [text]
 > SOURCE TEXT: [fetched bytes, with its URL and the rung it came from]
+> LOCAL FILE: [the whole containing file, with the passage's line range marked]
+>
+> Grade C1, C2 and C4 on LOCAL PASSAGE. Grade C3 against LOCAL FILE, because it asks
+> whether the attribution's scope matches the derivation's.
 
 **What the panel never decides.** The tier. Tier is mapped from evidence by fixed rule, never
 from a judge's confidence: a unanimous STANDS on a paraphrase is still `llm-suspected`, because

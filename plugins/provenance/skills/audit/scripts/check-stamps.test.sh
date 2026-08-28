@@ -87,6 +87,13 @@ mkdir -p "$DIR"
 } >"$DIR/neither.md"
 
 {
+  echo '# Window edge'                                                                     # 1
+  echo ''                                                                                  # 2
+  echo 'Measured bands overclaim (lane-6 correction pending). As-of 2026-02-28 here.'      # 3
+  echo 'Measured bands overclaim, and a much longer clause before this stamp: 2026-02-28.' # 4
+} >"$DIR/window-edge.md"
+
+{
   echo '# Trigger present'                                    # 1
   echo ''                                                     # 2
   echo 'Verified 2025-06-01 against the upstream page.'       # 3
@@ -179,6 +186,28 @@ assert_eq "candidates equal parsed plus declined" \
   "$(echo "$OUT" | jq -r '.counts.candidates == (.counts.parsed + .counts.declined)')" "true"
 assert_eq "parsed counts every ISO stamp" \
   "$(echo "$OUT" | jq -r '.counts.parsed')" "4"
+
+# --- Window edge -----------------------------------------------------------------
+#
+# The keyword window is a distance from the keyword, not a cut through the text:
+# a date that STARTS inside it has to be read whole. Slicing at exactly the
+# window truncated "As-of 2026-02-28" to "2026-02-", the ISO test failed on the
+# fragment, and the bare-year fallback then claimed the "2026" left behind. The
+# stamp was declined instead of parsed, so its expiry was never checked — the
+# failure this script exists to catch, reported as a decline reason. Found at
+# docs/upstream/aihero-course.md:127 in the 2026-08-28 corpus sweep.
+
+OUT="$(run "$DIR/window-edge.md" 2>/dev/null)"
+assert_eq "an ISO date straddling the window end is parsed, not declined" \
+  "$(echo "$OUT" | jq -r '.counts.parsed')" "1"
+assert_eq "nothing at the window edge is declined" \
+  "$(echo "$OUT" | jq -r '.counts.declined')" "0"
+assert_eq "a straddling stamp reports the whole date" \
+  "$(echo "$OUT" | jq -r '.findings[] | select(.line == 3) | .stamp_date')" "2026-02-28"
+assert_eq "a straddling stamp is expiry-checked like any other" \
+  "$(echo "$OUT" | jq -r '.findings[] | select(.line == 3) | .days_over')" "1"
+assert_eq "a date starting past the window is still not a candidate" \
+  "$(echo "$OUT" | jq -r '.counts.candidates')" "1"
 
 # --- Trigger-less check ----------------------------------------------------------
 
