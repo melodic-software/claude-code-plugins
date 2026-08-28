@@ -201,29 +201,34 @@ def verdict_slot:
 # declared a confirmed copy, and reading the verdict beside it is the over-capture
 # drop one container in.
 #
-# A record with NO `tier` falls back to its `verdict`, which is then the only tier it
-# has: its `tier` child when it has one, and otherwise the whole value, because
-# `{"verdict": "not-found"}`, `{"verdict": ["not-found"]}` and
+# A record whose `tier` NAMES NO TIER falls back to its `verdict`, which is then the
+# only tier it has: the `tier` child when it has one, and otherwise the whole value,
+# because `{"verdict": "not-found"}`, `{"verdict": ["not-found"]}` and
 # `{"verdict": {"result": {"tier": "llm-suspected"}}}` each say what
 # `{"verdict": {"tier": "not-found"}}` says. Reading only the `tier` child let all
 # three past the boundary — onto a relay row on a stamp rule, and verbatim into
 # `## Unparsed` with no rule id.
-def verdict_declared:
-  verdict_slot
-  | if (type == "object") and ((to_entries | map(select(.key | ascii_downcase == "tier")) | length) > 0)
-    then tier_slot else . end;
-def declared_tiers:
-  . as $rec
-  | [ tier_slot ]
-  | if length > 0 then . else [ $rec | verdict_declared ] end;
-# Trimmed against every separator and format character, not a hand-picked few.
-# A zero-width joiner reads as nothing to whoever opens the findings file, so a
-# tier that RENDERS as a verdict name is a verdict name; an allowlist of the
-# code points someone thought of is an allowlist of the ones they did not.
+#
+# The fallback turns on a tier NAMED, not on a `tier` key present. Keying off the key
+# let `{"tier": null, "verdict": "not-found"}`, `{"tier": [], …}` and
+# `{"tier": "pending", …}` disarm the whole boundary with one unusable value: the
+# verdict was never consulted, so the record printed verbatim into `## Unparsed` and
+# skipped the searched-surfaces gate on the way.
+#
+# Trimming is against every separator and format character, not a hand-picked few. A
+# zero-width joiner reads as nothing to whoever opens the findings file, so a tier
+# that RENDERS as a verdict name is a verdict name; an allowlist of the code points
+# someone thought of is an allowlist of the ones they did not.
 def norm:
   ascii_downcase
   | sub("^[[:space:][:cntrl:]\\p{Z}\\p{Cf}]+"; "")
   | sub("[[:space:][:cntrl:]\\p{Z}\\p{Cf}]+$"; "");
+def names_in:
+  [ .[] | .. | strings | norm ];
+def verdict_declared:
+  verdict_slot
+  | if (type == "object") and ((to_entries | map(select(.key | ascii_downcase == "tier")) | length) > 0)
+    then tier_slot else . end;
 # `source-not-identified` is the spelling SKILL.md publishes for the neutral outcome
 # this file elsewhere calls `not-found`. Both are recognized, because the sidecar is
 # written against that description and a name this reader does not know is a verdict
@@ -234,8 +239,14 @@ def is_verdict_name:
   or . == "not-found" or . == "source-not-identified";
 def is_neutral_name:
   . == "not-found" or . == "source-not-identified";
+def is_tier_name:
+  is_verdict_name or . == "fingerprint-confirmed";
+def declared_tiers:
+  . as $rec
+  | [ tier_slot ]
+  | if (names_in | any(is_tier_name)) then . else [ $rec | verdict_declared ] end;
 def declared_names:
-  [ declared_tiers[] | .. | strings | norm ];
+  declared_tiers | names_in;
 def declares($name):
   declared_names | index($name) != null;
 def withheld_verdict:

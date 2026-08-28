@@ -636,6 +636,52 @@ assert_exit "a superseded outcome beside a declared tier refuses nothing" "$?" "
 assert_eq "and the confirmed copy still reaches the relay" \
   "$(grep -c '^| [0-9]' "$VSUP")" "1"
 
+# The fallback turns on a tier NAMED, not on a `tier` key present. Keying off the key
+# let one unusable value disarm the whole boundary: the verdict was never consulted,
+# so the record printed verbatim into `## Unparsed` and skipped the searched gate.
+write_report tier-unusable-null.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-future", "tier": null,
+                "verdict": {"result": {"tier": "not-found"}}, "excerpt": "UNUSABLENULL",
+                "searched": ["https://un.example/u"]}]
+}'
+write_report tier-unusable-empty.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-future", "tier": [],
+                "verdict": ["source-fetched-similar"], "excerpt": "UNUSABLEEMPTY"}]
+}'
+write_report tier-unusable-word.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-future", "tier": "pending",
+                "verdict": {"tier": "llm-suspected"}, "excerpt": "UNUSABLEWORD"}]
+}'
+for uu in "null:not-found:UNUSABLENULL" "empty:source-fetched-similar:UNUSABLEEMPTY" \
+  "word:llm-suspected:UNUSABLEWORD"; do
+  un="${uu%%:*}"
+  ur="${uu#*:}"
+  uv="${ur%%:*}"
+  uk="${ur#*:}"
+  UO="$OUTDIR/tier-unusable-$un.md"
+  run --report "$REPORTS/tier-unusable-$un.json" --out "$UO" >/dev/null 2>&1
+  UB="$(cat "$UO")"
+  assert_not_contains "an unusable tier does not disarm the verdict read ($un)" \
+    "$UB" "$uv"
+  assert_not_contains "an unusable tier leaks no payload ($un)" "$UB" "$uk"
+  assert_not_contains "an unusable tier opens no Unparsed section ($un)" \
+    "$UB" "## Unparsed"
+  assert_contains "an unusable tier is counted, not dropped ($un)" "$UB" "1 judgment"
+done
+
+# And the same shape without a searched listing is refused, not quietly appended.
+write_report tier-unusable-ungated.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-future", "tier": "pending",
+                "verdict": "not-found", "excerpt": "UNUSABLEGATE"}]
+}'
+run --report "$REPORTS/tier-unusable-ungated.json" \
+  --out "$OUTDIR/tier-unusable-ungated.md" >/dev/null 2>&1
+assert_exit "an unusable tier does not let a not-found skip the searched gate" "$?" "3"
+
 # With no top-level tier, the verdict IS the declaration, and its `tier` child is the
 # tier when it has one — a sibling key inside the verdict is not.
 write_report verdict-child-confirmed.json '{

@@ -121,14 +121,19 @@ verdict beside it is the over-capture drop one container in, and it costs more t
 same record with `"superseded_by": "not-found"` there would refuse the whole sidecar for naming
 no searched surfaces.
 
-A record with NO `tier` falls back to its `verdict`, which is then the only tier it has: the
-`tier` child when it has one, and otherwise the whole value. `{"verdict": "not-found"}`,
+A record whose `tier` NAMES NO TIER falls back to its `verdict`, which is then the only tier it
+has: the `tier` child when it has one, and otherwise the whole value. `{"verdict": "not-found"}`,
 `{"verdict": ["not-found"]}` and `{"verdict": {"result": {"tier": "llm-suspected"}}}` each say
 what `{"verdict": {"tier": "not-found"}}` says, and reading only the `tier` child let all three
 past the boundary — onto a relay row when a stamp rule carried one, and verbatim into
 `## Unparsed` when nothing else mapped the record. `searched` is read through those same slots,
 so a sidecar keeping the outcome and its surfaces together is not refused for naming them where
 it declared the outcome.
+
+The fallback turns on a tier NAMED, not on a `tier` key present. Keying it off the key let one
+unusable value disarm the whole boundary: `{"tier": null, "verdict": "not-found"}`,
+`{"tier": [], …}` and `{"tier": "pending", …}` never reached the verdict, so each printed
+verbatim into `## Unparsed` and skipped the searched-surfaces gate on the way.
 
 **A record that is not an object at all has no declared tier to respect**, and it is bound for
 `## Unparsed` verbatim, so a verdict name appearing anywhere inside it would print into the file
@@ -155,10 +160,14 @@ already gives a verdict name spelled in a `note`. It has to be: a `verdict.tier`
 llm-suspected nomination was overruled" is a review note, and withholding the
 fingerprint-confirmed copy that carries it is the same drop as reading a `tier` key at any depth.
 
-**Five names, and one reader for all three questions.** The three withheld verdicts, counting
-both spellings of the neutral one, plus `fingerprint-confirmed`, the one tier a copy finding may
-be relayed on. The searched-surfaces
-refusal, the withhold predicate and the eligibility test all ask that one reader. A caller with
+**Five names, and one reader for every question about a WELL-FORMED record.** The three withheld
+verdicts, counting both spellings of the neutral one, plus `fingerprint-confirmed`, the one tier
+a copy finding may be relayed on. The searched-surfaces refusal, the withhold predicate and the
+eligibility test all ask that one reader. A record that is not an object is the stated exception:
+it has no declared tier for any of them to read, so the boundary withholds it on a verdict name
+appearing anywhere inside it and the schema check never runs on it — refusing a whole sidecar
+over a record too malformed to read is the blast radius the malformed-record route exists to
+avoid. A caller with
 its own, laxer notion of the tier is the defect, twice over: a `{"Tier": "not-found"}` sidecar
 passed the schema check unexamined and was then withheld silently, and a
 `{"Tier": "fingerprint-confirmed"}` copy was read as a declaration when withholding and as no
@@ -213,7 +222,8 @@ nothing here computes a run-size value, and the relay carries one dimension.
 
 - Findings to emit → write. The input-refusal gates run first and are the one exception: a
   sidecar that does not parse, one with no `findings` key, one whose `findings` is not a list,
-  or one whose `not-found` finding names no searched surfaces is refused whole at exit 3 and
+  or one whose `not-found` finding DECLARES that outcome and names no searched surfaces (a
+  malformed record cannot declare one, so it is withheld and counted instead) is refused at exit 3 and
   nothing is written, because a file composed from input that concludes nothing is worse than no
   file. Each refusal names its own cause. A single malformed RECORD is not one of these cases
   and never refuses the sidecar.
