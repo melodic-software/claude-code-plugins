@@ -1,5 +1,28 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.26]
+
+### Fixed
+
+- **`audit-derivability`: the sixth filtered probe, missed when the other five were fixed.** 0.21.23
+  made five filtered-probe injections pipefail-proof and left this one, on the reading that its
+  capture-first shape was already safe. Only half of it is. The capture,
+  `s=$(git status --porcelain 2>/dev/null) && …`, does carry git's own exit status outside any
+  pipeline, so a genuinely unavailable `git` is still detected. But the data run that follows is
+  `printf … | awk … | head -20`, an ordinary pipeline, and `head` closing the pipe at the cap kills
+  `awk` with SIGPIPE. Under `set -o pipefail` that becomes the `&&` list's status and fires
+  `(status unavailable)` on a healthy git.
+
+  Reachable at 21 or more dirty `.md` files. Reproduced on a repository with 3,000 of them: without
+  `pipefail` the probe renders 20 paths; with `pipefail` it renders 21 lines, the twenty-first
+  being `(status unavailable)` printed under a correct listing. After the fix it renders 20 paths
+  under both settings, and outside a git repository it still renders `(status unavailable)` under
+  both, which is the case the token exists for.
+
+  Only the data pipeline moves into the brace group closed by `:`; the `$s` capture stays where it
+  is, because that is the part that legitimately drives the `||`. The five sites 0.21.23 fixed were
+  re-verified at 3,000 dirty files under both settings and are correct as shipped.
+
 ## [0.21.25]
 
 ### Added
