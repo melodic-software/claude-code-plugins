@@ -3,6 +3,32 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.9]
+
+### Added
+
+- **A bash contract suite for `sync-prep.sh`** at
+  `skills/manage/scripts/sync-prep.test.sh`, the plugin's first shell suite. The script
+  mapped to zero test suites under `scripts/affected-tests.sh`, which the repo treats as an
+  error rather than as "nothing to run", and it is the same coverage gap that let the
+  `firewall.ps1` always-false guard ship in 0.7.7. 73 assertions over the dry-run plan, the
+  live walkthrough, the `status.sh` pre-flight (present, absent, non-executable, and failing),
+  argument handling, and the `SCRIPT_DIR`-relative `firewall.ps1` and `sync-finalize.sh`
+  handoff paths, which stay absolute even when the script is invoked by a relative path. The
+  printed firewall rule name is compared against the `$RuleName` read out of `firewall.ps1`,
+  so a rename in either file fails the suite instead of sending the operator after a rule that
+  does not exist.
+
+  Each case copies the script into a `mktemp` sandbox, stubs the `status.sh` sibling, and runs
+  under a `PATH` that shadows `rm`, `pwsh`, `powershell.exe`, `netsh`, and `icacls` with
+  recorders that perform nothing, so "printed the command, ran nothing, deleted nothing" is
+  asserted over a call log, a tree snapshot, and canary files rather than assumed. The
+  always-false regression class is covered from both sides: dry-run must withhold the live
+  walkthrough and the live path must withhold the plan. Verified by mutation: twelve seeded
+  regressions, including an always-false and an always-true `--dry-run` guard, an inline
+  `pwsh ... -Action disable`, an inline `rm -rf`, and a `SCRIPT_DIR` degraded to a bare
+  `dirname`, were all caught.
+
 ## [0.7.8]
 
 ### Changed

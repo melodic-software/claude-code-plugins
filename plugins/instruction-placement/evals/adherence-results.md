@@ -37,6 +37,19 @@ Arms were interleaved so any drift in service conditions hit both alike.
 32 trials. **100% compliance in every cell.** No difference between arms at either bloat level,
 including one nearly ten times the 200-line guidance.
 
+### Correction: the underscore column above is not evidence
+
+The harness that produced this table searched the whole edited file for a leading-underscore
+private field. The seeded `Billing.cs` already declares `private readonly decimal _unitPrice`, so
+that check scored 1 before the model had written anything. Every `underscore` cell above, and
+therefore every `both` cell, was a constant rather than a measurement. `adherence-experiment.sh`
+now scopes the check to the body of the class the task asks for, and
+`adherence-experiment.test.sh` holds it there by asserting that a trial producing nothing scores 0.
+
+This does not change the conclusion. `sealed` was scored correctly, it was 100% in all four cells,
+and it is the criterion the finding rests on. A re-run under the fixed harness is what would put a
+real number in the underscore column.
+
 ## What this does and does not establish
 
 **Establishes:** a clear, unambiguous, non-conflicting convention is followed just as reliably from

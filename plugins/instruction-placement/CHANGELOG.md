@@ -3,6 +3,35 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.11]
+
+### Fixed
+
+- **`adherence-experiment.sh` scored its underscore criterion against the whole file.** The seeded
+  `Billing.cs` already declares `private readonly decimal _unitPrice`, so the check returned 1
+  before the model had written anything and no run could ever fail it. The check is now scoped to
+  the body of the class the task asks for, by a scanner that biases toward under-crediting: a
+  body-less primary-constructor declaration, a brace inside a string or comment, and any other
+  shape that leaves the body undelimited all score 0 rather than running on into a later class and
+  crediting a field the task never asked for. For an instrument whose numbers get published, a
+  false 1 is the unrecoverable error. `adherence-results.md` carries a correction noting that the
+  recorded run's `underscore` and `both` columns were constants, not measurements; the conclusion
+  is unchanged, since it rests on the `sealed` criterion, which was scored correctly.
+- **The usage banner documents `--filler`.** The flag has always been parsed, and
+  `adherence-results.md` gives `--filler 120` as the re-run command, but neither the banner nor the
+  header comment listed it.
+
+### Added
+
+- **`adherence-experiment.test.sh` covers the experiment harness.** 49 cases driving the harness
+  through a stub CLI, so every trial's output is controlled and nothing is skipped: argument
+  validation and the exit-3 unmeasurable path, arm construction (identical filler and identical
+  seed file in both arms, the convention delivered inline in one and as a `**/*.cs` path-scoped
+  rule in the other), scoring asserted in both directions and against the three C# shapes that
+  decide whether a field from another class is credited, per-trial reset, the ERROR row for a
+  failed trial and its exclusion from the arm's `n`, and fixture cleanup. The file previously
+  mapped to no suite under `scripts/affected-tests.sh`.
+
 ## [0.11.10]
 
 ### Changed

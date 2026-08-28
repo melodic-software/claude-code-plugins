@@ -3,6 +3,24 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.4]
+
+### Added
+
+- **`template.sh` gets a contract suite.** `plugins/wizard/skills/generate/template.test.sh`, 144
+  assertions over the hardened wizard library: fail-closed prompts at EOF, the `_drain_tty` paste
+  defense (with a control case proving the fixture really does carry a bypass payload), key-name
+  validation, `.env` upsert and quote round-tripping through a real shell read, owner-only file
+  mode, the once-only gitignore warning, https-only `open_url`, `gh` secret and variable values
+  travelling over stdin and never argv, resolve-the-repo-once, every `gh` degradation path, the
+  names-only closing summary, and the `_cleanup` if-form that keeps a clean run exiting 0 under
+  `set -e`. The template is a runnable wizard, so each case extracts the library half above the
+  `STAGES` marker and rewrites its one `exec 3</dev/tty` to a fixture file; the suite pins that
+  marker and that single `/dev/tty` open so the seam cannot drift off the shipped code path, and
+  proves the no-TTY guard on the unmodified file. Closes the gap where the file mapped to no test
+  suite at all under `scripts/affected-tests.sh`, which the repo treats as an error rather than as
+  nothing to run.
+
 ## [0.2.3]
 
 ### Changed

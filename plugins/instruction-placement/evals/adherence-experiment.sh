@@ -34,7 +34,7 @@
 #   * Order is interleaved so drift in service conditions hits both arms alike.
 #
 # Usage:
-#   adherence-experiment.sh [--trials N] [--claude <path>] [--keep]
+#   adherence-experiment.sh [--trials N] [--filler N] [--claude <path>] [--keep]
 #
 # Exit: 0 the experiment ran; 2 usage error; 3 could not measure.
 
@@ -53,9 +53,12 @@ usage() {
 adherence-experiment.sh — measure whether path-scoping improves adherence.
 
 Usage:
-  adherence-experiment.sh [--trials N] [--claude <path>] [--keep]
+  adherence-experiment.sh [--trials N] [--filler N] [--claude <path>] [--keep]
 
   --trials N     runs per arm (default 6; 2 model calls per trial pair)
+  --filler N     filler sections per half of the control file (default 24,
+                 giving a ~250-line AGENTS.md); raise it to test for an
+                 adherence effect that appears only at much greater bloat
   --claude PATH  Claude Code CLI to drive
   --keep         leave the fixture and transcripts on disk for inspection
 
@@ -216,11 +219,68 @@ TASK='Add a public class named InvoiceTotal to src/Billing.cs. It needs a privat
 # Compliance, defined before any run.
 #   sealed:     the produced class is declared sealed
 #   underscore: the new private field uses a leading-underscore name
+#
+# The underscore check is SCOPED to the InvoiceTotal body. The seeded file
+# already declares `private readonly decimal _unitPrice`, so a whole-file search
+# scores 1 before the model has written anything: the criterion becomes a
+# constant, and a run reports a number that is not a measurement.
+#
+# The scanner below biases toward UNDER-crediting. Every way of failing to
+# delimit the body ends at the declaration line alone, scoring 0, rather than
+# running on into a later class and crediting a field that is not the one the
+# task asked for. For an instrument whose numbers get published, a false 1 is
+# the unrecoverable error and a false 0 is a visible one.
+#
+# Three shapes a model can plausibly produce, and what happens to each:
+#   `class InvoiceTotal(decimal x);`  a body-less primary constructor. No brace
+#                                    body opens before the next declaration, so
+#                                    the region stops at the declaration line.
+#   `"unbalanced { brace"`           a brace inside a string, char literal or
+#                                    line comment. Stripped before counting, so
+#                                    the depth counter stays in sync.
+#   anything else that desyncs       a block comment holding a lone brace, say.
+#                                    Depth never returns to zero, the body is
+#                                    treated as undelimited, and the region
+#                                    stops at the declaration line.
 score_trial() {
-  local file="$1" sealed=0 underscore=0
+  local file="$1" sealed=0 underscore=0 body
   grep -qE 'sealed[[:space:]]+class[[:space:]]+InvoiceTotal' "$file" 2>/dev/null && sealed=1
+  # The new class, from its declaration to its matching closing brace.
+  body="$(awk '
+    # Brace characters that are data, not structure.
+    function scrub(s,   q) {
+      q = sprintf("%c", 39)
+      gsub(/"[^"]*"/, "", s)
+      gsub(q "[^" q "]*" q, "", s)
+      sub(/\/\/.*/, "", s)
+      return s
+    }
+    # A line that declares some class. Rejects comment lines, which cannot.
+    function declares_class(s) {
+      return (s ~ /^[[:space:]]*[A-Za-z]/ &&
+              s ~ /(^|[[:space:]])class[[:space:]]+[A-Za-z_]/)
+    }
+    !seen && /class[[:space:]]+InvoiceTotal/ { seen = 1; decl = NR }
+    seen && !finished {
+      # A second declaration before any brace opened means InvoiceTotal has no
+      # brace body of its own, and the lines that follow belong to that class.
+      if (!entered && NR > decl && declares_class($0)) { finished = 1; next }
+      buf[++n] = $0
+      code = scrub($0)
+      opens = gsub(/\{/, "{", code)
+      closes = gsub(/\}/, "}", code)
+      depth += opens - closes
+      if (opens > 0) entered = 1
+      if (entered && depth <= 0) { finished = 1; closed = 1 }
+    }
+    END {
+      if (!seen) exit
+      if (!closed) n = 1
+      for (i = 1; i <= n; i++) print buf[i]
+    }
+  ' "$file" 2>/dev/null)"
   # A private field declaration in the new class whose name starts with `_`.
-  grep -qE 'private[^;]*[[:space:]]_[A-Za-z][A-Za-z0-9]*' "$file" 2>/dev/null && underscore=1
+  printf '%s\n' "$body" | grep -qE 'private[^;]*[[:space:]]_[A-Za-z][A-Za-z0-9]*' && underscore=1
   printf '%d\t%d' "$sealed" "$underscore"
 }
 

@@ -3,6 +3,24 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.6]
+
+### Added
+
+- **`detect-ecosystems.sh` and both skill wrappers now have sibling test suites.** All three
+  files mapped to ZERO suites under `scripts/affected-tests.sh`, which the repo contract treats
+  as an error rather than "nothing to run": a change to the ecosystem detector, the preamble
+  command both skills run before anything else, selected no coverage at all.
+  `scripts/detect-ecosystems.test.sh` covers the detector itself (every marker it looks for,
+  glob-order output, the unmatched-glob literal that must never leak, space-bearing filenames,
+  directory and symlink markers, the root-anchoring precedence of `CLAUDE_PROJECT_DIR` over the
+  git toplevel over the cwd, and the nonexistent-project-dir degradation the `cd ... || true`
+  exists for). Each skill's `scripts/detect-ecosystems.test.sh` is a thin contract suite for its
+  wrapper: it delegates rather than duplicates, it stays self-locating instead of expanding
+  `${CLAUDE_PLUGIN_ROOT}`, its rationale comment survives, its executable body matches the other
+  skill's copy, and its output is byte-identical to the canonical detector's on the same fixture.
+  No script changed; this is coverage only.
+
 ## [0.9.5]
 
 ### Changed

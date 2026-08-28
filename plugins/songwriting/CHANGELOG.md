@@ -3,6 +3,28 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.15]
+
+### Added
+
+- **`datamuse.sh` has an offline contract suite.** The Datamuse helper that `rhyme` operates is the
+  plugin's only executable script, and nothing covered it: `scripts/affected-tests.sh` mapped it to
+  zero suites, which this repo's validation contract calls an error rather than "nothing to run".
+  The co-located `datamuse.test.sh` closes that gap with 93 cases and replaces `curl` with a
+  PATH-stub that records the whole request argv and serves a canned body, so the suite never reaches
+  api.datamuse.com and is deterministic with no network. It covers argument validation (no mode, no
+  word, unknown mode) exiting 1 with the usage banner and no request issued, response parsing into
+  the four-field TSV with tags comma-joined and missing fields defaulted rather than emitted as
+  `null`, the preserved API result order, the mode-to-relation table where a typo would silently
+  return the wrong relation, the `LIMIT` default and override plus the `max=5` pin on `syllables`,
+  a multi-word argument reaching the query `+`-joined, empty results as exit 0, a nonzero `curl`
+  exit propagating through the pipe with no rows on stdout, malformed JSON failing loudly instead
+  of emitting partial TSV, and `family` merging near rhymes with consonance across two requests
+  that each carry `md=s`, deduped by word rather than by whole object and re-sorted by score over
+  both sources. Twenty-three seeded mutations of `datamuse.sh`, across the jq filter, the query
+  table, the curl flags, the limits, the family merge and the usage banner, were each caught by the
+  suite.
+
 ## [1.4.14]
 
 ### Changed
