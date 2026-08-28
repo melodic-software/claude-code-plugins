@@ -49,9 +49,8 @@ if [[ ! -f "$TEST" ]]; then
 fi
 
 emitted_tmp="$(mktemp)"
-missing_tmp="$(mktemp)"
 baseline_tmp="$(mktemp)"
-trap 'rm -f "$emitted_tmp" "$missing_tmp" "$baseline_tmp"' EXIT
+trap 'rm -f "$emitted_tmp" "$baseline_tmp"' EXIT
 
 # Skip comment lines: prose in the collector names kinds while explaining them.
 grep -vE "^[[:space:]]*#" "$SCRIPT" | grep -oE "emit_finding [A-Z]+ [a-z-]+" |
@@ -70,13 +69,6 @@ kind_asserted() {
   local kind="$1"
   grep -Eq -- "Finding: ${kind}([^a-z-]|$)" "$TEST"
 }
-
-while IFS= read -r kind; do
-  [[ -n "$kind" ]] || continue
-  if ! kind_asserted "$kind"; then
-    printf '%s\n' "$kind" >>"$missing_tmp"
-  fi
-done <"$emitted_tmp"
 
 declare -A baselined=()
 if [[ -f "$BASELINE" ]]; then
@@ -108,11 +100,11 @@ errors=0
 
 while IFS= read -r kind; do
   [[ -n "$kind" ]] || continue
-  if [[ -z "${baselined[$kind]+x}" ]]; then
+  if ! kind_asserted "$kind" && [[ -z "${baselined[$kind]+x}" ]]; then
     echo "UNCOVERED FINDING KIND: $kind (emitted by $SCRIPT, no Finding: assertion in $TEST)" >&2
     errors=$((errors + 1))
   fi
-done <"$missing_tmp"
+done <"$emitted_tmp"
 
 # Stale baseline: entry no longer shadows a missing kind (either covered now, or
 # no longer emitted).
