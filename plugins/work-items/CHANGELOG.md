@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.39]
+
+### Fixed
+
+- **`reference/permission-preflight.md` cited the `work` skill by an unresolvable path.** The Step 0
+  pointer for the `reclaim` classifier-denial mitigation read `skills/work/SKILL.md`, whose implied
+  base is the plugin root while its real base is `reference/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. It now reads `${CLAUDE_PLUGIN_ROOT}/skills/work/SKILL.md`, the form the same
+  file already uses for `preflight.sh`. Intra-plugin citation, legal under clause 1; clause 3 only,
+  so the target is unchanged and no routing moves.
+
 ## [0.39.38]
 
 ### Changed

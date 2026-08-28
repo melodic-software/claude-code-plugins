@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.30]
+
+### Fixed
+
+- **`reference/config-resolution.md` cited `babysit-prs` by a path that resolved
+  against nothing.** The autonomy-table pointer read
+  `skills/babysit-prs/SKILL.md`, whose implied base is the plugin root while its
+  real base is `reference/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. It now reads
+  `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/SKILL.md`, the form the same file
+  already uses 65 lines below for `babysit-loop`. Intra-plugin citation, legal
+  under clause 1; this is clause 3 only, so the target is unchanged and no
+  routing moves. Found by a third derivation over the plugin-level
+  `reference/`, `context/` and `agents/` trees whose predecessor could not see
+  citations of a `SKILL.md` itself.
+
 ## [0.55.29]
 
 ### Changed
