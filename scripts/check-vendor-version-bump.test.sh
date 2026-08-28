@@ -242,6 +242,32 @@ else
 fi
 rm -rf "$f"
 
+# --- a NUL-corrupted BASE manifest is a loud exit, not a silent version -----
+# The malformed-manifest case above only reaches jq's parser because the
+# corruption survives the read. A raw NUL byte does not: `$(git show ...)`
+# makes Bash drop it (with a warning on stderr, nothing more), so jq receives
+# repaired JSON, parses it clean, and the gate trusts a version no manifest in
+# the base tree actually holds. Reading through a file keeps the stored bytes
+# intact, which is what makes this a parse error rather than a version.
+# The head manifest is left valid and bumped, which is what makes this the
+# fail-open shape rather than a merely wrong diagnostic: pre-fix the gate
+# compares a repaired "1.0.0" against a real "1.0.1", finds a difference, and
+# reports "Every plugin ... bumped" -- exit 0 over a base ref it never read.
+f="$(base_fixture)"
+printf '{"name":"alpha","version":\0"1.0.0"}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
+git -C "$f" add -A
+git_test_config "$f" commit -qm 'NUL-corrupted manifest'
+printf '{"name":"alpha","version":"1.0.1"}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+status=0
+out="$(run_gate "$f" --check-bump HEAD 2>&1)" || status=$?
+if [[ "$status" -eq 2 && "$out" == *"not valid JSON"* ]]; then
+  ok "a NUL-corrupted base manifest exits 2 instead of passing on a repaired version"
+else
+  fail "a NUL-corrupted base manifest should exit 2 naming the JSON, got status $status: $out"
+fi
+rm -rf "$f"
+
 # --- a version-less BASE manifest is a loud exit, not an exemption ----------
 # Same collapse, without even a jq diagnostic: `.version // empty` on a valid
 # manifest that lacks the key yields the empty string the carve-out keys on.

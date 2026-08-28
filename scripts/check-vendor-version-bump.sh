@@ -115,6 +115,19 @@ if [[ ${#changed_plugins[@]} -eq 0 ]]; then
   exit 0
 fi
 
+# Base manifests are staged through a file rather than a command substitution.
+# `$(git show ...)` is not a faithful read: Bash silently DROPS any raw NUL
+# byte from the captured output, so a base manifest corrupted by an embedded
+# NUL -- which is never valid JSON -- reaches jq already repaired, parses
+# clean, and yields a version the gate then trusts. The same read from a file
+# hands jq the bytes git actually stored, so a corrupt base manifest is the
+# exit 2 the header promises rather than a silent version.
+base_manifest_file="$(mktemp)" || {
+  echo "$(basename "$0"): mktemp failed; refusing to pass without a place to stage base manifests" >&2
+  exit 2
+}
+trap 'rm -f "$base_manifest_file"' EXIT
+
 stale=0
 for plugin in "${changed_plugins[@]}"; do
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
@@ -134,11 +147,11 @@ for plugin in "${changed_plugins[@]}"; do
   if [[ -z "$base_manifest_entry" ]]; then
     continue
   fi
-  if ! base_manifest_json="$(git show "$base:$manifest")"; then
+  if ! git show "$base:$manifest" >"$base_manifest_file"; then
     echo "$(basename "$0"): git show failed reading $manifest at $base; refusing to pass on a manifest this gate could not read" >&2
     exit 2
   fi
-  if ! base_version="$(jq -r '.version // empty' <<<"$base_manifest_json")"; then
+  if ! base_version="$(jq -r '.version // empty' "$base_manifest_file")"; then
     echo "$(basename "$0"): $manifest at $base is not valid JSON; refusing to treat an unreadable base version as a bump exemption" >&2
     exit 2
   fi
