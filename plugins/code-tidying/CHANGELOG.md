@@ -3,6 +3,22 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.13]
+
+### Fixed
+
+- **The filtered-probe guard is now pipefail-proof.** 0.14.12 shipped
+  `probe >/dev/null 2>&1 && probe | filter | head -10 || echo "(git status unavailable)"`. Under
+  `set -o pipefail` the `&&` list takes the pipeline's exit status, and pipefail makes that non-zero
+  in two ordinary situations: the filter matching nothing, and `git` taking SIGPIPE when `head`
+  closes the pipe at the cap. Both fire the failure token on a healthy probe, which is worse than
+  the defect 0.14.12 removed — the shape it replaced only ever said `none`, while this one
+  positively asserts that `git status` was unavailable when it ran fine. Reproduced on a repository
+  with 3,000 dirty files. The filter pipeline now sits in a brace group closed by `:`, a command
+  that cannot fail, so the `||` is reachable only by the guard short-circuiting.
+  `audit-comment-residue`'s parity test anchors its porcelain capture past `&& {`, so it evaluates
+  exactly the data run rather than an unterminated brace group. Both detector suites stay green.
+
 ## [0.14.12]
 
 ### Fixed
