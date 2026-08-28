@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.2.1]
+
+### Fixed
+
+- **The Phase 6 corpus baseline is stale: it reports Phase 3 figures.** The 0.2.0 entry records
+  1,347 tracked files after carve-outs, 525 stamp candidates, 482 parsed, 43 declined, 0 expired,
+  oldest parsed stamp 2026-04-08. All six reproduce exactly at `33dccc59`
+  ("corpus, breadcrumb, and stamp scripts, Phase 3 part 1" — the commit that introduces
+  `list-corpus.sh`), clean tree, running the scripts as they existed there. They were then carried
+  into the Phase 6 paragraph several commits later without re-measuring, so a paragraph presenting
+  itself as the Phase 6 measurement reports a Phase 3 one.
+
+  The current baseline, at `619199ee` with `--as-of 2026-08-28`: **1,352** tracked markdown files
+  after carve-outs (1,395 considered, 43 declined at path level), **535** stamp candidates,
+  **491** parsed, **44** declined at stamp level (20 month-name forms, 24 bare years), **0**
+  expired at the 180-day default, oldest parsed stamp 2026-04-08 at
+  `plugins/work-items/skills/track/actions/add.md:104`, and 9 findings at a 60-day window.
+  `list-corpus`'s path-level `declined: 43` and `check-stamps`'s stamp-level `declined: 44` count
+  different populations and are not an inconsistency.
+
+  **Two of those figures are date-relative and expire**, which is why the as-of date is pinned
+  beside the commit rather than left implicit. `0 expired at the 180-day default` holds only
+  until 2026-10-05 on the current oldest stamp, and `9 findings at a 60-day window` moves daily.
+  `check-stamps.sh --as-of` reproduces both at the recorded date. A baseline recorded without one
+  is the same staleness this entry corrects, one turn later.
+
+  **The delta is not what a first reading of it suggested.** It is not `main` moving across #3467
+  to #3469: those three contribute **+1 in total**, one added file in #3468. #3467 adds 20
+  markdown files and contributes **zero**, because every one lands under `evals/fixtures/golden/`
+  inside the excluded tree — which is why it raises `considered` by 20 and the fixture decline
+  from 3 to 23 while leaving the corpus untouched. The rest of the gap is the four months of
+  corpus growth between Phase 3 and now. Separately, `.claude/provenance.json` is first tracked in
+  `d7e391da`, so the `excluded_paths` layer postdates the figures in the 0.2.0 paragraph.
+
+  **A note on how the wrong diagnosis was nearly recorded instead**, because the method matters
+  more than this particular number. A first pass replayed the carve-out filter across 60 commits
+  reachable from `main`, found 1,347 at none of them, and concluded the figure came from no commit
+  at all. The originating commits sit on the pre-squash build branch, which the squash-merge made
+  unreachable from `main`; the reflog held them throughout. A history replay bounded at a squash
+  boundary cannot answer "does this number come from a commit", and reporting that it can converts
+  a missing sample into a false negative.
+
 ## [0.2.0]
 
 ### Added
@@ -324,6 +366,9 @@
   The declined count is the honest report the design asks for and not a defect to tune away — the
   corpus genuinely carries month-name and bare-year stamp forms, and a parser that guessed at
   them would manufacture findings against dates nobody wrote down.
+
+  **These are Phase 3 figures, carried into this Phase 6 paragraph without re-measuring.** They
+  reproduce exactly at `33dccc59`. See 0.2.1 above for the current baseline and its as-of date.
 
 - **The fingerprint module, the plugin's one pure library.** Word 5-shingles,
   containment, Jaccard, and contiguous matched spans between a local passage and an
