@@ -3,6 +3,16 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.11]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `detect.sh` collapses the
+  manual `--` argument-capture loop into the marketplace's precedented `EXPLICIT+=("$@"); break`
+  form and drops a dead `SECTION_COUNT=0` initializer (the variable is unconditionally
+  reassigned before its only read). Emitted rows, exit codes, and `--help` text unchanged;
+  refutation-verified across 23 argv edge cases and the full 40-case suite.
+
 ## [0.11.10]
 
 ### Changed
