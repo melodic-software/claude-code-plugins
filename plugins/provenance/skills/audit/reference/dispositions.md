@@ -160,3 +160,23 @@ move on. **A file is closed when every finding in it carries a disposition or an
 neutral outcome** — never when the interesting ones are done. Record each closure in the sweep
 ledger with its dispositions and guard outcomes, so an interrupted sweep resumes without
 re-deciding files it already closed, and so the closure count is a fact rather than a memory.
+
+The ledger is `.work/<topic-slug>/sweep-ledger.md`, and it is prose the run writes by hand. No
+script creates it, reads it back, or checks that an entry is complete, so an entry is worth
+exactly what the run put in it. Each closure carries five things, and an entry missing any of
+them cannot support a resume:
+
+1. **The file** that closed, by repo-relative path.
+2. **The dispositions** applied in it, one per finding, `leave-with-reason` and
+   `neutral-not-found` included.
+3. **The guard outcomes** for that file: pointer liveness, the semantic-diff verdict, the
+   in-span check, and the carve-out re-check.
+4. **The fetches spent** against `corpus_fetch_ceiling`, as a running total for the sweep rather
+   than for the file.
+5. **The cache entries** the sweep holds: each source URL with the time it was fetched, so a
+   resume can re-validate an entry instead of reusing it unseen.
+
+Fields 4 and 5 are what make the ceiling and the cache per-sweep rather than per-invocation. The
+ledger is checkout-local and never tracked; `SKILL.md` "Sweep" carries what a resume does with
+these fields, and why a sweep resumed in a different checkout is a new sweep rather than a
+continuation of this one.

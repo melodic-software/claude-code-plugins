@@ -61,6 +61,9 @@ assert_match() {
 assert_file() {
   if [[ -f "$2" ]]; then pass "$1"; else fail "$1" "exists: $2" "absent"; fi
 }
+assert_no_file() {
+  if [[ -e "$2" ]]; then fail "$1" "absent: $2" "exists"; else pass "$1"; fi
+}
 # assert_fails <label> <command...>: the command must exit non-zero.
 assert_fails() {
   local label="$1"
@@ -194,6 +197,88 @@ assert_contains "the trigger-less stamp is a row" "$BODY" "rule-trigger-less-sta
 assert_not_contains "an llm-suspected verdict never reaches the relay" "$BODY" "llm-suspected"
 assert_not_contains "a source-fetched-similar verdict never reaches the relay" "$BODY" "source-fetched-similar"
 assert_contains "withheld judgment findings are counted, not dropped" "$BODY" "2 judgment"
+
+# --- The not-found searched-surfaces schema check --------------------------------
+#
+# A `not-found` outcome names every surface it checked, and that listing used to be
+# prose-only. The sidecar now carries it as a `searched` array and this producer
+# refuses input without one, on the same input-refusal exit code as a sidecar with
+# no findings key: refusing beats composing from a sidecar whose neutral outcome
+# concludes nothing about anything.
+#
+# The refusal validates the SIDECAR, never an emitted row. `not-found` is a
+# judgment verdict the relay boundary withholds, so a well-formed one is accepted
+# and still emits nothing — and the `searched` surfaces it named must not reach the
+# findings file either. A schema check that relaxed the boundary to see its own
+# field would be a worse defect than the one it fixed.
+
+NF_SEARCHED='["https://code.claude.com/docs/llms.txt","site search: nf-surface.example"]'
+
+write_report notfound-absent.json '{
+  "counts": {"files": 3},
+  "findings": [
+    {
+      "rule": "provenance/audit/rule-verbatim-copy",
+      "file": "docs/page.md",
+      "span": {"start_line": 90, "end_line": 93},
+      "tier": "not-found"
+    }
+  ]
+}'
+
+write_report notfound-empty.json '{
+  "counts": {"files": 3},
+  "findings": [
+    {
+      "rule": "provenance/audit/rule-verbatim-copy",
+      "file": "docs/page.md",
+      "span": {"start_line": 90, "end_line": 93},
+      "tier": "not-found",
+      "searched": []
+    }
+  ]
+}'
+
+write_report notfound-listed.json "{
+  \"counts\": {\"files\": 3},
+  \"findings\": [
+    {
+      \"rule\": \"provenance/audit/rule-verbatim-copy\",
+      \"file\": \"docs/page.md\",
+      \"span\": {\"start_line\": 90, \"end_line\": 93},
+      \"tier\": \"not-found\",
+      \"searched\": $NF_SEARCHED
+    }
+  ]
+}"
+
+NF_ABSENT="$OUTDIR/notfound-absent.md"
+run --report "$REPORTS/notfound-absent.json" --out "$NF_ABSENT" >/dev/null 2>&1
+assert_exit "a not-found finding with no searched array exits 3" "$?" "3"
+assert_no_file "the refused sidecar writes nothing" "$NF_ABSENT"
+
+NF_EMPTY="$OUTDIR/notfound-empty.md"
+run --report "$REPORTS/notfound-empty.json" --out "$NF_EMPTY" >/dev/null 2>&1
+assert_exit "a not-found finding with an empty searched array exits 3" "$?" "3"
+assert_no_file "the empty-listing sidecar writes nothing" "$NF_EMPTY"
+
+NF_OK="$OUTDIR/notfound-listed.md"
+run --report "$REPORTS/notfound-listed.json" --out "$NF_OK" >/dev/null 2>&1
+assert_exit "a not-found finding naming its surfaces is accepted" "$?" "0"
+assert_file "the accepted sidecar still writes the file" "$NF_OK"
+NF_BODY="$(cat "$NF_OK")"
+assert_eq "an accepted not-found finding still emits no relay row" \
+  "$(grep -c '^| [0-9]' "$NF_OK")" "0"
+assert_not_contains "the not-found tier name never reaches the relay" "$NF_BODY" "not-found"
+assert_not_contains "the searched array never reaches the relay" "$NF_BODY" "searched"
+assert_not_contains "a searched surface never reaches the relay" "$NF_BODY" \
+  "nf-surface.example"
+assert_contains "the withheld not-found finding is counted" "$NF_BODY" "1 judgment"
+
+# The check is scoped to not-found. A relay-eligible finding carries no searched
+# array and must not be refused for the lack of one.
+run --report "$REPORTS/full.json" --out "$OUTDIR/nf-unrelated.md" >/dev/null 2>&1
+assert_exit "a sidecar with no not-found finding is unaffected" "$?" "0"
 
 # --- Producer-owned fields -------------------------------------------------------
 

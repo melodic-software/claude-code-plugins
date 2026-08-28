@@ -32,9 +32,10 @@
 # and the shape contract makes it required of review:fanout's own writer only.
 #
 # Exit: 0 on success (with findings or none — coverage is the payload), 2 on
-# usage error, 3 when the report carries no findings key at all (not audit
-# output; refusing beats composing from garbage), 4 when jq is absent, 5 when
-# the destination could not be written.
+# usage error, 3 when the report is not usable audit output (no findings key at
+# all, or a `not-found` finding naming no searched surfaces; refusing beats
+# composing from garbage), 4 when jq is absent, 5 when the destination could not
+# be written.
 set -uo pipefail
 
 REPORT=""
@@ -108,6 +109,27 @@ command -v jq >/dev/null 2>&1 || {
 
 if ! jq -e 'has("findings")' "$REPORT" >/dev/null 2>&1; then
   echo "emit-findings.sh: $REPORT has no findings key; not audit output" >&2
+  exit 3
+fi
+
+# The searched-surfaces schema check, on the same input-refusal exit code as the
+# guard above and for the same reason: refusing beats composing from a sidecar
+# whose neutral outcome asserts nothing. A `not-found` outcome is only meaningful
+# when it names the surfaces it checked, and that listing was prose-only until
+# this check.
+#
+# It validates the SIDECAR, not an emitted row, and it has to. The relay boundary
+# below withholds every `not-found` finding from the findings file, so there is no
+# row to check and no field to check it in — `searched` is read here and goes no
+# further. Non-empty is all this can assert: nothing here knows which surfaces the
+# run actually checked, so a complete listing and a truncated one look identical.
+if ! jq -e '
+  [ (.findings // [])[]
+    | select((.tier // "") == "not-found")
+    | select(((.searched // []) | if type == "array" then length else 0 end) == 0)
+  ] | length == 0
+' "$REPORT" >/dev/null 2>&1; then
+  echo "emit-findings.sh: $REPORT has a not-found finding naming no searched surfaces" >&2
   exit 3
 fi
 

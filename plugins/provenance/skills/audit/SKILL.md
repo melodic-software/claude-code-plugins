@@ -163,9 +163,28 @@ file survives its own remediation. Report totals: fixed, left, reverted, remaini
 
 `sweep` is the fix pipeline under closure accounting for a repo-wide pass: one tracked file at a
 time, apply, verify, close. **A file is closed when every finding in it carries a disposition or
-an explicit neutral outcome**, never when the interesting ones are done. Record each closure in
-the sweep ledger in the run's memory slice, so an interrupted sweep resumes without re-deciding
-closed files and the closure count is a fact rather than a memory.
+an explicit neutral outcome**, never when the interesting ones are done. Write each closure into
+the sweep ledger at `.work/<topic-slug>/sweep-ledger.md` in the run's memory slice, so an
+interrupted sweep resumes without re-deciding closed files and the closure count is a fact rather
+than a memory. The entry's required fields are in
+[`reference/dispositions.md`](reference/dispositions.md) "Sweep closure".
+
+**Nothing writes or reads that ledger for you.** No script in this plugin creates it, parses it,
+or checks an entry for completeness. It is a file the run keeps by hand, and every resume rule
+below holds only as far as the run kept it honestly.
+
+**The fetch ceiling and the response cache are scoped to the sweep, not to one invocation.**
+`corpus_fetch_ceiling` is spent across the whole sweep, so carry the running spend into the
+ledger beside each closure and, on resume, read it back and continue from that number instead of
+starting again at zero. The cache is per-sweep for the same reason: record which sources the
+sweep holds and when each was fetched, and on resume re-validate an entry before you reuse it,
+because a page fetched before the interruption may have changed since. Reusing an entry unseen
+means reporting on a body nobody in this sweep read.
+
+**The ledger is checkout-local.** It lives under this checkout's `.work/` and is never tracked,
+so no other checkout can see it. A sweep resumed where the ledger is not is a new sweep: it
+carries no closures, no spend, and no cache, and it says so in its report rather than presenting
+itself as a continuation.
 
 ## Configuration
 
@@ -195,9 +214,10 @@ fired on an identifier, a test runner exiting non-zero without failing.
   `llm-suspected`, and `not-found` reach the human report only. They have no crosswalk row to
   look a tier up from, and a relay row is an instruction to a remediation surface.
 - **Does not treat a missing source as evidence.** `not-found` names every surface checked and
-  concludes nothing about the passage. That listing is a prose obligation on the run: no script
-  field carries it and nothing verifies it is complete, so it is never validation evidence
-  (`reference/source-fetch.md`, "Budgets, caching, and stopping").
+  concludes nothing about the passage. `scripts/emit-findings.sh` refuses a sidecar whose
+  `not-found` finding names no surface at all, but nothing verifies the listing is complete, so
+  it is never validation evidence (`reference/source-fetch.md`, "Budgets, caching, and
+  stopping").
 - **Does not assess copyright.** The rubric measures drift risk; findings are editorial and the
   remedies are maintenance remedies. Nothing here is legal advice.
 - **Does not scan** code comments (`code-tidying:audit-comment-residue`), in-repo duplication
