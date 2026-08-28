@@ -141,7 +141,8 @@ Each printed verbatim into `## Unparsed` and skipped the searched-surfaces gate 
 **A record that is not an object at all has no declared tier to respect**, and it is bound for
 `## Unparsed` verbatim, so a verdict name appearing anywhere inside it would print into the file
 the boundary keeps it out of. Such a record is withheld when a verdict name appears anywhere in
-it: `[{"tier": "not-found", "excerpt": "..."}]` is a verdict in the wrong wrapper, not a future
+it, as a value or as a key: `[{"tier": "not-found", "excerpt": "..."}]` and
+`[{"not-found": {"excerpt": "..."}}]` are both a verdict in the wrong wrapper, not a future
 record. Naming a verdict EXACTLY is the test, so a malformed record that merely mentions one
 still takes the appendix path, and one that names none never costs the well-formed findings
 beside it.
@@ -153,19 +154,30 @@ it names a tier only when it EQUALS one — so `"  not-found  "`, `["not-found"]
 unknown tier rather than the verdict it happens to start with. A valid rule id sitting beside a
 verdict does not readmit it either.
 
-A tier that RENDERS as a verdict name in the written file IS a verdict name, so the two kinds of
-invisibility are handled differently, and each by the Unicode property that DEFINES it rather
-than by a list of the code points someone thought of. Characters that render as nothing are
-stripped EVERYWHERE, by `Default_Ignorable_Code_Point` plus the rest of `Cf`; anything narrower
-is another such list, and each narrower attempt leaked. An enumeration of two zero-width
-characters left six others through; trimming the class at the ends alone left an interior
-`"not-‍found"`; and stripping `Cf` alone left the variation selectors and the combining grapheme
-joiner, which are `Mn`.
+A tier that RENDERS as a verdict name in the written file should BE a verdict name, and the
+reader pursues that by Unicode CLASS rather than by a list of the code points someone thought of.
+Characters that render as nothing are stripped everywhere, by `Default_Ignorable_Code_Point` plus
+the rest of `Cf`, and hyphen-like code points are folded to ASCII by the dash class, because
+every one of these names is hyphenated. Anything narrower has been another such list, and each
+narrower attempt leaked: an enumeration of two zero-width characters left six others through;
+trimming the class at the ends alone left an interior `"not-‍found"`; stripping `Cf` alone left
+the variation selectors and the combining grapheme joiner, which are `Mn`; and before the dash
+class, `"not‐found"` spelled with U+2010 walked onto a relay row.
 
-What RENDERS is what counts, in both directions. Separators and combining marks at large do
-render, so a separator is trimmed at the ends only and a combining mark is not stripped at all:
-`"not found"` and `"not-fóund"` are different names, and this reader says so rather than guessing
-them into a verdict it never withheld.
+**Homoglyphs beyond the dash class are a stated limit, not a closed one.** No jq predicate closes
+rendering-equivalence in general, and claiming otherwise would be the defect this plugin exists
+to find. Such a tier is an unknown tier, so the record takes the `## Unparsed` path, which is
+visible and which `review:fanout` never auto-classifies — the same reason the free-text limit
+below is safe.
+
+Both directions matter. Separators and combining marks at large do render, so a separator is
+trimmed at the ends only and a combining mark is not stripped at all: `"not found"` and
+`"not-fóund"` are different names, and this reader says so rather than guessing them into a
+verdict it never withheld.
+
+**Keys are candidates as well as values.** `{"tier": {"not-found": true}}` says what
+`{"tier": "not-found"}` says, and reading values alone printed it verbatim into `## Unparsed`.
+"Every string anywhere inside" has to mean every string.
 
 Free text in a tier field therefore names no tier, which is the same answer this producer
 already gives a verdict name spelled in a `note`. It has to be: a `verdict.tier` reading "the
@@ -210,7 +222,9 @@ and never carry a row forward from a previous run.
 - **`Location`** is `<repo-relative path>:<line>`; the line is the finding's `line`, or its
   `span.start_line` for a copy finding. For a `fingerprint-confirmed` copy that start line is
   the module's exact matched span, not the nomination's approximation, which is what makes the
-  fix fenceable.
+  fix fenceable. It is pipe-escaped like every other cell that carries input: a path is not
+  trusted to be pipe-free, and `a|b.md` split the row so that every cell after it shifted a
+  column left.
 - **`Surface(s)`** is `provenance:audit`.
 - **`Finding`** leads with the qualified rule id, then the fired condition in this run's own
   values: matched span words, containment and the source URL for a copy; the stamp date, the

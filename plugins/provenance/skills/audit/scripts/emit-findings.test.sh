@@ -328,6 +328,21 @@ assert_contains "a bare pipe is escaped" "$PIPE_ROW" '\|'
 assert_not_contains "an already-escaped pipe is not double-escaped" "$PIPE_ROW" '\\|'
 assert_not_contains "a newline inside a cell is replaced" "$PIPE_ROW" $'\n'
 
+# Location carries input too, and was not escaped: a pipe in a path split the row and
+# shifted every cell after it one column left.
+write_report pipe-path.json '{
+  "findings": [
+    {"rule": "provenance/audit/rule-stamp-expired", "file": "a|b.md", "line": 1,
+     "stamp_date": "2025-01-01", "window_days": 180, "days_over": 9}
+  ]
+}'
+PIPE_PATH_OUT="$OUTDIR/pipe-path.md"
+run --report "$REPORTS/pipe-path.json" --out "$PIPE_PATH_OUT" >/dev/null 2>&1
+PIPE_PATH_ROW="$(grep 'rule-stamp-expired' "$PIPE_PATH_OUT" | head -1)"
+assert_eq "a pipe in a path keeps the row at the contract's columns" \
+  "$(printf '%s' "$PIPE_PATH_ROW" | sed 's/\\|//g' | tr -cd '|' | wc -c | tr -d ' ')" "8"
+assert_contains "and the path is escaped in place" "$PIPE_PATH_ROW" 'a\|b.md:1'
+
 # --- Unparsed and coverage -------------------------------------------------------
 
 UNP="$OUTDIR/unparsed.md"
@@ -1037,6 +1052,68 @@ for iv in "zwsp:not-found:INVIS-ZWSP" "zwnj:not-found:INVIS-ZWNJ" \
     "$IVB" "$ivv"
   assert_not_contains "an invisibly padded verdict leaks no payload ($ivn)" "$IVB" "$ivk"
   assert_contains "an invisibly padded verdict is counted ($ivn)" "$IVB" "1 judgment"
+done
+
+# A hyphen homoglyph renders exactly like the verdict it spells, and every one of
+# these names is hyphenated. Folded by the DASH class, not by a list.
+write_report tier-dash-u2010.json '{
+  "findings": [{"tier": "not‐found", "file": "x.md", "note": "DASH2010CANARY",
+                "searched": ["https://z.example/u"]}]
+}'
+write_report tier-dash-u2011.json '{
+  "findings": [{"verdict": "llm‑suspected", "file": "x.md", "note": "DASH2011CANARY"}]
+}'
+write_report tier-dash-minus.json '{
+  "findings": [{"tier": "not−found", "file": "x.md", "note": "DASHMINUSCANARY",
+                "searched": ["https://z.example/u"]}]
+}'
+for dc in "u2010:not-found:DASH2010CANARY" "u2011:llm-suspected:DASH2011CANARY" \
+  "minus:not-found:DASHMINUSCANARY"; do
+  dcn="${dc%%:*}"
+  dcr="${dc#*:}"
+  dcv="${dcr%%:*}"
+  dck="${dcr#*:}"
+  DCO="$OUTDIR/tier-dash-$dcn.md"
+  run --report "$REPORTS/tier-dash-$dcn.json" --out "$DCO" >/dev/null 2>&1
+  DCB="$(cat "$DCO")"
+  assert_not_contains "a hyphen homoglyph is still the verdict it renders as ($dcn)" \
+    "$DCB" "$dcv"
+  assert_not_contains "a hyphen homoglyph leaks no payload ($dcn)" "$DCB" "$dck"
+  assert_contains "a hyphen homoglyph is counted ($dcn)" "$DCB" "1 judgment"
+done
+
+# A verdict name spelled as a KEY says what the same name spelled as a value says.
+write_report tier-key-name.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-unknown", "file": "k.md", "line": 1,
+                "tier": {"not-found": true}, "note": "KEYNAMECANARY",
+                "searched": ["https://k.example/u"]}]
+}'
+write_report tier-key-wrapped.json '{
+  "counts": {"files": 2},
+  "findings": [{"rule": "provenance/audit/rule-unknown", "file": "k2.md",
+                "tier": [{"llm-suspected": 1}], "note": "KEYWRAPCANARY"}]
+}'
+write_report record-key-name.json '{
+  "counts": {"files": 2},
+  "findings": [[{"not-found": {"excerpt": "RECORDKEYCANARY"}}]]
+}'
+for kc in "tier-key-name:not-found:KEYNAMECANARY" \
+  "tier-key-wrapped:llm-suspected:KEYWRAPCANARY" \
+  "record-key-name:not-found:RECORDKEYCANARY"; do
+  kcn="${kc%%:*}"
+  kcr="${kc#*:}"
+  kcv="${kcr%%:*}"
+  kck="${kcr#*:}"
+  KCO="$OUTDIR/$kcn.md"
+  run --report "$REPORTS/$kcn.json" --out "$KCO" >/dev/null 2>&1
+  KCB="$(cat "$KCO")"
+  assert_not_contains "a verdict spelled as a key is still a verdict ($kcn)" \
+    "$KCB" "$kcv"
+  assert_not_contains "a verdict spelled as a key leaks no payload ($kcn)" "$KCB" "$kck"
+  assert_not_contains "a verdict spelled as a key opens no Unparsed section ($kcn)" \
+    "$KCB" "## Unparsed"
+  assert_contains "a verdict spelled as a key is counted ($kcn)" "$KCB" "1 judgment"
 done
 
 # A wrapped record carrying an invisibly spelled verdict is withheld by the same

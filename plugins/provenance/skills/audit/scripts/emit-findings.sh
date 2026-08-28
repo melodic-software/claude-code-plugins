@@ -233,13 +233,22 @@ def verdict_slot:
 #
 # Separators do render too, so they are trimmed at the ends only: `"not found"` is a
 # different string, not this verdict.
+# Hyphen-like code points are folded to ASCII by the DASH class, because every one of
+# these four names is hyphenated and `"not‐found"` spelled with U+2010 renders exactly
+# like the verdict it is. Homoglyphs beyond the dash class are a STATED LIMIT, not a
+# closed one: such a tier is an unknown tier, and the record takes the `## Unparsed`
+# path, which review:fanout surfaces for manual handling and never auto-classifies.
 def norm:
   ascii_downcase
   | gsub("[\\p{Default_Ignorable_Code_Point}\\p{Cf}]"; "")
+  | gsub("[\\p{Pd}\\x{2212}]"; "-")
   | sub("^[[:space:][:cntrl:]\\p{Z}]+"; "")
   | sub("[[:space:][:cntrl:]\\p{Z}]+$"; "");
+# KEYS are candidates as well as values: `{"tier": {"not-found": true}}` says what
+# `{"tier": "not-found"}` says, and reading values alone printed it verbatim into
+# `## Unparsed`. "Every string anywhere inside" has to mean every string.
 def names_in:
-  [ .[] | .. | strings | norm ];
+  [ .[] | .. | (strings, (objects | keys[])) | norm ];
 # `source-not-identified` is the spelling SKILL.md publishes for the neutral outcome
 # this file elsewhere calls `not-found`. Both are recognized, because the sidecar is
 # written against that description and a name this reader does not know is a verdict
@@ -287,7 +296,7 @@ def searched_slots:
 # not a future record. Naming a verdict exactly is the test, so a note that merely
 # mentions one still takes the appendix path the contract gives it.
 def stray_verdict:
-  [ .. | strings | norm ] | any(is_verdict_name);
+  [ .. | (strings, (objects | keys[])) | norm ] | any(is_verdict_name);
 '
 
 # The searched-surfaces schema check, on the same input-refusal exit code as the
@@ -572,8 +581,11 @@ END {
     # Confidence is `high` for every row here: each is a deterministic rule
     # that fired. Confidence is confidence-of-realness, never confidence in the
     # fix — the fix judgment is said in Tier and in the Action wording.
+    # Location is escaped like every other cell that carries input. A path is not
+    # trusted to be pipe-free — `a|b.md` split the row, and every cell after it
+    # shifted one column left, so the consumer read the Finding as a Surface.
     printf("| %d | %s | high | %s | provenance:audit | %s | %s |\n",
-      i, rule_tier(r_slug[i]), r_loc[i], esc(r_find[i]), esc(rule_action(r_slug[i])))
+      i, rule_tier(r_slug[i]), esc(r_loc[i]), esc(r_find[i]), esc(rule_action(r_slug[i])))
   }
   printf("\n")
 
