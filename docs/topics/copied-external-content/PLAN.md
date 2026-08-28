@@ -342,7 +342,7 @@ One expected unresolved reference: `context/persist-findings.md` and the referen
 `/provenance:audit`, whose `SKILL.md` lands in Phase 5. The repo's skill-reference hook flags it
 until then; it is correct as written and resolves when Phase 5 commits.
 
-### Phase 5: Skills and evals [TODO]
+### Phase 5: Skills and evals [DONE]
 
 Review: code-design
 
@@ -353,11 +353,13 @@ skill manages `.claude/provenance.json` including the Q16/Q10 keys and the `accu
 above; the audit flow reads the accuracy dials when spawning nomination, judge, and review
 subagents.
 
-- [ ] `plugins/provenance/skills/audit/SKILL.md` CREATE (composition step explicitly reconciles emit-findings.sh behavior against context/persist-findings.md, since Wave A authors the two halves of that contract in separate agents)
-- [ ] `plugins/provenance/skills/audit/evals/evals.json` CREATE (referencing ONLY fixtures that exist at this phase; the eval-quality lint FAILs unresolvable fixture paths, so golden-dir references wait for Phase 6's MODIFY)
-- [ ] `plugins/provenance/skills/setup/SKILL.md` CREATE
-- [ ] `plugins/provenance/skills/setup/evals/evals.json` CREATE
-- [ ] `scripts/skill-leaf-name-registry.txt` MODIFY (append `provenance` to the `audit` row's owner set with argued grounds per the file's own format; the row is a fixed 14-plugin set, no wildcard, and `check-skill-leaf-names.sh --check` fails on an owner-set change that arrives unargued. `setup` is wildcarded, no edit needed)
+- [x] `plugins/provenance/skills/audit/SKILL.md` CREATE (composition step explicitly reconciles emit-findings.sh behavior against context/persist-findings.md, since Wave A authors the two halves of that contract in separate agents)
+- [x] `plugins/provenance/skills/audit/evals/evals.json` CREATE (8 cases; referencing ONLY fixtures that exist at this phase; the eval-quality lint FAILs unresolvable fixture paths, so golden-dir references wait for Phase 6's MODIFY)
+- [x] `plugins/provenance/skills/audit/evals/fixtures/` CREATE (three synthetic fixtures about a fictional tool, so the repo carries no actual copied text: an expired stamp, a quoted-and-cited hard negative, and an unattributed restatement)
+- [x] `plugins/provenance/skills/audit/context/gotchas.md` CREATE (not in the original list; added because `check-skill` asks for a Gotchas surface and the build produced real failure history worth recording, and because moving it off SKILL.md kept that file under the 200-line soft target)
+- [x] `plugins/provenance/skills/setup/SKILL.md` CREATE
+- [x] `plugins/provenance/skills/setup/evals/evals.json` CREATE (6 cases)
+- [x] `scripts/skill-leaf-name-registry.txt` MODIFY (append `provenance` to the `audit` row's owner set with argued grounds per the file's own format; the row is a fixed 14-plugin set, no wildcard, and `check-skill-leaf-names.sh --check` fails on an owner-set change that arrives unargued. `setup` is wildcarded, no edit needed)
 
 **Sanity Check:** `bash scripts/check-changed-skills.sh origin/main` exits 0 with the two new
 skills in scope (it applies `--require-evals` to changed skills internally);
@@ -367,6 +369,27 @@ skills in scope (it applies `--require-evals` to changed skills internally);
 the audit SKILL.md's fetch step and fix-flow liveness check; `/skill-quality:check` over both
 SKILL.md files reports no blocking findings; `grep -n 'fix' plugins/provenance/skills/audit/SKILL.md`
 shows fix reachable only under an explicit-argument heading.
+
+**Sanity Check result, 2026-08-28.** All pass. `check-changed-skills.sh origin/main` exits 0 with
+both new skills in scope at 0 errors and 0 warnings; `check-skill-leaf-names.sh --check` exits 0
+at 15 registered collisions; both generators run and `validate-plugins.sh` exits 0; the two
+untrusted-content greps now match file-for-file over three files, adding SKILL.md to the two
+Phase 4 surfaces, so all four T8 ingest surfaces are covered (SKILL.md carries the full spine at
+its fetch step and the fix flow's liveness check cites that statement rather than restating it);
+`fix` appears only in the router row and under `## Fix flow (explicit invocation only)`. The
+ai-slop detector, markdownlint, typos and the eval-quality lint are all clean.
+
+Three corrections this phase made, each caught by a gate rather than by review:
+
+- **The branch was 22 commits behind `origin/main`**, which made `check-changed-skills.sh` report
+  a dropped-trigger-keyword regression in `ai-slop`, a plugin this branch never touched. Merging
+  `origin/main` cleared it. A skill warrant compares against the base ref, so a stale branch
+  manufactures failures in other people's skills.
+- **The setup skill's action vocabulary was wrong.** The setup contract requires `check` as the
+  leading action with `apply` documented (or a declared check-only carve-out), not the
+  `show`/`init`/`set` shape first drafted. `validate-plugins.sh` named all four violations.
+- **Setup skills must not carry `metadata.workflow-stage`/`summary`**: they are excluded from the
+  cheat sheet as infra setup, and `generate-cheatsheet.mjs` fails on the contradiction.
 
 ### Phase 6: Golden set, measurement, and the improvement loop [TODO]
 

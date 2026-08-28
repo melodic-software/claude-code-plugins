@@ -4,6 +4,25 @@
 
 ### Added
 
+- **The two skills, their evals, and the leaf-name registration.** `/provenance:audit` (default
+  read-only, plus explicit `fix` and `sweep`) and `/provenance:setup` (`check` by default,
+  `apply` on request), with 8 and 6 eval cases and a `context/gotchas.md` recording the build's
+  real failure history.
+
+  The audit's action router keeps mutation behind an explicit argument, so a bare invocation
+  scopes, judges and reports and touches nothing. The untrusted-content spine is carried in the
+  fetch step, and the fix flow's pointer-liveness check cites that statement rather than
+  restating it, which keeps one contract in the file instead of two wordings of it.
+
+  The setup skill is human-invoked under the setup contract, and the reason is specific rather
+  than ceremonial: config decides what the audit is allowed to ignore, so a model proposing its
+  own exclusions could quiet its own findings. Its eval set pins the refusals that matter, among
+  them declining to hardcode the fixture exclusion into `list-corpus.sh` and correcting the
+  premise that raising a gate shortens a report.
+
+  Eval fixtures describe a fictional build tool. A fixture that planted real copied text would
+  make the plugin's own repository carry the defect it exists to find.
+
 - **The reference artifacts, the audit's judgment half.** `rubric.md` (rubric version 1),
   `dispositions.md`, `source-fetch.md`, `nomination.md`, and `context/persist-findings.md`. Each
   is read at the step that needs it rather than preloaded, so a read-only audit never pays for
