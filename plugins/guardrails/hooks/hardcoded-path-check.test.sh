@@ -500,6 +500,31 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
+# --- Telemetry path: the hoisted helper, not a hand-rolled prefix strip ------
+# This hook kept its own copy of the repo-relative computation after the helper
+# was hoisted into hook-utils.sh, and the copy's redaction knew only two of the
+# three absolute spellings (it had no UNC arm). The scope guard above makes the
+# leaking shape unreachable HERE, so no black-box case can tell the two apart on
+# a POSIX host; the duplication is what this pins, so a third divergent copy
+# cannot reappear behind a guard that hides its behavior.
+HOOK_SRC=$(cat "$HOOK")
+assert_contains "path helper: uses hook::repo_relative_path" "$HOOK_SRC" 'hook::repo_relative_path'
+assert_absent "path helper: no hand-rolled prefix strip" "$HOOK_SRC" '_fwd#'
+
+# The value that computation produces is unchanged for the only shape that
+# reaches it: the scope guard guarantees a project dir that is a git work tree
+# and a file inside it, so data.file stays repo-relative.
+TELP="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINKP="$(make_sink "cat >\"$TELP\"")"
+mkdir -p "$TEST_TMPDIR/src"
+env HOOK_TELEMETRY_SINK="$SINKP" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" <<<"$(write_json "$TEST_TMPDIR/src/run.sh" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || true
+if wait_for_sink "$TELP"; then
+  assert_contains "telemetry: data.file is repo-relative" "$(jq -r '.data.file' "$TELP")" "src/run.sh"
+else
+  bad "telemetry: no envelope written for the repo-relative case"
+fi
+
 # ===================== PAYLOAD-SIZE BOUNDARY (regression) ====================
 # Guards the here-string deadlock. Bash delivers `<<<` through a pipe it fills
 # ITSELF before the reader is exec'd, and it appends a newline — so a payload of

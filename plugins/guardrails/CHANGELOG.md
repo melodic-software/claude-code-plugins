@@ -3,6 +3,33 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.22]
+
+### Fixed
+
+- **A UNC file path no longer reaches telemetry whole.** `secret-pattern-detection.sh`
+  kept its own copy of the repo-relative computation, and that copy's redaction
+  tested only two of the three absolute spellings: POSIX-absolute and
+  drive-lettered, never UNC. This guard deliberately scans on when no project
+  dir is set, and on that path the copy did no separator folding either, so a
+  `file_path` of the `\\server\share\file` shape matched neither redaction arm
+  and the whole share path, server name included, landed in the envelope's
+  `data.file`. It now calls `hook::repo_relative_path`, which carries the UNC
+  arm, and pairs it with `hook::repo_root` so a file with no project dir is
+  still reported relative to its own checkout instead of collapsing to a bare
+  basename.
+
+### Changed
+
+- **The last two hand-rolled path redactions collapse into the shared helper.**
+  `hardcoded-path-check.sh` carried the same duplicated block. Its scope guard
+  exits before the computation whenever the project dir is unset, so the leaking
+  shape was never reachable there and its emitted `data.file` is unchanged; the
+  copy is removed so a third divergent one cannot reappear. In both hooks
+  `file_rel` reaches only the telemetry payload, never a tool argument, and both
+  now resolve it inside `emit_tel`, so a run with no telemetry sink wired does
+  not pay for it at all.
+
 ## [0.29.21]
 
 ### Changed

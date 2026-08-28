@@ -189,31 +189,22 @@ if [[ -n "$PROJECT_ROOT" ]]; then
   fi
 fi
 
-# Repo-relative file for telemetry data.file (best-effort prefix strip).
-FILE_REL="$FILE"
-if [[ -n "$PROJECT_ROOT" ]]; then
-  _root="${PROJECT_ROOT//\\//}"
-  _root="${_root%/}"
-  _fwd="${FILE//\\//}"
-  FILE_REL="${_fwd#"$_root"/}"
-fi
-# Redaction: if the path could not be made repo-relative, emit the basename only
-# — never an absolute path (it would embed the developer's username) into telemetry.
-case "$FILE_REL" in
-/* | [A-Za-z]:*)
-  FILE_REL="${FILE_REL##*/}"
-  FILE_REL="${FILE_REL##*\\}"
-  ;;
-*) ;;
-esac
-
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
-# high-res start stamp and the opt-in sink — the unwired path spawns nothing.
+# high-res start stamp and the opt-in sink — the unwired path spawns nothing,
+# which is also why the repo-relative path is resolved in here rather than at
+# the top level: the default unwired run never pays for it.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
+  # The helper carries the redaction: a path it could not make repo-relative
+  # comes back as the basename, never an absolute path (which would embed the
+  # developer's username) and never a UNC share (which would name an internal
+  # host). PROJECT_ROOT is the anchor the envelope itself carries, and the
+  # scope guard above guarantees it is set, so no fallback root is needed.
+  local file_rel
+  file_rel="$(hook::repo_relative_path "$FILE" "$PROJECT_ROOT")"
   local data
-  data=$(jq -n --arg file "$FILE_REL" --argjson violations "$2" \
+  data=$(jq -n --arg file "$file_rel" --argjson violations "$2" \
     '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
     data='{"tool":"","file":"","violations":[]}'
   hook::emit_telemetry "hardcoded-path-check" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
