@@ -21,27 +21,43 @@
 # great majority cost almost nothing: on
 # 2026-08-20 the single worst file took ~123s where its own first 1200 lines
 # took ~3s, and the full sweep took ~10 minutes. That was structural rather
-# than environmental, and #3481 removed the structure. Three things drove it,
-# each fixed in place with the findings held byte-identical: the quote-aware
-# walk now RESUMES per physical line of a joined record instead of re-walking
-# the whole accumulation, the two derived views are assembled through a
-# chunked buffer instead of one string appended a character at a time, and the
-# stat fallback ladder is matched inside the window a ladder can occupy rather
-# than against everything after the hit.
+# than environmental, and #3481 removed the structure. Every change below was
+# made in place with the findings held byte-identical. The one that dominates
+# is that the quote-aware walk now RESUMES per physical line of a joined record
+# instead of re-walking the whole accumulation.
+#
+# An earlier revision of this header credited three changes — that walk, a
+# chunked buffer for the two derived views, and matching the stat fallback
+# ladder inside the window a ladder can occupy — and that list is wrong about
+# which of the remaining ones carry weight. Measured on 2026-08-29 by reverting
+# ONE change at a time and re-scanning this file, each ablation confirmed
+# output-identical first: the doubling `blanks()` pad is worth 2.30x, the
+# split-based `after_last_boundary()` 1.69x, the chunked buffer 0.99x, and the
+# cheap `index()`/`!~` pre-filters in is_negated() and status_swallowed()
+# nothing measurable at all (0.96x, inside the run-to-run noise). The two the
+# old list omitted are the two that pay; the buffer and the pre-filters are
+# kept because they cost nothing, not because they bought anything here.
 #
 # What made a file expensive was never its line count, which is why the shape
 # was so easy to misread: it was the length of its longest LOGICAL record. A
 # file of ordinary one-line commands scanned linearly before and still does
 # (25,600 such lines, ~1.7s then, ~1.9s now). A file carrying one long
 # quote-joined record paid a quadratic price for it, and this file is the
-# extreme of that class. Cost is linear in file length now, with a residue
-# proportional to how many hits a single joined record carries, which is why
-# this file is still the corpus's worst case.
+# extreme of that class. Cost is linear in file length now ONLY while the
+# longest logical record stays bounded: a file that is one enormous record is
+# still superlinear in that record's length, just with a far smaller constant.
+# The residue tracks record LENGTH, not how many hits the record carries, which
+# is why this file is still the corpus's worst case. Measured on 2026-08-29
+# against a synthetic file that is one quote-joined record with no hits in it
+# at all: 1,600 lines 0.11s, 6,400 lines 0.35s, 25,600 lines 6.58s. Holding the
+# record at 6,400 lines and varying hit density instead moved nothing outside
+# the noise: 0.35s with no hits, 0.38s with a hit every eighth line, 0.34s with
+# a hit on every line.
 #
 # As dated observations rather than standing claims -- the figures move with
 # the corpus and the machine, the shape does not -- both versions measured on
 # 2026-08-29 on one machine over one tree, before and after: this file, the
-# worst case in the corpus because its own awk program is a single 1,400-line
+# worst case in the corpus because its own awk program is a single ~1,580-line
 # quote-joined record, ~70s before and ~1.8s after; a 2,900-line script ~173s
 # before and ~0.4s after; the whole `--all` sweep of 1,537 files ~1,019s
 # before and ~35s after; and this gate's own suite, whose fixtures re-scan
@@ -576,7 +592,7 @@ scan_file() {
     # restarting it on every physical line (#3481). A quote-joined record grows
     # by one line at a time, and re-walking the whole accumulation each time
     # made the cost quadratic in the record length: this script IS the worst
-    # case, since its own awk program is one single-quoted 1,400-line record,
+    # case, since its own awk program is one single-quoted ~1,580-line record,
     # and a 1,600-line prefix of it pushed 41.7 million characters through this
     # function to answer 1,600 questions about its last two columns.
     #
