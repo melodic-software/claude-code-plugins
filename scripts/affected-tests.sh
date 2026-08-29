@@ -42,23 +42,31 @@
 #                    <dir>/test_<stem>.py — the last also with `-` folded to `_`,
 #                    which is how this repo names the Python suites covering its
 #                    hyphenated scripts (check-manifest-duplicate-keys.py ->
-#                    test_check_manifest_duplicate_keys.py). EVERY match is taken,
+#                    test_check_manifest_duplicate_keys.py) — and
+#                    <dir>/tests/test_<stem>.py, the one convention here that
+#                    puts the suite in a SUBDIRECTORY rather than beside the
+#                    file (13 of the 59 non-suite .py files in this repo). R3
+#                    cannot stand in for that arm and never could: a Python
+#                    suite reaches its subject with `import babysit_lease`, so
+#                    the filename is never spelled and there is nothing for a
+#                    text match to find. EVERY match is taken,
 #                    never just the first: a .py can carry both a test_<stem>.py
 #                    and a wrapping <stem>.test.sh, and stopping at one
 #                    under-selects, which is the unsafe direction.
-#   R3 referenced    any SUITE whose text contains the file's basename is a
-#                    covering suite (it names the file, so it exercises it). This
-#                    rule is a text match and therefore language-agnostic: a
-#                    Pester suite dot-sourcing Foo.ps1 and a Node suite importing
-#                    foo.js are found exactly the way a shell suite is. Widening
-#                    the corpus is what taught it the other three ecosystems; the
-#                    rule itself did not change.
+#   R3 referenced    any SUITE that NAMES the file — carries its basename as a
+#                    whole path token, see MATCHING below — is a covering suite
+#                    (it names the file, so it exercises it). This rule is a text
+#                    match and therefore language-agnostic: a Pester suite
+#                    dot-sourcing Foo.ps1 and a Node suite importing foo.js are
+#                    found exactly the way a shell suite is. Widening the corpus
+#                    is what taught it the other three ecosystems; the rule
+#                    itself did not change.
 #   R4 dependents    any other source file (.sh .bash .js .mjs .cjs .py .ps1
 #                    .psm1 — the same set the reverse-lookup pathspec searches,
 #                    and the same set lang_family() names; all three move
 #                    together or a path is classified into a family nothing ever
-#                    greps) whose
-#                    text contains the file's basename is a dependent; R2/R3 are
+#                    greps) that
+#                    NAMES the file the same way is a dependent; R2/R3 are
 #                    then applied to IT, transitively. This is what carries a lib
 #                    change out to the hooks that source it.
 #   R5 shared-lib    a file that is the `src` of a scripts/sync-*.sh selects
@@ -108,19 +116,110 @@
 # the reverse lookup was `-- '*.sh'`, so cross-language edges did not exist at
 # all and no shell-to-shell chain is shortened by any of this.
 #
-# KNOWN LIMIT, in the safe direction: R3/R4 look the basename up with
-# `git grep -o -F`, which is an unanchored SUBSTRING search — not a token match
-# and not a path match. So ANY basename that is a suffix-substring of another
-# path in the corpus matches every mention of that other path. `utils.sh` is a
-# substring of `hook-utils.sh`, so a new plugins/guardrails/hooks/utils.sh with
-# no real coverage at all selects 64 suites and exits 0 (measured) instead of
-# failing unmapped. Naming a file "distinctively" is NOT a defense: whether the
-# collision happens is decided by every OTHER path already in the repo, not by
-# how distinctive the new name reads on its own. Narrowing this needs real
-# shell/path parsing rather than a substring match, which is not worth the
-# fail-open risk the narrowing itself would carry. When a new file's basename
-# is a substring of an existing path, do not trust a non-empty selection to
-# mean the file is covered — check that the selected suites actually name it.
+# MATCHING, for R3 and R4. One file NAMES another when the basename stands
+# there as a WHOLE PATH TOKEN: bounded on both sides by a character that cannot
+# occur inside a single path component, which is anything outside
+# [A-Za-z0-9_.-]. `/` is deliberately OUTSIDE that class, so a path-qualified
+# mention names the file — `source "$dir/hook-utils.sh"`, `"./gadget.js"`,
+# `. (Join-Path $PSScriptRoot 'Get-Thing.ps1')` — and so does a bare mention in
+# prose or a comment. A leading or trailing run of `.` is sentence punctuation
+# rather than part of a name, so a comment ending "... is covered by
+# <stem>.test.sh." names that suite too — which is how most of this repo's
+# comments cite the suite covering them.
+#
+# A leading run of shell PARAMETER-EXPANSION OPERATOR characters is stripped for
+# the same reason: `"${TARGET:-<name>.sh}"` is a mention of <name>.sh, but the
+# `-` of the `:-` sits INSIDE the token class, so without the strip the token is
+# `-<name>.sh` and nothing matches. The stripped set is `-`, `+`, `=`, `?` — every
+# operator character of the `${V:-x}` / `${V:+x}` / `${V:=x}` / `${V:?x}` family
+# and its colon-less forms. Only `-` is load-bearing today: the other three are
+# already outside [A-Za-z0-9_.-] and so already end a token on their own. They
+# are stripped anyway so the two sets cannot drift apart if the token class is
+# ever widened. This errs toward OVER-selection — a token that merely BEGINS
+# with one of those characters now names the file — which is the direction
+# DIRECTION above calls safe, and every pair it admits is one the pre-token
+# substring rule admitted too. What it buys is the failure it removes: without
+# it, a file whose only mention from some dependent is `${VAR:-<name>.sh}` still
+# looked MAPPED whenever it had a co-located suite, so the run exited 0 while
+# that dependent's suite was quietly left out. A silent under-selection is
+# exactly what this tool exists to refuse.
+#
+# What no longer counts is a basename buried INSIDE a longer token:
+# `handoff-paths.json` is not a mention of `paths.js`,
+# `status.showUntrackedFiles` is not a mention of `status.sh`, and
+# `common.sh.tmpl` is not a mention of `common.sh` — all three are real hits
+# this corpus used to serve. Those were not merely noisy over-selection. They
+# were FALSE COVERAGE, which is the fail-OPEN direction: a file nothing covers
+# came back with a non-empty selection and exit 0 instead of failing unmapped,
+# so the FAIL LOUD contract above silently did not apply to it. Measured on this
+# corpus: a new hooks helper named with a basename that another path merely ENDS
+# with, covered by nothing at all, selected 131 suites at exit 0 — most of the
+# shell corpus, and an answer that would have been the same for any name in that
+# collision class; under this rule the same file is UNMAPPED. (The count tracks
+# the corpus and will drift; "most of it" is the part that matters.) Naming a
+# file "distinctively" was never a defense — whether the collision happens is
+# decided by every OTHER path already in the repo, not by how the new name reads
+# on its own. This paragraph deliberately does not spell that helper's basename:
+# a name written HERE is a name this file then references, and the tool would map
+# the file to this hub instead of failing loud, which is the very report the
+# example exists to describe. Every example below is spelled the same careful
+# way, and for the same reason.
+#
+# The class cuts BOTH ways, and this is the strict edge of the rule: a
+# token-class character abutting the basename ends the match exactly as a letter
+# does, because `-`, `_` and `.` are INSIDE the class while `/` is not. With the
+# leading strips above, that is now a TRAILING-side statement only:
+# `<name>-shaped` in a sentence stops naming <name>, while a leading `-`, the one
+# `${2:-<name>}` puts in front of a default, does not. The asymmetry is forced
+# rather than chosen — a leading strip cannot reach the trailing case, where the
+# whole token is `<name>-shaped` and there is no prefix to remove. Two files in
+# this corpus are mentioned in the trailing form today and keep their suites only
+# because they are ALSO named in bounded form elsewhere. A file mentioned only in
+# such a form loses R3/R4 outright — and that lands LOUD rather than silent: with
+# no other rule reaching it, the file is reported UNMAPPED at exit 1, which is
+# the fail-CLOSED direction this tool is built to shout about, not the silent
+# under-selection it is built to refuse.
+#
+# SWEPT over every tracked file when this landed: 534 files selected fewer
+# suites (15.8% fewer selected-suite slots across the tree), 4 files that had
+# been UNMAPPED became mapped, and NOTHING became unmapped. 25 files did drop to
+# an EMPTY selection — every one a markdown context file whose basename had been
+# landing inside a longer one (a `<verb>.md` matching inside a
+# `<something>-<verb>.md`), and every one already covered by a class in
+# scripts/affected-tests-no-suite.txt, so they report as no-suite at exit 0
+# rather than as a finding. "Nothing became unmapped" is therefore the true
+# statement, and "nothing lost its whole selection" is NOT.
+#
+# That sweep was measured before the expansion-operator strip landed, and the
+# strip only ADDS pairs back, every one of them a pair the old substring rule
+# also served. So it moves the counts toward the pre-rule baseline and can
+# reverse none of the sweep's directions: nothing that was mapped becomes
+# unmapped, and no file gains a suite the old behaviour did not already give it.
+# Measured on the corpus as it stands, the strip re-admits two (file, basename)
+# pairs in total, one of which R3/R4 discards anyway as a structural basename.
+#
+# Three things stay deliberately generous, all in the over-selecting direction:
+#   - a token match on the SAME basename in ANOTHER directory counts. This is a
+#     basename rule and has to stay one: R5's entire fan-out is copies that share
+#     a basename across directories (lib/hook-utils.sh ->
+#     plugins/*/hooks/hook-utils.sh), so a suite naming its own plugin's copy is
+#     naming the shared source. Requiring the whole repo-relative path would cut
+#     that, which is under-selection.
+#   - a mention in a comment counts, exactly as it did before.
+#   - a basename the token rule cannot express — one carrying a character
+#     outside [A-Za-z0-9_.-], which no tracked path in this repo does today —
+#     falls back to the old substring test rather than to no coverage at all. A
+#     name this rule cannot spell must over-select, never quietly stop matching.
+#
+# MECHANICALLY this is two stages, and the split is a measured cost rather than
+# taste. `git grep -F` keeps its fixed-string fast path (~4s over this corpus
+# for a 559-basename level); spelling the boundaries as an ERE alternation
+# instead — `git grep -o -E`, one bounded pattern per basename — took over two
+# minutes for that same level, which is not a usable per-level cost. So git grep
+# still finds the candidate LINES with the substring test, and one awk pass over
+# those lines (~0.06s) splits each into path tokens and keeps only the pairs
+# whose token IS one of the basenames asked about. Both stages fail loud; see
+# the call site in select_for.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -390,6 +489,64 @@ lang_family() {
   esac
 }
 
+# token_hits <patterns-file> <grep-output-file> <hits-file>
+# Reduce `git grep`'s SUBSTRING hits to the TOKEN hits R3/R4 actually mean: keep
+# a (file, basename) pair only where that basename stands in the matched line as
+# a whole path token. See MATCHING in the header for the rule and for why the
+# boundary test lives here instead of in the grep pattern.
+#
+# The input is git grep's `<path>:<line>` output; the output is `<path>:<name>`,
+# deduplicated, which is the shape the caller already parses. Splitting the LINE
+# rather than the path keeps a basename that appears only in the path prefix
+# from counting as a mention of itself.
+token_hits() {
+  awk -v pat="$1" '
+    # First file: the basenames this level asked about. A name that is itself a
+    # path token gets the exact test; anything else cannot be tokenized at all,
+    # so it keeps the old substring test rather than losing coverage silently.
+    FILENAME == pat {
+      if ($0 == "") next
+      if ($0 ~ /^[A-Za-z0-9_.-]+$/) want[$0] = 1
+      else loose[$0] = 1
+      next
+    }
+    function keep(path, name) {
+      if ((path SUBSEP name) in seen) return
+      seen[path SUBSEP name] = 1
+      print path ":" name
+    }
+    {
+      i = index($0, ":")
+      # No separator means no path: git grep says "Binary file X matches" that
+      # way, and a hit with no readable path must not become a frontier entry.
+      if (i == 0) next
+      path = substr($0, 1, i - 1)
+      text = substr($0, i + 1)
+      n = split(text, tok, /[^A-Za-z0-9_.-]+/)
+      for (j = 1; j <= n; j++) {
+        t = tok[j]
+        if (t == "") continue
+        if (t in want) { keep(path, t); continue }
+        # A trailing dot run is sentence punctuation (a comment ending "... in
+        # that suite."), and a leading one is an ellipsis butted against the
+        # name. Neither is part of a filename. The leading arm is the narrow
+        # one: a relative path needs no stripping, because the `/` in `./x`
+        # already delimits the token, so it fires only on a literal `...x`.
+        sub(/\.+$/, "", t)
+        if (t in want) { keep(path, t); continue }
+        # The leading strip also drops a run of parameter-expansion operator
+        # characters, so `${V:-<name>}` names <name>. Only `-` is load-bearing:
+        # it is the one operator character inside the token class, so it glues
+        # onto the name instead of ending the token. See MATCHING in the header.
+        sub(/^[-+=?.]+/, "", t)
+        if (t in want) keep(path, t)
+      }
+      for (name in loose)
+        if (index(text, name) > 0) keep(path, name)
+    }
+  ' "$1" "$2" >"$3"
+}
+
 # colocated_suites <path> -> every sibling suite covering it, one per line.
 # PLURAL on purpose: one source file can carry suites in two ecosystems at once
 # — a .py with both a co-located test_<stem>.py and a wrapping <stem>.test.sh
@@ -413,11 +570,19 @@ colocated_suites() {
     "$stem.test.mjs"
     "$stem.Tests.ps1"
     "$dir/test_$base.py"
+    # The one suite this repo puts in a SUBDIRECTORY instead of beside its
+    # subject. It has to be a path rule: the suites in question reach their
+    # subject with `import <module>`, which never spells the filename, so the
+    # reference rule has no text to match and the file looks uncovered.
+    "$dir/tests/test_$base.py"
   )
   # The hyphen fold is a SECOND candidate only when there is a hyphen to fold;
   # otherwise it is character-for-character the previous entry and would emit
   # the same path twice.
-  [[ "$base" == *-* ]] && candidates+=("$dir/test_${base//-/_}.py")
+  [[ "$base" == *-* ]] && candidates+=(
+    "$dir/test_${base//-/_}.py"
+    "$dir/tests/test_${base//-/_}.py"
+  )
   for candidate in ${candidates[@]+"${candidates[@]}"}; do
     [[ -f "$candidate" ]] && printf '%s\n' "$candidate"
   done
@@ -499,9 +664,11 @@ select_for() {
 
     [[ -s "$WORK_DIR/patterns" ]] || break
 
-    # R3/R4: one batched reverse lookup per level. The hits go through a FILE,
-    # not a process substitution, so this lookup can FAIL LOUD like every other
-    # step here. `done < <(git grep ... 2>/dev/null || true)` could not: after
+    # R3/R4: one batched reverse lookup per level, in the two stages MATCHING
+    # describes — git grep finds the candidate lines, token_hits keeps only the
+    # ones that NAME a basename rather than merely containing it. The hits go
+    # through a FILE, not a process substitution, so this lookup can FAIL LOUD
+    # like every other step here. `done < <(git grep ... 2>/dev/null || true)` could not: after
     # the loop `$?` holds the LOOP's status, git's stderr was discarded, and
     # `|| true` erased the code, so a git ERROR (exit >= 2 — a bad flag, an
     # unreadable pattern file, a corrupt index) was indistinguishable from NO
@@ -515,14 +682,23 @@ select_for() {
     # path into a family but nothing ever greps that path's content, the file is
     # silently under-covered while LOOKING supported — fail-open, and the reason
     # .bash and .cjs are in this list despite the repo carrying none today.
-    git grep --untracked -o -F -f "$WORK_DIR/patterns" \
+    git grep --untracked -F -f "$WORK_DIR/patterns" \
       -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' \
-      >"$WORK_DIR/hits" || grep_rc=$?
+      >"$WORK_DIR/matched-lines" || grep_rc=$?
     # Exit 1 is "no match" and is completely ordinary — most seeds reach a level
     # with no further dependents. Only above 1 is git itself failing.
     if [[ "$grep_rc" -gt 1 ]]; then
       echo "error: 'git grep' failed (exit $grep_rc) resolving dependents of the current level." >&2
       echo "       Refusing to continue: an unreadable reverse lookup silently UNDER-selects, and" >&2
+      echo "       under-selection is reported as success by everything downstream." >&2
+      exit 2
+    fi
+    # The boundary half of the lookup, and fatal for the same reason: a filter
+    # that dies mid-stream hands the walk a TRUNCATED hit set, which is an
+    # under-selection wearing a successful exit code.
+    if ! token_hits "$WORK_DIR/patterns" "$WORK_DIR/matched-lines" "$WORK_DIR/hits"; then
+      echo "error: the token filter over the reverse lookup failed on the current level." >&2
+      echo "       Refusing to continue: a partial filter silently UNDER-selects, and" >&2
       echo "       under-selection is reported as success by everything downstream." >&2
       exit 2
     fi

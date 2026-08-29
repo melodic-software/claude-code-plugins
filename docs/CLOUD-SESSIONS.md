@@ -268,6 +268,33 @@ enables; the cloud bootstrap installs (see
   uninstall/install/enable cycle for the plugins whose own directory changed between the two, so
   the usual resume stays cheap. Uncommitted edits are out of scope by design — use
   `claude --plugin-dir ./plugins/<name>`, which takes session precedence over the cached install.
+- **Reading the summary line's `failed` count (corrected 2026-08-28).** That count used to be the
+  exit status of the refresh chain, and the chain's tail step is nonzero on the healthy path:
+  `claude plugin install --scope user` already leaves the plugin enabled, so the following
+  `claude plugin enable --scope user` exits 1 with `Plugin "<id>" is already enabled at user
+  scope`. Startup lines like `plugins 71 enabled, 5 newly installed, 0 refreshed, 65 failed` were
+  therefore false alarms, and dozens of them per session start buried the only health signal this
+  block emits. The script now runs the chain for effect and verifies the end state once per run,
+  over every plugin `enabledPlugins` turns on rather than only the ones that run touched, since
+  the plugins most likely to be wrong are the ones it decided to skip. A plugin counts as failed
+  when any of these holds:
+  - `claude plugin list --json` does not list it at user scope, or lists it there with `enabled`
+    anything other than the JSON boolean `true`;
+  - its own directory under `plugins/` changed between the `gitCommitSha` recorded for the
+    user-scope install and `HEAD`, so the session would serve that plugin's older sources. A
+    recorded sha that merely differs from `HEAD` is NOT a failure: the check is
+    `git diff <recorded> HEAD -- plugins/<name>`, so unrelated commits since the install are
+    correctly ignored;
+  - the snapshot cannot be judged at all: no resolvable `HEAD` for the checkout, no registry
+    file, no recorded `gitCommitSha`, a `null` one, or a recorded commit this clone does not
+    have. Verification is deliberately fail-CLOSED here, unlike the refresh decision that reuses
+    the same inputs and skips what it cannot judge.
+
+  Each failure is named on stderr with its reason and the summary line appends the failing ids
+  after the count. So `0 failed` means every enabled plugin was checked and each one is installed
+  at user scope, enabled there, and serving sources that match `HEAD`; the one case where nothing
+  can be claimed, `claude plugin list --json` itself being unreadable, counts every plugin as
+  failed and says so in one line rather than one per plugin.
 - **Consumer repos** should declare the marketplace with a `github` source —
   `{"source": "github", "repo": "melodic-software/claude-code-plugins"}` — since the relative
   `directory` source is specific to this repo, whose reason to exist is validating in-flight
