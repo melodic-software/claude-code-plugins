@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.31]
+
+### Changed
+
+- **`resolve_self_logins` dedupes with one container instead of two.** The order-preserving
+  case-insensitive dedupe kept a result list alongside a `seen` set whose only job was to track keys
+  the result already implied; it is now the `dict.setdefault` form the sibling
+  `babysit_gh.resolve_authors` already uses for the same job. First-occurrence-wins and insertion
+  order are unchanged, and the two case-insensitive-dedupe sites in the engine now read alike.
+
 ## [0.55.30]
 
 ### Fixed

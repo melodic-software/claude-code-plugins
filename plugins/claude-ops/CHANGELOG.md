@@ -3,6 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.20]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `lanes`'s machine-behavior.sh
+  drops the WT_COUNT parallel counter (its two reads use `${#WT_LINES[@]}` directly, matching the
+  file's existing WANT_PLUGINS idiom); `observability`'s claude-observability.test.sh collapses two
+  case-based substring checks into the suite's own `assert_contains` helper. Both refutation-verified
+  (counter/array divergence structurally impossible; 26/26 and 33/33 suite checks byte-identical
+  old-vs-new including a glob-metacharacter probe matrix).
+
 ## [0.38.19]
 
 ### Changed

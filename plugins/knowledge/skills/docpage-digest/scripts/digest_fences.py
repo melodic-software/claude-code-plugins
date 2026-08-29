@@ -190,17 +190,12 @@ def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
             fences = extract_fences(block, start_line=block_start)
         except ValueError:
             fences = []
-            unclosed = True
-        else:
-            unclosed = False
         fence = fences[0] if fences else None
         prose = block if not fences else block.split("```", 1)[0]
         # Forbidden carriers are defects even when a later fence is valid —
         # a leftover blockquote/inline quote is still hook-corruptible.
         has_bq = bool(re.search(r"(?m)^>", prose))
         has_inline = bool(re.search(r"(?<!`)`[^`\n]+`(?!`)", prose))
-        if unclosed:
-            fence = None
         claims.append(
             Claim(
                 number=int(match.group(1)),

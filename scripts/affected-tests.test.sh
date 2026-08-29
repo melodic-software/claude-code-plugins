@@ -893,6 +893,30 @@ printf 'echo plus\n' >"$repo3/eco/name/plus+tool.sh"
   printf 'bash eco/name/plus+tool.sh\n'
 } >"$repo3/eco/name/plus.test.sh"
 
+# A file whose only mention from its DEPENDENT sits behind a shell default:
+# `"${TARGET:-<name>}"`. The `-` of the `:-` operator is inside the path-token
+# class, so without the operator strip the token is `-<name>` and the reverse
+# lookup never reaches the dependent.
+#
+# This case is here because it fails SILENTLY, which is worse than the shapes
+# above and is why it must be tested rather than argued about. The target has a
+# co-located suite of its own, so it stays MAPPED and the run still exits 0 —
+# while the dependent's suite, the one that actually drives it, is quietly
+# dropped. That is an under-selection reported as success, the exact failure
+# this whole file is built to refuse. Both suites must come back.
+printf 'echo defaulted\n' >"$repo3/eco/name/defaulted-target.sh"
+suite_body defaulted-target >"$repo3/eco/name/defaulted-target.test.sh"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'TARGET="${TARGET:-defaulted-target.sh}"\n'
+  printf 'bash "$(dirname "${BASH_SOURCE[0]}")/$TARGET"\n'
+} >"$repo3/eco/name/defaulting-runner.sh"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'bash eco/name/defaulting-runner.sh\n'
+} >"$repo3/eco/name/defaulting-runner.test.sh"
+
 git_test_config "$repo3" add plugins eco >/dev/null
 git_test_config "$repo3" commit -qm names >/dev/null
 
@@ -933,6 +957,15 @@ if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/name/ellipsis.test.sh; then
   ok "a reference butted against an ellipsis still names the file"
 else
   fail "ellipsis-prefixed reference lost (rc=$RC): $OUT"
+fi
+
+run_sel "$repo3" eco/name/defaulted-target.sh
+if [[ "$RC" -eq 0 ]] &&
+  has_line "$OUT" eco/name/defaulted-target.test.sh &&
+  has_line "$OUT" eco/name/defaulting-runner.test.sh; then
+  ok "a reference behind a \${VAR:-default} still names the file"
+else
+  fail "defaulted reference lost its dependent's suite (rc=$RC): $OUT"
 fi
 
 run_sel "$repo3" eco/name/plus+tool.sh

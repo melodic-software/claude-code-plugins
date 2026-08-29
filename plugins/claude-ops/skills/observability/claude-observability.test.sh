@@ -226,10 +226,7 @@ assert_eq "skill-usage uses its own 365d window, not --keep-days" "4" "$(lines_i
 
 # 9s-c: dry-run reports the resolved target without modifying it.
 su_out=$(cd "$clean_test_dir" && bash "$CLEAN" --dry-run --skill-usage-scope repo 2>&1 || true)
-case "$su_out" in
-*"skill-usage target"*) assert_eq "clean --dry-run names the skill-usage target" "1" "1" ;;
-*) assert_eq "clean --dry-run names the skill-usage target" "1" "0" ;;
-esac
+assert_contains "clean --dry-run names the skill-usage target" "$su_out" "skill-usage target"
 assert_eq "clean --dry-run preserves skill-usage" "4" "$(lines_in "$SU_FX")"
 
 # 9s-d: a short window does prune, so the branch is real and not inert.
@@ -246,10 +243,7 @@ mkdir -p "$su_slug_dir"
 printf '{"ts":"%s","event":"SkillUse","skill":"old:one"}\n' "$OLD_45" >"$su_slug_dir/skill-usage.jsonl"
 printf '{"ts":"%s","event":"SkillUse","skill":"new:two"}\n' "$TODAY" >>"$su_slug_dir/skill-usage.jsonl"
 su_dd_out=$(cd "$clean_test_dir" && bash "$CLEAN" --dry-run --skill-usage-scope data-dir --skill-usage-data-root "$su_data_root" 2>&1 || true)
-case "$su_dd_out" in
-*"$su_data_root/skill-usage/"*) assert_eq "data-dir resolves under the plugin data root" "1" "1" ;;
-*) assert_eq "data-dir resolves under the plugin data root" "1" "0" ;;
-esac
+assert_contains "data-dir resolves under the plugin data root" "$su_dd_out" "$su_data_root/skill-usage/"
 
 # 9s-e: data-dir refuses to guess a location. CLAUDE_PLUGIN_DATA in a skill
 # subprocess was observed pointing at an UNRELATED plugin's data directory, so a

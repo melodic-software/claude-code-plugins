@@ -87,11 +87,7 @@ done < <(clean_build_candidates "$REPO_ROOT")
 WT_COUNT="$(git worktree list 2>/dev/null | wc -l | tr -d ' ')"
 echo "Git worktrees: ${WT_COUNT:-0}"
 STALE_REFS="$(git remote prune origin --dry-run 2>/dev/null | head -5 | tr '\n' '; ')"
-if [[ -n "$STALE_REFS" ]]; then
-  echo "Git stale refs dry-run: $STALE_REFS"
-else
-  echo "Git stale refs dry-run: none"
-fi
+echo "Git stale refs dry-run: ${STALE_REFS:-none}"
 echo "Tier: git"
 
 printf 'Total reclaimable: %s\n' "$TOTAL_BYTES"

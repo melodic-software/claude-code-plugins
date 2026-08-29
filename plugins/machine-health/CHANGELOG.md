@@ -3,6 +3,16 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.15]
+
+### Changed
+
+- **`Clear-TempFiles.Tests.ps1` now parses check output through the shared helper.** The suite
+  inlined its own `($raw | Where-Object { $_ }) -join "`n" | ConvertFrom-Json` where sixteen sibling
+  suites already dot-source `tests/helpers/Invoke-CheckScript.ps1` and call `ConvertFrom-CheckOutput`.
+  The helper's body is that same expression, so the parse is unchanged; one copy of it disappears.
+  Test-only, no product behavior change.
+
 ## [0.11.14]
 
 ### Changed

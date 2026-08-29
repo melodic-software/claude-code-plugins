@@ -127,6 +127,23 @@
 # <stem>.test.sh." names that suite too — which is how most of this repo's
 # comments cite the suite covering them.
 #
+# A leading run of shell PARAMETER-EXPANSION OPERATOR characters is stripped for
+# the same reason: `"${TARGET:-<name>.sh}"` is a mention of <name>.sh, but the
+# `-` of the `:-` sits INSIDE the token class, so without the strip the token is
+# `-<name>.sh` and nothing matches. The stripped set is `-`, `+`, `=`, `?` — every
+# operator character of the `${V:-x}` / `${V:+x}` / `${V:=x}` / `${V:?x}` family
+# and its colon-less forms. Only `-` is load-bearing today: the other three are
+# already outside [A-Za-z0-9_.-] and so already end a token on their own. They
+# are stripped anyway so the two sets cannot drift apart if the token class is
+# ever widened. This errs toward OVER-selection — a token that merely BEGINS
+# with one of those characters now names the file — which is the direction
+# DIRECTION above calls safe, and every pair it admits is one the pre-token
+# substring rule admitted too. What it buys is the failure it removes: without
+# it, a file whose only mention from some dependent is `${VAR:-<name>.sh}` still
+# looked MAPPED whenever it had a co-located suite, so the run exited 0 while
+# that dependent's suite was quietly left out. A silent under-selection is
+# exactly what this tool exists to refuse.
+#
 # What no longer counts is a basename buried INSIDE a longer token:
 # `handoff-paths.json` is not a mention of `paths.js`,
 # `status.showUntrackedFiles` is not a mention of `status.sh`, and
@@ -150,14 +167,18 @@
 #
 # The class cuts BOTH ways, and this is the strict edge of the rule: a
 # token-class character abutting the basename ends the match exactly as a letter
-# does, because `-`, `_` and `.` are INSIDE the class while `/` is not. So
-# `<name>-shaped` in a sentence, and the `-` that `${2:-<name>}` puts in front of
-# a default, both stop naming <name>. Two files in this corpus are mentioned that
-# way today and keep their suites only because they are ALSO named in bounded
-# form elsewhere. A file mentioned only in such a form loses R3/R4 outright — and
-# that lands LOUD rather than silent: with no other rule reaching it, the file is
-# reported UNMAPPED at exit 1, which is the fail-CLOSED direction this tool is
-# built to shout about, not the silent under-selection it is built to refuse.
+# does, because `-`, `_` and `.` are INSIDE the class while `/` is not. With the
+# leading strips above, that is now a TRAILING-side statement only:
+# `<name>-shaped` in a sentence stops naming <name>, while a leading `-`, the one
+# `${2:-<name>}` puts in front of a default, does not. The asymmetry is forced
+# rather than chosen — a leading strip cannot reach the trailing case, where the
+# whole token is `<name>-shaped` and there is no prefix to remove. Two files in
+# this corpus are mentioned in the trailing form today and keep their suites only
+# because they are ALSO named in bounded form elsewhere. A file mentioned only in
+# such a form loses R3/R4 outright — and that lands LOUD rather than silent: with
+# no other rule reaching it, the file is reported UNMAPPED at exit 1, which is
+# the fail-CLOSED direction this tool is built to shout about, not the silent
+# under-selection it is built to refuse.
 #
 # SWEPT over every tracked file when this landed: 534 files selected fewer
 # suites (15.8% fewer selected-suite slots across the tree), 4 files that had
@@ -168,6 +189,14 @@
 # scripts/affected-tests-no-suite.txt, so they report as no-suite at exit 0
 # rather than as a finding. "Nothing became unmapped" is therefore the true
 # statement, and "nothing lost its whole selection" is NOT.
+#
+# That sweep was measured before the expansion-operator strip landed, and the
+# strip only ADDS pairs back, every one of them a pair the old substring rule
+# also served. So it moves the counts toward the pre-rule baseline and can
+# reverse none of the sweep's directions: nothing that was mapped becomes
+# unmapped, and no file gains a suite the old behaviour did not already give it.
+# Measured on the corpus as it stands, the strip re-admits two (file, basename)
+# pairs in total, one of which R3/R4 discards anyway as a structural basename.
 #
 # Three things stay deliberately generous, all in the over-selecting direction:
 #   - a token match on the SAME basename in ANOTHER directory counts. This is a
@@ -505,7 +534,11 @@ token_hits() {
         # already delimits the token, so it fires only on a literal `...x`.
         sub(/\.+$/, "", t)
         if (t in want) { keep(path, t); continue }
-        sub(/^\.+/, "", t)
+        # The leading strip also drops a run of parameter-expansion operator
+        # characters, so `${V:-<name>}` names <name>. Only `-` is load-bearing:
+        # it is the one operator character inside the token class, so it glues
+        # onto the name instead of ending the token. See MATCHING in the header.
+        sub(/^[-+=?.]+/, "", t)
         if (t in want) keep(path, t)
       }
       for (name in loose)

@@ -25,6 +25,7 @@ BeforeAll {
     $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:SkillRoot = Split-Path -Parent $script:TestsRoot
     $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\remediations\Clear-TempFiles.ps1'
+    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
     function New-MockTempFile {
         param(
@@ -48,9 +49,7 @@ BeforeAll {
 
     function Invoke-ClearTempFilesAsObject {
         param([int]$AgeDays = 7)
-        $raw = & $script:ScriptPath -AgeDays $AgeDays
-        $json = ($raw | Where-Object { $_ }) -join "`n"
-        return $json | ConvertFrom-Json
+        return ConvertFrom-CheckOutput (& $script:ScriptPath -AgeDays $AgeDays)
     }
 }
 
