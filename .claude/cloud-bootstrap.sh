@@ -148,7 +148,9 @@ fi
 #
 # Best effort by design: a plugin that fails to install costs that plugin's
 # skills, not the session. Idempotent — installed plugins are skipped, so a
-# resume re-run costs one `claude plugin list` call.
+# resume re-run costs two `claude plugin list` calls: one to see what is
+# installed, one to verify the end state afterwards. Measured on this VM with
+# nothing to do: 72 enabled, 0 installed, 0 refreshed, 0 failed.
 claude_bin="$repo_root/node_modules/.bin/claude"
 marketplace_name="melodic-software"
 if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
@@ -198,11 +200,68 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
     ! git diff --quiet "$recorded" HEAD -- "plugins/$name" 2>/dev/null
   }
 
+  # snapshot_problem <plugin-id> — the VERIFICATION counterpart of
+  # needs_refresh. It prints a reason when this run cannot show the installed
+  # snapshot is serving the plugin's current sources, and prints nothing when it
+  # can. Always exits 0; the OUTPUT is the verdict.
+  #
+  # Same question, deliberately OPPOSITE default, which is why this is a second
+  # function and not a second caller of the first. needs_refresh decides whether
+  # to spend an uninstall/install cycle, so every "cannot tell" case (no HEAD
+  # sha, no registry file, no recorded gitCommitSha, a JSON null flattened by
+  # `// ""`) correctly answers "do not bother". Verification asks whether the
+  # session is healthy, where "cannot tell" must NOT read as "healthy" — that
+  # fail-open is how a machine with no registry at all reported 0 failed. So
+  # each unknown becomes a named failure here. The one case needs_refresh
+  # already fails CLOSED on, a recorded commit this clone does not have
+  # (shallow fetch or force-push), is kept and reported for the same reason.
+  snapshot_problem() {
+    local id="$1" name="${1%@*}" recorded
+    if [[ -z "$head_sha" ]]; then
+      printf 'cannot verify snapshot: this checkout has no resolvable HEAD'
+      return 0
+    fi
+    if [[ ! -f "$plugins_registry" ]]; then
+      printf 'cannot verify snapshot: no plugin registry at %s' "$plugins_registry"
+      return 0
+    fi
+    recorded="$(jq -r --arg id "$id" \
+      '(.plugins[$id] // []) | map(select(.scope == "user")) | .[0].gitCommitSha // ""' \
+      "$plugins_registry" 2>/dev/null)"
+    if [[ -z "$recorded" || "$recorded" == "null" ]]; then
+      printf 'cannot verify snapshot: no user-scope gitCommitSha recorded in %s' \
+        "$plugins_registry"
+      return 0
+    fi
+    [[ "$recorded" != "$head_sha" ]] || return 0
+    if ! git cat-file -e "${recorded}^{commit}" 2>/dev/null; then
+      printf 'cannot verify snapshot: installed from commit %s, which this clone does not have' \
+        "$recorded"
+      return 0
+    fi
+    if ! git diff --quiet "$recorded" HEAD -- "plugins/$name" 2>/dev/null; then
+      printf 'plugins/%s changed between the installed commit %s and HEAD' "$name" "$recorded"
+    fi
+    return 0
+  }
+
+  # A subcommand's exit status is NOT the verdict here, because one of them is
+  # nonzero on the healthy path. `plugin install --scope user` leaves the
+  # plugin ENABLED, so the trailing `plugin enable --scope user` then exits 1
+  # with `Plugin "<id>" is already enabled at user scope`. Measured on claude
+  # 2.1.246 against this checkout: uninstall exit 0, install exit 0,
+  # `plugin list --json` showing the id at scope=user with enabled=true and the
+  # registry's gitCommitSha advanced to HEAD, and enable exit 1 with that
+  # message. Chaining the three with `&&` therefore scored almost every healthy
+  # refresh as a failure (observed startup lines: 65 failed of 66 refreshes,
+  # then 54), which buried the one real signal this block emits. So run the
+  # chain for effect, then verify the END STATE and let that decide.
   installed=0
   refreshed=0
-  failed=0
+  declare -A action_of=()
   for id in "${wanted[@]}"; do
     [[ -n "$id" ]] || continue
+    action_of["$id"]="no action"
     if [[ " ${have[*]} " == *" $id "* ]]; then
       # shellcheck disable=SC2310  # the return status IS the verdict
       needs_refresh "$id" || continue
@@ -210,24 +269,75 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
       # goes silently absent instead of silently stale. `--keep-data` preserves
       # the plugin's persistent data directory. It does not preserve
       # pluginConfigs — uninstall still drops stored userConfig.
-      if "$claude_bin" plugin uninstall "$id" --keep-data >/dev/null 2>&1 &&
-        "$claude_bin" plugin install "$id" --scope user -y >/dev/null 2>&1 &&
-        "$claude_bin" plugin enable "$id" --scope user >/dev/null 2>&1; then
-        refreshed=$((refreshed + 1))
-      else
-        failed=$((failed + 1))
-        echo "cloud-bootstrap: warning: plugin refresh failed: $id" >&2
-      fi
+      "$claude_bin" plugin uninstall "$id" --keep-data >/dev/null 2>&1 || true
+      "$claude_bin" plugin install "$id" --scope user -y >/dev/null 2>&1 || true
+      "$claude_bin" plugin enable "$id" --scope user >/dev/null 2>&1 || true
+      action_of["$id"]="refresh"
       continue
     fi
-    if "$claude_bin" plugin install "$id" --scope user -y >/dev/null 2>&1; then
-      installed=$((installed + 1))
+    "$claude_bin" plugin install "$id" --scope user -y >/dev/null 2>&1 || true
+    action_of["$id"]="install"
+  done
+
+  # End-state verification over the FULL enabled set, not just the plugins this
+  # run touched. Verifying only what was attempted fails open twice over, and
+  # both holes are reachable on a real machine: `have` is built from every scope
+  # `plugin list` reports (this VM carries 145 entries, 73 user and 72 project),
+  # so a plugin present only at PROJECT scope counts as present and is never
+  # installed at user scope; and `needs_refresh` skips a plugin it cannot judge,
+  # so one sitting at user scope with enabled:false, or with no recorded
+  # gitCommitSha, was never looked at again. Both then printed 0 failed. The
+  # whole set costs nothing extra: verification is one batched `plugin list
+  # --json` regardless of how many ids it covers.
+  #
+  # A plugin passes only when it is installed at user scope, enabled there
+  # (enabled must be the JSON boolean true, so a string "true" is rejected), and
+  # snapshot_problem finds nothing. Failures are NAMED, not just counted,
+  # because a bare count cannot be acted on.
+  failed_ids=()
+  end_state="$("$claude_bin" plugin list --json 2>/dev/null || true)"
+  listed=1
+  jq -e 'type == "array"' <<<"$end_state" >/dev/null 2>&1 || listed=0
+  if [[ "$listed" -eq 0 ]]; then
+    # One line for the batch. A per-plugin warning here would reproduce exactly
+    # the log flood this accounting change exists to end.
+    echo "cloud-bootstrap: warning: could not read \`claude plugin list --json\`; no plugin could be verified" >&2
+  fi
+  for id in "${wanted[@]}"; do
+    [[ -n "$id" ]] || continue
+    action="${action_of[$id]}"
+    reason=""
+    if [[ "$listed" -eq 0 ]]; then
+      reason="unverified"
+    elif ! jq -e --arg id "$id" 'any(.[]?; .id == $id and .scope == "user")' \
+      <<<"$end_state" >/dev/null 2>&1; then
+      reason="not installed at user scope"
+    elif ! jq -e --arg id "$id" \
+      'any(.[]?; .id == $id and .scope == "user" and .enabled == true)' \
+      <<<"$end_state" >/dev/null 2>&1; then
+      reason="installed at user scope but not enabled"
     else
-      failed=$((failed + 1))
-      echo "cloud-bootstrap: warning: plugin install failed: $id" >&2
+      reason="$(snapshot_problem "$id")"
+    fi
+    if [[ -n "$reason" ]]; then
+      failed_ids+=("$id")
+      [[ "$listed" -eq 0 ]] ||
+        echo "cloud-bootstrap: warning: $id failed verification after $action: $reason" >&2
+    elif [[ "$action" == "refresh" ]]; then
+      refreshed=$((refreshed + 1))
+    elif [[ "$action" == "install" ]]; then
+      installed=$((installed + 1))
     fi
   done
-  echo "cloud-bootstrap: plugins ${#wanted[@]} enabled, $installed newly installed, $refreshed refreshed, $failed failed"
+
+  plugin_summary="cloud-bootstrap: plugins ${#wanted[@]} enabled, $installed newly installed, $refreshed refreshed, ${#failed_ids[@]} failed"
+  if [[ "$listed" -eq 0 ]]; then
+    plugin_summary="$plugin_summary: none could be verified, see the warning above"
+  elif ((${#failed_ids[@]} > 0)); then
+    failed_list="$(printf '%s, ' "${failed_ids[@]}")"
+    plugin_summary="$plugin_summary: ${failed_list%, }"
+  fi
+  echo "$plugin_summary"
 else
   echo "cloud-bootstrap: warning: claude CLI or jq unavailable; plugins will not load" >&2
 fi
