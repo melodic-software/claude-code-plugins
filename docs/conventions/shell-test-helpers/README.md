@@ -24,7 +24,8 @@ below are not that: they are already three genuinely different shapes, not one l
   [`claude-ops/hooks/claude-ops-test-helpers.sh`](../../../plugins/claude-ops/hooks/claude-ops-test-helpers.sh).
 - **Skill-script shape** (`pass`/`fail`, `FAILED`/`CASE_NUM` counters, file-existence assertions):
   [`source-control/scripts/test-helpers.sh`](../../../plugins/source-control/scripts/test-helpers.sh),
-  [`repo-hygiene/skills/clean/scripts/lib/test-helpers.sh`](../../../plugins/repo-hygiene/skills/clean/scripts/lib/test-helpers.sh).
+  and `/repo-hygiene:clean`'s bundled test-helper copy — named rather than linked because it sits
+  under that skill's private `scripts/lib/`, not on the entry surface the pointers below reach.
 - **Vendored-seam shape** (same `pass`/`fail` primitives, but owned by the seam itself so it stays
   correct wherever the seam is resolved from — bundled or consumer-vendored — independent of this
   repo's tooling): [`work-items/tools/work-item-tracker/tests/lib.sh`](../../../plugins/work-items/tools/work-item-tracker/tests/lib.sh).

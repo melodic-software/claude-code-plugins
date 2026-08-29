@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## [0.13.24]
+## [0.13.25]
 
 ### Changed
 
@@ -22,6 +22,55 @@ only after that version increases.
   double-defaulting spread at the acquireFullStaged call site (the spread's withThrottle value was
   by construction mergedDeps' own value or the same default the callee re-derives; full
   case-matrix refutation including the null/undefined split found no divergent reachable shape).
+
+## [0.13.24]
+
+### Fixed
+
+- **`video-digest` and `course-digest`: the prerequisites gate would refuse to run on a machine that
+  HAS the toolchain.** 0.13.23 fixed a gate that failed open and left one that fails closed for the
+  wrong reason. The five tool probes were
+  `command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || echo "MISSING …"`.
+  Under `set -o pipefail` the `&&` list takes the pipeline's exit status, and `head -1` closes the
+  pipe while a multi-line version banner is still being written, so `ffmpeg` dies of SIGPIPE (exit
+  141) and pipefail promotes that to the list's status. The `||` then fires on a working tool. The
+  rendered context shows the real version line and `MISSING — install ffmpeg` directly beneath it.
+
+  That is not cosmetic. Both skills instruct the agent to STOP when the pre-computed context shows
+  `MISSING` for yt-dlp, ffmpeg, or ImageMagick. On a correctly provisioned machine the context now
+  shows `MISSING`, so the skill refuses to run against a toolchain that is installed and working.
+  0.13.23 turned a gate that failed open into one that spuriously fails closed. The direction is
+  safer, the behaviour is still wrong.
+
+  The five probes are not equally exposed, and the difference matters for diagnosis. Whether the
+  token fires is a race between the tool still writing its banner and `head -1` closing the pipe,
+  so it scales with how much the tool prints. Measured over 30 runs per size against a synthetic
+  tool on `PATH`, under `pipefail`, with the tool installed and working:
+
+  | Tool output | 0.13.23 shape fires `MISSING` | This shape |
+  |---|---|---|
+  | 1 line (`yt-dlp --version`) | 0/30 | 0/30 |
+  | 5 lines (`magick -version`) | 19/30 | 0/30 |
+  | 41 lines (`ffmpeg -version`) | 29/30 | 0/30 |
+
+  So `yt-dlp` is safe by output size alone, `ffmpeg` fails on nearly every run, and `magick` is a
+  genuine race that fails on roughly two runs in three. The intermittent one is the worst to live
+  with: a gate that stops the skill on most invocations and lets it through on the rest reads as
+  flakiness in the skill rather than as a defect in the probe. All five are fixed together, because
+  the shape is wrong regardless of how often it trips.
+
+  Proven by execution in three states, each with and without `pipefail`. Tool absent: both shapes
+  render `MISSING …` under both settings. Tool present, single-line output: both shapes render the
+  version, no token, under both settings. Tool present, banner long enough to close the pipe:
+  without `pipefail` both render one version line and no token; with `pipefail` the 0.13.23 shape
+  renders the version line **and** `MISSING — install ffmpeg (watch action only)`, and this one
+  renders the version line alone.
+
+  The version pipeline now sits in a brace group closed by `:`, a command that cannot fail, so the
+  `||` is reachable only when `command -v` short-circuits. This is the shape `docs-hygiene` 0.21.23
+  and `code-tidying` 0.14.13 established. No `$` expansion is introduced, so the composed
+  pre-compute block stays verifiable to the worktree-isolation guard. Neither skill declares
+  `allowed-tools`, so no grant changed.
 
 ## [0.13.23]
 

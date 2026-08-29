@@ -3,7 +3,7 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.12]
+## [0.11.13]
 
 ### Changed
 
@@ -12,6 +12,17 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   form and drops a dead `SECTION_COUNT=0` initializer (the variable is unconditionally
   reassigned before its only read). Emitted rows, exit codes, and `--help` text unchanged;
   refutation-verified across 23 argv edge cases and the full 40-case suite.
+
+## [0.11.12]
+
+### Changed
+
+- **Vendored `hook-utils.sh` gained `hook::repo_relative_path`.** The shared lib
+  now owns the repo-relative path computation twelve sibling hooks had each
+  hand-copied, together with the absolute-path degrade only four of those twelve
+  copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
 
 ## [0.11.11]
 

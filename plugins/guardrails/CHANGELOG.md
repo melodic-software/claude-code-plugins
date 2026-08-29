@@ -3,6 +3,56 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.22]
+
+### Fixed
+
+- **A UNC file path no longer reaches telemetry whole.** `secret-pattern-detection.sh`
+  kept its own copy of the repo-relative computation, and that copy's redaction
+  tested only two of the three absolute spellings: POSIX-absolute and
+  drive-lettered, never UNC. This guard deliberately scans on when no project
+  dir is set, and on that path the copy did no separator folding either, so a
+  `file_path` of the `\\server\share\file` shape matched neither redaction arm
+  and the whole share path, server name included, landed in the envelope's
+  `data.file`. It now calls `hook::repo_relative_path`, which carries the UNC
+  arm, and pairs it with `hook::repo_root` so a file with no project dir is
+  still reported relative to its own checkout instead of collapsing to a bare
+  basename.
+- **A trailing slash on the project dir no longer collapses every path.** The
+  helper strips `"$root/"`, so a root already ending in a separator forms the
+  prefix `/repo//` and matches nothing, degrading every in-project file to its
+  basename. The hand-rolled copies trimmed the separator first and the move to
+  the helper dropped that trim; both call sites now trim it back. A trailing
+  slash is a supported spelling of `CLAUDE_PROJECT_DIR`, which this plugin's
+  own scope tests already exercise. `hook::repo_root` never returns one, so the
+  other call sites of the helper were never exposed.
+
+### Changed
+
+- **The last two hand-rolled path redactions collapse into the shared helper.**
+  `hardcoded-path-check.sh` carried the same duplicated block. Its scope guard
+  exits before the computation whenever the project dir is unset, so the leaking
+  shape was never reachable there and its emitted `data.file` is unchanged; the
+  copy is removed so a third divergent one cannot reappear. In both hooks
+  `file_rel` reaches only the telemetry payload, never a tool argument, and both
+  now resolve it inside `emit_tel`, so a run with no telemetry sink wired does
+  not pay for it at all.
+
+## [0.29.21]
+
+### Changed
+
+- **Three independently written path redactions collapse into one helper.**
+  `cli-flag-verify.sh`, `skill-reference-verify.sh`, and `stale-path-verify.sh`
+  each carried their own copy of the cygpath normalization plus a
+  hand-written basename redaction; all three now call
+  `hook::repo_relative_path` in the shared `hooks/hook-utils.sh`, which owns
+  both. These three were among the four copies of the block that already
+  redacted, so their emitted `data.file` values are unchanged, and the helper
+  additionally redacts a UNC path, which the local copies did not match.
+  `file_rel` reaches only the telemetry payload in all three, never a tool
+  argument. Copies stay byte-identical via `scripts/sync-hook-utils.sh`.
+
 ## [0.29.20]
 
 ### Changed

@@ -32,6 +32,8 @@ having moved to `:16` when #3380 inserted a `## Contents` index above it.
 - [Verified, not applied](#verified-not-applied)
 - [Contradictions found](#contradictions-found)
 - [New refusals, recorded so nobody re-opens them](#new-refusals-recorded-so-nobody-re-opens-them)
+- [Open remainder after the encapsulation close](#open-remainder-after-the-encapsulation-close)
+- [The L4 roster is closed, all 34 rows, and Group 2 was never open](#the-l4-roster-is-closed-all-34-rows-and-group-2-was-never-open)
 - [Recall limits this run declares](#recall-limits-this-run-declares)
 
 ## What this run did differently
@@ -171,11 +173,16 @@ filtered probes print nothing.
 block to carry no `$` expansion other than a bare `$HOME`: an expansion leaves the composed block
 unverifiable to the worktree-isolation guard, and the skill then fails to load from an isolated
 agent (`session-flow` 0.17.16). `audit-derivability` demonstrates the binding, not a form to copy.
-All five sites took an equivalent that adds no `$` at all and heads the same `&&` list with a
-status-only run of the site's own probe:
+All five sites first took an equivalent that adds no `$` at all and heads the same `&&` list with a
+status-only run of the site's own probe. **That form was itself wrong, and is no longer what
+ships.** It is correct only without `set -o pipefail`; under pipefail the `&&` list inherits the
+pipeline's status, which both `grep` matching nothing and `git` taking SIGPIPE at the cap make
+non-zero, firing the failure token on a healthy probe. `docs-hygiene` 0.21.24 and `code-tidying`
+0.14.13 replaced it with the pipeline inside a brace group closed by `:`, a command that cannot
+fail, which is correct under both settings:
 
 ```text
-git status --porcelain >/dev/null 2>&1 && git status --porcelain 2>/dev/null | … | head -N || echo "(git status unavailable)"
+git status --porcelain >/dev/null 2>&1 && { git status --porcelain 2>/dev/null | … | head -N; :; } || echo "(git status unavailable)"
 ```
 
 The probe runs twice, which is the price of not capturing it. No line holds a `$` expansion after
@@ -183,11 +190,14 @@ the change: the `$` characters that remain are end-of-line anchors in single-quo
 and field references in single-quoted `awk` programs, all pre-existing and none of them expanded by
 the shell. Each site kept its own filter, its own cap and its own label noun; each label gained
 `empty = none`; the failure token is the `(git status unavailable)` string the normalized status
-probes already use. Verified by execution in three states per site: outside a repository each prints
-the token, inside a repository whose dirty files do not match the filter each prints nothing, and
-above the cap the cap holds with no spurious fallback. Landed in `docs-hygiene` 0.21.23 and
-`code-tidying` 0.14.12, which also carry the two `detect.test.sh` extractors that read these lines
-out of `SKILL.md` and were anchored on the old labels.
+probes already use. Verified by execution in three states per site, **without pipefail**: outside a
+repository each prints the token, inside a repository whose dirty files do not match the filter each
+prints nothing, and above the cap the cap holds with no spurious fallback. That qualifier is the
+whole lesson: the same three states under pipefail print the token in two of them, which is what
+0.21.24 and 0.14.13 had to correct. A verification that fixes the shell's options and does not say
+so proves less than it appears to. Landed in `docs-hygiene` 0.21.23 and `code-tidying` 0.14.12,
+which also carry the two `detect.test.sh` extractors that read these lines out of `SKILL.md` and
+were anchored on the old labels.
 
 One filtered probe with the unreachable shape remains open, and is out of this section's scope
 because its probe is not `git status`:
@@ -328,6 +338,417 @@ Beyond the predecessor's 13. Each was resolved against the real files and refuse
 - Plus roughly 120 further per-cluster refusals across the eight triage batches, each recorded with
   its form and ground in the pull request that carries this file.
 
+## Open remainder after the encapsulation close
+
+Recorded so a later pass does not have to re-find them. Stamped 2026-08-28 and subject to the decay
+rule at the top of this file. Two of the three below are now closed in place, each marked at its own
+heading: the twelve created citations are adjudicated and needed no edit, and the `dometrain`
+staleness is written into the playbook with the re-review logged as owed. The tree-shaped exclusions
+stay open.
+
+### Twelve citations the encapsulation close created and never rostered
+
+The pass that closed the encapsulation floor wrote a convention CHANGELOG entry for each fix, and
+every entry quotes the path it removed. Those quotes are themselves `docs/**` citations of the exact
+shape the pass was sweeping, created by the sweep, counted by nobody. **Verified against
+`origin/main`, twelve of them:**
+
+| File | Lines |
+|---|---|
+| `docs/conventions/config-cascade/CHANGELOG.md` | 12, 13, 14 |
+| `docs/conventions/detector-findings/CHANGELOG.md` | 44, 57 |
+| `docs/conventions/loop-lane/CHANGELOG.md` | 69 |
+| `docs/conventions/native-references/CHANGELOG.md` | 16, 17, 18 |
+| `docs/conventions/permission-rule-hygiene/CHANGELOG.md` | 14 |
+| `docs/conventions/topic-docs/CHANGELOG.md` | 11, 12 |
+
+One correction to the roster this was handed as: the `loop-lane` row was reported at `:14`, which is
+where it sat when the pass wrote it. Release `9.1.0` landed above it, and the citation is at `:69`
+today, inside the `9.0.2` entry. That is the decay rule firing on a record less than a day old, and
+it is why a later pass must **re-derive by the text and never by these numbers.**
+
+**The twelve are disjoint from the three this file already counts, confirmed by differencing the
+tree at the fix commit's parent.** Before that commit, exactly three lines in
+`docs/conventions/*/CHANGELOG.md` cited a plugin skill by path: two in `detector-findings` and one in
+`loop-lane`. Those are the "three dated changelog entries that quote a citation as it stood" in the
+kept set. Every one of the twelve above was written by the fix commit itself, so **the arithmetic is
+16 fixed and 35 kept, not 16 and 23**, and the changelog-evidence class is fifteen rather than three.
+
+**Adjudicated 2026-08-28: all twelve are keep-correct, and none was edited.** Each was ruled
+individually against the test now written into
+[ADR 0018](../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+amendment, not accepted as a class. Every one sits inside a dated entry whose claim is what a named
+file contained on that date, and each is quoted as the string the entry removed. No reader is sent
+to any of them to get a rule, so none is an address. Three sub-rulings the class needed:
+
+- The three `config-cascade` rows quote plugin-relative forms (`skills/audit/scripts/detect.sh`,
+  `skills/setup/SKILL.md`, `run-e2e/context/e2e-config.md`) that resolve against nothing from that
+  file, and the entry says so. Clause 3 does not fire on them: the entry asserts their
+  non-resolution rather than offering them as addresses, so requiring them to resolve would delete
+  the finding.
+- The other nine all resolve on disk today from the base their own form implies, checked one at a
+  time, so clause 3 is satisfied where it does apply. They cover **eight** distinct targets, not
+  eleven: `plugins/review/skills/fanout/SKILL.md` is cited by both `detector-findings` `:44` and
+  `native-references` `:17`. Eleven is the distinct-target count across all twelve rows, the nine
+  plus `config-cascade`'s three; #3477's merged message applied it to the nine, where it cannot
+  hold.
+- None of the twelve carries a line pin or a step pin, which is the part the amendment says rots
+  first. Nothing to drop.
+
+**Two wording corrections, seventh review round.** This section previously said each of the twelve
+names "the public invocation that replaced it **in the same sentence**", and that `config-cascade`'s
+entry asserts non-resolution "in the same sentence" as the quoted forms. Neither is accurate as
+written, and the rulings do not depend on it.
+The `detector-findings` bullet beginning "The `docs-hygiene:audit-noise` adopter row stops
+path-citing the producer's shape library" names **no slash invocation as the replacement** — the row
+"now says 'its shape library' and 'the scanner'", a rename to the row's own terms rather than a
+routing fix — and the other eleven name the invocation in a **later sentence of the same bullet**.
+`config-cascade`'s non-resolution assertion ("All three are plugin-relative paths that resolve
+against nothing from this file") is likewise the sentence that follows the three quoted forms rather
+than the sentence carrying them. The unit that carries the evidence claim is the bullet, not the
+sentence, and the substance holds at that unit: every row states what it removed and why.
+
+A first attempt at this correction said that bullet "names **no** invocation at all", which its own
+text refutes: it names `docs-hygiene:audit-noise` and `claude-config:audit-instructions`, just not as
+the replacement. That attempt also pinned the `config-cascade` sentences at `:13-14` and `:11-13`
+when the quoted forms are on 12, 13 and 14 and the assertion runs 14 to 16 — a line pin written into
+the very file whose decay rule says the check is the text. Both are corrected here on text anchors,
+and both were caught by the round verifying this one.
+
+The judgment is what was missing, and it is now recorded so a pass that re-derives this shape reads
+a ruling instead of buying twelve fresh ones. The general lesson is worth more than the twelve rows:
+**a sweep that documents each fix by quoting the citation it removed manufactures new instances of
+the shape it is sweeping,** so its own output has to be swept before the count is closed.
+
+Re-derivation for this adjudication used a different expression from the one that built the table
+above (added lines of the fix commit, matched on a path-shaped token, rather than a scan of the
+files at rest) and returned the same twelve. It also returned one citation the table excludes on
+purpose: `plugins/review/reference/topic-docs.md`, added by the same commit at
+`detector-findings` 2.8.1. That is a plugin-level non-skill tree, outside this roster and inside the
+one ADR 0018's amendment routes to its own pass, and the entry naming it declares it a keep rather
+than quoting it as removed.
+
+**The pass writing this section did the same thing, deliberately, three more times.**
+`docs/conventions/plugin-data-report-keying/CHANGELOG.md` 1.0.1 quotes the three pins it dropped, so
+the class stands at eighteen. They are keep-correct on the same ground as the twelve, and they are
+declared here rather than left for the next re-derivation to find. That is the only discipline
+available: the alternative is a changelog entry that does not say what it changed.
+
+### Three trees the sweep excluded by fiat
+
+The sweep's encapsulation floor scoped itself to `docs/**` and then dropped five subtrees. Two of the
+exclusions are defensible and stated as such: `docs/SKILL-CHEAT-SHEET.md` (162 citations, generated
+and CI drift-checked, so an edit is reverted by its generator) and `docs/upstream/` (vendored, not
+this repo's prose to style). **The other three rest on nothing.** `docs/specs/` (roughly 265 sites),
+`docs/topics/` (roughly 43) and `docs/adr/` (25) were excluded on the assertion that "the dated
+records under `docs/specs/`, `docs/adr/` and `docs/topics/` are out of scope by the same test", and
+no carve-out in ADR 0018 authorizes any of it.
+
+The assertion is *probably* right and is *not* established. Under the amendment's test most of that
+population is evidence: dated records, and ADR bodies that quote what they cite. But "most of a
+265-site population is evidence" is a hypothesis about 265 sites, argued from the tree a citation
+lives in rather than from what the citation does, which is the form-over-function reasoning the
+amendment rejects. A tree-shaped exclusion is a carve-out; ADR 0018 grants none. Either the pass that
+resumes this samples the three trees and records the ruling, or the ADR gains the carve-out
+explicitly. It should not stay a habit.
+
+Counts re-derived for this record and rounded deliberately: the exact figure moves with the search
+expression, and per this file's own recall-limits discipline none of these numbers is a total.
+
+### A stale record found in passing, not an ADR matter
+
+`docs/MIGRATION-PLAYBOOK.md`'s "Review record — `dometrain` (ACCEPT, 2026-07-22)" carries the
+clause "Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review."
+**The plugin's manifest reads `0.2.7`** (`plugins/dometrain/.claude-plugin/plugin.json`, read from
+the working tree, not from the roster). Eleven releases landed in between and the review was never
+re-run, so the record asserts a currency it does not have.
+
+**Closed 2026-08-28, as a record rather than as a review.** The playbook now states the staleness in
+place, directly under the re-trigger clause: the reviewed version, the shipping version, and the
+fact that whether any of the eleven added a trust surface is unadjudicated, which is the condition
+the clause turns on and the one thing that cannot be settled without running the review. The
+re-review is logged as owed and was deliberately not performed here. Whoever runs it replaces that
+note.
+
+This is not a citation defect and does not belong to the encapsulation lane. It is logged here
+because the encapsulation pass kept that record's five file-and-frontmatter citations *on the
+strength of* its re-trigger clause, which means the clause was read and its own condition was not
+checked. Whoever re-runs the review owns the record; the citations are fine either way.
+
+### Corrections to the merged messages of #3477 and #3478
+
+A merged commit subject and body cannot be edited, so four claims those two messages make are
+corrected here, where a reader who follows the refs will meet them. None changes an adjudication;
+all four are the record misdescribing itself.
+
+**The `dometrain` subject over-claims, and the file it added does not.** `dd6c11fe`'s subject is
+"…and flag a **fired** security re-trigger". Nothing in the change establishes that the re-trigger
+fired. The note it added says the opposite, correctly: whether any of the eleven releases added a
+trust surface "cannot be settled either way by reading this page", and the re-review is logged as
+owed rather than performed. What is established is a stale review record and an unadjudicated
+condition. **Read the subject as "flag a possibly-fired security re-trigger"**; the playbook text is
+the accurate statement and needs no edit. Recorded rather than left, because a security claim
+reading stronger in the log than in the artifact is the direction that misleads.
+
+**The `:943` re-anchoring was good practice for a reason that was not true.** `dd6c11fe`'s message
+says the spec's `dometrain` entry pinned `MIGRATION-PLAYBOOK.md:943`, "a line this change's own edit
+would have invalidated", and claims the decay rule was for the first time "caught before landing".
+The insertion lands below that line:
+
+```console
+$ git show dd6c11fe --unified=0 --format='' -- docs/MIGRATION-PLAYBOOK.md | grep '^@@'
+@@ -944,0 +945,7 @@ ### Review record — `dometrain` (ACCEPT, 2026-07-22)
+```
+
+A pure insertion after 944 does not move 943. Re-anchoring a pin onto heading text instead of a line
+number is still the right call and the entry keeps it, but the justification and the credit both go.
+No violation was caught; a hazard was avoided that was not present on this diff.
+
+**"Two checks were run … which the note says" is false about the note.** `dd6c11fe`'s message says
+two checks were run to avoid claiming a trust surface was added, "which the note says". The note
+says nothing about any checks — it states the reviewed version, the shipping version, that the
+question is unadjudicated, and that the re-review is owed. Whether the two checks ran is not
+recoverable from the diff either. Treat the note's own text as the whole of what this pass
+established.
+
+**"Every one of #3468's ADR-0018 citation fixes wrote a CHANGELOG entry" is false, in the
+harmless direction.** `c66f26ce` also fixed two sites that produced no changelog entry: the
+Convention registry row in `docs/PLUGIN-PHILOSOPHY.md`, and a `skills/confirm/SKILL.md` parenthetical
+in `docs/conventions/pre-pr-ordering/README.md` — a convention that ships no `CHANGELOG.md` at all
+(`ls docs/conventions/pre-pr-ordering/` returns `README.md` alone). Both were resolved by deleting
+the path rather than by quoting it, so neither manufactured a new citation. The twelve-row count and
+the "16 fixed and 35 kept" arithmetic are unaffected; only the universal is wrong. It matters
+because the sweep's own lesson — that documenting a fix by quoting the citation it removed
+manufactures the shape being swept — is a tendency of the changelog form, not a law of the pass, and
+these two are the counter-examples that show the tendency is escapable.
+
+## The L4 roster is closed, all 34 rows, and Group 2 was never open
+
+A pass dispatched to fix the predecessor roster's eight Group 2 rows found **nothing to fix**. All
+eight were closed on 2026-08-26 by
+[#3380](https://github.com/melodic-software/claude-code-plugins/pull/3380) (`6c7a1032`). Its own
+message says so in a clause nobody carried forward: "eight citations written with an implied base of
+the plugin root while the real base was `reference/` — none of them resolved for any reader". It
+fixed them in the citing files and left the roster's summary line asserting that all 34 still
+resolved to the citing text the audit quoted.
+
+**#3380 did not write the roster, and that is the whole point.** An earlier version of this section,
+and the merged message of
+[#3478](https://github.com/melodic-software/claude-code-plugins/pull/3478) (`e7e3a368`), both called
+`6c7a1032` "the same commit that wrote the roster". Both are false. The roster was created two
+hours earlier the same night, by
+[#3362](https://github.com/melodic-software/claude-code-plugins/pull/3362) (`3fbe9789`, 01:28), the
+commit that also wrote the summary sentence, at a time when all 34 rows were open and the sentence
+was true. #3380 (03:36) never touched the roster's L4 section at all:
+
+```console
+$ git log --diff-filter=A --format='%h %s' -- docs/specs/docs-hygiene-sweep-unapplied-remediations.md
+3fbe9789 docs: run all eight docs-hygiene audits repo-wide, ... (#3362)
+$ git blame -L 340,343 -- docs/specs/docs-hygiene-sweep-unapplied-remediations.md   # all four lines: 3fbe97898
+$ git show 6c7a1032 --unified=0 -- docs/specs/docs-hygiene-sweep-unapplied-remediations.md | grep '^@@'
+@@ -75 +75 @@ ## Status at the stamp
+@@ -223 +223 @@ ### `blind-pointer`, 22
+@@ -229,0 +230,31 @@ ### `blind-pointer`, 22
+@@ -577,0 +609,18 @@ ## L6 compression: 1 finding
+@@ -603 +652 @@ ### P3, a pointer opens on the routing verb ...
+@@ -635,0 +685,118 @@ ### P3, a pointer opens on the routing verb ...
+```
+
+L4 sat at 307–403 in that revision. Every hunk is outside it.
+
+**That one stale sentence has now caused four passes to re-derive the same roster**, this one
+included. It is the most expensive line in the sweep record, and it is expensive precisely because
+it sits above an inventory whose own decay rule says the status column is its weakest part.
+
+**Corrected lesson (seventh review round).** This section previously drew the rule *"a record that
+fixes findings and updates its own summary in the same commit must update the summary, or the
+summary outranks the fix for every later reader."* That rule describes an event that did not happen:
+no commit here both fixed the findings and touched the summary. It is also close to backwards, since
+it lets a commit off the hook whenever it happens not to author the record. The rule the evidence
+actually supports is the near-inverse:
+
+> **A commit that closes findings inventoried in a record it did not author still owes that record's
+> summary an update.** Cross-file staleness is the default outcome, not the exception: the fix and
+> the record live in different files, nothing in the toolchain links them, and the commit has no
+> reason of its own to open the record. #3380 closed 32 of 34 rows spread across a `.claude/rules/`
+> file, `docs/PLUGIN-PHILOSOPHY.md`, four convention READMEs and several plugins' trees, and left a
+> two-hour-old roster in `docs/specs/` asserting the opposite, and four later passes paid for it.
+>
+> An earlier version of this paragraph said "three plugins' files", which `git show --stat 6c7a1032`
+> refutes: the majority of the 32 are not plugin files at all. Corrected by the round that verified
+> this one, and left visible because a rule stated over a miscounted example invites the next reader
+> to re-derive it.
+
+The operational form is: when a change closes something a spec has rostered, edit the spec's status
+line in the same PR, even when the spec is somebody else's and the diff would otherwise touch no
+`docs/specs/` file at all.
+
+### The eight, verified against the live tree
+
+Anchored on text, never on the rostered line numbers, which are stale in all three files. Each was
+rewritten from the bare `skills/<s>/<path>` form to the anchored
+`${CLAUDE_PLUGIN_ROOT}/skills/<s>/<path>` form clause 3 requires:
+
+| # | Citing file | Cited surface | Now at |
+|---|---|---|---|
+| `V-sc-01` | `plugins/source-control/reference/config-resolution.md` | `babysit-loop` `promotion-evidence-resolution.md` | `:189` |
+| `V-sc-02` | `plugins/source-control/reference/review-discipline.md` | `babysit-loop` `pre-escalation-dispatch.md` | `:314` |
+| `V-sc-03` | `plugins/source-control/reference/review-discipline.md` | `babysit-prs` `safety.md` | `:178` |
+| `V-sc-04` | `plugins/source-control/reference/review-discipline.md` | `babysit-prs` `safety.md` | `:278` |
+| `V-sc-05` | `plugins/source-control/reference/review-discipline.md` | `babysit-prs` `independent-resolution.md` | `:311` |
+| `V-disc-04` | `plugins/discovery/reference/topic-docs.md` | `explore` `reference/dispatch.md` | `:88` |
+| `V-disc-05` | `plugins/discovery/reference/topic-docs.md` | `research` `context/dispatch.md` | `:89` |
+| `V-disc-06` | `plugins/discovery/reference/topic-docs.md` | `trace-intent` `context/dispatch.md` | `:90` |
+
+All seven distinct targets exist on disk. Group 3's two heading anchors are closed by the same
+commit, dropped to file-level links, so **the 34-row roster stands at 34 closed, 0 open**: 22 of
+Group 1 plus all of Groups 2 and 3 by #3380, and `V-review-13` and `V-review-14` by
+[#3468](https://github.com/melodic-software/claude-code-plugins/pull/3468) (`c66f26ce`), which
+rewrote all three `docs/conventions/native-references/README.md` sites — the Boundary section's
+worked model and both Adopters rows — to `/review:quality-gate`, `/review:fanout` and
+`/claude-ops:audit-install-state`. An earlier version of this line, and the merged messages of
+both #3477 and #3478, credited #3475; `git show --stat 02e1d8b0` shows that PR touched
+only `docs/conventions/native-references/CHANGELOG.md`, never the README the two rows cite.
+The 34-closed total is unaffected.
+
+Derived twice with unrelated expressions, per this file's own discipline. First by matching the
+roster's quoted bare-form text at each citing path: zero matches remain, and a regex for any
+`skills/<s>/(reference|context|actions|evals|templates)/` token not prefixed by
+`${CLAUDE_PLUGIN_ROOT}` returns zero across both plugins' `reference/` trees. Second, without
+reference to the roster at all, by resolving **every** citation token in every plugin-level
+`reference/`, `context/` and `agents/` tree and every plugin README against the base its own form
+implies.
+
+**The second derivation's result was reported as "52 tokens, 0 clause 3 failures". That is false:
+the population held three failures, and the first derivation was structurally unable to see them.**
+Its regex requires a `(reference|context|actions|evals|templates)/` tail, and all three of these end
+in `SKILL.md`. A third derivation, run on 2026-08-28 with a wider expression — every
+`skills/…` path token ending in a real file extension, resolved against the base its own form
+implies, over the same population — returned **119 tokens and 3 clause-3 failures**, each one the
+exact defect class ADR 0018's correction 1 names, an implied base of the plugin root against a real
+base of the citing file's directory:
+
+| Citing `path:line` | Token as written | Resolved against | Fixed to |
+|---|---|---|---|
+| `plugins/source-control/reference/config-resolution.md:124` | `skills/babysit-prs/SKILL.md` | `plugins/source-control/reference/`, absent | `/source-control:babysit-prs`, the public invocation |
+| `plugins/work-items/reference/permission-preflight.md:45` | `skills/work/SKILL.md` | `plugins/work-items/reference/`, absent | `${CLAUDE_PLUGIN_ROOT}/skills/work/SKILL.md` |
+| `plugins/songwriting/context/pat-pattison/research/lyric-melodic-roadmaps.md:203` | `skills/meter-prosody/SKILL.md` | `…/research/`, absent | `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md` |
+
+**Two** are fixed to the form their own file already uses elsewhere: `permission-preflight.md`
+already anchors its `preflight.sh` invocation line that way, and `songwriting`'s `research/` tree
+anchors its script paths the same way.
+Neither file is fetched from outside its plugin, so `${CLAUDE_PLUGIN_ROOT}` denotes the right
+installation for every reader either has.
+
+**The third is fixed to the public invocation instead**, and the reason is the subsection below.
+`config-resolution.md` is fetched across the plugin boundary, so the anchored form would have named
+a `babysit-prs` skill that does not exist in the fetching plugin. The anchored form was what this
+change first shipped; a review pass caught it before merge. Recorded rather than quietly amended,
+because the wrong remedy was chosen by reasoning this same document had already written down and
+then failed to apply to its own fix.
+
+Re-running the third expression after the fixes leaves no clause-3 failure in the three files. The
+`config-resolution.md` row leaves the path population altogether, since an invocation is not a path.
+
+The token counts differ between derivations because the expressions do — 52 against 119 — and per
+this file's own recall-limits discipline neither is a total. The **failure** count is the claim that
+matters, and 0 was wrong. The lesson generalises past these three rows: **a second derivation
+confirms a first only if it can fail differently.** The first two here missed the same three rows,
+each of which cites a `SKILL.md` directly rather than a file beneath a `reference/`-shaped
+subdirectory, so reporting them as independent overstated the evidence.
+
+**What is established and what is inferred.** Derivation 1's expression is recorded verbatim in this
+file and does require that subdirectory shape, so its blindness is a fact. Derivation 2's expression
+was never written down anywhere; the record describes it as resolving "every citation token", which
+would not have that blind spot. All that the evidence settles is that derivation 2 was narrower than
+its own description, since it returned 52 tokens and 0 failures where a third expression returns 119
+and 3. The shared *mechanism* is a plausible reconstruction, not a verified one, and an unrecorded
+expression is itself the defect worth carrying forward: a derivation nobody can re-run cannot be
+audited, only believed.
+
+**A fourth derivation is owed and not performed here.** The third is `skills/`-scoped, so it is
+blind by construction to the same defect class in tokens that name no skill. The verifying round
+found three such tokens in `plugins/discovery/reference/topic-docs.md`, whose `agents/explorer.md`,
+`agents/researcher.md` and `agents/intent-tracer.md` imply a base of the plugin root against a real
+base of `reference/`. Verified against the tree, fixed in this change to the anchored form, and
+called out here because of where they sat: **three lines above `V-disc-04` through `V-disc-06`,
+which this sweep did close.** A pass looked at that paragraph, corrected the citations below these
+three, and left these three standing, because its expression could not see them.
+
+That is the strongest available argument that the `skills/`-scoped population was never the right
+population. The class is "a path whose implied base is the plugin root while its real base is the
+citing file's directory", and nothing in that definition mentions skills. Whoever runs the fourth
+derivation should build it from the class, not from the token shape the last three happened to
+share.
+
+The corrected population still strictly contains the eight Group 2 rows, so the roster's closure
+stands unchanged; what does not stand is the claim that the tree around it was clean.
+
+### Judgment: ADR 0018 barely reaches this class, and its encapsulation half does not
+
+Recorded because the dispatch asked for it explicitly and because tidying these rows under the wrong
+clause would have been easy.
+
+**Group 2 was never an encapsulation defect.** The roster says so itself: "Legal as citations under
+ADR 0018, defective as paths." Clause 1 names this exact citing surface — it covers "plugin-level
+`context/`, `reference/` and `agents/` docs" reaching a sibling skill's private files — and
+legalises it. Clause 2 does not reach them: both files ship inside one plugin, so for a reader
+inside that plugin the runtime absence motivating clause 2 does not arise. A consumer enabling
+`source-control` gets `reference/review-discipline.md` and `skills/babysit-prs/reference/safety.md`
+or gets neither.
+
+**Softened, seventh review round.** An earlier version said the fetched-contract problem the
+amendment builds on clause 2 "cannot occur" for intra-plugin citations. It can, by one indirect
+route, and the counter-instance is in this repo:
+`plugins/work-items/skills/work/SKILL.md:208` sends its reader to
+`plugins/source-control/reference/config-resolution.md` over `raw.githubusercontent.com`. That
+reader is running `work-items`, so `${CLAUDE_PLUGIN_ROOT}` resolves to `work-items` and the
+intra-plugin citations inside the fetched file address paths that are absent for them. The
+mechanism is that a *cross*-plugin fetch drags an intra-plugin citation across the boundary its form
+assumed.
+
+**And that does change the remedy, which the first version of this paragraph denied.** It claimed
+"the remedy is still form rather than routing", on the ground that a fetched reader cannot follow
+`skills/babysit-prs/SKILL.md` either way. True of the bare form, false of the choice it was used to
+justify: the anchored `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/SKILL.md` is *also* unfollowable for
+that reader, because the variable denotes their plugin and not this one, while
+`/source-control:babysit-prs` is followable by every reader regardless of which plugin fetched the
+document. So this row went to the invocation. The paragraph reasoned its way to the exposure and
+then declined to draw the consequence for the fix sitting in the same commit; a review pass drew it.
+
+Clause 1 still legalises the citation and only clause 3 has teeth on it — that much stands. What
+does not is the inference from "clause 3 only" to "path form only". Where a file is fetched across
+the boundary, clause 3 alone can force the invocation, because for the fetched reader no path form
+resolves. A pass auditing intra-plugin citation forms must treat "who fetches this file" as a live
+question, and must treat it as bearing on the remedy, not only on the diagnosis.
+
+So **only clause 3 reaches Group 2**, and clause 3 is a resolvability rule, not an encapsulation
+rule. The amendment's fix-an-address / keep-evidence test does not apply either: that test divides
+clause 2 applications, and these are not clause 2 matters. Had the eight still been open, the remedy
+would have been the path form for any of them whose file is read only from inside its own plugin,
+and the invocation for any that is fetched across the boundary — never a promotion of content to a
+shared location. **Which of the eight are fetched was not checked**, because all eight were already
+closed; a pass that reopens one owes that check first, on the evidence of the row above, where
+exactly that question decided the remedy. **Intra-plugin genuinely is a different case, and the file that says
+so is the ADR's own correction 1**, which withdrew the bare-relative breakage claim as a category
+error and named this narrower shape as the real defect: an implied base of the plugin root against a
+real base of the citing file's directory.
+
+The one clause that earned its keep here is the ADR's warning that "proximity did not prevent
+them" — eight of the ten non-resolving citations in the corpus were intra-plugin, inside the case
+the decision legalises. Legalising a citation class and requiring it to resolve are separate
+obligations, and only the second one had teeth in this set.
+
+### What was deliberately not done
+
+No `plugins/**` file was edited, so **no plugin version bump and no plugin CHANGELOG entry belong to
+this pass**. A bump describing a diff that does not exist would be a worse record than none.
+
+The predecessor roster's tables were left verbatim. Its inventory is the part its decay rule says
+cannot be re-derived without re-running the audit, and two earlier passes (#3474, #3475) closed rows
+without touching that file. This pass follows them: the only edit there is an additive closure stamp
+above the tables, correcting the false summary sentence in place rather than rewriting any row.
+
 ## Recall limits this run declares
 
 A finding count read as a defect count is worse than no count. An adversarial verifier audited the
@@ -391,8 +812,13 @@ figures to differ.
   this very change set added, written in the bare plugin-relative form ADR 0018 names as its real
   defect class), two conformance rows in `docs/conventions/config-cascade/README.md`, one in
   `docs/conventions/pre-pr-ordering/README.md`, three in
-  `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14` off
-  the predecessor's 34-item L4 roster, which is therefore down to 32), and one adopter-row detail
+  `docs/conventions/native-references/README.md` (two of them `V-review-13` and `V-review-14`, the
+  last two rows of the predecessor's 34-item L4 roster still open by that roster's own text test:
+  re-derivation found 22 of its other 32 rows already closed, twelve of them by #3380 itself, so
+  what remains of the 34 is its eight Group 2 intra-plugin path-form defects, untouched here — a
+  claim a later pass refuted: those eight were closed by #3380 too, see
+  [the L4 roster's closure](#the-l4-roster-is-closed-all-34-rows-and-group-2-was-never-open)), and
+  one adopter-row detail
   in `docs/conventions/detector-findings/README.md`. **What remains is a judgment set, not a
   backlog**: 23 further in-shape citations were kept with reasons, because each is evidence about
   this checkout rather than an address for an obligation. They are the three worked examples in

@@ -13,6 +13,42 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `babysit_gh.resolve_authors` already uses for the same job. First-occurrence-wins and insertion
   order are unchanged, and the two case-insensitive-dedupe sites in the engine now read alike.
 
+## [0.55.30]
+
+### Fixed
+
+- **`reference/config-resolution.md` cited `babysit-prs` by a path that resolved
+  against nothing.** The autonomy-table pointer read
+  `skills/babysit-prs/SKILL.md`, whose implied base is the plugin root while its
+  real base is `reference/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. It now names the public invocation,
+  `/source-control:babysit-prs`, keeping the section name.
+
+  **The `${CLAUDE_PLUGIN_ROOT}` form this fix first took was wrong for the reader
+  that most needs it.** `work-items`'s `work` skill fetches this file over
+  `raw.githubusercontent.com`, and for that reader `${CLAUDE_PLUGIN_ROOT}` denotes
+  the `work-items` installation, so the anchor resolved to a `babysit-prs` skill
+  that does not exist there. This sentence is the doc's address for the autonomy
+  obligation, which is the case
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  2026-08-28 amendment routes to the invocation rather than to a path whose
+  meaning depends on which plugin fetched the document. Found by a third
+  derivation over the plugin-level `reference/`, `context/` and `agents/` trees
+  whose predecessor could not see citations of a `SKILL.md` itself; the remedy
+  corrected by review before merge.
+
+## [0.55.29]
+
+### Changed
+
+- **Vendored `hook-utils.sh` gained `hook::repo_relative_path`.** The shared lib
+  now owns the repo-relative path computation twelve sibling hooks had each
+  hand-copied, together with the absolute-path degrade only four of those twelve
+  copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
+
 ## [0.55.28]
 
 ### Changed

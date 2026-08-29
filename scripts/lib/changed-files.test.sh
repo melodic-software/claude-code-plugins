@@ -165,6 +165,35 @@ else
 fi
 rm -rf "$repo"
 
+# --- into: renames --------------------------------------------------------
+
+repo="$(mk_repo)"
+base="$(git -C "$repo" rev-parse HEAD)"
+# A byte-identical move is the strongest rename candidate (R100), so git's
+# default detection collapses it to one record whose --name-only line is the
+# destination only. First prove the default keeps doing that, then that
+# --no-renames splits it back into the delete and the add a both-sides gate
+# (check-vendor-version-bump.sh) must see.
+git_test_config "$repo" mv keep.sh moved.sh >/dev/null
+git_test_config "$repo" commit -qm move >/dev/null
+
+paths=()
+run_into "$repo" paths "$base" --include-deleted --
+if ((${#paths[@]} == 1)) && [[ "${paths[0]}" == "moved.sh" ]]; then
+  ok "into collapses a byte-identical move to its destination by default"
+else
+  fail "into default rename handling returned: ${paths[*]-<none>}"
+fi
+
+paths=()
+run_into "$repo" paths "$base" --include-deleted --no-renames --
+if ((${#paths[@]} == 2)) && [[ "${paths[0]}" == "keep.sh" && "${paths[1]}" == "moved.sh" ]]; then
+  ok "into reports both sides of a move under --no-renames"
+else
+  fail "into --no-renames returned: ${paths[*]-<none>}"
+fi
+rm -rf "$repo"
+
 # --- into: NUL safety (the divergence this extraction closed) -------------
 
 repo="$(mk_repo)"

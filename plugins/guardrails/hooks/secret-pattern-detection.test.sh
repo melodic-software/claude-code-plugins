@@ -187,6 +187,93 @@ else
   bad "redaction: no envelope written"
 fi
 
+# --- Telemetry path: the hoisted helper, not a hand-rolled prefix strip ------
+# This hook kept its own copy of the repo-relative computation after the helper
+# was hoisted into hook-utils.sh, and the copy's redaction knew only two of the
+# three absolute spellings. Pin the helper so a third copy cannot reappear.
+assert_contains "path helper: uses hook::repo_relative_path" "$HOOK_SRC" 'hook::repo_relative_path'
+assert_absent "path helper: no hand-rolled prefix strip" "$HOOK_SRC" '_fwd#'
+
+# Telemetry path helper fixtures. A file_path is read as a string, but the
+# no-project-dir cases resolve a root from the file's own checkout, so these
+# need to exist on disk. Anchor on the toplevel git reports rather than on
+# mktemp's answer: on macOS mktemp hands back /var/... where git reports
+# /private/var/..., and the prefix strip would fail for the wrong reason.
+PATHREPO="$TEST_TMPDIR/pathrepo"
+mkdir -p "$PATHREPO/src"
+git -C "$PATHREPO" init -q
+PATHREPO_TL="$(git -C "$PATHREPO" rev-parse --show-toplevel)"
+
+# telemetry_file <file_path> -> data.file from the envelope this hook emits.
+# CLAUDE_PROJECT_DIR stays unset (the file scope guard above falls through
+# rather than skipping when there is no project, so the hook still scans).
+telemetry_file() {
+  local tel sink
+  tel="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+  sink="$(make_sink "cat >\"$tel\"")"
+  env HOOK_TELEMETRY_SINK="$sink" bash "$HOOK" \
+    <<<"$(write_json "$1" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
+  if wait_for_sink "$tel"; then jq -r '.data.file' "$tel"; else printf '<no-envelope>'; fi
+}
+
+# --- UNC file_path with no project dir: the leak --------------------------
+# A Windows UNC path is neither POSIX-absolute nor drive-lettered, so a
+# redaction that tests only those two spellings passes the WHOLE share path
+# through — server name and all — into the envelope. The share host is exactly
+# the kind of internal name telemetry must not carry.
+UNC_HOST='srv'
+# shellcheck disable=SC1003  # BS is a literal single backslash, not a quote escape
+BS='\'
+UNC_FILE="${BS}${BS}${UNC_HOST}${BS}share${BS}secrets.env"
+# Equality, not containment: the leaked path ENDS in the basename, so a
+# containment check passes against the pre-fix hook for the wrong reason.
+df=$(telemetry_file "$UNC_FILE")
+assert_eq "UNC/no-project: data.file is exactly the basename" "secrets.env" "$df"
+assert_absent "UNC/no-project: data.file keeps no backslash" "$df" "$BS"
+assert_absent "UNC/no-project: data.file drops the share host" "$df" "$UNC_HOST"
+
+# --- Ordinary in-repo file with no project dir ------------------------------
+# With no project dir the hand-rolled copy resolved no root at all, so every
+# in-repo path degraded to a bare basename and the envelope lost the location
+# the schema asks for. The helper is paired with hook::repo_root, which answers
+# from the file's own checkout.
+df=$(telemetry_file "$PATHREPO_TL/src/config.env")
+assert_contains "in-repo/no-project: data.file is repo-relative" "$df" "src/config.env"
+assert_absent "in-repo/no-project: data.file is not absolute" "$df" "$PATHREPO_TL"
+
+# --- Symlinked checkout ------------------------------------------------------
+# A real repo plus a symlink to it. Reached through the symlink, `git rev-parse
+# --show-toplevel` answers with the PHYSICAL path, so a file_path arriving in
+# the symlink spelling cannot be prefix-stripped by the root the helper is
+# handed. Both spellings are pinned: the physical one must still come back
+# repo-relative, and the symlink one must degrade to a basename rather than
+# leak the resolved physical path the fallback just computed.
+LINKREPO="$TEST_TMPDIR/linkrepo"
+ln -s "$PATHREPO_TL" "$LINKREPO"
+df=$(telemetry_file "$PATHREPO_TL/src/config.env")
+assert_contains "symlinked repo, physical spelling: repo-relative" "$df" "src/config.env"
+df=$(telemetry_file "$LINKREPO/src/config.env")
+assert_contains "symlinked repo, symlink spelling: basename" "$df" "config.env"
+assert_absent "symlinked repo, symlink spelling: no path separator" "$df" "/"
+
+# --- Trailing-slash project dir ---------------------------------------------
+# The helper strips "$root/", so a root already ending in a separator makes the
+# prefix "/repo//" and matches nothing: every in-project file would collapse to
+# its basename and the envelope would lose the location. A trailing slash is a
+# supported spelling of CLAUDE_PROJECT_DIR (the scope test above uses one), and
+# the hand-rolled copy this replaced trimmed it, so the trim has to survive the
+# move to the helper.
+TELTS="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINKTS="$(make_sink "cat >\"$TELTS\"")"
+env HOOK_TELEMETRY_SINK="$SINKTS" CLAUDE_PROJECT_DIR="$PATHREPO_TL/" bash "$HOOK" \
+  <<<"$(write_json "$PATHREPO_TL/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
+if wait_for_sink "$TELTS"; then
+  assert_eq "trailing-slash project dir: data.file stays repo-relative" \
+    "src/config.env" "$(jq -r '.data.file' "$TELTS")"
+else
+  bad "trailing-slash project dir: no envelope written"
+fi
+
 # ===================== PAYLOAD-SIZE BOUNDARY (regression) ====================
 # Guards the here-string deadlock. Bash delivers `<<<` through a pipe it fills
 # ITSELF before the reader is exec'd, and it appends a newline — so a payload of

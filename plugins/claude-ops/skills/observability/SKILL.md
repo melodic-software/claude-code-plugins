@@ -13,7 +13,7 @@ metadata:
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Repo slug: !`git rev-parse --show-toplevel >/dev/null 2>&1 && git rev-parse --show-toplevel 2>/dev/null | sed 's|.*/||' || echo "unknown"`
+Repo slug: !`git rev-parse --show-toplevel >/dev/null 2>&1 && git rev-parse --show-toplevel 2>/dev/null | sed 's|.*/||' || echo "(git toplevel unavailable)"`
 ccusage availability: !`command -v npx >/dev/null 2>&1 && echo "npx present" || echo "npx MISSING"`
 Hook event log: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --hook-events 2>/dev/null || echo "unknown"`
 OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
