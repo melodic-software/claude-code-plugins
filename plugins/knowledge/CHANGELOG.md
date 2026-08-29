@@ -4,6 +4,25 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.25]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `docpage-digest`'s
+  digest_fences.py removes dead `unclosed` bookkeeping from parse_claims: the flag was assigned on
+  both arms of the try and the trailing `if unclosed: fence = None` could never change the already
+  computed value. Refutation-verified (per-block flag scoping ruled out cross-iteration leakage;
+  18/18 parse comparisons and 10/10 end-to-end gate runs byte-identical; both suites, 30 tests, OK).
+- **video-digest extraction, same sweep.** setup-deps.mjs drops a redundant per-directory
+  localeCompare sort inside computeStamp's walk (the final code-unit path sort alone determines
+  hash-input order; stamps verified byte-identical on the real vendor tree and an adversarial
+  fixture, including under forced readdir scrambling). acquisition/build-yt-dlp-args.js removes
+  the born-dead export `YT_DLP_CAPTION_ONLY_SLEEP_SUBTITLES_SEC` (zero references at any commit;
+  the consumed constant lives in acquire-retry-policy.js). acquisition/acquire.js drops a
+  double-defaulting spread at the acquireFullStaged call site (the spread's withThrottle value was
+  by construction mergedDeps' own value or the same default the callee re-derives; full
+  case-matrix refutation including the null/undefined split found no divergent reachable shape).
+
 ## [0.13.24]
 
 ### Fixed

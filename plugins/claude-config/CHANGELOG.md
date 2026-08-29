@@ -3,6 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.18]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `audit-permission-state`'s
+  `automode-entry-diff.sh` drops a redundant command-substitution wrapper in the empty-prediction
+  guard (`[[ -z "$(printf '%s' "$predicted_dropped")" ]]` to `[[ -z "$predicted_dropped" ]]`);
+  the wrapper only stripped trailing newlines, and the value's grammar (non-empty rules each
+  followed by one newline) makes that stripping unobservable. Refutation-verified by static
+  reachability trace plus a 12-case empirical matrix; the suite's 63 checks and the
+  no-writes property tests pass.
+
 ## [0.40.17]
 
 ### Changed

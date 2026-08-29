@@ -3,6 +3,17 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.40]
+
+### Changed
+
+- **Three small redundancies removed in the work-item tracker.** The linear adapter's seam-hint
+  comment carried a duplicated clause that inverted its own meaning, where every sibling adapter
+  carries the sentence intact; the local-markdown `common.test.sh` recomputed a script directory the
+  line above had already stored in `SCRIPT_DIR`; and `lib/lease.test.sh` spelled a fixture's
+  renewal timestamp as `BOUNDARY_EXPIRY - BOUNDARY_TTL * 3600`, which is the injected fixed clock by
+  construction. Comment, test-scaffolding, and fixture-arithmetic only; no adapter behavior changes.
+
 ## [0.39.39]
 
 ### Fixed
