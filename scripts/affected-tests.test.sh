@@ -538,7 +538,7 @@ fi
 # is not tidiness — a literal basename here would make this file a suite that
 # "references" the probe, R3 would select it, and the path would come back
 # MAPPED at exit 0. The assertion would then fail for a reason that has nothing
-# to do with the no-suite list. This is the substring-match limit documented in
+# to do with the no-suite list. This is the MATCHING rule documented in
 # affected-tests.sh's header, met head-on: naming a file in a suite is exactly
 # what makes the selector consider it covered.
 mapfile -t eco_yaml < <(cd "$REPO_ROOT" && git ls-files \
@@ -607,6 +607,24 @@ for y in ${wf_yaml[@]+"${wf_yaml[@]}"}; do
   fi
 done
 
+# --- LIVE repo: the false coverage that masked a real suite ----------------
+# babysit_lease.py's suite is scripts/tests/test_babysit_lease.py, and nothing
+# in the corpus spells that filename: every consumer says `import
+# babysit_lease`. Under the old substring lookup the file still came back
+# MAPPED, at exit 0, with five suites — none of them its own — purely because
+# `babysit_lease.py` is a substring of `manage_babysit_lease.py`. That is the
+# masked-zero-coverage shape the boundary rule exists to expose, and exposing it
+# is only half the fix: the co-located rule then has to find the real suite by
+# path, or a covered file reports UNMAPPED.
+out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh plugins/source-control/skills/babysit-prs/scripts/babysit_lease.py 2>/dev/null)"
+RC=$?
+if [[ "$RC" -eq 0 ]] &&
+  has_line "$out" plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_lease.py; then
+  ok "live: a .py whose only suite sits in tests/ maps to that suite"
+else
+  fail "live tests/ subdirectory suite (rc=$RC): $out"
+fi
+
 # --- LIVE repo: a co-located change stays narrow ---------------------------
 out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh plugins/eol-normalizer/hooks/eol-normalizer.sh 2>/dev/null)"
 RC=$?
@@ -634,6 +652,13 @@ printf 'import widget_mod\n' >"$repo/eco/test_widget_mod.py"
 printf 'def helper():\n    return 1\n' >"$repo/eco/check-thing.py"
 printf 'import importlib\n' >"$repo/eco/test_check_thing.py"
 
+# ... and the one convention that puts the suite in a SUBDIRECTORY. The suite
+# imports the MODULE, so it never spells the filename and the reference rule
+# has nothing to match: only a path rule can find it.
+mkdir -p "$repo/eco/pkg/tests"
+printf 'def helper():\n    return 1\n' >"$repo/eco/pkg/mod_thing.py"
+printf 'import mod_thing\n' >"$repo/eco/pkg/tests/test_mod_thing.py"
+
 # Node: co-located <stem>.test.js / .test.mjs.
 printf 'export const a = 1;\n' >"$repo/eco/gadget.js"
 printf 'import { a } from "./gadget.js";\n' >"$repo/eco/gadget.test.js"
@@ -658,6 +683,13 @@ if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/test_check_thing.py; then
   ok "python: a hyphenated stem finds its underscore-folded suite"
 else
   fail "python hyphen fold (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" eco/pkg/mod_thing.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/pkg/tests/test_mod_thing.py; then
+  ok "python: a suite in a tests/ subdirectory covers its module"
+else
+  fail "python tests/ subdirectory (rc=$RC): $OUT"
 fi
 
 run_sel "$repo" eco/gadget.js
@@ -810,5 +842,118 @@ if has_line "$OUT" eco/agg/test_zed_user.py; then
 else
   fail "crossing budget was spent by an incidental hit (rc=$RC): $OUT"
 fi
+
+# --- R3/R4 NAME a file, they do not merely contain its name ----------------
+# The reverse lookup used to be an unanchored substring search, so any basename
+# that sat inside another path in the corpus inherited that path's suites. That
+# is not just noisy over-selection: it is FALSE COVERAGE at exit 0, which is the
+# one direction this tool is built to refuse. `get.sh` is a substring of
+# `widget.sh`, which this fixture references from every plugin, so a new
+# get.sh covered by nothing at all used to come back mapped.
+repo3="$(mk_repo)"
+mkdir -p "$repo3/eco/name"
+printf 'echo get\n' >"$repo3/plugins/alpha/hooks/get.sh"
+
+# A file that is ONLY ever named path-qualified. `/` is not a path-token
+# character, so this must keep selecting: it is the shape of every real
+# `source "$dir/lib.sh"` and `import "./gadget.js"` in the corpus.
+printf 'echo target\n' >"$repo3/eco/name/deep-target.sh"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'bash "$REPO_ROOT/eco/name/deep-target.sh"\n'
+} >"$repo3/eco/name/driver.test.sh"
+
+# A file only ever named at the END OF A SENTENCE. The trailing `.` is
+# punctuation, not part of the name, and this is how half the comments in this
+# repo cite the suite that covers them.
+printf 'echo prose\n' >"$repo3/eco/name/prose-target.sh"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf '# Every rejected shape is covered by prose-target.sh.\n'
+} >"$repo3/eco/name/prose.test.sh"
+
+# A file named with an ELLIPSIS butted straight against it. The mirror of the
+# sentence-final case, and the narrower one: `./x` never needs the strip because
+# the `/` already delimits the token, so only a literal `...x` reaches it. It is
+# a real prose shape and it is in the over-selecting direction, so it is kept —
+# and kept means tested, or the branch is just an untested claim.
+printf 'echo ellipsis\n' >"$repo3/eco/name/ellipsis-target.sh"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf '# the rest of that argument lives in ...ellipsis-target.sh\n'
+} >"$repo3/eco/name/ellipsis.test.sh"
+
+# A basename the token rule cannot spell, because `+` is not a path-token
+# character. Such a name must fall back to the old substring test rather than
+# to no coverage at all — a name the rule cannot express has to over-select.
+printf 'echo plus\n' >"$repo3/eco/name/plus+tool.sh"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'bash eco/name/plus+tool.sh\n'
+} >"$repo3/eco/name/plus.test.sh"
+
+git_test_config "$repo3" add plugins eco >/dev/null
+git_test_config "$repo3" commit -qm names >/dev/null
+
+out="$(cd "$repo3" && bash scripts/affected-tests.sh plugins/alpha/hooks/get.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 1 ]] && printf '%s' "$out" | grep -q 'UNMAPPED'; then
+  ok "a basename buried in a longer token is UNMAPPED, not falsely covered"
+else
+  fail "get.sh should be UNMAPPED, not covered by widget.sh's suites (rc=$RC): $out"
+fi
+
+# The exit code alone is not the assertion: what must be gone is the SELECTION
+# the substring match handed it. Under --allow-unmapped the run proceeds, so an
+# empty stdout is direct evidence that no unrelated suite was borrowed.
+run_sel "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
+if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
+  ok "the borrowed suites are gone, not merely re-labelled"
+else
+  fail "get.sh still selects unrelated suites (rc=$RC): $OUT"
+fi
+
+run_sel "$repo3" eco/name/deep-target.sh
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/name/driver.test.sh; then
+  ok "a path-qualified reference still names the file"
+else
+  fail "path-qualified reference lost (rc=$RC): $OUT"
+fi
+
+run_sel "$repo3" eco/name/prose-target.sh
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/name/prose.test.sh; then
+  ok "a reference at the end of a sentence still names the file"
+else
+  fail "sentence-final reference lost (rc=$RC): $OUT"
+fi
+
+run_sel "$repo3" eco/name/ellipsis-target.sh
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/name/ellipsis.test.sh; then
+  ok "a reference butted against an ellipsis still names the file"
+else
+  fail "ellipsis-prefixed reference lost (rc=$RC): $OUT"
+fi
+
+run_sel "$repo3" eco/name/plus+tool.sh
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/name/plus.test.sh; then
+  ok "a basename the token rule cannot spell falls back to the substring test"
+else
+  fail "untokenizable basename lost its coverage (rc=$RC): $OUT"
+fi
+
+# R1/R2 are a path rule and never went through the reverse lookup, so the same
+# substring-shaped file must still find its own co-located suite — and still not
+# the ones it used to borrow.
+suite_body get >"$repo3/plugins/alpha/hooks/get.test.sh"
+run_sel "$repo3" plugins/alpha/hooks/get.sh
+if [[ "$RC" -eq 0 ]] &&
+  has_line "$OUT" plugins/alpha/hooks/get.test.sh &&
+  ! has_line "$OUT" plugins/beta/hooks/beta-hook.test.sh; then
+  ok "co-located selection is untouched by the boundary rule"
+else
+  fail "co-located suite lost or unrelated suite still borrowed (rc=$RC): $OUT"
+fi
+rm -rf "$repo3"
 
 test_harness::report
