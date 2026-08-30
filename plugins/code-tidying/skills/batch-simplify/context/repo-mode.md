@@ -292,8 +292,9 @@ run's single branch like every other group.
 
 **No work items are filed by default.** At repo scale, filing produces a tracker backlog nobody
 triages — worse for the items than an inventory somebody can search, and worse for the user than a
-fix. What survives the resolution wave (Needs-human, Too-large) lives in the run-state inventory
-and the Phase 8 report, where the user decides. When the user does explicitly ask to file, keep the
+fix. What survives the resolution wave (Needs-human, Too-large, and any deferral the wave could not
+finish, with its recorded ground) lives in the run-state inventory and the Phase 8 report, where
+the user decides. When the user does explicitly ask to file, keep the
 main workflow's unit — one item per deferred concern, not per site, with no numeric cap — so a
 cross-cutting concern at forty locations is one item listing forty locations.
 
@@ -309,7 +310,13 @@ closed.
 ## Delivery
 
 **One feature branch and one pull request for the whole run.** Create the run's branch before the
-first group dispatches; every group, every wave, and the Phase 6.5 resolution wave commits to it.
+first group dispatches, from the refreshed tip of the intended PR base (fetch it first), normally
+the repository's default branch — never silently from whatever HEAD the run happens to be invoked
+on. A HEAD sitting ahead of that base would carry every one of its pre-existing commits into the
+repository-wide PR, and merging the base at wave boundaries never removes them. When the invocation
+HEAD is not the intended base, say so at the confirmation gate and proceed only on an explicit
+choice: branch from the base, or deliberately include the current branch's commits. Every group,
+every wave, and the Phase 6.5 resolution wave commits to that one branch.
 Open the single PR once the first wave has landed and verified, so CI exercises every push from
 then on, and keep it updated until the run finishes. The result the user wants at the end is one
 clean branch, one PR, and an empty backlog — not a fan of wave PRs to shepherd or a tracker full of

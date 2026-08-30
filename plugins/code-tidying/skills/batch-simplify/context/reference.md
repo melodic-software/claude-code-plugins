@@ -50,7 +50,7 @@ Final cross-ecosystem verification: PASS/FAIL
 
 ## Deferred items remaining (user decides)
 
-- <site> — <what>. Ground: <Needs-human|Too-large>. <agent's recorded rationale> (Group 2)
+- <site> — <what>. Ground: <Needs-human|Too-large|the recorded ground of a deferral the resolution wave could not finish>. <agent's recorded rationale> (Group 2)
 ```
 
 No work items are filed by default; the remaining-deferrals section is where they land. Offer to file them only if the user asks.

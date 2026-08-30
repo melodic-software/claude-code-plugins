@@ -19,13 +19,20 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   - **Phase 6.5 is renamed from "Capture deferred items as issues" to "Resolve deferred items
     in-run".** Consolidated deferrals are triaged fix-first and a resolution wave (same spawn
     contract, same verification, and in repo mode the same mandatory refutation verifier) applies
-    the Fix-now set on the same branch in the same run. One wave, no recursion. Only Needs-human
-    and Too-large items survive to the Phase 8 report; the bar for Too-large is work needing its
-    own planned effort, not merely many edits. **No work items are filed by default in any mode**;
+    the Fix-now set on the same branch in the same run. Each resolution agent receives the complete
+    file set its concern spans, so a CROSS-GROUP ground cannot legitimately recur; a genuinely new
+    file discovered mid-task is folded in with a single re-dispatch of that item, and no further
+    recursion. Only Needs-human items, Too-large items, and deferrals the wave could not finish
+    (carrying their recorded grounds) survive to the Phase 8 report; the bar for Too-large is work
+    needing its own planned effort, not merely many edits. **No work items are filed by default in any mode**;
     filing happens only on an explicit user request, keeping the one-item-per-concern unit and the
     no-numeric-cap rule.
   - **Repo mode delivers one feature branch and one pull request for the whole run**, replacing
-    one PR per wave. At least one commit per group keeps the run auditable at group granularity,
+    one PR per wave. The run branch is created from the refreshed tip of the intended PR base
+    (normally the default branch), never silently from an invocation HEAD sitting ahead of it,
+    which would smuggle that branch's pre-existing commits into the repo-wide PR; a non-base HEAD
+    is surfaced at the confirmation gate for an explicit choice.
+    At least one commit per group keeps the run auditable at group granularity,
     the base branch is merged into the run branch at every wave boundary (and once more before
     final verification) so the repo-wide PR does not rot behind its base, and the single PR opens
     after the first wave lands so CI exercises every subsequent push. The known cost, a diff past

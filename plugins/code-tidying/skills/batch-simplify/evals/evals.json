@@ -53,7 +53,7 @@
         "Extracts each agent's ## Deferred section verbatim rather than paraphrasing",
         "Consolidates duplicate cross-group concerns into single items",
         "Runs a fix-first resolution wave that applies Fix-now deferrals in this same run and branch rather than filing them",
-        "Presents only the surviving Needs-human and Too-large items in the summary report, with their grounds",
+        "Presents only the surviving deferrals (Needs-human, Too-large, or an item the resolution wave could not finish) in the summary report, with their grounds",
         "Does NOT file work items or create issues by default; filing happens only on an explicit user request"
       ]
     },
