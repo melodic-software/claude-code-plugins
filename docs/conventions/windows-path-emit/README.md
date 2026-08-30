@@ -171,7 +171,8 @@ carries the defect's on-disk fingerprint, in either of two classes:
   [`plugins/guardrails/hooks/block-windows-drive-tmp.sh`](../../../plugins/guardrails/hooks/block-windows-drive-tmp.sh)
   already blocks: `tmp` is the only drive-root sink in that guard (`/var/tmp` and `%TEMP%` are
   legitimate and never sit at a volume root), so it is the only name here; the two lists grow
-  together. An operator who keeps a deliberate `C:\tmp` exempts the name with
+  together. Sink names match case-insensitively (Windows filesystems fold case, so `C:\TMP` is
+  `C:\tmp`). An operator who keeps a deliberate `C:\tmp` exempts the name, in any casing, with
   `DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp` — an env var rather than a marker file inside the directory,
   because the detector cannot trust litter's own contents to prove intent.
 

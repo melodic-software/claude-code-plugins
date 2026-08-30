@@ -66,6 +66,11 @@ mkdir -p "$TMP/checkout/c/data" "$TMP/checkout/d/c/work/repo"
 mkdir -p "$TMP/sink/c/data" "$TMP/sink/d/repos"
 mkdir -p "$TMP/sink/c/tmp/tmp.rSFIkHm5DO"
 
+# sinkupper: the same fingerprint in uppercase — Windows filesystems are
+# case-insensitive, so C:\TMP is C:\tmp and must be caught even on the
+# case-sensitive filesystem this fixture lives on.
+mkdir -p "$TMP/sinkupper/c/data" "$TMP/sinkupper/d/repos" "$TMP/sinkupper/c/TMP"
+
 # sinkcheckout: a repo that genuinely lives under a drive-root tmp folder.
 mkdir -p "$TMP/sinkcheckout/c/data" "$TMP/sinkcheckout/c/tmp/work/repo"
 
@@ -189,6 +194,13 @@ if ! grep -q "$TMP/sink/c/data" <<<"$OUT" && ! grep -q "$TMP/sink/d/repos" <<<"$
 else
   fail "non-sink directory reported as litter: $OUT"
 fi
+# Windows filesystems fold case, so an uppercase TMP is the same sink.
+run msys "$TMP/sinkupper"
+if ((RC == 1)) && grep -q "$TMP/sinkupper/c/TMP" <<<"$OUT"; then
+  pass "an uppercase drive-root TMP is detected (case-insensitive match)"
+else
+  fail "uppercase TMP should be detected: rc=$RC out=$OUT"
+fi
 
 # --- 9. Temp-sink opt-out ----------------------------------------------------
 OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sink" DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp bash "$SUT" 2>&1)"
@@ -197,6 +209,21 @@ if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
   pass "DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp exempts a deliberate drive-root tmp"
 else
   fail "sink opt-out should pass: rc=$RC out=$OUT"
+fi
+# ... in any casing, both of the opt-out value and of the directory.
+OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sink" DRIVE_ROOT_LITTER_IGNORE_SINKS=TMP bash "$SUT" 2>&1)"
+RC=$?
+if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
+  pass "an uppercase opt-out value (TMP) exempts a lowercase tmp"
+else
+  fail "uppercase opt-out should exempt: rc=$RC out=$OUT"
+fi
+OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sinkupper" DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp bash "$SUT" 2>&1)"
+RC=$?
+if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
+  pass "a lowercase opt-out value exempts an uppercase TMP directory"
+else
+  fail "opt-out should exempt an uppercase directory: rc=$RC out=$OUT"
 fi
 # ... and the opt-out does not bleed into the single-letter class.
 OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/litter" DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp bash "$SUT" 2>&1)"

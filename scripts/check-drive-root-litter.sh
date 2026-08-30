@@ -42,7 +42,12 @@
 # roots at a volume top on Windows - unlike the single-letter class there is no
 # mounted-drive coincidence to require, so this class carries an opt-out:
 # DRIVE_ROOT_LITTER_IGNORE_SINKS (space- or comma-separated names) exempts an
-# operator who keeps a deliberate `C:\tmp`. An env var rather than a marker
+# operator who keeps a deliberate `C:\tmp`. Sink names match CASE-INSENSITIVELY
+# in both directions - Windows filesystems are case-insensitive, so `C:\TMP`
+# and `C:\tmp` are one directory, and the detector enumerates drive-root
+# entries rather than probing the literal lowercase name so the contract holds
+# on the case-sensitive filesystems the test fixtures run on; the opt-out
+# accepts any casing for the same reason. An env var rather than a marker
 # file inside the directory, because the detector cannot trust litter's own
 # contents to prove intent, and the env var keeps the exemption visible at the
 # invocation site. The single-letter class has no opt-out and is unaffected.
@@ -103,45 +108,52 @@ fi
 here="$(pwd -P 2>/dev/null)" || here="$(pwd)"
 
 hits=()
+
+# Shared candidate check for both classes: skip a non-directory, skip a
+# candidate that contains the cwd (a real checkout location, not litter - see
+# the comment above `here`), record everything else as a hit.
+record_if_litter() {
+  local drive="$1" name="$2" candidate cand_real
+  candidate="$mount_root/$drive/$name"
+  [[ -d "$candidate" ]] || return 0
+  cand_real="$(cd "$candidate" 2>/dev/null && pwd -P)"
+  [[ -n "$cand_real" ]] || cand_real="$candidate"
+  case "$here/" in
+  "$cand_real"/*) return 0 ;;
+  *) ;; # the cwd is elsewhere: the candidate is a real hit
+  esac
+  if [[ "$mount_root" == "" ]]; then
+    hits+=("$candidate    (${drive^}:\\${name}\\)")
+  else
+    hits+=("$candidate")
+  fi
+}
+
+# Single-letter class: a drive-root directory named for another mounted drive.
 for drive in "${drives[@]}"; do
   for name in "${drives[@]}"; do
-    candidate="$mount_root/$drive/$name"
-    [[ -d "$candidate" ]] || continue
-    cand_real="$(cd "$candidate" 2>/dev/null && pwd -P)"
-    [[ -n "$cand_real" ]] || cand_real="$candidate"
-    case "$here/" in
-    "$cand_real"/*) continue ;;
-    *) ;; # the cwd is elsewhere: the candidate is a real hit
-    esac
-    if [[ "$mount_root" == "" ]]; then
-      hits+=("$candidate    (${drive^}:\\${name}\\)")
-    else
-      hits+=("$candidate")
-    fi
+    record_if_litter "$drive" "$name"
   done
 done
 
-# Temp-sink class (see the header): a known sink name at a drive root. Same
-# containment guard as above; DRIVE_ROOT_LITTER_IGNORE_SINKS exempts a name.
-sink_names=(tmp)
+# Temp-sink class (see the header): a known sink name at a drive root, matched
+# case-insensitively by ENUMERATING the drive root's entries - a lowercase
+# probe would rely on the host filesystem folding case, which the test
+# fixtures' filesystems do not. DRIVE_ROOT_LITTER_IGNORE_SINKS exempts a name,
+# any casing.
+sink_names=" tmp "
 ignored_sinks="${DRIVE_ROOT_LITTER_IGNORE_SINKS:-}"
-ignored_sinks=" ${ignored_sinks//,/ } "
+ignored_sinks="${ignored_sinks//,/ }"
+ignored_sinks=" ${ignored_sinks,,} "
 for drive in "${drives[@]}"; do
-  for name in "${sink_names[@]}"; do
-    [[ "$ignored_sinks" == *" $name "* ]] && continue
-    candidate="$mount_root/$drive/$name"
-    [[ -d "$candidate" ]] || continue
-    cand_real="$(cd "$candidate" 2>/dev/null && pwd -P)"
-    [[ -n "$cand_real" ]] || cand_real="$candidate"
-    case "$here/" in
-    "$cand_real"/*) continue ;;
-    *) ;; # the cwd is elsewhere: the candidate is a real hit
-    esac
-    if [[ "$mount_root" == "" ]]; then
-      hits+=("$candidate    (${drive^}:\\${name}\\)")
-    else
-      hits+=("$candidate")
-    fi
+  for entry in "$mount_root/$drive"/*/; do
+    [[ -d "$entry" ]] || continue
+    name="${entry%/}"
+    name="${name##*/}"
+    name_lc="${name,,}"
+    [[ "$sink_names" == *" $name_lc "* ]] || continue
+    [[ "$ignored_sinks" == *" $name_lc "* ]] && continue
+    record_if_litter "$drive" "$name"
   done
 done
 
