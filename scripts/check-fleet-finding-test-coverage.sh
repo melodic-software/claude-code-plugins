@@ -49,8 +49,7 @@ if [[ ! -f "$TEST" ]]; then
 fi
 
 emitted_tmp="$(mktemp)"
-baseline_tmp="$(mktemp)"
-trap 'rm -f "$emitted_tmp" "$baseline_tmp"' EXIT
+trap 'rm -f "$emitted_tmp"' EXIT
 
 # Skip comment lines: prose in the collector names kinds while explaining them.
 grep -vE "^[[:space:]]*#" "$SCRIPT" | grep -oE "emit_finding [A-Z]+ [a-z-]+" |
@@ -71,6 +70,7 @@ kind_asserted() {
 }
 
 declare -A baselined=()
+baseline_entries=()
 if [[ -f "$BASELINE" ]]; then
   while IFS= read -r line; do
     line="${line%%#*}"
@@ -78,7 +78,7 @@ if [[ -f "$BASELINE" ]]; then
     line="${line%"${line##*[![:space:]]}"}"
     [[ -n "$line" ]] || continue
     baselined["$line"]=1
-    printf '%s\n' "$line" >>"$baseline_tmp"
+    baseline_entries+=("$line")
   done <"$BASELINE"
 fi
 
@@ -108,8 +108,7 @@ done <"$emitted_tmp"
 
 # Stale baseline: entry no longer shadows a missing kind (either covered now, or
 # no longer emitted).
-while IFS= read -r entry; do
-  [[ -n "$entry" ]] || continue
+for entry in ${baseline_entries[@]+"${baseline_entries[@]}"}; do
   if ! grep -Fxq -- "$entry" "$emitted_tmp"; then
     echo "STALE BASELINE ENTRY: $entry (no longer emitted by $SCRIPT)" >&2
     errors=$((errors + 1))
@@ -119,7 +118,7 @@ while IFS= read -r entry; do
     echo "STALE BASELINE ENTRY: $entry (now Finding:-asserted by $TEST; remove from baseline)" >&2
     errors=$((errors + 1))
   fi
-done <"$baseline_tmp"
+done
 
 if [[ "$errors" -gt 0 ]]; then
   echo "check-fleet-finding-test-coverage: FAILED — $errors gap(s)" >&2

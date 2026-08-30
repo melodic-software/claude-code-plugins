@@ -1274,7 +1274,7 @@ fi
 #    "slow" arm wins: measured, 4855 ms fast vs 4330 ms slow, an inverted
 #    result. The ledger is fast = 1 read + 1 fork against slow = 5 reads +
 #    3 forks (two json_complete probes plus the `validated=0` probe at
-#    hook-utils.sh:586, which only the slow arm reaches).
+#    hook-utils.sh:940, which only the slow arm reaches).
 #
 # 2. The producer must hold its stdout open until the CONSUMER is done. A fixed
 #    `sleep` cannot do that: reaching the slow arm's verdict costs the bound plus
@@ -1851,7 +1851,7 @@ bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   rm -f "$t_file"
 }
 # The unsliced override must pay the same COMMAND SUBSTITUTION the real
-# hook::resolve_read_slice pays at hook-utils.sh:491 to probe its slice value.
+# hook::resolve_read_slice pays at hook-utils.sh:849 to probe its slice value.
 # `printf "%s 1" "$1"` alone forks zero times where the sliced arm forks once,
 # and it is the arm that must come out SLOWER, so the missing fork shrinks the
 # very gap this case measures. On a host where a fork has been measured at up
@@ -1978,7 +1978,7 @@ rm -f "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
 # The ENGAGEMENT half, which the assertion above cannot reach: the empty-slice
 # completeness check has to FIRE, and fire on the FIRST idle slice. Delete the
-# block at hook-utils.sh:559 and the assertion above stays green while the helper
+# block at hook-utils.sh:917 and the assertion above stays green while the helper
 # burns the whole bound (2948 ms baseline against 5823 ms mutant, measured), so
 # on its own it converts none of the removed comparison's coverage.
 #
@@ -1990,13 +1990,13 @@ rm -f "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 #
 # Bash's dynamic scoping puts hook::buffer_stdin's own locals in scope for the
 # override, which is what lets it record WHICH check called it. `chunk` is empty
-# only at the empty-slice check (hook-utils.sh:559) and non-empty at the
-# with-bytes one (:540), and `idle_slices` is how many idle slices had already
+# only at the empty-slice check (hook-utils.sh:917) and non-empty at the
+# with-bytes one (:898), and `idle_slices` is how many idle slices had already
 # been spent when the verdict landed. The pass shape is therefore exactly
 # `idle=0 chunklen=0` — complete on the first idle slice, not after the bound.
 #
 # What each mutation does to that log: deleting the block leaves it EMPTY, since
-# the trailing probe at hook-utils.sh:586 is an inline `printf | jq` and not this
+# the trailing probe at hook-utils.sh:940 is an inline `printf | jq` and not this
 # function, so the case fails. Moving the check later — an `idle_slices >= 3`
 # guard, say — logs a non-zero idle count, so that fails too. Only SUCCESSFUL
 # verdicts are logged, the partial buffers probed on the way in returning
@@ -2009,7 +2009,7 @@ rm -f "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 #
 # FRAGMENTED delivery is the one shape that does not reach the empty-slice check:
 # if the payload lands in pieces, an intermediate read times out holding bytes
-# and the WITH-BYTES check at hook-utils.sh:540 sees the completion first. That
+# and the WITH-BYTES check at hook-utils.sh:898 sees the completion first. That
 # is reported as unexercised rather than passed as covered — and it is retried
 # first, since it is a delivery accident and not a property of the code. Nor can
 # it mask the regression, which is the reason exhausting the retries is not a
