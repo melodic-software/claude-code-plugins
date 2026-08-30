@@ -175,7 +175,6 @@ function loadBinding(repoRoot) {
     path: posixJoin(".claude", "autonomy", "binding.json"),
     declarations,
     surfaces,
-    section,
   };
 }
 
@@ -238,7 +237,7 @@ function probeTracker(repoRoot) {
     provider,
     "capabilities.json",
   );
-  const capsPath = join(repoRoot, "tools", "work-item-tracker", "adapters", provider, "capabilities.json");
+  const capsPath = join(repoRoot, ...capsRel.split("/"));
   if (!pathExists(capsPath)) {
     // Presence-gated composition fallback: binding exists but adapter caps
     // cannot be established → unresolvable (unknown), not absent.

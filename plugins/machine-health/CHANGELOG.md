@@ -3,6 +3,18 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.16]
+
+### Changed
+
+- **Comment accuracy and formatting tidy in the Windows audit lib.**
+  `Assert-CheckResult.ps1` gains the blank line after `#Requires` all 32
+  sibling lib files carry; `Invoke-TrendAnalysis.ps1` drops one
+  historical-residue comment sentence (the live newest-baseline rationale
+  stays); `Clear-TempFiles.ps1` and `New-InvalidCatalogEntryResult.Tests.ps1`
+  normalize comment em dashes to `--` per house style. Comment/whitespace
+  only — AST-token comparison verified the executable content identical.
+
 ## [0.11.15]
 
 ### Changed

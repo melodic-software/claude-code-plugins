@@ -69,10 +69,9 @@ function Invoke-TrendAnalysis {
         #
         # Only the most recent qualifying value is ever compared against, so the
         # walk overwrites rather than accumulating: the tail is in file order
-        # (oldest -> newest), so the last assignment is the newest baseline. An
-        # earlier version collected every value into a list and read [-1]; the
-        # list was never used for anything else. Reading [0] would compare today
-        # against the STALEST entry, which is the bug the ordering note guards.
+        # (oldest -> newest), so the last assignment is the newest baseline.
+        # Reading [0] would compare today against the STALEST entry, which is
+        # the bug the ordering note guards.
         $lastMetric = $null
         if ($relevantKey) {
             $fullKey = "$($r.id).$relevantKey"
