@@ -55,12 +55,12 @@
 #
 # Usage:
 #   run-state.sh paths          --plugin-data <dir> --run-id <id> [--root <path>]
-#   run-state.sh lease acquire  --run-dir <dir> --run-id <id> [--stale-after <s>]
-#                               [--skew-grace <s>] [--epoch <n>]
+#   run-state.sh lease acquire  --run-dir <dir> --run-id <id> --plugin-data <dir>
+#                               [--stale-after <s>] [--skew-grace <s>] [--epoch <n>]
 #   run-state.sh lease heartbeat --run-dir <dir>
 #   run-state.sh lease release   --run-dir <dir>
 #   run-state.sh lease classify  --run-dir <dir>
-#   run-state.sh partial append  --run-dir <dir> --record <json-line>
+#   run-state.sh partial append  --run-dir <dir> --record <json-line> [--epoch <n>]
 #
 # `--plugin-data` is required because `${CLAUDE_PLUGIN_DATA}` is NOT in the Bash
 # tool's environment (plugins reference: the three placeholders are exported to

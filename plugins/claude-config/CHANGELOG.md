@@ -3,6 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.20]
+
+### Changed
+
+- **Two documentation-accuracy fixes and one dead-guard removal in skill
+  scripts.** `audit-pass/scripts/run-state.sh`'s header usage block regains the
+  `--plugin-data` and `[--epoch <n>]` arguments its own `usage()` already
+  documents (comment-only; verified against the negative-test sed targets);
+  `audit-instructions/scripts/conflict-scan.test.sh` drops a prerequisite guard
+  for `grep`, a tool neither the suite nor the script under test invokes (the
+  awk guard stays; skip-discipline gates re-run clean).
+
 ## [0.40.19]
 
 ### Changed
