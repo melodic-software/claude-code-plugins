@@ -9,12 +9,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// output/build/lib/paths.js -> build dir is one up, skill root three up.
-export const BUILD_DIR = path.resolve(__dirname, "..");
-export const SKILL_ROOT = path.resolve(__dirname, "..", "..", "..");
+// output/build/lib/paths.js -> skill root is three up.
+const SKILL_ROOT = path.resolve(__dirname, "..", "..", "..");
 
 // Empty fallback used when no consumer project is present (in-repo / test runs).
-export const DEFAULT_CONFIG_DIR = path.join(SKILL_ROOT, "profile-defaults");
+const DEFAULT_CONFIG_DIR = path.join(SKILL_ROOT, "profile-defaults");
 
 function envDir(name) {
   const v = process.env[name];

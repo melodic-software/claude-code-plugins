@@ -73,10 +73,9 @@ mscope::registry_keys() {
   case "$OSTYPE" in
   msys* | cygwin*)
     # portability-ok: the `\S` here is the literal first character of SOFTWARE in
-    # a single-quoted Windows registry path, not a GNU regex escape. These lines
-    # only ever run on Windows, and `printf '%s'` does no escape interpretation.
-    printf '%s\n' 'HKLM\SOFTWARE\Policies\ClaudeCode'
-    printf '%s\n' 'HKCU\SOFTWARE\Policies\ClaudeCode'
+    # single-quoted Windows registry paths, not a GNU regex escape. This line
+    # only ever runs on Windows, and `printf '%s'` does no escape interpretation.
+    printf '%s\n' 'HKLM\SOFTWARE\Policies\ClaudeCode' 'HKCU\SOFTWARE\Policies\ClaudeCode'
     ;;
   *) ;;
   esac

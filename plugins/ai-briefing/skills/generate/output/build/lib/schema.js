@@ -125,13 +125,13 @@ const SlideQA = z.object({
   ...sectionField,
 });
 
-export const Slide = z.discriminatedUnion("type", [
+const Slide = z.discriminatedUnion("type", [
   SlideTitle, SlideAgenda, SlideSection, SlideLevels, SlideOpen,
   SlideNews, SlideCondensed, SlidePatterns, SlidePrompt, SlideBlank,
   SlideQA,
 ]);
 
-export const Meta = z.object({
+const Meta = z.object({
   meetingNumber: z.number().int().min(1),
   org: z.string(),
   tagline: z.string(),
@@ -141,7 +141,7 @@ export const Meta = z.object({
   logoWhite: z.string(),
 });
 
-export const Theme = z.object({
+const Theme = z.object({
   bg: Hex6, bgAccent: Hex6, bgCard: Hex6,
   brandIndigo: Hex6, brandRed: Hex6,
   accent: Hex6, accent2: Hex6, accent3: Hex6,
@@ -150,9 +150,9 @@ export const Theme = z.object({
   htmlFontHead: z.string(), htmlFontBody: z.string(),
 });
 
-export const ProviderLogos = z.record(z.string(), z.string().nullable());
+const ProviderLogos = z.record(z.string(), z.string().nullable());
 
-export const Deck = z.object({
+const Deck = z.object({
   meta: Meta,
   theme: Theme,
   providerLogos: ProviderLogos,

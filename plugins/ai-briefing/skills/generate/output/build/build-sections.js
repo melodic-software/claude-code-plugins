@@ -45,7 +45,7 @@ const SECTION_LABELS = {
 const PRIMARY_NAV_ORDER = ["hero", "agenda", "welcome", "levels", "news", "tools", "tips", "problems", "taskforce", "qa"];
 
 // Group consecutive slides sharing the same section.
-export function groupSections(allSlides) {
+function groupSections(allSlides) {
   const groups = [];
   let current = null;
   for (const s of allSlides) {

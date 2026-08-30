@@ -329,12 +329,6 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 declare -A SYNC_SRC_COPIES=()
 declare -A SYNC_SCRIPT_SRC=()
 
-# invoke_print_manifest <script> <stdout-file> <stderr-file>
-# Runs `$script --print-manifest`. Returns the script's exit status.
-invoke_print_manifest() {
-  bash "$1" --print-manifest >"$2" 2>"$3"
-}
-
 build_sync_map() {
   local script src pattern match line kind value rc errfile outfile
   local has_src_key has_copy_key
@@ -351,7 +345,7 @@ build_sync_map() {
     : >"$outfile"
     : >"$errfile"
     rc=0
-    invoke_print_manifest "$script" "$outfile" "$errfile" || rc=$?
+    bash "$script" --print-manifest >"$outfile" 2>"$errfile" || rc=$?
 
     src=""
     has_src_key=0
@@ -475,17 +469,21 @@ is_suite_path() {
   return 1
 }
 
-# lang_family <path> -> the ecosystem a path belongs to, for the one-hop rule
-# above. Anything unrecognized gets its own bucket rather than a shared "other":
-# two unrelated extensions must not read as the same language and license a walk
-# between them.
+# lang_family <path> -> sets LANG_FAMILY to the ecosystem the path belongs to,
+# for the one-hop rule above. A global rather than stdout for the same reason
+# SEED_HITS is, plus one more: a command substitution forks a subshell, and this
+# runs once per frontier path and once per reverse-lookup hit — a per-spawn cost
+# the header's Windows note is about. Anything unrecognized gets its own bucket
+# rather than a shared "other": two unrelated extensions must not read as the
+# same language and license a walk between them.
+LANG_FAMILY=""
 lang_family() {
   case "$1" in
-  *.sh | *.bash) printf 'sh' ;;
-  *.js | *.mjs | *.cjs) printf 'node' ;;
-  *.py) printf 'py' ;;
-  *.ps1 | *.psm1) printf 'ps' ;;
-  *) printf 'ext:%s' "${1##*.}" ;;
+  *.sh | *.bash) LANG_FAMILY='sh' ;;
+  *.js | *.mjs | *.cjs) LANG_FAMILY='node' ;;
+  *.py) LANG_FAMILY='py' ;;
+  *.ps1 | *.psm1) LANG_FAMILY='ps' ;;
+  *) LANG_FAMILY="ext:${1##*.}" ;;
   esac
 }
 
@@ -648,7 +646,8 @@ select_for() {
       done < <(colocated_suites "$p")
       b="${p##*/}"
       is_structural "$b" && continue
-      origin_family="$(lang_family "$p")"
+      lang_family "$p"
+      origin_family="$LANG_FAMILY"
       if [[ -z "${PATTERN_ORIGIN[$b]:-}" ]]; then
         PATTERN_ORIGIN["$b"]="$origin_family"
         PATTERN_CROSSED["$b"]="${CROSSED[$p]:-0}"
@@ -713,7 +712,8 @@ select_for() {
         add_suite "$matched_path" "references $matched_name" || true
         continue
       fi
-      matched_family="$(lang_family "$matched_path")"
+      lang_family "$matched_path"
+      matched_family="$LANG_FAMILY"
       origin_family="${PATTERN_ORIGIN[$matched_name]:-*}"
       if [[ "$origin_family" == '*' || "$matched_family" == "$origin_family" ]]; then
         # Same-family edge: a real dependency, and it spends no budget.

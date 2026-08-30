@@ -3,6 +3,21 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.17]
+
+### Changed
+
+- **Build-package internal surface tightened.** Dead `BUILD_DIR` export and
+  internal-only `SKILL_ROOT`/`DEFAULT_CONFIG_DIR` unexported in `lib/paths.js`;
+  `Slide`/`Meta`/`Theme`/`ProviderLogos`/`Deck` unexported in `lib/schema.js`
+  (`validateDeck` remains the module's API); dead `export` dropped from
+  `groupSections` in `build-sections.js`. A repo-wide consumer sweep found no
+  importer of any removed name. `lib/emit-slides.js` hoists the MED/LOW split
+  threshold into the `MAX_MED` constant it already defined and fixes a comment
+  naming a nonexistent constant; `lib/parse-briefing.js` relocates a stranded
+  doc comment onto the function it describes. Emitted deck bytes unchanged;
+  the SSRF gate (`lib/url-policy.js`) untouched; suite 41/41.
+
 ## [0.7.16]
 
 ### Changed

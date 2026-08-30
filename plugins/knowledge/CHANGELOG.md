@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.26]
+
+### Changed
+
+- **video-digest extraction test suite deduplicated across modules.** The
+  `forbiddenSynthesisFileNameReason` describe block in
+  `watch-vision-validation.test.js` re-tested `synthesis-filename.js` behavior
+  that module's own suite already covers; its two unique cases (the
+  `densification-code-0.png` reject and `benchmark-curve-slide-metrics.png`
+  accept) moved into `synthesis-filename.test.js` and the block and its import
+  were removed. Assertion-level coverage is unchanged (verified pair by pair);
+  the full extraction suite passes 71 files / 501 tests. Test-only change; no
+  runtime code touched.
+
 ## [0.13.25]
 
 ### Changed

@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.41]
+
+### Changed
+
+- **Tracker-core test scaffolding tidied.** `lib/binding.test.sh` drops a
+  file-wide `shellcheck disable=SC2154` that current shellcheck no longer
+  needs (and that masked the whole file against real SC2154 findings);
+  `lib/verb-test-helpers.sh` drops `FAILED`/`CASE_NUM` defaults duplicated
+  by `tests/lib.sh`, which it sources immediately after and which sets the
+  identical defaults. All co-located suites and the 41-suite adapter
+  fan-out pass unchanged.
+
 ## [0.39.40]
 
 ### Changed

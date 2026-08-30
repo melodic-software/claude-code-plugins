@@ -21,7 +21,7 @@ const BUCKET_ORDER = [
 ];
 
 // Special-purpose buckets emitted outside the standard HIGH/MED/LOW per-provider loop.
-// Recognized via SPECIAL_BUCKET_PATTERNS — matched in addition to BUCKET_ORDER above.
+// Matched by pattern in addition to BUCKET_ORDER above.
 const SPECIAL_BUCKETS = {
   "dev-tools": /^dev tools|^dev-tools|^dev tools — release walk/i,
   "patterns": /^patterns|^notable patterns/i,
@@ -84,6 +84,7 @@ function tierSlides({ items, tier, providerKey, label }) {
 
   // HIGH split into chunks of ≤5 with topical title; MED/LOW single slide w/ 2-col when >7
   const MAX_HIGH = 5;
+  const MAX_MED = 14;
   if (tier === "high" && items.length > MAX_HIGH) {
     for (let i = 0; i < items.length; i += MAX_HIGH) {
       const chunk = items.slice(i, i + MAX_HIGH);
@@ -96,9 +97,8 @@ function tierSlides({ items, tier, providerKey, label }) {
         bullets: chunk.map(toBullet),
       });
     }
-  } else if (tier !== "high" && items.length > 14) {
+  } else if (tier !== "high" && items.length > MAX_MED) {
     // MED/LOW too dense even in 2-col — split into multiple condensed slides
-    const MAX_MED = 14;
     for (let i = 0; i < items.length; i += MAX_MED) {
       const chunk = items.slice(i, i + MAX_MED);
       const part = Math.floor(i / MAX_MED) + 1;

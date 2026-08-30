@@ -154,7 +154,7 @@ Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
         $invalidCategory = New-NearlyValidEntry -Overrides @{ category = 'platform' }
         $invalidId = New-NearlyValidEntry -Overrides @{ id = 'NotKebab' }
         # A valid custom check whose id occupies the synthetic fallback
-        # namespace — synthetic ids must still be unique against it.
+        # namespace -- synthetic ids must still be unique against it.
         $occupyingFallback = New-NearlyValidEntry -Overrides @{
             id       = 'invalid-catalog-entry-2'
             category = 'storage'
@@ -205,7 +205,7 @@ Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
             { Assert-CheckResult $r } | Should -Not -Throw
         }
 
-        # Severity counts must include the synthetic UNKNOWN findings — the defect was
+        # Severity counts must include the synthetic UNKNOWN findings -- the defect was
         # that a skipped entry contributed nothing here.
         $severityCounts = @{ OK = 0; INFO = 0; WARN = 0; CRIT = 0; UNKNOWN = 0 }
         foreach ($r in $invalidCatalogResults) { $severityCounts[$r.severity]++ }
