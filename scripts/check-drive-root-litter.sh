@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Detect the on-disk fingerprint of an unconverted MSYS path handed to a
-# Windows-native consumer: a directory sitting at a drive root whose name is a
-# single letter that is ITSELF a mounted drive.
+# Detect the on-disk fingerprint of an unconverted POSIX path handed to a
+# Windows-native consumer. Two classes share the mechanism:
+#   * a directory at a drive root whose name is a single letter that is ITSELF
+#     a mounted drive (an MSYS /d/... literal), and
+#   * a directory at a drive root carrying a KNOWN TEMP-SINK NAME (a POSIX
+#     /tmp literal), e.g. C:\tmp.
 #
 #   scripts/check-drive-root-litter.sh          scan this host's drive roots
 #
@@ -27,6 +30,22 @@
 # plugins/guardrails/hooks/block-windows-drive-tmp.sh, a PreToolUse guard on the
 # command string); this is the same concern pointed at a producer we own, and it
 # looks at the filesystem AFTER a run rather than at a command before it.
+#
+# The TEMP-SINK class is the same mechanism with the literal spelled `/tmp`
+# instead of `/<drive>/...`: Git Bash's real temp is a mount
+# (`/tmp` -> `%TEMP%`), but a Windows-native consumer given the literal
+# resolves it to `<current-drive>:\tmp` and creates it. The name vocabulary is
+# deliberately the sibling guard's: `tmp` is the only drive-root sink
+# block-windows-drive-tmp.sh blocks (`/var/tmp` and `%TEMP%` are legitimate and
+# never sit at a volume root), so `tmp` is the only name here. Grow both lists
+# together. Precision comes from the name being a sink nothing legitimately
+# roots at a volume top on Windows - unlike the single-letter class there is no
+# mounted-drive coincidence to require, so this class carries an opt-out:
+# DRIVE_ROOT_LITTER_IGNORE_SINKS (space- or comma-separated names) exempts an
+# operator who keeps a deliberate `C:\tmp`. An env var rather than a marker
+# file inside the directory, because the detector cannot trust litter's own
+# contents to prove intent, and the env var keeps the exemption visible at the
+# invocation site. The single-letter class has no opt-out and is unaffected.
 #
 # ADVISORY BY DEFAULT, not wired into a required lane that scans a live machine.
 # docs/adr/0003 is this repo's doctrine for that: a verification guard earns
@@ -65,7 +84,7 @@ mount_root="${DRIVE_ROOT_LITTER_MOUNT_ROOT:-/}"
 mount_root="${mount_root%/}"
 
 # The set of mounted drive letters. This is both the set of roots to scan AND
-# the set of directory names that count as a hit.
+# the set of directory names that count as a single-letter-class hit.
 drives=()
 for letter in {a..z}; do
   [[ -d "$mount_root/$letter" ]] && drives+=("$letter")
@@ -102,6 +121,30 @@ for drive in "${drives[@]}"; do
   done
 done
 
+# Temp-sink class (see the header): a known sink name at a drive root. Same
+# containment guard as above; DRIVE_ROOT_LITTER_IGNORE_SINKS exempts a name.
+sink_names=(tmp)
+ignored_sinks="${DRIVE_ROOT_LITTER_IGNORE_SINKS:-}"
+ignored_sinks=" ${ignored_sinks//,/ } "
+for drive in "${drives[@]}"; do
+  for name in "${sink_names[@]}"; do
+    [[ "$ignored_sinks" == *" $name "* ]] && continue
+    candidate="$mount_root/$drive/$name"
+    [[ -d "$candidate" ]] || continue
+    cand_real="$(cd "$candidate" 2>/dev/null && pwd -P)"
+    [[ -n "$cand_real" ]] || cand_real="$candidate"
+    case "$here/" in
+    "$cand_real"/*) continue ;;
+    *) ;; # the cwd is elsewhere: the candidate is a real hit
+    esac
+    if [[ "$mount_root" == "" ]]; then
+      hits+=("$candidate    (${drive^}:\\${name}\\)")
+    else
+      hits+=("$candidate")
+    fi
+  done
+done
+
 if ((${#hits[@]} == 0)); then
   echo "check-drive-root-litter.sh: ${#drives[@]} drive root(s) scanned under '${mount_root:-/}'; no drive-root litter found."
   exit 0
@@ -113,9 +156,11 @@ for hit in "${hits[@]}"; do
 done
 cat >&2 <<'EOF'
 
-Each path above is a directory at a drive root named for another mounted drive -
-the fingerprint of an MSYS path literal (/d/...) handed to a Windows-native
-consumer, which resolved it against the CURRENT drive's root instead.
+Each path above carries this defect's fingerprint at a drive root: a directory
+named for another mounted drive (an MSYS /d/... literal) or a known temp-sink
+name such as tmp (a POSIX /tmp literal). Either way, a POSIX path was handed to
+a Windows-native consumer, which resolved it against the CURRENT drive's root
+instead of the intended location.
 
 The litter is the cheap part. Whatever wrote it wrote to a path it did not
 intend, so any run that produced it may have measured something other than what

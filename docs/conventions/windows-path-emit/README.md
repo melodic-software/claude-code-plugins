@@ -158,13 +158,25 @@ every carrying plugin through a version bump for a function none of them calls.
 ## The detection net
 
 [`scripts/check-drive-root-litter.sh`](../../../scripts/check-drive-root-litter.sh) fails a host that
-carries the defect's on-disk fingerprint: a directory at a drive root whose name is a single letter
-that is **itself a mounted drive** on that host. Requiring the letter to name a real drive is what
-keeps it precise — a one-character folder at a drive root is unremarkable on its own (`<drive>:\a` is
-the workspace root on a GitHub-hosted Windows runner), and only becomes this defect's signature when
-the letter is one an author could have spelled into an MSYS path. It also ignores a candidate that
-contains the current working directory, so a checkout that genuinely lives under one is not called
-residue.
+carries the defect's on-disk fingerprint, in either of two classes:
+
+- **A single-letter directory naming a mounted drive.** A directory at a drive root whose name is a
+  single letter that is **itself a mounted drive** on that host — an MSYS `/d/...` literal resolved
+  against the current drive. Requiring the letter to name a real drive is what keeps it precise — a
+  one-character folder at a drive root is unremarkable on its own (`<drive>:\a` is the workspace root
+  on a GitHub-hosted Windows runner), and only becomes this defect's signature when the letter is one
+  an author could have spelled into an MSYS path.
+- **A known temp-sink name at a drive root** (`C:\tmp`) — a POSIX `/tmp` literal resolved the same
+  way. The name vocabulary is deliberately the one
+  [`plugins/guardrails/hooks/block-windows-drive-tmp.sh`](../../../plugins/guardrails/hooks/block-windows-drive-tmp.sh)
+  already blocks: `tmp` is the only drive-root sink in that guard (`/var/tmp` and `%TEMP%` are
+  legitimate and never sit at a volume root), so it is the only name here; the two lists grow
+  together. An operator who keeps a deliberate `C:\tmp` exempts the name with
+  `DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp` — an env var rather than a marker file inside the directory,
+  because the detector cannot trust litter's own contents to prove intent.
+
+Both classes ignore a candidate that contains the current working directory, so a checkout that
+genuinely lives under one is not called residue.
 
 Run it after any Windows verification pass:
 
