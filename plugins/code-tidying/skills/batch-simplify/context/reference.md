@@ -43,15 +43,17 @@ Groups processed: {group_count}
 
 Final cross-ecosystem verification: PASS/FAIL
 
-## Deferred items (filed as issues)
+## Deferred items resolved in-run
 
-- #NNN: refactor(<area>): <what> (High)
+- <path> — <what> (resolution wave, commit <sha>)
 - ...
 
-## Deferred items (not filed — judgment calls preserved)
+## Deferred items remaining (user decides)
 
-- <site> — rejected as explicit-over-implicit (Group 2)
+- <site> — <what>. Ground: <Needs-human|Too-large>. <agent's recorded rationale> (Group 2)
 ```
+
+No work items are filed by default; the remaining-deferrals section is where they land. Offer to file them only if the user asks.
 
 If zero items were deferred across all groups, state explicitly: *"No items deferred. All identified simplifications were applied or determined to be no-ops."*
 

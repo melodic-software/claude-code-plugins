@@ -105,7 +105,7 @@ The strongest form of the idea — churn weighted by a complexity or code-health
 "hotspot analysis" usually means — is rejected for a different and more decisive reason than the weak
 forms, and rejecting only the weak ones would leave it open. Hotspot ranking answers *where should I
 look first*, which is a triage question. Repo mode has already answered it: the sweep covers every
-group in the universe, and filing is High-only with no numeric cap. A ranking that reorders work
+group in the universe, and deferrals are resolved fix-first in the same run. A ranking that reorders work
 which is all going to happen anyway changes nothing about what gets found. It has no consumer here.
 
 Ordering only changes outcomes when a run is truncated or resumed, since an untruncated run reaches
@@ -280,24 +280,27 @@ can emit.
 
 ## Deferred items
 
-Every deferred item persists to the run-state inventory — all of them, at every priority, verbatim
-as the agent recorded them. The inventory is the durable artifact; a run that loses its deferrals has
-converted work into noise.
+Every deferred item persists to the run-state inventory — all of them, verbatim as the agent
+recorded them. The inventory is the durable artifact; a run that loses its deferrals has converted
+work into noise.
 
-**File work items for High only.** This is a deliberate narrowing from the main workflow's
-High + Medium default, and it is stated here so it reads as a decision rather than an oversight: at
-repo scale, Medium-priority filing produces a tracker backlog nobody triages, which is worse for the
-Medium items than leaving them in an inventory somebody can search.
+**Fix-first applies at repo scale too, with the full machinery.** The main workflow's Phase 6.5
+resolution wave runs here unchanged, and its agents get the same repo-mode spawn contract and the
+same mandatory refutation verifier as any other group: a deferral resolved without the verifier
+would be the one un-refuted diff in a mode built on refuting every diff. The wave commits to the
+run's single branch like every other group.
 
-**No numeric cap on filing.** There is no maximum number of work items a run may file. A cap would
-silently drop real findings on the basis of an arbitrary number, and it would contradict the rule
-this plugin already publishes elsewhere: high volume is a diagnostic about scope, not a quota to
-enforce. Keep the existing unit — one item per deferred concern, not per site — so a cross-cutting
-concern at forty locations is one item listing forty locations.
+**No work items are filed by default.** At repo scale, filing produces a tracker backlog nobody
+triages — worse for the items than an inventory somebody can search, and worse for the user than a
+fix. What survives the resolution wave (Needs-human, Too-large) lives in the run-state inventory
+and the Phase 8 report, where the user decides. When the user does explicitly ask to file, keep the
+main workflow's unit — one item per deferred concern, not per site, with no numeric cap — so a
+cross-cutting concern at forty locations is one item listing forty locations.
 
-**Report high volume as a scope diagnostic.** If a run defers far more than it applies, say so
-plainly in the Phase 8 report and name the groups responsible. That signal means the repository has
-a structural problem a simplification sweep cannot fix, and it is more valuable than the sweep.
+**Report high volume as a scope diagnostic.** If a run defers far more than it applies even after
+the resolution wave, say so plainly in the Phase 8 report and name the groups responsible. That
+signal means the repository has a structural problem a simplification sweep cannot fix, and it is
+more valuable than the sweep.
 
 **No rollup issue.** Do not file one umbrella item aggregating the rest. The run-state inventory
 already is the aggregate, it is searchable, and it does not go stale the moment a child item is
@@ -305,28 +308,39 @@ closed.
 
 ## Delivery
 
-**One pull request per wave.** Each is independently mergeable, and waves are opened and merged
-sequentially rather than all at once, so the open-PR backlog stays small enough to actually review
-and so each wave's base is the merged tip of the last.
+**One feature branch and one pull request for the whole run.** Create the run's branch before the
+first group dispatches; every group, every wave, and the Phase 6.5 resolution wave commits to it.
+Open the single PR once the first wave has landed and verified, so CI exercises every push from
+then on, and keep it updated until the run finishes. The result the user wants at the end is one
+clean branch, one PR, and an empty backlog — not a fan of wave PRs to shepherd or a tracker full of
+follow-ups.
 
-**Not one repository-wide pull request.** It overlaps every path in the repository, so any change
-landing anywhere while it is open puts it behind its base on overlapping paths — which stale-base
-and merge-conflict gates punish, repeatedly, for as long as it stays open. A prior run delivered this
-way paid dozens of merge conflicts and drew no substantive review, because the diff was past any
-workable review budget. Reviews above a few hundred changed lines are measurably ineffective; a
-repo-wide diff is orders of magnitude past that.
+**One commit per group, minimum.** The PR diff is repo-wide and past any workable review budget;
+the commit history is what keeps the run auditable. Each group's commit message names the group and
+what changed, so a reviewer, a bisect, or a revert can work at group granularity even though the PR
+cannot be read end to end. This is also why the refutation verifier is mandatory here: with no
+human reading the whole diff, the per-group verifiers, the per-wave verification, and the union
+pass ARE the review.
 
-**Not one pull request per group.** Dozens of simultaneously open PRs jam the same backlog throttle
-from the other direction, and each carries its own CI cost.
+**Keep the branch current, because a repo-wide PR overlaps every path.** Any change landing on the
+base branch while the run is open puts the PR behind on overlapping paths, and stale-base and
+merge-conflict gates punish that for as long as it stays open. So merge the base branch into the
+run branch at every wave boundary, and once more before final verification — a conflict absorbed at
+a wave boundary is one group's worth of context; the same conflict at the end of the run is
+nobody's.
 
-Between waves, merge before opening the next. A wave whose base is the previous wave's merged tip
-never conflicts with it; a wave branched alongside it eventually does.
+**Not one pull request per wave, and not one per group.** Wave PRs multiply the shepherding the
+user asked this mode to remove — each needs its own review, CI, merge, and each subsequent wave
+waits on the last merge. Per-group PRs jam the open-PR backlog from the other direction, and each
+carries its own CI cost. The single-PR cost (a big diff nobody reads end to end) is real and is
+paid deliberately, covered by the verifier machinery above.
 
 **Version discipline, if the consuming repo has any.** Some repositories require a version bump and a
 changelog entry in the same change that touches a versioned component. Where the repo has such a
 layout — versioned component manifests, a package manifest, a changelog the project treats as a
-release artifact — each wave PR carries the bump for the components that wave touched, and any
-parity check the repo runs will need the base ref to compare against. Where it has none, say so
-rather than silently skipping: *"no version discipline detected; skipping bump step."* Discover the
-layout from the repo; do not assume a particular manifest path, and do not treat a repo-root helper
-script as a dependency, since a consuming project has no obligation to have one.
+release artifact — the run PR carries the bump for every component the run touched (bumped in the
+group commit that touched it, so the pairing survives a bisect), and any parity check the repo runs
+will need the base ref to compare against. Where it has none, say so rather than silently skipping:
+*"no version discipline detected; skipping bump step."* Discover the layout from the repo; do not
+assume a particular manifest path, and do not treat a repo-root helper script as a dependency, since
+a consuming project has no obligation to have one.

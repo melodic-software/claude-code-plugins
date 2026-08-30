@@ -166,7 +166,7 @@ For each group:
    - Instructions to preserve ALL functionality (exit codes, output format, public API, CLI args)
    - The ecosystem-specific verification commands to run after changes (see context/reference.md)
    - An escalation clause: *"If you discover mid-task that the requested change is wrong, conflicts with project conventions, or requires touching files outside your file list, STOP and report back instead of improvising."*
-   - **Deferral contract (required):** *"For every simplification you identify but choose NOT to apply, record it in a `## Deferred` section of your final report with this shape per item: `- <path>:<line or range> — <one-line description>. Reason: <why not now>. Scope: <trivial|small|medium|large>. Category: <refactor|dedup|modernize|perf|cleanup>.` Do not silently skip, if you noticed it, list it. This includes: (a) changes out of scope for this wave, (b) changes rejected for safety reasons, (c) changes that would trigger parallel-edit conflicts, (d) cross-file or cross-group refactors. 'Already idiomatic' or 'preserves documented contract' do NOT need to appear. Only candidates you considered actionable but set aside."*
+   - **Fix-first deferral contract (required):** *"Apply every simplification you identify. Deferral is the exception, and each deferral must name one of these grounds: (a) HUMAN-DECISION, the change turns on a judgment only a human can make (a behavior or public-API question, an ambiguous contract, product intent); (b) TOO-LARGE, a genuinely huge refactor whose scope would dwarf this sweep (a redesign spanning ecosystems, a breaking API migration); (c) CROSS-GROUP, the change requires editing files outside your file list (a later resolution wave in this same run will take it); (d) PROTECTED, the target is in a Phase 2 excluded class. 'Out of scope', 'would dilute the diff', or 'could be a follow-up' are NOT grounds; if you can do it safely and verify it, do it now. Record each deferral in a `## Deferred` section of your final report with this shape per item: `- <path>:<line or range> — <one-line description>. Ground: <HUMAN-DECISION|TOO-LARGE|CROSS-GROUP|PROTECTED>. Reason: <why that ground applies>. Scope: <trivial|small|medium|large>. Category: <refactor|dedup|modernize|perf|cleanup>.` Do not silently skip, if you noticed it, list it. 'Already idiomatic' or 'preserves documented contract' do NOT need to appear. Only candidates you considered actionable but set aside."*
 
 3. **Collect deferred items**, when the agent returns, extract the `## Deferred` section verbatim into a running list keyed by group number. Do not lose or paraphrase these items.
 
@@ -174,23 +174,20 @@ For each group:
 
 5. **Mark the task completed** via `TaskUpdate`
 
-### Phase 6.5: Capture deferred items as issues
+### Phase 6.5: Resolve deferred items in-run
 
-After all groups complete, consolidate the deferred items collected in Phase 6. NON-OPTIONAL, never silently defer: if you notice something and choose not to fix it now, say so and capture it.
+After all groups complete, consolidate the deferred items collected in Phase 6 and RESOLVE them in this same run, on this same branch. The default is fix, not file: a filed issue is deferred work that piles into a backlog, so filing is reserved for items a fix genuinely cannot absorb. NON-OPTIONAL, never silently defer: if you notice something and choose not to fix it now, say so and capture it.
 
 1. **Dedupe and group**. Multiple agents may flag the same cross-cutting concern. Merge into single items spanning all identified sites.
 
-2. **Classify by priority:**
-   - **High**. Fits the current branch theme. File even if scope is large.
-   - **Medium**. Genuine tech debt, would dilute the current PR if bundled.
-   - **Low**. Nice-to-have, cross-cutting, low user-visible impact.
-   - **Do-not-file**. Genuine judgment calls where the agent's rationale is already a defensible answer. Still present to the user; do NOT drop silently.
+2. **Triage each item, fix-first.** Re-examine the recorded ground; agents defer conservatively, so many deferrals are fixable here where the whole run's context is visible:
+   - **Fix-now** (the default). Everything else: CROSS-GROUP refactors (the wave boundary that forced the deferral is gone now), dedups, modernizations, mechanical large changes. If it can be done safely and verified, it belongs here regardless of size.
+   - **Needs-human**. HUMAN-DECISION and PROTECTED items: a behavior or public-API question, product judgment, or an excluded class this skill must not edit.
+   - **Too-large**. A genuinely huge refactor whose scope would dwarf the sweep itself. Be skeptical before granting this: "large" is not "too large"; the bar is work that would need its own planned effort, not just many edits.
 
-3. **Present to the user**, before filing, show the consolidated list grouped by priority with proposed titles. Default to filing High + Medium automatically when running non-interactively; ask for Low and Do-not-file items.
+3. **Run a resolution wave** for the Fix-now items: spawn agents with the same Phase 6 spawn contract (grouped by the files they touch, same verification, and in repo mode the same refutation verifier), committing to the same branch as the rest of the run. One resolution wave, no recursion: an item a resolution agent itself defers on a legitimate ground goes straight to the Phase 8 report.
 
-4. **File work items**. One per deferred concern (not per site): invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create` (or present the list when no tracker is reachable). Use Conventional Commits-style titles: `refactor(<area>): <what>`. The body should include the rationale the agent recorded, the specific files/lines, and the scope estimate.
-
-5. **Record issue numbers** in the Phase 8 summary report so the user can cross-reference.
+4. **Report the remainder, do not file it.** Needs-human and Too-large items go in the Phase 8 summary with their grounds and the agent's recorded rationale, so the user decides their fate. Do NOT file work items by default in any mode. Only when the user explicitly asks to file, invoke `/work-items:track add` via the Skill tool when that plugin is installed, else `gh issue create`, one item per concern (not per site), Conventional Commits-style titles (`refactor(<area>): <what>`), body carrying the recorded rationale, files/lines, and scope estimate.
 
 ### Phase 7: Final cross-ecosystem verification
 
@@ -202,7 +199,7 @@ Report the final verification results as a summary table.
 
 ### Phase 8: Summary report
 
-Present a final report. Scope + files-scanned + a per-group results table (`# | Group | Files | Changes | Deferred | Verification`) + final cross-ecosystem verdict + filed-issues and judgment-call-deferrals sections. Full template in [context/reference.md](context/reference.md) "Summary report template (Phase 8)".
+Present a final report. Scope + files-scanned + a per-group results table (`# | Group | Files | Changes | Deferred | Verification`) + final cross-ecosystem verdict + resolved-in-run and remaining-deferrals sections. Full template in [context/reference.md](context/reference.md) "Summary report template (Phase 8)".
 
 If zero items were deferred across all groups, state explicitly: *"No items deferred. All identified simplifications were applied or determined to be no-ops."*
 
@@ -211,7 +208,7 @@ If zero items were deferred across all groups, state explicitly: *"No items defe
 - **No changes in time window**: report and exit cleanly
 - **Single file changed**: still run the simplifier (skip grouping, just one group)
 - **Agent reports no changes needed**: mark as "reviewed, no changes". Valid outcome. Still inspect the agent's output for a `## Deferred` section; zero applied changes does not mean zero deferrals
-- **Agent reports deferrals**: non-optional path. Run Phase 6.5. Never paraphrase or collapse deferred items without presenting them to the user
+- **Agent reports deferrals**: non-optional path. Run Phase 6.5 and resolve them in-run; only Needs-human and Too-large items survive to the report. Never paraphrase or collapse deferred items without presenting them to the user
 - **Verification fails after simplification**: report the failure prominently, the agent should have caught this, but the final verification is the safety net
 - **Very large groups (>25 files)**: split into sub-groups by subdirectory to keep the simplifier focused
 - **Files that span multiple ecosystems**: group by the primary ecosystem (e.g., a `.sh` hook that invokes `ruff` goes in the shell group, not Python)
