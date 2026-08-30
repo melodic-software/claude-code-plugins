@@ -19,7 +19,9 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   - **Phase 6.5 is renamed from "Capture deferred items as issues" to "Resolve deferred items
     in-run".** Consolidated deferrals are triaged fix-first and a resolution wave (same spawn
     contract, same verification, and in repo mode the same mandatory refutation verifier) applies
-    the Fix-now set on the same branch in the same run. Each resolution agent receives the complete
+    the Fix-now set in the same run, its edits landing exactly like the primary wave's: uncommitted
+    working-tree changes in the diff-scoped modes, run-branch commits in repo mode. Each resolution
+    agent receives the complete
     file set its concern spans, so a CROSS-GROUP ground cannot legitimately recur; a genuinely new
     file discovered mid-task is folded in with a single re-dispatch of that item, and no further
     recursion. Only Needs-human items, Too-large items, and deferrals the wave could not finish

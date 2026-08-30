@@ -47,12 +47,12 @@
       "id": 4,
       "name": "deferred-items-resolved-in-run",
       "prompt": "/batch-simplify branch",
-      "expected_output": "Branch-mode run where simplifier agents report deferred items; the skill consolidates them and resolves them fix-first in the same run on the same branch, so only Needs-human and Too-large items survive to the report. No work items are filed unless the user explicitly asks.",
+      "expected_output": "Branch-mode run where simplifier agents report deferred items; the skill consolidates them and resolves them fix-first in the same run, the resolution wave's edits landing as uncommitted working-tree changes exactly like the primary wave's, so only Needs-human and Too-large items survive to the report. No work items are filed unless the user explicitly asks.",
       "files": [],
       "expectations": [
         "Extracts each agent's ## Deferred section verbatim rather than paraphrasing",
         "Consolidates duplicate cross-group concerns into single items",
-        "Runs a fix-first resolution wave that applies Fix-now deferrals in this same run and branch rather than filing them",
+        "Runs a fix-first resolution wave that applies Fix-now deferrals in this same run rather than filing them, its edits left as uncommitted working-tree changes like the primary wave's (diff-scoped modes never commit)",
         "Presents only the surviving deferrals (Needs-human, Too-large, or an item the resolution wave could not finish) in the summary report, with their grounds",
         "Does NOT file work items or create issues by default; filing happens only on an explicit user request"
       ]

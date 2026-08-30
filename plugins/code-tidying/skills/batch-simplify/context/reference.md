@@ -45,7 +45,7 @@ Final cross-ecosystem verification: PASS/FAIL
 
 ## Deferred items resolved in-run
 
-- <path> — <what> (resolution wave, commit <sha>)
+- <path> — <what> (resolution wave; in repo mode add: commit <sha>)
 - ...
 
 ## Deferred items remaining (user decides)
