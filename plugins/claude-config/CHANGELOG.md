@@ -3,6 +3,19 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.19]
+
+### Changed
+
+- **`lib/managed-scope.sh` emits its two Windows registry policy keys from one
+  `printf`.** The merged call reuses the `'%s\n'` format per argument, so the
+  emitted lines, their order, and the trailing newline are byte-identical; the
+  merge also brings the HKCU line under the existing `portability-ok`
+  annotation block, which previously excused only the adjacent HKLM line, so
+  `scripts/check-shell-portability.sh --paths` now passes this file without an
+  unexcused-construct finding. Behavior-preserving; refutation-verified against
+  every line-by-line consumer.
+
 ## [0.40.18]
 
 ### Changed

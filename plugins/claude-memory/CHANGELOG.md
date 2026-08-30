@@ -3,6 +3,15 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.8]
+
+### Changed
+
+- **Synced `lib/managed-scope.sh` from its claude-config canonical.** The
+  canonical merged its two Windows registry-key `printf` calls into one
+  (byte-identical output); this release carries the same change into the
+  vendored copy via `scripts/sync-managed-scope.sh`.
+
 ## [0.11.7]
 
 ### Changed

@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.23]
+
+### Changed
+
+- **Dropped a dead `lc` local from `ps::write_bypass` in
+  `lib/powershell/ps-command.sh`.** The variable was declared and never read or
+  written in that function, and every reachable callee that uses `lc` declares
+  its own local, so removal changes nothing observable. Verified by a
+  call-graph audit over all 19 reachable `ps::` helpers and the
+  block-hook-bypass / block-dangerous-git / block-no-verify suites
+  (576 + 479 + 238 assertions).
+
 ## [0.29.22]
 
 ### Fixed
