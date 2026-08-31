@@ -231,15 +231,35 @@ already disclaims that one-shot check as native territory.
 
 ## Part 4: open findings, unverified or needing a decision
 
-1. **`compute_listing` ranks on a `usage_score` nothing populates.** `compute_listing`
-   (line 703) reads `entry.get("usage_score", 0)` off the denominator, and sorts
-   `competing` by it (line 736). The denominator is built by `collect_installed` /
-   `collect_fleet_at` from a filesystem walk, which never sets `usage_score`. Usage events
-   are joined to entries later, inside `classify` (line 915 onward), after
-   `compute_listing` has already run (line 897). Net effect on a real run: every row scores
-   0 and the starvation band is ordered alphabetically. Only the test fixture
-   `tests/fixtures/fleet-overbudget.json` supplies non-zero values. Needs confirmation on
-   a live run before it is called a defect, but the code path reads that way.
+1. **CONFIRMED: `compute_listing` ranks on a `usage_score` nothing populates, so the
+   starvation band is alphabetical.** `compute_listing` (line 703) reads
+   `entry.get("usage_score", 0)` off the denominator and sorts `competing` by
+   `(usage_score, qualified_name)` (line 736). The denominator is built by
+   `collect_installed` / `collect_fleet_at` from a filesystem walk, which never sets
+   `usage_score`. Usage events are joined to entries later, inside `classify` (line 915
+   onward), after `compute_listing` has already run (line 897). Only the test fixture
+   `tests/fixtures/fleet-overbudget.json` supplies non-zero values, which is why the tests
+   do not catch this.
+
+   Verified on a live run
+   (`--plugins-root plugins --claude-json ~/.claude.json --render json`,
+   2026-08-31): `[.skills[].starvation.usage_score] | unique` returns `[0]`. Every row
+   scores zero, so the tiebreaker decides everything and bands come out in name order:
+
+   | band | usage_score | observed count | skill |
+   | --- | --- | --- | --- |
+   | 1 | 0 | 1 | `adhd:clarify` |
+   | 2 | 0 | 1 | `adhd:shape` |
+   | 5 | 0 | 8 | `architecture:improve` |
+   | 150 | 0 | 97 | `source-control:babysit-prs` |
+   | 173 | 0 | 99 | `work-items:triage` |
+
+   Band 1 is "most likely starved". The two least-used skills in the fleet are ranked as
+   the first to lose their descriptions and the two most-used are ranked as the safest,
+   but only because `a` sorts before `w`. The report's own inferential ordering, the part
+   it warns is uncertain, currently carries no usage signal at all. Same run:
+   `budget_chars` 8000, `demand_chars` 130330, `overflow_chars` 122330, 167 of 176
+   competing skills marked `likely-starved`.
 
 2. **`skill-usage.jsonl` has been dead in this repo since 2026-08-11.** The main checkout's
    `.claude/observability/skill-usage.jsonl` last changed 2026-08-11 19:34 (107 lines)
