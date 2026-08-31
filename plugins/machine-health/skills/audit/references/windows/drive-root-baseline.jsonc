@@ -1,0 +1,73 @@
+// Expected-entry baseline for the drive-root-litter check
+// (scripts/windows/checks/Test-DriveRootLitter.ps1).
+//
+// The check lists each fixed-volume root non-recursively and reports the
+// residue: entries this file does not expect. The baseline is data on purpose
+// so admitting a new legitimate entry is an edit here, never a script change.
+// Names are matched case-insensitively with PowerShell -like semantics, so `*`
+// and `?` are wildcards. Matching is type-aware: a directory only matches the
+// "directories" list and a file only the "files" list -- a stray FILE named
+// "Recovery" must not hide behind the directory of the same name.
+//
+// Rubric and rationale: references/windows/check-catalog.md#19-drive-root-litter
+{
+  // Expected at the root of ANY fixed volume. NTFS/ReFS housekeeping the OS
+  // creates on every volume it touches.
+  "all_volumes": {
+    "directories": [
+      "$Recycle.Bin",
+      "System Volume Information",
+      "Recovery",
+      "Config.Msi", // Windows Installer rollback staging; appears wherever an MSI ran
+      "OneDriveTemp" // OneDrive sync staging on the volume hosting a synced folder
+    ],
+    "files": []
+  },
+  // Expected only at the SYSTEM drive root (%SystemDrive%, normally C:\).
+  "system_drive": {
+    "directories": [
+      "Windows",
+      "Program Files",
+      "Program Files (x86)",
+      "ProgramData",
+      "Users",
+      "PerfLogs",
+      "Documents and Settings", // hidden compatibility junction to Users
+      "$SysReset", // Reset-this-PC logs
+      "$WinREAgent", // Windows RE servicing staging
+      "$GetCurrent", // media-based feature-update staging
+      "$Windows.~BT", // in-place upgrade staging
+      "$Windows.~WS", // media-creation staging
+      "inetpub" // created on ALL machines by the April 2025 security update (CVE-2025-21204 hardening), IIS installed or not
+    ],
+    "files": [
+      "pagefile.sys",
+      "swapfile.sys",
+      "hiberfil.sys",
+      "DumpStack.log",
+      "DumpStack.log.tmp",
+      "bootmgr",
+      "BOOTNXT",
+      "BOOTSECT.BAK",
+      "bootTel.dat",
+      "autoexec.bat", // NTVDM-era stubs some upgrade lineages still carry
+      "config.sys"
+    ]
+  },
+  // A NON-system volume root (data drive, Dev Drive) legitimately holds
+  // arbitrary user content, so a baseline diff there would be all noise.
+  // On those volumes only names matching these known machine-generated
+  // dropping shapes are reported; everything else is presumed intentional.
+  "data_volume_litter": {
+    "directories": [
+      "tmp", // POSIX-tool path-translation artifact (an MSYS/Cygwin /tmp landing at the root)
+      "temp",
+      "tmp.*" // mktemp-style names written to the wrong CWD
+    ],
+    "files": [
+      "log.txt", // default log name of a process whose CWD was the volume root
+      "tmp.*",
+      "*.tmp"
+    ]
+  }
+}
