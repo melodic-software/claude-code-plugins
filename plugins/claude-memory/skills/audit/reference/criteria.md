@@ -141,7 +141,11 @@ in [official-guidance.md](official-guidance.md) rather than restated here. On th
 "skill descriptions are loaded into context so Claude knows what's available, but full skill content
 only loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
 characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
-`skillOverrides`" (code.claude.com/docs/en/skills).
+`skillOverrides`" (quoted from
+<https://code.claude.com/docs/en/skills#frontmatter-reference> and that page's
+invocation-control and visibility-override sections; verified 2026-08-31; recheck trigger: a
+fetch of that page no longer carrying these quoted spans re-derives this paragraph and the
+listing-entry cost above).
 
 ### C4: Specificity [WARN]
 

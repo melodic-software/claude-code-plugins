@@ -36,6 +36,18 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `unscored` and competing rows carry `confidence: "unscored"` rather than
   borrowing `inferential`, which claims more than the data supports.
 
+## [0.38.22]
+
+### Changed
+
+- **`audit-skill-visibility`: stamped the listing-mechanism restatements.** The SKILL.md
+  starvation-loop paragraph asserted `skillListingBudgetFraction` (0.01) and the
+  least-invoked-first drop order as "documented" without naming where; it now cites the owning
+  settings and skills pages with a verified date (2026-08-31) and a divergence trigger. The
+  `ListingConfig` docstring in `audit_skill_visibility.py` carries the same four-part record for
+  its encoded defaults. Per the marketplace's upstream-drift convention; found in the
+  frontmatter-alignment sweep.
+
 ## [0.38.21]
 
 ### Changed
@@ -588,7 +600,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **Docs:** README only. The generated options block's headless route no longer implies
   `--config` applies at install time alone, and now carries the CLI version its claim was
   verified against
-  ([#3111](https://github.com/melodic-software/claude-codeplugins/issues/3111)); two upstream
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)); two upstream
   links that resolved to empty backward-compatibility anchors on the settings page were
   repointed at the headings that hold the content. Emitted by
   `scripts/sync-plugin-options-docs.py`, which regenerates every plugin README from one
