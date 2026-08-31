@@ -27,6 +27,22 @@ the wrong direction, and — the part that makes it a correctness bug rather tha
 cannot tell that it is blind. The gatekeeping the contract bans would have been reinstated by the
 harness, invisibly.
 
+> **Revised 2026-08-31:** the drop-order mechanism above is stated wrongly. Claude Code does not drop
+> descriptions "starting with the skills invoked least". It ranks by a decay-weighted score,
+> `usageCount * max(0.5 ^ (daysSinceUse / 7), 0.1)`, sorts descending, and grants descriptions
+> greedily until the budget runs out; what does not fit renders as a bare name. So a heavily used but
+> stale skill can lose its description before a lightly used fresh one: 100 uses 60 days ago scores
+> 10 and loses to 12 uses today. Recovered from the Claude Code 2.1.251 binary and stamped in
+> [`docs/topics/usage-tracking-claude-json/EXPLORE.md`](../topics/usage-tracking-claude-json/EXPLORE.md)
+> Part 2, which carries the basis and the recheck trigger.
+>
+> **The ADR's core decision is untouched, and this correction strengthens the case for it.** A
+> never-invoked skill scores exactly zero and is still shed first, so the bias this paragraph
+> identifies holds; the decay term adds a second bias the paragraph did not anticipate, against
+> skills the operator used a while ago and has since forgotten, which is the same population
+> `show-options` exists to surface. The budget arithmetic quoted above is unaffected: it measures
+> demand against the budget, not the order of shedding.
+
 Separately, the no-omission rule was measured against the real catalog at a real moment. Rendering
 every candidate in full produced **139 options across 275 lines, ~7 screens, ~4,100 tokens** — 97.8%
 of the catalog, i.e. the generated cheat sheet with an extra column, which an operator reads once and
@@ -118,6 +134,32 @@ cut first** — Skipped-upstream persistently empty or Spotlight persistently ig
 signals — and revisit the manual-only posture second. Usage-metrics-driven surfacing
 (`~/.claude.json` `skillUsage`, undocumented internal state) stays deferred; rotation runs off a
 ledger the skill writes itself, which is what keeps that deferral honest rather than load-bearing.
+
+> **Revised 2026-08-31:** the deferral stands, but "undocumented internal state" is no longer the
+> reason and should not be read as one. That substrate is now characterized and dated in
+> [`docs/topics/usage-tracking-claude-json/EXPLORE.md`](../topics/usage-tracking-claude-json/EXPLORE.md),
+> which invites the false inference that the deferral lifts once the state is known. It does not,
+> because three grounds documentation cannot cure survive:
+>
+> - The scorer is **wrong-signed** for the question this skill asks. `zPe` scores high for skills
+>   used recently and often, which are exactly the skills the operator has not forgotten. Inverting
+>   it collapses to a decay-weighted least-recently-used ordering, which the self-written ledger
+>   already supplies without a build-pinned dependency.
+> - `skillUsage` holds only skills that have fired at least once. It structurally cannot name the
+>   never-invoked population the no-omission rule above exists to protect.
+> - It carries no causal-trigger field, so it cannot answer take-up: whether a skill was invoked
+>   *because* it was surfaced. The ledger can. That is not a stopgap for missing documentation; it
+>   measures something these counters never will.
+>
+> A binary-derived stamp is also not what "documented" meant here. Its own fallback rule, treat a
+> version mismatch as scorer-unknown, is what ships alongside ground that can shift without notice,
+> and its recheck trigger fires only when a human reads a release note.
+>
+> **Conditions for a future revisit,** so the next reader does not have to re-derive them: a
+> published, versioned surface for skill-usage data rather than a reverse-engineered internal; a
+> rotation signal not decay-weighted toward recent use; and take-up attribution. The third is
+> unreachable from `skillUsage` by construction, so the ledger survives whatever happens to the
+> first two. **The ADR's core decision is untouched.**
 
 **The probe seam, and why the two-consumer version was withdrawn.** `show-options` adds no probe of
 its own — it routes to `orient` — and the duplication that decision sidestepped is resolved in the

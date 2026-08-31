@@ -511,7 +511,7 @@ happens to the first two.
 - Treat `pluginUsage.usageCount` as non-comparable across plugin shapes wherever it is
   ranked.
 
-### One correction owed to ADR 0016, drafted not applied
+### The correction owed to ADR 0016, applied
 
 `docs/adr/0016-...:19-20` states that Claude Code "drops descriptions starting with the
 skills invoked least". Part 2 shows the ordering is decay-weighted, so a heavily used but
@@ -522,6 +522,20 @@ alphabetical order presented as usage-informed. Someone already built on the men
 that ADR line encodes.
 
 The ADR's core decision is untouched and in fact reinforced, so the fix is a dated revision
-blockquote in the ADR's own established shape (`:75-84`, `:98-105`), which preserves
-superseded reasoning rather than editing Context in place. Amending an accepted decision
-record is the human's call, so it is drafted here and not applied.
+blockquote in the ADR's own established shape, which preserves superseded reasoning rather
+than editing Context in place.
+
+Two revisions were applied, both dated 2026-08-31:
+
+- After the Context paragraph on drop order: corrects the mechanism to the decay-weighted
+  score, and records that the correction strengthens rather than weakens the decision. A
+  never-invoked skill still scores zero and is shed first, so the identified bias holds; the
+  decay term adds a second bias the paragraph did not anticipate, against skills the
+  operator used a while ago and has since forgotten, which is the population `show-options`
+  exists to surface. The budget arithmetic is unaffected, since it measures demand against
+  budget rather than order of shedding.
+- After the deferral clause: restates its ground on the three documentation-independent
+  reasons above, and records the lift conditions so the next reader does not re-derive them.
+
+Neither revision cites an issue, unlike the ADR's two 2026-08-21 revisions, which cite issue
+3024. They cite this document instead. Filing an issue to carry them is a separate call.
