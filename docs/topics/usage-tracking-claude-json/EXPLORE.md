@@ -156,6 +156,27 @@ Two corrections this forces on the repo's current wording:
 - The floor means a never-used skill scores exactly `0` and always loses first, but a
   once-used skill never decays below `0.1 * usageCount`.
 
+### Verification stamp
+
+Follows `docs/conventions/upstream-drift`, the same shape
+`plugins/source-control/hooks/worktree-create-gate.sh` uses for binary-derived claims.
+
+- **Claim:** the scorer is `usageCount * max(0.5 ^ (daysSinceUse / 7), 0.1)`; it is the
+  priority function passed to the listing-budget truncator; truncation sorts competing
+  entries descending by that score and drops descriptions from the tail.
+- **Basis:** string extraction of `claude.exe`, Claude Code 2.1.251, functions `zPe`,
+  `Ymt`, `F1t`, `Fdt`, `Sme`, `yNt`, `dzn`, `Dke`. Confirmed against the live
+  `~/.claude.json` on this machine.
+- **As-of:** 2026-08-31, Claude Code 2.1.251.
+- **Recheck trigger:** any release note naming the skill listing, the skill-listing budget,
+  skill usage counters, or `/doctor`'s unused-component check; or the counters' shape in
+  `~/.claude.json` gaining or losing a field.
+
+This is recovered from one build of a minified bundle. Encoding it in a script means
+pinning to that build, so any consumer must carry the stamp and treat a mismatch as
+"scorer unknown", falling back to the current name-ordered behavior rather than asserting
+a wrong ordering.
+
 ## Part 3: what this repo already has
 
 ### 3.1 Reads `~/.claude.json` counters directly
@@ -286,14 +307,23 @@ already disclaims that one-shot check as native territory.
    `budget_chars` 8000, `demand_chars` 130330, `overflow_chars` 122330, 167 of 176
    competing skills marked `likely-starved`.
 
-2. **`skill-usage.jsonl` has been dead in this repo since 2026-08-11.** The main checkout's
-   `.claude/observability/skill-usage.jsonl` last changed 2026-08-11 19:34 (107 lines)
-   while `hook-events.jsonl` in the same directory is live (2026-08-31 11:27). The last
-   `skill-usage-audit` telemetry envelope is `2026-08-11T23:34:24Z`. The hook is registered,
-   the plugin is enabled in `.claude/settings.json`, no kill switch is set, and the same
-   hook did write to `~/.claude/observability/` as recently as 2026-08-23 from a
-   home-directory session. No worktree under `D:\worktrees` holds a `skill-usage.jsonl` at
-   all. Cause not established.
+2. **No `skill-usage.jsonl` writes observed in this repo since 2026-08-11. Cause not
+   established.** The main checkout's `.claude/observability/skill-usage.jsonl` last
+   changed 2026-08-11 19:34 (107 lines) while `hook-events.jsonl` in the same directory is
+   live (2026-08-31 11:27). The last `skill-usage-audit` telemetry envelope is
+   `2026-08-11T23:34:24Z`. No worktree under `D:\worktrees` holds a `skill-usage.jsonl` at
+   all.
+
+   Checked and ruled out: the hook is registered
+   (`plugins/claude-ops/hooks/hooks.json:64-75`), `claude-ops@melodic-software` is enabled
+   in `.claude/settings.json:36`, and no `skill_usage` key (scope or kill switch) appears
+   in `~/.claude/settings.json`, `.claude/settings.local.json`, or `~/.claude.json`.
+
+   Not ruled out: the same hook did write to `~/.claude/observability/` as recently as
+   2026-08-23, from a session whose resolved repo root was the home directory
+   (`"project":"KyleSexton"`). So the hook itself works. Whether this repo's sessions
+   stopped dispatching the `Skill` tool, or the write is landing somewhere unexpected, is
+   unresolved and needs a live probe rather than more file archaeology.
 
 3. **Nothing consumes `agentLastUsed`, and it holds one key.** Any agent-usage question has
    to come from transcripts or the OTEL store.
