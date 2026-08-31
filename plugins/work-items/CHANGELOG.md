@@ -3,6 +3,29 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.42]
+
+### Fixed
+
+- **Conformance `e2e-probe.sh` drops a vacuous assertion.** The lease-comment-id case asserted
+  that `"n$LEASE_CID"` contains `"n"`, which is true for every possible value; the real numeric
+  check is the regex block immediately after it, which remains. Nothing pins the probe's case
+  numbering, and the offline suite passes unchanged. The probe itself runs only against a live
+  sandbox repo, so the offline suite is the verification.
+- **Linear `schema-check/fidelity.sh` describes its own mechanism accurately.** The header comment
+  claimed the FIELDS block is pulled "by executing just that assignment"; the script sed-extracts
+  the text without executing anything. The comment now says so.
+- **Linear `schema-check/negative.mjs` uses an optional catch binding** instead of binding an
+  unused exception variable.
+
+### Changed
+
+- **The linear `schema-check/` tree is now recorded in the repo's no-suite allowlist.** The tree
+  mapped to zero test suites, which the affected-tests contract treats as an error, so every
+  future edit there was blocked. It is an on-demand live-schema lane (fetched SDL plus a graphql
+  dependency, run by hand per its README, no CI lane), and the allowlist entry records that
+  justification.
+
 ## [0.39.41]
 
 ### Changed

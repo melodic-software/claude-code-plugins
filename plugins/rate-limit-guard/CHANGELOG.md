@@ -3,6 +3,26 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.21]
+
+### Fixed
+
+- **`statusline-tee.sh` passes payloads over 1MiB through to the wrapped statusline intact.** The
+  stdin reader was a single bounded `read -N 1048576`, so anything past the first 1MiB never
+  reached the wrapped command. Ported the sibling context-guard tee's builtin-only
+  read-until-EOF loop, keeping the documented stalled-pipe timeout boundary; a new suite case
+  proves a 1.5MB payload reaches the wrapped command byte-for-byte and is still teed. Zero new
+  processes: the suite's zero-fork xtrace assertions still pass and the bench spawn floor is
+  unchanged.
+
+### Changed
+
+- **`statusline-tee.sh` hardens its snapshot temp write.** The temp name gains a second `$RANDOM`
+  of entropy and the write happens under `set -o noclobber` inside the existing umask subshell,
+  so a pre-planted symlink at the temp path is refused instead of followed. The chmod-700
+  directory, trap reclaim, and mv-retry machinery are unchanged. Ported from the context-guard
+  sibling. Suite grows from 96 to 98 checks, all passing.
+
 ## [0.7.20]
 
 ### Changed

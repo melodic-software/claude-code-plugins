@@ -31,7 +31,7 @@ const bad = [
 let caught = 0;
 for (const [label, q, vars] of bad) {
   let doc, errs = [];
-  try { doc = parse(q); } catch (e) { console.log(`CAUGHT(parse) ${label}`); caught++; continue; }
+  try { doc = parse(q); } catch { console.log(`CAUGHT(parse) ${label}`); caught++; continue; }
   errs = validate(schema, doc);
   if (errs.length === 0) {
     const opDef = doc.definitions.find(d => d.kind === 'OperationDefinition');

@@ -73,7 +73,11 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   -h | --help)
-    sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    # The whole header (everything after the shebang up to the first
+    # non-comment line), markers stripped. Derived rather than a hardcoded
+    # line range, which silently truncated as the header grew.
+    awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
+      "${BASH_SOURCE[0]}"
     exit 0
     ;;
   *)

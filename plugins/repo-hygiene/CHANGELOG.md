@@ -3,6 +3,17 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.19]
+
+### Changed
+
+- **`clean`: `git-prune.sh` drops a stale `shellcheck disable=SC2086` directive.** The suppressed
+  warning cannot fire on the line it annotated: the `eval "$op"` expansion is quoted, so SC2086
+  reports nothing there under the pinned ShellCheck 0.11.0 with the repo rcfile. Verified by
+  running ShellCheck on the file with and without the directive: identical output and exit code
+  both ways, and no repo tooling inventories or pins disable comments. Comment-only change; the
+  script's behavior is untouched and its suite passes unchanged.
+
 ## [0.10.18]
 
 ### Changed

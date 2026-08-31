@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.14]
+
+### Fixed
+
+- **`render-index.sh` no longer corrupts brace globs in the rendered rule index.** The glob-list
+  prettifier joined paths with `paste -sd,` and then padded every comma via
+  `sed 's/,/, /g'`, which also padded commas inside brace expressions: `src/*.{ts,tsx}` rendered
+  as `src/*.{ts, tsx}`. The join now inserts the `", "` separator directly in awk, so only
+  join-inserted separators are padded and brace commas are never touched. Reproduced against a
+  fixture rule before the fix and pinned by two new suite cases (one asserting the correct
+  rendering, one asserting the corrupted form is absent); the suite grows from 61 to 63 cases.
+
 ## [0.11.13]
 
 ### Changed

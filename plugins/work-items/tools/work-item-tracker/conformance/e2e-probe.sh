@@ -25,16 +25,16 @@ usage_error() {
 EVIDENCE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --evidence)
-      if [[ $# -lt 2 ]]; then
-        usage_error
-      fi
-      EVIDENCE="$2"
-      shift 2
-      ;;
-    *)
+  --evidence)
+    if [[ $# -lt 2 ]]; then
       usage_error
-      ;;
+    fi
+    EVIDENCE="$2"
+    shift 2
+    ;;
+  *)
+    usage_error
+    ;;
   esac
 done
 
@@ -114,7 +114,6 @@ assert_not_contains "scoped frontier excludes the map itself" "$PIDS" "$MAP_ID"
 CLAIM="$(wit claim "$ITEM1_ID" --session-id "e2e-$TS")"
 record "claim item1" "$CLAIM"
 LEASE_CID="$(jq -r '.lease_comment_id' <<<"$CLAIM")"
-assert_contains "lease comment id numeric" "n$LEASE_CID" "n"
 if [[ "$LEASE_CID" =~ ^[0-9]+$ ]]; then
   pass "lease_comment_id shape"
 else

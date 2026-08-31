@@ -428,6 +428,7 @@ build_sync_map() {
 
 declare -A SUITES=()   # suite path -> reason
 declare -a UNMAPPED=() # changed paths that mapped to nothing
+declare -a DELETED=()  # changed paths that mapped to nothing AND no longer exist
 
 is_structural() {
   local b="$1" s
@@ -878,6 +879,14 @@ for f in "${changed[@]}"; do
   if [[ "$SEED_HITS" -eq 0 ]]; then
     if is_no_suite "$f"; then
       NO_SUITE_FILES+=("$f")
+    elif [[ ! -e "$f" ]]; then
+      # A deletion that maps to nothing needs no suite: the file has no content
+      # left to cover, and anything that still referenced it selects through
+      # its own changed path or a suite that names the dead path (both handled
+      # by select_for above, which runs for deletions too). Only the terminal
+      # would-be-UNMAPPED case lands here, reported visibly rather than as the
+      # loud unknown-coverage error that exists for files that DO have content.
+      DELETED+=("$f")
     else
       UNMAPPED+=("$f")
     fi
@@ -906,6 +915,12 @@ if [[ ${#NO_SUITE_FILES[@]} -gt 0 && "$explain" -eq 1 ]]; then
   done
 fi
 
+if [[ ${#DELETED[@]} -gt 0 ]]; then
+  for f in "${DELETED[@]}"; do
+    echo "deleted: $f (no longer exists and no surviving suite names it; nothing left to cover)" >&2
+  done
+fi
+
 if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
   echo "UNMAPPED: ${#UNMAPPED[@]} changed file(s) map to no test suite:" >&2
   for f in "${UNMAPPED[@]}"; do
@@ -922,7 +937,7 @@ if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
 fi
 
 if [[ ${#selected[@]} -eq 0 ]]; then
-  echo "No suites selected (every changed file is a recorded no-suite class)." >&2
+  echo "No suites selected (every changed file is a recorded no-suite class or a deletion)." >&2
   exit 0
 fi
 

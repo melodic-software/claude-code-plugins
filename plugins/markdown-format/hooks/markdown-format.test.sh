@@ -1931,9 +1931,6 @@ if [[ -s "$TEL_FILE" ]]; then
   fi
 else
   fail "telemetry/stub-sink: no envelope written to sink"
-  for field in schema_version timestamp hook hook_event status duration_ms data status findings tool file schema_version duration_ms; do
-    : # counters already accounted by the outer if branch counting
-  done
   fail "telemetry/envelope: status (no envelope)"
   fail "telemetry/envelope: findings (no envelope)"
   fail "telemetry/envelope: data.tool (no envelope)"

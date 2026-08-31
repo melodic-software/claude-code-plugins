@@ -10,7 +10,7 @@ applies rules after check dispatch, before severity aggregation.
 
 ## Rule structure
 
-Each rule is a PowerShell hashtable in `Get-CorrelationRules`:
+Each rule is a PowerShell hashtable in `Get-CorrelationRule`:
 
 ```powershell
 @{

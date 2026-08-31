@@ -3,6 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.33]
+
+### Fixed
+
+- **Three scripts stop truncating their own `--help` output.** `fetch-all-pr-comments.sh`,
+  `reap-project-plugin-records.sh`, and `worktree-root-doctor.sh` each printed usage with a
+  hardcoded `sed -n 'X,Yp'` line range that silently cut off whatever the header gained after the
+  range was written: fetch-all-pr-comments was omitting its entire Exit codes block, and
+  worktree-root-doctor was dropping 38 lines including its checked-classes list. All three now use
+  the derived header printer `babysit-readiness-gate.sh` already ships, which prints the comment
+  header to its first non-comment line, so the range can never go stale. Each --help diff is pure
+  addition (reap's output was still fully covered and is byte-identical), and each suite now pins
+  a formerly-truncated line so the truncation class is regression-guarded.
+
+## [0.55.32]
+
+### Changed
+
+- **`pull-request`: `fetch-annotations.sh` corrects a comment that misdescribed its own exit-code
+  capture.** The comment above the check-runs fetch said the API exit code is "captured via
+  PIPESTATUS", but the code has captured `$?` from a plain command substitution since the file's
+  first commit; no pipeline ever existed there. The comment now says "captured separately",
+  matching the accurate sibling comment in the annotations walk. Comment-only change, verified
+  against the file's full history; the script's behavior is untouched and its suite passes
+  unchanged.
+
 ## [0.55.31]
 
 ### Changed

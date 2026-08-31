@@ -815,6 +815,7 @@ write_changelog "$repo/plugins/alpha/CHANGELOG.md" '## [2.0.0]' '## [2.0.0]' '##
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"
 rc=$?
 if [[ $rc -eq 1 && "$out" == *"DUPLICATE CHANGELOG VERSION"* ]]; then ok "two branches staging one version is caught"; else fail "duplicate not caught: rc=$rc $out"; fi
+if [[ "$out" == *"lists 2.0.0 more than once"* ]]; then ok "the duplicated version is named with correct spacing"; else fail "duplicate message malformed: $out"; fi
 
 # The exact shape that shipped, in the exact file class that shipped it: a
 # CONVENTION changelog, which is unversioned by any manifest and therefore

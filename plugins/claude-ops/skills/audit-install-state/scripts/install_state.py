@@ -847,7 +847,7 @@ def walk_tree(
     exclude = exclude or set()
     rows: list[FileRow] = []
     errors: list[dict] = []
-    for dirpath, dirnames, filenames in os.walk(
+    for dirpath, _dirnames, filenames in os.walk(
         root, followlinks=False, onerror=errors.append
     ):
         for name in filenames:

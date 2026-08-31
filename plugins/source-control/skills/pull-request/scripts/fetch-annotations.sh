@@ -105,7 +105,7 @@ fi
 # Returns list of check_run records: id, name, conclusion, status. Apply jq
 # client-side (avoids gh's --jq flag for stubbing simplicity). `--paginate`
 # walks all pages so PRs with >100 check-runs aren't silently truncated. The
-# `gh api` exit code is captured via PIPESTATUS so transport/auth/rate-limit
+# `gh api` exit code is captured separately so transport/auth/rate-limit
 # failures surface as exit 2 (per the docstring contract) instead of falling
 # through the empty-output branch as a misleading success.
 CHECK_RUNS_RAW=$(gh api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" 2>/dev/null)

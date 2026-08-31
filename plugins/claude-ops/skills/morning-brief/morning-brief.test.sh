@@ -529,6 +529,8 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --telemetry-json "$TMP/telemetry.json" \
   --merged-json "$TMP/merged-apierror.json" 2>&1)"
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
+assert_contains "stranded: an API error says it is not an all-clear" "$OUT_ERR" "NOT an all-clear"
+assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
 
 # --- Severity classification and ranking -------------------------------------
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
@@ -556,8 +558,6 @@ OUT_TRUNC="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --merged-json "$TMP/merged-truncated.json" 2>&1)"
 assert_contains "truncation: a partial thread read is reported" "$OUT_TRUNC" "this read is PARTIAL"
 assert_contains "truncation: the affected PR is named" "$OUT_TRUNC" "#400"
-assert_contains "stranded: an API error says it is not an all-clear" "$OUT_ERR" "NOT an all-clear"
-assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
 
 # The window is operator-tunable, and widening it must pull in the older merge.
 OUT_WIDE="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --stranded-days 60 \
