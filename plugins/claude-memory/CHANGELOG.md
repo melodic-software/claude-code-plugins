@@ -3,6 +3,25 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.9]
+
+### Changed
+
+- **`audit/scripts/memory-dir-stats.test.sh` fixture style normalized.** The
+  one fixture block that embedded literal newlines inside printf quotes (a
+  #2042 leftover) now uses the `\n`-escape form every other fixture in the
+  file uses; the produced fixture bytes are sha256-identical and all 64
+  checks pass.
+
+## [0.11.8]
+
+### Changed
+
+- **Synced `lib/managed-scope.sh` from its claude-config canonical.** The
+  canonical merged its two Windows registry-key `printf` calls into one
+  (byte-identical output); this release carries the same change into the
+  vendored copy via `scripts/sync-managed-scope.sh`.
+
 ## [0.11.7]
 
 ### Changed

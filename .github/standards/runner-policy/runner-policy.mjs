@@ -3,7 +3,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
 import Ajv2020 from "ajv/dist/2020.js";
@@ -37,7 +37,7 @@ export function parseUniqueJson(source, location) {
   }
 }
 
-const MODULE_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
+const MODULE_DIRECTORY = import.meta.dirname;
 const DEFAULT_POLICY_PATH = path.join(MODULE_DIRECTORY, "policy.json");
 const DEFAULT_CONFIG_PATH = ".github/runner-policy.json";
 const POLICY_SCHEMA_PATH = path.join(MODULE_DIRECTORY, "policy.schema.json");
@@ -2394,7 +2394,7 @@ function governedReusableRunnerStatus(workflow, policy) {
       reason: `${contract.expression} is allowed only when workflow_call is the exclusive trigger`,
     };
   }
-  const workflowCall = workflow.on?.workflow_call;
+  const workflowCall = workflow.on.workflow_call;
   const declaration = workflowCall?.inputs?.[contract.name];
   if (!isMapping(declaration)) {
     return {

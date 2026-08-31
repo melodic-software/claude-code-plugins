@@ -42,8 +42,7 @@ Describe 'Remove-JsoncComment' -Tag 'lib' {
         It 'preserves // inside a string and strips a trailing comment on the same line' {
             $in = '{ "url": "https://example.com" } // docs link'
             $out = Remove-JsoncComment -Text $in
-            $parsed = $out | ConvertFrom-Json
-            $parsed.url | Should -Be 'https://example.com'
+            ($out | ConvertFrom-Json).url | Should -Be 'https://example.com'
         }
 
         It 'preserves a // inside a string that ends near the line end' {

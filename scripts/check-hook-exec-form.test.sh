@@ -712,7 +712,7 @@ metadata:
 # Body
 '
 if out="$(run_check "$f" 2>&1)"; then
-  ok "the interpreter-led shell form #2572 lands passes"
+  ok "the interpreter-led shell form that #2572 landed passes"
 else
   fail "the #2572 shape must pass — this gate would otherwise block its own unblocking, got: $out"
 fi

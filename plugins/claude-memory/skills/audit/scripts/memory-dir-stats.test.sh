@@ -184,13 +184,9 @@ assert_eq "a heavy one-line runaway counts every line" "$(raw_lines)" "$(run "$H
 # as octal escapes so the file stays ASCII and no tool can re-encode the fixture.
 WIDE=$(for ((i = 0; i < 600; i++)); do printf '\303\251'; done)
 {
-  printf -- '---
-'
-  printf 'Note: %s
-' "$WIDE"
-  printf -- '---
-body
-'
+  printf -- '---\n'
+  printf 'Note: %s\n' "$WIDE"
+  printf -- '---\nbody\n'
 } >"$M3/MEMORY.md"
 assert_eq "a multibyte heavy line is bounded by weight in bytes" "$(raw_bytes)" "$(run "$H3" --memory-bytes)"
 

@@ -3,6 +3,25 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.21]
+
+### Changed
+
+- **One fewer spawn per Stop turn in `hook-failure-audit.sh`.** The hook now
+  short-circuits before its summary jq spawn when the grep pre-filter matched
+  nothing (the empty case previously produced `[]` and the same silent exit 0).
+  Adversarial payload probes byte-identical across all paths; suite 88/88.
+  (An analogous jq_fields consolidation in the two skill-usage hooks was
+  attempted, refuted by differential testing on pathological payloads, and
+  reverted — recorded in the sweep report rather than shipped.)
+- **restart-consumer.sh declares five formerly implicit globals `local` to
+  `process_lane`** (no post-return reader exists; full caller-graph and trap
+  audit) and drops two `${lock_rc:-0}` defaults dominated by an unconditional
+  assignment. `morning-brief.sh` declares its `read -ra` scratch array local;
+  two misplaced test assertions moved to the section whose fixture they read.
+- **install_state.py** renames the unused `os.walk` dirnames slot to
+  `_dirnames`, matching the file's own convention.
+
 ## [0.38.20]
 
 ### Changed

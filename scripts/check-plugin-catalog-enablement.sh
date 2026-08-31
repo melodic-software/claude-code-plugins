@@ -52,6 +52,7 @@
 # Env overrides (tests only):
 #   PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE  -- path to marketplace.json
 #   PLUGIN_CATALOG_ENABLEMENT_SETTINGS     -- path to settings.json
+#   PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP    -- path to cloud-bootstrap.sh
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

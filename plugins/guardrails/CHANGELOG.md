@@ -118,6 +118,34 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `Write` / `Write` / `file-path` envelope and that the target path never
   reaches it.
 
+## [0.29.24]
+
+### Fixed
+
+- **`verify-cli-flag.sh` streams help output to grep instead of staging it through a here-string.**
+  A here-string makes bash write the whole document before the reader ever runs: strace shows the
+  forked child create the pipe, write the entire payload, then exec grep, so large `--help` output
+  rode on bash's pipe-capacity probe and a TMPDIR temp-file fallback. Both sites now use
+  `printf '%s\n' ... | grep`, where writer and reader run concurrently under kernel flow control
+  with no temp file. A ten-case differential harness (including a 157KB synthetic help text)
+  proved stdout, stderr, and exit codes byte-identical to the old code; the 52-check suite passes.
+- **`require-jq-notice-isolation.test.sh` no longer produces a two-line count on its zero-match
+  path.** `grep -c ... || echo 0` appends a second 0 after grep's own 0 when nothing matches,
+  which then broke the arithmetic comparison that consumed the value. The fallback is now
+  `|| true`, the repo's standard idiom for keeping grep -c's own count.
+
+## [0.29.23]
+
+### Changed
+
+- **Dropped a dead `lc` local from `ps::write_bypass` in
+  `lib/powershell/ps-command.sh`.** The variable was declared and never read or
+  written in that function, and every reachable callee that uses `lc` declares
+  its own local, so removal changes nothing observable. Verified by a
+  call-graph audit over all 19 reachable `ps::` helpers and the
+  block-hook-bypass / block-dangerous-git / block-no-verify suites
+  (576 + 479 + 238 assertions).
+
 ## [0.29.22]
 
 ### Fixed

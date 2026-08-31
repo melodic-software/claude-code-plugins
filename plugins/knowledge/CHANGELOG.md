@@ -4,6 +4,58 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.29]
+
+### Changed
+
+- **video-digest watch: orphaned module removed.** `watch/promotion-name-map.js`
+  is deleted. 0.13.28 removed its last importer (`synthesis-naming.js`'s dead
+  `synthesisDestNameForSlice` export) and confirmed the module carries no
+  load-time side effects; a fresh repo-wide sweep re-proved zero importers of
+  the file or of `loadPromotionNameMap` (only historical changelog text and one
+  now-corrected doc parenthetical in `context/quality-gates.md` named it). It
+  had no test file of its own. Watch suites and `tsc` clean after removal.
+
+## [0.13.28]
+
+### Changed
+
+- **video-digest watch: dead export removed.** `watch/synthesis-naming.js`
+  drops `synthesisDestNameForSlice` (no importer anywhere since its
+  introduction) together with its now-orphaned `loadPromotionNameMap` import,
+  and unexports the internal-only `sourceStem`. A fresh-context sweep confirmed
+  zero consumers across code, markdown, and fixtures, and that
+  `promotion-name-map.js` has no load-time side effects. Watch suites 58/58,
+  `tsc` clean.
+
+## [0.13.27]
+
+### Changed
+
+- **video-digest acquisition: dead fallback removed.** `acquire.js` drops a
+  `?? "staged acquire failed"` default that could never fire — both `ok: false`
+  return sites in `acquireFullStaged` construct non-empty string errors, and
+  the old `??` only replaced null/undefined. Verified by site enumeration and
+  `tsc`; acquisition + adapters suites 205/205. (A second candidate, merging
+  the duplicated initial spawn in `spawn-yt-dlp-with-auth-fallback.js`, was
+  refuted by differential testing — the cookie-config probe it would skip
+  emits a once-per-process deprecation warning — and was reverted rather than
+  shipped.)
+
+## [0.13.26]
+
+### Changed
+
+- **video-digest extraction test suite deduplicated across modules.** The
+  `forbiddenSynthesisFileNameReason` describe block in
+  `watch-vision-validation.test.js` re-tested `synthesis-filename.js` behavior
+  that module's own suite already covers; its two unique cases (the
+  `densification-code-0.png` reject and `benchmark-curve-slide-metrics.png`
+  accept) moved into `synthesis-filename.test.js` and the block and its import
+  were removed. Assertion-level coverage is unchanged (verified pair by pair);
+  the full extraction suite passes 71 files / 501 tests. Test-only change; no
+  runtime code touched.
+
 ## [0.13.25]
 
 ### Changed

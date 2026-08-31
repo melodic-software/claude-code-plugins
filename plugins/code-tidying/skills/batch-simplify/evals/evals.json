@@ -45,15 +45,16 @@
     },
     {
       "id": 4,
-      "name": "deferred-items-never-dropped",
+      "name": "deferred-items-resolved-in-run",
       "prompt": "/batch-simplify branch",
-      "expected_output": "Branch-mode run where simplifier agents report deferred items; the skill consolidates them, presents them grouped by priority, and files work items rather than dropping them.",
+      "expected_output": "Branch-mode run where simplifier agents report deferred items; the skill consolidates them and resolves them fix-first in the same run, the resolution wave's edits landing as uncommitted working-tree changes exactly like the primary wave's, so only Needs-human and Too-large items survive to the report. No work items are filed unless the user explicitly asks.",
       "files": [],
       "expectations": [
         "Extracts each agent's ## Deferred section verbatim rather than paraphrasing",
         "Consolidates duplicate cross-group concerns into single items",
-        "Presents the consolidated deferred list to the user grouped by priority",
-        "Files work items for actionable deferred concerns (tracker plugin, gh issue create, or explicit user presentation)"
+        "Runs a fix-first resolution wave that applies Fix-now deferrals in this same run rather than filing them, its edits left as uncommitted working-tree changes like the primary wave's (diff-scoped modes never commit)",
+        "Presents only the surviving deferrals (Needs-human, Too-large, or an item the resolution wave could not finish) in the summary report, with their grounds",
+        "Does NOT file work items or create issues by default; filing happens only on an explicit user request"
       ]
     },
     {
@@ -100,9 +101,9 @@
     },
     {
       "id": 8,
-      "name": "repo-mode-verifies-and-files-per-its-own-doctrine",
+      "name": "repo-mode-verifies-and-delivers-per-its-own-doctrine",
       "prompt": "I reviewed the inventory summary you just presented for the repo-mode run. It looks right — go ahead and run it.",
-      "expected_output": "Treats the reply as the confirmation the gate was waiting on and proceeds with the planned run: each group through a simplifier and then a fresh-context refutation verifier, one pull request per wave, work items filed for High-priority deferrals only while every deferral is persisted to the run-state inventory.",
+      "expected_output": "Treats the reply as the confirmation the gate was waiting on and proceeds with the planned run: each group through a simplifier and then a fresh-context refutation verifier, everything committed to one feature branch delivered as one pull request for the whole run, deferrals resolved fix-first in the same run with nothing auto-filed, and every deferral persisted to the run-state inventory.",
       "files": [],
       "expectations": [
         "Proceeds from the already-presented inventory rather than re-discovering or re-planning the run",
@@ -110,8 +111,8 @@
         "Does NOT treat the end-of-run cross-ecosystem pass as sufficient on its own at repo scale",
         "Reports groups with no mapped test suite as unmapped rather than as passing",
         "Persists every deferred item to the run-state inventory at the consuming project's working-notes location, never a hardcoded path",
-        "Files work items for High-priority deferrals only, with no numeric cap, one item per concern rather than per site",
-        "Delivers one independently mergeable pull request per wave, merged before the next wave opens — not one repository-wide pull request",
+        "Resolves deferrals fix-first via the Phase 6.5 resolution wave on the same branch, and does NOT file work items unless the user explicitly asks",
+        "Delivers one feature branch and one pull request for the whole run, with at least one commit per group and the base branch merged in at every wave boundary — not one PR per wave or per group",
         "Keeps concurrency to a 4-6 simplifier soft cap and degrades to sequential under rate-limit pressure rather than retrying"
       ]
     },

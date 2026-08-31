@@ -32,7 +32,6 @@ BeforeAll {
     . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
     . (Join-Path $script:LibRoot 'Get-WingetPackageUpdate.ps1')
     . (Join-Path $script:LibRoot 'Get-CisaKevCache.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
     . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
     function Invoke-WingetUpgradesAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }

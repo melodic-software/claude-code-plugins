@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.35]
+
+### Fixed
+
+- **`lib/test_hook_telemetry.py` no longer races the fire-and-forget sink.**
+  The sink's `>` redirect creates its output file empty before `cat` writes
+  it, so the two sink tests' existence-polls could read an empty file on a
+  fast host and fail on `json.loads("")` (about three runs in four on a fast
+  Linux container). Both tests now wait for non-empty, parseable content with
+  a five-second deadline — retrying on a truncated mid-write read as well —
+  mirroring the `_wait_for_file` discipline the sibling suites already use.
+  Production `hook_telemetry.py` is untouched; the suite is deterministic
+  over repeated runs (12/12).
+
 ## [0.20.34]
 
 ### Changed

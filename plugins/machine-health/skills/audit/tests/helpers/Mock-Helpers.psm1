@@ -225,30 +225,6 @@ function New-MockReliabilityRecord {
     }
 }
 
-function New-MockWinGetPackage {
-    # Shape matches Microsoft.WinGet.Client 1.12+ Get-WinGetPackage output.
-    # IsUpdateAvailable is the boolean gate the check filters on; AvailableVersions
-    # is newest-first. Tests that mock Get-WinGetPackage itself use this factory.
-    [CmdletBinding()]
-    [OutputType([pscustomobject])]
-    param(
-        [Parameter(Mandatory)] [string] $Name,
-        [Parameter(Mandatory)] [string] $Id,
-        [string] $InstalledVersion = '1.0.0',
-        [string[]] $AvailableVersions = @('1.1.0'),
-        [string] $Source = 'winget',
-        [bool] $IsUpdateAvailable = $true
-    )
-    [pscustomobject]@{
-        Name              = $Name
-        Id                = $Id
-        InstalledVersion  = $InstalledVersion
-        AvailableVersions = $AvailableVersions
-        Source            = $Source
-        IsUpdateAvailable = $IsUpdateAvailable
-    }
-}
-
 function New-MockEnvironmentKey {
     <#
     .SYNOPSIS
@@ -332,6 +308,5 @@ Export-ModuleMember -Function @(
     'New-MockReliabilityStabilityMetric'
     'New-MockService'
     'New-MockVolume'
-    'New-MockWinGetPackage'
     'Remove-MachineHealthTempDir'
 )

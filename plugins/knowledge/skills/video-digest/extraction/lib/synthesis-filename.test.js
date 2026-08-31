@@ -11,6 +11,7 @@ import {
 describe("forbiddenSynthesisFileNameReason", () => {
   it("rejects legacy pipeline tokens", () => {
     expect(forbiddenSynthesisFileNameReason("at-12m30s-anchor.png")).toBeTruthy();
+    expect(forbiddenSynthesisFileNameReason("densification-code-0.png")).toBeTruthy();
     expect(forbiddenSynthesisFileNameReason("dens-code-m478.png")).toBeTruthy();
     expect(forbiddenSynthesisFileNameReason("code-code-28134.png")).toBeTruthy();
     expect(forbiddenSynthesisFileNameReason("dens-scene0003.png")).toBeTruthy();
@@ -19,6 +20,7 @@ describe("forbiddenSynthesisFileNameReason", () => {
   it("accepts semantic names", () => {
     expect(forbiddenSynthesisFileNameReason("network-diagram-architecture-slide.png")).toBeNull();
     expect(forbiddenSynthesisFileNameReason("ceo-dashboard-objectives-table-ui.png")).toBeNull();
+    expect(forbiddenSynthesisFileNameReason("benchmark-curve-slide-metrics.png")).toBeNull();
   });
 });
 

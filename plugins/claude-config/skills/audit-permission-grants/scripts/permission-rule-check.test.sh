@@ -563,7 +563,7 @@ assert_contains "refusal names the sanctioned variable as the fix" \
     -u CLAUDE_PROJECT_DIR GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1)" \
   "PERMISSION_HYGIENE_SCAN_ROOT"
 
-# --- Case 8b: #2282 — full-rule reporting, `//` is NOT exempt, P1 pinned npm view
+# --- Case 12: #2282 — full-rule reporting, `//` is NOT exempt, P1 pinned npm view
 #
 # `//` is the ABSOLUTE anchor, not a portable one. permissions.md's own table row is
 # `//path` = "Absolute path from filesystem root", with `Read(//Users/<name>/secrets/**)`
@@ -582,7 +582,7 @@ assert_contains "P2 reports the full offending Bash rule" "$OUT_2282" "Bash(${PO
 assert_not_contains "fully-pinned npm view rule is not flagged as P1" "$OUT_2282" "npm view ctx7 version"
 assert_eq "both machine-path rules flagged, npm view not" "2" "$(run "$D8B" --count)"
 
-# --- Case 8c: the genuinely portable anchors stay exempt ----------------------
+# --- Case 12b: the genuinely portable anchors stay exempt ---------------------
 # The distinction the fix turns on: `~/` and `${CLAUDE_PROJECT_DIR}/` supply the
 # user/project segment at resolution time; `//` does not.
 D8C="$TEST_TMPDIR/issue-2282-portable"
@@ -590,7 +590,7 @@ mkdir -p "$D8C/.claude"
 jq -n '{permissions:{allow:["Read(~/Documents/*.pdf)","Bash(${CLAUDE_PROJECT_DIR}/scripts/x.sh:*)"]}}' >"$D8C/.claude/settings.json"
 assert_eq "portable anchors produce no P2 finding" "0" "$(run "$D8C" --count)"
 
-# --- Case 8d: P2 reach is the open tool grammar, not five hardcoded names ------
+# --- Case 12c: P2 reach is the open tool grammar, not five hardcoded names -----
 # A hardcoded machine path leaks a username whatever tool the rule names. An
 # enumerated (Read|Edit|Write|Bash|PowerShell) list silently stopped flagging these;
 # `Agent` in particular is indefensible, since this script has a dedicated
@@ -604,7 +604,7 @@ assert_contains "P2 sees Glob rules" "$OUT_TOOLS" "Glob(${GLOB_MP})"
 assert_contains "P2 sees NotebookEdit rules" "$OUT_TOOLS" "NotebookEdit(${NB_MP})"
 assert_contains "P2 sees MCP tool rules" "$OUT_TOOLS" "mcp__srv__tool(${MCP_MP})"
 
-# --- Case 8e: a `//` prefix does not launder a path later in the same rule -----
+# --- Case 12d: a `//` prefix does not launder a path later in the same rule ----
 # Regression guard for a substring carve-out (`$m == *"(//"*`) that passed any rule
 # whose payload merely began with `//`, leaving the rest unexamined.
 D8E="$TEST_TMPDIR/issue-2282-traversal"
@@ -612,7 +612,7 @@ mkdir -p "$D8E/.claude"
 jq -n --arg l "Read(${LAUNDER_MP})" '{permissions:{allow:[$l]}}' >"$D8E/.claude/settings.json"
 assert_eq "a // prefix does not exempt a user home later in the rule" "1" "$(run "$D8E" --count)"
 
-# --- Case 8f: #2397 A12 — tilde-user Bash paths leak a username ----------------
+# --- Case 13: #2397 A12 — tilde-user Bash paths leak a username ----------------
 D8F="$TEST_TMPDIR/issue-2397-tilde-user"
 mkdir -p "$D8F/.claude"
 jq -n '{permissions:{allow:["Bash(~kyle/scripts/x.sh:*)"]}}' >"$D8F/.claude/settings.json"
@@ -627,7 +627,7 @@ jq -n '{permissions:{allow:["Bash(curl https://example.com/~alice/index.html)"]}
   >"$D8F_URL/.claude/settings.json"
 assert_eq "URL user-directory segment is not flagged as tilde-user path" "0" "$(run "$D8F_URL" --count)"
 
-# --- Case 8g: #2397 A7b — inert substitution tokens in allowed-tools ----------
+# --- Case 13b: #2397 A7b — inert substitution tokens in allowed-tools ---------
 D8G="$TEST_TMPDIR/issue-2397-inert"
 mkdir -p "$D8G/.claude/skills/demo"
 cat >"$D8G/.claude/skills/demo/SKILL.md" <<'EOF'

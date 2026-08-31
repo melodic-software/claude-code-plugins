@@ -4,7 +4,6 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { forbiddenSynthesisFileNameReason } from "./synthesis-filename.js";
 import {
   validatePromotionDecisions,
   validateQualityAudit,
@@ -19,16 +18,6 @@ afterEach(() => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
   tempDirs.length = 0;
-});
-
-describe("forbiddenSynthesisFileNameReason", () => {
-  it("rejects automated filename patterns", () => {
-    expect(forbiddenSynthesisFileNameReason("at-12m30s-anchor.png")).toBeTruthy();
-    expect(forbiddenSynthesisFileNameReason("densification-code-0.png")).toBeTruthy();
-    expect(forbiddenSynthesisFileNameReason("dens-code-m478.png")).toBeTruthy();
-    expect(forbiddenSynthesisFileNameReason("code-code-28134.png")).toBeTruthy();
-    expect(forbiddenSynthesisFileNameReason("benchmark-curve-slide-metrics.png")).toBeNull();
-  });
 });
 
 describe("validateTriageSheet", () => {

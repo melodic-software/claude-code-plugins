@@ -12,7 +12,8 @@
 # filename use (anything else skips the tee — path-containment guard).
 # Stale sibling snapshots are pruned on write with a cutoff far larger than
 # the reader contract's 10-minute staleness window (live-but-idle sessions
-# survive; in-flight .tmp.* files are never pruned). The Windows
+# survive; in-flight .tmp.* files are never pruned — aged temp ORPHANS are
+# reclaimed by the trap + age-filtered sweep instead). The Windows
 # locked-target rename failure is retry-then-skip, driven deterministically
 # by a PATH `mv` shim.
 #
@@ -347,7 +348,10 @@ else
   fail "far-future snapshot wedged the tee: $(jq -c . <"$CTXDIR16B/sess-42.json")"
 fi
 
-# --- Case 17: pruning — old siblings die, idle + recent + tmp survive --------
+# --- Case 17: pruning — old siblings die, idle + recent + live tmp survive ---
+# Aged temp ORPHANS are the sweep's job, not the prune's: a 15-day-old temp is
+# reclaimed (a SIGKILL/crash leftover no trap could catch), while a fresh
+# in-flight temp — inside the sweep's one-minute age floor — is never touched.
 HOME17="$WORK/home17"
 CTXDIR17="$HOME17/$CTX_REL"
 mkdir -p "$CTXDIR17"
@@ -359,12 +363,38 @@ printf '{"session_id":"recent"}\n' >"$CTXDIR17/recent.json"
 touch -d '5 minutes ago' "$CTXDIR17/recent.json"
 printf 'torn' >"$CTXDIR17/.ctx.json.tmp.99.123"
 touch -d '15 days ago' "$CTXDIR17/.ctx.json.tmp.99.123"
+printf 'live' >"$CTXDIR17/.live.json.tmp.44.555"
 run "$HOME17" "$(build_input)" cat >/dev/null
 if [[ ! -e "$CTXDIR17/ancient.json" ]]; then ok "prune: 15-day-old sibling removed"; else fail "prune: ancient sibling survived"; fi
 if [[ -f "$CTXDIR17/idle.json" ]]; then ok "prune: live-but-idle sibling (2h) survives"; else fail "prune: idle sibling deleted (cutoff too tight)"; fi
 if [[ -f "$CTXDIR17/recent.json" ]]; then ok "prune: recent sibling survives"; else fail "prune: recent sibling deleted"; fi
-if [[ -f "$CTXDIR17/.ctx.json.tmp.99.123" ]]; then ok "prune: in-flight .tmp.* never pruned"; else fail "prune: tmp file deleted"; fi
+if [[ ! -e "$CTXDIR17/.ctx.json.tmp.99.123" ]]; then ok "sweep: aged temp orphan reclaimed"; else fail "sweep: aged temp orphan survived"; fi
+if [[ -f "$CTXDIR17/.live.json.tmp.44.555" ]]; then ok "sweep: live in-flight temp never touched"; else fail "sweep: live temp deleted"; fi
 if [[ -f "$CTXDIR17/sess-42.json" ]]; then ok "prune pass still wrote the live snapshot"; else fail "live snapshot missing after prune"; fi
+
+# --- Case 18: cancellation mid-window leaves no temp behind ------------------
+# Claude Code "cancels the in-flight script" when a new update arrives while
+# this one is still running, so a kill between the write and the rename is
+# routine rather than exceptional. Driven by an `mv` shim that parks, so the
+# signal lands inside the window deterministically.
+HOME18="$WORK/home18"
+mkdir -p "$HOME18"
+SHIM18="$WORK/shim18"
+mkdir -p "$SHIM18"
+printf '#!/usr/bin/env bash\nsleep 10\n' >"$SHIM18/mv"
+chmod +x "$SHIM18/mv"
+printf '%s' "$(build_input)" | HOME="$HOME18" PATH="$SHIM18:$PATH" bash "$TEE" >/dev/null 2>&1 &
+TEE_PID=$!
+sleep 2
+kill -TERM "$TEE_PID" 2>/dev/null
+wait "$TEE_PID" 2>/dev/null
+sleep 0.5
+LEFT18=$(find "$HOME18/$CTX_REL" -name '.*.json.tmp.*' 2>/dev/null | wc -l | tr -d ' \r')
+if [[ "$LEFT18" == "0" ]]; then
+  ok "cancelled mid-window → temp reclaimed by trap"
+else
+  fail "$LEFT18 temp file(s) leaked on cancellation"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

@@ -256,8 +256,12 @@ unreadable="$WORK/unreadable.md"
   printf '|---|-------------|-----------------|------|\n'
   printf '| 1 | alpha | criterion | [x] |\n'
 } >"$unreadable"
-chmod 000 "$unreadable"
-run_one "$PY_SUT" 2 "unreadable ledger fails closed as ungradeable" "$unreadable"
+chmod 000 "$unreadable" 2>/dev/null
+if [[ -r "$unreadable" ]]; then
+  echo "SKIP: unreadable-ledger case — this platform/user does not enforce chmod 000 on the fixture" >&2
+else
+  run_one "$PY_SUT" 2 "unreadable ledger fails closed as ungradeable" "$unreadable"
+fi
 chmod 644 "$unreadable" 2>/dev/null || true
 
 # --- usage ------------------------------------------------------------------

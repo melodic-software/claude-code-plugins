@@ -124,7 +124,7 @@ Per cell in contact sheet (`frame-triage-checklist.json` `verdicts`):
 
 **JSON SSOT:** subagents write `key-frames/triage/batches/sheet_NNN.json`; merge to `key-frames/triage/manifest.json`; render `key-frames/frame-triage-log.md` via `render-triage-log.js`. Do not treat markdown-only triage as complete.
 
-**Promotion SSOT:** `key-frames/promotion-decisions.json` → `vision-gated-promote.js` → `promotion-map.json` (`promotion-name-map.js` loader). **Triage SSOT:** `key-frames/triage/batches/sheet_NNN.json` → `merge-triage-json.js` → `render-triage-log.js`. No signal-derived or bulk-promote shortcuts — verify scripts enforce agentic triage and vision-gated promotion.
+**Promotion SSOT:** `key-frames/promotion-decisions.json` → `vision-gated-promote.js` → `promotion-map.json`. **Triage SSOT:** `key-frames/triage/batches/sheet_NNN.json` → `merge-triage-json.js` → `render-triage-log.js`. No signal-derived or bulk-promote shortcuts — verify scripts enforce agentic triage and vision-gated promotion.
 
 ## High-volume fan-out
 

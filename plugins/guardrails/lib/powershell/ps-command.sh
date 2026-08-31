@@ -1696,7 +1696,7 @@ ps::print_unparsable_git_block_message() {
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
 ps::write_bypass() {
-  local cmd="$1" scan lcs seg lc head lcq lcq_bt q="\"'" blanked_gate opaque_gate
+  local cmd="$1" scan lcs seg head lcq lcq_bt q="\"'" blanked_gate opaque_gate
   ps::blank_herestrings "$cmd"
 
   # A call `&` / dot-source `.` of a QUOTED writer name runs that string as the
