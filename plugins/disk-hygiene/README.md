@@ -236,10 +236,19 @@ measurements below carry the conditions they were taken under.
   per-tool-call ceiling. While the `clean` skill is loaded, its frontmatter registration is a
   second matching hook that the harness launches in parallel; the pair measured concurrently
   (`&` + `wait`, 60 pairs) walls at **≈ 320–410 ms**, ≈ 1.3–1.5× the same-batch single-hook wall
-  rather than double it. Of the single-hook cost, the launcher's read of the engine to recover
-  `MIN_PYTHON` (a single early-quit `sed` since 0.20.13, held to one read by
-  `hooks/run-python-hook.test.sh`) accounts for ≈ 24 ms, **≈ 13% of the hook's cost** in the batch
-  it was measured against; the prior two-full-pass form measured ≈ 38 ms (≈ 19% of a ≈ 205 ms hook).
+  rather than double it. **Superseded in 0.21.0 for the launcher portion:** the `sed` read of the
+  engine (≈ 24 ms, ≈ 13% of the hook's cost, and ≈ 38 ms in the two-full-pass form before 0.20.13)
+  no longer exists, and neither does the separate Python process that was spawned only to evaluate
+  the version predicate. The floor is now recovered inside the candidate interpreter on the cold
+  path, and the resolved interpreter is cached, so a **warm invocation spends one process spawn
+  (the guard itself) where it previously spent four** — `dirname`, `sed`, and two `python3`.
+  That spawn census, not a duration, is the durable figure: it is deterministic, whereas the
+  wall-clock share above was measured on a host whose process-creation cost was later observed
+  varying more than tenfold within a single hour under contention (`bash -c true` at 283 ms and
+  1825 ms in the same session at ~10% CPU). Interleaved before/after on such a host, 24 alternating
+  pairs, measured p50 5446 → 1418 ms and p95 16991 → 7874 ms; those absolute values are specific to
+  that contention and are not comparable to the ≈ 190–300 ms figures above, which were taken on a
+  quiet host. Re-measure per the convention's method on a quiet host before citing a new share.
   On a machine where no Python 3 interpreter resolves at all the gate fails
   open on every call, the `Stop` detector emits a `systemMessage` for that case, so the blind spot is
   visible rather than silent (#1110, #1504). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
