@@ -14,8 +14,26 @@ Claude Code ranks skills for description truncation by
 usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)
 ```
 
-then sorts that score descending, grants descriptions greedily until the budget
-is spent, and renders the remainder name-only.
+then sorts that score descending and walks **every** competing entry with a
+running description budget, granting whatever still fits and rendering the rest
+name-only.
+
+**It is a greedy first-fit walk, not a score-ordered prefix.** The grant loop has
+no early exit, so a cheap low-scored description can still be granted after an
+expensive higher-scored one was refused. Description LENGTH is therefore a second
+ranking input, which no prose account of this mechanism mentions:
+
+```js
+for (let me of W) {
+  let ge = me.entryLen - (me.cmd.name.length + 2);
+  if (ge <= pe) pe -= ge; else fe.push(me);   // no break
+}
+```
+
+This matters for the report's two fields. The `verdict` mirrors the walk. The
+`band` ranks exposure, lowest score first, and the two are allowed to disagree:
+a band-1 row with a very short description can survive a pass that sheds a
+better-scored row with a long one.
 
 Recovered from `claude.exe` at Claude Code 2.1.251 (`zPe` the scorer, `Ymt` the
 truncator), then re-verified unchanged at 2.1.252. The scorer has two further

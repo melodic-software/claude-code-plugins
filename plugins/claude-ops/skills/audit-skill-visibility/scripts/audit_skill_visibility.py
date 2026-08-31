@@ -114,8 +114,10 @@ def tier_supports(tier: str, claim: str) -> bool:
 # -- Verification stamp (docs/conventions/upstream-drift) ----------------------
 # Claim: the product ranks skills for description truncation by
 #   `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, sorts that score
-#   descending, grants descriptions greedily until the budget is spent, and
-#   renders the remainder name-only.
+#   descending, then walks EVERY competing entry with a running description
+#   budget, granting whatever fits and rendering the rest name-only. The walk is
+#   greedy first-fit with no early exit, so it is not a score-ordered prefix and
+#   description length is a second ranking input.
 # Basis: string extraction of `claude.exe`, first at Claude Code 2.1.251 (`zPe`
 #   the scorer, `Ymt` the truncator, plus the scorer's two other call sites, the
 #   slash-menu top-5 pin and the command-search score boost), then RE-VERIFIED
@@ -838,20 +840,40 @@ def compute_listing(
     score_basis = "native-counters" if any(r["usage_score"] for r in rows) else "unscored"
 
     competing = [r for r in rows if r["eligibility"] == "competing"]
-    # Lowest score first: that is the order the product sheds descriptions in, so
-    # rank 1 is the most likely to have already lost its. The score is
-    # decay-weighted, NOT a raw invocation count -- a heavily used but stale
-    # skill can sort below a lightly used fresh one, which is why this cannot be
-    # read as "least invoked". The name is a tiebreaker only; when `scores` is
-    # empty it is the WHOLE ordering, which is what `score_basis` exists to admit.
-    competing.sort(key=lambda r: (r["usage_score"], r["qualified_name"]))
-    # Descriptions are shed lowest-score-first only UNTIL the listing fits,
-    # so the starved set is the prefix whose demand covers the overflow -- not
-    # the whole fleet. Marking every competing row starved on a one-character
-    # overflow would libel exactly the skills the mechanism protects longest,
-    # and the renderer would tell the user they are running name-only.
-    remaining = overflow
-    for rank, row in enumerate(competing, start=1):
+
+    # WHICH rows are shed is a GREEDY FIRST-FIT walk, not a score-ordered
+    # prefix. The product sorts descending by score and then walks EVERY
+    # competing entry with a running description budget, granting whatever still
+    # fits and shedding whatever does not. Crucially its loop has no early exit,
+    # so a cheap low-scored description can still be granted after an expensive
+    # higher-scored one was refused. Modelling this as a prefix understated the
+    # protection long descriptions lose and overstated it for short ones.
+    #
+    # Consequence worth stating plainly: description LENGTH is a ranking input,
+    # which no prose description of this mechanism mentions.
+    competing.sort(key=lambda r: (-r["usage_score"], r["qualified_name"]))
+    # Budget accounting stays as it was: `demand` counts description bytes
+    # against the whole budget and ignores the name bytes every entry also pays.
+    # That understates pressure slightly and is the CERTAIN half of this report,
+    # so it is deliberately not changed here alongside the ordering fix. Charging
+    # names too is a separate correction with its own evidence.
+    remaining = budget
+    for row in competing:
+        if overflow <= 0:
+            row["verdict"] = "listing-fits"
+        elif row["demand_chars"] <= remaining:
+            remaining -= row["demand_chars"]
+            row["verdict"] = "likely-retained"
+        else:
+            row["verdict"] = "likely-starved"
+
+    # The band is a separate question from the verdict: it ranks how exposed a
+    # row is, lowest score first, so band 1 is the row the mechanism protects
+    # least. It can disagree with the verdict, and that disagreement is real
+    # rather than a bug -- a band-1 row with a very short description can survive
+    # a first-fit pass that sheds a better-scored row with a long one.
+    by_exposure = sorted(competing, key=lambda r: (r["usage_score"], r["qualified_name"]))
+    for rank, row in enumerate(by_exposure, start=1):
         row["band"] = rank if overflow > 0 else None
         # An unscored ordering is alphabetical, so its band carries no signal at
         # all. That is a weaker claim than an inferential one and must not wear
@@ -862,13 +884,6 @@ def compute_listing(
             row["confidence"] = "unscored"
         else:
             row["confidence"] = "inferential"
-        if overflow <= 0:
-            row["verdict"] = "listing-fits"
-        elif remaining > 0:
-            row["verdict"] = "likely-starved"
-            remaining -= row["demand_chars"]
-        else:
-            row["verdict"] = "likely-retained"
     for row in rows:
         if row["eligibility"] != "competing":
             row["band"] = None

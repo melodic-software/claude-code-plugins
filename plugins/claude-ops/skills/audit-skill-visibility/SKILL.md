@@ -23,16 +23,19 @@ my skill fleet never get used?* A skill the model cannot see cannot be chosen, s
 
 Claude Code budgets the model-visible skill listing at a fraction of the context
 window (`skillListingBudgetFraction`, default 0.01) and, when it overflows,
-**drops descriptions starting with the skills you invoke least**. Names always
-survive, descriptions do not. A skill at zero usage therefore loses its
+**sheds descriptions from the lowest-scoring skills first**. Names always
+survive, descriptions do not. A skill at zero usage scores zero, so it loses its
 description, loses the keywords a request would match against, and stays at
-zero. Unused is partly self-causing, and the loop is documented: the budget
-fraction and per-entry cap are owned by
+zero. Unused is partly self-causing.
+
+The budget fraction and per-entry cap are owned by
 <https://code.claude.com/docs/en/settings> (`skillListingBudgetFraction`,
-`skillListingMaxDescChars`) and the drop behavior by
-<https://code.claude.com/docs/en/skills> ("Skill descriptions are cut short").
-Verified 2026-08-31; recheck trigger: a fetch of either page no longer matching
-this paragraph re-derives it and the scripts' `ListingConfig` defaults.
+`skillListingMaxDescChars`). **The drop ORDER is not documented accurately.** The
+skills page says "starting with the skills you invoke least"; the binary ranks by
+a decay-weighted score and then walks the list first-fit, so neither the ordering
+nor the guarantee holds as written. Measured against the binary, with the
+counterexamples and the stamp:
+[reference/listing-scorer.md](reference/listing-scorer.md).
 
 So the useful question is not *which skills are unused*. Claude Code already
 reports that in `/doctor` and the Stats tab. It is **which skills are starved by

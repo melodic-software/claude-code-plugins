@@ -28,15 +28,21 @@ cannot tell that it is blind. The gatekeeping the contract bans would have been 
 harness, invisibly.
 
 > **Revised 2026-08-31 ([#3534](https://github.com/melodic-software/claude-code-plugins/issues/3534)):**
-> the drop-order mechanism above is stated wrongly. Claude Code does not drop
-> descriptions "starting with the skills invoked least". It ranks by a decay-weighted score,
-> `usageCount * max(0.5 ^ (daysSinceUse / 7), 0.1)`, sorts descending, and grants descriptions
-> greedily until the budget runs out; what does not fit renders as a bare name. So a heavily used but
-> stale skill can lose its description before a lightly used fresh one: 100 uses 60 days ago scores
-> 10 and loses to 12 uses today. Recovered from the Claude Code 2.1.251 binary, re-verified
-> unchanged at 2.1.252, and stamped in
-> [`plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md`](../../plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md),
-> which carries the basis and the recheck trigger.
+> the drop-order mechanism above is wrong, and **the error is upstream's, not this ADR's.** The
+> sentence tracks the official documentation, which states it in the same terms: "When the listing
+> overflows, Claude Code drops descriptions starting with the skills you invoke least, so the skills
+> you use most keep their full text"
+> (<https://code.claude.com/docs/en/skills>, fetched 2026-08-31). The shipped binary does something
+> else, on two independent axes.
+>
+> It ranks by a decay-weighted score, `usageCount * max(0.5 ^ (daysSinceUse / 7), 0.1)`, so a
+> heavily used but stale skill can be shed before a lightly used fresh one: 100 uses 21 days ago
+> scores 12.5 and loses to 13 uses today. And it then walks every entry in that order with a running
+> budget, granting whatever still fits, with no early exit, so a cheap never-invoked description can
+> be granted after an expensive well-used one was refused. Description length is a second ranking
+> input the documented account does not mention. Both were recovered from the 2.1.251 binary and
+> re-verified at 2.1.252; the stamp, the greps, and the counterexamples are in
+> [`plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md`](../../plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md).
 >
 > **The ADR's core decision is untouched, and this correction strengthens the case for it.** A
 > never-invoked skill scores exactly zero and is still shed first, so the bias this paragraph

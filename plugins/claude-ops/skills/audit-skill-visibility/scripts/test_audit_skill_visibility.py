@@ -923,6 +923,55 @@ class OverflowConsumptionTest(unittest.TestCase):
         hottest = max(listing["skills"], key=lambda s: s["usage_score"])
         self.assertEqual(hottest["verdict"], "likely-retained")
 
+    def test_a_cheap_low_scored_row_is_granted_after_a_costly_higher_one_is_shed(self):
+        """First-fit, not a prefix: the product's grant loop has no early exit.
+
+        A prefix model sheds a contiguous run of the lowest-scored rows. The real
+        loop walks every entry, so a short description can still be granted after
+        a longer, better-scored one was refused. Description LENGTH is a ranking
+        input, which no prose account of this mechanism mentions.
+        """
+        # Per-entry demand is capped at max_desc_chars (1536), so the budget is
+        # exhausted with full-cap fillers rather than one giant description.
+        entries = [
+            {
+                "qualified_name": f"a:fill{i}",
+                "frontmatter": {"description": "x" * 1536},
+                "plugin_enabled": True,
+            }
+            for i in range(5)
+        ]
+        entries += [
+            # Outscores the cheap row, but cannot fit in what the fillers left.
+            {
+                "qualified_name": "a:hog",
+                "frontmatter": {"description": "x" * 1536},
+                "plugin_enabled": True,
+            },
+            # Lowest score in the set, but cheap enough to survive the leftovers.
+            {
+                "qualified_name": "a:cheap",
+                "frontmatter": {"description": "x" * 300},
+                "plugin_enabled": True,
+            },
+        ]
+        scores = {f"a:fill{i}": 100.0 - i for i in range(5)}
+        scores.update({"a:hog": 50.0, "a:cheap": 1.0})
+        listing = engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=200_000), scores
+        )
+        by_name = {r["qualified_name"]: r for r in listing["skills"]}
+        # 5 x 1536 = 7680 granted, leaving 320 of the 8000 budget.
+        # a:hog needs 1536 and is shed; the walk does NOT stop there, and
+        # a:cheap needs only 300, so it is granted from the same leftovers.
+        self.assertEqual(by_name["a:hog"]["verdict"], "likely-starved")
+        self.assertEqual(by_name["a:cheap"]["verdict"], "likely-retained")
+        self.assertEqual(by_name["a:fill0"]["verdict"], "likely-retained")
+        # And the band still ranks by exposure, so the cheap survivor is band 1
+        # even though it was retained. Band and verdict answer different
+        # questions and are allowed to disagree.
+        self.assertEqual(by_name["a:cheap"]["band"], 1)
+
 
 class JoinerCharsTest(unittest.TestCase):
     """The listing inserts a literal ' - ' between description and when_to_use.
