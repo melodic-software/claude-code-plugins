@@ -3,6 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.22]
+
+### Changed
+
+- **`audit-skill-visibility`: stamped the listing-mechanism restatements.** The SKILL.md
+  starvation-loop paragraph asserted `skillListingBudgetFraction` (0.01) and the
+  least-invoked-first drop order as "documented" without naming where; it now cites the owning
+  settings and skills pages with a verified date (2026-08-31) and a divergence trigger. The
+  `ListingConfig` docstring in `audit_skill_visibility.py` carries the same four-part record for
+  its encoded defaults. Per the marketplace's upstream-drift convention; found in the
+  frontmatter-alignment sweep.
+
 ## [0.38.21]
 
 ### Changed

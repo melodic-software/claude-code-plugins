@@ -26,7 +26,13 @@ window (`skillListingBudgetFraction`, default 0.01) and, when it overflows,
 **drops descriptions starting with the skills you invoke least**. Names always
 survive, descriptions do not. A skill at zero usage therefore loses its
 description, loses the keywords a request would match against, and stays at
-zero. Unused is partly self-causing, and the loop is documented.
+zero. Unused is partly self-causing, and the loop is documented: the budget
+fraction and per-entry cap are owned by
+<https://code.claude.com/docs/en/settings> (`skillListingBudgetFraction`,
+`skillListingMaxDescChars`) and the drop behavior by
+<https://code.claude.com/docs/en/skills> ("Skill descriptions are cut short").
+Verified 2026-08-31; recheck trigger: a fetch of either page no longer matching
+this paragraph re-derives it and the scripts' `ListingConfig` defaults.
 
 So the useful question is not *which skills are unused*. Claude Code already
 reports that in `/doctor` and the Stats tab. It is **which skills are starved by

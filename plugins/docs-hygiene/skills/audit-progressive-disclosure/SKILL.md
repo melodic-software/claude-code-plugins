@@ -88,8 +88,10 @@ sibling divergences it owns.
 - **Tier semantics** (identical to the sibling audits): Tier 1 = definite; Tier 2 = review needed;
   Tier 3 = likely legitimate, surfaced for awareness and carrying NO treatment.
 - **Citation posture.** Vendor-defined numbers (500/200/1,024/1,536/1%/~100 tokens/5k/25k) are
-  cited as Anthropic-prescribed; consensus language is reserved for independently corroborated
-  claims. Community-sourced signals are labeled as such and stay advisory.
+  cited as Anthropic-prescribed; their owning pages, as-of date, and recheck trigger live in the
+  provenance record in [context/tier-model.md](context/tier-model.md), which is re-verified rather
+  than trusted. Consensus language is reserved for independently corroborated claims;
+  community-sourced signals are labeled as such and stay advisory.
 - **Small-corpus guard.** Never flag a file for NOT using progressive disclosure when its content
   fits comfortably at its tier; splitting a 60-line file buys nothing.
 - **Skip surfaces.** `CHANGELOG.md`, `evals/fixtures/`, `vendor/` trees, YAML frontmatter, and

@@ -3,6 +3,15 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.15]
+
+### Changed
+
+- **`routing-rubric.md`: stamped the listing-cost restatement.** The rubric's step-3 note (a new
+  skill's listing entry, truncated at 1,536 chars) cited nothing; it now cites the frontmatter
+  reference with a verified date (2026-08-31) and a divergence trigger, per the marketplace's
+  upstream-drift convention. Found in the frontmatter-alignment sweep.
+
 ## [0.11.14]
 
 ### Fixed

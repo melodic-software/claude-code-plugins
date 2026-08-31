@@ -150,7 +150,9 @@ budget". What governs the category:
   characters, which is why the env var's fallback is that number. Without the constant a report can say
   "overflowed" but not "by how much", so quote it. All three are upstream-owned: confirm them in Phase
   3 against [settings](https://code.claude.com/docs/en/settings) and
-  [env-vars](https://code.claude.com/docs/en/env-vars) before publishing a number
+  [env-vars](https://code.claude.com/docs/en/env-vars) before publishing a number (defaults as
+  written verified 2026-08-31; recheck trigger: a Phase-3 confirm finding a moved default
+  re-derives this paragraph)
 - **Overflow check — two routes, and only one survives a headless run.** `/doctor` estimates the
   listing's cost and its biggest contributors, and it needs an interactive TTY, so prompt the user to
   run it. When this audit runs headless — `-p`, a spawned agent, a background job — use the documented
