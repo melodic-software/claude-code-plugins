@@ -1613,30 +1613,27 @@ _COMMAND_UNDER_DECISION: str | None = None
 _EMIT_LOCK_WAIT_SECONDS = 0.5
 
 
-def _emit_decision(payload: dict[str, object], timeout: float | None = None) -> bool:
-    """Write one decision to stdout. Returns False if nothing was written.
+def _emit_decision(payload: dict[str, object]) -> bool:
+    """Write one decision to stdout. Returns False if one was already written.
 
-    Holds ``_EMIT_LOCK`` across both the latch check and the write so the
-    watchdog thread cannot interleave its own object into a partially written
-    one (see ``_EMIT_LOCK``). ``timeout`` bounds the wait for callers that must
-    never block — see ``_EMIT_LOCK_WAIT_SECONDS``; ``None`` waits indefinitely,
-    which is correct for the main thread and only for it.
+    Holds ``_EMIT_LOCK`` across the latch check AND the write. Both halves
+    matter, for different reasons: the latch stops a second object reaching the
+    stream, and holding the lock across ``print`` is what lets the watchdog
+    thread infer, purely from having acquired the lock, that this write has
+    already returned and is therefore safe to flush (see ``_watchdog_fire``).
+
+    This waits for the lock without a timeout, which is correct for the main
+    thread and only for it: the main thread is the one whose decision this is,
+    so it has nothing to protect by giving up. The watchdog thread must never
+    call this, and does not.
     """
     global _DECISION_EMITTED
-    if timeout is None:
-        acquired = _EMIT_LOCK.acquire()
-    else:
-        acquired = _EMIT_LOCK.acquire(timeout=timeout)
-    if not acquired:
-        return False
-    try:
+    with _EMIT_LOCK:
         if _DECISION_EMITTED:
             return False
         _DECISION_EMITTED = True
         print(json.dumps(payload))
         return True
-    finally:
-        _EMIT_LOCK.release()
 
 
 def _publish_command_for_watchdog(command: str) -> None:
@@ -1810,81 +1807,136 @@ def _watchdog_fire(deadline: float) -> None:
     on an identical retry, which is the signature of contention, not of a
     command that deserved denying.
 
-    So:
+    The downgrade is available in exactly ONE situation, and every other path
+    keeps the pre-change ``exit 2``:
 
-    * a command carrying the engine marker — the only shape whose completed
-      verdict could have been ``deny`` — still denies at exit 2, unchanged;
-    * a command that provably carries no marker cannot be an engine invocation
-      by name, and its completed verdict would have been the plugin-level
-      defer. It emits ``ask`` rather than exit 2. That is strictly more
-      protective than the defer it replaces (which emits no decision at all and
-      lets the command run) and strictly less blocking than the exit 2 it
-      replaces. The residual it does not cover is the marker-free linked-alias
-      shape, which ``_engine_gate_relevant`` resolves by filesystem identity —
-      unavailable here by construction, and already an accepted residual class
-      in that function's own contract.
+    * ``engine-gate`` mode, with a command that provably carries no engine
+      marker. Only there is the completed verdict knowably the instant
+      plugin-level defer, so ``ask`` is strictly MORE protective than the
+      outcome the guard would have reached (a defer emits no decision at all
+      and lets the command run) and strictly less blocking than ``exit 2``;
+    * ``belt`` mode denies, always. Belt is the skill-frontmatter deployment,
+      where Bash is deny-by-default and ``_engine_gate_relevant`` is never
+      consulted — a marker-free ``rm -rf`` would have been DENIED there, not
+      deferred, so downgrading it to a prompt on "the host was slow" would
+      convert a deny-by-default guard into one the operator is invited to
+      wave through. Belt is also the DEFAULT (``resolve_mode`` falls back to
+      it when no ``--mode`` is passed, which is exactly what the skill
+      frontmatter does), so a mode-blind classifier fails in the unsafe
+      direction;
+    * a command carrying the engine marker denies, unchanged;
+    * a stall before the payload parsed denies: nothing was seen, so nothing
+      can be ruled out.
 
-    Fail-closed is preserved in the sense that matters: every path here still
-    DELIVERS a decision. The fail-open this guard exists to prevent is the
-    harness killing a hook that produced no ``permissionDecision`` at all
-    (``docs/adr/0004-...``), and no branch below does that.
+    EVERY OUTCOME MUST BE SELF-CARRYING OR PROVEN DELIVERED. This is the
+    constraint that shapes the branch order below, and it is easy to lose:
+    ``exit 2`` needs nothing on stdout (the deny rides the exit status;
+    ``_write_diagnostic`` uses stderr), whereas ``exit 0`` asserts that a JSON
+    object reached the host — and exit 0 carrying no JSON is read as NO
+    DECISION, so the command proceeds unguarded. Adding non-deny outcomes to
+    this callback therefore introduced a way to fail open that a deny-only
+    callback could not have: any ``exit 0`` taken while a write is merely
+    buffered, or still in progress on the main thread, discards it. Hence the
+    flush under the lock, and hence the lock-acquisition failure denying rather
+    than exiting 0.
+
+    The residual not covered is the marker-free linked-alias shape, which
+    ``_engine_gate_relevant`` resolves by filesystem identity — unavailable
+    here by construction, and already an accepted residual class in that
+    function's own contract.
+
+    The fail-open this guard exists to prevent is the harness killing a hook
+    that produced no ``permissionDecision`` at all (``docs/adr/0004-...``).
 
     Every branch below ends in exactly ONE ``os._exit`` and nothing follows it,
     so the call is terminal under a mock as well as in a real process — a test
     that patches ``os._exit`` observes one call, not the tail of the function
     running on.
     """
-    # Read the shared state under a BOUNDED wait. Failing to get the lock means
-    # the main thread is inside its own emission; it is delivering a decision,
-    # so this thread must not race a second object into the same stream.
-    acquired = _EMIT_LOCK.acquire(timeout=_EMIT_LOCK_WAIT_SECONDS)
-    command: str | None = None
-    already_emitted = False
-    if acquired:
-        try:
-            command = _COMMAND_UNDER_DECISION
-            already_emitted = _DECISION_EMITTED
-        finally:
-            _EMIT_LOCK.release()
+    deny_diagnostic = (
+        f"destructive_guard: internal deadline of {deadline:g}s exceeded; "
+        f"denying by default. Raise {_WATCHDOG_ENV_VAR} (up to "
+        f"{_WATCHDOG_MAX_SECONDS:g}s) if this guard legitimately needs longer "
+        "on this filesystem."
+    )
 
-    if not acquired or already_emitted:
-        # Either the main thread is mid-emission or it already delivered a real
-        # decision. Both mean a decision is on its way to the host, and this
-        # thread's job is to not corrupt it.
-        #
-        # The flush is load-bearing, not tidiness. `print` only BUFFERS, and
-        # `os._exit` skips the interpreter's shutdown flush entirely — exiting
-        # here without flushing would discard the decision the main thread just
-        # wrote, and exit 0 carrying no JSON is read as no decision at all, so
-        # the command proceeds unguarded. That is the precise fail-open this
-        # watchdog exists to close, reintroduced by the watchdog itself.
-        with contextlib.suppress(BaseException):
-            sys.stdout.flush()
-        os._exit(0)  # noqa: SLF001 -- hard exit is the point; see docstring
-    elif _watchdog_marker_present(command):
-        _write_diagnostic(
-            f"destructive_guard: internal deadline of {deadline:g}s exceeded; "
-            f"denying by default. Raise {_WATCHDOG_ENV_VAR} (up to "
-            f"{_WATCHDOG_MAX_SECONDS:g}s) if this guard legitimately needs longer "
-            "on this filesystem."
-        )
+    # Failing to take the lock means the main thread is INSIDE `_emit_decision`,
+    # between `json.dumps` and `print` returning. Its write has not landed, and
+    # this thread cannot make it land: `sys.stdout.flush()` from here contends
+    # for the very buffer the wedged writer holds.
+    #
+    # So this branch denies, and that is the conservative direction rather than
+    # a regression. Exit 2 is SELF-CARRYING: the deny rides the exit status and
+    # `_write_diagnostic` uses stderr, so it needs nothing on stdout. Exiting 0
+    # here would stake the decision on a write known NOT to have completed, and
+    # exit 0 carrying no JSON is read as no decision at all, which is the
+    # command proceeding unguarded. Before this watchdog gained non-deny
+    # outcomes its only exit was 2, so every outcome was self-carrying by
+    # construction; keeping exit 2 for the one state this thread cannot observe
+    # is what preserves that property now that other branches exit 0.
+    if not _EMIT_LOCK.acquire(timeout=_EMIT_LOCK_WAIT_SECONDS):
+        _write_diagnostic(deny_diagnostic)
         os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
-    else:
-        _emit_decision(
-            decision(
-                "ask",
-                f"disk-hygiene could not finish checking this command within "
-                f"{deadline:g}s and is asking rather than deciding. It names no "
-                f"disk-hygiene engine script, so it is not a disk-hygiene "
-                f"invocation this guard governs. Raise {_WATCHDOG_ENV_VAR} (up "
-                f"to {_WATCHDOG_MAX_SECONDS:g}s) if this host is legitimately "
-                f"slow.",
-            ),
-            timeout=_EMIT_LOCK_WAIT_SECONDS,
-        )
+        return  # unreachable in production; keeps the mocked exit terminal
+
+    # The lock is held from here to whichever `os._exit` runs. Holding it across
+    # the flush is what makes the flush safe: the main thread cannot be inside
+    # `print`, so there is no writer to contend with.
+    global _DECISION_EMITTED
+    try:
+        command = _COMMAND_UNDER_DECISION
+
+        if _DECISION_EMITTED:
+            # `_emit_decision` holds this lock across its `print`, so having
+            # acquired it proves that write returned. It may still be BUFFERED,
+            # and `os._exit` skips the interpreter's shutdown flush, so this
+            # flush is what actually delivers the main thread's decision.
+            with contextlib.suppress(BaseException):
+                sys.stdout.flush()
+            os._exit(0)  # noqa: SLF001 -- hard exit is the point; see docstring
+            return  # unreachable in production; keeps the mocked exit terminal
+
+        # MODE GATE. The `ask` downgrade rests on "the completed verdict would
+        # have been the plugin-level defer", and that holds ONLY in engine-gate
+        # mode. The skill-frontmatter registration passes no `--mode` and
+        # `resolve_mode()` defaults to `belt`, where Bash is deny-by-default and
+        # `_engine_gate_relevant` is never consulted at all — so in belt mode a
+        # marker-free `rm -rf /some/dir` would have been DENIED, not deferred.
+        # Downgrading that to `ask` would turn a deny-by-default guard into a
+        # prompt the operator is invited to approve, on nothing more than "the
+        # host was slow". Belt mode therefore keeps the pre-change outcome.
+        #
+        # `resolve_mode` reads only `sys.argv`, so it is safe on this thread
+        # under the same syscall-free rule as `_watchdog_marker_present`.
+        if resolve_mode() != _MODE_ENGINE_GATE or _watchdog_marker_present(command):
+            _write_diagnostic(deny_diagnostic)
+            os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
+            return  # unreachable in production; keeps the mocked exit terminal
+
+        # Engine-gate mode, provably marker-free: the completed verdict really
+        # would have been the instant plugin-level defer, so the reason below is
+        # accurate as written rather than merely plausible.
+        _DECISION_EMITTED = True
         with contextlib.suppress(BaseException):
+            print(
+                json.dumps(
+                    decision(
+                        "ask",
+                        f"disk-hygiene could not finish checking this command "
+                        f"within {deadline:g}s and is asking rather than "
+                        f"deciding. It names no disk-hygiene engine script, so "
+                        f"it is not a disk-hygiene invocation this plugin-level "
+                        f"gate governs. Raise {_WATCHDOG_ENV_VAR} (up to "
+                        f"{_WATCHDOG_MAX_SECONDS:g}s) if this host is "
+                        f"legitimately slow.",
+                    )
+                )
+            )
             sys.stdout.flush()
         os._exit(0)  # noqa: SLF001 -- hard exit is the point; see docstring
+        return  # unreachable in production; keeps the mocked exit terminal
+    finally:
+        _EMIT_LOCK.release()
 
 
 def _decide(command: str, tool_name: str, start: float) -> int:
