@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.34]
+
+### Fixed
+
+- **The worktree `create` snippet no longer emits a bare MSYS temp path on Windows.** The
+  `mktemp -d` step in `skills/worktree/context/create.md` printed the POSIX literal
+  `/tmp/tmp.XXXXXXXXXX`, which the native `Write` tool resolves against the current drive —
+  creating a phantom `<drive>:\tmp\...` while the real directory sits in `%TEMP%` (the silent
+  drive-root emit class the marketplace's windows-path-emit convention owns). The snippet now
+  converts at the boundary with `cygpath -m -l` (mixed form works for both the `Write` tool and
+  the later Bash consumers; `-l` expands an 8.3 short name), fails loud rather than falling back
+  to the unconverted literal, and passes through unchanged on non-Windows hosts. The
+  load-bearing-details list documents the conversion — including why `mktemp -d -p "$TEMP"` is
+  rejected — so it is not reverted as noise.
+
 ## [0.55.33]
 
 ### Fixed
