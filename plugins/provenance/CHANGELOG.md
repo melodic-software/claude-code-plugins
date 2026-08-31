@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.2]
+
+### Changed
+
+- **`audit`: `check-stamps.sh` collapses a duplicate branch in `from_label()`.** The `--*` arm and
+  the fallback arm of the three-way conditional printed the character-identical `(from %s)` string,
+  so the split carried no behavior. The two arms are now one. Verified over an executed 25-case
+  input matrix (flag forms, config-layer paths, format-string hazards, whitespace, multi-arg and
+  no-arg calls): old and new outputs are byte-identical everywhere, and the 71-case suite passes
+  unchanged.
+
 ## [0.4.1]
 
 ### Fixed
