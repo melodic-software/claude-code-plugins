@@ -240,7 +240,7 @@ _cached_python3() {
   # cover it. Recorded so a future reviewer weighs it deliberately.
   # Split on BOTH separators. The `py -3` fallback resolves through
   # `print(sys.executable)`, which on Windows returns a NATIVE backslash path
-  # (`C:\Users\...\python.exe`) — and that fallback exists precisely for hosts
+  # (`<drive>:\<path>\python.exe`) — and that fallback exists precisely for hosts
   # where neither `python3` nor `python` is on PATH. Stripping only `/` leaves
   # the whole path in `interp_base`, the allowlist below never matches, and the
   # cache misses on every invocation: the warm path would be dead on exactly
@@ -248,8 +248,10 @@ _cached_python3() {
   local interp_base="${interp##*/}"
   interp_base="${interp_base##*\\}"
   # Case-insensitive: Windows filenames are, and `PYTHON.EXE` is the same file.
+  # `python3.*` already covers `python3.exe`, `python3.13` and `python3.13.exe`;
+  # spelling those separately is what SC2221/SC2222 flag as dead patterns.
   case "${interp_base,,}" in
-  python3 | python | py | python3.* | python3.exe | python.exe | py.exe | python3.*.exe) ;;
+  python3 | python | py | python3.* | python.exe | py.exe) ;;
   *) return 1 ;;
   esac
   # An interpreter modified after this record was written is not the one that
