@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.28]
+
+### Changed
+
+- **video-digest watch: dead export removed.** `watch/synthesis-naming.js`
+  drops `synthesisDestNameForSlice` (no importer anywhere since its
+  introduction) together with its now-orphaned `loadPromotionNameMap` import,
+  and unexports the internal-only `sourceStem`. A fresh-context sweep confirmed
+  zero consumers across code, markdown, and fixtures, and that
+  `promotion-name-map.js` has no load-time side effects. Watch suites 58/58,
+  `tsc` clean.
+
 ## [0.13.27]
 
 ### Changed

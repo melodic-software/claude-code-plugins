@@ -4,8 +4,6 @@
 
 import path from "node:path";
 
-import { loadPromotionNameMap } from "./promotion-name-map.js";
-
 const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
 
 /**
@@ -23,7 +21,7 @@ export function formatTimestampSlug(timestampSec) {
  * @param {string} sourceFile
  * @returns {string}
  */
-export function sourceStem(sourceFile) {
+function sourceStem(sourceFile) {
   return sourceFile.replace(IMAGE_EXT, "").toLowerCase();
 }
 
@@ -40,17 +38,6 @@ export function synthesisDestName(sourceFile, timestampSec, knownDestBySource = 
   const stem = sourceStem(sourceFile);
   const at = formatTimestampSlug(timestampSec);
   return `at-${at}-${stem}.png`;
-}
-
-/**
- * @param {string} sourceFile
- * @param {number} timestampSec
- * @param {string} sliceDir
- * @returns {string}
- */
-export function synthesisDestNameForSlice(sourceFile, timestampSec, sliceDir) {
-  const map = loadPromotionNameMap(sliceDir);
-  return synthesisDestName(sourceFile, timestampSec, map);
 }
 
 /**

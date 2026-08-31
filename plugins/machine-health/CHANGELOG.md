@@ -3,6 +3,20 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.17]
+
+### Changed
+
+- **Test scaffolding sheds three dead pieces.** `tests/helpers/Mock-Helpers.psm1`
+  drops the `New-MockWinGetPackage` factory nothing references (its own comment
+  named tests that do not exist); `Test-WindowsUpdate.Tests.ps1` and
+  `Test-WingetUpgrades.Tests.ps1` drop `Import-Module Mock-Helpers` lines whose
+  suites use only inline objects and local factories; and
+  `ConvertFrom-Jsonc.Tests.ps1` inlines a single-use intermediate to the form
+  its sibling assertions use. All suite counts byte-identical before and after
+  on this host (including the pre-existing Linux cmdlet-gap failures, which are
+  unchanged and reported, not hidden).
+
 ## [0.11.16]
 
 ### Changed
