@@ -265,7 +265,62 @@ stream, and is a second reason the JSONL store earns its place.
 - Nothing reads `projects[<path>].lastModelUsage` or the per-project cost and token
   snapshot, despite that being the only per-project slice `~/.claude.json` offers.
 
-### 3.6 What Claude Code itself now ships
+### 3.6 A third usage source: OTEL `claude_code.skill_activated`
+
+`plugins/claude-ops/skills/audit-skill-visibility/reference/pair-cooccurrence.md:55-59`
+records a signal neither `~/.claude.json` nor `skill-usage.jsonl` carries: the OTEL event
+`claude_code.skill_activated` has an `invocation_trigger` attribute separating `user-slash`
+from `claude-proactive`. That is the axis a "does the model reach for this unprompted"
+question actually needs, and neither counter can answer it. The tier model already gates it
+as `T-full` only.
+
+The same file (`:50-54`) records why caller attribution cannot be recovered by widening the
+hook: a `PostToolUse` hook on the `Skill` tool receives `tool_name`, `tool_input` and
+`tool_response`, and none of them names the skill whose instructions caused the call.
+Caller identity is absent from the hook's input, not merely from its schema, so a wider
+write would have nothing to write. Recovering it means reading the session transcript,
+which crosses the boundary `plugins/claude-ops/skills/observability/context/privacy.md`
+guards.
+
+### 3.7 Transcript scraping, which is where agent usage actually lives
+
+`plugins/session-flow/skills/retro/scripts/parse_transcript.py` parses Claude Code session
+transcripts for quantitative metrics, with multi-session aggregation and handoff-chain
+walking. Per `plugins/session-flow/skills/retro/context/session.md:98` it extracts
+compactions, total context tokens, tool rejections, **subagent count**, and a tool
+distribution breakdown. `plugins/session-flow/skills/running-retro/scripts/observer.py`
+runs the same analysis in flight or detached, appending to a cumulative ledger.
+
+Given that `agentLastUsed` holds one key, this transcript lane is the only working source
+for agent usage in the repo.
+
+### 3.8 Governance constraints already recorded
+
+Three refusals are already codified. Any implementation should start from them rather than
+re-derive them.
+
+- **`docs/adr/0016-...:118-120`** deliberately defers usage-metrics-driven surfacing:
+  "Usage-metrics-driven surfacing (`~/.claude.json` `skillUsage`, undocumented internal
+  state) stays deferred; rotation runs off a ledger the skill writes itself, which is what
+  keeps that deferral honest rather than load-bearing." This constrains Part 5: encoding
+  `zPe` is a diagnostic-report change, not a licence to route skill *recommendation* off
+  these counters.
+- **Secret safety, scoped to the performance engine.**
+  `plugins/claude-ops/skills/audit-performance/scripts/audit_performance.py:17-19` allowlists
+  content reads to `settings.json`, `.last-cleanup`, `hooks.json` and
+  `installed_plugins.json`, and holds `~/.claude.json` and `history.jsonl` stat-only
+  "whose values can carry tokens and prompts". Asserted by
+  `test_audit_performance.py:42-49`. `audit-install-state` takes the same stat-only posture
+  (`install_state.py:1082-1109`). This is a per-engine safety rule, not a repo-wide ban:
+  `audit-skill-visibility` reads the file deliberately, and reads only `firstStartTime` and
+  `skillUsage`.
+- **A short observation horizon must yield a withheld verdict, not a zero.**
+  `audit_skill_visibility.py:53-65` sets `exposure_floor_days = 30`; a three-day-old install
+  measured against 30 and 90 day tiers put 210 of 213 skills in a "never used" bucket. Every
+  window clamps to `observed_horizon` and unsupported claims route to a first-class
+  `withheld` section.
+
+### 3.9 What Claude Code itself now ships
 
 The 2.1.251 binary contains a bundled skill that documents these exact counters and their
 traps, in prose closely matching this repo's own conclusions ("`usageCount` is a LIFETIME
@@ -338,7 +393,14 @@ already disclaims that one-shot check as native territory.
 ## Part 5: recommendation shape
 
 Do not rebuild a counter. `~/.claude.json` already owns the global lifetime tally, and its
-scorer is now known exactly. The gaps worth closing are:
+scorer is now known exactly.
+
+Scope limit first: ADR 0016 defers usage-metrics-driven *surfacing*. Everything below is
+diagnostic reporting inside `audit-skill-visibility`, which already reads these counters by
+design. None of it routes skill recommendation off them, and doing that would need the ADR
+revisited rather than worked around.
+
+The gaps worth closing are:
 
 - Encode `zPe` in `audit_skill_visibility.py` and populate `usage_score` before
   `compute_listing` runs (Part 4 finding 1, plus Part 2's decay formula).
