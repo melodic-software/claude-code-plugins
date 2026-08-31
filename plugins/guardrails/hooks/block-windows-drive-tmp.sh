@@ -186,17 +186,42 @@ has_drive_root_tmp() {
   if [[ "$s" =~ (^|[^[:alnum:]._/])\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
     return 0
   fi
-  # MSYS /<drive>/tmp. The left boundary excludes `:` as well, because after
-  # slash-normalization a drive colon otherwise satisfies it and `D:\a\tmp\x`
-  # — an ordinary `tmp` directory two levels down, not a drive root — reads as
-  # `d:` + `/a/tmp`. That FALSE POSITIVE predates the file-path lane (the
-  # command lane blocked `mkdir -p D:\a\tmp\x` too), but the lane makes it
-  # reachable from every Write/Edit, so it is fixed here rather than inherited.
-  # It also made the guard contradict its own premise: `/d/a/tmp/x` is the same
-  # path in MSYS spelling and was correctly allowed, so one sink decided two
-  # ways. No true positive is lost — a real MSYS drive root has no path
-  # component before `/<drive>/tmp`.
+  # MSYS /<drive>/tmp, in two arms because a `:` on the left is ambiguous and
+  # the two readings decide oppositely.
+  #
+  # A DRIVE COLON must NOT satisfy the boundary: after slash-normalization
+  # `D:\a\tmp\x` reads as `d:` + `/a/tmp`, and that is an ordinary `tmp`
+  # directory two levels down, not a drive root. Blocking it was a FALSE
+  # POSITIVE that predates the file-path lane (the command lane blocked
+  # `mkdir -p D:\a\tmp\x` too), and it made the guard contradict its own
+  # premise, since the identical MSYS spelling `/d/a/tmp/x` was allowed — one
+  # sink deciding two ways. The lane makes it reachable from every Write/Edit,
+  # so it is fixed here rather than inherited.
+  #
+  # A PARAMETER COLON must still satisfy it. `-Path:` / `-FilePath:` /
+  # `-Destination:` is valid PowerShell binding, so `Set-Content -Path:/c/tmp/x`
+  # is a real drive-root write and one of its space-bound twins is a pinned
+  # MUST-fire case. Excluding `:` outright would have dropped that whole class.
+  #
+  # The discriminator is what sits before the colon. A DRIVE SPEC is exactly one
+  # alphanumeric at a word boundary — `D:`, ` D:`, `"D:`, `(D:` — so arm 2
+  # excludes only that shape and takes every other colon, which is the narrowest
+  # change that fixes the false positive. Its three alternatives are: a
+  # non-alphanumeric immediately before the colon (`;:`, `":`, `):` — never a
+  # drive spec); two alphanumerics (a multi-character token such as `-Path:` or
+  # `host:`); and a single alphanumeric behind a flag dash (`-t:`).
+  #
+  # Two accepted residuals, both unchanged from before the fix rather than
+  # introduced by it. A PATH-style list (`PATH=/usr/bin:/c/tmp cmd`) presents
+  # the multi-character-token shape and still matches, so a command whose write
+  # target is elsewhere can be matched over a search-path entry — lexically
+  # indistinguishable from a bound parameter. And a remote spec with a
+  # single-letter host (`ssh u@h:/c/tmp/x`) now reads as a drive spec and is not
+  # matched; it names a path on another machine, which this guard never governed.
   if [[ "$s" =~ (^|[^[:alnum:]._/:])\/[a-z]\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
+    return 0
+  fi
+  if [[ "$s" =~ ([^[:alnum:]]|[[:alnum:]][[:alnum:]]|-[[:alnum:]]):\/[a-z]\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
     return 0
   fi
   # Drive-letter X:/tmp

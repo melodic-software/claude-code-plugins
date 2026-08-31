@@ -81,6 +81,21 @@ notebook_path_json() {
     '{tool_name:"NotebookEdit",tool_input:{notebook_path:$fp,new_source:"x"}}'
 }
 
+# Command payload builders that PRESERVE an MSYS `/<drive>/tmp` spelling.
+# guardrails-test-helpers.sh's command_json / pwsh_command_json omit
+# MSYS_NO_PATHCONV, so on a Windows host Git Bash rewrites `/c/tmp/x` into
+# `C:/tmp/x` before jq ever sees it — the payload then exercises the
+# DRIVE-LETTER alternative instead of the MSYS one, and any assertion aimed at
+# the MSYS matcher is vacuous exactly where it matters most. The shared helper
+# is duplicated across plugins under a source-drift gate, so it is not edited
+# from here; these local builders keep the MSYS cases honest on both platforms.
+msys_command_json() {
+  MSYS_NO_PATHCONV=1 jq -n --arg cmd "$1" '{tool_name:"Bash",tool_input:{command:$cmd}}'
+}
+msys_pwsh_command_json() {
+  MSYS_NO_PATHCONV=1 jq -n --arg cmd "$1" '{tool_name:"PowerShell",tool_input:{command:$cmd}}'
+}
+
 # --- Host gate ---------------------------------------------------------------
 run_posix_host "Linux host: >/tmp/x allowed" 'echo x > /tmp/x'
 run_posix_host "Linux host: mkdir /tmp/x allowed" 'mkdir -p /tmp/x'
@@ -139,25 +154,59 @@ run_win_payload "Write C:\\q\\tmp\\out.log subdir tmp (allowed)" \
   "$(write_json 'C:\q\tmp\out.log' 'x')" 0
 run_win_payload "Write /d/a/tmp/x MSYS spelling (allowed)" "$(write_json '/d/a/tmp/x' 'x')" 0
 run_win "mkdir D:\\a\\tmp\\x subdir tmp (allowed)" 'mkdir -p D:\a\tmp\x' 0
-run_win "mkdir /d/a/tmp/x MSYS spelling (allowed)" 'mkdir -p /d/a/tmp/x' 0
-# The genuine MSYS drive root must still block, with and without a leading word.
-run_win "mkdir /c/tmp/x drive root (still blocked)" 'mkdir -p /c/tmp/x' 2
+# MSYS spellings go through the local no-pathconv builders, or Git Bash rewrites
+# them to the drive-letter form and the assertion stops testing this matcher.
+run_win_payload "mkdir /d/a/tmp/x MSYS spelling (allowed)" \
+  "$(msys_command_json 'mkdir -p /d/a/tmp/x')" 0
+# The genuine MSYS drive root must still block.
+run_win_payload "mkdir /c/tmp/x drive root (still blocked)" \
+  "$(msys_command_json 'mkdir -p /c/tmp/x')" 2
 run_win_payload "Write /c/tmp/x drive root (still blocked)" "$(write_json '/c/tmp/x' 'x')" 2
+
+# A PowerShell parameter colon is NOT a drive colon. `-Path:/c/tmp/x` binds the
+# same value as `-Path /c/tmp/x`, so both must block; the boundary fix above
+# must not take this class out with the drive-colon false positive.
+run_win_payload "PS: Set-Content -Path:/c/tmp/x colon-bound (blocked)" \
+  "$(msys_pwsh_command_json 'Set-Content -Path:/c/tmp/x -Value hi')" 2
+run_win_payload "PS: New-Item -Path:/c/tmp/x colon-bound (blocked)" \
+  "$(msys_pwsh_command_json 'New-Item -Path:/c/tmp/x -ItemType File')" 2
+run_win_payload "PS: Out-File -FilePath:/c/tmp/x colon-bound (blocked)" \
+  "$(msys_pwsh_command_json "'hi' | Out-File -FilePath:/c/tmp/x")" 2
+run_win_payload "PS: Add-Content -Path:/c/tmp/x colon-bound (blocked)" \
+  "$(msys_pwsh_command_json 'Add-Content -Path:/c/tmp/x -Value hi')" 2
+run_win_payload "PS: Copy-Item -Destination:/c/tmp/a colon-bound (blocked)" \
+  "$(msys_pwsh_command_json 'Copy-Item .\a -Destination:/c/tmp/a')" 2
+run_win_payload "PS: Move-Item -Destination:/c/tmp/a colon-bound (blocked)" \
+  "$(msys_pwsh_command_json 'Move-Item .\a -Destination:/c/tmp/a')" 2
+# ... and the drive-colon reading of the same character still must not fire.
+run_win_payload "PS: Set-Content -Path:D:/a/tmp/x subdir tmp (allowed)" \
+  "$(msys_pwsh_command_json 'Set-Content -Path:D:/a/tmp/x -Value hi')" 0
 
 # --- Registration liveness ---------------------------------------------------
 # The script half of this guard is inert without the matcher registration: a
 # Write payload only reaches the hook because hooks.json routes it here. Reverting
 # that registration alone would leave every assertion above green, so assert it.
+# Matchers are split on `|` into EXACT alternatives, not substring-searched: a
+# containment test for "Edit" is satisfied by "MultiEdit" and so can never fail
+# on its own, and a matcher with the pipes removed ("WriteEditNotebookEdit")
+# routes nothing while passing every containment check. Sorting also makes the
+# assertions immune to a harmless reordering of the alternatives.
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 reg=$(jq -r --arg h "block-windows-drive-tmp.sh" '
-  .hooks.PreToolUse[]
-  | select([.hooks[].command] | any(contains($h)))
-  | .matcher' "$HOOKS_JSON" 2>/dev/null | tr '\n' ' ')
-assert_contains "hooks.json registers the guard on the command tools" "$reg" "Bash|PowerShell"
-assert_contains "hooks.json registers the guard on Write" "$reg" "Write"
-assert_contains "hooks.json registers the guard on Edit" "$reg" "Edit"
-assert_contains "hooks.json registers the guard on MultiEdit" "$reg" "MultiEdit"
-assert_contains "hooks.json registers the guard on NotebookEdit" "$reg" "NotebookEdit"
+  [ .hooks.PreToolUse[]
+    | select([.hooks[].command] | any(contains($h)))
+    | .matcher | split("|")[] ]
+  | sort | join(" ")' "$HOOKS_JSON" 2>/dev/null)
+assert_eq "hooks.json routes the guard to exactly the intended tools" \
+  "Bash Edit MultiEdit NotebookEdit PowerShell Write" "$reg"
+# The registration must also NAME A FILE THAT EXISTS — a command path typo
+# registers cleanly and then fails to run on every tool call.
+reg_cmd=$(jq -r --arg h "block-windows-drive-tmp.sh" '
+  [ .hooks.PreToolUse[].hooks[].command | select(contains($h)) ] | first // ""' \
+  "$HOOKS_JSON" 2>/dev/null)
+reg_rel="${reg_cmd##*\"/}"
+assert_eq "the registered command resolves to a file on disk" "yes" \
+  "$([[ -n "$reg_rel" && -f "$HOOK_DIR/../$reg_rel" ]] && echo yes || echo no)"
 
 # --- File-path lane: fail-closed on a NUL-bearing path -----------------------
 # jq emits the escape textually, so the payload survives command substitution
@@ -258,5 +307,31 @@ else
   ok "telemetry sink empty (best-effort; block path already covered)"
 fi
 assert_contains "blocked stderr still present with sink" "$out" "drive-root temp"
+
+# --- Telemetry on the file-path lane -----------------------------------------
+# The `file-path` form and the Write-shaped `tool` / `subject` are documented in
+# docs/conventions/hook-telemetry/data/block-windows-drive-tmp.schema.json, and
+# the case above exercises only the Bash lane — so without this the new envelope
+# is documented and never executed, and a fault in emit_tel's now-locally-scoped
+# SUBJECT would leave every assertion green. `subject` must be the bare tool
+# name: hook::extract_bash_subject does not tokenize a non-Bash tool, and the
+# target path must never reach the envelope.
+TEL_FP="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINK_FP=$(make_sink "cat > \"$TEL_FP\"")
+out=$(env OSTYPE=msys HOOK_TELEMETRY_SINK="$SINK_FP" bash "$HOOK" \
+  <<<"$(write_json 'C:\tmp\tmp.rSFIkHm5DO' 'x')" 2>&1) || true
+wait_for_sink "$TEL_FP" || true
+if [[ -s "$TEL_FP" ]]; then
+  tel_fp_body=$(cat "$TEL_FP")
+  assert_contains "file-path telemetry hook id" "$tel_fp_body" '"hook": "block-windows-drive-tmp"'
+  assert_contains "file-path telemetry blocked" "$tel_fp_body" '"status": "blocked"'
+  assert_contains "file-path telemetry form" "$tel_fp_body" '"form": "file-path"'
+  assert_contains "file-path telemetry tool" "$tel_fp_body" '"tool": "Write"'
+  assert_contains "file-path telemetry subject" "$tel_fp_body" '"subject": "Write"'
+  assert_absent "file-path telemetry carries no path" "$tel_fp_body" "rSFIkHm5DO"
+else
+  ok "file-path telemetry sink empty (best-effort; block path already covered)"
+fi
+assert_contains "file-path blocked stderr present with sink" "$out" "drive-root temp"
 
 report

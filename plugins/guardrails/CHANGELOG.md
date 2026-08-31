@@ -17,6 +17,32 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `.tool_input.notebook_path`, and the early exit tests both doors. Verified
   repro-first: the four seeded spellings (`C:\tmp\…`, `/tmp/…`, `/c/tmp/…`,
   `C:/tmp/…`) exit 0 against the unmodified hook and 2 against this one.
+- **A `tmp` directory under a single-letter parent no longer blocks.**
+  `D:\a\tmp\x` matched: after slash-normalization the drive colon satisfied the
+  left boundary of the MSYS `/<drive>/tmp` alternative, so `d:` + `/a/tmp` read
+  as a drive root. The identical MSYS spelling `/d/a/tmp/x` was allowed the
+  whole time, so one sink decided two ways. The defect predates the file-path
+  lane — the command lane blocked `mkdir -p D:\a\tmp\x` too — but the lane made
+  it reachable from every write, so it is fixed here rather than inherited.
+  The MSYS alternative is now two arms, because a `:` on the left is ambiguous
+  and the two readings decide oppositely. A DRIVE SPEC — exactly one
+  alphanumeric at a word boundary — no longer satisfies the boundary; every
+  other colon still does, including a PowerShell PARAMETER colon, so
+  `Set-Content -Path:/c/tmp/x` keeps blocking exactly as its space-bound twin
+  does. Excluding `:` outright, which a first attempt did, would have dropped
+  that whole class. The narrowing was then swept exhaustively against the
+  shipped matcher — every ASCII printable as the immediate left neighbour,
+  every two-character context ending in a colon, nine drive letters in eight
+  surrounding contexts, and the colon-bearing shapes a sweep alone does not
+  reach, 1,702 probes — and **all 266 changed verdicts are the drive-spec
+  reading**: 192 `<non-alnum><alnum>:` contexts, 72 explicit `X:\a\tmp` probes,
+  the leading bare `:`, and `D:\a\tmp` itself. Every real drive-root spelling
+  still matches. Two accepted residuals, both unchanged from the shipped guard
+  rather than introduced: a PATH-style list (`PATH=/usr/bin:/c/tmp cmd`)
+  presents the multi-character token shape and still matches, and a remote spec
+  with a single-letter host (`ssh u@h:/c/tmp/x`) now reads as a drive spec and
+  does not — it names a path on another machine, which this guard never
+  governed. Pinned repro-first on both lanes.
 
 ### Added
 
@@ -33,17 +59,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **A `file-path` telemetry form**, alongside `redirect` / `write-utility` /
   `too-long`. The privacy floor is unchanged: `subject` is the bare tool name on
   this lane (`Write`), and the target path never reaches the envelope.
-
-- **A `tmp` directory under a single-letter parent no longer blocks.**
-  `D:\a\tmp\x` matched: after slash-normalization the drive colon satisfied the
-  left boundary of the MSYS `/<drive>/tmp` alternative, so `d:` + `/a/tmp` read
-  as a drive root. The identical MSYS spelling `/d/a/tmp/x` was allowed the
-  whole time, so one sink decided two ways. The defect predates the file-path
-  lane — the command lane blocked `mkdir -p D:\a\tmp\x` too — but the lane made
-  it reachable from every write, so it is fixed here rather than inherited. The
-  boundary now excludes `:`; no true positive is lost, because a real MSYS drive
-  root has no path component before `/<drive>/tmp`. Pinned repro-first on both
-  lanes per the hook-precision convention.
 
 ### Changed
 
@@ -85,7 +100,23 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   does not degrade with length, and a blocking ceiling would only add a
   false-positive class. The payload stays bounded by `hook::buffer_stdin`.
 - **Measured budget share** for the widened surface is recorded in the README's
-  hook-budget accounting.
+  hook-budget accounting, alongside the ADR 0003 sweep for the new lane.
+- **Two test-fidelity gaps closed alongside the lane.** The `hooks.json`
+  registration — the half of this change without which the script edit is inert
+  — is now asserted, by splitting the matcher on `|` and comparing the exact
+  alternative set rather than substring-searching it (a containment test for
+  `Edit` can never fail while `MultiEdit` passes, and a matcher with the pipes
+  removed routes nothing while satisfying every containment check). And the MSYS
+  `/<drive>/tmp` cases build their payloads through local no-pathconv builders:
+  `guardrails-test-helpers.sh`'s `command_json` omits `MSYS_NO_PATHCONV`, so on
+  a Windows host Git Bash rewrites `/c/tmp/x` to `C:/tmp/x` before jq sees it and
+  the assertion silently exercises the drive-letter alternative instead. The
+  shared helper is duplicated across plugins under a source-drift gate and is
+  not edited from here.
+- **The `file-path` telemetry form is now executed, not just documented.** The
+  existing telemetry case pipes a Bash payload; a file-path case asserts the
+  `Write` / `Write` / `file-path` envelope and that the target path never
+  reaches it.
 
 ## [0.29.22]
 

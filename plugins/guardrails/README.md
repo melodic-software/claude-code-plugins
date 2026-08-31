@@ -240,11 +240,11 @@ out of scope until such a signal exists.
   tool, or a Bash form the command lane's own residuals already allow.
 - **`block-windows-drive-tmp`'s file-path lane shipped blocking on a measured
   sweep, per [ADR 0003](../../docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md).**
-  Corpus: 204 distinct `file_path` / `notebook_path` values that a real `Write`,
-  `Edit`, `MultiEdit` or `NotebookEdit` actually carried across 202 local Claude
+  Corpus: 259 distinct `file_path` / `notebook_path` values that a real `Write`,
+  `Edit`, `MultiEdit` or `NotebookEdit` actually carried across 227 local Claude
   Code session transcripts on a Windows host — absolute Windows and MSYS paths,
   not the repo-relative ones a drive-root matcher could never match, which is
-  what makes a low finding count informative here. **1 finding in 204 (0.49%
+  what makes a low finding count informative here. **1 finding in 259 (0.39%
   firing), and it was a true positive**: `/tmp/tmp.rSFIkHm5DO/worktree-root`, the
   very write that produced the `C:\tmp\tmp.rSFIkHm5DO` this lane exists to stop.
   Six seeded spellings were detected end to end.
@@ -266,16 +266,19 @@ out of scope until such a signal exists.
   `/tmpdir`, `C:/tmp2`, UNC `\\host\tmp`, and a `tmp` directory under a
   single-letter parent) are pinned as MUST-stay-quiet cases in the contract
   suite. Compare the ADR's shipped reference guard, promoted at 0.51% firing and
-  57% precision.
+  57% precision. Corpus counts are as of 2026-08-31 on the measuring host and
+  grow as that host accumulates sessions; the figure that matters is the ratio.
 - **`block-windows-drive-tmp` reads the payload's PATH fields, never its
   content.** `.tool_input.content` / `.new_string` / `.new_source` are
   deliberately not requested. `HOOK_JQ_FIELDS_NUL` is computed across every
   requested field, so pulling written content in would make this guard fail
   closed on a NUL anywhere in a file body — that surface belongs to
   `hardcoded-path-check` and `secret-pattern-detection`. A prose mention of
-  `/tmp` inside a written file is therefore never a block **on this lane** —
-  on the Bash lane the command string is all the guard sees, so a heredoc body
-  carrying `C:\tmp` inside a `cat > file` still matches there, as it did before.
+  `/tmp` inside a written file is therefore never a block on this lane. The
+  Bash lane is scoped differently but reaches the same place: it sees only the
+  command string, and a drive-root path there still has to sit in a
+  write-shaped position, so a heredoc body carrying `C:\tmp` inside a
+  `cat > file` does not block either.
 - **`block-windows-drive-tmp` puts no length ceiling on a file path, and that is
   a decision.** `MAX_COMMAND_LEN` (16384) fails the command lane closed because
   that lane walks its string character by character twice before matching
