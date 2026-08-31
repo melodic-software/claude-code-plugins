@@ -537,5 +537,5 @@ Two revisions were applied, both dated 2026-08-31:
 - After the deferral clause: restates its ground on the three documentation-independent
   reasons above, and records the lift conditions so the next reader does not re-derive them.
 
-Neither revision cites an issue, unlike the ADR's two 2026-08-21 revisions, which cite issue
-3024. They cite this document instead. Filing an issue to carry them is a separate call.
+Both revisions cite issue 3534, which carries the two defects in Part 4, matching the
+citation shape of the ADR's two 2026-08-21 revisions.

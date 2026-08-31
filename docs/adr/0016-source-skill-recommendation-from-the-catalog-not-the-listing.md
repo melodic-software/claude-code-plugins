@@ -27,7 +27,8 @@ the wrong direction, and — the part that makes it a correctness bug rather tha
 cannot tell that it is blind. The gatekeeping the contract bans would have been reinstated by the
 harness, invisibly.
 
-> **Revised 2026-08-31:** the drop-order mechanism above is stated wrongly. Claude Code does not drop
+> **Revised 2026-08-31 ([#3534](https://github.com/melodic-software/claude-code-plugins/issues/3534)):**
+> the drop-order mechanism above is stated wrongly. Claude Code does not drop
 > descriptions "starting with the skills invoked least". It ranks by a decay-weighted score,
 > `usageCount * max(0.5 ^ (daysSinceUse / 7), 0.1)`, sorts descending, and grants descriptions
 > greedily until the budget runs out; what does not fit renders as a bare name. So a heavily used but
@@ -135,7 +136,8 @@ signals — and revisit the manual-only posture second. Usage-metrics-driven sur
 (`~/.claude.json` `skillUsage`, undocumented internal state) stays deferred; rotation runs off a
 ledger the skill writes itself, which is what keeps that deferral honest rather than load-bearing.
 
-> **Revised 2026-08-31:** the deferral stands, but "undocumented internal state" is no longer the
+> **Revised 2026-08-31 ([#3534](https://github.com/melodic-software/claude-code-plugins/issues/3534)):**
+> the deferral stands, but "undocumented internal state" is no longer the
 > reason and should not be read as one. That substrate is now characterized and dated in
 > [`docs/topics/usage-tracking-claude-json/EXPLORE.md`](../topics/usage-tracking-claude-json/EXPLORE.md),
 > which invites the false inference that the deferral lifts once the state is known. It does not,
