@@ -105,15 +105,19 @@ run_win_payload "NotebookEdit notebook_path C:\\tmp\\n.ipynb (blocked)" \
   "$(notebook_path_json 'C:\tmp\n.ipynb')" 2
 
 # --- File-path lane: legitimate targets (allowed) ----------------------------
+# Fixture path segments deliberately avoid a literal `\s`: the repo's
+# shell-portability scanner reads `\\s` as a GNU-only regex class wherever it
+# appears, and a fixture is not worth a suppression comment when a different
+# letter says exactly the same thing.
 run_win_payload "Write under %TEMP% (allowed)" \
-  "$(write_json 'C:\Users\dev\AppData\Local\Temp\scratch.txt' 'x')" 0
+  "$(write_json 'C:\Users\dev\AppData\Local\Temp\note.txt' 'x')" 0
 run_win_payload "Write under /var/tmp (allowed)" "$(write_json '/var/tmp/x' 'x')" 0
 run_win_payload "Write repo docs/tmp (allowed)" "$(write_json 'D:\repo\docs\tmp\x.md' 'x')" 0
 run_win_payload "Write relative ./tmp (allowed)" "$(write_json './tmp/x' 'x')" 0
 run_win_payload "Write path component foo/tmp (allowed)" "$(write_json 'foo/tmp/x' 'x')" 0
 run_win_payload "Write /tmpdir sibling (allowed)" "$(write_json '/tmpdir/x' 'x')" 0
 run_win_payload "Write C:/tmp2 sibling (allowed)" "$(write_json 'C:/tmp2/x' 'x')" 0
-run_win_payload "Write UNC //server/tmp (allowed)" "$(write_json '\\server\tmp\x' 'x')" 0
+run_win_payload "Write UNC //host/tmp (allowed)" "$(write_json '\\host\tmp\x' 'x')" 0
 run_win_payload "Edit ordinary repo file (allowed)" \
   "$(edit_json 'D:\repo\plugins\guardrails\README.md' 'x')" 0
 # Body content is never scanned — only the target path decides.
@@ -122,6 +126,38 @@ run_win_payload "Write body mentioning /tmp (allowed)" \
 # A tool with no path field at all must stay a no-op.
 run_win_payload "Read tool, no path (allowed)" \
   "$(jq -n '{tool_name:"Read",tool_input:{}}')" 0
+
+# --- A `tmp` directory under a single-letter parent (allowed) ----------------
+# MUST-STAY-QUIET, added repro-first: before the left-boundary fix these all
+# blocked, because after slash-normalization the drive colon satisfied the MSYS
+# alternative's left boundary and `D:\a\tmp\x` read as `d:` + `/a/tmp`. The
+# identical MSYS spelling `/d/a/tmp/x` was allowed the whole time, so one sink
+# decided two ways. Both lanes are pinned: the file-path lane is where the
+# defect became reachable on every write, the Bash lane is where it already was.
+run_win_payload "Write D:\\a\\tmp\\x subdir tmp (allowed)" "$(write_json 'D:\a\tmp\x' 'x')" 0
+run_win_payload "Write C:\\q\\tmp\\out.log subdir tmp (allowed)" \
+  "$(write_json 'C:\q\tmp\out.log' 'x')" 0
+run_win_payload "Write /d/a/tmp/x MSYS spelling (allowed)" "$(write_json '/d/a/tmp/x' 'x')" 0
+run_win "mkdir D:\\a\\tmp\\x subdir tmp (allowed)" 'mkdir -p D:\a\tmp\x' 0
+run_win "mkdir /d/a/tmp/x MSYS spelling (allowed)" 'mkdir -p /d/a/tmp/x' 0
+# The genuine MSYS drive root must still block, with and without a leading word.
+run_win "mkdir /c/tmp/x drive root (still blocked)" 'mkdir -p /c/tmp/x' 2
+run_win_payload "Write /c/tmp/x drive root (still blocked)" "$(write_json '/c/tmp/x' 'x')" 2
+
+# --- Registration liveness ---------------------------------------------------
+# The script half of this guard is inert without the matcher registration: a
+# Write payload only reaches the hook because hooks.json routes it here. Reverting
+# that registration alone would leave every assertion above green, so assert it.
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+reg=$(jq -r --arg h "block-windows-drive-tmp.sh" '
+  .hooks.PreToolUse[]
+  | select([.hooks[].command] | any(contains($h)))
+  | .matcher' "$HOOKS_JSON" 2>/dev/null | tr '\n' ' ')
+assert_contains "hooks.json registers the guard on the command tools" "$reg" "Bash|PowerShell"
+assert_contains "hooks.json registers the guard on Write" "$reg" "Write"
+assert_contains "hooks.json registers the guard on Edit" "$reg" "Edit"
+assert_contains "hooks.json registers the guard on MultiEdit" "$reg" "MultiEdit"
+assert_contains "hooks.json registers the guard on NotebookEdit" "$reg" "NotebookEdit"
 
 # --- File-path lane: fail-closed on a NUL-bearing path -----------------------
 # jq emits the escape textually, so the payload survives command substitution

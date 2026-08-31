@@ -27,11 +27,23 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   NotebookEdit` matcher string, so `secret-pattern-detection` and
   `hardcoded-path-check` do not silently acquire `MultiEdit`, and not a widening
   of `Bash|PowerShell`, which would have attached seven command-lane guards to
-  every file write. A tool name matches one group, so the hook still fires once
-  per tool call.
+  every file write. Claude Code fires every group whose matcher matches, so a
+  `Write` now matches two guardrails groups — but this hook appears in exactly
+  one of them, so it still fires once per tool call.
 - **A `file-path` telemetry form**, alongside `redirect` / `write-utility` /
   `too-long`. The privacy floor is unchanged: `subject` is the bare tool name on
   this lane (`Write`), and the target path never reaches the envelope.
+
+- **A `tmp` directory under a single-letter parent no longer blocks.**
+  `D:\a\tmp\x` matched: after slash-normalization the drive colon satisfied the
+  left boundary of the MSYS `/<drive>/tmp` alternative, so `d:` + `/a/tmp` read
+  as a drive root. The identical MSYS spelling `/d/a/tmp/x` was allowed the
+  whole time, so one sink decided two ways. The defect predates the file-path
+  lane — the command lane blocked `mkdir -p D:\a\tmp\x` too — but the lane made
+  it reachable from every write, so it is fixed here rather than inherited. The
+  boundary now excludes `:`; no true positive is lost, because a real MSYS drive
+  root has no path component before `/<drive>/tmp`. Pinned repro-first on both
+  lanes per the hook-precision convention.
 
 ### Changed
 
@@ -50,6 +62,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `has_redirect_to_drive_root_tmp` runs `mask_quoted_redirect_ops` in a command
   substitution, and forking to scan an empty string would be per-Write budget
   spent to reach a foregone answer.
+- **The telemetry subject resolves inside `emit_tel`.** `hook::extract_bash_subject`
+  runs in a command substitution, and that fork was paid on every tool call even
+  with no telemetry sink wired — the default — and would now be paid on every
+  `Write` to obtain a constant, since the helper returns the bare tool name for
+  any tool but Bash. Same shape as the plugin's other lazily-resolved telemetry
+  fields.
 
 ### Notes
 

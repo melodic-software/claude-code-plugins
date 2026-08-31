@@ -113,12 +113,18 @@ msys* | cygwin* | win32) ;;
 esac
 
 MAX_COMMAND_LEN=16384
-SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
 
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
-  local data
+  # Resolved HERE, not at top level: hook::extract_bash_subject runs in a
+  # command substitution, and that fork was being paid on every tool call even
+  # when no telemetry sink is wired — which is the default, and now on the
+  # per-Write surface too, where the helper returns the bare tool name and the
+  # fork buys a constant. Same shape as the plugin's other lazily-resolved
+  # telemetry fields.
+  local SUBJECT data
+  SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
   data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --arg form "$2" \
     '{tool:$tool,subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
   hook::emit_telemetry "block-windows-drive-tmp" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
@@ -180,8 +186,17 @@ has_drive_root_tmp() {
   if [[ "$s" =~ (^|[^[:alnum:]._/])\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
     return 0
   fi
-  # MSYS /<drive>/tmp
-  if [[ "$s" =~ (^|[^[:alnum:]._/])\/[a-z]\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
+  # MSYS /<drive>/tmp. The left boundary excludes `:` as well, because after
+  # slash-normalization a drive colon otherwise satisfies it and `D:\a\tmp\x`
+  # — an ordinary `tmp` directory two levels down, not a drive root — reads as
+  # `d:` + `/a/tmp`. That FALSE POSITIVE predates the file-path lane (the
+  # command lane blocked `mkdir -p D:\a\tmp\x` too), but the lane makes it
+  # reachable from every Write/Edit, so it is fixed here rather than inherited.
+  # It also made the guard contradict its own premise: `/d/a/tmp/x` is the same
+  # path in MSYS spelling and was correctly allowed, so one sink decided two
+  # ways. No true positive is lost — a real MSYS drive root has no path
+  # component before `/<drive>/tmp`.
+  if [[ "$s" =~ (^|[^[:alnum:]._/:])\/[a-z]\/tmp(\/|[^[:alnum:]_./-]|$) ]]; then
     return 0
   fi
   # Drive-letter X:/tmp

@@ -242,23 +242,40 @@ out of scope until such a signal exists.
   sweep, per [ADR 0003](../../docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md).**
   Corpus: 204 distinct `file_path` / `notebook_path` values that a real `Write`,
   `Edit`, `MultiEdit` or `NotebookEdit` actually carried across 202 local Claude
-  Code session transcripts on a Windows host — the lane's real deployment
-  surface, absolute Windows and MSYS paths rather than repo-relative ones a
-  drive-root matcher could never match. **1 finding in 204 (0.49% firing), and
-  it was a true positive**: `/tmp/tmp.rSFIkHm5DO/worktree-root`, the very write
-  that produced the `C:\tmp\tmp.rSFIkHm5DO` this lane exists to stop. Precision
-  100% (1/1); the near-misses that make a zero informative — `%TEMP%` paths,
-  `/var/tmp`, `docs/tmp`, `./tmp`, `foo/tmp`, `/tmpdir`, `C:/tmp2`, UNC
-  `\\server\tmp` — are all in the corpus or the contract suite and none fired.
-  Six seeded spellings were detected end-to-end. Compare the ADR's shipped
-  reference guard, promoted at 0.51% firing and 57% precision.
+  Code session transcripts on a Windows host — absolute Windows and MSYS paths,
+  not the repo-relative ones a drive-root matcher could never match, which is
+  what makes a low finding count informative here. **1 finding in 204 (0.49%
+  firing), and it was a true positive**: `/tmp/tmp.rSFIkHm5DO/worktree-root`, the
+  very write that produced the `C:\tmp\tmp.rSFIkHm5DO` this lane exists to stop.
+  Six seeded spellings were detected end to end.
+
+  **What that evidence does and does not support, stated plainly.** Precision is
+  1/1, so the ratio is 100% and the sample is one — this is the ADR's
+  near-zero-findings branch, where the seeded-detection burden carries the
+  argument and the precision figure by itself does not. The corpus is one
+  Windows host and one operator, so it is evidence about this deployment and
+  weaker evidence about others; it contains no `MultiEdit` or `NotebookEdit`
+  entries at all, and those two tools are covered by the contract suite and by
+  the shared matcher, not by the sweep. **The ratio considered acceptable for
+  this surface is a false-positive rate near zero, and the justification is that
+  the cost of a wrong block here is unusually low** — the agent gets a stderr
+  line naming `%TEMP%` and reissues the write, which is a second of friction,
+  against a missed write that is silent by construction and was found only by
+  noticing litter on a volume root days later. The near-misses that would
+  falsify the ratio (`%TEMP%` paths, `/var/tmp`, `docs/tmp`, `./tmp`, `foo/tmp`,
+  `/tmpdir`, `C:/tmp2`, UNC `\\host\tmp`, and a `tmp` directory under a
+  single-letter parent) are pinned as MUST-stay-quiet cases in the contract
+  suite. Compare the ADR's shipped reference guard, promoted at 0.51% firing and
+  57% precision.
 - **`block-windows-drive-tmp` reads the payload's PATH fields, never its
   content.** `.tool_input.content` / `.new_string` / `.new_source` are
   deliberately not requested. `HOOK_JQ_FIELDS_NUL` is computed across every
   requested field, so pulling written content in would make this guard fail
   closed on a NUL anywhere in a file body — that surface belongs to
   `hardcoded-path-check` and `secret-pattern-detection`. A prose mention of
-  `/tmp` inside a written file is therefore never a block.
+  `/tmp` inside a written file is therefore never a block **on this lane** —
+  on the Bash lane the command string is all the guard sees, so a heredoc body
+  carrying `C:\tmp` inside a `cat > file` still matches there, as it did before.
 - **`block-windows-drive-tmp` puts no length ceiling on a file path, and that is
   a decision.** `MAX_COMMAND_LEN` (16384) fails the command lane closed because
   that lane walks its string character by character twice before matching
@@ -298,29 +315,39 @@ that ratio back at 80 ms. The spawn-equivalent figure is the stable one.
 | guardrails per-`Write` PreToolUse set BEFORE (2 hooks, concurrent) | 12.59 | ≈ 1,007 ms |
 | guardrails per-`Write` PreToolUse set AFTER (3 hooks, concurrent) | 12.34 | ≈ 987 ms |
 
-A separate **paired A/B** (n=15, BEFORE and AFTER launched back to back inside
-each trial in alternating order, so load drift biases both arms equally) put the
-set wall at a mean **1.26×** after the addition, with per-trial ratios spanning
-0.55×–1.82×. Read the two together honestly: **the added hook costs ≈ 0.5 s of
-reference-host work of its own, and because the harness dispatches matching
-hooks in parallel the set wall it joins grows by somewhere between nothing
-measurable and ≈ 26%** — the wall is set by the slowest member, and on an
-unloaded host this hook is not that member. The spread is the host's, not the
-hook's, and a re-measurement on a quiet reference box would narrow it.
+**The hook's own cost is the measurement that holds: ≈ 6.3 spawn-equivalents,
+≈ 505 ms of reference-host work per `Write`.** The set rows are reported for
+completeness and must not be read as a delta, because they do not resolve one —
+`AFTER` measures *lower* than `BEFORE`, and adding a hook cannot make a set
+faster. A separate **paired A/B** (n=15, BEFORE and AFTER launched back to back
+inside each trial in alternating order so load drift biases both arms equally)
+came out at a mean **1.26×**, but its per-trial ratios span **0.55×–1.82×** —
+several trials put AFTER *faster* than BEFORE, which is physically impossible
+and is the host's noise, not the hook's cost. **On this host the set-level delta
+is below the noise floor and this accounting does not state one.** What can be
+said: the harness dispatches matching hooks in parallel, so the set wall is the
+max of its members rather than their sum, and a member costing ≈ 505 ms joining
+a set already walling at ≈ 1 s cannot raise that wall by more than its own cost
+and will usually raise it by less. A re-measurement on a quiet reference host is
+the way to replace this bound with a number, and is the honest follow-up.
 
-**Share of the budget, and the overage.** The convention's per-tool-call ceiling
-is ≤ 1 s typical / ≤ 2 s worst-case, and the fleet's binding per-`Write`
-accounting there is **≈ 1.9 s** for the whole always-on set (two formatters plus
-three guardrails verifiers) — already over the typical ceiling before this
-change. The guardrails PreToolUse slice of that measured ≈ 1.0 s reference-host
-here; this widening takes it to ≈ 1.0–1.3 s, so the increment is **≈ 0–0.3 s,
-roughly 0–15% of the ≤ 2 s worst-case ceiling**, landing on a surface that is
-already in overage. Per the convention's rule 2 the budget does not relax to
-absorb that: the overage is guardrails' own spawn-reduction work (#1403), and
-this change pays part of its way by removing the `printf | tr` fork+exec pair
-from the shared normalizer — a cost the pre-existing per-Bash-call lane was
-paying on every call. Operators who cannot afford the increment have the
-per-hook kill switch below.
+**Share of the budget, and the overage.** The convention's ceiling is
+≤ 1 s typical / ≤ 2 s worst-case **per tool call, counting `PreToolUse` and
+`PostToolUse` together for one matcher** — so the surface this widening lands on
+is larger than the table above measures: guardrails also runs three `PostToolUse`
+verifiers on `Write|Edit`, and the fleet's binding accounting for the whole
+per-`Write` set is **≈ 1.9 s** (two formatters plus three guardrails verifiers),
+already over the typical ceiling before this change and deeper into overage than
+the PreToolUse-only slice measured here suggests. Against that surface the
+guard's own **≈ 505 ms is ≈ 25% of the ≤ 2 s worst-case ceiling as an upper
+bound on its contribution**, and less than that in practice because it is
+dispatched in parallel rather than added. Per the convention's rule 2 the budget
+does not relax to absorb the overage: remediation is guardrails' own
+spawn-reduction work (#1403), and this change pays part of its way — it removes
+the `printf | tr` fork-and-exec pair from the shared normalizer and stops
+resolving the telemetry subject in a subshell when no sink is wired, both costs
+the pre-existing per-Bash-call lane was paying on every call. Operators who
+cannot afford the addition have the per-hook kill switch below.
 
 ## Per-hook kill switches
 
