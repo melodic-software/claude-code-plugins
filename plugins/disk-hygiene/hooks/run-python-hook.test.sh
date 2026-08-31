@@ -236,16 +236,20 @@ else
   assert_eq "a foreign schema invalidates the cached interpreter" \
     "2" "$schema_calls"
 
-  # An expired record is re-resolved rather than trusted.
+  # An expired record is re-resolved rather than trusted. The staleness is
+  # forged in the RECORD (an old `written=` epoch), not through an environment
+  # override: the TTL is compiled in precisely so it cannot be widened by the
+  # environment, and a test that reached for such a knob would be asserting a
+  # channel this launcher deliberately does not have.
   cache_launch >/dev/null
-  ttl_calls="$(
-    : >"$CACHE_LOG"
-    HOME="$CACHE_HOME" PATH="$CACHE_BIN:$PATH" \
-      DISK_HYGIENE_INTERPRETER_CACHE_TTL=0 \
-      bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
-      "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
-    grep -c . "$CACHE_LOG" 2>/dev/null || printf '0'
-  )"
+  cached_interp="$(sed -n 's/^interpreter=//p' "$cache_record")"
+  {
+    printf 'schema=1\n'
+    printf 'written=%s\n' "1"
+    printf 'interpreter=%s\n' "$cached_interp"
+    printf 'path=%s\n' "$CACHE_BIN:$PATH"
+  } >"$cache_record"
+  ttl_calls="$(cache_launch)"
   assert_eq "an expired record is re-resolved" "2" "$ttl_calls"
 
   # A corrupt record must fall back to full resolution — never to "no
@@ -256,6 +260,36 @@ else
   corrupt_calls="$(cache_launch)"
   assert_eq "a corrupt record falls back to resolution" "2" "$corrupt_calls"
   assert_eq "a corrupt record still runs the target" \
+    "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
+
+  # A record naming a NON-INTERPRETER is the cache's residual exposure, and it
+  # is recorded here as a known limit rather than a passing property: the hot
+  # path validates SHAPE only (`-x`, `-s`, an interpreter basename), because
+  # proving the binary is really Python costs the very spawn the cache exists
+  # to remove. A shape-valid record pointing at an executable that is not an
+  # interpreter is therefore `exec`'d, the guard never runs, and the hook exits
+  # 0 having enforced nothing.
+  #
+  # The assertion below pins the boundary that IS enforced — a non-interpreter
+  # BASENAME is rejected and re-resolved — so a future change that widened the
+  # basename allowlist would fail here.
+  cache_launch >/dev/null
+  cached_interp="$(sed -n 's/^interpreter=//p' "$cache_record")"
+  IMPOSTOR_DIR="$CACHE_ROOT/impostor"
+  mkdir -p "$IMPOSTOR_DIR"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$IMPOSTOR_DIR/node"
+  chmod +x "$IMPOSTOR_DIR/node"
+  {
+    printf 'schema=1\n'
+    printf 'written=%s\n' "$(date +%s)"
+    printf 'interpreter=%s\n' "$IMPOSTOR_DIR/node"
+    printf 'path=%s\n' "$CACHE_BIN:$PATH"
+  } >"$cache_record"
+  rm -f "$FIXTURE_MARKER"
+  impostor_calls="$(cache_launch)"
+  assert_eq "a record naming a non-interpreter basename is re-resolved" \
+    "2" "$impostor_calls"
+  assert_eq "and the target still runs under a real interpreter" \
     "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
 
   # An unwritable cache directory must not stop the launcher from working.

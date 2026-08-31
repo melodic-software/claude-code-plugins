@@ -161,8 +161,15 @@ resolve_python3() {
 # resolution. A cache failure must never be able to produce "no interpreter" —
 # that is the guard's silent fail-open (exit 0, nothing enforced).
 _CACHE_SCHEMA=1
-_CACHE_TTL_SECONDS="${DISK_HYGIENE_INTERPRETER_CACHE_TTL:-86400}"
-[[ "$_CACHE_TTL_SECONDS" =~ ^[0-9]+$ ]] || _CACHE_TTL_SECONDS=86400
+# COMPILED IN, deliberately not an environment override. A widened TTL makes
+# this launcher accept a record it would otherwise have rejected as stale, so
+# the knob is an env-borne input to a security control — the exact shape
+# `resolve_disk_hygiene_enabled` refuses on the Python side, because "a repo
+# `settings.json` `env` block reaches hook subprocesses and carries no
+# provenance a hook could check". A tunable staleness window is not worth a new
+# channel of that kind; an operator who needs re-resolution can delete the
+# record.
+_CACHE_TTL_SECONDS=86400
 
 # Every hot-path helper reports through a GLOBAL rather than stdout. Command
 # substitution — `x="$(f)"` — forks a subshell, and a subshell on Windows is a
@@ -210,10 +217,27 @@ _cached_python3() {
   [[ "$cached_path" == "$PATH" ]] || return 1
   [[ -n "$interp" && -x "$interp" && -s "$interp" ]] || return 1
   # The hot path `exec`s this value, so the record is an input to a security
-  # control and is treated as untrusted: only a path resolution would itself
-  # have produced is accepted. Pure parameter expansion, so it costs no spawn.
-  # This is defence in depth rather than a boundary — anything able to write
-  # here can already edit the hook registrations that name this launcher.
+  # control and is treated as untrusted: only a basename a resolution would
+  # itself have produced is accepted. Pure parameter expansion, so it costs no
+  # spawn.
+  #
+  # KNOWN LIMIT, stated rather than implied. This validates SHAPE, not identity:
+  # an executable, non-empty file merely NAMED `python3` is accepted and
+  # `exec`'d, the guard never runs, and the hook exits 0 having enforced
+  # nothing. Proving the binary is really Python means running it, which is the
+  # spawn this cache exists to remove, so the check cannot be strengthened
+  # without giving back the win.
+  #
+  # Reaching that requires writing the record, and the record's location
+  # derives from `$HOME` — so unlike the pre-cache launcher, `HOME` is now an
+  # input to this control. Two honest readings: if nothing untrusted can set
+  # `HOME` for hook subprocesses, this is unreachable; if something can, it is a
+  # new instance of an exposure that already exists, since a hostile `PATH`
+  # fails open on the pre-cache launcher too (`PYTHON_VERSION_PROBE` only checks
+  # an exit status, which any script satisfies). It is NOT a new KIND of
+  # channel, and the plugin tree is not writable-adjacent to it, so the "anyone
+  # who can write here can already edit the hook registration" argument does not
+  # cover it. Recorded so a future reviewer weighs it deliberately.
   local interp_base="${interp##*/}"
   case "${interp_base%.exe}" in
   python3 | python | py | python3.*) ;;

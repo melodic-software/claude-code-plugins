@@ -1840,10 +1840,38 @@ def _watchdog_fire(deadline: float) -> None:
     flush under the lock, and hence the lock-acquisition failure denying rather
     than exiting 0.
 
-    The residual not covered is the marker-free linked-alias shape, which
-    ``_engine_gate_relevant`` resolves by filesystem identity — unavailable
-    here by construction, and already an accepted residual class in that
-    function's own contract.
+    The residual is measured rather than estimated, and it is wider than a
+    hard link. ``_watchdog_marker_present`` diverges from
+    ``_engine_gate_relevant`` on EXACTLY one set:
+
+        {no token's basename is the engine marker}
+            INTERSECT {some candidate is samefile with the bundled engine}
+
+    That is the whole filesystem-IDENTITY class. It includes hard links and
+    symlinks under a non-marker name, and — the part worth naming, because
+    ``_engine_gate_relevant``'s own docstring says identity is what closes it —
+    the Win32 filename-alias spellings: ``hygiene.py.`` (Win32 discards the
+    trailing dot, and ``_carries_marker``'s ``rstrip("/\\\\")`` does not),
+    ``hygiene.py::$DATA`` (splitting on ``[/\\\\:]`` and taking the last part
+    yields the empty string), and 8.3 short names. Each opens the bundled
+    engine while none has its basename, so each reaches ``ask`` on expiry in
+    engine-gate mode where a completed run would have gated it.
+
+    This residual cannot be closed on this thread: settling identity means
+    asking the filesystem, and this classifier must stay syscall-free precisely
+    because the main thread is presumed wedged in a filesystem call. Closing it
+    would mean resolving identity BEFORE the stall window and publishing the
+    verdict alongside the command — but that resolution IS the stall, so there
+    is no earlier moment at which it is cheap. It is therefore an accepted
+    residual, of the same identity class ``_engine_gate_relevant`` already
+    documents accepted residuals within.
+
+    Not in the set, and verified so rather than assumed: the overbreadth
+    shapes. ``./python-hygiene.py`` and a quoted ``bash -c 'python3
+    test_hygiene.py'`` payload are reported irrelevant by BOTH functions,
+    because the marker-free branch short-circuits before the widening rules
+    that would have caught them can run. A plain byte copy is a different file
+    and is relevant to neither.
 
     The fail-open this guard exists to prevent is the harness killing a hook
     that produced no ``permissionDecision`` at all (``docs/adr/0004-...``).
@@ -1879,9 +1907,16 @@ def _watchdog_fire(deadline: float) -> None:
         os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
         return  # unreachable in production; keeps the mocked exit terminal
 
-    # The lock is held from here to whichever `os._exit` runs. Holding it across
-    # the flush is what makes the flush safe: the main thread cannot be inside
-    # `print`, so there is no writer to contend with.
+    # The lock is held from here to whichever `os._exit` runs. That is what
+    # makes the flushes below safe, and the invariant is narrower than "nothing
+    # else writes stdout": holding this lock proves the main thread cannot be
+    # inside `_emit_decision`'s `print`, which is the only stdout write that
+    # happens during `main`'s lifetime. The `__main__` block's own flush and
+    # its `_discard_stream` fallback run AFTER `main` returns and are not under
+    # this lock, so they can still overlap a live daemon timer — `cancel()` is
+    # a no-op on an already-fired one. Both overlaps are benign: two flushes of
+    # the same buffer serialize, and `_discard_stream` runs only when stdout is
+    # already broken and its decision already undeliverable.
     global _DECISION_EMITTED
     try:
         command = _COMMAND_UNDER_DECISION
@@ -2097,10 +2132,26 @@ def main() -> int:
         # armed-but-unstarted timer is harmless.
         if watchdog is not None:
             watchdog.cancel()
-        # Clear the latch AFTER cancelling, so no live timer can observe the
-        # cleared state and re-decide a call that already has its answer. One
-        # process per decision makes this a no-op in production; it is what
-        # keeps `main` from leaking state into the next call in a test
+        # Deliver the decision BEFORE clearing the latch.
+        #
+        # `cancel()` does NOT stop a callback that has already started, so a
+        # timer firing in this window still runs, and after the reset below it
+        # reads `_DECISION_EMITTED = False` and `_COMMAND_UNDER_DECISION =
+        # None` — state that says "no decision yet" about a call that has one.
+        # Both arms of the mode gate then route to `os._exit(2)`, which does not
+        # flush, so a decision still sitting in the buffer would be discarded
+        # and the host would see a deny instead. Fail-closed and a microsecond
+        # wide, but avoidable: flushing first makes the decision durable before
+        # any timer can observe the cleared state, so the race can no longer
+        # change what the host receives.
+        #
+        # An earlier revision of this comment claimed cancelling first was what
+        # prevented a live timer from observing the cleared state. It is not —
+        # cancelling cannot stop a running callback. The flush is.
+        with contextlib.suppress(BaseException):
+            sys.stdout.flush()
+        # One process per decision makes the reset a no-op in production; it is
+        # what keeps `main` from leaking state into the next call in a test
         # interpreter, where `_watchdog_fire` is also exercised directly.
         _reset_decision_state()
 
