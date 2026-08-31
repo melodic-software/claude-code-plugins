@@ -17,11 +17,11 @@ usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)
 then sorts that score descending, grants descriptions greedily until the budget
 is spent, and renders the remainder name-only.
 
-Recovered from `claude.exe`, Claude Code 2.1.251: `zPe` is the scorer, `Ymt` the
-truncator. `zPe` has two further call sites, the slash-menu top-five pin and the
-command-search score boost, which is corroboration that it is the product's
-general usage-priority function rather than a listing-local helper. The
-surrounding evidence is in
+Recovered from `claude.exe` at Claude Code 2.1.251 (`zPe` the scorer, `Ymt` the
+truncator), then re-verified unchanged at 2.1.252. The scorer has two further
+call sites, the slash-menu top-five pin and the command-search score boost, which
+is corroboration that it is the product's general usage-priority function rather
+than a listing-local helper. The surrounding evidence is in
 [`docs/topics/usage-tracking-claude-json/EXPLORE.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/topics/usage-tracking-claude-json/EXPLORE.md),
 Part 2.
 
@@ -63,8 +63,21 @@ is load-bearing: `inferential` claims a ranking exists and may be imprecise;
 
 ## On drift
 
-This is one build of a minified bundle, not a published interface. The recheck
-trigger is a release note naming the skill listing, its character budget, or the
-usage counters, or the counters changing shape in `~/.claude.json`. On a
-mismatch the honest degradation is back to `unscored`, never a confidently wrong
-band.
+This is a minified bundle, not a published interface. The recheck trigger is a
+release note naming the skill listing, its character budget, or the usage
+counters, or the counters changing shape in `~/.claude.json`. On a mismatch the
+honest degradation is back to `unscored`, never a confidently wrong band.
+
+**Locate the scorer by shape, never by name.** The minified identifier moves
+between builds. It was `zPe` in 2.1.251 and `WPe` in 2.1.252, with a
+byte-identical body, so a recheck that greps the old name finds nothing and
+concludes the mechanism was removed. Grep the arithmetic instead:
+
+```bash
+grep -a -o -E '.{0,180}Math\.pow\(0\.5,.{0,180}' "$(command -v claude)"
+grep -a -o -E '.{0,260}budgetTruncatedSkills:.{0,60}' "$(command -v claude)"
+```
+
+The first run of that recheck happened the same day the stamp was written: the
+CLI auto-updated from 2.1.251 to 2.1.252 mid-session, the trigger fired, and both
+the formula and the descending-sort truncation came back unchanged.

@@ -178,11 +178,16 @@ Follows `docs/conventions/upstream-drift`, the same shape
   entries descending by that score and drops descriptions from the tail.
 - **Basis:** string extraction of `claude.exe`, Claude Code 2.1.251, functions `zPe`,
   `Ymt`, `F1t`, `Fdt`, `Sme`, `yNt`, `dzn`, `Dke`. Confirmed against the live
-  `~/.claude.json` on this machine.
-- **As-of:** 2026-08-31, Claude Code 2.1.251.
+  `~/.claude.json` on this machine. Scorer and truncator re-verified unchanged at 2.1.252.
+- **As-of:** 2026-08-31, re-verified against Claude Code 2.1.252.
 - **Recheck trigger:** any release note naming the skill listing, the skill-listing budget,
   skill usage counters, or `/doctor`'s unused-component check; or the counters' shape in
   `~/.claude.json` gaining or losing a field.
+- **Locate by shape, never by name.** The minified identifiers move between builds. The
+  scorer was `zPe` in 2.1.251 and `WPe` in 2.1.252 with a byte-identical body, so a recheck
+  greping the old name finds nothing and would wrongly conclude the mechanism was removed.
+  Grep the arithmetic (`Math\.pow\(0\.5,`) and the truncator's own field name
+  (`budgetTruncatedSkills`) instead.
 
 This is recovered from one build of a minified bundle. Encoding it in a script means
 pinning to that build, so any consumer must carry the stamp and treat a mismatch as

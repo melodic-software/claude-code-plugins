@@ -116,11 +116,17 @@ def tier_supports(tier: str, claim: str) -> bool:
 #   `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, sorts that score
 #   descending, grants descriptions greedily until the budget is spent, and
 #   renders the remainder name-only.
-# Basis: string extraction of `claude.exe`, Claude Code 2.1.251 -- `zPe` (the
-#   scorer) and `Ymt` (the truncator), plus `zPe`'s two other call sites, the
-#   slash-menu top-5 pin and the command-search score boost. Evidence recorded in
+# Basis: string extraction of `claude.exe`, first at Claude Code 2.1.251 (`zPe`
+#   the scorer, `Ymt` the truncator, plus the scorer's two other call sites, the
+#   slash-menu top-5 pin and the command-search score boost), then RE-VERIFIED
+#   unchanged at 2.1.252. Evidence in
 #   docs/topics/usage-tracking-claude-json/EXPLORE.md, Part 2.
-# As-of: 2026-08-31, Claude Code 2.1.251.
+# As-of: 2026-08-31, re-verified against Claude Code 2.1.252.
+# Locate it by SHAPE, never by name. The minified identifier is not stable across
+#   builds: the scorer was `zPe` in 2.1.251 and `WPe` in 2.1.252, with a
+#   byte-identical body. Grep for the arithmetic instead, e.g.
+#   `grep -a -o -E '.{0,180}Math\.pow\(0\.5,.{0,180}' <claude binary>`, and for
+#   the truncator `budgetTruncatedSkills`.
 # Recheck trigger: a release note naming the skill listing, its character budget,
 #   or skill usage counters; or the counters changing shape in `~/.claude.json`.
 # On mismatch: the report must degrade to `score_basis: "unscored"` and say the
