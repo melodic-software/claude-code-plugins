@@ -3,6 +3,72 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0]
+
+### Fixed
+
+- **`block-windows-drive-tmp` now sees a `Write`, not only a command.** The guard
+  exists to stop a Windows drive-root temp write (#2594), and it missed one: on
+  2026-08-30 an empty `C:\tmp\tmp.rSFIkHm5DO` was created and nothing fired. The
+  hook read `.tool_input.command`; a `Write` payload carries `file_path` instead,
+  so `hook::jq_fields` produced an empty `COMMAND` and the `[[ -n "$COMMAND" ]]`
+  early exit returned before any matcher ran. The guard covered command-shaped
+  writes and not tool-shaped ones. It now also reads `.tool_input.file_path` and
+  `.tool_input.notebook_path`, and the early exit tests both doors. Verified
+  repro-first: the four seeded spellings (`C:\tmp\…`, `/tmp/…`, `/c/tmp/…`,
+  `C:/tmp/…`) exit 0 against the unmodified hook and 2 against this one.
+
+### Added
+
+- **A `Write | Edit | MultiEdit | NotebookEdit` matcher registration for the same
+  guard.** The script change alone would have been inert: without the second
+  `hooks.json` registration the hook never receives those payloads. It is a
+  SEPARATE PreToolUse group, not a widening of the existing `Write|Edit|
+  NotebookEdit` matcher string, so `secret-pattern-detection` and
+  `hardcoded-path-check` do not silently acquire `MultiEdit`, and not a widening
+  of `Bash|PowerShell`, which would have attached seven command-lane guards to
+  every file write. A tool name matches one group, so the hook still fires once
+  per tool call.
+- **A `file-path` telemetry form**, alongside `redirect` / `write-utility` /
+  `too-long`. The privacy floor is unchanged: `subject` is the bare tool name on
+  this lane (`Write`), and the target path never reaches the envelope.
+
+### Changed
+
+- **Both doors feed one matcher.** The file-path lane calls the shipped
+  `has_drive_root_tmp()` — there is no second matcher — so every spelling the
+  command lane blocks and every one it permits (`%TEMP%` expansions, `/var/tmp`,
+  `./tmp`, `foo/tmp`, `/tmpdir`, `C:/tmp2`, UNC `\\server\tmp`) decides
+  identically on a `Write`. The lane needs none of the command lane's inference:
+  on `Write`/`Edit` the path IS the write target, so there is no redirect to
+  parse, no producer-utility whitelist, and no segment splitting.
+- **Case folding is pure shell.** `printf | tr` was a fork AND an exec (~280 ms
+  together on Windows Git Bash) to fold one character class; `${var,,}` does the
+  same work in-process. That removes two spawns from the existing per-Bash-call
+  cost as well, and keeps the new per-Write lane from adding them.
+- **The command lane is skipped outright on a file-path payload.**
+  `has_redirect_to_drive_root_tmp` runs `mask_quoted_redirect_ops` in a command
+  substitution, and forking to scan an empty string would be per-Write budget
+  spent to reach a foregone answer.
+
+### Notes
+
+- **Fail-closed posture is unchanged and now covers the new field.** NUL-byte
+  handling, `hook::buffer_stdin` rc 2, jq absence and `MAX_COMMAND_LEN` all
+  behave exactly as before; a NUL in `file_path` fails closed by the same
+  already-shipped check, because only PATH fields were added to the
+  `hook::jq_fields` call. Content fields (`content` / `new_string` /
+  `new_source`) are deliberately NOT requested: `HOOK_JQ_FIELDS_NUL` is computed
+  across every requested field, so reading them would make this guard block on a
+  NUL anywhere in a file body — hardcoded-path-check's concern, not this one's.
+- **No length ceiling on the file-path lane, by decision.** `MAX_COMMAND_LEN`
+  exists because the command lane walks its string character by character twice
+  before matching; the path lane runs three EREs with no tokenization, detection
+  does not degrade with length, and a blocking ceiling would only add a
+  false-positive class. The payload stays bounded by `hook::buffer_stdin`.
+- **Measured budget share** for the widened surface is recorded in the README's
+  hook-budget accounting.
+
 ## [0.29.22]
 
 ### Fixed

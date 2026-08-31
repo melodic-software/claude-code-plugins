@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block writes whose target is a Windows drive-root temp path.
-# Triggered on Bash and PowerShell tool calls.
+# Triggered on Bash and PowerShell tool calls (a command string), and on
+# Write / Edit / MultiEdit / NotebookEdit tool calls (a file path).
+#
+# TWO DOORS, ONE MATCHER. A write reaches the drive root through either shape,
+# and until 0.30.0 only the command shape was inspected: the hook read
+# `.tool_input.command`, a `Write` payload carries `file_path` instead, so the
+# empty-COMMAND early exit returned before any matcher ran and an empty
+# `C:\tmp\tmp.rSFIkHm5DO` was created with no guard noticing. Both doors now feed
+# the SAME has_drive_root_tmp() matcher. The file-path lane needs none of the
+# command lane's inference — no redirect parsing, no write-utility whitelist,
+# no segment splitting — because on Write/Edit the path IS the write target.
 #
 # On Windows (Git Bash / MSYS / Cygwin), a hardcoded POSIX `/tmp` path resolves to
 # `<current-drive>:\tmp` (e.g. `C:\tmp`) rather than the platform temp directory
@@ -59,8 +69,16 @@ INPUT=$(hook::buffer_stdin) || {
 # absence — same posture as the other Bash/PowerShell blocking guards (#2146).
 hook::require_jq_blocking "guardrails-block-windows-drive-tmp" "block_windows_drive_tmp_enabled"
 
+# Path fields only — never `.tool_input.content` / `.new_string` / `.new_source`.
+# HOOK_JQ_FIELDS_NUL is computed across every REQUESTED field, so pulling the
+# written CONTENT in here would make this guard block on a NUL anywhere in a
+# file body: a false-positive class that is hardcoded-path-check's concern, not
+# this guard's. `notebook_path` rides along in the same jq process (one spawn,
+# not two) because NotebookEdit spells its target differently from Write/Edit.
 jq_rc=0
-hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
+hook::jq_fields "$INPUT" \
+  '.tool_input.command' '.tool_name' \
+  '.tool_input.file_path' '.tool_input.notebook_path' || jq_rc=$?
 if ((jq_rc == 2)); then
   echo "BLOCKED: the hook payload could not be parsed." >&2
   exit 2
@@ -69,15 +87,23 @@ fi
 
 # A NUL byte in EITHER field is fail-CLOSED (#2136 / #2122).
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
+  echo "BLOCKED: the payload carries a NUL byte, which neither a command nor a file path can reliably carry." >&2
   echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
   echo "Fix: reissue the tool call without the embedded NUL." >&2
   exit 2
 fi
 
 COMMAND="${HOOK_JQ_FIELDS[0]}"
-[[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
+# Write / Edit / MultiEdit spell the target `file_path`; NotebookEdit spells it
+# `notebook_path`. Reading both and taking whichever is populated keeps the lane
+# correct without depending on which spelling a given tool version emits.
+FILE_PATH="${HOOK_JQ_FIELDS[2]:-}"
+[[ -n "$FILE_PATH" ]] || FILE_PATH="${HOOK_JQ_FIELDS[3]:-}"
+
+# Neither door carried anything to inspect. Before 0.30.0 this exit tested
+# COMMAND alone, which is exactly how a `Write` payload passed unexamined.
+[[ -n "$COMMAND" || -n "$FILE_PATH" ]] || exit 0
 
 # Non-Windows hosts: /tmp is the real POSIX temp. Skip entirely. Tests force
 # OSTYPE=msys to exercise the Windows lane on Linux CI.
@@ -112,14 +138,35 @@ block() {
 }
 
 # Above this length the command is not parsed — fail closed (same ceiling as the
-# other argv-faithful Bash guards).
+# other argv-faithful Bash guards). The ceiling exists because the COMMAND lane
+# below walks the string character by character twice (mask_quoted_redirect_ops,
+# split_shell_segments) before it matches anything. NO EQUIVALENT CEILING GUARDS
+# THE FILE-PATH LANE, and that is a decision rather than an omission: that lane
+# runs three EREs against one string with no tokenization, so length buys no
+# parse ambiguity there, and detection does not degrade with length — a
+# drive-root prefix matches at any total length. A blocking ceiling would only
+# add a false-positive class (a legitimate long path refused for its size). The
+# payload as a whole is still bounded upstream by hook::buffer_stdin's idle
+# timeout, which fails CLOSED on a truncated read.
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long"
 fi
 
 # Slash-normalize so C:\tmp, C:/tmp, and \tmp share one matcher. Lowercase for
 # case-insensitive Windows path compare without relying on bash [[ =~ ]] flags.
-NORM=$(printf '%s' "${COMMAND//\\//}" | tr '[:upper:]' '[:lower:]')
+# Pure shell, no `printf | tr`: that pipeline is a fork AND an exec (~280 ms
+# together on Windows Git Bash) to fold one character class, and this guard now
+# fires on the per-Write surface as well, where that pair would be pure added
+# budget. Same bytes for ASCII paths and commands, which is all a drive-root
+# matcher reads. Result lands in NORM_OUT rather than on stdout because a
+# command substitution would fork the shell right back.
+norm_lower() {
+  local s="${1//\\//}"
+  NORM_OUT="${s,,}"
+}
+
+norm_lower "$COMMAND"
+NORM="$NORM_OUT"
 
 # True when <haystack> carries a drive-root tmp path reference:
 #   /tmp[/...]           — POSIX form (Git Bash maps this to <drive>:\tmp)
@@ -317,12 +364,33 @@ has_write_utility_with_drive_root_tmp() {
   return 1
 }
 
-if has_redirect_to_drive_root_tmp "$NORM"; then
-  block "redirect"
+# --- File-path lane: Write / Edit / MultiEdit / NotebookEdit -----------------
+# On these tools the payload's path IS the write target, so the whole
+# write-shape inference the command lane needs — redirect parsing, the producer
+# utility whitelist, per-segment splitting — is structurally absent here. The
+# matcher is the shipped has_drive_root_tmp(), unchanged and unduplicated, so
+# every spelling the command lane blocks (POSIX /tmp, MSYS /c/tmp, C:\tmp,
+# drive-root \tmp) and every one it permits (%TEMP% expansions, /var/tmp,
+# ./tmp, foo/tmp) decide identically on this lane.
+if [[ -n "$FILE_PATH" ]]; then
+  norm_lower "$FILE_PATH"
+  if has_drive_root_tmp "$NORM_OUT"; then
+    block "file-path"
+  fi
 fi
 
-if has_write_utility_with_drive_root_tmp "$NORM"; then
-  block "write-utility"
+# --- Command lane: Bash / PowerShell -----------------------------------------
+# Skipped outright on a file-path payload: has_redirect_to_drive_root_tmp runs
+# mask_quoted_redirect_ops in a command substitution, and forking the shell to
+# scan an empty string would be per-Write budget spent to reach a foregone `no`.
+if [[ -n "$COMMAND" ]]; then
+  if has_redirect_to_drive_root_tmp "$NORM"; then
+    block "redirect"
+  fi
+
+  if has_write_utility_with_drive_root_tmp "$NORM"; then
+    block "write-utility"
+  fi
 fi
 
 emit_tel "ok" ""

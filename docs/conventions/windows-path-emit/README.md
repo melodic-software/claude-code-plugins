@@ -185,10 +185,11 @@ one costs a follow-up. Promote it when there is precision to point at.
 
 This is a different concern from
 [`plugins/guardrails/hooks/block-windows-drive-tmp.sh`](../../../plugins/guardrails/hooks/block-windows-drive-tmp.sh),
-which blocks a *command* aimed at a drive-root temp path before it runs (#2594). That guard reads a
-command string ahead of time; this detector reads the filesystem afterwards, and catches the class
-where the offending path was never spelled in a command at all — it was computed inside a native
-interpreter.
+which blocks a *tool call* aimed at a drive-root temp path before it runs (#2594). That guard reads
+the payload ahead of time — a Bash/PowerShell command string, and since guardrails 0.30.0 a
+Write/Edit/MultiEdit/NotebookEdit target path as well; this detector reads the filesystem
+afterwards, and catches the class where the offending path was never spelled in the payload at all —
+it was computed inside a native interpreter.
 
 It is also outside the charter of
 [`scripts/check-shell-portability.sh`](../../../scripts/check-shell-portability.sh), whose token list
