@@ -140,7 +140,9 @@ done
 # case-insensitively by ENUMERATING the drive root's entries - a lowercase
 # probe would rely on the host filesystem folding case, which the test
 # fixtures' filesystems do not. DRIVE_ROOT_LITTER_IGNORE_SINKS exempts a name,
-# any casing.
+# any casing. The ${var,,} case folds below are bash 4.0+; they only ever
+# execute behind the Windows host gate above (Git Bash ships bash 5.x), so a
+# macOS bash 3.2 exits at the gate before reaching them - keep them below it.
 sink_names=" tmp "
 ignored_sinks="${DRIVE_ROOT_LITTER_IGNORE_SINKS:-}"
 ignored_sinks="${ignored_sinks//,/ }"
