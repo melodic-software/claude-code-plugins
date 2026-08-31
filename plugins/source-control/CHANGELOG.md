@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.32]
+
+### Changed
+
+- **`pull-request`: `fetch-annotations.sh` corrects a comment that misdescribed its own exit-code
+  capture.** The comment above the check-runs fetch said the API exit code is "captured via
+  PIPESTATUS", but the code has captured `$?` from a plain command substitution since the file's
+  first commit; no pipeline ever existed there. The comment now says "captured separately",
+  matching the accurate sibling comment in the annotations walk. Comment-only change, verified
+  against the file's full history; the script's behavior is untouched and its suite passes
+  unchanged.
+
 ## [0.55.31]
 
 ### Changed
