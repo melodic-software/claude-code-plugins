@@ -3,6 +3,15 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3]
+
+### Changed
+
+- **`name-it-better`: dated the `[cc-skills]` source-registry entry.** The entry restated the
+  1,536-char listing truncation and the description-not-name discovery mechanism with a confidence
+  grade but no as-of date or recheck trigger; it now carries both (verified 2026-08-31 against the
+  frontmatter reference), per the marketplace's upstream-drift convention.
+
 ## [0.5.2]
 
 ### Changed

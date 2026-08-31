@@ -6,7 +6,11 @@ answer them well are not the same.
 
 ## Why the in-context listing cannot be the sole source
 
-Officially documented behavior of the skill listing, and the reason this ladder exists at all:
+Officially documented behavior of the skill listing, and the reason this ladder exists at all
+(owned by <https://code.claude.com/docs/en/skills> for the drop behavior and
+`disable-model-invocation` visibility, and <https://code.claude.com/docs/en/settings> for the two
+budget keys; verified 2026-08-31; recheck trigger: a fetch of either page no longer matching a
+bullet below re-derives this section):
 
 - The listing **always carries every skill name**, but when many skills are installed Claude Code
   **shortens descriptions to fit a character budget**, and on overflow it **drops descriptions

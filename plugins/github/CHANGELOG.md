@@ -3,6 +3,16 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.10]
+
+### Changed
+
+- **Explicit `user-invocable: true` on `advise`, `audit`, and `setup`.** The three skills were the
+  fleet's only holdouts (with two in other plugins) declaring `disable-model-invocation` but not
+  `user-invocable`; the value is the documented default, so nothing changes behaviorally — the key
+  is now explicit for the same auditability reason the fleet writes `disable-model-invocation` on
+  every skill.
+
 ## [0.3.9]
 
 ### Changed

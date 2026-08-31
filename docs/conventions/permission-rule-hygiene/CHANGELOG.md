@@ -4,6 +4,13 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## 1.3.2 — 2026-08-31
+
+Docs-only patch. The anti-pattern-3 bullet quoting the skills page's `allowed-tools` semantics now
+cites the owning section by anchor and carries a re-verified date (2026-08-31) with a divergence
+trigger, per the upstream-drift convention's four-part shape; the quoted spans themselves were
+re-verified verbatim against a live raw-markdown fetch and are unchanged.
+
 ## 1.3.1 — 2026-08-28
 
 Corrective patch: the principle, the three anti-patterns, and the correct pattern are all unchanged.

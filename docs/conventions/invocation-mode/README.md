@@ -17,11 +17,14 @@ an evidence-driven re-derivation, assuming correct neither upstream's user-invok
 
 **Model-invoked (`disable-model-invocation: false`) is the default.** Every exception must name
 one of the three classes below. The key is written **explicitly** on every skill — the official
-default for an absent key is `false` (docs table row, code.claude.com/docs/en/skills, verified
-2026-08-17), but an explicit key makes the choice auditable and is enforced by a
+default for an absent key is `false` (docs table row,
+<https://code.claude.com/docs/en/skills#frontmatter-reference>, verified 2026-08-17, re-verified
+2026-08-31), but an explicit key makes the choice auditable and is enforced by a
 `skill-quality:check` criterion.
 
-Evidence behind the default (verified 2026-08-17 against current official docs unless noted):
+Evidence behind the default (verified 2026-08-17 against current official docs unless noted; the
+skills-page claims re-verified 2026-08-31; recheck trigger for every doc-derived bullet: a fetch
+of its cited page no longer matching the bullet re-derives it here):
 
 - **A `true` skill is model-invisible everywhere.** `disable-model-invocation: true` removes the
   skill from Claude's context entirely — the description never enters the listing, no other
@@ -256,9 +259,10 @@ reach. The cost the flip incurs is one description entering the listing budget, 
 section holds is manageable and not a forcing function.
 
 *What the flip does not buy, stated rather than left implicit.* It does not guarantee trigger
-matching. The fleet's aggregate listing estimates at **117,695 description chars against an
-8,000-char budget (~14.7× over)** — reproduce with
-`bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills` (2026-08-21). Read
+matching. The fleet's aggregate listing estimates at **130,470 description chars against an
+8,000-char budget (~16.3× over)** — reproduce with
+`bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills` (2026-08-31; recheck
+trigger: each fleet audit re-runs the instrument and refreshes this reading). Read
 that as an order-of-magnitude bound, not a reading: the instrument says so itself, since the budget
 scales with the live model's context window via `skillListingBudgetFraction` and 8,000 is the
 documented `SLASH_COMMAND_TOOL_CHAR_BUDGET` fallback a consumer's `settings.json` can move. `/doctor`

@@ -4,6 +4,19 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.6]
+
+### Fixed
+
+- **`skill-authoring`: re-anchored the pre-v2.1.216 `name`-history claim to the changelog.** The
+  verification-loops reference stated "before v2.1.216 a frontmatter `name` replaced the whole
+  command name" on the skills page's authority, and the current skills page no longer carries that
+  history (it now records only the later v2.1.216 through v2.1.245 prefix-doubling quirk, fixed in
+  v2.1.246). The claim itself still holds; its basis moved. The sentence now cites the official
+  changelog's v2.1.216 entry verbatim with an as-of date and a recheck trigger, per the
+  marketplace's upstream-drift stamp discipline. Found by a live re-fetch of the skills page
+  (2026-08-31) during the frontmatter-alignment sweep.
+
 ## [0.9.5]
 
 ### Added

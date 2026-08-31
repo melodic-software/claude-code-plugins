@@ -639,6 +639,14 @@ class ListingConfig:
 
     `bytes_per_token` is the product's own hardcoded estimate; the budget is
     computed in CHARACTERS, not tokens.
+
+    Four-part record for the encoded defaults (0.01 fraction, 1536 per-entry
+    cap, 200k window, ~4 chars/token, 3-char joiner): basis
+    https://code.claude.com/docs/en/settings (skillListingBudgetFraction,
+    skillListingMaxDescChars) and
+    https://code.claude.com/docs/en/skills#frontmatter-reference; verified
+    2026-08-31. Recheck trigger: either page moving a default re-derives the
+    matching field here; each fleet audit re-runs this record.
     """
 
     context_window_tokens: int = 200_000

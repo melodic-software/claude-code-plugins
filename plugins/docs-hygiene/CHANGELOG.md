@@ -1,5 +1,16 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.28]
+
+### Changed
+
+- **`audit-progressive-disclosure`: the vendor numbers now carry a four-part provenance record.**
+  `context/tier-model.md` tagged its constants (500/200/1,024/1,536/1%/~100 tokens/5k/25k)
+  "Anthropic-prescribed" with no URL, date, or recheck trigger. A provenance paragraph under the
+  size table now names each value's owning page, a verified date (2026-08-31), and per-row plus
+  per-fleet-audit triggers; the SKILL.md citation-posture bullet points at that record instead of
+  restating the list bare. Found in the frontmatter-alignment sweep.
+
 ## [0.21.27]
 
 ### Fixed
