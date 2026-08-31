@@ -293,7 +293,7 @@ if [[ "$mode" == "--check-order" ]]; then
 
     dupes="$(printf '%s\n' "${versions[@]}" | sort | uniq -d)"
     if [[ -n "$dupes" ]]; then
-      echo "DUPLICATE CHANGELOG VERSION: $changelog lists $(printf '%s' "$dupes" | tr '\n' ' ')more than once. Two branches almost certainly staged the same version; renumber one." >&2
+      echo "DUPLICATE CHANGELOG VERSION: $changelog lists $(printf '%s' "$dupes" | tr '\n' ' ') more than once. Two branches almost certainly staged the same version; renumber one." >&2
       duplicated=$((duplicated + 1))
     fi
 

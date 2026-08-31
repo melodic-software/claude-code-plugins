@@ -40,7 +40,21 @@
 # older than 14 days are deleted on write. The cutoff is deliberately far
 # larger than the reader contract's 10-minute staleness window so a
 # live-but-idle session's snapshot is never deleted, and in-flight
-# .tmp.* files are never touched.
+# .tmp.* files are never touched by the prune (aged temp ORPHANS are the
+# reclaim sweep's job — see TEMP-FILE RECLAIM below).
+#
+# TEMP-FILE RECLAIM: a temp file can outlive this process. Claude Code
+# "cancels the in-flight script" when a new update arrives while this one is
+# still running (https://code.claude.com/docs/en/statusline), and a
+# cancellation between the write and the rename leaves the temp behind — no
+# failed rm is needed to explain it, the process simply never reaches the
+# reclaim line. Two mechanisms, because neither is sufficient alone: a trap
+# reclaims on exit and on a catch-able signal, and an age-filtered sweep of
+# leftover siblings recovers what a SIGKILL, a crash, or power loss leaves,
+# which no trap can. The sweep costs nothing on a clean directory — a glob
+# decides whether to spawn anything at all — and it cannot race a live
+# sibling, since the normal write-to-rename window is sub-second while the
+# age floor is a minute.
 #
 # ATOMICITY: concurrent refreshes of the same session and cross-session
 # sibling writes share one directory, and readers must never see torn JSON,
@@ -82,6 +96,46 @@ if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1)));
 else
   IFS= read -r -d '' -t 5 INPUT || true
 fi
+
+# Path of the temp file currently in flight, for the reclaim traps below. A
+# global rather than the function's local: the trap body is evaluated when the
+# trap fires, by which time the function's locals are gone.
+TEE_TMP=""
+
+reclaim_tee_tmp() {
+  [[ -n "$TEE_TMP" ]] && rm -f "$TEE_TMP" 2>/dev/null
+  TEE_TMP=""
+  return 0
+}
+
+# The signal traps exit rather than reclaiming directly, so the EXIT trap stays
+# the single reclaim path. Exiting is also the right response to a cancelling
+# signal: this refresh's snapshot is already superseded by the update that
+# cancelled it.
+trap 'reclaim_tee_tmp' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+trap 'exit 129' HUP
+
+# Reclaim temp siblings left by a process that never got to clean up. Only
+# files older than the age floor are touched, so a concurrent refresh's live
+# temp — sub-second between write and rename — is never a candidate.
+#
+# The glob runs first and decides whether to spawn at all: on a clean
+# directory, which is every refresh in normal operation, this costs zero
+# processes. The pattern requires the .json.tmp. infix, so it can never match
+# a snapshot the prune owns, and the prune's *.json pattern never matches
+# these dot-prefixed names — the two mechanisms are disjoint by construction.
+sweep_stale_tee_temps() {
+  local dir="$1" candidate
+  for candidate in "$dir"/.*.json.tmp.*; do
+    [[ -e "$candidate" ]] || continue
+    find "$dir" -maxdepth 1 -type f -name '.*.json.tmp.*' \
+      -mmin +1 -exec rm -f {} + 2>/dev/null || true
+    return 0
+  done
+  return 0
+}
 
 # Write one per-session contract snapshot. Every failure path returns 0: the
 # tee must never propagate into the statusline pipeline.
@@ -150,10 +204,15 @@ tee_snapshot() {
         [ -n "$(find "$f" -maxdepth 0 -mmin +20160 2>/dev/null)" ] && rm -f "$f"
       done' _ {} + 2>/dev/null || true
 
+  # Reclaim aged temp orphans a SIGKILL/crash left behind (the traps above
+  # cover every catch-able exit; this sweep is the mechanism for the rest).
+  sweep_stale_tee_temps "$dir"
+
   # Process-unique temp name with widened entropy; noclobber makes the
   # redirection refuse to follow a pre-planted symlink or overwrite any
   # pre-existing path of the same name.
   local tmp="$dir/.$sid.json.tmp.$$.$RANDOM$RANDOM"
+  TEE_TMP="$tmp"
   # Subshell umask so the snapshot lands owner-only without altering the
   # umask the wrapped statusline command inherits.
   (
@@ -161,7 +220,7 @@ tee_snapshot() {
     set -o noclobber
     printf '%s\n' "$payload" >"$tmp"
   ) 2>/dev/null || {
-    rm -f "$tmp" 2>/dev/null
+    reclaim_tee_tmp
     return 0
   }
   # Plausibility ceiling for the no-regression guard below: a target whose
@@ -192,15 +251,18 @@ tee_snapshot() {
     existing_ts=$(jq -r '.captured_at // empty' "$target" 2>/dev/null) || existing_ts=""
     if [[ -n "$existing_ts" && -n "$guard_ceiling" && "$existing_ts" > "$ts" &&
       ! "$existing_ts" > "$guard_ceiling" ]]; then
-      rm -f "$tmp" 2>/dev/null
+      reclaim_tee_tmp
       return 0
     fi
     if mv -f "$tmp" "$target" 2>/dev/null; then
+      # The temp path is the target now; clear it so the EXIT trap cannot
+      # reclaim a name that no longer refers to this refresh's file.
+      TEE_TMP=""
       return 0
     fi
     sleep 0.1 2>/dev/null || true
   done
-  rm -f "$tmp" 2>/dev/null
+  reclaim_tee_tmp
   return 0
 }
 

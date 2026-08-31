@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.29]
+
+### Changed
+
+- **video-digest watch: orphaned module removed.** `watch/promotion-name-map.js`
+  is deleted. 0.13.28 removed its last importer (`synthesis-naming.js`'s dead
+  `synthesisDestNameForSlice` export) and confirmed the module carries no
+  load-time side effects; a fresh repo-wide sweep re-proved zero importers of
+  the file or of `loadPromotionNameMap` (only historical changelog text and one
+  now-corrected doc parenthetical in `context/quality-gates.md` named it). It
+  had no test file of its own. Watch suites and `tsc` clean after removal.
+
 ## [0.13.28]
 
 ### Changed

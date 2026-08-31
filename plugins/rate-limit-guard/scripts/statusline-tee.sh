@@ -125,20 +125,30 @@ _rlg_bash_at_least() {
   ((BASH_VERSINFO[0] > $1 || (BASH_VERSINFO[0] == $1 && BASH_VERSINFO[1] >= $2)))
 }
 
-# Bounded buffered read of the whole stdin payload (Win32 pipes can stall
-# before EOF; a truncated payload just fails jq below and tees nothing this
-# refresh). read -N buffers in blocks, which matters on Windows/MSYS pipes
-# where the -d '' byte-at-a-time loop moves ~40KB/s and can truncate a large
-# payload at the timeout (measured on Git Bash); Bash below 4.1 (macOS ships
-# 3.2) lacks -N and falls back to the delimiter form, fast enough on native
-# POSIX pipes. 1MiB bound: statusline payloads are a few KB.
+# Time-bounded buffered read of the whole stdin payload (Win32 pipes can
+# stall before EOF; a truncated payload just fails jq below and tees nothing
+# this refresh). read -N buffers in 1MiB blocks and the loop drains until
+# EOF, so the wrapped command receives EVERY byte regardless of payload size
+# — the block size matters on Windows/MSYS pipes where the -d '' byte-at-a-
+# time loop moves ~40KB/s (measured on Git Bash), and the per-block -t 5
+# timeout bounds a stalled pipe without capping a large healthy payload.
+# Bash below 4.1 (macOS ships 3.2) lacks -N and falls back to the delimiter
+# form, which already reads to EOF, fast enough on native POSIX pipes.
+# Documented boundary: on a stalled pipe (timeout mid-payload) the wrapped
+# command receives only the drained bytes and fails with its own exit code;
+# the tee silently skips that refresh (jq rejects the truncated JSON).
 #
 # Deferred into a function rather than run at load: this file carries a sourcing
 # guard at the bottom so its enablement gate can be driven by the test suite, and
 # a top-level read would consume the sourcing shell's stdin before `main` runs.
 read_tee_input() {
   if _rlg_bash_at_least 4 1; then
-    IFS= read -r -N 1048576 -t 5 INPUT || true
+    local _chunk=""
+    while IFS= read -r -N 1048576 -t 5 _chunk; do
+      INPUT+="$_chunk"
+      _chunk=""
+    done
+    INPUT+="$_chunk" # EOF/timeout leaves the final partial block in _chunk
   else
     IFS= read -r -d '' -t 5 INPUT || true
   fi
@@ -290,12 +300,16 @@ tee_snapshot() {
     fi
   fi
 
-  local tmp="$dir/.rate-limits.json.tmp.$$.$RANDOM"
+  # Process-unique temp name with widened entropy; noclobber makes the
+  # redirection refuse to follow a pre-planted symlink or overwrite any
+  # pre-existing path of the same name.
+  local tmp="$dir/.rate-limits.json.tmp.$$.$RANDOM$RANDOM"
   TEE_TMP="$tmp"
   # Subshell umask so the snapshot lands owner-only without altering the
   # umask the wrapped statusline command inherits.
   (
     umask 077
+    set -o noclobber
     printf '%s\n' "$payload" >"$tmp"
   ) 2>/dev/null || {
     reclaim_tee_tmp

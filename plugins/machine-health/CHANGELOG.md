@@ -3,6 +3,32 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.18]
+
+### Fixed
+
+- **`audit`: `correlation-rules.md` names the correlation loader by its real name.** The doc said
+  `Get-CorrelationRules`; the function `Invoke-FindingCorrelation.ps1` declares and calls is
+  `Get-CorrelationRule` (singular). One-word doc fix, code authoritative.
+- **`audit`: `Write-ElevationBanner.Tests.ps1` now actually captures the banner's output.** The
+  banner writes through `[Console]::Error.WriteLine`, which bypasses PowerShell's error stream, so
+  the old `2>&1` capture was always empty and the two "emits nothing" assertions could never
+  fail. The suite now swaps `[Console]::Error` for a StringWriter (restored in `finally`), asserts
+  the negative cases on the real capture, and adds a positive control proving the capture path
+  sees the non-elevated banner. Suite: 5 vacuous checks before, 6 real ones after.
+- **`audit`: `Restart-StoppedService.Tests.ps1` runs on Linux.** Pester cannot mock a command that
+  does not exist, and Linux pwsh ships neither `Get-Service` nor `Start-Service`, so all 10 cases
+  errored with CommandNotFoundException. BeforeAll now defines empty stub functions for both, the
+  established pattern `Test-WindowsUpdate.Tests.ps1` already uses. The stubs shadow the real
+  cmdlets on Windows too, so Pester builds its mocks from the param-less stubs everywhere; every
+  case mocks both commands, the stub bodies never run, and all 10 cases pass identically on both
+  platforms. 0 passing on Linux before, 10 after.
+- **`audit`: `Scaffold.Tests.ps1` no longer fails on hosts with empty USERNAME/COMPUTERNAME.** The
+  three redaction-fixture cases build payloads from those variables, which Linux leaves unset.
+  BeforeAll now pins placeholder values only when the variables are empty and AfterAll restores
+  the saved values, leaving the redaction helper and real Windows values untouched. 17 passing
+  plus 3 environment failures before, all 20 after.
+
 ## [0.11.17]
 
 ### Changed

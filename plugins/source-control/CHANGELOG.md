@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.33]
+
+### Fixed
+
+- **Three scripts stop truncating their own `--help` output.** `fetch-all-pr-comments.sh`,
+  `reap-project-plugin-records.sh`, and `worktree-root-doctor.sh` each printed usage with a
+  hardcoded `sed -n 'X,Yp'` line range that silently cut off whatever the header gained after the
+  range was written: fetch-all-pr-comments was omitting its entire Exit codes block, and
+  worktree-root-doctor was dropping 38 lines including its checked-classes list. All three now use
+  the derived header printer `babysit-readiness-gate.sh` already ships, which prints the comment
+  header to its first non-comment line, so the range can never go stale. Each --help diff is pure
+  addition (reap's output was still fully covered and is byte-identical), and each suite now pins
+  a formerly-truncated line so the truncation class is regression-guarded.
+
 ## [0.55.32]
 
 ### Changed

@@ -139,6 +139,12 @@ for (const key of EXCLUDED_SKILLS.keys()) {
 const mapped = [];
 for (const s of skills) {
   const key = `${s.plugin}/${s.skill}`;
+  // readCheatsheetMeta returns bare {} when line 1 is not a `---` fence; a
+  // named diagnostic here beats the TypeError that reading .values would throw.
+  if (s.meta.values === undefined) {
+    errors.push(`${key}: ${s.path} has no YAML frontmatter (line 1 is not ---)`);
+    continue;
+  }
   const reason =
     EXCLUDED_PLUGINS.get(s.plugin) ??
     EXCLUDED_SKILLS.get(key) ??

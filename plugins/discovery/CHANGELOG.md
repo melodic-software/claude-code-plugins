@@ -1,5 +1,16 @@
 # Changelog — discovery plugin
 
+## [0.16.18]
+
+### Fixed
+
+- **`check-coverage-complete.test.sh`: the unreadable-ledger case now skips visibly as root
+  instead of failing.** chmod 000 does not stop root from reading a file, so the fail-closed
+  assertion could never hold when the suite ran as root. The case now probes readability after the
+  chmod and prints a SKIP line when the platform or user does not enforce it, mirroring the
+  established pattern in claude-config's `check-structure.test.sh`; on non-root hosts the case
+  still runs and asserts exit 2 exactly as before.
+
 ## [0.16.17]
 
 ### Fixed

@@ -322,6 +322,35 @@ else
   fail "no-suite class should exit 0 quietly (rc=$RC): $out"
 fi
 
+# --- a deleted file that maps to nothing is a visible note, not an error ---
+# A deletion has no content left to cover; the loud UNMAPPED failure exists for
+# paths that still EXIST with unknown coverage.
+out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/hooks/removed-helper.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] &&
+  printf '%s' "$out" | grep -q 'deleted: plugins/alpha/hooks/removed-helper.sh' &&
+  ! printf '%s' "$out" | grep -q 'UNMAPPED'; then
+  ok "a deleted unmapped path exits 0 with a visible deleted note"
+else
+  fail "deleted unmapped path should be a note, not an error (rc=$RC): $out"
+fi
+
+# --- a deletion whose co-located suite survives still selects that suite ----
+# The surviving suite is exactly what fails loudly if the deletion broke
+# something, so a deletion must keep selecting through every rule and only
+# fall to the deleted note when NOTHING claims it.
+mk_widget_consumer "$repo/plugins/alpha/hooks/gone.sh"
+suite_body gone >"$repo/plugins/alpha/hooks/gone.test.sh"
+rm "$repo/plugins/alpha/hooks/gone.sh"
+run_sel "$repo" plugins/alpha/hooks/gone.sh
+out="$OUT"
+if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/alpha/hooks/gone.test.sh; then
+  ok "a deletion with a surviving co-located suite still selects it"
+else
+  fail "deletion should select its surviving suite (rc=$RC): $out"
+fi
+rm -f "$repo/plugins/alpha/hooks/gone.test.sh"
+
 # --- explicit paths vs the default diff ------------------------------------
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '# edited\n' >>"$repo/plugins/beta/hooks/beta-hook.sh"

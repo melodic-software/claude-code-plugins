@@ -25,6 +25,14 @@ BeforeAll {
     $script:SkillRoot = Split-Path -Parent $script:TestsRoot
     $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\remediations\Restart-StoppedService.ps1'
 
+    # Get-Service/Start-Service are Windows-only cmdlets, absent in Linux
+    # pwsh, and Pester cannot mock a nonexistent command. Define stubs so
+    # Mock can attach; the remediation resolves them from this (parent)
+    # scope when invoked via `& $ScriptPath`. Every test mocks both, so
+    # the stub bodies never run.
+    function Get-Service { }
+    function Start-Service { }
+
     function Invoke-RestartAsObject {
         param(
             [string]$ServiceName,

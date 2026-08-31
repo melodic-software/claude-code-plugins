@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.21]
+
+### Changed
+
+- **`audit-permission-grants`: `permission-rule-check.test.sh` renumbers a colliding block of case
+  labels.** The regression block after Case 11 reused labels 8b through 8g that an earlier block
+  already carried, so two different cases shared each label. The later block is now Cases 12
+  through 13b, grouped by the issue each case pins. Comment-only: no assertion, variable, or
+  fixture changed, and the suite passes unchanged at 139 checks.
+
 ## [0.40.20]
 
 ### Changed
