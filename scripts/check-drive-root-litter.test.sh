@@ -27,16 +27,30 @@ trap 'rm -rf "$TMP"' EXIT
 # run <ostype> <mount-root|-> [args...] — sets OUT (stdout+stderr) and RC.
 # Deliberately NOT called through a command substitution: that would fork a
 # subshell and the exit code would never reach the caller.
+#
+# HERMETIC against the invoking environment: every env var the SUT reads is set
+# explicitly here. DRIVE_ROOT_LITTER_IGNORE_SINKS is a documented operator
+# opt-out an operator may export in a shell profile; inherited into these
+# invocations it would silently flip the sink-detection assertions into false
+# failures unrelated to the code under test. Empty is equivalent to unset for
+# both seams (the SUT reads them with ${...:-}). The two opt-out tests set a
+# live value per-call, on top of this baseline.
 run() {
   local ostype="$1" root="$2"
   shift 2
   if [[ "$root" == "-" ]]; then
-    OUT="$(OSTYPE="$ostype" bash "$SUT" "$@" 2>&1)"
+    OUT="$(OSTYPE="$ostype" DRIVE_ROOT_LITTER_MOUNT_ROOT='' DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" "$@" 2>&1)"
   else
-    OUT="$(OSTYPE="$ostype" DRIVE_ROOT_LITTER_MOUNT_ROOT="$root" bash "$SUT" "$@" 2>&1)"
+    OUT="$(OSTYPE="$ostype" DRIVE_ROOT_LITTER_MOUNT_ROOT="$root" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" "$@" 2>&1)"
   fi
   RC=$?
 }
+
+# Poison the outer environment with the opt-out so the hermeticity above is a
+# STANDING assertion, not a comment: if a future invocation forgets to clear
+# DRIVE_ROOT_LITTER_IGNORE_SINKS, the sink-detection tests fail loudly right
+# here in CI instead of only on an operator's machine.
+export DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp
 
 # --- Fixtures ---------------------------------------------------------------
 # A "mount root" is what Git Bash exposes as `/`: every mounted drive appears as
@@ -166,7 +180,7 @@ else
 fi
 
 # --- 7. A candidate containing the cwd is a checkout, not litter -------------
-OUT="$(cd "$TMP/checkout/d/c/work/repo" && OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/checkout" bash "$SUT" 2>&1)"
+OUT="$(cd "$TMP/checkout/d/c/work/repo" && OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/checkout" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
   pass "a drive-root directory containing the cwd is not reported as litter"
@@ -235,7 +249,7 @@ else
 fi
 
 # --- 10. A drive-root tmp containing the cwd is a checkout, not litter --------
-OUT="$(cd "$TMP/sinkcheckout/c/tmp/work/repo" && OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sinkcheckout" bash "$SUT" 2>&1)"
+OUT="$(cd "$TMP/sinkcheckout/c/tmp/work/repo" && OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sinkcheckout" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
   pass "a drive-root tmp containing the cwd is not reported as litter"
