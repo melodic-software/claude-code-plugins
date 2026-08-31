@@ -7875,47 +7875,41 @@ class GuardTests(unittest.TestCase):
                     body[end:].strip(),
                     f"a second object followed the first: {body!r}",
                 )
-    def test_a_watchdog_racing_mains_cleanup_never_emits_a_second_object(
-        self,
-    ) -> None:
-        """The cleanup race, pinned to its direction rather than argued about.
+    def test_a_watchdog_that_outlived_mains_cleanup_stands_down(self) -> None:
+        """The cleanup race, driven deterministically rather than by timing.
 
-        `main`'s `finally` cancels the timer and then resets the latch, and
-        `Timer.cancel()` cannot stop a callback that has already started. So a
-        watchdog can acquire `_EMIT_LOCK` AFTER the reset and read "no decision
-        yet" about a call that has one.
+        `Timer.cancel()` cannot stop a callback already dispatched, and `main`'s
+        cleanup does not `join()`, so a callback can acquire `_EMIT_LOCK` after
+        `_reset_decision_state()` has run. It then reads `_DECISION_EMITTED =
+        False` and `_COMMAND_UNDER_DECISION = None` — "no decision yet" about a
+        call that has one — and without a stand-down it re-decides: `None` is
+        marker-present by construction, so both arms of the mode gate reach the
+        non-flushing `os._exit(2)`, overriding a delivered verdict with a deny
+        and discarding whatever was still buffered.
 
-        A security review of an earlier revision read that as a route back to
-        two JSON objects on one stdout — the malformed-output fail-open the
-        `_EMIT_LOCK` machinery exists to close. It is not, and this test is why:
-        the reset clears `_COMMAND_UNDER_DECISION` to `None` as well as the
-        latch, and `_watchdog_marker_present(None)` is `True` by construction
-        (nothing seen, nothing ruled out), so both arms of the mode gate route
-        to the non-printing `os._exit(2)`. The residual is a deny overriding a
-        delivered decision — fail-CLOSED, and the opposite direction from a
-        fail-open.
-
-        This drives the real `Timer` against a real `main()` return rather than
-        asserting the ordering, because the ordering is exactly what the review
-        disputed.
+        An earlier version of this test padded `main`'s cleanup and hoped the
+        timer would fire inside the window. It never did — `cancel()` runs
+        before the padding and always won the 0.2s deadline — so the test
+        passed with the stand-down disabled. Reproducing the STATE is what makes
+        this discriminating; reproducing the timing is what made it vacuous.
         """
         program = (
-            "import json, sys, threading, time; "
+            "import json, sys, threading; "
             "sys.path.insert(0, sys.argv[1]); "
             "import destructive_guard as guard; "
-            # Fire the watchdog while `main` is inside its own cleanup: the
-            # callback blocks on the lock that `_reset_decision_state` holds.
-            "_real_reset = guard._reset_decision_state; "
-            "guard._reset_decision_state = lambda: (time.sleep(0.4), _real_reset())[-1]; "
-            "sys.exit(guard.main())"
+            # A delivered decision, exactly as `main` would leave it.
+            "token = object(); "
+            "guard._INVOCATION_TOKEN = token; "
+            "guard._COMMAND_UNDER_DECISION = 'git status --porcelain'; "
+            "guard._emit_decision(guard.decision('allow', 'main thread decided')); "
+            # `main`'s cleanup: cancel (a no-op here), flush, reset.
+            "sys.stdout.flush(); "
+            "guard._reset_decision_state(); "
+            # The in-flight callback, on a thread carrying the stale token.
+            "t = threading.Thread(target=guard._watchdog_fire, args=(1.5,)); "
+            "t.guard_invocation_token = token; "
+            "t.start(); t.join()"
         )
-        payload = json.dumps(
-            {"tool_name": "Bash", "tool_input": {"command": "git status --porcelain"}}
-        )
-        env = dict(os.environ)
-        # Long enough that `_decide` finishes and emits, short enough that the
-        # timer fires during the padded cleanup above.
-        env[guard._WATCHDOG_ENV_VAR] = "0.2"
         completed = subprocess.run(
             [
                 self.python_command(),
@@ -7925,33 +7919,54 @@ class GuardTests(unittest.TestCase):
                 "--mode",
                 "engine-gate",
             ],
-            input=payload,
             capture_output=True,
             text=True,
             timeout=60,
-            env=env,
         )
         body = completed.stdout.strip()
-        if body:
-            decoder = json.JSONDecoder()
-            _obj, end = decoder.raw_decode(body)
-            self.assertEqual(
-                "",
-                body[end:].strip(),
-                f"a second JSON object reached stdout: {body!r}",
-            )
-        self.assertIn(
-            completed.returncode,
-            (0, 2),
-            "only the deliberate exit codes are reachable",
+        self.assertTrue(body, "the delivered decision must survive the race")
+        decoder = json.JSONDecoder()
+        emitted, end = decoder.raw_decode(body)
+        self.assertEqual(
+            "", body[end:].strip(), f"a second JSON object reached stdout: {body!r}"
         )
-        self.assertNotEqual(1, completed.returncode)
+        self.assertEqual(
+            "allow", emitted["hookSpecificOutput"]["permissionDecision"]
+        )
+        self.assertEqual(
+            0,
+            completed.returncode,
+            "a stale-token callback must stand down at exit 0, not re-decide",
+        )
+        self.assertNotEqual(2, completed.returncode)
 
+    def test_a_watchdog_still_decides_while_its_invocation_is_current(self) -> None:
+        """The stand-down must not disarm a callback whose invocation is live.
 
-
-
-
-
+        Same construction as above with the token left CURRENT, which is what an
+        on-time expiry looks like. This is the control: if the stand-down were
+        keyed on something that is always stale, the test above would pass for
+        the wrong reason and the watchdog would never fire at all.
+        """
+        program = (
+            "import sys, threading; "
+            "sys.path.insert(0, sys.argv[1]); "
+            "import destructive_guard as guard; "
+            "token = object(); "
+            "guard._INVOCATION_TOKEN = token; "
+            "guard._COMMAND_UNDER_DECISION = None; "
+            "t = threading.Thread(target=guard._watchdog_fire, args=(1.5,)); "
+            "t.guard_invocation_token = token; "
+            "t.start(); t.join()"
+        )
+        completed = subprocess.run(
+            [self.python_command(), "-c", program, str(SCRIPT_DIR)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(2, completed.returncode)
+        self.assertIn("internal deadline", completed.stderr)
 
 
 class DirectReadKillSwitchTests(unittest.TestCase):

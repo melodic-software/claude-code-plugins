@@ -1642,6 +1642,24 @@ def _publish_command_for_watchdog(command: str) -> None:
         _COMMAND_UNDER_DECISION = command
 
 
+# Identifies the invocation a timer was armed for.
+#
+# `Timer.cancel()` cannot stop a callback that has already been dispatched, and
+# `main`'s cleanup does not `join()`, so a watchdog can still be running — and
+# can acquire `_EMIT_LOCK` — after `main` has finished and reset the latch. It
+# would then read "no decision yet" about a call that has one and re-decide it,
+# overriding a delivered verdict with a deny.
+#
+# A token settles that without a `join()` (which would deadlock against a
+# callback blocked on the lock the resetter holds). `main` publishes a fresh
+# token, arms the timer with it, and clears it during cleanup; a callback whose
+# token no longer matches knows `main` finished and stands down. `None` is the
+# "no invocation active" value AND the default a directly-invoked
+# `_watchdog_fire` carries, so a unit test calling it outside `main` still gets
+# the full decision path rather than the stand-down.
+_INVOCATION_TOKEN: object | None = None
+
+
 def _reset_decision_state() -> None:
     """Clear the per-invocation emission latch.
 
@@ -1652,10 +1670,11 @@ def _reset_decision_state() -> None:
     is the fail-open shape this module exists to prevent. Resetting at the top
     of ``main`` keeps "one decision per invocation" true in both settings.
     """
-    global _DECISION_EMITTED, _COMMAND_UNDER_DECISION
+    global _DECISION_EMITTED, _COMMAND_UNDER_DECISION, _INVOCATION_TOKEN
     with _EMIT_LOCK:
         _DECISION_EMITTED = False
         _COMMAND_UNDER_DECISION = None
+        _INVOCATION_TOKEN = None
 
 # The `timeout` both guard registrations declare (`hooks/hooks.json` and
 # `skills/clean/SKILL.md` frontmatter). Duplicated here because a PreToolUse
@@ -1919,6 +1938,20 @@ def _watchdog_fire(deadline: float) -> None:
     # already broken and its decision already undeliverable.
     global _DECISION_EMITTED
     try:
+        token = getattr(
+            threading.current_thread(), "guard_invocation_token", _INVOCATION_TOKEN
+        )
+        if token is not _INVOCATION_TOKEN:
+            # `main` finished and cleared the token while this callback was in
+            # flight. Its decision is authoritative; re-deciding here would
+            # override a delivered verdict with a deny. Flush (safe: the lock
+            # is held, so no thread is inside `_emit_decision`'s `print`) and
+            # stand down.
+            with contextlib.suppress(BaseException):
+                sys.stdout.flush()
+            os._exit(0)  # noqa: SLF001 -- hard exit is the point; see docstring
+            return  # unreachable in production; keeps the mocked exit terminal
+
         command = _COMMAND_UNDER_DECISION
 
         if _DECISION_EMITTED:
@@ -2091,8 +2124,21 @@ def main() -> int:
     # declared hook `timeout` toward the harness's own non-blocking kill.
     deadline = _watchdog_seconds()
     watchdog: threading.Timer | None = None
+    # Published under the lock so a callback's token check and its state read
+    # are atomic with respect to `main`'s cleanup.
+    global _INVOCATION_TOKEN
+    token = object()
+    with _EMIT_LOCK:
+        _INVOCATION_TOKEN = token
     try:
+        # `args` stays `(deadline,)`: `test_main_arms_watchdog_before_reading_stdin`
+        # pins this construction exactly, so the token rides on the Timer OBJECT
+        # instead. `threading.Timer` is a `Thread`, so the callback recovers it
+        # with `threading.current_thread()` — and a directly-invoked
+        # `_watchdog_fire` runs on a thread that carries no such attribute,
+        # which is what keeps the unit-test path on the full decision route.
         watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
+        watchdog.guard_invocation_token = token  # type: ignore[attr-defined]
         watchdog.daemon = True
         watchdog.start()
         tool_name = ""
@@ -2135,19 +2181,22 @@ def main() -> int:
         # Deliver the decision BEFORE clearing the latch.
         #
         # `cancel()` does NOT stop a callback that has already started, so a
-        # timer firing in this window still runs, and after the reset below it
-        # reads `_DECISION_EMITTED = False` and `_COMMAND_UNDER_DECISION =
-        # None` — state that says "no decision yet" about a call that has one.
-        # Both arms of the mode gate then route to `os._exit(2)`, which does not
-        # flush, so a decision still sitting in the buffer would be discarded
-        # and the host would see a deny instead. Fail-closed and a microsecond
-        # wide, but avoidable: flushing first makes the decision durable before
-        # any timer can observe the cleared state, so the race can no longer
-        # change what the host receives.
+        # timer firing in this window still runs. What stops it re-deciding a
+        # call that already has an answer is the INVOCATION TOKEN, not this
+        # ordering and not the flush: `_reset_decision_state` clears the token
+        # under `_EMIT_LOCK`, and a callback that acquires the lock afterwards
+        # sees its own token no longer current and stands down at exit 0.
         #
-        # An earlier revision of this comment claimed cancelling first was what
-        # prevented a live timer from observing the cleared state. It is not —
-        # cancelling cannot stop a running callback. The flush is.
+        # Two earlier revisions of this comment each claimed a different
+        # mechanism closed this race — first the cancel-before-reset ordering,
+        # then the flush. Neither did. `cancel()` cannot stop a dispatched
+        # callback, and a flush only makes an already-printed decision durable;
+        # it does nothing about a callback that is about to override it with a
+        # deny. The token is what actually closes it.
+        #
+        # The flush stays, for the narrower thing it does do: `os._exit` skips
+        # the interpreter's shutdown flush, so a decision still buffered when a
+        # standing-down callback exits would otherwise be lost.
         with contextlib.suppress(BaseException):
             sys.stdout.flush()
         # One process per decision makes the reset a no-op in production; it is

@@ -238,9 +238,18 @@ _cached_python3() {
   # channel, and the plugin tree is not writable-adjacent to it, so the "anyone
   # who can write here can already edit the hook registration" argument does not
   # cover it. Recorded so a future reviewer weighs it deliberately.
+  # Split on BOTH separators. The `py -3` fallback resolves through
+  # `print(sys.executable)`, which on Windows returns a NATIVE backslash path
+  # (`C:\Users\...\python.exe`) — and that fallback exists precisely for hosts
+  # where neither `python3` nor `python` is on PATH. Stripping only `/` leaves
+  # the whole path in `interp_base`, the allowlist below never matches, and the
+  # cache misses on every invocation: the warm path would be dead on exactly
+  # the host class this branch was written for, silently and with no error.
   local interp_base="${interp##*/}"
-  case "${interp_base%.exe}" in
-  python3 | python | py | python3.*) ;;
+  interp_base="${interp_base##*\\}"
+  # Case-insensitive: Windows filenames are, and `PYTHON.EXE` is the same file.
+  case "${interp_base,,}" in
+  python3 | python | py | python3.* | python3.exe | python.exe | py.exe | python3.*.exe) ;;
   *) return 1 ;;
   esac
   # An interpreter modified after this record was written is not the one that
