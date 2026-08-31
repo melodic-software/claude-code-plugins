@@ -118,8 +118,8 @@ genuinely carry no suite are recorded, with the CI lane that does cover them, in
 prose and manifests, never for code: a source file with no coverage is supposed
 to fail here. A **deletion** is the one exception: a changed path that no longer
 exists and that nothing claims is reported as a visible `deleted:` note instead
-of the error, because there is no content left to cover — while a deletion that
-a surviving suite still names (a co-located test left behind, a suite that
+of the error, because there is no content left to cover. A deletion that a
+surviving suite still names (a co-located test left behind, a suite that
 references the dead path) keeps selecting those suites, which are exactly what
 fails loudly if the deletion broke something.
 
