@@ -209,6 +209,16 @@ _cached_python3() {
   [[ "$schema" == "$_CACHE_SCHEMA" ]] || return 1
   [[ "$cached_path" == "$PATH" ]] || return 1
   [[ -n "$interp" && -x "$interp" && -s "$interp" ]] || return 1
+  # The hot path `exec`s this value, so the record is an input to a security
+  # control and is treated as untrusted: only a path resolution would itself
+  # have produced is accepted. Pure parameter expansion, so it costs no spawn.
+  # This is defence in depth rather than a boundary — anything able to write
+  # here can already edit the hook registrations that name this launcher.
+  local interp_base="${interp##*/}"
+  case "${interp_base%.exe}" in
+  python3 | python | py | python3.*) ;;
+  *) return 1 ;;
+  esac
   # An interpreter modified after this record was written is not the one that
   # was validated.
   [[ ! "$interp" -nt "$file" ]] || return 1
@@ -226,6 +236,9 @@ _store_python3() {
   local file="$1" interp="$2" dir temp now
   dir="${file%/*}"
   [[ -d "$dir" ]] || mkdir -p "$dir" 2>/dev/null || return 0
+  # Best-effort on POSIX hosts. MSYS `chmod` is close to a no-op against
+  # Windows ACLs, so this narrows exposure where it can and is not relied on:
+  # the read path validates the record rather than trusting its location.
   chmod 700 "$dir" 2>/dev/null || true
   printf -v now '%(%s)T' -1
   temp="$file.$$.tmp"
