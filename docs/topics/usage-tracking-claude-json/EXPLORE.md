@@ -113,6 +113,18 @@ only for the single most recent session.
 `lspRecommendationIgnoredCount`, `rcLongTurnNudgeSeenCount`. These drive tip cooldowns,
 not component usage analysis.
 
+### 1.6 Growth and the one supported shrink lever
+
+The file is never swept: `cleanupPeriodDays` does not reach it, since it lives in the home
+directory rather than under `~/.claude`
+(`plugins/claude-ops/skills/audit-install-state/reference/surfaces.md:104`). The supported
+lever is `claude project purge <path>`, which removes one project's entry
+(`surfaces.md:108`; `audit-performance/SKILL.md:34`). Every running session polls the file
+at 1 Hz (`known-performance-issues.md:199`), and the strongest public report of curing
+input lag pruned this file rather than the tree (`:44`). `.claude.json.tmp.<n>.<hash>`
+siblings are failed atomic-write remnants; the leading number only looks like a PID
+(`surfaces.md:110`, `install_state.py:1082-1109`).
+
 ## Part 2: the skill-listing budget scorer, recovered exactly
 
 This is the highest-value find, because the repo currently calls it undocumented.
@@ -246,7 +258,9 @@ global lifetime tally; the JSONL owns the sliced event stream.
 `context/data-sources.md` enumerate its lanes: ccusage (tokens, cost, billing blocks),
 the OTEL DuckDB store, and `.claude/observability/hook-events.jsonl` (hook duration, exit
 codes). `~/.claude.json` is not among them, so the machine-global lifetime counters have
-no representation in the cross-session trend reports. Its `clean` action does know about
+no representation in the cross-session trend reports. `audit-skill-visibility` is the only
+skill that joins the native counters to the OTEL and JSONL lanes; the observability
+reporter sees two of the three. Its `clean` action does know about
 the skill-usage store (`--skill-usage-scope`, `--keep-skill-usage-days`, default 365), but
 only to prune it, never to read it.
 
@@ -265,17 +279,33 @@ stream, and is a second reason the JSONL store earns its place.
 - Nothing reads `projects[<path>].lastModelUsage` or the per-project cost and token
   snapshot, despite that being the only per-project slice `~/.claude.json` offers.
 
-### 3.6 A third usage source: OTEL `claude_code.skill_activated`
+### 3.6 The audit is a three-source reconciler with a capability tier model
 
-`plugins/claude-ops/skills/audit-skill-visibility/reference/pair-cooccurrence.md:55-59`
-records a signal neither `~/.claude.json` nor `skill-usage.jsonl` carries: the OTEL event
-`claude_code.skill_activated` has an `invocation_trigger` attribute separating `user-slash`
-from `claude-proactive`. That is the axis a "does the model reach for this unprompted"
-question actually needs, and neither counter can answer it. The tier model already gates it
-as `T-full` only.
+`audit_skill_visibility.py` does not merely read the native counters. It has three parse
+lanes and gates every claim on which lanes are present:
 
-The same file (`:50-54`) records why caller attribution cannot be recovered by widening the
-hook: a `PostToolUse` hook on the `Skill` tool receives `tool_name`, `tool_input` and
+- `:110-133` `parse_native()`, `~/.claude.json` `skillUsage`, horizon `firstStartTime`.
+- `:136-161` `parse_jsonl()`, the plugin's own `skill-usage.jsonl`.
+- `:164-187` `parse_otel()`, the OTEL event `claude_code.skill_activated`, which carries
+  `invocation_trigger`. Flags the `custom_skill` redaction placeholder and leaves it
+  unattributed.
+
+`TIER_CAPABILITIES` (`:81-88`) with `resolve_tier()` (`:93-101`):
+
+| tier | source | claims supported |
+| --- | --- | --- |
+| `T-full` | otel | `invocation_trigger`, `windowed_count`, `per_repo`, `lifetime_count` |
+| `T-local` | jsonl | `windowed_count`, `per_repo`, `lifetime_count` |
+| `T-baseline` | native | `lifetime_count` only |
+| `T-none` | none | nothing |
+
+The `T-baseline` restriction encodes exactly the Part 1 finding: native counters are
+lifetime-since-install and never windowed, so no windowed claim is honest from them alone.
+
+`invocation_trigger` separates `user-slash` from `claude-proactive`. That is the axis a
+"does the model reach for this unprompted" question needs, and neither counter can answer
+it. `reference/pair-cooccurrence.md:50-54` records why the gap cannot be closed by widening
+the hook: a `PostToolUse` hook on the `Skill` tool receives `tool_name`, `tool_input` and
 `tool_response`, and none of them names the skill whose instructions caused the call.
 Caller identity is absent from the hook's input, not merely from its schema, so a wider
 write would have nothing to write. Recovering it means reading the session transcript,
@@ -383,12 +413,21 @@ already disclaims that one-shot check as native territory.
 3. **Nothing consumes `agentLastUsed`, and it holds one key.** Any agent-usage question has
    to come from transcripts or the OTEL store.
 
-4. **No consumer accounts for the 60-second skill throttle.** `audit_skill_visibility.py`
-   treats `usageCount` as a count of dispatches. For loop-driven or rapid-fire skills that
-   is a floor, not a count. The JSONL store is the accurate source for those.
+4. **Not a gap: the 60-second throttle is already documented.** `SKILL.md:194-196` states
+   it exactly, including that the debounce suppresses the timestamp refresh too, and rules
+   that OTEL and native divergence "must not be reconciled away". The binary read in Part
+   1.1 corroborates the repo's claim independently: `Fdt` returns before both the count and
+   the timestamp write. Recorded here so a future pass does not re-file it as a finding.
 
-5. **No consumer accounts for the qualified-vs-bare key split.** Live data has
-   `babysit-prs` and `source-control:babysit-prs` as separate rows.
+5. **CONFIRMED: the qualified-vs-bare key split silently drops events.** Denominator
+   entries are keyed `f"{plugin}:{leaf}"` (`:276`) and `classify()` looks events up by that
+   `qualified_name` alone (`:926`, `events_by_skill.get(name)`). `parse_native()` emits
+   events under whatever raw key `skillUsage` holds, so a bare-key row never matches its
+   qualified entry and is discarded without a withheld note. Live data holds `babysit-prs`
+   (378) and `source-control:babysit-prs` (97) as separate rows; the audit run in finding 1
+   reported `source-control:babysit-prs` at 97, not 475. Claude Code's own lookup helper
+   (`oKn` in the binary) checks the qualified key then falls back to the bare one, which is
+   the behavior to match.
 
 ## Part 5: recommendation shape
 
@@ -404,7 +443,8 @@ The gaps worth closing are:
 
 - Encode `zPe` in `audit_skill_visibility.py` and populate `usage_score` before
   `compute_listing` runs (Part 4 finding 1, plus Part 2's decay formula).
-- Sum qualified and bare `skillUsage` keys.
+- Resolve qualified and bare `skillUsage` keys to one entry, matching `oKn`'s
+  qualified-then-bare fallback rather than summing blindly (Part 4 finding 5).
 - Keep `skill-usage.jsonl` as the per-project / per-branch / per-source slice, and fix
   whatever stopped it (Part 4 finding 2). That is the only local source for the granular
   slices the user asked about.
