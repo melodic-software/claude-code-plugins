@@ -177,6 +177,25 @@ Describe 'Invoke-TrendAnalysis' -Tag 'lib' {
         $result[0].trend.adjusted_from | Should -BeNullOrEmpty
     }
 
+    It 'maps drive-root-litter to residue_count without a generic upward upgrade' {
+        Get-TrendRelevantKey -CheckId 'drive-root-litter' | Should -Be 'residue_count'
+        Test-WorseningTrend -CheckId 'drive-root-litter' -CurrentValue 15 -PriorValue 10 |
+            Should -BeFalse -Because 'root litter is tidiness; its rubric caps at WARN'
+
+        $history = @(
+            New-HistoryEntry `
+                -SeverityByCategory @{ storage = [pscustomobject]@{ WARN = 1 } } `
+                -TopMetrics @{ 'drive-root-litter.residue_count' = 10 } `
+                -ChecksRan @('drive-root-litter')
+        )
+        $checks = @(New-CheckStub -Id 'drive-root-litter' -Category 'storage' `
+                -Severity 'WARN' -Detail @{ residue_count = 15 })
+        $result = Invoke-TrendAnalysis -CheckResults $checks -HistoryTail $history
+        $result[0].trend.delta | Should -Match 'residue_count'
+        $result[0].severity | Should -Be 'WARN'
+        $result[0].trend.adjusted_from | Should -BeNullOrEmpty
+    }
+
     It 'treats battery downward drop as worsening (fullCapacityPct going down)' {
         $history = @(
             New-HistoryEntry `

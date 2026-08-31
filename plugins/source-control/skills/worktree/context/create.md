@@ -85,7 +85,11 @@ Two steps — the helper creates and places the worktree; `EnterWorktree(path:)`
    Four steps:
 
    ```bash
-   root_dir="$(mktemp -d)"; printf '%s\n' "$root_dir"
+   root_dir="$(mktemp -d)"
+   case "${OSTYPE:-}" in
+   msys* | cygwin* | win32) root_dir="$(cygpath -m -l -- "$root_dir")" || exit 2 ;;
+   esac
+   printf '%s\n' "$root_dir"
    ```
 
    `Write(file_path: "<printed root_dir>/worktree-root", content: "${user_config.worktree_root}")` — the substituted value is the entire `content`, written byte-exact with nothing appended (no trailing newline).
@@ -101,9 +105,10 @@ Two steps — the helper creates and places the worktree; `EnterWorktree(path:)`
    exit "$status"
    ```
 
-   Two details in that last block are load-bearing:
+   Three details in those blocks are load-bearing:
 
    - **`mktemp -d`, not `mktemp`** — `Write` refuses to overwrite a file it has not read, so the directory must exist and the file inside it must not.
+   - **The `cygpath -m -l` conversion on Windows** — the printed path crosses the Git Bash → native boundary: it becomes a `Write` tool `file_path`, and node's Win32 side resolves an MSYS literal like `/tmp/tmp.XXX` against the **current drive**, silently creating a phantom `<drive>:\tmp\...` while the real directory sits in `%TEMP%` ([the windows-path-emit convention](../../../../../docs/conventions/windows-path-emit/README.md), Rules 3–4). Mixed form (`-m`) is correct for **both** consumers — the `Write` tool and the later Bash block — so one converted value round-trips everywhere; `-l` expands an 8.3 short name (`KYLESE~1`) whose `~` misbehaves downstream. The `|| exit 2` is the fail-loud posture: never fall back to the unconverted literal, because the unconverted literal is exactly what writes to the wrong place. On non-Windows the `case` passes the path through unchanged. Do **not** replace this with `mktemp -d -p "$TEMP"`: `mktemp -p` is a flagged GNU/BSD-divergence token in the portability gate, and it yields mixed separators anyway.
    - **`status=$?` before the cleanup, `exit "$status"` after** — `rm` almost always succeeds, so leaving it last would make the whole invocation report 0 and hide a helper refusal (exit 3) behind a green result, which step 2's "on a non-zero exit, STOP" would then never see.
 
    The helper prints the created worktree path as its **sole stdout line**; capture it. Resolution is most-specific-first: `melodic.worktreeroot` (if set on the target repository) outranks the plugin option in `--fallback-root-file`. When `worktree_root` is unset, Claude leaves the literal `${user_config.worktree_root}` token — `Write` puts that token in the file verbatim, the helper reads it as "unconfigured", and the root resolves from the data-root file instead (`<data-dir>/worktrees`, announced on stderr, exit 0) unless the git config key already supplied one. Only when no rung yields a usable root does it refuse. A value carrying a newline byte anywhere — including a trailing one — is rejected loudly by the helper (exit 2); a path with a newline in it is malformed configuration, not a root to silently trim.
