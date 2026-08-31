@@ -456,12 +456,50 @@ record.
 Do not rebuild a counter. `~/.claude.json` already owns the global lifetime tally, and its
 scorer is now known exactly.
 
-Scope limit first: ADR 0016 defers usage-metrics-driven *surfacing*. Everything below is
-diagnostic reporting inside `audit-skill-visibility`, which already reads these counters by
-design. None of it routes skill recommendation off them, and doing that would need the ADR
-revisited rather than worked around.
+### Where ADR 0016 does and does not reach
 
-The gaps worth closing are:
+An earlier draft of this section treated ADR 0016 as constraining the work below and framed
+it as a cautious exception. A cross-vendor re-derivation, run blind to that reasoning,
+found the framing an over-read, and the correction runs in both directions.
+
+The deferral at `docs/adr/0016-...:118-120` is scoped to one skill's rotation: which of
+`show-options`'s Spotlight three to surface. Encoding `zPe` inside `audit-skill-visibility`
+to predict the listing's own truncation is a different skill answering a different question,
+"what will the listing drop", not "what should we recommend". It was never inside the
+clause. The work below stands on its own ground rather than as a permitted exception.
+
+In the other direction, the deferral is not up for lifting just because its stated premise
+moved. Its ground shifts from "undocumented internal state" to something documentation
+cannot cure:
+
+- `zPe` is **wrong-signed** for the question `show-options` asks. It scores high for skills
+  used recently and often, which are exactly the skills the operator has not forgotten.
+  Inverting it collapses to a decay-weighted least-recently-used ordering, which the
+  self-written ledger already supplies without a build-pinned dependency.
+- `skillUsage` lists only skills that have fired at least once (131 entries here). It
+  structurally cannot name the never-invoked skills that `show-options`'s no-omission rule
+  exists to protect.
+- It carries no causal-trigger field, so it cannot answer take-up: was a skill invoked
+  *because* it was surfaced, or for an unrelated reason. `skill-usage.jsonl` can. That alone
+  means the ledger is not a stopgap for missing documentation; it measures something these
+  counters never will.
+
+And the stamp in Part 2 is not the same thing the ADR meant by documented. The fallback rule
+recorded there, treat a mismatch as "scorer unknown" and degrade to name ordering, is what
+ships alongside ground that can shift without notice, not alongside a documented API. The
+recheck trigger fires when a human notices a release note, so the failure mode is silent and
+wrong until someone reads a changelog. `docs/conventions/upstream-drift` existing as a named
+convention is this repo's own admission that binary-derived claims are a weaker evidentiary
+class. This session made the counters' undocumented-ness precisely characterized and dated.
+That is not the same as making them documented.
+
+Conditions under which the deferral would genuinely be revisitable, for whoever comes back
+to it: a published, versioned surface for skill-usage data rather than a reverse-engineered
+internal; a rotation signal not decay-weighted toward recent use; and take-up attribution.
+The third is unreachable from `skillUsage` by construction, so the ledger survives whatever
+happens to the first two.
+
+### The gaps worth closing
 
 - Encode `zPe` in `audit_skill_visibility.py` and populate `usage_score` before
   `compute_listing` runs (Part 4 finding 1, plus Part 2's decay formula).
@@ -472,3 +510,18 @@ The gaps worth closing are:
   slices the user asked about.
 - Treat `pluginUsage.usageCount` as non-comparable across plugin shapes wherever it is
   ranked.
+
+### One correction owed to ADR 0016, drafted not applied
+
+`docs/adr/0016-...:19-20` states that Claude Code "drops descriptions starting with the
+skills invoked least". Part 2 shows the ordering is decay-weighted, so a heavily used but
+stale skill can lose its description before a lightly used fresh one. The stated mechanism
+is wrong, not merely imprecise, and the harm is not hypothetical: Part 4 finding 1 shows
+`compute_listing` sorting on a `usage_score` nothing populates, so its starvation bands are
+alphabetical order presented as usage-informed. Someone already built on the mental model
+that ADR line encodes.
+
+The ADR's core decision is untouched and in fact reinforced, so the fix is a dated revision
+blockquote in the ADR's own established shape (`:75-84`, `:98-105`), which preserves
+superseded reasoning rather than editing Context in place. Amending an accepted decision
+record is the human's call, so it is drafted here and not applied.
