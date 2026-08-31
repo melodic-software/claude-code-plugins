@@ -162,23 +162,14 @@ a user as documented.
 - **Ambiguous attribution is reported, not guessed.** Two marketplaces shipping
   a same-named plugin collapse to one usage key; those rows are marked
   `ambiguous-attribution` rather than attributed to one of them.
-- **A skill's usage can be recorded under either name.** The stores hold both the
-  qualified `<plugin>:<leaf>` key and the bare leaf, as separate rows, so a
-  qualified-only lookup silently under-reports. Both are collected. A bare key is
-  attributed only when exactly one skill in the fleet owns that leaf; an
-  ambiguous one is withheld with its candidates rather than spent on a guess.
-- **The band is scored the way the product scores, not the way the count reads.**
-  The starvation ordering mirrors Claude Code's own scorer,
-  `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, which is decay-weighted, so
-  a heavily used but stale skill can rank below a lightly used fresh one. It is
-  fed from the NATIVE counters under the EXACT qualified key, because the
-  product's scorer does no bare-key fallback either; scoring the merged total
-  would predict a truncation that will not happen. The merged total still backs
-  `observation`, which asks a different question.
-- **An unscored band says so.** When no usage survives to weigh, the ordering is
-  the alphabetical tiebreaker and nothing more. `listing.score_basis` reports
-  `unscored` and every competing row's `confidence` is `unscored`, which is a
-  weaker claim than `inferential` and must not wear that label.
+- **One skill, two possible usage keys.** The stores hold the qualified
+  `<plugin>:<leaf>` key and the bare leaf as separate rows. Both are collected; a
+  bare key is attributed only when exactly one skill owns that leaf, ambiguous
+  ones are withheld with their candidates.
+- **The starvation band is decay-weighted, not a count**, and reports
+  `score_basis: "unscored"` when nothing survives to weigh. Read
+  [reference/listing-scorer.md](reference/listing-scorer.md) before changing that
+  ordering or quoting it to a user.
 
 ## Scope boundary
 
