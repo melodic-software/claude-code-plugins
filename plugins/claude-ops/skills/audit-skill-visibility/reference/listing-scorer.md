@@ -21,9 +21,8 @@ Recovered from `claude.exe` at Claude Code 2.1.251 (`zPe` the scorer, `Ymt` the
 truncator), then re-verified unchanged at 2.1.252. The scorer has two further
 call sites, the slash-menu top-five pin and the command-search score boost, which
 is corroboration that it is the product's general usage-priority function rather
-than a listing-local helper. The surrounding evidence is in
-[`docs/topics/usage-tracking-claude-json/EXPLORE.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/topics/usage-tracking-claude-json/EXPLORE.md),
-Part 2.
+than a listing-local helper. What the counts it reads actually mean, including
+the seeding and throttle traps, is [usage-counters.md](usage-counters.md).
 
 ## Why "least invoked" was the wrong description
 

@@ -33,9 +33,10 @@ harness, invisibly.
 > `usageCount * max(0.5 ^ (daysSinceUse / 7), 0.1)`, sorts descending, and grants descriptions
 > greedily until the budget runs out; what does not fit renders as a bare name. So a heavily used but
 > stale skill can lose its description before a lightly used fresh one: 100 uses 60 days ago scores
-> 10 and loses to 12 uses today. Recovered from the Claude Code 2.1.251 binary and stamped in
-> [`docs/topics/usage-tracking-claude-json/EXPLORE.md`](../topics/usage-tracking-claude-json/EXPLORE.md)
-> Part 2, which carries the basis and the recheck trigger.
+> 10 and loses to 12 uses today. Recovered from the Claude Code 2.1.251 binary, re-verified
+> unchanged at 2.1.252, and stamped in
+> [`plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md`](../../plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md),
+> which carries the basis and the recheck trigger.
 >
 > **The ADR's core decision is untouched, and this correction strengthens the case for it.** A
 > never-invoked skill scores exactly zero and is still shed first, so the bias this paragraph
@@ -139,7 +140,7 @@ ledger the skill writes itself, which is what keeps that deferral honest rather 
 > **Revised 2026-08-31 ([#3534](https://github.com/melodic-software/claude-code-plugins/issues/3534)):**
 > the deferral stands, but "undocumented internal state" is no longer the
 > reason and should not be read as one. That substrate is now characterized and dated in
-> [`docs/topics/usage-tracking-claude-json/EXPLORE.md`](../topics/usage-tracking-claude-json/EXPLORE.md),
+> [`plugins/claude-ops/skills/audit-skill-visibility/reference/usage-counters.md`](../../plugins/claude-ops/skills/audit-skill-visibility/reference/usage-counters.md),
 > which invites the false inference that the deferral lifts once the state is known. It does not,
 > because three grounds documentation cannot cure survive:
 >

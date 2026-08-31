@@ -168,7 +168,7 @@ a user as documented.
 - **Ambiguous attribution is reported, not guessed.** Two marketplaces shipping
   a same-named plugin collapse to one usage key; those rows are marked
   `ambiguous-attribution` rather than attributed to one of them.
-- **One skill, two possible usage keys.** The stores hold the qualified
+- **Two possible usage keys per skill.** The stores hold the qualified
   `<plugin>:<leaf>` key and the bare leaf as separate rows. Both are collected; a
   bare key is attributed only when exactly one skill owns that leaf, ambiguous
   ones are withheld with their candidates.

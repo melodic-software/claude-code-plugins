@@ -30,7 +30,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   recheck trigger. The ordering is decay-weighted, so "least invoked" was never
   the right description of it: a heavily used but stale skill can rank below a
   lightly used fresh one. Evidence in
-  `docs/topics/usage-tracking-claude-json/EXPLORE.md`.
+  `skills/audit-skill-visibility/reference/listing-scorer.md`, with the counters' own
+  semantics and their seeding and throttle traps in the companion
+  `reference/usage-counters.md`.
 - **`listing.score_basis`, so an unscored band admits it.** When no usage
   survives to weigh, the order is alphabetical and nothing more; the basis reads
   `unscored` and competing rows carry `confidence: "unscored"` rather than
