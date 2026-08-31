@@ -27,16 +27,30 @@ trap 'rm -rf "$TMP"' EXIT
 # run <ostype> <mount-root|-> [args...] — sets OUT (stdout+stderr) and RC.
 # Deliberately NOT called through a command substitution: that would fork a
 # subshell and the exit code would never reach the caller.
+#
+# HERMETIC against the invoking environment: every env var the SUT reads is set
+# explicitly here. DRIVE_ROOT_LITTER_IGNORE_SINKS is a documented operator
+# opt-out an operator may export in a shell profile; inherited into these
+# invocations it would silently flip the sink-detection assertions into false
+# failures unrelated to the code under test. Empty is equivalent to unset for
+# both seams (the SUT reads them with ${...:-}). The two opt-out tests set a
+# live value per-call, on top of this baseline.
 run() {
   local ostype="$1" root="$2"
   shift 2
   if [[ "$root" == "-" ]]; then
-    OUT="$(OSTYPE="$ostype" bash "$SUT" "$@" 2>&1)"
+    OUT="$(OSTYPE="$ostype" DRIVE_ROOT_LITTER_MOUNT_ROOT='' DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" "$@" 2>&1)"
   else
-    OUT="$(OSTYPE="$ostype" DRIVE_ROOT_LITTER_MOUNT_ROOT="$root" bash "$SUT" "$@" 2>&1)"
+    OUT="$(OSTYPE="$ostype" DRIVE_ROOT_LITTER_MOUNT_ROOT="$root" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" "$@" 2>&1)"
   fi
   RC=$?
 }
+
+# Poison the outer environment with the opt-out so the hermeticity above is a
+# STANDING assertion, not a comment: if a future invocation forgets to clear
+# DRIVE_ROOT_LITTER_IGNORE_SINKS, the sink-detection tests fail loudly right
+# here in CI instead of only on an operator's machine.
+export DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp
 
 # --- Fixtures ---------------------------------------------------------------
 # A "mount root" is what Git Bash exposes as `/`: every mounted drive appears as
@@ -59,6 +73,23 @@ mkdir -p "$TMP/nodrives/usr" "$TMP/nodrives/opt"
 
 # checkout: a repo that genuinely lives under a single-letter drive-root folder.
 mkdir -p "$TMP/checkout/c/data" "$TMP/checkout/d/c/work/repo"
+
+# sink: the temp-sink fingerprint — C:\tmp, a POSIX /tmp literal resolved
+# against the current drive's root. The inner mktemp-named entry mirrors the
+# real instance this class was added for.
+mkdir -p "$TMP/sink/c/data" "$TMP/sink/d/repos"
+mkdir -p "$TMP/sink/c/tmp/tmp.rSFIkHm5DO"
+
+# sinkupper: the same fingerprint in uppercase — Windows filesystems are
+# case-insensitive, so C:\TMP is C:\tmp and must be caught even on the
+# case-sensitive filesystem this fixture lives on.
+mkdir -p "$TMP/sinkupper/c/data" "$TMP/sinkupper/d/repos" "$TMP/sinkupper/c/TMP"
+
+# sinkcheckout: a repo that genuinely lives under a drive-root tmp folder.
+mkdir -p "$TMP/sinkcheckout/c/data" "$TMP/sinkcheckout/c/tmp/work/repo"
+
+# both: single-letter litter AND a temp sink on the same host.
+mkdir -p "$TMP/both/c/data" "$TMP/both/d/repos" "$TMP/both/c/d" "$TMP/both/d/tmp"
 
 # --- 1. Non-Windows host: no-op, reported, exit 0 ---------------------------
 run linux-gnu -
@@ -149,7 +180,7 @@ else
 fi
 
 # --- 7. A candidate containing the cwd is a checkout, not litter -------------
-OUT="$(cd "$TMP/checkout/d/c/work/repo" && OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/checkout" bash "$SUT" 2>&1)"
+OUT="$(cd "$TMP/checkout/d/c/work/repo" && OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/checkout" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" 2>&1)"
 RC=$?
 if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
   pass "a drive-root directory containing the cwd is not reported as litter"
@@ -165,7 +196,83 @@ else
   fail "exclusion suppressed too much: rc=$RC out=$OUT"
 fi
 
-# --- 8. Arguments are a usage error -----------------------------------------
+# --- 8. Temp-sink class: a drive-root tmp fires ------------------------------
+run msys "$TMP/sink"
+if ((RC == 1)) && grep -q "$TMP/sink/c/tmp" <<<"$OUT"; then
+  pass "a drive-root tmp directory fails and is named (exit 1)"
+else
+  fail "drive-root tmp should fail with exit 1: rc=$RC out=$OUT"
+fi
+if ! grep -q "$TMP/sink/c/data" <<<"$OUT" && ! grep -q "$TMP/sink/d/repos" <<<"$OUT"; then
+  pass "ordinary non-sink directories at a drive root are not reported"
+else
+  fail "non-sink directory reported as litter: $OUT"
+fi
+# Windows filesystems fold case, so an uppercase TMP is the same sink.
+run msys "$TMP/sinkupper"
+if ((RC == 1)) && grep -q "$TMP/sinkupper/c/TMP" <<<"$OUT"; then
+  pass "an uppercase drive-root TMP is detected (case-insensitive match)"
+else
+  fail "uppercase TMP should be detected: rc=$RC out=$OUT"
+fi
+
+# --- 9. Temp-sink opt-out ----------------------------------------------------
+OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sink" DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp bash "$SUT" 2>&1)"
+RC=$?
+if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
+  pass "DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp exempts a deliberate drive-root tmp"
+else
+  fail "sink opt-out should pass: rc=$RC out=$OUT"
+fi
+# ... in any casing, both of the opt-out value and of the directory.
+OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sink" DRIVE_ROOT_LITTER_IGNORE_SINKS=TMP bash "$SUT" 2>&1)"
+RC=$?
+if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
+  pass "an uppercase opt-out value (TMP) exempts a lowercase tmp"
+else
+  fail "uppercase opt-out should exempt: rc=$RC out=$OUT"
+fi
+OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sinkupper" DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp bash "$SUT" 2>&1)"
+RC=$?
+if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
+  pass "a lowercase opt-out value exempts an uppercase TMP directory"
+else
+  fail "opt-out should exempt an uppercase directory: rc=$RC out=$OUT"
+fi
+# ... and the opt-out does not bleed into the single-letter class.
+OUT="$(OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/litter" DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp bash "$SUT" 2>&1)"
+RC=$?
+if ((RC == 1)); then
+  pass "the sink opt-out leaves the single-letter class armed"
+else
+  fail "sink opt-out suppressed the single-letter class: rc=$RC out=$OUT"
+fi
+
+# --- 10. A drive-root tmp containing the cwd is a checkout, not litter --------
+OUT="$(cd "$TMP/sinkcheckout/c/tmp/work/repo" && OSTYPE=msys DRIVE_ROOT_LITTER_MOUNT_ROOT="$TMP/sinkcheckout" DRIVE_ROOT_LITTER_IGNORE_SINKS='' bash "$SUT" 2>&1)"
+RC=$?
+if ((RC == 0)) && grep -q 'no drive-root litter found' <<<"$OUT"; then
+  pass "a drive-root tmp containing the cwd is not reported as litter"
+else
+  fail "sink cwd-ancestor exclusion failed: rc=$RC out=$OUT"
+fi
+# ... and the same tree IS litter from elsewhere.
+run msys "$TMP/sinkcheckout"
+if ((RC == 1)) && grep -q "$TMP/sinkcheckout/c/tmp" <<<"$OUT"; then
+  pass "the same tmp directory is litter when it does not contain the cwd"
+else
+  fail "sink exclusion suppressed too much: rc=$RC out=$OUT"
+fi
+
+# --- 11. Both classes report together ----------------------------------------
+run msys "$TMP/both"
+if ((RC == 1)) && grep -q "$TMP/both/c/d" <<<"$OUT" && grep -q "$TMP/both/d/tmp" <<<"$OUT"; then
+  pass "single-letter and temp-sink hits are reported in one run"
+else
+  fail "both classes should be reported together: rc=$RC out=$OUT"
+fi
+
+# --- 12. Arguments are a usage error -----------------------------------------
 run msys "$TMP/clean" --check
 if ((RC == 2)) && grep -q 'usage' <<<"$OUT"; then
   pass "an unexpected argument is a usage error (exit 2)"
