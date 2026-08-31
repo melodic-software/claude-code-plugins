@@ -82,13 +82,14 @@ notebook_path_json() {
 }
 
 # Command payload builders that PRESERVE an MSYS `/<drive>/tmp` spelling.
-# guardrails-test-helpers.sh's command_json / pwsh_command_json omit
-# MSYS_NO_PATHCONV, so on a Windows host Git Bash rewrites `/c/tmp/x` into
-# `C:/tmp/x` before jq ever sees it — the payload then exercises the
-# DRIVE-LETTER alternative instead of the MSYS one, and any assertion aimed at
-# the MSYS matcher is vacuous exactly where it matters most. The shared helper
-# is duplicated across plugins under a source-drift gate, so it is not edited
-# from here; these local builders keep the MSYS cases honest on both platforms.
+# MSYS argv rewriting converts an argument only when the argument is ENTIRELY a
+# POSIX-absolute path: `/c/tmp/x` becomes `C:/tmp/x`, while `mkdir -p /c/tmp/x`
+# passes through untouched. Every command fixture below is multi-token, so the
+# shared command_json / pwsh_command_json are already safe for them and omit
+# MSYS_NO_PATHCONV correctly (the shared PATH-payload builders — write_json and
+# siblings — do set it, because a file_path IS a lone path). These local
+# builders set it explicitly so a future lone-path command fixture cannot
+# silently become a drive-letter payload and stop exercising the MSYS arm.
 msys_command_json() {
   MSYS_NO_PATHCONV=1 jq -n --arg cmd "$1" '{tool_name:"Bash",tool_input:{command:$cmd}}'
 }

@@ -107,12 +107,16 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   alternative set rather than substring-searching it (a containment test for
   `Edit` can never fail while `MultiEdit` passes, and a matcher with the pipes
   removed routes nothing while satisfying every containment check). And the MSYS
-  `/<drive>/tmp` cases build their payloads through local no-pathconv builders:
-  `guardrails-test-helpers.sh`'s `command_json` omits `MSYS_NO_PATHCONV`, so on
-  a Windows host Git Bash rewrites `/c/tmp/x` to `C:/tmp/x` before jq sees it and
-  the assertion silently exercises the drive-letter alternative instead. The
-  shared helper is duplicated across plugins under a source-drift gate and is
-  not edited from here.
+  `/<drive>/tmp` cases build their payloads through local builders that set
+  `MSYS_NO_PATHCONV` explicitly. MSYS argv rewriting converts an argument only
+  when the argument is *entirely* a POSIX-absolute path, so `/c/tmp/x` becomes
+  `C:/tmp/x` while `mkdir -p /c/tmp/x` passes through untouched. Every command
+  fixture here is multi-token and was therefore already safe through the shared
+  `command_json`; setting it explicitly keeps a future lone-path fixture from
+  silently becoming a drive-letter payload. The shared helper's path-payload
+  builders (`write_json` and siblings) already set it, and the helper is
+  duplicated across plugins under a source-drift gate, so it is not edited
+  from here.
 - **The `file-path` telemetry form is now executed, not just documented.** The
   existing telemetry case pipes a Bash payload; a file-path case asserts the
   `Write` / `Write` / `file-path` envelope and that the target path never
