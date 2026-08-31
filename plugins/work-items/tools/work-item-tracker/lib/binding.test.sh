@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by sourced tests/lib.sh
 # Tests for lib/binding.sh (CONTRACT.md "Setup (binding file)").
 set -uo pipefail
 

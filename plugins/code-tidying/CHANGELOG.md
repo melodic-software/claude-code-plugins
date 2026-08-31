@@ -3,6 +3,182 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+### Changed
+
+- **`batch-simplify` defaults flip from file-and-defer to fix-first.** The old defaults produced
+  backlog: agents could defer anything as "out of scope", Phase 6.5 auto-filed High + Medium
+  deferrals as work items (High-only in repo mode), and every filed item was work pushed to later.
+  Three coordinated changes, all default-behavior, none touching the argument grammar or entry
+  gates:
+  - **The deferral contract now requires a ground.** Agents apply every simplification they
+    identify; a deferral must name HUMAN-DECISION, TOO-LARGE, CROSS-GROUP, or PROTECTED, and
+    "out of scope" / "would dilute the diff" are explicitly not grounds. The `## Deferred` item
+    shape gains a `Ground:` field.
+  - **Phase 6.5 is renamed from "Capture deferred items as issues" to "Resolve deferred items
+    in-run".** Consolidated deferrals are triaged fix-first and a resolution wave (same spawn
+    contract, same verification, and in repo mode the same mandatory refutation verifier) applies
+    the Fix-now set in the same run, its edits landing exactly like the primary wave's: uncommitted
+    working-tree changes in the diff-scoped modes, run-branch commits in repo mode. Each resolution
+    agent receives the complete
+    file set its concern spans, so a CROSS-GROUP ground cannot legitimately recur; a genuinely new
+    file discovered mid-task is folded in with a single re-dispatch of that item, and no further
+    recursion. Only Needs-human items, Too-large items, and deferrals the wave could not finish
+    (carrying their recorded grounds) survive to the Phase 8 report; the bar for Too-large is work
+    needing its own planned effort, not merely many edits. **No work items are filed by default in any mode**;
+    filing happens only on an explicit user request, keeping the one-item-per-concern unit and the
+    no-numeric-cap rule.
+  - **Repo mode delivers one feature branch and one pull request for the whole run**, replacing
+    one PR per wave. The run branch is created from the refreshed tip of the intended PR base
+    (normally the default branch), never silently from an invocation HEAD sitting ahead of it,
+    which would smuggle that branch's pre-existing commits into the repo-wide PR; a non-base HEAD
+    is surfaced at the confirmation gate for an explicit choice.
+    At least one commit per group keeps the run auditable at group granularity,
+    the base branch is merged into the run branch at every wave boundary (and once more before
+    final verification) so the repo-wide PR does not rot behind its base, and the single PR opens
+    after the first wave lands so CI exercises every subsequent push. The known cost, a diff past
+    any workable review budget, is paid deliberately and carried by the machinery that already
+    existed for exactly this reason: the per-group refutation verifiers, per-wave verification,
+    and the end-of-run union pass.
+
+  The checklist template's "Filing tier" section becomes "Deferral posture", the Phase 8 report
+  template's filed-issues section becomes resolved-in-run plus remaining-deferrals sections, and
+  evals 4 and 8 assert the new posture. The run-state inventory still persists every deferral
+  verbatim; nothing is silently dropped, it is fixed instead of filed.
+
+## [0.14.15]
+
+### Fixed
+
+- **`dissolve-comments`'s preview filter dropped every C-quoted filename.** It parsed the porcelain
+  record with `awk '{print $NF}'`, which splits on whitespace and hands the extension grep a
+  trailing `"` on any path `git` chose to quote. Proven by execution against a repository holding
+  seven `.py` files whose names carry, respectively, nothing unusual, a space, a single quote, a
+  double quote, a semicolon, a pipe, and a newline: the old parse showed 4 of 7, the `-z` NUL parse
+  it now uses shows 7 of 7. That parse is `audit-comment-residue`'s, adopted verbatim rather than
+  re-derived, because this site already parses fields and the NUL form is correct for every
+  filename instead of one class. IMPACT IS BOUNDED and this entry should not overstate it: the line
+  is a PREVIEW capped at 10 whose own body already instructs the model to re-enumerate the full set
+  with `git status --porcelain -z` at scope time, so the defect misled the model's first look at
+  the tree rather than the scope it actually triages. LIVE and PRE-EXISTING: the parse predates
+  0.14.12 and 0.14.13, which reworked the shape around it and not the filter. The skill declares no
+  `allowed-tools`, so no grant changed. One residual, noted rather than fixed: under `-z` a filename
+  containing a newline reaches the grep as two lines, so it is detected but rendered as its tail.
+  `head -10` and the re-enumeration instruction already tell the reader the render is partial.
+- **The brace group 0.14.13 installed is intact and still correct.** Re-ran the state matrix over
+  both probes in this plugin (healthy, at cap, no match, clean tree, outside a repo, each under
+  `set -o pipefail` and `set +o pipefail`, 20 cells): all exit 0, the at-cap cells render exactly
+  the cap with no failure token, and only the outside-a-repo cells render one. The SIGPIPE
+  inversion 0.14.13 removed has not come back.
+
+### Added
+
+- **`audit-comment-residue`'s SKILL.md parity check is now two-directional.** It compared
+  `detect.sh`'s audited set against the preview in one direction only: a file `detect.sh` audits
+  that the preview misses. It could not see the opposite failure, a preview emitting a path
+  `detect.sh` never audited. Demonstrated by mutation against the shipping tree: dropping the
+  rename skip from the SKILL.md `awk` program makes the preview print the rename's source record
+  offset by the status prefix, a path naming no file, and the suite still passed 53 of 53. The
+  reverse loop now asserts that every path the preview emits is one `detect.sh` audited. Re-running
+  that exact mutation with the new loop in place fails 1 of 54, naming the phantom path; reverting
+  the mutation passes 54 of 54. No existing assertion was weakened or removed. PRE-EXISTING blind
+  spot, test-only change, no shipped behavior touched.
+
+### Changed
+
+- **Both probe labels no longer assert `empty = none`.** `audit-comment-residue` and
+  `dissolve-comments` rendered their filtered preview under a label positively claiming that an
+  empty render meant no matching files. The probe never established that. The brace group's closing
+  `:` makes the outer `||` unreachable, so a failure INSIDE the group also renders empty: a filter
+  binary off PATH, or a second `git` invocation that fails after the guard's copy succeeded, which
+  models `index.lock` contention. Not a regression, the pre-0.14.13 shape was equally silent in
+  both states, but the label was making a claim the plumbing cannot back. The labels now read
+  `empty = none matched or the probe returned nothing`. Fixing the label rather than the plumbing
+  is deliberate: closing those states needs a temp file or a second capture in a block that must
+  stay free of `$`, which costs more than the honesty is worth. The parity test extracts the label
+  by stem, so the wider parenthetical does not disturb it.
+
+## [0.14.14]
+
+### Fixed
+
+- **`tidy`: a stray third `unknown` line in the throttle probe under pipefail.** Cosmetic, not a
+  false failure claim. `open-pr-count.sh` exits 1 while printing well-formed output when `gh` cannot
+  reach the API, and the probe was
+  `open-pr-count.sh 2>/dev/null | grep -E '^(Open tidy|Throttle)' || echo "unknown"`. Without
+  `pipefail` the pipeline's status is `grep`'s, which is 0 when it matches, and the `||` stays shut.
+  With `pipefail` the script's 1 becomes the pipeline's status and `unknown` is appended beneath the
+  two well-formed lines, garbling a block that already carries its own `unknown` values. Reproduced
+  and fixed by execution: with the real script under `pipefail` the old shape renders three lines,
+  the third a bare `unknown`, and the new one renders two.
+
+  The `||` moves inside a brace group on the `grep` end of the pipe, so it is driven by the filter's
+  status alone and the script's exit code no longer reaches it. The token still fires when the
+  script is missing entirely, which is the case it exists for, verified under both settings. This
+  form was chosen over the brace-group-first shape used elsewhere precisely to keep the leading
+  token unchanged: the command still begins `${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh`, so the
+  existing grant still matches it and no rule was added or widened.
+
+## [0.14.13]
+
+### Fixed
+
+- **The filtered-probe guard is now pipefail-proof.** 0.14.12 shipped
+  `probe >/dev/null 2>&1 && probe | filter | head -10 || echo "(git status unavailable)"`. Under
+  `set -o pipefail` the `&&` list takes the pipeline's exit status, and pipefail makes that non-zero
+  in two ordinary situations: the filter matching nothing, and `git` taking SIGPIPE when `head`
+  closes the pipe at the cap. Both fire the failure token on a healthy probe, which is worse than
+  the defect 0.14.12 removed — the shape it replaced only ever said `none`, while this one
+  positively asserts that `git status` was unavailable when it ran fine. Reproduced on a repository
+  with 3,000 dirty files. The filter pipeline now sits in a brace group closed by `:`, a command
+  that cannot fail, so the `||` is reachable only by the guard short-circuiting.
+  `audit-comment-residue`'s parity test anchors its porcelain capture past `&& {`, so it evaluates
+  exactly the data run rather than an unterminated brace group. Both detector suites stay green.
+
+## [0.14.12]
+
+### Fixed
+
+- **Both filtered-probe injections now tell a failed probe apart from a filter that matched
+  nothing.** 0.14.11 normalized this plugin's one working-tree status probe, in `tidy`, and
+  recorded its filtered probes as deliberately left open
+  (`docs/specs/extract-ssot-sweep-2026-08-28.md`).
+  `dissolve-comments` and `audit-comment-residue` each piped `git status --porcelain` through an
+  `awk` parse and an extension `grep` into `head -10` before `|| echo "none"`: `||` binds to the
+  whole pipeline, a pipeline's status is its last command's, and `head` exits 0 on empty input, so
+  neither fallback could ever run. Outside a repository both rendered an empty string, which under
+  a label reading `Uncommitted code files:` is indistinguishable from a tree holding no code files.
+  Both lines now head an `&&` list with a status-only run of their own probe, so the `||` fires on
+  probe failure alone and prints `(git status unavailable)`, the token the fleet's
+  already-normalized probes use. Each site keeps its own porcelain form (`-z` in
+  `audit-comment-residue`, v1 in `dissolve-comments`), its own parse, its own extension filter and
+  its own cap of 10; each label gained `empty = none` so an empty render reads as no matching
+  files. The probe runs twice because the capture-first alternative needs a `$` expansion, and a
+  `$` expansion other than a bare `$HOME` in a pre-compute block makes the skill fail to load from
+  a worktree-isolated agent (`session-flow` 0.17.16). The added text introduces no `$` of any kind,
+  and no line here holds a `$` expansion: the `$NF` and `$0` field references inside the two
+  single-quoted `awk` programs, and the anchors inside the single-quoted `grep` patterns, are
+  pre-existing, untouched, and never expanded by the shell. Verified by execution:
+  outside a repository both print `(git status unavailable)`, inside a repository whose dirty files
+  are not code files both print nothing, and a dirty `.py` file still lists.
+
+- **`audit-comment-residue`'s SKILL.md parity check follows the new line shape.**
+  `scripts/detect.test.sh` extracts the `awk` program and the porcelain invocation out of SKILL.md
+  and runs them against its fixture tree; both `sed` extractors were anchored on the exact former
+  label, so the label change above would have left them matching nothing. Both now anchor on the
+  label stem. The porcelain extractor's capture runs to the first `|`, so it now takes the whole
+  `&&` list and evaluates the reachability guard as written. Suite green at 53 checks.
+
+## [0.14.11]
+
+### Changed
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
 ## [0.14.10]
 
 ### Changed

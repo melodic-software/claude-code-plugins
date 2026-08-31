@@ -26,11 +26,14 @@ Six skills, one capability:
 - **`/code-tidying:batch-simplify`**. Sweeps files through grouped,
   dependency-ordered simplification waves in one of three scope modes:
   a time window (`48h` default, `7d`, ...), the current branch, or `repo`.
-  Per-group verification and a never-drop deferred-items contract throughout.
-  The whole-repository mode is explicit-entry only, gates on a confirmed
-  inventory, runs a mandatory per-group refutation verifier, and delivers one
-  independently mergeable PR per wave. Use it when you forgot to run
-  `/simplify` after each task, or to sweep a repository that never had one.
+  Per-group verification and a fix-first deferral contract throughout:
+  deferrals are resolved in the same run rather than filed as issues, and only
+  items needing a human decision or a genuinely huge refactor survive to the
+  report. The whole-repository mode is explicit-entry only, gates on a
+  confirmed inventory, runs a mandatory per-group refutation verifier, and
+  delivers one feature branch and one PR for the whole run, with per-group
+  commits. Use it when you forgot to run `/simplify` after each task, or to
+  sweep a repository that never had one.
 - **`/code-tidying:audit-dead-code`**, a read-only, whole-repo hunt for code
   nothing reaches any more, across four labelled lanes of deliberately unequal
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported

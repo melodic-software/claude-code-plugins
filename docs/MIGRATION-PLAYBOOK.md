@@ -942,6 +942,13 @@ with the layered gates above; 6 first-party.
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
 
+**This record is stale, and a re-review is owed (recorded 2026-08-28).** The plugin ships `0.2.7`.
+Eleven releases landed between the reviewed version and the shipping one, and no record says
+whether any of them added a trust surface, which is the condition the re-trigger above turns on.
+Answering it takes a review, so it cannot be settled either way by reading this page. Until that
+review runs, the ACCEPT below describes `0.1.0` and states nothing about what a consumer installs
+today. The re-review was not performed when this note was written; it is logged as owed.
+
 - **Code execution (1).** None — no hooks; `sync/scripts/update.sh` is not wired to any event
   and is not model-reachable: `sync/SKILL.md` carries `disable-model-invocation: true`, so it
   runs only on a maintainer's explicit `/dometrain:sync` invocation.

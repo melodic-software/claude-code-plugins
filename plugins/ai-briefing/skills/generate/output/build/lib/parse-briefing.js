@@ -148,6 +148,19 @@ function isReasonablePubDate(ms) {
   return ms > fiveYearsPast && ms < thirtyDaysFuture;
 }
 
+/** Turn a [, monthName, day, year?] match into a plausible timestamp, else null.
+ *  Unknown month names and implausible dates both yield null so the caller falls
+ *  through to the next priority. */
+function monthNameMatchToMs(match) {
+  if (!match) return null;
+  const monthName = match[1].toLowerCase();
+  if (!(monthName in MONTHS)) return null;
+  const day = parseInt(match[2], 10);
+  const year = match[3] ? parseInt(match[3], 10) : new Date().getUTCFullYear();
+  const ms = Date.UTC(year, MONTHS[monthName], day);
+  return isReasonablePubDate(ms) ? ms : null;
+}
+
 /** Extract a sortable timestamp (ms-since-epoch) from item body / headline.
  *  Supports "Apr 28", "May 6, 2026", "(May 6-7)", "2026-05-06", "5/13", "5/13/26".
  *  Returns null when no date pattern is found — caller treats null as
@@ -162,19 +175,6 @@ function isReasonablePubDate(ms) {
  *    5. Date segments in authorized source URLs
  *       — caller applies via the URL inference pass, not here
  */
-/** Turn a [, monthName, day, year?] match into a plausible timestamp, else null.
- *  Unknown month names and implausible dates both yield null so the caller falls
- *  through to the next priority. */
-function monthNameMatchToMs(match) {
-  if (!match) return null;
-  const monthName = match[1].toLowerCase();
-  if (!(monthName in MONTHS)) return null;
-  const day = parseInt(match[2], 10);
-  const year = match[3] ? parseInt(match[3], 10) : new Date().getUTCFullYear();
-  const ms = Date.UTC(year, MONTHS[monthName], day);
-  return isReasonablePubDate(ms) ? ms : null;
-}
-
 function extractDate(body, headline) {
   const text = `${headline} ${body}`;
 

@@ -33,8 +33,9 @@ needs an argument Claude derives, or is expensive.
 
 ## Conventions we pin
 
-These are Melodic Software conventions, not upstream doctrine. **Recheck trigger:** the skills
-docs begin documenting `!` failure/timeout/stderr semantics — revisit both conventions then.
+These are Melodic Software conventions, not upstream doctrine. **Recheck trigger:** revisit these
+conventions when the skills docs begin documenting `!` failure/timeout/stderr semantics, or the
+shell options injections run under.
 
 ### Defensive fallback is mandatory
 
@@ -49,6 +50,58 @@ an explicit fallback so the rendered skill degrades to a known string rather tha
 
 Use the `|| echo "<fallback>"` form (or the `shell:`-appropriate equivalent) on every
 `` !`command` `` and every line inside a ` ```! ` block.
+
+### Bind the fallback to the probe, not to the pipeline
+
+`||` applies to the whole pipeline, and a pipeline's exit status is its last command's. So
+`probe | head -20 || echo "(unavailable)"` never runs the fallback: `head` exits 0 whether the
+probe produced twenty lines, one line, or nothing at all. The rendered value is an empty string,
+and under a label like `Working tree status:` an empty string reads as a healthy result rather
+than a failed probe.
+
+Put the fallback in a brace group with the probe, and apply the cap outside it:
+
+```text
+Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
+```
+
+Two rules follow from the same reasoning:
+
+- **A probe that exits 0 with empty output needs more than a fallback.** `git branch --show-current`
+  succeeds and prints nothing on a detached HEAD, so `|| echo "unknown"` cannot fire there. Either
+  pick a probe that fails on the condition (`git symbolic-ref --quiet --short HEAD`) or state in the
+  label what an empty value means.
+- **Say in the label what empty means**, so a reader can tell a clean tree from a probe that
+  produced nothing.
+
+Keep the brace group free of `$`. An expansion other than bare `$HOME` leaves the composed
+pre-compute block unverifiable to the worktree-isolation guard, and the skill then fails to load
+from an isolated agent. The fleet holds two competing accounts of that guard's trigger, recorded in
+`session-flow` 0.17.16 and `source-control` 0.51.6; avoiding `$` satisfies both.
+
+### `pipefail` is an open question; the brace group is correct either way
+
+Whether Claude Code runs `!` injections under `set -o pipefail` is **unsettled**. The skills docs
+specify the working directory, stderr merging, timeout, output size, and the exit-code semantics
+of an injected command, but name no shell options. Assume either setting, and write a probe that
+renders the same under both.
+
+The brace-group form above does. Its fallback fires on the probe's own exit status and its cap
+sits outside the group, so no downstream stage can change what renders.
+
+A `guard && probe | filter | head -N || echo "(unavailable)"` shape does not. It is correct under
+exactly one setting, and which one it needs depends on the state:
+
+- **Without `pipefail`** the pipeline's status is `head`'s, so the trailing `|| echo` never fires
+  and a failed filter stage renders empty under a label claiming the opposite.
+- **With `pipefail`** `head -N` closes the pipe once it has its N lines, the upstream stage takes
+  SIGPIPE, and the pipeline exits 141, so a healthy at-cap render gains a spurious
+  `(unavailable)` line.
+
+The brace group buys that at a price worth naming. Its final `:` makes the outer `||` unreachable,
+so a failure INSIDE the group also renders empty: a filter binary off PATH, or a second `git`
+invocation that fails after the guard's copy succeeded. The label carries that weight instead, and
+must never assert a bare `empty = none`.
 
 ### Windows / `shell:` awareness
 

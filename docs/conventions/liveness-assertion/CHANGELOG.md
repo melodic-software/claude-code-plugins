@@ -4,6 +4,20 @@ Notable changes to the liveness-assertion contract (SemVer). Changing the core c
 row's conformance bar, or an enforceability verdict is a major bump; additive guidance or new
 instance rows is a minor bump; docs-only clarification is a patch.
 
+## 1.1.0 — 2026-08-28
+
+Additive, minor — a new instance row. The core contract, every taxonomy row's conformance bar, and
+the enforceability verdict are unchanged.
+
+- **`loop-lane-floor-drift-gate` tabled as conforming under Gate / classifier.** It is the
+  adopt-on-touch case the convention describes: the surface it replaced was a sentence in
+  `docs/conventions/loop-lane/README.md` §6 asserting that fleet audits checked per-consumer
+  conformance, while nothing checked it and three consumers had already drifted. The replacement
+  states its taxonomy row in its own header and fails loud on every input it cannot resolve rather
+  than reporting a comparison it did not make. Its registry is bounded by a repo-wide scan, because
+  a hand-maintained list of what to check is itself a surface that can go green over a copy nobody
+  added to it.
+
 ## 1.0.0 — 2026-08-13
 
 Initial published contract — peel 1 of

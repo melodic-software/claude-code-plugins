@@ -29,6 +29,13 @@ bad() {
   FAIL=$((FAIL + 1))
 }
 
+# assert_eq <label> <expected> <actual>. Prefer this over assert_contains for a
+# value with a known exact form: containment passes on any string that merely
+# embeds the expected one, which is how a leaked `\\srv\share\secrets.env` once
+# satisfied a "data.file is the basename" check.
+assert_eq() {
+  if [[ "$3" == "$2" ]]; then ok "$1 ($3)"; else bad "$1: expected '$2', got '$3'"; fi
+}
 # assert_exit <label> <expected> <actual>
 assert_exit() {
   if [[ "$3" == "$2" ]]; then ok "$1 (exit $3)"; else bad "$1: expected exit $2, got $3"; fi

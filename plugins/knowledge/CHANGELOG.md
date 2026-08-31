@@ -4,6 +4,160 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.29]
+
+### Changed
+
+- **video-digest watch: orphaned module removed.** `watch/promotion-name-map.js`
+  is deleted. 0.13.28 removed its last importer (`synthesis-naming.js`'s dead
+  `synthesisDestNameForSlice` export) and confirmed the module carries no
+  load-time side effects; a fresh repo-wide sweep re-proved zero importers of
+  the file or of `loadPromotionNameMap` (only historical changelog text and one
+  now-corrected doc parenthetical in `context/quality-gates.md` named it). It
+  had no test file of its own. Watch suites and `tsc` clean after removal.
+
+## [0.13.28]
+
+### Changed
+
+- **video-digest watch: dead export removed.** `watch/synthesis-naming.js`
+  drops `synthesisDestNameForSlice` (no importer anywhere since its
+  introduction) together with its now-orphaned `loadPromotionNameMap` import,
+  and unexports the internal-only `sourceStem`. A fresh-context sweep confirmed
+  zero consumers across code, markdown, and fixtures, and that
+  `promotion-name-map.js` has no load-time side effects. Watch suites 58/58,
+  `tsc` clean.
+
+## [0.13.27]
+
+### Changed
+
+- **video-digest acquisition: dead fallback removed.** `acquire.js` drops a
+  `?? "staged acquire failed"` default that could never fire — both `ok: false`
+  return sites in `acquireFullStaged` construct non-empty string errors, and
+  the old `??` only replaced null/undefined. Verified by site enumeration and
+  `tsc`; acquisition + adapters suites 205/205. (A second candidate, merging
+  the duplicated initial spawn in `spawn-yt-dlp-with-auth-fallback.js`, was
+  refuted by differential testing — the cookie-config probe it would skip
+  emits a once-per-process deprecation warning — and was reverted rather than
+  shipped.)
+
+## [0.13.26]
+
+### Changed
+
+- **video-digest extraction test suite deduplicated across modules.** The
+  `forbiddenSynthesisFileNameReason` describe block in
+  `watch-vision-validation.test.js` re-tested `synthesis-filename.js` behavior
+  that module's own suite already covers; its two unique cases (the
+  `densification-code-0.png` reject and `benchmark-curve-slide-metrics.png`
+  accept) moved into `synthesis-filename.test.js` and the block and its import
+  were removed. Assertion-level coverage is unchanged (verified pair by pair);
+  the full extraction suite passes 71 files / 501 tests. Test-only change; no
+  runtime code touched.
+
+## [0.13.25]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `docpage-digest`'s
+  digest_fences.py removes dead `unclosed` bookkeeping from parse_claims: the flag was assigned on
+  both arms of the try and the trailing `if unclosed: fence = None` could never change the already
+  computed value. Refutation-verified (per-block flag scoping ruled out cross-iteration leakage;
+  18/18 parse comparisons and 10/10 end-to-end gate runs byte-identical; both suites, 30 tests, OK).
+- **video-digest extraction, same sweep.** setup-deps.mjs drops a redundant per-directory
+  localeCompare sort inside computeStamp's walk (the final code-unit path sort alone determines
+  hash-input order; stamps verified byte-identical on the real vendor tree and an adversarial
+  fixture, including under forced readdir scrambling). acquisition/build-yt-dlp-args.js removes
+  the born-dead export `YT_DLP_CAPTION_ONLY_SLEEP_SUBTITLES_SEC` (zero references at any commit;
+  the consumed constant lives in acquire-retry-policy.js). acquisition/acquire.js drops a
+  double-defaulting spread at the acquireFullStaged call site (the spread's withThrottle value was
+  by construction mergedDeps' own value or the same default the callee re-derives; full
+  case-matrix refutation including the null/undefined split found no divergent reachable shape).
+
+## [0.13.24]
+
+### Fixed
+
+- **`video-digest` and `course-digest`: the prerequisites gate would refuse to run on a machine that
+  HAS the toolchain.** 0.13.23 fixed a gate that failed open and left one that fails closed for the
+  wrong reason. The five tool probes were
+  `command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || echo "MISSING …"`.
+  Under `set -o pipefail` the `&&` list takes the pipeline's exit status, and `head -1` closes the
+  pipe while a multi-line version banner is still being written, so `ffmpeg` dies of SIGPIPE (exit
+  141) and pipefail promotes that to the list's status. The `||` then fires on a working tool. The
+  rendered context shows the real version line and `MISSING — install ffmpeg` directly beneath it.
+
+  That is not cosmetic. Both skills instruct the agent to STOP when the pre-computed context shows
+  `MISSING` for yt-dlp, ffmpeg, or ImageMagick. On a correctly provisioned machine the context now
+  shows `MISSING`, so the skill refuses to run against a toolchain that is installed and working.
+  0.13.23 turned a gate that failed open into one that spuriously fails closed. The direction is
+  safer, the behaviour is still wrong.
+
+  The five probes are not equally exposed, and the difference matters for diagnosis. Whether the
+  token fires is a race between the tool still writing its banner and `head -1` closing the pipe,
+  so it scales with how much the tool prints. Measured over 30 runs per size against a synthetic
+  tool on `PATH`, under `pipefail`, with the tool installed and working:
+
+  | Tool output | 0.13.23 shape fires `MISSING` | This shape |
+  |---|---|---|
+  | 1 line (`yt-dlp --version`) | 0/30 | 0/30 |
+  | 5 lines (`magick -version`) | 19/30 | 0/30 |
+  | 41 lines (`ffmpeg -version`) | 29/30 | 0/30 |
+
+  So `yt-dlp` is safe by output size alone, `ffmpeg` fails on nearly every run, and `magick` is a
+  genuine race that fails on roughly two runs in three. The intermittent one is the worst to live
+  with: a gate that stops the skill on most invocations and lets it through on the rest reads as
+  flakiness in the skill rather than as a defect in the probe. All five are fixed together, because
+  the shape is wrong regardless of how often it trips.
+
+  Proven by execution in three states, each with and without `pipefail`. Tool absent: both shapes
+  render `MISSING …` under both settings. Tool present, single-line output: both shapes render the
+  version, no token, under both settings. Tool present, banner long enough to close the pipe:
+  without `pipefail` both render one version line and no token; with `pipefail` the 0.13.23 shape
+  renders the version line **and** `MISSING — install ffmpeg (watch action only)`, and this one
+  renders the version line alone.
+
+  The version pipeline now sits in a brace group closed by `:`, a command that cannot fail, so the
+  `||` is reachable only when `command -v` short-circuits. This is the shape `docs-hygiene` 0.21.23
+  and `code-tidying` 0.14.13 established. No `$` expansion is introduced, so the composed
+  pre-compute block stays verifiable to the worktree-isolation guard. Neither skill declares
+  `allowed-tools`, so no grant changed.
+
+## [0.13.23]
+
+### Fixed
+
+- **`video-digest`: the prerequisites gate could not fire, so a skill documented as failing closed
+  failed open.** The skill's own "Prerequisites gate" step says to STOP if the pre-computed context
+  shows `MISSING` for yt-dlp, ffmpeg, or ImageMagick, and cloud agents without the media toolchain
+  are supposed to stop there. The three probes were written
+  `yt-dlp --version 2>/dev/null | head -1 || echo "MISSING ..."`. `||` binds to the whole pipeline,
+  a pipeline's exit status is its last command's, and `head` exits 0 whether the probe printed a
+  version or nothing at all, so with the tool absent the line rendered as an empty string and the
+  word `MISSING` never appeared. Verified by execution on a host with none of the three installed:
+  the old shape rendered `yt-dlp: []`, the new one renders
+  `yt-dlp: [MISSING — install yt-dlp (see Prerequisites)]`. Each probe now leads with
+  `command -v <tool> >/dev/null 2>&1 &&`, so the `||` fires on probe failure; with the tool present
+  the real version still renders. This is the shape `firecrawl:firecrawl` already ships and the rule
+  `plugins/playbooks/skills/skill-authoring/reference/precompute-context.md` codifies under "Bind
+  the fallback to the probe, not to the pipeline".
+- **`course-digest`: the same two probes, the same repair.** Its ffmpeg and ImageMagick probes
+  carried the identical pipeline-bound fallback. This skill has no STOP step reading them, so the
+  consequence was a silently blank prerequisites line rather than a dead gate, but the defect is the
+  same one.
+
+Neither skill declares `allowed-tools`, so no grant changed.
+
+## [0.13.22]
+
+### Changed
+
+- **`setup`: repaired a broken numbered-list item and a comma splice in the headless-reconfigure
+  recipe.** One continuation line had lost its indentation, which ended the list item early and
+  detached the 2.1.240 verification stamp from the claim it qualifies; the same block also carried
+  the fused-sentence splice the fleet's other setup skills had. Whole-repo extract-ssot sweep.
+
 ## [0.13.21]
 
 ### Changed

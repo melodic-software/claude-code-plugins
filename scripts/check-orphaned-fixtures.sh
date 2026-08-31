@@ -154,17 +154,8 @@ consumed() {
   return 1
 }
 
-# Collect every fixture under a **/evals/fixtures/ directory.
-fixtures=()
-while IFS= read -r -d '' dir; do
-  while IFS= read -r -d '' f; do
-    fixtures+=("$f")
-  done < <(find "$dir" -type f -print0)
-done < <(find plugins -type d -path '*/evals/fixtures' -print0 2>/dev/null)
-
-if ((${#fixtures[@]} > 0)); then
-  mapfile -t -d '' fixtures < <(printf '%s\0' "${fixtures[@]}" | sort -z)
-fi
+# Collect every fixture under a **/evals/fixtures/ directory, sorted.
+mapfile -t -d '' fixtures < <(find plugins -type f -path '*/evals/fixtures/*' -print0 2>/dev/null | sort -z)
 
 # Track which baseline entries actually shadow an orphan, to flag stale ones.
 declare -A entry_used

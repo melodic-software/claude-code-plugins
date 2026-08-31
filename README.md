@@ -116,7 +116,12 @@ genuinely carry no suite are recorded, with the CI lane that does cover them, in
 [`scripts/affected-tests-no-suite.txt`](scripts/affected-tests-no-suite.txt);
 `--allow-unmapped` is the escape hatch for everything else. That list is for
 prose and manifests, never for code: a source file with no coverage is supposed
-to fail here.
+to fail here. A **deletion** is the one exception: a changed path that no longer
+exists and that nothing claims is reported as a visible `deleted:` note instead
+of the error, because there is no content left to cover. A deletion that a
+surviving suite still names (a co-located test left behind, a suite that
+references the dead path) keeps selecting those suites, which are exactly what
+fails loudly if the deletion broke something.
 
 The runner is deliberately sequential: parallelising it measured sublinear
 (the suites are spawn-bound), and several guardrails suites assert wall-clock

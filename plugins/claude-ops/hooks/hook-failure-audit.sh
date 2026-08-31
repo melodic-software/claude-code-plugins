@@ -79,7 +79,9 @@ read_window() {
   fi
 }
 
-# grep is a cheap pre-filter only; the structural jq selection decides.
+# grep is a cheap pre-filter only; the structural jq selection decides. The
+# no-match common case exits on the pre-filter's emptiness, before paying for
+# the jq spawn (an empty stream produced the same silent exit via "[]").
 # `fromjson?` skips unparsable lines instead of aborting the stream.
 # Identity is the REGISTRATION, not the matcher name: several plugins register
 # on the same event+matcher (multiple PreToolUse:Bash guards exist in this very
@@ -130,7 +132,9 @@ read_window() {
 # in a narrower shape. The per-class counts below keep every class present in a
 # group visible, and the message flags are computed from those counts, never
 # from a single collapsed value.
-SUMMARY=$(read_window | grep -F '"hook_non_blocking_error"' |
+RECORDS=$(read_window | grep -F '"hook_non_blocking_error"')
+[[ -n "$RECORDS" ]] || exit 0
+SUMMARY=$(printf '%s' "$RECORDS" |
   jq -cRs '[
       split("\n")[] | fromjson?
       | select(.type? == "attachment") | .attachment

@@ -3,6 +3,231 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0]
+
+### Fixed
+
+- **`block-windows-drive-tmp` now sees a `Write`, not only a command.** The guard
+  exists to stop a Windows drive-root temp write (#2594), and it missed one: on
+  2026-08-30 an empty `C:\tmp\tmp.rSFIkHm5DO` was created and nothing fired. The
+  hook read `.tool_input.command`; a `Write` payload carries `file_path` instead,
+  so `hook::jq_fields` produced an empty `COMMAND` and the `[[ -n "$COMMAND" ]]`
+  early exit returned before any matcher ran. The guard covered command-shaped
+  writes and not tool-shaped ones. It now also reads `.tool_input.file_path` and
+  `.tool_input.notebook_path`, and the early exit tests both doors. Verified
+  repro-first: the four seeded spellings (`C:\tmp\…`, `/tmp/…`, `/c/tmp/…`,
+  `C:/tmp/…`) exit 0 against the unmodified hook and 2 against this one.
+- **A jq-less Linux or macOS host can edit files again.** Widening the matcher
+  to `Write`/`Edit`/`MultiEdit`/`NotebookEdit` had a consequence the widening
+  itself did not carry: the non-Windows host gate sat BELOW `hook::buffer_stdin`
+  and `hook::require_jq_blocking`, so on a host without `jq` on `PATH` every
+  file edit took the fail-closed `exit 2` — on a platform where `/tmp` is the
+  real POSIX temp and this guard can never find a violation. The host gate now
+  runs first, immediately after `hook::check_enabled` (which already exits
+  without draining stdin, so the shape is not new). Reading `OSTYPE` needs
+  nothing from the payload. **The Windows path is unchanged**: the case falls
+  through and `buffer_stdin` rc 2, jq absence, an unparsable payload, NUL
+  bytes and `MAX_COMMAND_LEN` all still fail closed in the same order.
+  Confirmed on a real jq-less `PATH`: the previous commit exits 2 on a Linux
+  `Write` and this one exits 0. That simulation is host-dependent (it needs
+  `jq` in a directory that does not also host `bash` and coreutils), which is
+  the portability constraint `require-jq-notice-isolation.test.sh` records, so
+  the committed regression test does not rely on it and asserts the ordering
+  from an xtrace instead: neither `buffer_stdin` nor `require_jq_blocking` is
+  reached. Both appear before the fix and neither after it.
+- **Deliberate posture change, stated rather than silent:** on a NON-Windows
+  host this guard no longer fails closed on `jq`'s absence, for the Bash lane
+  either. That #2146 posture is kept in full on Windows. It is dropped only
+  where the guard has no opinion at all — `/tmp` is the real POSIX temp there,
+  so every exit 2 it produced was a false positive by construction.
+- **A `tmp` directory under a single-letter parent no longer blocks.**
+  `D:\a\tmp\x` matched: after slash-normalization the drive colon satisfied the
+  left boundary of the MSYS `/<drive>/tmp` alternative, so `d:` + `/a/tmp` read
+  as a drive root. The identical MSYS spelling `/d/a/tmp/x` was allowed the
+  whole time, so one sink decided two ways. The defect predates the file-path
+  lane — the command lane blocked `mkdir -p D:\a\tmp\x` too — but the lane made
+  it reachable from every write, so it is fixed here rather than inherited.
+  The MSYS alternative is now two arms, because a `:` on the left is ambiguous
+  and the two readings decide oppositely. A DRIVE SPEC — exactly one
+  alphanumeric at a word boundary — no longer satisfies the boundary; every
+  other colon still does, including a PowerShell PARAMETER colon, so
+  `Set-Content -Path:/c/tmp/x` keeps blocking exactly as its space-bound twin
+  does. Excluding `:` outright, which a first attempt did, would have dropped
+  that whole class. The narrowing was then swept exhaustively against the
+  shipped matcher — every ASCII printable as the immediate left neighbour,
+  every two-character context ending in a colon, nine drive letters in eight
+  surrounding contexts, and the colon-bearing shapes a sweep alone does not
+  reach, 1,702 probes — and **all 266 changed verdicts are the drive-spec
+  reading**: 192 `<non-alnum><alnum>:` contexts, 72 explicit `X:\a\tmp` probes,
+  the leading bare `:`, and `D:\a\tmp` itself. Every real drive-root spelling
+  still matches. Two accepted residuals, both unchanged from the shipped guard
+  rather than introduced: a PATH-style list (`PATH=/usr/bin:/c/tmp cmd`)
+  presents the multi-character token shape and still matches, and a remote spec
+  with a single-letter host (`ssh u@h:/c/tmp/x`) now reads as a drive spec and
+  does not — it names a path on another machine, which this guard never
+  governed. Pinned repro-first on both lanes.
+
+### Added
+
+- **A `Write | Edit | MultiEdit | NotebookEdit` matcher registration for the same
+  guard.** The script change alone would have been inert: without the second
+  `hooks.json` registration the hook never receives those payloads. It is a
+  SEPARATE PreToolUse group, not a widening of the existing `Write|Edit|
+  NotebookEdit` matcher string, so `secret-pattern-detection` and
+  `hardcoded-path-check` do not silently acquire `MultiEdit`, and not a widening
+  of `Bash|PowerShell`, which would have attached seven command-lane guards to
+  every file write. Claude Code fires every group whose matcher matches, so a
+  `Write` now matches two guardrails groups — but this hook appears in exactly
+  one of them, so it still fires once per tool call.
+- **A `file-path` telemetry form**, alongside `redirect` / `write-utility` /
+  `too-long`. The privacy floor is unchanged: `subject` is the bare tool name on
+  this lane (`Write`), and the target path never reaches the envelope.
+
+### Changed
+
+- **Both doors feed one matcher.** The file-path lane calls the shipped
+  `has_drive_root_tmp()` — there is no second matcher — so every spelling the
+  command lane blocks and every one it permits (`%TEMP%` expansions, `/var/tmp`,
+  `./tmp`, `foo/tmp`, `/tmpdir`, `C:/tmp2`, UNC `\\server\tmp`) decides
+  identically on a `Write`. The lane needs none of the command lane's inference:
+  on `Write`/`Edit` the path IS the write target, so there is no redirect to
+  parse, no producer-utility whitelist, and no segment splitting.
+- **Case folding is pure shell.** `printf | tr` was a fork AND an exec (~280 ms
+  together on Windows Git Bash) to fold one character class; `${var,,}` does the
+  same work in-process. That removes two spawns from the existing per-Bash-call
+  cost as well, and keeps the new per-Write lane from adding them.
+- **The command lane is skipped outright on a file-path payload.**
+  `has_redirect_to_drive_root_tmp` runs `mask_quoted_redirect_ops` in a command
+  substitution, and forking to scan an empty string would be per-Write budget
+  spent to reach a foregone answer.
+- **The telemetry subject resolves inside `emit_tel`.** `hook::extract_bash_subject`
+  runs in a command substitution, and that fork was paid on every tool call even
+  with no telemetry sink wired — the default — and would now be paid on every
+  `Write` to obtain a constant, since the helper returns the bare tool name for
+  any tool but Bash. Same shape as the plugin's other lazily-resolved telemetry
+  fields.
+
+### Notes
+
+- **Fail-closed posture is unchanged and now covers the new field.** NUL-byte
+  handling, `hook::buffer_stdin` rc 2, jq absence and `MAX_COMMAND_LEN` all
+  behave exactly as before; a NUL in `file_path` fails closed by the same
+  already-shipped check, because only PATH fields were added to the
+  `hook::jq_fields` call. Content fields (`content` / `new_string` /
+  `new_source`) are deliberately NOT requested: `HOOK_JQ_FIELDS_NUL` is computed
+  across every requested field, so reading them would make this guard block on a
+  NUL anywhere in a file body — hardcoded-path-check's concern, not this one's.
+- **No length ceiling on the file-path lane, by decision.** `MAX_COMMAND_LEN`
+  exists because the command lane walks its string character by character twice
+  before matching; the path lane runs three EREs with no tokenization, detection
+  does not degrade with length, and a blocking ceiling would only add a
+  false-positive class. The payload stays bounded by `hook::buffer_stdin`.
+- **Measured budget share** for the widened surface is recorded in the README's
+  hook-budget accounting, alongside the ADR 0003 sweep for the new lane.
+- **Two test-fidelity gaps closed alongside the lane.** The `hooks.json`
+  registration — the half of this change without which the script edit is inert
+  — is now asserted, by splitting the matcher on `|` and comparing the exact
+  alternative set rather than substring-searching it (a containment test for
+  `Edit` can never fail while `MultiEdit` passes, and a matcher with the pipes
+  removed routes nothing while satisfying every containment check). And the MSYS
+  `/<drive>/tmp` cases build their payloads through local builders that set
+  `MSYS_NO_PATHCONV` explicitly. MSYS argv rewriting converts an argument only
+  when the argument is *entirely* a POSIX-absolute path, so `/c/tmp/x` becomes
+  `C:/tmp/x` while `mkdir -p /c/tmp/x` passes through untouched. Every command
+  fixture here is multi-token and was therefore already safe through the shared
+  `command_json`; setting it explicitly keeps a future lone-path fixture from
+  silently becoming a drive-letter payload. The shared helper's path-payload
+  builders (`write_json` and siblings) already set it, and the helper is
+  duplicated per plugin **by convention**, per
+  `docs/conventions/shell-test-helpers/README.md` — it is explicitly outside
+  `check-cross-plugin-source-drift.sh`'s scope (the copies live at different
+  paths per plugin and are not byte-identical, so `discover` never flags them
+  as a cluster) and has no entry in `scripts/cross-plugin-source-registry.txt`.
+  Nothing gates the duplication, so it is not edited from here as a matter of
+  convention rather than tooling.
+- **The `file-path` telemetry form is now executed, not just documented.** The
+  existing telemetry case pipes a Bash payload; a file-path case asserts the
+  `Write` / `Write` / `file-path` envelope and that the target path never
+  reaches it.
+
+## [0.29.24]
+
+### Fixed
+
+- **`verify-cli-flag.sh` streams help output to grep instead of staging it through a here-string.**
+  A here-string makes bash write the whole document before the reader ever runs: strace shows the
+  forked child create the pipe, write the entire payload, then exec grep, so large `--help` output
+  rode on bash's pipe-capacity probe and a TMPDIR temp-file fallback. Both sites now use
+  `printf '%s\n' ... | grep`, where writer and reader run concurrently under kernel flow control
+  with no temp file. A ten-case differential harness (including a 157KB synthetic help text)
+  proved stdout, stderr, and exit codes byte-identical to the old code; the 52-check suite passes.
+- **`require-jq-notice-isolation.test.sh` no longer produces a two-line count on its zero-match
+  path.** `grep -c ... || echo 0` appends a second 0 after grep's own 0 when nothing matches,
+  which then broke the arithmetic comparison that consumed the value. The fallback is now
+  `|| true`, the repo's standard idiom for keeping grep -c's own count.
+
+## [0.29.23]
+
+### Changed
+
+- **Dropped a dead `lc` local from `ps::write_bypass` in
+  `lib/powershell/ps-command.sh`.** The variable was declared and never read or
+  written in that function, and every reachable callee that uses `lc` declares
+  its own local, so removal changes nothing observable. Verified by a
+  call-graph audit over all 19 reachable `ps::` helpers and the
+  block-hook-bypass / block-dangerous-git / block-no-verify suites
+  (576 + 479 + 238 assertions).
+
+## [0.29.22]
+
+### Fixed
+
+- **A UNC file path no longer reaches telemetry whole.** `secret-pattern-detection.sh`
+  kept its own copy of the repo-relative computation, and that copy's redaction
+  tested only two of the three absolute spellings: POSIX-absolute and
+  drive-lettered, never UNC. This guard deliberately scans on when no project
+  dir is set, and on that path the copy did no separator folding either, so a
+  `file_path` of the `\\server\share\file` shape matched neither redaction arm
+  and the whole share path, server name included, landed in the envelope's
+  `data.file`. It now calls `hook::repo_relative_path`, which carries the UNC
+  arm, and pairs it with `hook::repo_root` so a file with no project dir is
+  still reported relative to its own checkout instead of collapsing to a bare
+  basename.
+- **A trailing slash on the project dir no longer collapses every path.** The
+  helper strips `"$root/"`, so a root already ending in a separator forms the
+  prefix `/repo//` and matches nothing, degrading every in-project file to its
+  basename. The hand-rolled copies trimmed the separator first and the move to
+  the helper dropped that trim; both call sites now trim it back. A trailing
+  slash is a supported spelling of `CLAUDE_PROJECT_DIR`, which this plugin's
+  own scope tests already exercise. `hook::repo_root` never returns one, so the
+  other call sites of the helper were never exposed.
+
+### Changed
+
+- **The last two hand-rolled path redactions collapse into the shared helper.**
+  `hardcoded-path-check.sh` carried the same duplicated block. Its scope guard
+  exits before the computation whenever the project dir is unset, so the leaking
+  shape was never reachable there and its emitted `data.file` is unchanged; the
+  copy is removed so a third divergent one cannot reappear. In both hooks
+  `file_rel` reaches only the telemetry payload, never a tool argument, and both
+  now resolve it inside `emit_tel`, so a run with no telemetry sink wired does
+  not pay for it at all.
+
+## [0.29.21]
+
+### Changed
+
+- **Three independently written path redactions collapse into one helper.**
+  `cli-flag-verify.sh`, `skill-reference-verify.sh`, and `stale-path-verify.sh`
+  each carried their own copy of the cygpath normalization plus a
+  hand-written basename redaction; all three now call
+  `hook::repo_relative_path` in the shared `hooks/hook-utils.sh`, which owns
+  both. These three were among the four copies of the block that already
+  redacted, so their emitted `data.file` values are unchanged, and the helper
+  additionally redacts a UNC path, which the local copies did not match.
+  `file_rel` reaches only the telemetry payload in all three, never a tool
+  argument. Copies stay byte-identical via `scripts/sync-hook-utils.sh`.
+
 ## [0.29.20]
 
 ### Changed

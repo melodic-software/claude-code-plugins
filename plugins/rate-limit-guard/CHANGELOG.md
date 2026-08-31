@@ -3,6 +3,82 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.21]
+
+### Fixed
+
+- **`statusline-tee.sh` passes payloads over 1MiB through to the wrapped statusline intact.** The
+  stdin reader was a single bounded `read -N 1048576`, so anything past the first 1MiB never
+  reached the wrapped command. Ported the sibling context-guard tee's builtin-only
+  read-until-EOF loop, keeping the documented stalled-pipe timeout boundary; a new suite case
+  proves a 1.5MB payload reaches the wrapped command byte-for-byte and is still teed. Zero new
+  processes: the suite's zero-fork xtrace assertions still pass and the bench spawn floor is
+  unchanged.
+
+### Changed
+
+- **`statusline-tee.sh` hardens its snapshot temp write.** The temp name gains a second `$RANDOM`
+  of entropy and the write happens under `set -o noclobber` inside the existing umask subshell,
+  so a pre-planted symlink at the temp path is refused instead of followed. The chmod-700
+  directory, trap reclaim, and mv-retry machinery are unchanged. Ported from the context-guard
+  sibling. Suite grows from 96 to 98 checks, all passing.
+
+## [0.7.20]
+
+### Changed
+
+- **Vendored `hook-utils.sh` gained `hook::repo_relative_path`.** The shared lib
+  now owns the repo-relative path computation twelve sibling hooks had each
+  hand-copied, together with the absolute-path degrade only four of those twelve
+  copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
+
+## [0.7.19]
+
+### Added
+
+- **The inline-floor mandate is enforced instead of asserted.** `scripts/check-loop-lane-floor-drift.sh`
+  in the marketplace repository extracts the "Operable floor" block from this file and compares it
+  against an explicit registry of the six surfaces that inline it, running as the
+  `loop-lane-floor-drift-gate` CI lane. The `Consumers` section now names that check and the three
+  non-lane consumers it covers. Nothing enforced the mandate before: the general copy-drift gate
+  skips `SKILL.md` by basename and clusters copies by identical path-within-plugin, and these six
+  sit at six unrelated paths.
+- **The same check also discovers copies nobody registered.** Before comparing anything it scans
+  every tracked file for the floor's opening bullet and fails on any carrier outside its registry,
+  so a seventh consumer inlining this block cannot sit unwatched until the next contract change
+  strands it. The registry stays, because it carries each consumer's comparison mode.
+- **Why this lands after 0.7.18 rather than with it.** 0.7.18 reconciled the drift by hand, from the
+  other direction, while this check was in review. That is the argument for the check rather than an
+  objection to it: the same two sentence breaks were found and repaired twice, independently, weeks
+  apart, because nothing was watching the block. The floor block is unchanged here; 0.7.18's
+  wording stands as the one this gate now holds every copy to.
+
+### Changed
+
+- **`setup`'s tee-freshness probe stops restating the staleness window.** Step 4 named the
+  10-minute value inline, which is a copy of a floor constant sitting outside the block the drift
+  check compares, so nothing would have moved it if the contract changed. It now points at the
+  operable floor for the value. Same probe, same verdicts.
+
+## [0.7.18]
+
+### Changed
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
+
+- **`setup`: rejoined an orphaned clause in the never-writes boundary.** The sentence ended with a
+  period and then continued lowercase ("...settings surface. the printed edit is the operator's to
+  apply."). The `context-guard` sibling carries the identical slot joined with a semicolon, and this
+  one now matches it. Whole-repo extract-ssot sweep.
+
 ## [0.7.17]
 
 ### Changed

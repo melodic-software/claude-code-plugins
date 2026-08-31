@@ -252,6 +252,19 @@
       "added_on": "2026-08-21",
       "crash_count": 0,
       "identical_streak": 0
+    },
+    {
+      "id": "drive-root-litter",
+      "category": "storage",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-DriveRootLitter.ps1",
+      "severity_rules": "references/windows/check-catalog.md#19-drive-root-litter",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-08-30",
+      "crash_count": 0,
+      "identical_streak": 0
     }
   ]
 }

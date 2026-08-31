@@ -924,7 +924,8 @@ lane_selected() {
 
 process_lane() {
   local idx="$1" now="$2"
-  local lane repo issue marker bodies body state request reason used n i found=0
+  local lane repo issue marker instance bodies body state request req reason used n i found=0
+  local comment_marker sibling_request sibling_instance
   lane="$(lane_field "$idx" name)"
   [[ -n "$lane" ]] || return 0
   lane_selected "$lane" || return 0
@@ -1271,11 +1272,11 @@ main() {
     acquire_lock "$now" || lock_rc=$?
     # 2 = the lock store itself is unusable. Exiting 0 here would let an
     # unattended schedule log healthy ticks forever while processing nothing.
-    if ((${lock_rc:-0} == 2)); then
+    if ((lock_rc == 2)); then
       err "restart-consumer: the lock store is unusable — not a held lock; failing rather than reporting a skipped tick"
       exit 4
     fi
-    if ((${lock_rc:-0} != 0)); then
+    if ((lock_rc != 0)); then
       warn "another restart-consumer run holds the lock ($LOCK_DIR) — skipping this tick"
       info "restart-consumer: $ACTION on ${TARGET_REPO:-<fixtures>} at $(iso_utc "$now")"
       info "| lane | decision | detail |"

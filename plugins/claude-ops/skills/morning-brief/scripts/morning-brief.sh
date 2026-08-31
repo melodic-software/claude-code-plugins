@@ -346,7 +346,7 @@ fmt_age() {
 resolve_queue_labels() {
   QUEUE_LABELS=()
   if [[ -n "$QUEUE_LABELS_ARG" ]]; then
-    local part
+    local part _parts
     IFS=',' read -ra _parts <<<"$QUEUE_LABELS_ARG"
     for part in "${_parts[@]}"; do
       part="${part#"${part%%[![:space:]]*}"}"

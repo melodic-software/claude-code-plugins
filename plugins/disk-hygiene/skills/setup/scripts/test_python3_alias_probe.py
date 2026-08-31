@@ -47,9 +47,7 @@ class ProbeTests(unittest.TestCase):
     def make_file(self, relative: str, size: int) -> Path:
         path = self.root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as handle:
-            if size:
-                handle.write(b"\0" * size)
+        path.write_bytes(b"\0" * size)
         return path
 
     def run_probe(self, argv: list[str]) -> dict[str, object]:

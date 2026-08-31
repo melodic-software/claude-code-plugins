@@ -3,6 +3,110 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.34]
+
+### Fixed
+
+- **The worktree `create` snippet no longer emits a bare MSYS temp path on Windows.** The
+  `mktemp -d` step in `skills/worktree/context/create.md` printed the POSIX literal
+  `/tmp/tmp.XXXXXXXXXX`, which the native `Write` tool resolves against the current drive —
+  creating a phantom `<drive>:\tmp\...` while the real directory sits in `%TEMP%` (the silent
+  drive-root emit class the marketplace's windows-path-emit convention owns). The snippet now
+  converts at the boundary with `cygpath -m -l` (mixed form works for both the `Write` tool and
+  the later Bash consumers; `-l` expands an 8.3 short name), fails loud rather than falling back
+  to the unconverted literal, and passes through unchanged on non-Windows hosts. The
+  load-bearing-details list documents the conversion — including why `mktemp -d -p "$TEMP"` is
+  rejected — so it is not reverted as noise.
+
+## [0.55.33]
+
+### Fixed
+
+- **Three scripts stop truncating their own `--help` output.** `fetch-all-pr-comments.sh`,
+  `reap-project-plugin-records.sh`, and `worktree-root-doctor.sh` each printed usage with a
+  hardcoded `sed -n 'X,Yp'` line range that silently cut off whatever the header gained after the
+  range was written: fetch-all-pr-comments was omitting its entire Exit codes block, and
+  worktree-root-doctor was dropping 38 lines including its checked-classes list. All three now use
+  the derived header printer `babysit-readiness-gate.sh` already ships, which prints the comment
+  header to its first non-comment line, so the range can never go stale. Each --help diff is pure
+  addition (reap's output was still fully covered and is byte-identical), and each suite now pins
+  a formerly-truncated line so the truncation class is regression-guarded.
+
+## [0.55.32]
+
+### Changed
+
+- **`pull-request`: `fetch-annotations.sh` corrects a comment that misdescribed its own exit-code
+  capture.** The comment above the check-runs fetch said the API exit code is "captured via
+  PIPESTATUS", but the code has captured `$?` from a plain command substitution since the file's
+  first commit; no pipeline ever existed there. The comment now says "captured separately",
+  matching the accurate sibling comment in the annotations walk. Comment-only change, verified
+  against the file's full history; the script's behavior is untouched and its suite passes
+  unchanged.
+
+## [0.55.31]
+
+### Changed
+
+- **`resolve_self_logins` dedupes with one container instead of two.** The order-preserving
+  case-insensitive dedupe kept a result list alongside a `seen` set whose only job was to track keys
+  the result already implied; it is now the `dict.setdefault` form the sibling
+  `babysit_gh.resolve_authors` already uses for the same job. First-occurrence-wins and insertion
+  order are unchanged, and the two case-insensitive-dedupe sites in the engine now read alike.
+
+## [0.55.30]
+
+### Fixed
+
+- **`reference/config-resolution.md` cited `babysit-prs` by a path that resolved
+  against nothing.** The autonomy-table pointer read
+  `skills/babysit-prs/SKILL.md`, whose implied base is the plugin root while its
+  real base is `reference/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. It now names the public invocation,
+  `/source-control:babysit-prs`, keeping the section name.
+
+  **The `${CLAUDE_PLUGIN_ROOT}` form this fix first took was wrong for the reader
+  that most needs it.** `work-items`'s `work` skill fetches this file over
+  `raw.githubusercontent.com`, and for that reader `${CLAUDE_PLUGIN_ROOT}` denotes
+  the `work-items` installation, so the anchor resolved to a `babysit-prs` skill
+  that does not exist there. This sentence is the doc's address for the autonomy
+  obligation, which is the case
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  2026-08-28 amendment routes to the invocation rather than to a path whose
+  meaning depends on which plugin fetched the document. Found by a third
+  derivation over the plugin-level `reference/`, `context/` and `agents/` trees
+  whose predecessor could not see citations of a `SKILL.md` itself; the remedy
+  corrected by review before merge.
+
+## [0.55.29]
+
+### Changed
+
+- **Vendored `hook-utils.sh` gained `hook::repo_relative_path`.** The shared lib
+  now owns the repo-relative path computation twelve sibling hooks had each
+  hand-copied, together with the absolute-path degrade only four of those twelve
+  copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
+
+## [0.55.28]
+
+### Changed
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
+
+- **Telemetry-upsert reference prose normalized across the three lanes.** An em-dash purge had
+  reached one copy only, leaving a comma splice and a dropped clause about what the creation-race
+  reconcile does to a sibling instance's comment; the two unpurged copies disagreed with each other
+  about it. No executable block changed. Whole-repo extract-ssot sweep.
+
 ## [0.55.27]
 
 ### Changed

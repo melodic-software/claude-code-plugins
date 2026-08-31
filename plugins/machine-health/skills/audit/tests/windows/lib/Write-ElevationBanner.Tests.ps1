@@ -10,26 +10,52 @@ BeforeAll {
     $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
     . (Join-Path $script:LibRoot 'Write-ElevationBanner.ps1')
     . (Join-Path $script:LibRoot 'Get-ElevationMatrix.ps1')
+
+    # Write-ElevationBanner writes via [Console]::Error.WriteLine, which
+    # bypasses PowerShell's error stream, so `2>&1` captures nothing.
+    # Swap in a StringWriter around the call to capture real stderr text.
+    function Invoke-BannerCapture {
+        param([Parameter(Mandatory)] [scriptblock] $Call)
+        $writer = [System.IO.StringWriter]::new()
+        $saved = [Console]::Error
+        try {
+            [Console]::SetError($writer)
+            & $Call
+        } finally {
+            [Console]::SetError($saved)
+        }
+        return $writer.ToString()
+    }
 }
 
 Describe 'Write-ElevationBanner' -Tag 'lib' {
+    It 'emits the banner to stderr when non-elevated' {
+        $err = Invoke-BannerCapture {
+            Write-ElevationBanner -Elevated $false -HostName 'HOST' `
+                -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
+                -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix)
+        }
+        $err | Should -Match 'NON-ELEVATED'
+        $err | Should -Match ([regex]::Escape('Running as DOMAIN\user'))
+        $err | Should -Match 'Suppress this banner with -SkipBanner'
+    }
+
     It 'emits nothing when elevated' {
-        $err = & {
+        $err = Invoke-BannerCapture {
             Write-ElevationBanner -Elevated $true -HostName 'HOST' `
                 -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
                 -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix)
-        } 2>&1
-        # Pester captures stderr. Expect no banner output.
-        @($err | Where-Object { $_ -match '=' }).Count | Should -Be 0
+        }
+        $err | Should -BeNullOrEmpty
     }
 
     It 'emits nothing when -Quiet even if non-elevated' {
-        $err = & {
+        $err = Invoke-BannerCapture {
             Write-ElevationBanner -Elevated $false -HostName 'HOST' `
                 -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
                 -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix) -Quiet
-        } 2>&1
-        @($err | Where-Object { $_ -match 'NON-ELEVATED' }).Count | Should -Be 0
+        }
+        $err | Should -BeNullOrEmpty
     }
 }
 

@@ -3,6 +3,42 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.35]
+
+### Fixed
+
+- **`lib/test_hook_telemetry.py` no longer races the fire-and-forget sink.**
+  The sink's `>` redirect creates its output file empty before `cat` writes
+  it, so the two sink tests' existence-polls could read an empty file on a
+  fast host and fail on `json.loads("")` (about three runs in four on a fast
+  Linux container). Both tests now wait for non-empty, parseable content with
+  a five-second deadline — retrying on a truncated mid-write read as well —
+  mirroring the `_wait_for_file` discipline the sibling suites already use.
+  Production `hook_telemetry.py` is untouched; the suite is deterministic
+  over repeated runs (12/12).
+
+## [0.20.34]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** The setup skill's
+  `test_python3_alias_probe.py` replaces `make_file`'s hand-rolled `open(path, "wb")` context
+  manager (with a dead zero-size guard) with the exact stdlib equivalent
+  `path.write_bytes(b"\0" * size)`. Byte-identical file contents and permissions verified
+  empirically for every size the suite uses; refutation-verified; 10/10 tests pass.
+
+## [0.20.33]
+
+### Changed
+
+- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
+  The directive had fractured under the same per-plugin de-slop campaign;
+  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
+  sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
+  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
+  extract-ssot sweep.
+
 ## [0.20.32]
 
 ### Changed

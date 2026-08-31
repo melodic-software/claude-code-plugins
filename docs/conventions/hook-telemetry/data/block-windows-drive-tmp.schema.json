@@ -9,15 +9,15 @@
   "properties": {
     "tool": {
       "type": "string",
-      "description": "The invoking tool — \"Bash\" or \"PowerShell\"; this guard matches both."
+      "description": "The invoking tool — \"Bash\" or \"PowerShell\" on the command lane, or \"Write\" / \"Edit\" / \"MultiEdit\" / \"NotebookEdit\" on the file-path lane; this guard matches all of them."
     },
     "subject": {
       "type": "string",
-      "description": "Privacy-safe command subject: `Bash:<first-token>` for a Bash call, with leading sudo / env-assignment prefixes stripped and the token basenamed; the bare tool name (`PowerShell`) for a PowerShell call, which is not tokenized. NEVER the full command or its arguments."
+      "description": "Privacy-safe command subject: `Bash:<first-token>` for a Bash call, with leading sudo / env-assignment prefixes stripped and the token basenamed; the bare tool name (`PowerShell`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`) for every other tool, which is not tokenized. NEVER the full command, the written file path, or their arguments."
     },
     "form": {
       "type": "string",
-      "description": "The matched form when blocked: \"redirect\" | \"write-utility\" | \"too-long\" (command exceeded the parse cap and was blocked fail-closed). Empty string when the command was allowed (status ok)."
+      "description": "The matched form when blocked: \"redirect\" | \"write-utility\" | \"too-long\" (command exceeded the parse cap and was blocked fail-closed) | \"file-path\" (a Write/Edit/MultiEdit/NotebookEdit target path was a drive-root temp path). Empty string when the call was allowed (status ok)."
     }
   }
 }

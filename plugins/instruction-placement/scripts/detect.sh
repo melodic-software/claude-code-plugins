@@ -101,10 +101,8 @@ while [[ $# -gt 0 ]]; do
     ;;
   --)
     shift
-    while [[ $# -gt 0 ]]; do
-      EXPLICIT+=("$1")
-      shift
-    done
+    EXPLICIT+=("$@")
+    break
     ;;
   -*) die "unknown argument: $1" ;;
   *)
@@ -223,7 +221,6 @@ fi
 # ---------------------------------------------------------------------------
 ROWS="$(mktemp)"
 trap 'rm -f "$SKIP_ROWS" "$ROWS"' EXIT
-SECTION_COUNT=0
 RULE_COUNT=0
 
 emit_file_facts() {

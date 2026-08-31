@@ -5,6 +5,31 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.28]
+
+### Fixed
+
+- **`statusline-tee.sh` no longer leaks temp files when the process dies mid-write.** The tee had
+  no traps, and its snapshot prune deliberately excluded `.tmp.*` names, so a SIGKILL or crash
+  between temp write and rename left the temp file behind forever. Ported the sibling
+  rate-limit-guard tee's proven pattern: a reclaim function wired to EXIT/TERM/INT/HUP traps
+  (signal traps exit so EXIT stays the single reclaim path) plus an age-filtered orphan sweep for
+  the SIGKILL case, glob-guarded so a clean directory spawns no processes. The suite's old case
+  that pinned the leak now asserts reclamation, with a fresh in-flight temp asserted untouched,
+  and a new case proves the trap reclaims when the tee is terminated mid-window. Suite grows from
+  47 to 49 checks, all passing.
+
+## [0.7.27]
+
+### Changed
+
+- **Vendored `hook-utils.sh` gained `hook::repo_relative_path`.** The shared lib
+  now owns the repo-relative path computation twelve sibling hooks had each
+  hand-copied, together with the absolute-path degrade only four of those twelve
+  copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
+
 ## [0.7.26]
 
 ### Changed

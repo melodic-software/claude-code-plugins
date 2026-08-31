@@ -5,8 +5,7 @@
 # offline usage-error path (bad args exit 2 before any provider I/O).
 set -uo pipefail
 
-: "${FAILED:=0}"
-: "${CASE_NUM:=0}"
+# tests/lib.sh provides the FAILED/CASE_NUM defensive defaults.
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../tests/lib.sh"
 
 # assert_help <script> — --help exits 0 with non-empty stdout.

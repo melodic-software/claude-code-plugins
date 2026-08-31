@@ -3,6 +3,82 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.21]
+
+### Changed
+
+- **`audit-permission-grants`: `permission-rule-check.test.sh` renumbers a colliding block of case
+  labels.** The regression block after Case 11 reused labels 8b through 8g that an earlier block
+  already carried, so two different cases shared each label. The later block is now Cases 12
+  through 13b, grouped by the issue each case pins. Comment-only: no assertion, variable, or
+  fixture changed, and the suite passes unchanged at 139 checks.
+
+## [0.40.20]
+
+### Changed
+
+- **Two documentation-accuracy fixes and one dead-guard removal in skill
+  scripts.** `audit-pass/scripts/run-state.sh`'s header usage block regains the
+  `--plugin-data` and `[--epoch <n>]` arguments its own `usage()` already
+  documents (comment-only; verified against the negative-test sed targets);
+  `audit-instructions/scripts/conflict-scan.test.sh` drops a prerequisite guard
+  for `grep`, a tool neither the suite nor the script under test invokes (the
+  awk guard stays; skip-discipline gates re-run clean).
+
+## [0.40.19]
+
+### Changed
+
+- **`lib/managed-scope.sh` emits its two Windows registry policy keys from one
+  `printf`.** The merged call reuses the `'%s\n'` format per argument, so the
+  emitted lines, their order, and the trailing newline are byte-identical; the
+  merge also brings the HKCU line under the existing `portability-ok`
+  annotation block, which previously excused only the adjacent HKLM line, so
+  `scripts/check-shell-portability.sh --paths` now passes this file without an
+  unexcused-construct finding. Behavior-preserving; refutation-verified against
+  every line-by-line consumer.
+
+## [0.40.18]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `audit-permission-state`'s
+  `automode-entry-diff.sh` drops a redundant command-substitution wrapper in the empty-prediction
+  guard (`[[ -z "$(printf '%s' "$predicted_dropped")" ]]` to `[[ -z "$predicted_dropped" ]]`);
+  the wrapper only stripped trailing newlines, and the value's grammar (non-empty rules each
+  followed by one newline) makes that stripping unobservable. Refutation-verified by static
+  reachability trace plus a 12-case empirical matrix; the suite's 63 checks and the
+  no-writes property tests pass.
+
+## [0.40.17]
+
+### Changed
+
+- **`audit-instructions`: the body-scope fence stops citing a line number that says the opposite.**
+  Both `context/persist-findings.md` and `reference/criteria.md` cited
+  `plugins/skill-quality/scripts/check-skill.sh:414` as the hard FAIL for a dropped trigger phrase.
+  Line 414 sits inside a comment explaining that a trigger **move** WARNs and never blocks; the
+  `err` is at 462. The citation asserted the reverse of the line it pointed at, and would have
+  rotted again on the next edit to that script. Both now name the trigger-phrase drop check rather
+  than a line, matching the fix `detector-findings` 2.7.1 applied to the same claim in the
+  convention doc. Whole-repo extract-ssot sweep.
+
+- **`audit-permission-state`: the dropped-allow-rule roster was missing `Monitor`.** The recap of
+  upstream's auto-mode classes elided the category upstream added in v2.1.236 and then counted four
+  classes from the elision, so a dropped `Monitor` allow rule was reported under none of them. The
+  verdict is version-dependent and the diff now says so: the category arrived in v2.1.236 and
+  earlier versions leave `Monitor` rules in effect, so classifying one emits a `DIFF-NOTE` naming
+  that bound rather than asserting the verdict unqualified, since the script cannot read the running
+  version. Whole-repo extract-ssot sweep.
+
+- **`setup`: normalized the probe-don't-recite directive and repaired residual grammar defects.**
+  The directive had fractured under the same per-plugin de-slop campaign;
+  `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
+  sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
+  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
+  extract-ssot sweep.
+
 ## [0.40.16]
 
 ### Changed

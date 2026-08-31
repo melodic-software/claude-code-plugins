@@ -11,7 +11,7 @@ metadata:
 
 ## Pre-computed context
 
-Working tree status: !`git status --porcelain 2>/dev/null || echo ""`
+Working tree status (empty = clean): !`git status --porcelain 2>/dev/null || echo "(git status unavailable)"`
 Changed files (vs HEAD): !`git diff --name-only HEAD 2>/dev/null || echo ""`
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`

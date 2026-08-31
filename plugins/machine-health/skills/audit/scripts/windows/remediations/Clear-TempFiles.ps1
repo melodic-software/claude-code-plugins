@@ -67,7 +67,7 @@ function Get-NonReparseFile {
                 if ($ReparseSkipCount) { $ReparseSkipCount.Value++ }
                 continue
             }
-            # Safe container check — Set-StrictMode -Version 3.0 throws on
+            # Safe container check -- Set-StrictMode -Version 3.0 throws on
             # absent properties, and test mocks (pscustomobject fixtures)
             # don't always expose PSIsContainer. A missing property is
             # treated as "not a container" (a plain file), which matches

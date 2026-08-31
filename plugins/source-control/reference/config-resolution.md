@@ -121,7 +121,7 @@ binding layer, never unioned).
 | `babysit_loop_trusted_internal_bot_logins` | flat Markdown bullet list (`- <login>` per line) of exact GitHub App bot logins the repository attests as its own internal automation — the C5 trust test's reviewed internal-bot trust signal; **honored in the team-tracked layer only** ("the C5 trust test's one reviewed widening" below) | none — empty set: the trust test accepts `OWNER`/`MEMBER` only |
 
 Dimension semantics — what each tier value grants per dimension — are owned by the babysit-prs
-autonomy table (`skills/babysit-prs/SKILL.md`, "Autonomy tiers (per action class)") and are not
+autonomy table (`/source-control:babysit-prs`, "Autonomy tiers (per action class)") and are not
 restated here. The merge dimension's rung semantics are owned by the loop-lane convention's autonomy
 ladder (`docs/conventions/loop-lane/README.md` §1 in the marketplace repository).
 

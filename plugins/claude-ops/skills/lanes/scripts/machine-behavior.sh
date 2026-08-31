@@ -147,7 +147,6 @@ gh_identity() {
 # is no single deterministic "pattern" to infer — the raw list IS the pattern.
 CLONE_PATH="unavailable"
 CURRENT_WT="unavailable"
-WT_COUNT=0
 declare -a WT_LINES=()
 
 read_worktrees() {
@@ -180,7 +179,6 @@ read_worktrees() {
     "")
       if [[ -n "$path" ]]; then
         WT_LINES+=("$path|${branch:-(detached)}")
-        WT_COUNT=$((WT_COUNT + 1))
         path="" branch=""
       fi
       ;;
@@ -240,8 +238,8 @@ printf '== MACHINE-BEHAVIOR ==\n'
 printf 'gh-identity: %s\n' "$(gh_identity)"
 printf 'clone-path: %s\n' "$CLONE_PATH"
 printf 'current-worktree: %s\n' "$CURRENT_WT"
-printf 'worktree-count: %s\n' "$WT_COUNT"
-if ((WT_COUNT)); then
+printf 'worktree-count: %s\n' "${#WT_LINES[@]}"
+if ((${#WT_LINES[@]})); then
   printf 'worktrees:\n'
   for local_line in "${WT_LINES[@]}"; do
     printf '  %s  [%s]\n' "${local_line%%|*}" "${local_line#*|}"

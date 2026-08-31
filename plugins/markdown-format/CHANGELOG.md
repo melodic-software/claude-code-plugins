@@ -3,6 +3,31 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.35]
+
+### Changed
+
+- **Two inert leftovers removed.** `hooks/markdown-format.sh` drops two
+  `hook::ctx_reset` calls (this hook never uses the ctx accumulator — no
+  `ctx_append`/`ctx_flush`, and its emit path never reads the buffer);
+  `hooks/markdown-format.test.sh` drops a three-line `for … do :; done` loop
+  whose body was a no-op. Suite 161/161; deliberate deletion, not a silent
+  revert.
+
+## [0.11.34]
+
+### Fixed
+
+- **Telemetry `data.file` can no longer leak an absolute path (#1133).** The
+  hand-copied `FILE_REL` block is replaced by `hook::repo_relative_path` in the
+  shared `hooks/hook-utils.sh`, which carries the degrade eight of the twelve
+  copies lacked: a path the repo-root prefix strip could not make relative
+  (mount or symlink mismatch, cygpath disagreement) now comes back as its
+  basename instead of an absolute path embedding the developer's username.
+  `FILE_REL` reaches only the telemetry payload here, never the markdownlint
+  invocation, so the lint target is unaffected. Copies stay byte-identical via
+  `scripts/sync-hook-utils.sh`.
+
 ## [0.11.33]
 
 ### Changed

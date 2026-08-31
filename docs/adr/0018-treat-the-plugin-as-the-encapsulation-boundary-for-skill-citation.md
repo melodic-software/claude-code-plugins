@@ -226,3 +226,97 @@ in full.
   adds a `.claude/skills/` tree, since both premises of the distribution-unit argument would fail.
   It does not re-open on a request to relax cross-plugin citation: that is the case the contract is
   about and the evidence here does not touch it.
+
+## Amendment (2026-08-28) — the test clause 2 was applied under, and two surfaces it never named
+
+A remediation sweep applied clause 2 across `docs/**`, fixed 16 citations, kept 23, and stated its
+dividing test only in the pull request that carried it. **The test is nowhere in this record.** It
+has already cost something measurable: one commit ruled a reach into a skill's private `scripts/lib/`
+out of bounds in one convention doc and left the byte-identical shape standing in another, three
+files apart, on the same day. An unwritten test cannot be applied consistently, and was not. Three
+things are recorded here so the next pass reads the rule instead of re-deriving it.
+
+### The dividing test: fix an address, keep evidence
+
+Clause 2 cannot mean every occurrence of a cross-plugin path, because **this document breaks that
+reading on its own first page.** It path-cites another plugin's skill privates five times, three of
+them the same `context/` file, which is private under any reading of the contract:
+`plugins/docs-hygiene/skills/audit-encapsulation/context/public-surface-contract.md` at lines 19, 44
+and 108, that skill's `scripts/detect.sh` at 209, and
+`plugins/source-control/skills/worktree/SKILL.md` at 222. Either this record violates itself in the
+act of stating the rule, or clause 2 has always been scoped to what a citation *does* rather than to
+the characters it contains. Only the second reading is coherent, and it is the reading every applied
+fix in fact used.
+
+**FIX a citation that is the doc's address for an obligation.** The reader is being sent there to
+get the rule the sentence declares itself bound by, and the path is missing for exactly the audience
+the sentence binds: a contract fetched over `raw.githubusercontent.com` by an installed plugin, a
+lane running with one plugin installed and not the other. The binding fails precisely where it
+binds. Name the public `/plugin:skill` invocation instead, keeping any section name so a reader
+inside this checkout still lands in the right place.
+
+**KEEP a citation that is evidence about this tree at a moment in time.** Three shapes qualify:
+
+- a **dated record** whose claim is what a named file contained on that date, a changelog entry
+  quoting the citation it just removed included;
+- a **worked example whose content is quoted inline**, so the reader gets the point without
+  following the path;
+- a **statement whose subject is the path**, where naming the invocation instead would delete the
+  assertion rather than relocate it.
+
+Evidence does not fail when the cited file moves; it becomes a record of something that was true,
+which is what a dated record is for. **This document's own five citations are the second and third
+kinds, and they stay.** So does the ADR-bodies refusal that the sweep record already carries on this
+ground.
+
+The test governs function, not form, so it takes nothing away from clause 3. A kept citation still
+has to resolve from the base its own form implies, and a kept citation that has rotted is a clause 3
+defect whatever it is evidence of. A pin *into* a kept citation, a `:97` or a `steps 6 and 7`, is the
+part with no evidentiary value once the content is quoted inline, and it is the part that rots first:
+drop it and keep the path.
+
+### A skill's `scripts/` is its entry surface; `scripts/lib/` is not
+
+The contract's carve-out lets harness surfaces, CI workflows, git hooks and automation registries
+path-cite a skill's `scripts/` **entry scripts**. It reaches the scripts a caller is meant to invoke,
+and stops there. **A private subdirectory beneath `scripts/`, `scripts/lib/` above all, is outside
+the carve-out, and is private on the contract's own definition of a skill's non-public files.** It
+holds implementation a
+caller never names, so citing it buys a reader nothing an invocation would not, and costs the same
+rename exposure the contract exists to prevent.
+
+This was already ruled, in
+[`detector-findings` 2.8.1](../conventions/detector-findings/CHANGELOG.md), against a row citing
+`plugins/docs-hygiene/skills/audit-noise/scripts/lib/noise-shapes.sh`, and its remedy is the one to
+copy: name the thing in the terms the sentence already uses ("its shape library", "the scanner",
+"`/repo-hygiene:clean`'s bundled test-helper copy") so the assertion is unchanged and survives the
+next rename. It is recorded here because a ruling that lives only in one convention's changelog is
+invisible to the next doc that needs it: the commit that wrote 2.8.1 left the byte-identical shape
+standing in `docs/conventions/shell-test-helpers/README.md`, and a separate pass had to close it.
+
+### Plugin-level non-skill trees are outside this ADR's privacy question, and inside clause 3
+
+`plugins/<p>/reference/`, `context/`, `hooks/`, `scripts/` and `agents/` sit **outside every skill
+directory**. The public-surface contract defines privacy relative to a skill directory, so it does
+not reach them, and neither does clause 2's encapsulation half. The repo has ruled on exactly one
+such site, and only in a changelog:
+[`detector-findings` 2.8.1](../conventions/detector-findings/CHANGELOG.md) kept
+`plugins/review/reference/topic-docs.md` because "that file sits outside every skill directory" and
+because the section around it argues explicitly for naming that file by repo path.
+
+**That ruling generalizes on privacy and does not generalize into permission.** Nothing in these
+trees is private under the contract, so no citation of them is a clause 2 violation. Clause 3 still
+binds every one of them, and so does the fetched-contract problem that motivated clause 2: a
+marketplace-checkout-relative `plugins/<p>/reference/…` is not on disk for a reader who installed the
+plugin, so a citation of that shape that functions as an **address** is still to be fixed under the
+test above, on its own merits rather than as an encapsulation defect. The 2.8.1 keep survives that
+test on its second leg, not its first.
+
+**The population is measured, and it is not swept here.** A verifier counted 51 distinct `docs/**`
+citations into those trees. Re-derived independently for this amendment with a different expression:
+59 occurrences at 48 distinct `path:line` sites in 16 files outside `docs/specs/`, `docs/topics/` and
+`docs/adr/`, and 148 occurrences at 132 sites once those three are included. The counts disagree
+because the shape has no single search expression, which is the point: **a later pass must re-derive
+against the live tree and must not cite any of these numbers as a total.** They are recorded as a
+measured order of magnitude, so that pass knows it is buying dozens of judgments rather than a
+handful.

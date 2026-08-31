@@ -611,11 +611,9 @@ surface a session loads, and it cannot defer at runtime to a document
 the consuming repo does not have.
 
 So identical prose across two setup skills is a coincidence of scope,
-not a shared artifact. `discovery`'s and `verification`'s setup skills
-agree byte-for-byte across most of their bodies
-([discovery](../../../plugins/discovery/skills/setup/SKILL.md),
-[verification](../../../plugins/verification/skills/setup/SKILL.md))
-because their setup scope is identical today. `planning` states the same
+not a shared artifact. `/discovery:setup` and `/verification:setup`
+agree byte-for-byte across most of their bodies because their setup
+scope is identical today. `planning` states the same
 rules in its own prose and already diverges on two: it declines the
 memory-root `.gitignore` write (which the self-ignore guard above
 assigns to the session's first memory-tier write, not to setup) and

@@ -25,7 +25,7 @@ The main skill and its reference files are the single source of truth for what t
 requires: `${CLAUDE_PLUGIN_ROOT}/skills/playwright/SKILL.md` (Prerequisite + quick start) and
 `${CLAUDE_PLUGIN_ROOT}/skills/playwright/reference/` (`commands.md`, `windows-quirks.md`).
 
-**Read it first**. Probe what it actually does, don't recite this file. Then run each probe via
+**Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
 Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
 1. **`playwright-cli` binary**. `command -v playwright-cli` (the binary name the skill drives;

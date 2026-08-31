@@ -129,8 +129,13 @@ rule_title() {
 # A private copy here would risk the brace-comma bug: splitting the inline flow
 # form `["src/*.{ts,tsx}"]` on the brace comma turns one correct glob into two
 # broken ones.
+#
+# The join inserts ", " between globs in one pass. The earlier form — `paste
+# -sd,` then a global `s/,/, /` pad — hit the same brace-comma bug on output,
+# rendering `{ts,tsx}` as `{ts, tsx}`; only the commas the join itself inserts
+# may be padded. (`paste -sd', '` cannot do it: -d cycles single characters.)
 rule_globs() {
-  ip_parse_paths "$1" | paste -sd, - | sed 's/,/, /g'
+  ip_parse_paths "$1" | awk 'NR > 1 { printf ", " } { printf "%s", $0 } END { if (NR) printf "\n" }'
 }
 
 # True when every non-blank, non-comment line is an `@import`. Such a file is a

@@ -3,6 +3,83 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.21]
+
+### Changed
+
+- **One fewer spawn per Stop turn in `hook-failure-audit.sh`.** The hook now
+  short-circuits before its summary jq spawn when the grep pre-filter matched
+  nothing (the empty case previously produced `[]` and the same silent exit 0).
+  Adversarial payload probes byte-identical across all paths; suite 88/88.
+  (An analogous jq_fields consolidation in the two skill-usage hooks was
+  attempted, refuted by differential testing on pathological payloads, and
+  reverted — recorded in the sweep report rather than shipped.)
+- **restart-consumer.sh declares five formerly implicit globals `local` to
+  `process_lane`** (no post-return reader exists; full caller-graph and trap
+  audit) and drops two `${lock_rc:-0}` defaults dominated by an unconditional
+  assignment. `morning-brief.sh` declares its `read -ra` scratch array local;
+  two misplaced test assertions moved to the section whose fixture they read.
+- **install_state.py** renames the unused `os.walk` dirnames slot to
+  `_dirnames`, matching the file's own convention.
+
+## [0.38.20]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `lanes`'s machine-behavior.sh
+  drops the WT_COUNT parallel counter (its two reads use `${#WT_LINES[@]}` directly, matching the
+  file's existing WANT_PLUGINS idiom); `observability`'s claude-observability.test.sh collapses two
+  case-based substring checks into the suite's own `assert_contains` helper. Both refutation-verified
+  (counter/array divergence structurally impossible; 26/26 and 33/33 suite checks byte-identical
+  old-vs-new including a glob-metacharacter probe matrix).
+
+## [0.38.19]
+
+### Changed
+
+- **Vendored `hook-utils.sh` gained `hook::repo_relative_path`.** The shared lib
+  now owns the repo-relative path computation twelve sibling hooks had each
+  hand-copied, together with the absolute-path degrade only four of those twelve
+  copies carried (#1133). This plugin's hooks do not call it; the copy is bumped
+  because `scripts/sync-hook-utils.sh` keeps every carrying plugin
+  byte-identical.
+
+## [0.38.18]
+
+### Fixed
+
+- **`observability`: the repo-slug failure token collided with real data.** 0.38.17 made the
+  `unknown` fallback reachable. It stayed ambiguous: a repository whose toplevel directory is
+  literally named `unknown` rendered the same string as a `git rev-parse` that failed, so the
+  reader could not tell a working probe from a broken one. Verified by execution, both states
+  rendered `unknown` byte for byte. The failure case now renders `(git toplevel unavailable)`,
+  matching the parenthesized convention the rest of the fleet's probes use, which no directory name
+  in practice collides with. A repository named `unknown` still renders `unknown`, now
+  unambiguously. Nothing in the plugin reads the injected value, so no consumer changes. The skill
+  declares no `allowed-tools`, so no grant changed. LIVE and PRE-EXISTING. Minor.
+
+## [0.38.17]
+
+### Fixed
+
+- **`observability`: the repo-slug probe's `unknown` fallback could not render.** The probe was
+  `git rev-parse --show-toplevel 2>/dev/null | sed 's|.*/||' || echo "unknown"`. `sed` exits 0 even
+  when `git rev-parse` failed, so running the skill outside a git work tree rendered an empty slug
+  rather than `unknown`, and every report line keyed to the slug lost its label silently. Verified
+  by execution: run from `/tmp` the old shape rendered `[]` and the new one renders `[unknown]`;
+  run from this repository both render `claude-code-plugins`. The probe now leads with
+  `git rev-parse --show-toplevel >/dev/null 2>&1 &&`. The skill declares no `allowed-tools`, so no
+  grant changed.
+
+## [0.38.16]
+
+### Changed
+
+- **`setup`: repaired a comma splice in the headless-reconfigure caveat.** An em-dash purge had
+  fused two sentences, leaving "Re-verify before relying on it outside those conditions, a
+  `sensitive` option, or `project`/`local` scope, were not covered", whose subject and verb no
+  longer agree. Now two sentences. Whole-repo extract-ssot sweep.
+
 ## [0.38.15]
 
 ### Changed
@@ -478,7 +555,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **Docs:** README only. The generated options block's headless route no longer implies
   `--config` applies at install time alone, and now carries the CLI version its claim was
   verified against
-  ([#3111](https://github.com/melodic-software/claude-codeplugins/issues/3111)); two upstream
+  ([#3111](https://github.com/melodic-software/claude-code-plugins/issues/3111)); two upstream
   links that resolved to empty backward-compatibility anchors on the settings page were
   repointed at the headings that hold the content. Emitted by
   `scripts/sync-plugin-options-docs.py`, which regenerates every plugin README from one

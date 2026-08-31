@@ -43,11 +43,12 @@ No action → issue one daily craft prompt immediately (default a 90-second obje
 ## Persistence and template overrides
 
 Write generated files to the paths in
-[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md) (daily practice
-to `songwriting/practice/<YYYY>/<date>.md`), and honor a consuming project's own layout when it
-defines one. Before loading any bundled `templates/<name>.md`, check
-`${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first, a project-level override
-wins over the bundled default.
+[artifact-persistence](../../context/pat-pattison/research/artifact-persistence.md)
+"Where generated work persists", and honor a consuming project's own songwriting layout when it
+defines one. Daily practice goes to `songwriting/practice/<YYYY>/<date>.md`.
+Before loading any bundled `templates/<name>.md`, check
+`${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
+override wins over the bundled skill default, first match, per that file's "Template override".
 
 ## Related skills
 

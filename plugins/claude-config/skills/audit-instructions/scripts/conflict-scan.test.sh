@@ -41,10 +41,6 @@ assert_not_contains() {
   esac
 }
 
-if ! command -v grep >/dev/null 2>&1; then
-  echo "SKIP: grep not installed" >&2
-  exit 0
-fi
 if ! command -v awk >/dev/null 2>&1; then
   echo "SKIP: awk not installed" >&2
   exit 0

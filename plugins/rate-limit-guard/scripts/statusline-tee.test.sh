@@ -247,6 +247,27 @@ else
   fail "oversized payload not teed"
 fi
 
+# --- Case 12b: payload beyond one read chunk still passes through whole ------
+# The stdin read drains 1MiB blocks until EOF, so a payload larger than one
+# block must reach the wrapped command byte-for-byte, not truncated at the
+# first block boundary.
+HOME12B="$WORK/home12b"
+mkdir -p "$HOME12B"
+HUGE_FILLER="$(head -c 1500000 /dev/zero | tr '\0' 'y')"
+HUGE_INPUT="$(printf '{"session_id":"sess-huge","filler":"%s","rate_limits":{"five_hour":{"used_percentage":6,"resets_at":1738425600}}}' "$HUGE_FILLER")"
+WANT_BYTES=${#HUGE_INPUT}
+GOT_BYTES=$(printf '%s' "$HUGE_INPUT" | HOME="$HOME12B" bash "$TEE" wc -c | tr -d ' \r\n')
+if [[ "$GOT_BYTES" == "$WANT_BYTES" ]]; then
+  ok ">1MiB payload → wrapped command receives every byte ($GOT_BYTES)"
+else
+  fail ">1MiB payload truncated: wrapped command saw $GOT_BYTES of $WANT_BYTES bytes"
+fi
+if [[ -f "$HOME12B/$TEE_REL" ]] && [[ "$(jq -r '.session_id' <"$HOME12B/$TEE_REL")" == "sess-huge" ]]; then
+  ok ">1MiB payload still teed"
+else
+  fail ">1MiB payload not teed"
+fi
+
 # --- Case 13: newest write wins (last-writer-wins contract) ------------------
 run "$HOME1" "$(build_input)" cat >/dev/null
 printf '{"session_id":"sess-later","rate_limits":{"five_hour":{"used_percentage":91,"resets_at":1738425600}}}' |

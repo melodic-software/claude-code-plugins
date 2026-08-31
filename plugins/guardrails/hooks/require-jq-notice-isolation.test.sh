@@ -99,7 +99,9 @@ fired_count=0
     fi
   done
 ) >"$TEST_TMPDIR/fire-log"
-fired_count=$(grep -c '^FIRED:' "$TEST_TMPDIR/fire-log" 2>/dev/null || echo 0)
+# || true, not || echo 0: grep -c already prints its own 0 on zero matches
+# before exiting 1, so appending an echo made the captured value two lines.
+fired_count=$(grep -c '^FIRED:' "$TEST_TMPDIR/fire-log" 2>/dev/null || true)
 
 if ((fired_count == ${#seen_keys[@]})); then
   ok "hook::notice_once fired independently for all ${#seen_keys[@]} guardrails hook keys within one shared session/data-dir"

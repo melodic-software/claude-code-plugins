@@ -66,6 +66,16 @@ paths: ["**/*.test.ts"]
 Body.
 EOF
 
+  cat >"$dir/.claude/rules/brace.md" <<'EOF'
+---
+paths: ["src/*.{ts,tsx}", "lib/**"]
+---
+
+# Brace-glob rule
+
+Body.
+EOF
+
   cat >"$dir/.claude/rules/always.md" <<'EOF'
 # Always loaded
 
@@ -126,6 +136,11 @@ assert_contains "its glob is shown" "$out" '`**/*.cs`'
 assert_contains "the H1 supplies the topic when no description exists" "$out" "C# naming conventions"
 assert_contains "an explicit description wins over the H1" "$out" "Test layout and the runner to use"
 assert_contains "a rule in a nested rules directory is indexed" "$out" '`.claude/rules/nested/api.md`'
+
+# The glob join pads only the commas it inserts between globs, never a comma
+# inside a brace glob (regression: a global comma pad rendered `{ts, tsx}`).
+assert_contains "brace-glob commas are not padded, list commas are" "$out" '`src/*.{ts,tsx}, lib/**`'
+assert_not_contains "no space is injected inside a brace glob" "$out" '{ts, tsx}'
 
 assert_not_contains "an unscoped rule is NOT indexed" "$out" "always.md"
 assert_not_contains "the root CLAUDE.md is NOT indexed" "$out" '| `CLAUDE.md`'

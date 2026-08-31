@@ -3,6 +3,81 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.42]
+
+### Fixed
+
+- **Conformance `e2e-probe.sh` drops a vacuous assertion.** The lease-comment-id case asserted
+  that `"n$LEASE_CID"` contains `"n"`, which is true for every possible value; the real numeric
+  check is the regex block immediately after it, which remains. Nothing pins the probe's case
+  numbering, and the offline suite passes unchanged. The probe itself runs only against a live
+  sandbox repo, so the offline suite is the verification.
+- **Linear `schema-check/fidelity.sh` describes its own mechanism accurately.** The header comment
+  claimed the FIELDS block is pulled "by executing just that assignment"; the script sed-extracts
+  the text without executing anything. The comment now says so.
+- **Linear `schema-check/negative.mjs` uses an optional catch binding** instead of binding an
+  unused exception variable.
+
+### Changed
+
+- **The linear `schema-check/` tree is now recorded in the repo's no-suite allowlist.** The tree
+  mapped to zero test suites, which the affected-tests contract treats as an error, so every
+  future edit there was blocked. It is an on-demand live-schema lane (fetched SDL plus a graphql
+  dependency, run by hand per its README, no CI lane), and the allowlist entry records that
+  justification.
+
+## [0.39.41]
+
+### Changed
+
+- **Tracker-core test scaffolding tidied.** `lib/binding.test.sh` drops a
+  file-wide `shellcheck disable=SC2154` that current shellcheck no longer
+  needs (and that masked the whole file against real SC2154 findings);
+  `lib/verb-test-helpers.sh` drops `FAILED`/`CASE_NUM` defaults duplicated
+  by `tests/lib.sh`, which it sources immediately after and which sets the
+  identical defaults. All co-located suites and the 41-suite adapter
+  fan-out pass unchanged.
+
+## [0.39.40]
+
+### Changed
+
+- **Three small redundancies removed in the work-item tracker.** The linear adapter's seam-hint
+  comment carried a duplicated clause that inverted its own meaning, where every sibling adapter
+  carries the sentence intact; the local-markdown `common.test.sh` recomputed a script directory the
+  line above had already stored in `SCRIPT_DIR`; and `lib/lease.test.sh` spelled a fixture's
+  renewal timestamp as `BOUNDARY_EXPIRY - BOUNDARY_TTL * 3600`, which is the injected fixed clock by
+  construction. Comment, test-scaffolding, and fixture-arithmetic only; no adapter behavior changes.
+
+## [0.39.39]
+
+### Fixed
+
+- **`reference/permission-preflight.md` cited the `work` skill by an unresolvable path.** The Step 0
+  pointer for the `reclaim` classifier-denial mitigation read `skills/work/SKILL.md`, whose implied
+  base is the plugin root while its real base is `reference/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. It now reads `${CLAUDE_PLUGIN_ROOT}/skills/work/SKILL.md`, the form the same
+  file already uses for `preflight.sh`. Intra-plugin citation, legal under clause 1; clause 3 only,
+  so the target is unchanged and no routing moves.
+
+## [0.39.38]
+
+### Changed
+
+- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+  floor's values identical across the three consuming lanes; hashing those three plus the reader
+  contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
+  drift traces to two de-slop shards, which made the same two substitutions and so produced one
+  drifted form rather than two; one of those substitutions replaced a clause-joining dash with a
+  comma and left a splice. All five carriers now hash identically on an em-dash-free, grammatical
+  form. Whole-repo extract-ssot sweep.
+
+- **Telemetry-upsert reference prose normalized across the three lanes.** An em-dash purge had
+  reached one copy only, leaving a comma splice and a dropped clause about what the creation-race
+  reconcile does to a sibling instance's comment; the two unpurged copies disagreed with each other
+  about it. No executable block changed. Whole-repo extract-ssot sweep.
+
 ## [0.39.37]
 
 ### Changed

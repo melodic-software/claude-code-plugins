@@ -1695,8 +1695,9 @@ literalism sections ("interprets prompts literally and explicitly") corroborate 
   the directive's wording means the remediation overreached.
 - **Body-scoped when it routes to the relay.** No emitted finding may carry a remediation that
   edits a `description`, a `when_to_use`, or a quoted `'trigger phrase'`:
-  `plugins/skill-quality/scripts/check-skill.sh:414` hard-FAILs a dropped trigger phrase versus the
-  base ref, so such an edit is an auto-invocation regression rather than a debatable suggestion. A
+  `plugins/skill-quality/scripts/check-skill.sh`'s trigger-phrase drop check hard-FAILs a dropped
+  trigger phrase versus the base ref, so such an edit is an auto-invocation regression rather than a
+  debatable suggestion. A
   coercive phrase inside a description is still a real observation — it is reported to the human
   and never routed to the relay.
 - **V1 selection scope, deliberately narrower than the Detect prose.** Two forms the class covers

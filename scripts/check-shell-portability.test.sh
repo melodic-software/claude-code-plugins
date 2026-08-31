@@ -3244,4 +3244,137 @@ else
 fi
 rm -f "$f"
 
+# =============================================================================
+# The RESUMABLE walk's COMMIT BOUNDARY (#3481). mask_quotes() walks a joined
+# record ONCE: every decision far enough behind the end of the record that no
+# later physical line can change it is committed, the walk state at that point
+# is held, and only the short tail is re-decided next time round. Every other
+# joined fixture in this suite decides the same way whether that walk resumes
+# or restarts, which is exactly why none of them notices when the boundary is
+# drawn one column wrong or the state held at it is not the WHOLE state. The
+# cases below are written to notice: each one is a fixture whose verdict flips
+# when one specific piece of that boundary is broken.
+# =============================================================================
+
+# --- the boundary has to allow for a record that SHRINKS, not only one that
+# grows. The record loop deletes a trailing backslash once it turns out to be a
+# continuation, so a decision committed two columns back had already read a
+# character the record no longer has. `$` `(` `\` in the last three columns is
+# the only shape with the reach to do it: the `$((` test fails on the
+# backslash, the shorter `$(` gets committed, and the `(` that arrives on the
+# next physical line can no longer promote it. POSIX removes `\<newline>`
+# during tokenization (2.2.1), so this spelling IS `$((` and the ladder is
+# guarded; committing the shorter reading reported it as an unguarded call.
+f="$(mktemp --suffix=.sh)"
+printf 'stat -c %%s $(\\\n(1 | 2)) || stat -f %%z f\n' >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a \$(( split by a line continuation is still one arithmetic expansion"
+else
+  fail "a continuation inside \$(( broke a real ladder: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+# ...and the same command written on ONE line is the control: the shell sees
+# the same tokens either way, so the gate must too.
+f="$(mktemp --suffix=.sh)"
+printf 'stat -c %%s $((1 | 2)) || stat -f %%z f\n' >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "the same ladder without the continuation is clean too"
+else
+  fail "the uncontinued control ladder must stay clean: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- an INLINE COMMENT is sticky across a join. It masks the rest of the
+# record, text joined on afterwards included, so the walk that resumes on the
+# next physical line has to carry the comment flag over the boundary rather
+# than re-decide a `#` that now sits behind the commit point. Forgetting it
+# hands the `||` back its control-operator meaning and a commented-out fallback
+# starts excusing an unguarded call again.
+f="$(mktemp --suffix=.sh)"
+printf 'v=$(true  # note\nstat -c %%s "$f" || stat -f %%z "$f")\n' >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a ladder inside a comment's shadow should fire, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "an inline comment keeps masking across a join, so its || is not a guard"
+else
+  fail "expected the line-2 call reported, got: $out"
+fi
+rm -f "$f"
+# ...with the comment removed the identical second line IS live code, so the
+# same ladder is a real one. This is the control that pins the difference on
+# the comment rather than on the join.
+f="$(mktemp --suffix=.sh)"
+printf 'v=$(true\nstat -c %%s "$f" || stat -f %%z "$f")\n' >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "the same joined ladder without the comment is a real ladder"
+else
+  fail "the uncommented control must stay clean: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
+# --- `${…}` EXTENTS survive the boundary. The walk records where every
+# expansion it closes began and ended, and the `&`-in-replacement class reads
+# those extents; an expansion that closed before the commit point is gone if
+# the count is not held, and the class then reports the next frame instead.
+# The frames here close at two different stack depths (the nested one on line 2
+# closes inside the one containing it), so a depth-keyed hold is exercised as
+# well as the count.
+tok="$(one_token_list '!subst-replacement-ampersand')"
+f="$(mktemp --suffix=.sh)"
+printf 'a="${x//p/&} one\n${y//q/${z//r/&}} two"\n' >"$f"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "an & in a joined record should fire, got success: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1: !subst-replacement-ampersand"; then
+  ok "an expansion closed before the commit point is still reported, at line 1"
+else
+  fail "expected the earliest & frame reported at line 1, got: $out"
+fi
+rm -f "$f" "$tok"
+
+# --- ARITHMETIC DEPTH survives it too. `$(( … ))` ends only at a `))` reached
+# at parenthesis depth zero, so an inner `( … )` left open at the end of a
+# physical line has to be remembered: forget it and the next line's first `))`
+# closes the expansion early, after which the `||` behind it reads as a control
+# operator and a fallback that the shell never reaches starts guarding the call.
+f="$(mktemp --suffix=.sh)"
+printf 'stat -c %%s "$f" $(( (1 +\n2)) || stat -f %%z "$f"\n' >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a || inside an unterminated arithmetic expansion should not guard: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+  ok "an inner ( ) open across a join keeps the arithmetic expansion open"
+else
+  fail "expected the line-1 call reported, got: $out"
+fi
+rm -f "$f"
+# ...same text on one line, same verdict: the join is not what decides it.
+f="$(mktemp --suffix=.sh)"
+printf 'stat -c %%s "$f" $(( (1 + 2)) || stat -f %%z "$f"\n' >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  fail "the unjoined control must report the same unguarded call"
+else
+  ok "the same arithmetic expansion on one line reports the same call"
+fi
+rm -f "$f"
+# ...and the depth is held per FRAME, so the same shape one frame deeper (the
+# expansion nested inside a `$( )` rather than sitting at the top level) has to
+# survive the boundary on its own stack slot.
+f="$(mktemp --suffix=.sh)"
+printf 'stat -c %%s "$f" $(printf %%s $(( (1 +\n2)) ) || stat -f %%z "$f"\n' >"$f"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a nested arithmetic frame should keep its depth across the join: $out"
+elif echo "$out" | grep -q "PORTABILITY: ${f}:1:"; then
+  ok "arithmetic depth is held per frame, one frame deeper included"
+else
+  fail "expected the line-1 call reported, got: $out"
+fi
+rm -f "$f"
+f="$(mktemp --suffix=.sh)"
+printf 'stat -c %%s "$f" $(printf %%s $(( (1 + 2)) ) || stat -f %%z "$f"\n' >"$f"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  fail "the unjoined nested control must report the same unguarded call"
+else
+  ok "the nested shape on one line reports the same call"
+fi
+rm -f "$f"
+
 test_harness::report

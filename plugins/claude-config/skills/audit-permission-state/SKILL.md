@@ -130,8 +130,10 @@ entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 - **Only allow rules change on entry.** Deny and ask are evaluated before the classifier in every
   mode, so they are not part of this diff. Do not report them as "surviving".
 - **`class` names the documented reason**: `blanket`, `interpreter-wildcard`, `package-manager-run`,
-  or `agent`, from `lib/permission-patterns.sh`, the vocabulary `audit-permission-grants` check P1
-  also scans with.
+  `agent`, or `monitor`. The three shell shapes come from `lib/permission-patterns.sh`, the
+  vocabulary `audit-permission-grants` check P1 also scans with; `agent` and `monitor` are
+  whole-tool classes this script tests on the tool token. `Monitor` allow rules joined the dropped
+  set upstream in v2.1.236, because Claude Code runs Monitor commands through the shell.
 - **`autoMode.classifyAllShell` inverts the answer wholesale.** When true it suspends *every* Bash and
   PowerShell allow rule, so narrow rules do **not** carry over. It is resolved only from the scopes
   the classifier reads, so a project- or local-scope copy is reported inert rather than obeyed.

@@ -1,5 +1,44 @@
 # Changelog — discovery plugin
 
+## [0.16.18]
+
+### Fixed
+
+- **`check-coverage-complete.test.sh`: the unreadable-ledger case now skips visibly as root
+  instead of failing.** chmod 000 does not stop root from reading a file, so the fail-closed
+  assertion could never hold when the suite ran as root. The case now probes readability after the
+  chmod and prints a SKIP line when the platform or user does not enforce it, mirroring the
+  established pattern in claude-config's `check-structure.test.sh`; on non-root hosts the case
+  still runs and asserts exit 2 exactly as before.
+
+## [0.16.17]
+
+### Fixed
+
+- **`reference/topic-docs.md` cited its three agent definitions by a path that
+  resolved against nothing.** The return-payload sentence named `agents/explorer.md`,
+  `agents/researcher.md` and `agents/intent-tracer.md`, whose implied base is the
+  plugin root while their real base is `reference/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. All three now carry `${CLAUDE_PLUGIN_ROOT}/`, the form the
+  next sentence of the same paragraph already uses for the three dispatch docs.
+  This file is not fetched from outside the plugin, so the anchored form resolves
+  for every reader it has and the invocation is not needed.
+
+  Found by the round verifying the sweep's own third derivation. That derivation
+  was `skills/`-scoped and therefore blind by construction to citations naming no
+  skill, which is why three defects of the same class survived it three lines
+  above rows the sweep had already closed.
+
+## [0.16.16]
+
+### Changed
+
+- **Dynamic-context probe fallback made reachable.** The working-tree-status injection piped its
+  probe into `head` before `||`, so the fallback could never run and a failed probe rendered an
+  empty string under a label that reads as a clean tree. The fallback now sits in a brace group with
+  the probe and the cap applies outside it. Whole-repo extract-ssot sweep.
+
 ## [0.16.15]
 
 ### Changed

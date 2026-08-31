@@ -154,9 +154,15 @@ fi
 # `(^|[^a-zA-Z0-9_-])` plus this trailing terminator prevent a prefix false
 # match (e.g. searching `--save-dev` must not match `--save-developer`).
 FLAG_PATTERN="(^|[^a-zA-Z0-9_-])${FLAG_NAME}([][:space:]=,|)[]|\$)"
-if grep -E "$FLAG_PATTERN" <<<"$HELP_OUTPUT" >/dev/null; then
+# Pipeline, not a here-string: bash materializes a here-string through a pipe
+# it fills BEFORE exec'ing the reader (payloads over the pipe size fall back to
+# a TMPDIR temp file), so a large --help payload rides on bash's runtime
+# pipe-capacity probe and a writable TMPDIR. printf is a builtin and grep reads
+# concurrently, so this streams any payload size with no such window. Feeds the
+# same bytes a here-string would (content plus trailing newline).
+if printf '%s\n' "$HELP_OUTPUT" | grep -E "$FLAG_PATTERN" >/dev/null; then
   if $VERBOSE; then
-    grep -nE "$FLAG_PATTERN" <<<"$HELP_OUTPUT" | head -1
+    printf '%s\n' "$HELP_OUTPUT" | grep -nE "$FLAG_PATTERN" | head -1
   fi
   exit 0
 fi
