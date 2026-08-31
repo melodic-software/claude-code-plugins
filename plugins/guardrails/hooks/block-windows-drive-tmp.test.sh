@@ -120,12 +120,18 @@ run_win_payload "NotebookEdit notebook_path C:\\tmp\\n.ipynb (blocked)" \
   "$(notebook_path_json 'C:\tmp\n.ipynb')" 2
 
 # --- File-path lane: legitimate targets (allowed) ----------------------------
-# Fixture path segments deliberately avoid a literal `\s`: the repo's
-# shell-portability scanner reads `\\s` as a GNU-only regex class wherever it
-# appears, and a fixture is not worth a suppression comment when a different
-# letter says exactly the same thing.
+# Three repo-wide CI gates constrain the literals below, and all three are
+# satisfiable without weakening any fixture. The shell-portability scanner reads
+# `\s`, `\b` and `\<` as GNU-only regex constructs wherever they appear, so no
+# segment starts with those letters and no backslash precedes the placeholder;
+# the machine-specific-paths gate rejects a concrete Windows user directory, so
+# the user segment is the `<user>` placeholder it prescribes. Hence the forward
+# slashes here — a valid Windows spelling that the matcher slash-normalizes
+# anyway, and the backslash form stays covered by the `D:\repo\docs\tmp` and
+# `D:\a\tmp` cases below. None of it changes what is under test: the matcher
+# decides on the presence of a drive-root `tmp` component and this path has none.
 run_win_payload "Write under %TEMP% (allowed)" \
-  "$(write_json 'C:\Users\dev\AppData\Local\Temp\note.txt' 'x')" 0
+  "$(write_json 'C:/Users/<user>/AppData/Local/Temp/note.txt' 'x')" 0
 run_win_payload "Write under /var/tmp (allowed)" "$(write_json '/var/tmp/x' 'x')" 0
 run_win_payload "Write repo docs/tmp (allowed)" "$(write_json 'D:\repo\docs\tmp\x.md' 'x')" 0
 run_win_payload "Write relative ./tmp (allowed)" "$(write_json './tmp/x' 'x')" 0
