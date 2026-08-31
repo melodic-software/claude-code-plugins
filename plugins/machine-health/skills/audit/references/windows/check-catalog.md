@@ -12,6 +12,7 @@
 - [8. Driver inventory](#8-driver-inventory)
 - [17. Claude Code temp root](#17-claude-code-temp-root)
 - [18. Environment and PATH health](#18-environment-and-path-health)
+- [19. Drive-root litter](#19-drive-root-litter)
 
 Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc` and are
 load-bearing — each is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks
@@ -363,3 +364,73 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   A User-scope `=1` silently freezes the installed binary — the defect that motivated
   this check. Duplicate and missing PATH entries are INFO because presence is a shape,
   not a verdict that the entry should be removed.
+
+---
+
+## 19. Drive-root litter
+
+- **Script:** `scripts/windows/checks/Test-DriveRootLitter.ps1`
+- **Category:** `storage`
+- **Needs admin:** no. Listing a volume root, reading root-entry owners via `Get-Acl`, and
+  probing a stray directory for emptiness all work un-elevated; when an owner or emptiness
+  probe is denied anyway the field ships as `null` and severity is unaffected.
+- **Remediation:** none. The check reports; it never deletes, moves, or modifies. Removal
+  routes to `disk-hygiene:clean` (`detail.remediation_route`), which owns deletion behind
+  its own snapshot and approval model.
+- **Commands:**
+
+  ```powershell
+  Get-ChildItem -LiteralPath "$env:SystemDrive\" -Force | Select-Object Name, Mode, Length
+  Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter }
+  ```
+
+- **What it detects:** entries at a fixed-volume root that nothing on the machine accounts
+  for — the class a disk audit once found as an empty `C:\tmp` path-translation artifact
+  and a 0-byte `C:\log.txt` dropped by an elevated process whose CWD was `C:\`. Both files
+  and directories are in scope; the listing is **non-recursive** (the root's own entries,
+  nothing below them).
+
+- **Baseline is data, not logic:** the expected-entry set lives in
+  `references/windows/drive-root-baseline.jsonc`. Admitting a newly legitimate entry is an
+  edit to that file, never a script change. Names are `-like` patterns (case-insensitive,
+  `*`/`?` wildcards) matched **type-aware** — a directory only matches the `directories`
+  list, a file only the `files` list, so a stray file named `Recovery` cannot hide behind
+  the expected directory of the same name.
+
+- **Per-volume posture:**
+  - **System drive** (`%SystemDrive%`): full baseline diff. Every root entry not matching
+    `all_volumes` + `system_drive` is residue.
+  - **Non-system fixed volumes** (data drives, Dev Drives): a user-managed root legitimately
+    holds arbitrary content, so a baseline diff there would be all noise. Only names matching
+    the `data_volume_litter` shapes (`tmp`, `temp`, `tmp.*`, `log.txt`, `*.tmp`) are
+    reported; everything else is presumed intentional. A machine that deliberately keeps a
+    `D:\tmp` admits it with a baseline data edit.
+  - Removable and network drives are never scanned.
+
+- **Severity rubric:**
+  - `WARN` — ≥10 residue entries: something is actively dumping at a root, action this week.
+  - `INFO` — 1–9 residue entries.
+  - `OK` — no residue.
+  - `UNKNOWN` — the baseline file is missing or unparsable (no way to tell residue from a
+    legitimate entry), **or** any root could not be listed at all (an unlistable root can
+    hide any amount of litter, so partial results cannot support a threshold verdict —
+    partial residue still ships in `detail`). `ran_successfully = false` keeps such a run
+    out of `checks_ran` so an undercounted `residue_count` never becomes a trend baseline.
+  - No `CRIT`. Root litter is tidiness with no data-loss or security consequence, and
+    `references/shared/severity-rubric.md` reserves `CRIT` for imminent-failure and security
+    conditions while directing ambiguity to the lower level. `drive-root-litter` is mapped
+    to `residue_count` for history but deliberately **excluded** from the trend engine's
+    generic upward upgrade for the same reason.
+
+- **Trend behavior:** output is deterministic — residue sorted by volume then name, and each
+  entry carries a `created` **date** (day granularity, stable across runs) rather than an
+  instant — so a dropping that sits unchanged produces identical findings run over run and
+  feeds the catalog's `identical_streak` demotion accounting instead of reading as news
+  every week. `residue_count` is the history metric.
+
+- **Notes:** owner (`Get-Acl`) and directory emptiness (first `EnumerateFileSystemEntries`
+  hit only — the check never recurses into a stray directory) are best-effort diagnostic
+  context: the original `C:\log.txt` was attributed by its `BUILTIN\Administrators` owner.
+  `Get-Volume` failing (Storage module unavailable) degrades to scanning the system drive
+  alone rather than `UNKNOWN`. The check is Windows-only; a POSIX port would need its own
+  baseline semantics (`/` has a very different expected set) and is not scaffolded.

@@ -3,6 +3,22 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **New check: `drive-root-litter` (catalog #19).** Reports unexpected files and directories at
+  fixed-volume roots — the class a disk audit found as an empty `C:\tmp` path-translation artifact
+  and a 0-byte `C:\log.txt` dropped by an elevated process with CWD `C:\` — so root droppings
+  surface on a routine health run instead of only during a manual audit. The expected-entry set is
+  data (`references/windows/drive-root-baseline.jsonc`), not script logic: the system drive gets a
+  full baseline diff, non-system volumes report only known litter-name shapes (user content there is
+  presumed intentional), and admitting a new legitimate entry is a data edit. Severity caps at WARN
+  (≥10 residue entries) with INFO below — tidiness, never CRIT — and the check is excluded from the
+  trend engine's generic upward upgrade. Output is deterministic (sorted residue, day-granularity
+  `created` dates) so an unchanged dropping feeds `identical_streak` demotion instead of reading as
+  news every run. Read-only, no elevation, Windows only; removal routes to `disk-hygiene:clean`.
+
 ## [0.11.18]
 
 ### Fixed

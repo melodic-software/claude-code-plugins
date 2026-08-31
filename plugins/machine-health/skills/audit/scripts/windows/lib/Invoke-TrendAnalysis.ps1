@@ -156,6 +156,7 @@ function Get-TrendRelevantKey {
         'reliability' { return 'stability_min_7d' }
         'claude-temp-root' { return 'total_gb' }
         'environment-health' { return 'user_path_length' }
+        'drive-root-litter' { return 'residue_count' }
         default { return $null }
     }
 }
@@ -190,6 +191,9 @@ function Test-WorseningTrend {
     # not in $upwardWorsens: the check has several independent WARN causes
     # (credential names, DISABLE_AUTOUPDATER, REG_SZ Path). A generic
     # upgrade would turn those into CRIT whenever Path grew by >=5 chars.
+    # drive-root-litter is likewise mapped (residue_count) but excluded:
+    # root litter is tidiness, and its rubric caps at WARN -- a generic
+    # upgrade would mint a CRIT from five new stray files.
     $downwardWorsens = @('battery', 'reliability')
 
     $delta = $cur - $prev
