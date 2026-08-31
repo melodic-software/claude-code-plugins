@@ -307,7 +307,7 @@ export async function acquireYouTubeMedia(
     const staged = await acquireFullStaged(mergedDeps, url, workDir, videoId, source);
     acquireMetrics = staged.acquireMetrics;
     if (!staged.ok) {
-      return failVideo(staged.error ?? "staged acquire failed");
+      return failVideo(staged.error);
     }
     files = staged.files;
     artifacts = staged.artifacts;

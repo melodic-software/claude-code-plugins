@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.27]
+
+### Changed
+
+- **video-digest acquisition: dead fallback removed.** `acquire.js` drops a
+  `?? "staged acquire failed"` default that could never fire — both `ok: false`
+  return sites in `acquireFullStaged` construct non-empty string errors, and
+  the old `??` only replaced null/undefined. Verified by site enumeration and
+  `tsc`; acquisition + adapters suites 205/205. (A second candidate, merging
+  the duplicated initial spawn in `spawn-yt-dlp-with-auth-fallback.js`, was
+  refuted by differential testing — the cookie-config probe it would skip
+  emits a once-per-process deprecation warning — and was reverted rather than
+  shipped.)
+
 ## [0.13.26]
 
 ### Changed
