@@ -472,6 +472,153 @@ class InferentialBandTest(unittest.TestCase):
         self.assertIsNone(listing["skills"][0]["band"])
 
 
+class ListingScoreTest(unittest.TestCase):
+    """The mirrored scorer, and the refusal to dress zero up as a ranking."""
+
+    def test_score_decays_with_a_seven_day_half_life(self):
+        now = _utc(2026, 8, 31)
+        fresh = engine.listing_score(100, now, now)
+        one_half_life = engine.listing_score(100, now - timedelta(days=7), now)
+        self.assertAlmostEqual(fresh, 100.0)
+        self.assertAlmostEqual(one_half_life, 50.0)
+
+    def test_decay_floors_at_a_tenth(self):
+        now = _utc(2026, 8, 31)
+        ancient = engine.listing_score(100, now - timedelta(days=3650), now)
+        self.assertAlmostEqual(ancient, 10.0)
+
+    def test_a_stale_heavy_user_sorts_below_a_fresh_light_one(self):
+        """The whole reason `least invoked` was the wrong description."""
+        now = _utc(2026, 8, 31)
+        stale = engine.listing_score(100, now - timedelta(days=60), now)
+        fresh = engine.listing_score(12, now, now)
+        self.assertLess(stale, fresh)
+
+    def test_never_used_scores_zero(self):
+        now = _utc(2026, 8, 31)
+        self.assertEqual(engine.listing_score(0, now, now), 0.0)
+        self.assertEqual(engine.listing_score(5, None, now), 0.0)
+
+    def test_all_zero_scores_report_an_unscored_basis(self):
+        """An alphabetical order must not be labelled a usage ranking."""
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        listing = engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=200_000)
+        )
+        self.assertEqual(listing["score_basis"], "unscored")
+        competing = [s for s in listing["skills"] if s["eligibility"] == "competing"]
+        self.assertTrue(all(s["confidence"] == "unscored" for s in competing))
+
+    def test_classify_scores_the_band_from_native_counters(self):
+        """Regression: the band used to sort on a field nothing populated."""
+        now = _utc(2026, 8, 31)
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        # Counts ascend with the index, so the band must descend with it.
+        events = [
+            {"skill": f"a:{i}", "ts": now, "source": "native", "count": (i + 1) * 10}
+            for i in range(10)
+        ]
+        model = engine.classify(
+            denominator=entries,
+            events=events,
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+        )
+        self.assertEqual(model["listing"]["score_basis"], "native-counters")
+        bands = {
+            row["qualified_name"]: row["starvation"]["band"] for row in model["skills"]
+        }
+        # Least-scored is band 1, i.e. first to lose its description.
+        self.assertEqual(bands["a:0"], 1)
+        self.assertEqual(bands["a:9"], 10)
+
+
+class BareUsageKeyTest(unittest.TestCase):
+    """Usage recorded under a bare leaf must reach its qualified skill."""
+
+    def test_bare_key_is_attributed_when_the_leaf_is_unique(self):
+        now = _utc(2026, 8, 31)
+        model = engine.classify(
+            denominator=[_skill("source-control:babysit-prs")],
+            events=[
+                {"skill": "babysit-prs", "ts": now, "source": "native", "count": 378},
+                {
+                    "skill": "source-control:babysit-prs",
+                    "ts": now,
+                    "source": "native",
+                    "count": 97,
+                },
+            ],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        row = model["skills"][0]
+        self.assertEqual(row["observation"]["count"], 475)
+
+    def test_ambiguous_bare_key_is_withheld_not_guessed(self):
+        now = _utc(2026, 8, 31)
+        model = engine.classify(
+            denominator=[_skill("toolchain:check"), _skill("skill-quality:check")],
+            events=[{"skill": "check", "ts": now, "source": "native", "count": 40}],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        for row in model["skills"]:
+            self.assertEqual(row["observation"]["count"], 0)
+        withheld = [w for w in model["withheld"] if w["skill"] == "check"]
+        self.assertEqual(len(withheld), 1)
+        self.assertIn("toolchain:check", withheld[0]["reason"])
+        self.assertIn("skill-quality:check", withheld[0]["reason"])
+
+    def test_a_bare_key_does_not_score_the_band(self):
+        """`zPe` has no bare-key fallback, so the mirror must not add one."""
+        now = _utc(2026, 8, 31)
+        entries = [
+            {
+                "qualified_name": "a:one",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            },
+            {
+                "qualified_name": "b:two",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            },
+        ]
+        model = engine.classify(
+            denominator=entries,
+            events=[{"skill": "one", "ts": now, "source": "native", "count": 900}],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+        )
+        rows = {r["qualified_name"]: r for r in model["skills"]}
+        # The count reaches the observation field ...
+        self.assertEqual(rows["a:one"]["observation"]["count"], 900)
+        # ... but not the band, because the product's own scorer misses it too.
+        self.assertEqual(rows["a:one"]["starvation"]["usage_score"], 0)
+        self.assertEqual(model["listing"]["score_basis"], "unscored")
+
+
 class TierResolutionTest(unittest.TestCase):
     """A claim renders only at a tier that supports it."""
 

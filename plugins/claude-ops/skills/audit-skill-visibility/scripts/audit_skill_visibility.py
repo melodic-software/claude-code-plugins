@@ -106,6 +106,79 @@ def tier_supports(tier: str, claim: str) -> bool:
     return claim in TIER_CAPABILITIES.get(tier, set())
 
 
+# Claude Code's own listing-budget scorer, mirrored so the starvation band can
+# predict which descriptions the product will actually drop. Before this existed
+# the band sorted on a field nothing populated, so it rendered alphabetical order
+# dressed as usage-informed.
+#
+# -- Verification stamp (docs/conventions/upstream-drift) ----------------------
+# Claim: the product ranks skills for description truncation by
+#   `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, sorts that score
+#   descending, grants descriptions greedily until the budget is spent, and
+#   renders the remainder name-only.
+# Basis: string extraction of `claude.exe`, Claude Code 2.1.251 -- `zPe` (the
+#   scorer) and `Ymt` (the truncator), plus `zPe`'s two other call sites, the
+#   slash-menu top-5 pin and the command-search score boost. Evidence recorded in
+#   docs/topics/usage-tracking-claude-json/EXPLORE.md, Part 2.
+# As-of: 2026-08-31, Claude Code 2.1.251.
+# Recheck trigger: a release note naming the skill listing, its character budget,
+#   or skill usage counters; or the counters changing shape in `~/.claude.json`.
+# On mismatch: the report must degrade to `score_basis: "unscored"` and say the
+#   ordering is unknown. A confidently wrong band is worse than no band.
+# -----------------------------------------------------------------------------
+LISTING_SCORE_HALF_LIFE_DAYS = 7.0
+LISTING_SCORE_FLOOR = 0.1
+
+
+def listing_score(count: int, last_used: datetime | None, clock: datetime) -> float:
+    """Mirror of the product's scorer. Zero when there is no usage to weigh."""
+    if count <= 0 or last_used is None:
+        return 0.0
+    days = (clock - last_used).total_seconds() / 86400.0
+    decay = 0.5 ** (days / LISTING_SCORE_HALF_LIFE_DAYS)
+    return count * max(decay, LISTING_SCORE_FLOOR)
+
+
+def resolve_event_keys(
+    denominator: list[dict], events: list[dict]
+) -> tuple[dict[str, list[dict]], list[tuple[str, list[str]]]]:
+    """Group events by the qualified skill they belong to.
+
+    The stores record a skill's usage under either its qualified `<plugin>:<leaf>`
+    name or its bare leaf, and the two land as separate rows. This machine holds
+    both `babysit-prs` and `source-control:babysit-prs`. Looking events up by
+    qualified name alone silently discarded every bare-key row, which is a
+    reported count that is simply too low with nothing saying so.
+
+    A bare key is attributed only when exactly one skill in the fleet carries
+    that leaf. Piling an ambiguous leaf onto one plugin would invent usage, the
+    same failure the `custom_skill` redaction guard exists to prevent, so an
+    ambiguous key is returned for the withheld section instead of being spent.
+    """
+    qualified = {entry["qualified_name"] for entry in denominator}
+    leaf_owners: dict[str, set[str]] = defaultdict(set)
+    for entry in denominator:
+        name = entry["qualified_name"]
+        leaf = name.split(":", 1)[1] if ":" in name else name
+        leaf_owners[leaf].add(name)
+
+    by_skill: dict[str, list[dict]] = defaultdict(list)
+    ambiguous: dict[str, list[str]] = {}
+    for event in events:
+        key = event.get("skill")
+        if key is None:
+            continue
+        if key in qualified:
+            by_skill[key].append(event)
+            continue
+        owners = leaf_owners.get(key, set())
+        if len(owners) == 1:
+            by_skill[next(iter(owners))].append(event)
+        elif len(owners) > 1:
+            ambiguous[key] = sorted(owners)
+    return by_skill, sorted(ambiguous.items())
+
+
 def parse_native(
     skill_usage: dict, first_start: datetime
 ) -> tuple[list[dict], datetime]:
@@ -700,17 +773,28 @@ def _demand_chars(entry: dict, cfg: ListingConfig) -> int:
     return min(len(description) + joiner + len(when_to_use), cfg.max_desc_chars)
 
 
-def compute_listing(denominator: list[dict], cfg: ListingConfig) -> dict:
+def compute_listing(
+    denominator: list[dict],
+    cfg: ListingConfig,
+    scores: dict[str, float] | None = None,
+) -> dict:
     """Budget arithmetic, split by confidence.
 
     CERTAIN: whether the listing overflows and by how much -- pure arithmetic
     over documented settings against summed description lengths.
 
     INFERENTIAL: which particular skills lose their descriptions. That ordering
-    comes from an undocumented scorer pinned to one build, so it is rendered as
-    a ranked band and labelled, never as an exact cutoff.
+    comes from a scorer recovered from one build of the product (see
+    `listing_score`), so it is rendered as a ranked band and labelled, never as
+    an exact cutoff.
+
+    `scores` carries the mirrored scorer's output per qualified name. When it is
+    absent or empty the ordering has no usage signal behind it, and the returned
+    `score_basis` says so rather than letting the alphabetical tiebreaker pass
+    for a usage ranking.
     """
     budget = listing_budget_chars(cfg)
+    scores = scores or {}
 
     rows: list[dict] = []
     demand = 0
@@ -723,18 +807,29 @@ def compute_listing(denominator: list[dict], cfg: ListingConfig) -> dict:
                 "qualified_name": entry["qualified_name"],
                 "eligibility": eligibility,
                 "demand_chars": chars,
-                "usage_score": entry.get("usage_score", 0),
+                "usage_score": scores.get(
+                    entry["qualified_name"], entry.get("usage_score", 0)
+                ),
             }
         )
 
     overflow = max(0, demand - budget)
     verdict = "overflowing" if overflow > 0 else "listing-fits"
 
+    # Basis is decided by whether any score survived, not by whether a scores
+    # argument arrived. A caller can hand over a full map that happens to be all
+    # zeros, and the resulting order is alphabetical either way.
+    score_basis = "native-counters" if any(r["usage_score"] for r in rows) else "unscored"
+
     competing = [r for r in rows if r["eligibility"] == "competing"]
-    # Least-used first: that is the order the product drops descriptions in, so
-    # rank 1 is the most likely to have already lost its description.
+    # Lowest score first: that is the order the product sheds descriptions in, so
+    # rank 1 is the most likely to have already lost its. The score is
+    # decay-weighted, NOT a raw invocation count -- a heavily used but stale
+    # skill can sort below a lightly used fresh one, which is why this cannot be
+    # read as "least invoked". The name is a tiebreaker only; when `scores` is
+    # empty it is the WHOLE ordering, which is what `score_basis` exists to admit.
     competing.sort(key=lambda r: (r["usage_score"], r["qualified_name"]))
-    # Descriptions are dropped least-invoked-first only UNTIL the listing fits,
+    # Descriptions are shed lowest-score-first only UNTIL the listing fits,
     # so the starved set is the prefix whose demand covers the overflow -- not
     # the whole fleet. Marking every competing row starved on a one-character
     # overflow would libel exactly the skills the mechanism protects longest,
@@ -742,7 +837,15 @@ def compute_listing(denominator: list[dict], cfg: ListingConfig) -> dict:
     remaining = overflow
     for rank, row in enumerate(competing, start=1):
         row["band"] = rank if overflow > 0 else None
-        row["confidence"] = "inferential" if overflow > 0 else "certain"
+        # An unscored ordering is alphabetical, so its band carries no signal at
+        # all. That is a weaker claim than an inferential one and must not wear
+        # the same label.
+        if overflow <= 0:
+            row["confidence"] = "certain"
+        elif score_basis == "unscored":
+            row["confidence"] = "unscored"
+        else:
+            row["confidence"] = "inferential"
         if overflow <= 0:
             row["verdict"] = "listing-fits"
         elif remaining > 0:
@@ -764,6 +867,7 @@ def compute_listing(denominator: list[dict], cfg: ListingConfig) -> dict:
         "demand_chars": demand,
         "overflow_chars": overflow,
         "verdict": verdict,
+        "score_basis": score_basis,
         "competing_count": len(competing),
         "starved_count": sum(1 for r in competing if r["verdict"] == "likely-starved"),
         "exempt_count": len(rows) - len(competing),
@@ -894,7 +998,34 @@ def classify(
 ) -> dict:
     """Pure. Fleet + events + config + clock + horizons -> report model."""
     tier = resolve_tier(set(horizons))
-    listing = compute_listing(denominator, listing_config or ListingConfig())
+    events_by_skill, ambiguous_keys = resolve_event_keys(denominator, events)
+
+    # The band mirrors the product, so it is scored the way the product scores:
+    # from the NATIVE counters only, under the EXACT qualified key. `zPe` does no
+    # bare-key fallback of its own -- when usage was recorded under a bare leaf
+    # the product's own scorer sees zero for that listing entry too, so scoring
+    # the merged total here would predict a truncation the product will not
+    # perform. The merge below is for the observation count, which asks a
+    # different question and wants every event.
+    native_scores: dict[str, float] = {}
+    for entry in denominator:
+        name = entry["qualified_name"]
+        native = [
+            e
+            for e in events_by_skill.get(name, [])
+            if e.get("source") == "native" and e.get("skill") == name
+        ]
+        if not native:
+            continue
+        native_scores[name] = listing_score(
+            sum(int(e.get("count", 1)) for e in native),
+            max(e["ts"] for e in native),
+            clock,
+        )
+
+    listing = compute_listing(
+        denominator, listing_config or ListingConfig(), native_scores
+    )
     starvation_by_name = {r["qualified_name"]: r for r in listing["skills"]}
     # Narrowest horizon = the most recent start = the least we can see back to.
     # Two different questions, two different horizons.
@@ -915,12 +1046,21 @@ def classify(
     for entry in denominator:
         seen[entry["qualified_name"]] += 1
 
-    events_by_skill: dict[str, list[dict]] = defaultdict(list)
-    for event in events:
-        events_by_skill[event["skill"]].append(event)
-
     skills: list[dict] = []
     withheld: list[dict] = []
+
+    for key, owners in ambiguous_keys:
+        withheld.append(
+            {
+                "skill": key,
+                "claim": "observation",
+                "reason": (
+                    f"bare usage key `{key}` matches {len(owners)} skills "
+                    f"({', '.join(owners)}); attributing it would invent usage "
+                    "for whichever one was picked"
+                ),
+            }
+        )
 
     for entry in denominator:
         name = entry["qualified_name"]

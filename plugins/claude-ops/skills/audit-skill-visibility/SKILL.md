@@ -1,5 +1,5 @@
 ---
-description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when its description is dropped by the skill-listing context budget (Claude Code drops descriptions starting with the least-invoked skills, so an unused skill loses the keywords that would let it be matched and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest. Computing whether the listing overflows from documented settings, and withholding every verdict the data cannot support rather than reporting absence of data as absence of use. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (Claude Code ships that in /doctor and the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
+description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when its description is dropped by the skill-listing context budget (Claude Code drops descriptions from the lowest-scoring skills, ranked by a decay-weighted usage score, so an unused skill loses the keywords that would let it be matched and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest. Computing whether the listing overflows from documented settings, and withholding every verdict the data cannot support rather than reporting absence of data as absence of use. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (Claude Code ships that in /doctor and the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
 argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins"
 user-invocable: true
 disable-model-invocation: false
@@ -162,6 +162,23 @@ a user as documented.
 - **Ambiguous attribution is reported, not guessed.** Two marketplaces shipping
   a same-named plugin collapse to one usage key; those rows are marked
   `ambiguous-attribution` rather than attributed to one of them.
+- **A skill's usage can be recorded under either name.** The stores hold both the
+  qualified `<plugin>:<leaf>` key and the bare leaf, as separate rows, so a
+  qualified-only lookup silently under-reports. Both are collected. A bare key is
+  attributed only when exactly one skill in the fleet owns that leaf; an
+  ambiguous one is withheld with its candidates rather than spent on a guess.
+- **The band is scored the way the product scores, not the way the count reads.**
+  The starvation ordering mirrors Claude Code's own scorer,
+  `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, which is decay-weighted, so
+  a heavily used but stale skill can rank below a lightly used fresh one. It is
+  fed from the NATIVE counters under the EXACT qualified key, because the
+  product's scorer does no bare-key fallback either; scoring the merged total
+  would predict a truncation that will not happen. The merged total still backs
+  `observation`, which asks a different question.
+- **An unscored band says so.** When no usage survives to weigh, the ordering is
+  the alphabetical tiebreaker and nothing more. `listing.score_basis` reports
+  `unscored` and every competing row's `confidence` is `unscored`, which is a
+  weaker claim than `inferential` and must not wear that label.
 
 ## Scope boundary
 

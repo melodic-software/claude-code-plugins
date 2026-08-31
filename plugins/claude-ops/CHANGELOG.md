@@ -3,6 +3,39 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.0]
+
+### Fixed
+
+- **`audit-skill-visibility`'s starvation band now carries a usage signal.**
+  `compute_listing` sorted on a `usage_score` that only the test fixtures ever
+  set: the live collector builds its denominator from a filesystem walk, and
+  usage events were joined afterwards, so every real run scored zero and the band
+  fell through to its alphabetical tiebreaker while presenting itself as
+  usage-informed. On this machine that ranked `adhd:clarify` (1 use) as first to
+  lose its description and `work-items:triage` (99 uses) as among the safest.
+  Scores are now computed before the listing is built.
+- **Usage recorded under a skill's bare leaf no longer vanishes.** Events were
+  looked up by qualified `<plugin>:<leaf>` name only, while the stores hold both
+  that key and the bare leaf as separate rows, so the bare row was discarded with
+  nothing saying so. `source-control:babysit-prs` reported 97 invocations against
+  an actual 475. A bare key is now attributed when exactly one skill owns that
+  leaf, and withheld with its candidates when more than one does.
+
+### Added
+
+- **The listing scorer is mirrored rather than guessed at.** `listing_score`
+  implements `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, recovered from
+  Claude Code 2.1.251 and carrying a verification stamp with its basis and
+  recheck trigger. The ordering is decay-weighted, so "least invoked" was never
+  the right description of it: a heavily used but stale skill can rank below a
+  lightly used fresh one. Evidence in
+  `docs/topics/usage-tracking-claude-json/EXPLORE.md`.
+- **`listing.score_basis`, so an unscored band admits it.** When no usage
+  survives to weigh, the order is alphabetical and nothing more; the basis reads
+  `unscored` and competing rows carry `confidence: "unscored"` rather than
+  borrowing `inferential`, which claims more than the data supports.
+
 ## [0.38.21]
 
 ### Changed
