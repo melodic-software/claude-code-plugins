@@ -17,6 +17,22 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `.tool_input.notebook_path`, and the early exit tests both doors. Verified
   repro-first: the four seeded spellings (`C:\tmp\…`, `/tmp/…`, `/c/tmp/…`,
   `C:/tmp/…`) exit 0 against the unmodified hook and 2 against this one.
+- **A jq-less Linux or macOS host can edit files again.** Widening the matcher
+  to `Write`/`Edit`/`MultiEdit`/`NotebookEdit` had a consequence the widening
+  itself did not carry: the non-Windows host gate sat BELOW `hook::buffer_stdin`
+  and `hook::require_jq_blocking`, so on a host without `jq` on `PATH` every
+  file edit took the fail-closed `exit 2` — on a platform where `/tmp` is the
+  real POSIX temp and this guard can never find a violation. The host gate now
+  runs first, immediately after `hook::check_enabled` (which already exits
+  without draining stdin, so the shape is not new). Reading `OSTYPE` needs
+  nothing from the payload. **The Windows path is unchanged**: the case falls
+  through and `buffer_stdin` rc 2, jq absence, an unparseable payload, NUL
+  bytes and `MAX_COMMAND_LEN` all still fail closed in the same order. Removing
+  `jq` from `PATH` is not portably simulable (the constraint
+  `require-jq-notice-isolation.test.sh` records), so the regression test asserts
+  the ordering from an xtrace of a real Linux-host run instead: neither
+  `buffer_stdin` nor `require_jq_blocking` is reached. Both appear before the
+  fix and neither after it.
 - **A `tmp` directory under a single-letter parent no longer blocks.**
   `D:\a\tmp\x` matched: after slash-normalization the drive colon satisfied the
   left boundary of the MSYS `/<drive>/tmp` alternative, so `d:` + `/a/tmp` read
@@ -115,8 +131,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `command_json`; setting it explicitly keeps a future lone-path fixture from
   silently becoming a drive-letter payload. The shared helper's path-payload
   builders (`write_json` and siblings) already set it, and the helper is
-  duplicated across plugins under a source-drift gate, so it is not edited
-  from here.
+  duplicated per plugin **by convention**, per
+  `docs/conventions/shell-test-helpers/README.md` — it is explicitly outside
+  `check-cross-plugin-source-drift.sh`'s scope (the copies live at different
+  paths per plugin and are not byte-identical, so `discover` never flags them
+  as a cluster) and has no entry in `scripts/cross-plugin-source-registry.txt`.
+  Nothing gates the duplication, so it is not edited from here as a matter of
+  convention rather than tooling.
 - **The `file-path` telemetry form is now executed, not just documented.** The
   existing telemetry case pipes a Bash payload; a file-path case asserts the
   `Write` / `Write` / `file-path` envelope and that the target path never

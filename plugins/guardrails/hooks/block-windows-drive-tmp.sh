@@ -47,9 +47,36 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "BLOCK_WINDOWS_DRIVE_TMP"
 
+# Non-Windows hosts: /tmp is the real POSIX temp, so this guard can never find a
+# violation here. Skip entirely. Tests force OSTYPE=msys to exercise the Windows
+# lane on Linux CI.
+#
+# THIS GATE RUNS FIRST, ahead of hook::buffer_stdin and hook::require_jq_blocking,
+# and that ordering is load-bearing. This hook matches Write / Edit / MultiEdit /
+# NotebookEdit as of 0.30.0. Evaluated any later, a Linux or macOS host without
+# jq on PATH would take require_jq_blocking's fail-closed exit 2 on EVERY file
+# edit — denying writes on a platform where the guard has no opinion at all.
+# Reading OSTYPE needs nothing from the payload, so the gate is free to precede
+# the read; hook::check_enabled above already exits without draining stdin, so
+# that is an established shape in this hook, not a new one.
+#
+# The Windows path is UNCHANGED: the case falls through and every fail-closed
+# posture below runs in exactly the same order as before — buffer_stdin rc 2,
+# jq absence, unparseable payload, NUL bytes, MAX_COMMAND_LEN.
+#
+# block-exported-msys-pathconv.sh deliberately keeps the opposite ordering. It
+# matches only Bash|PowerShell, where blocking on missing jq is the accepted
+# #2146 posture; the blast radius that forces the hoist here does not exist
+# there. Do not "fix the inconsistency" by aligning them.
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) ;;
+*) exit 0 ;;
+esac
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
+# Below the host gate so it stays adjacent to the work it actually times.
 start=${EPOCHREALTIME:-}
 
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
@@ -104,13 +131,6 @@ FILE_PATH="${HOOK_JQ_FIELDS[2]:-}"
 # Neither door carried anything to inspect. Before 0.30.0 this exit tested
 # COMMAND alone, which is exactly how a `Write` payload passed unexamined.
 [[ -n "$COMMAND" || -n "$FILE_PATH" ]] || exit 0
-
-# Non-Windows hosts: /tmp is the real POSIX temp. Skip entirely. Tests force
-# OSTYPE=msys to exercise the Windows lane on Linux CI.
-case "${OSTYPE:-}" in
-msys* | cygwin* | win32) ;;
-*) exit 0 ;;
-esac
 
 MAX_COMMAND_LEN=16384
 

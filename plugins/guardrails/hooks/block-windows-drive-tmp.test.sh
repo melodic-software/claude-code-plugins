@@ -103,6 +103,24 @@ run_posix_host "Linux host: mkdir /tmp/x allowed" 'mkdir -p /tmp/x'
 run_posix_host_payload "Linux host: Write /tmp/x allowed" "$(write_json '/tmp/x' 'body')"
 run_posix_host_payload "Linux host: Edit /tmp/x allowed" "$(edit_json '/tmp/x' 'body')"
 
+# The host gate must be reached BEFORE hook::buffer_stdin and
+# hook::require_jq_blocking. Widening the matcher to Write/Edit/MultiEdit/
+# NotebookEdit made the old ordering a hard break: on a Linux or macOS host with
+# no jq on PATH, require_jq_blocking's fail-closed exit 2 fired on EVERY file
+# edit, on a platform where this guard can never find a violation.
+#
+# Removing jq from PATH is not portably simulable — an isolated bin dir without
+# jq cannot host bash + coreutils across Git Bash and Linux, the same constraint
+# require-jq-notice-isolation.test.sh and secret-pattern-detection.test.sh both
+# record. Do not re-attempt it. What is portable, and what actually decides the
+# bug, is whether the call is REACHED at all: `command -v jq` can only deny a
+# write on a jq-less host if control flow gets to it. So assert the ordering
+# directly from an xtrace of the real run. Both names appear in this trace
+# before the fix and neither appears after it.
+trace=$(env OSTYPE=linux-gnu bash -x "$HOOK" <<<"$(write_json '/home/u/x.txt' 'body')" 2>&1 >/dev/null)
+assert_absent "Linux host: stdin is never buffered" "$trace" "buffer_stdin"
+assert_absent "Linux host: the blocking jq requirement is never reached" "$trace" "require_jq_blocking"
+
 # --- File-path lane: drive-root targets (blocked) ----------------------------
 # The 2026-08-30 incident payload: an empty C:\tmp\tmp.rSFIkHm5DO that no guard saw.
 run_win_payload "Write C:\\tmp\\tmp.rSFIkHm5DO (blocked)" \
