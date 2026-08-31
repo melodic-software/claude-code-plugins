@@ -30,12 +30,13 @@ zero. Unused is partly self-causing.
 
 The budget fraction and per-entry cap are owned by
 <https://code.claude.com/docs/en/settings> (`skillListingBudgetFraction`,
-`skillListingMaxDescChars`). **The drop ORDER is not documented accurately.** The
-skills page says "starting with the skills you invoke least"; the binary ranks by
-a decay-weighted score and then walks the list first-fit, so neither the ordering
-nor the guarantee holds as written. Measured against the binary, with the
-counterexamples and the stamp:
-[reference/listing-scorer.md](reference/listing-scorer.md).
+`skillListingMaxDescChars`); that page is authoritative and matches. **The drop
+ORDER is not.** <https://code.claude.com/docs/en/skills> ("Skill descriptions are
+cut short") says "starting with the skills you invoke least", still as of
+2026-08-31; the binary ranks by a decay-weighted score and then walks the list
+first-fit, so neither the ordering nor the guarantee holds. Take the ordering
+from the binary: [reference/listing-scorer.md](reference/listing-scorer.md)
+carries the counterexamples, the greps, and the stamp.
 
 So the useful question is not *which skills are unused*. Claude Code already
 reports that in `/doctor` and the Stats tab. It is **which skills are starved by

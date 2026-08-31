@@ -28,12 +28,12 @@ cannot tell that it is blind. The gatekeeping the contract bans would have been 
 harness, invisibly.
 
 > **Revised 2026-08-31 ([#3534](https://github.com/melodic-software/claude-code-plugins/issues/3534)):**
-> the drop-order mechanism above is wrong, and **the error is upstream's, not this ADR's.** The
-> sentence tracks the official documentation, which states it in the same terms: "When the listing
-> overflows, Claude Code drops descriptions starting with the skills you invoke least, so the skills
-> you use most keep their full text"
-> (<https://code.claude.com/docs/en/skills>, fetched 2026-08-31). The shipped binary does something
-> else, on two independent axes.
+> the drop-order sentence above restates <https://code.claude.com/docs/en/skills> ("Skill
+> descriptions are cut short"), which is itself wrong and **still wrong as of 2026-08-31**. The error
+> is upstream's, not this ADR's, which is why the same sentence keeps re-entering this repo: it is on
+> `main` in the skill's own SKILL.md and in the plugin manifest, and #3524 added a citation pointing
+> at the wrong page for it. Claude Code does not drop descriptions "starting with the skills invoked
+> least". The shipped binary does something else, on two independent axes.
 >
 > It ranks by a decay-weighted score, `usageCount * max(0.5 ^ (daysSinceUse / 7), 0.1)`, so a
 > heavily used but stale skill can be shed before a lightly used fresh one: 100 uses 21 days ago
