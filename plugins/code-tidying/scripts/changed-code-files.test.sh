@@ -3,6 +3,10 @@
 # git repos under mktemp; never touches the enclosing repository).
 set -uo pipefail
 
+# An inherited absolute GIT_DIR outranks -C and would point fixture writes at the
+# caller's repository; clear the git environment before any fixture is built.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/changed-code-files.sh"
 TEST_TMPDIR="$(mktemp -d)"
