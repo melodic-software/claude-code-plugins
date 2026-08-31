@@ -1659,8 +1659,19 @@ def _publish_command_for_watchdog(command: str) -> None:
 # the full decision path rather than the stand-down.
 _INVOCATION_TOKEN: object | None = None
 
+# The exit code `main` reached, or None if no invocation has completed. A
+# stale-token watchdog exits with THIS rather than an unconditional 0: `main`'s
+# outer `except` returns 2 having emitted nothing (the deny rides the exit
+# status, per this module's contract), and a stand-down that hard-exited 0
+# would race ahead of that return and turn the deny into exit 0 with no JSON —
+# which the host reads as no decision at all, so the command proceeds
+# unguarded. `os._exit` from the timer thread kills the whole process before
+# the main thread can reach `__main__`'s own exit, so this is the only place
+# that outcome can be preserved.
+_MAIN_RESULT: int | None = None
 
-def _reset_decision_state() -> None:
+
+def _reset_decision_state(main_result: int | None = None) -> None:
     """Clear the per-invocation emission latch.
 
     In production this module is one process per decision, so the latch would
@@ -1669,12 +1680,23 @@ def _reset_decision_state() -> None:
     suppress every decision after the first — the guard emitting nothing, which
     is the fail-open shape this module exists to prevent. Resetting at the top
     of ``main`` keeps "one decision per invocation" true in both settings.
+
+    ``main_result`` is the exit code ``main`` reached, recorded when this is
+    called from its cleanup so a stale-token watchdog can carry that outcome
+    rather than inventing one. ``None`` means "no invocation has completed",
+    which is the state at the top of ``main`` and in a test that drives
+    ``_watchdog_fire`` directly.
     """
     global _DECISION_EMITTED, _COMMAND_UNDER_DECISION, _INVOCATION_TOKEN
+    global _MAIN_RESULT
     with _EMIT_LOCK:
         _DECISION_EMITTED = False
         _COMMAND_UNDER_DECISION = None
         _INVOCATION_TOKEN = None
+        # Published in the SAME lock hold that clears the token, so a callback
+        # can never see a stale token without also seeing the outcome that
+        # made it stale.
+        _MAIN_RESULT = main_result
 
 # The `timeout` both guard registrations declare (`hooks/hooks.json` and
 # `skills/clean/SKILL.md` frontmatter). Duplicated here because a PreToolUse
@@ -1949,7 +1971,11 @@ def _watchdog_fire(deadline: float) -> None:
             # stand down.
             with contextlib.suppress(BaseException):
                 sys.stdout.flush()
-            os._exit(0)  # noqa: SLF001 -- hard exit is the point; see docstring
+            # Carry `main`'s own outcome. Defaulting to 2 when it is unknown is
+            # fail-closed: an unknown outcome is not evidence of an allow.
+            os._exit(  # noqa: SLF001 -- hard exit is the point; see docstring
+                _MAIN_RESULT if _MAIN_RESULT is not None else 2
+            )
             return  # unreachable in production; keeps the mocked exit terminal
 
         command = _COMMAND_UNDER_DECISION
@@ -2124,6 +2150,9 @@ def main() -> int:
     # declared hook `timeout` toward the harness's own non-blocking kill.
     deadline = _watchdog_seconds()
     watchdog: threading.Timer | None = None
+    # Read by the `finally` below even if the try block raises before assigning
+    # it; 2 is the fail-closed default for "we never got far enough to decide".
+    result = 2
     # Published under the lock so a callback's token check and its state read
     # are atomic with respect to `main`'s cleanup.
     global _INVOCATION_TOKEN
@@ -2164,15 +2193,18 @@ def main() -> int:
                 "blocked",
                 decision_value="deny",
             )
-            return 0
-        return _decide(command, tool_name, start)
+            result = 0
+            return result
+        result = _decide(command, tool_name, start)
+        return result
     except BaseException as exc:
         _emit_guard_telemetry(start, "", "error")
         _write_diagnostic(
             f"destructive_guard: internal error, denying by default "
             f"({type(exc).__name__}: {exc})"
         )
-        return 2
+        result = 2
+        return result
     finally:
         # `watchdog` stays None if construction itself raised; cancelling an
         # armed-but-unstarted timer is harmless.
@@ -2202,7 +2234,7 @@ def main() -> int:
         # One process per decision makes the reset a no-op in production; it is
         # what keeps `main` from leaking state into the next call in a test
         # interpreter, where `_watchdog_fire` is also exercised directly.
-        _reset_decision_state()
+        _reset_decision_state(result)
 
 
 if __name__ == "__main__":

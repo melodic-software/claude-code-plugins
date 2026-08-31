@@ -7904,7 +7904,7 @@ class GuardTests(unittest.TestCase):
             "guard._emit_decision(guard.decision('allow', 'main thread decided')); "
             # `main`'s cleanup: cancel (a no-op here), flush, reset.
             "sys.stdout.flush(); "
-            "guard._reset_decision_state(); "
+            "guard._reset_decision_state(0); "
             # The in-flight callback, on a thread carrying the stale token.
             "t = threading.Thread(target=guard._watchdog_fire, args=(1.5,)); "
             "t.guard_invocation_token = token; "
@@ -7939,6 +7939,68 @@ class GuardTests(unittest.TestCase):
             "a stale-token callback must stand down at exit 0, not re-decide",
         )
         self.assertNotEqual(2, completed.returncode)
+
+    def test_a_standing_down_watchdog_carries_mains_exit_code_not_zero(
+        self,
+    ) -> None:
+        """A stand-down must not convert `main`'s no-stdout deny into a proceed.
+
+        `main`'s outer `except BaseException` returns 2 having emitted NOTHING —
+        the deny rides the exit status, which is this module's stated contract
+        for exit 2. `os._exit` from the timer thread is a whole-process kill, so
+        a stand-down that exited 0 would run before the main thread could reach
+        `__main__`'s own exit and would replace that deny with exit 0 carrying
+        no JSON. The host reads that as no decision at all, and the command
+        proceeds unguarded — a fail-open introduced by the very mechanism added
+        to stop the watchdog overriding decisions.
+
+        So the stand-down carries whatever `main` actually reached.
+        """
+        for main_result, expected in ((2, 2), (0, 0)):
+            with self.subTest(main_result=main_result):
+                program = (
+                    "import sys, threading; "
+                    "sys.path.insert(0, sys.argv[1]); "
+                    "import destructive_guard as guard; "
+                    "token = object(); "
+                    "guard._INVOCATION_TOKEN = token; "
+                    # `main`'s cleanup, publishing the outcome it reached.
+                    f"guard._reset_decision_state({main_result}); "
+                    "t = threading.Thread(target=guard._watchdog_fire, args=(1.5,)); "
+                    "t.guard_invocation_token = token; "
+                    "t.start(); t.join()"
+                )
+                completed = subprocess.run(
+                    [self.python_command(), "-c", program, str(SCRIPT_DIR)],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                self.assertEqual(expected, completed.returncode)
+                self.assertEqual("", completed.stdout)
+
+    def test_a_standing_down_watchdog_denies_when_the_outcome_is_unknown(
+        self,
+    ) -> None:
+        """No recorded outcome is not evidence of an allow."""
+        program = (
+            "import sys, threading; "
+            "sys.path.insert(0, sys.argv[1]); "
+            "import destructive_guard as guard; "
+            "token = object(); "
+            "guard._INVOCATION_TOKEN = None; "
+            "guard._MAIN_RESULT = None; "
+            "t = threading.Thread(target=guard._watchdog_fire, args=(1.5,)); "
+            "t.guard_invocation_token = token; "
+            "t.start(); t.join()"
+        )
+        completed = subprocess.run(
+            [self.python_command(), "-c", program, str(SCRIPT_DIR)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(2, completed.returncode)
 
     def test_a_watchdog_still_decides_while_its_invocation_is_current(self) -> None:
         """The stand-down must not disarm a callback whose invocation is live.
