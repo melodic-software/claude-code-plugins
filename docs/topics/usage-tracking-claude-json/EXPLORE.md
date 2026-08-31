@@ -219,7 +219,32 @@ global lifetime tally; the JSONL owns the sliced event stream.
   standing decision that skill recommendation reads the catalog, not the in-context
   listing, precisely because the listing is budget-truncated.
 
-### 3.4 What Claude Code itself now ships
+### 3.4 The observability skill does not read the native counters
+
+`plugins/claude-ops/skills/observability/SKILL.md:121-122` and
+`context/data-sources.md` enumerate its lanes: ccusage (tokens, cost, billing blocks),
+the OTEL DuckDB store, and `.claude/observability/hook-events.jsonl` (hook duration, exit
+codes). `~/.claude.json` is not among them, so the machine-global lifetime counters have
+no representation in the cross-session trend reports. Its `clean` action does know about
+the skill-usage store (`--skill-usage-scope`, `--keep-skill-usage-days`, default 365), but
+only to prune it, never to read it.
+
+`plugins/claude-ops/skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.sh` and
+`reference/pair-cooccurrence.md` derive which skills get invoked together from
+`skill-usage.jsonl`. That analysis is impossible from `~/.claude.json`, which has no event
+stream, and is a second reason the JSONL store earns its place.
+
+### 3.5 What no surface covers
+
+- No skill reasons about plugin disuse from `pluginUsage`. `claude-ops:plugins` is version
+  and scope currency only; its SKILL.md and scripts never mention usage.
+  `overengineering:audit` reasons about enforcement surfaces earning their keep but sources
+  evidence from CI and hook behavior, not from these counters.
+- Nothing reads `agentLastUsed`.
+- Nothing reads `projects[<path>].lastModelUsage` or the per-project cost and token
+  snapshot, despite that being the only per-project slice `~/.claude.json` offers.
+
+### 3.6 What Claude Code itself now ships
 
 The 2.1.251 binary contains a bundled skill that documents these exact counters and their
 traps, in prose closely matching this repo's own conclusions ("`usageCount` is a LIFETIME
