@@ -326,8 +326,10 @@ for agent usage in the repo.
 
 ### 3.8 Governance constraints already recorded
 
-Three refusals are already codified. Any implementation should start from them rather than
-re-derive them.
+Three refusals are already codified. Each is recorded below with the rationale it actually
+stands on, so a reader can tell a live justification from inertia. Two name a purpose and a
+measurement; the third names only the state of the substrate, and that substrate moved this
+session, so it is re-derived in Part 5 rather than obeyed on sight.
 
 - **`docs/adr/0016-...:118-120`** deliberately defers usage-metrics-driven surfacing:
   "Usage-metrics-driven surfacing (`~/.claude.json` `skillUsage`, undocumented internal
@@ -350,15 +352,35 @@ re-derive them.
   window clamps to `observed_horizon` and unsupported claims route to a first-class
   `withheld` section.
 
-### 3.9 What Claude Code itself now ships
+### 3.9 Native overlap: a candidate for the existing registry, not a verdict here
 
-The 2.1.251 binary contains a bundled skill that documents these exact counters and their
-traps, in prose closely matching this repo's own conclusions ("`usageCount` is a LIFETIME
-total since install", the `pluginUsage` seeding caveat, the qualified-vs-bare key split).
-It also ships a `doctor`-side check: "Check 1: unused skills, MCP servers, and plugins",
-which groups unused components against their context cost and offers to disable them
-("37 unused skills, saves ~2.2k est. tokens/session"). `audit-skill-visibility`'s SKILL.md
-already disclaims that one-shot check as native territory.
+Native-overlap verdicts are owned by `/claude-ops:audit-native-overlap`, recorded in
+`docs/native-surfaces/records.json` and rendered into `docs/NATIVE-SURFACES.md`. This
+section raises a candidate for that machinery rather than deciding it, because verdicts
+there are human-gated by contract.
+
+Observed in the 2.1.251 binary:
+
+- A bundled skill documenting these exact counters and their traps, in prose closely
+  matching this repo's own conclusions: "`usageCount` is a LIFETIME total since install",
+  the `pluginUsage` seeding caveat, and the qualified-vs-bare key split.
+- A `doctor`-side check, "Check 1: unused skills, MCP servers, and plugins", grouping
+  unused components against their context cost and offering to disable them, labelled per
+  group with a benefit estimate ("37 unused skills, saves ~2.2k est. tokens/session").
+
+The store already holds `doctor` to `claude-ops:audit-install-state` and `doctor` to
+`claude-ops:audit-performance`, both `complementary`, verified 2026-08-23. It holds **no
+row for `doctor` to `claude-ops:audit-skill-visibility`**, even though `doctor`'s Check 1
+and that skill answer overlapping questions, and even though the skill's own SKILL.md
+already disclaims the one-shot check as native territory in prose. Prose disclaimer without
+a store row is exactly the drift the registry exists to catch.
+
+Suggested framing for the human deciding it: the native check is a one-shot
+unused-versus-context-cost prompt that offers to disable; `audit-skill-visibility` is a
+three-source reconciler with a capability tier model, a withheld-verdict discipline, and a
+listing-budget starvation analysis, and it disables nothing. That reads `complementary` on
+the same shape as the two existing `doctor` rows, but the verdict is not this document's to
+record.
 
 ## Part 4: open findings, unverified or needing a decision
 
