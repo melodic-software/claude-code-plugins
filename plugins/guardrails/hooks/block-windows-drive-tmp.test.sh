@@ -122,7 +122,7 @@ run_posix_host_payload "Linux host: Edit /tmp/x allowed" "$(edit_json '/tmp/x' '
 # jq-less host if control flow gets to it. So assert the ordering from an
 # xtrace of the real run. Both names appear in this trace before the fix and
 # neither appears after it.
-trace=$(env OSTYPE=linux-gnu bash -x "$HOOK" <<<"$(write_json '/home/u/x.txt' 'body')" 2>&1 >/dev/null)
+trace=$(env OSTYPE=linux-gnu bash -x "$HOOK" <<<"$(write_json '/srv/app/notes.txt' 'body')" 2>&1 >/dev/null)
 assert_absent "Linux host: stdin is never buffered" "$trace" "buffer_stdin"
 assert_absent "Linux host: the blocking jq requirement is never reached" "$trace" "require_jq_blocking"
 
