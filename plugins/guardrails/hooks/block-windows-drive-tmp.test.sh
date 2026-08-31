@@ -109,14 +109,19 @@ run_posix_host_payload "Linux host: Edit /tmp/x allowed" "$(edit_json '/tmp/x' '
 # no jq on PATH, require_jq_blocking's fail-closed exit 2 fired on EVERY file
 # edit, on a platform where this guard can never find a violation.
 #
-# Removing jq from PATH is not portably simulable — an isolated bin dir without
-# jq cannot host bash + coreutils across Git Bash and Linux, the same constraint
-# require-jq-notice-isolation.test.sh and secret-pattern-detection.test.sh both
-# record. Do not re-attempt it. What is portable, and what actually decides the
-# bug, is whether the call is REACHED at all: `command -v jq` can only deny a
-# write on a jq-less host if control flow gets to it. So assert the ordering
-# directly from an xtrace of the real run. Both names appear in this trace
-# before the fix and neither appears after it.
+# Removing jq from PATH is simulable only where jq lives in a directory that
+# does not ALSO host bash and coreutils — prune that one entry and the shell
+# survives without jq. That holds on some hosts (it was demonstrated on a Cygwin
+# host with a single jq location, where the parent commit exits 2 and this one
+# exits 0 on a real jq-less PATH) and not on others: where jq sits in /usr/bin
+# beside bash, pruning it takes the shell with it. That is the portability
+# constraint require-jq-notice-isolation.test.sh and
+# secret-pattern-detection.test.sh both record, so the assertion below does not
+# depend on it. What IS portable, and what decides the bug either way, is
+# whether the call is REACHED: `command -v jq` can only deny a write on a
+# jq-less host if control flow gets to it. So assert the ordering from an
+# xtrace of the real run. Both names appear in this trace before the fix and
+# neither appears after it.
 trace=$(env OSTYPE=linux-gnu bash -x "$HOOK" <<<"$(write_json '/home/u/x.txt' 'body')" 2>&1 >/dev/null)
 assert_absent "Linux host: stdin is never buffered" "$trace" "buffer_stdin"
 assert_absent "Linux host: the blocking jq requirement is never reached" "$trace" "require_jq_blocking"

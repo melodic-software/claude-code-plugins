@@ -27,12 +27,19 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   without draining stdin, so the shape is not new). Reading `OSTYPE` needs
   nothing from the payload. **The Windows path is unchanged**: the case falls
   through and `buffer_stdin` rc 2, jq absence, an unparseable payload, NUL
-  bytes and `MAX_COMMAND_LEN` all still fail closed in the same order. Removing
-  `jq` from `PATH` is not portably simulable (the constraint
-  `require-jq-notice-isolation.test.sh` records), so the regression test asserts
-  the ordering from an xtrace of a real Linux-host run instead: neither
-  `buffer_stdin` nor `require_jq_blocking` is reached. Both appear before the
-  fix and neither after it.
+  bytes and `MAX_COMMAND_LEN` all still fail closed in the same order.
+  Confirmed on a real jq-less `PATH`: the previous commit exits 2 on a Linux
+  `Write` and this one exits 0. That simulation is host-dependent (it needs
+  `jq` in a directory that does not also host `bash` and coreutils), which is
+  the portability constraint `require-jq-notice-isolation.test.sh` records, so
+  the committed regression test does not rely on it and asserts the ordering
+  from an xtrace instead: neither `buffer_stdin` nor `require_jq_blocking` is
+  reached. Both appear before the fix and neither after it.
+- **Deliberate posture change, stated rather than silent:** on a NON-Windows
+  host this guard no longer fails closed on `jq`'s absence, for the Bash lane
+  either. That #2146 posture is kept in full on Windows. It is dropped only
+  where the guard has no opinion at all — `/tmp` is the real POSIX temp there,
+  so every exit 2 it produced was a false positive by construction.
 - **A `tmp` directory under a single-letter parent no longer blocks.**
   `D:\a\tmp\x` matched: after slash-normalization the drive colon satisfied the
   left boundary of the MSYS `/<drive>/tmp` alternative, so `d:` + `/a/tmp` read

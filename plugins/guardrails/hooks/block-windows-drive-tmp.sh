@@ -60,6 +60,17 @@ hook::check_enabled "BLOCK_WINDOWS_DRIVE_TMP"
 # the read; hook::check_enabled above already exits without draining stdin, so
 # that is an established shape in this hook, not a new one.
 #
+# Known and accepted: the shape is established, the EXPOSURE is not. check_enabled
+# is a kill switch that fires only when an operator disables the guard, whereas
+# this gate fires on every non-Windows tool call. A payload past roughly 64KB is
+# therefore left undrained on Linux and macOS where it previously was not, so a
+# writer that does not handle EPIPE would take SIGPIPE. Accepted rather than
+# fixed, because the alternatives are worse: a naive builtin drain blocks until
+# EOF and can hang a tool call (which is the whole reason hook::buffer_stdin is
+# a bounded idle-timeout read), and draining via buffer_stdin first would put
+# its rc-2 fail-closed exit back in front of the host gate — the very bug above.
+# Tracked separately rather than widened into this change.
+#
 # The Windows path is UNCHANGED: the case falls through and every fail-closed
 # posture below runs in exactly the same order as before — buffer_stdin rc 2,
 # jq absence, unparseable payload, NUL bytes, MAX_COMMAND_LEN.
