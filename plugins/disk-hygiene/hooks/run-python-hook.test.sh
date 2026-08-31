@@ -292,6 +292,34 @@ else
   assert_eq "and the target still runs under a real interpreter" \
     "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
 
+  # A NATIVE WINDOWS interpreter path must be accepted from the cache.
+  #
+  # The `py -3` fallback resolves through `print(sys.executable)`, which on
+  # Windows emits `C:\...\python.exe`. A basename check that split only on `/`
+  # left the whole backslash path in place, the allowlist never matched, and the
+  # record was rejected on EVERY invocation — so the warm path was dead on
+  # exactly the host class the `py` fallback exists for (neither `python3` nor
+  # `python` on PATH), silently and with no error. Nothing in the previous
+  # contract set caught it, because every path this suite produced was POSIX.
+  if command -v cygpath >/dev/null 2>&1; then
+    cache_launch >/dev/null
+    native_shim="$(cygpath -w "$CACHE_BIN/python3")"
+    {
+      printf 'schema=1\n'
+      printf 'written=%s\n' "$(date +%s)"
+      printf 'interpreter=%s\n' "$native_shim"
+      printf 'path=%s\n' "$CACHE_BIN:$PATH"
+    } >"$cache_record"
+    rm -f "$FIXTURE_MARKER"
+    native_calls="$(cache_launch)"
+    assert_eq "a native Windows interpreter path is accepted from the cache" \
+      "1" "$native_calls"
+    assert_eq "and the target runs under it" \
+      "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
+  else
+    printf 'SKIP: no cygpath; native-path cache acceptance not exercised\n'
+  fi
+
   # An unwritable cache directory must not stop the launcher from working.
   NOCACHE_HOME="$CACHE_ROOT/home-readonly"
   mkdir -p "$NOCACHE_HOME"
