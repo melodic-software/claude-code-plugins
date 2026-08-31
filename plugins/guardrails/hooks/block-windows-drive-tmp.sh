@@ -73,7 +73,7 @@ hook::check_enabled "BLOCK_WINDOWS_DRIVE_TMP"
 #
 # The Windows path is UNCHANGED: the case falls through and every fail-closed
 # posture below runs in exactly the same order as before — buffer_stdin rc 2,
-# jq absence, unparseable payload, NUL bytes, MAX_COMMAND_LEN.
+# jq absence, unparsable payload, NUL bytes, MAX_COMMAND_LEN.
 #
 # block-exported-msys-pathconv.sh deliberately keeps the opposite ordering. It
 # matches only Bash|PowerShell, where blocking on missing jq is the accepted

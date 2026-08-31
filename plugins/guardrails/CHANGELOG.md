@@ -26,7 +26,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   runs first, immediately after `hook::check_enabled` (which already exits
   without draining stdin, so the shape is not new). Reading `OSTYPE` needs
   nothing from the payload. **The Windows path is unchanged**: the case falls
-  through and `buffer_stdin` rc 2, jq absence, an unparseable payload, NUL
+  through and `buffer_stdin` rc 2, jq absence, an unparsable payload, NUL
   bytes and `MAX_COMMAND_LEN` all still fail closed in the same order.
   Confirmed on a real jq-less `PATH`: the previous commit exits 2 on a Linux
   `Write` and this one exits 0. That simulation is host-dependent (it needs
