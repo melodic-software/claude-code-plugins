@@ -254,7 +254,7 @@ fixtures present (and fails when the malformed fixture is marked expected-pass);
 present (`grep check-retirements scripts/cross-plugin-source-registry.txt`); owner doc exists
 (`test -f docs/conventions/retired-conventions/README.md`).
 
-### Phase 2c: Bespoke-migration conversion PRs [TODO]
+### Phase 2c: Bespoke-migration conversion PRs [DOING]
 
 Honest scope (DA H1): most of the 8 bespoke migrations are NOT expressible in the approved
 schema — context-guard/rate-limit-guard target machine-scope (`~/.claude/...`) surfaces,
