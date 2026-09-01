@@ -88,9 +88,12 @@ the repo make the values unambiguous; ask only where a dimension's targets genui
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md) (replace every placeholder comment
    with real values; drop unused placeholder rows).
 6. **Verify after remediation.** Re-run the `check` probes on the written file. Dimension source lists
-   parse and name real paths, and `git check-ignore -v .claude/codebase-health.md` confirms it is
-   tracked, not ignored (surface the matching pattern and offer to fix `.gitignore` before reporting
-   success). Then **offer the overlay convention**: personal overrides go in
+   parse and name real paths, and both halves of the tracked-file pair hold:
+   `git check-ignore -v .claude/codebase-health.md` reports no match (a match is FAIL; surface the
+   pattern and offer to fix `.gitignore` before reporting success) AND
+   `git ls-files --error-unmatch .claude/codebase-health.md` exits 0 (non-zero means un-ignored but
+   still untracked, the guaranteed state right after a fresh write, so report "written but
+   untracked: commit it to share with the team", never success). Then **offer the overlay convention**: personal overrides go in
    `.claude/codebase-health.local.md`; recommend the consumer add the recursive `.claude/**/*.local.*`
    line to `.gitignore` if not already covered. A user-global base at `~/.claude/codebase-health.md` is also honored. Layers
    resolve user-global → team → local overlay, additively.

@@ -69,6 +69,12 @@ with one remediation line per FAIL, and modify nothing. Do NOT run the collector
 7. **Discovery skip names**. INFO listing each `fleet.skip` entry. FAIL any value that is empty or
    contains a path separator (must be a bare directory name). Remind that any present `fleet.skip`
    **replaces** the audit default skip list rather than appending.
+8. **Tracked-file pair** (only when the config lives inside a git worktree, e.g. a project's
+   tracked `.claude/repo-fleet-hygiene.conf`): `git check-ignore -v "<path>"` reports no match (a
+   match is FAIL with the pattern — teammates would never receive the config) AND
+   `git ls-files --error-unmatch "<path>"` exits 0 (non-zero is un-ignored but untracked; FAIL
+   with "commit it to share with the team"). Skip both, saying so, for the user-global config —
+   a git verdict outside a worktree is meaningless.
 
 ## `apply` (idempotent)
 
@@ -127,6 +133,13 @@ Run `check`, then create or update the config from the supplied arguments.
      `github.com/owner/repository`
    - **Discovery skip names**. When present, confirm each `fleet.skip` value is a bare directory
      name (non-empty, no path separator)
+   - **Tracked-file pair** (when the config lives inside a git worktree, e.g. the tracked
+     `.claude/repo-fleet-hygiene.conf`): `git check-ignore -v "<config-path>"` reports no match (a
+     match is FAIL with the pattern — teammates would never receive the config) AND
+     `git ls-files --error-unmatch "<config-path>"` exits 0 (non-zero means un-ignored but still
+     untracked, the guaranteed state right after a fresh write; report "written but untracked:
+     commit it to share with the team", never success). Skip both, saying so, for a config outside
+     any worktree — a git verdict there is meaningless.
 
    Do **not** invoke the collector to verify a write. It is the full fleet walk this skill says it
    never runs: per-repository network queries across every configured root, minutes on a real fleet,

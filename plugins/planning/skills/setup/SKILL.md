@@ -91,7 +91,10 @@ writes. Every bootstrap write is user-accepted.
    the user chose. Absent keys mean the documented defaults, so an all-defaults answer may
    yield a file with `contract_tier: branch` alone or the schema-valid empty mapping `{}`
    (optionally followed by comments), never a comment-only document, which YAML parses as null.
-   Preserve every schema key an existing file carries.
+   Preserve every schema key an existing file carries. After the write, run the tracked-file pair
+   on it: `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
+   `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but
+   untracked: commit it to share with the team", never success).
 
 ### Second concern. Standards bootstrap
 
@@ -111,6 +114,10 @@ implement it by reference, do not restate it. Plugin-side notes only:
   its `standards-contract` frontmatter at the binding's version, and the setup-owned
   `<standards_dir>/.gitignore` containing `*.local.md` (the personal-overlay ignore). Write
   `.claude/standards.yaml` only when the user relocates the root from the documented default.
+  After a bootstrap write, run the tracked-file pair on each written team file:
+  `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
+  `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but
+  untracked: commit it to share with the team", never success).
 - **Optional offers, never demands:** pointer-rule generation for indexed ecosystem surfaces
   (interactive only), and reorganizing mixed or spread standards content toward the SRP + index
   shape.

@@ -58,10 +58,13 @@ FAIL. Modify nothing, and do NOT run a tidy sweep. That is `/code-tidying:tidy`.
    headings. Unkeyed entries name no language to replace. Framing prose above the first `###` is fine.
 3. **No unreplaced placeholders**, a lane still containing a template `<placeholder>` resolves to a
    broken scope glob or watch-for pattern; FAIL, naming the file and the leftover token.
-4. **Tracked, not ignored**. Run `git check-ignore -v <file>` per lane file. A non-empty result means a
-   `.gitignore` pattern excludes that lane; these lanes are team-shared and take effect only when
-   committed, so an ignored lane is FAIL with the matching pattern in the remediation line (a directory
-   can be tracked while a pattern excludes an individual `.md` inside it).
+4. **Tracked, not ignored**. Per lane file, run both halves of the tracked-file pair:
+   `git check-ignore -v <file>` (a non-empty result means a `.gitignore` pattern excludes that lane;
+   FAIL with the matching pattern in the remediation line — a directory can be tracked while a
+   pattern excludes an individual `.md` inside it) AND `git ls-files --error-unmatch <file>`
+   (non-zero exit means the lane is un-ignored but untracked: report it — "commit it to share with
+   the team", downgraded to INFO only when the user confirms it is a deliberately private,
+   uncommitted lane per the declared deviation below).
 5. **Bundled lanes and templates**. INFO: report the bundled lanes and templates available as scaffold
    sources, so the reader knows what `apply` can generate.
 
@@ -115,10 +118,13 @@ only where a lane's scope genuinely needs the user's call.
 5. **Write the lane files.** Materialize each accepted lane at `.claude/tidy-lanes/<lane>.md`. Write only
    lanes the user confirmed; produce no empty scaffolds.
 6. **Verify after remediation.** Re-run the `check` probes on each written file, required sections
-   present, no leftover placeholder, and (per file) `git check-ignore -v <file>` confirms it is tracked,
-   not ignored. A non-empty `check-ignore` result means a `.gitignore` pattern excludes that lane; surface
-   the matching pattern and offer to fix `.gitignore` before reporting success, since these lanes are
-   team-shared and must be committed to take effect. `/code-tidying:tidy` resolves a lane only from
+   present, no leftover placeholder, and (per file) both halves of the tracked-file pair:
+   `git check-ignore -v <file>` reports no match (a non-empty result means a `.gitignore` pattern
+   excludes that lane; surface the matching pattern and offer to fix `.gitignore` before reporting
+   success) AND `git ls-files --error-unmatch <file>` exits 0 (non-zero means un-ignored but still
+   untracked, the guaranteed state right after a fresh write, so report "written but untracked:
+   commit it to share with the team", never success), since these lanes are team-shared and must
+   be committed to take effect. `/code-tidying:tidy` resolves a lane only from
    `.claude/tidy-lanes/<lane>.md` (then the bundled lane of that name), and its catalog lists
    `.claude/tidy-lanes/*.md`. There is no user-global or `*.local.*` overlay resolution (declared
    deviation per the config-cascade contract, #723). Every scaffolded lane is a tracked, team-shared file;

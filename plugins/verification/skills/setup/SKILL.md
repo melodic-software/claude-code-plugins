@@ -81,7 +81,10 @@ reports "already configured".
    schema's `type: object`). Verify-or-create the memory root's self-ignoring `.gitignore` (announce the
    creation). **Never edit the consumer's root `.gitignore`.**
 3. **Verify.** Re-read `.claude/topic-docs.yaml` and report its effective values, never claim
-   persisted on the write alone.
+   persisted on the write alone. Then run the tracked-file pair on it: `git check-ignore -v`
+   reports no match (a match is FAIL with the pattern) AND `git ls-files --error-unmatch` exits 0
+   (non-zero right after a fresh write means "written but untracked: commit it to share with the
+   team", never success).
 
 ## Output
 
