@@ -44,6 +44,8 @@
     --serif: ui-serif, Georgia, serif;
     --sans: system-ui, -apple-system, sans-serif;
     --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --clay-deep: #A0512E;
+    --clay-soft: #E89B7E;
     --radius-panel: 12px;
     --radius-row: 8px;
     --border: 1.5px solid var(--gray-300);
@@ -51,6 +53,8 @@
     --fg: var(--slate);
     --panel: var(--white);
     --muted: var(--gray-500);
+    --link: var(--clay-deep);
+    --focus: var(--clay-deep);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -59,6 +63,8 @@
       --panel: var(--gray-700);
       --muted: var(--gray-300);
       --border: 1.5px solid var(--gray-500);
+      --link: var(--clay-soft);
+      --focus: var(--clay-soft);
     }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -83,9 +89,9 @@
   .swatch .chip { height: 52px; }
   .swatch .label { padding: .35rem .6rem; font-family: var(--mono); font-size: .78rem; }
   code, .mono { font-family: var(--mono); font-size: .9em; }
-  a { color: var(--clay); }
+  a { color: var(--link); }
   a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
-    outline: 3px solid var(--clay); outline-offset: 2px; border-radius: 2px;
+    outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px;
   }
   table { border-collapse: collapse; width: 100%; font-size: .92rem; }
   th, td { text-align: left; border-bottom: 1px solid var(--gray-300); padding: .45rem .5rem; vertical-align: top; }
@@ -124,8 +130,9 @@
   <table>
     <tr><th>Rule</th><th>Token or mechanism</th></tr>
     <tr><td>Body text contrast</td><td><code>--slate</code> on <code>--ivory</code> (and the inverse in dark scheme); <code>--gray-500</code> only for secondary text at 1rem or larger</td></tr>
-    <tr><td>Accent is never the only signal</td><td><code>--clay</code> and <code>--olive</code> accompany a text label or shape change, never carry meaning alone</td></tr>
-    <tr><td>Focus visibility</td><td><code>:focus-visible</code> gets a 3px <code>--clay</code> outline with 2px offset (styled above)</td></tr>
+    <tr><td>Link and accent text contrast</td><td>Text never wears <code>--clay</code> directly (2.96:1 on <code>--ivory</code>, below the 4.5:1 floor): links use <code>--link</code>, the clay-derived <code>--clay-deep</code> in light scheme (5.37:1 on <code>--ivory</code>) and <code>--clay-soft</code> in dark (4.89:1 on <code>--gray-700</code>)</td></tr>
+    <tr><td>Accent is never the only signal</td><td><code>--clay</code> and <code>--olive</code> stay decorative: they accompany a text label or shape change, never carry meaning alone</td></tr>
+    <tr><td>Focus visibility</td><td><code>:focus-visible</code> gets a 3px <code>--focus</code> outline with 2px offset, at or above the 3:1 non-text floor in both schemes (styled above)</td></tr>
     <tr><td>Color scheme</td><td><code>color-scheme: light dark</code> plus the <code>prefers-color-scheme</code> token flip above</td></tr>
     <tr><td>Motion</td><td><code>prefers-reduced-motion: reduce</code> disables animations and transitions wholesale</td></tr>
     <tr><td>Keyboard reach</td><td>Every interactive control is a native element or carries a tabindex and key handler</td></tr>

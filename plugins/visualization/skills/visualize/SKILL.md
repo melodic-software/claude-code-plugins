@@ -102,7 +102,12 @@ HTML file → published Artifact**. Selection layers, first hit wins:
    `~/.claude/rendered-views.md`, `<root>/.claude/rendered-views.md`, and
    `<root>/.claude/rendered-views.local.md` exist, in that order. The last
    layer that states a `medium:` value wins (per-key override), with the same
-   recognized values as rung 2. Name the winning layer when reporting the
+   recognized values as rung 2. Verify layer state before honoring a value,
+   per the cascade contract's per-layer verdicts: a team layer that is not
+   tracked is a hard stop (teammates would never receive it), an overlay that
+   is staged or not gitignored is a failure to report (a personal deviation
+   could reach history), and the user-global layer takes no git verdict at
+   all. Name the winning layer when reporting the
    choice; on a malformed layer, say so and resolve as if that layer were
    absent. All layers absent simply falls through (per
    `docs/conventions/rendered-views/README.md` in the marketplace repository).
@@ -119,6 +124,12 @@ self-contained local HTML file and open it; if neither page surface is available
 degrade **visibly** to the best terminal form with a one-line notice. Never assume
 the Artifact surface exists. The `file` preference deliberately stays on the
 machine (never published); `artifact` prefers publishing but degrades the same way.
+
+**Page chrome.** When authoring a rich page, take the palette, type stacks,
+radii, and accessibility floor (link/focus contrast tokens, color-scheme and
+reduced-motion behavior) from this plugin's bundled chrome reference,
+`${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather than inventing a
+look per page.
 
 **Local-file placement.** Write the local HTML file via the platform's temp
 primitive, never into the consumer's repository tree. On Unix/Linux/Git Bash,

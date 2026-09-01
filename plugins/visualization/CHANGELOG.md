@@ -12,9 +12,15 @@ All notable changes to the `visualization` plugin are documented here. Format fo
   resolves the `rendered-views` config-cascade surface (user-global, team, and local
   overlay layers of `.claude/rendered-views.md`, per-key override on `medium`), names the
   winning layer when reporting the choice, and degrades visibly on a malformed layer.
-  Auto remains the shipped default when every rung is unset. Wave-1 exemplar of the
-  rendered-views convention (`docs/conventions/rendered-views/` in the marketplace
-  repository); a new eval exercises cascade resolution and provenance reporting.
+  Auto remains the shipped default when every rung is unset. The rung verifies layer
+  state per the cascade contract (tracked team layer, gitignored overlay) before
+  honoring a value. Wave-1 exemplar of the rendered-views convention
+  (`docs/conventions/rendered-views/` in the marketplace repository); a new eval
+  exercises cascade resolution and provenance reporting.
+- **The bundled chrome reference.** `reference/html-chrome.html` ships the corpus
+  design-token system and the provisional accessibility floor, with WCAG-compliant
+  link and focus tokens derived from the clay accent; the rich-page path now takes
+  its chrome from that reference instead of inventing a look per page.
 
 ## [0.3.6]
 
