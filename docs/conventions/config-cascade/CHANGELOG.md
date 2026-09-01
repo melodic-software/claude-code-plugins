@@ -6,6 +6,21 @@ semantics, and overlay naming. Per-concern keys and schema are versioned by thei
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## 1.2 — 2026-09-01
+
+- **Expression doctrine (additive, minor).** A second sanctioned expression form joins the
+  dedicated file: team-shared prose configuration is expressed as a natural-language convention
+  doc at the consumer's convention home, bound by a single pointer line in a marked machine-owned
+  region of the root instruction file (the line is the binding; no binding file). Per-operator-
+  keyed, structured, policy-floor, and state surfaces stay files. Defines pointer-line rules
+  (AGENTS.md canonical over a pure `@AGENTS.md` shim, duplicate and missing-target handling as
+  ask-don't-infer FAILs, branch-scoped binding), root-file shape as the downstream repo's call,
+  the WARN-visible dual-read deprecation window, the migrated-surface overlay WARN, and the
+  machine-scope exclusion. No layer, precedence, or overlay-naming rule changes. Ratified by ADR
+  0018; the Implementers table gains a per-row expression note that each migration PR fills.
+- **Overlay spelling drift closed.** Every setup recommends the recursive line; the section now
+  records the convergence and the two deliberate exceptions.
+
 ## Implementers table — 2026-08-28
 
 - **Two rows cited another plugin's skill internals by path.** The `ai-slop` row resolved its

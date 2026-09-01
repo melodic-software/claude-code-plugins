@@ -288,15 +288,37 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
 
 The **adopted** rule for how a plugin settles a value at runtime, applied to every seam:
 
-1. Config present → use it.
-2. Absent → explore the repo and infer, then **persist the inference** into tracked project config
-   (seam 2) so the next run is deterministic. For a personal scalar (seam 1), direct the user to Claude
-   Code's native plugin configuration surface instead.
+1. Config present → use it. For a surface expressed as a **convention doc** (config-cascade
+   § Expression doctrine), "present" means the convention home resolves from the root file's
+   pointer line and the topic's doc exists there; the doc's prose is read as untrusted input.
+2. Absent → explore the repo and **infer the house style** from repo evidence (existing docs, the
+   consumer's own conventions, ambient instruction files), then **persist the inference** —
+   *gated*: the inference is proposed and the operator confirms before anything is written, so
+   discovery happens once and never silently. For a dedicated-file surface (seam 2) persist into
+   tracked project config; for a convention-doc surface persist the pointer line (and, on request,
+   a stub doc at the home). For a personal scalar (seam 1), direct the user to Claude Code's native
+   plugin configuration surface instead.
 3. Cannot infer → ask the user, and offer to persist the answer.
 4. Otherwise → a safe generic default.
 
 No baked repo assumptions, ever. A plugin never hardcodes a consumer's layout; it reads a declared
-value, infers-and-records, or asks — never guesses silently.
+value, infers-and-records (gated), or asks — never guesses silently. Nothing hardcodes
+`docs/conventions/`: the home is whatever the pointer line names.
+
+### Retired conventions — the detection and cleanup seam
+
+When a plugin retires a consumer-facing convention (a config file moves to a convention doc, a
+gitignore line is superseded, a directory is renamed), the old artifact left in consumer repos is
+detected and cleaned by one shared mechanism, never by bespoke prose per plugin: the plugin appends
+an append-only record to its `retirements.yaml` (shipped inside the plugin, never in consumer
+repos), and the shared deterministic helper `lib/check-retirements.sh` (canonical under
+`plugins/claude-config/lib/`, synced byte-identical via `scripts/cross-plugin-source-registry.txt`)
+evaluates every record against the consumer repo. Detection is one fixed step in setup `check`;
+cleanup is per-record and operator-gated in `apply`; judgment-bearing `migrate` content stays with
+the model per the record's `successor` prose. No new setup verb. The owner doc
+`docs/conventions/retired-conventions/README.md` carries the schema, the helper contract, and the
+two fixed setup lines; this playbook only names the seam. Schema is repository-scope only:
+machine-scope files under `~/.claude/` stay outside it (ADR 0018).
 
 This ladder is the runtime application of the durable convention posture owned by
 [PLUGIN-PHILOSOPHY.md § Two-lane convention posture](PLUGIN-PHILOSOPHY.md): a pre-prescribed

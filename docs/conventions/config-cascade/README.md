@@ -119,6 +119,74 @@ only, and never ask a consumer for two lines where one is exact.
 **No plugin writes the consumer's `.gitignore`.** A setup skill recommends the line and leaves the
 edit to the consumer; their ignore file is their artifact.
 
+## Expression doctrine — which surfaces are files, and which are convention docs
+
+The layers above describe **where** a surface's values live relative to each other. This section
+describes **how** a surface is expressed at all, and it ratifies a second expression form
+alongside the dedicated file ([ADR 0018](../../adr/0018-express-team-shared-conventions-as-consumer-convention-docs.md),
+2026-09; the decision record cites the blind mechanism tournament under
+`docs/topics/customization-consistency/design/`).
+
+**The criterion.** A surface takes exactly one of two expressions, settled by what the content
+*is*, never by the author's preference:
+
+- **Team-shared prose configuration** — guidance the model reads (a repo map, audit-target prose,
+  a lane description) that every operator on the team is meant to share and that has no
+  per-operator axis — is expressed as a **natural-language convention doc at the consumer's
+  convention home** (for example `docs/conventions/<topic>/`), discovered or asked once at setup
+  and bound by the pointer line below. Such a surface has **no overlay channel**: it has one
+  layer, the team's. A migrated surface's setup `check` WARNs on any pre-existing `*.local.*`
+  overlay file it finds for that surface rather than silently ignoring it — the overlay no longer
+  has an effect, and silence would let a personal deviation look live.
+- **Everything else stays a dedicated file under the layers above**: per-operator-keyed surfaces
+  (a value keyed by operator identity or machine, or one an operator legitimately overrides
+  privately — `testing`'s e2e config is the fleet example), structured data where YAML/JSON is
+  the right tool (`topic-docs.yaml`, `routing.yaml`, `binding.json`), every policy-floor surface,
+  and all mutable state.
+
+The criterion is applied per surface, in that surface's own migration PR, and recorded in the
+Implementers table's row. Nothing in this contract retroactively re-expresses a surface.
+
+**The convention home is bound by one pointer line, and the line IS the binding.** The consumer's
+root instruction file carries a single standing index/pointer line naming the convention home
+(and, where the home holds several topics, pointing at its index). There is no separate binding
+file: a plugin resolves the home by reading that line. The line lives inside a **marked,
+machine-owned region** — the `instruction-placement` rules-index block is the precedent — so setup
+can rewrite it idempotently without touching the operator's prose around it, and a reviewer can see
+the region is generated. The consumer's root file otherwise carries only content needed in
+effectively every conversation; topic conventions live at the home, loaded on demand.
+
+Pointer-line rules a resolver honors (the small tested helper the program's mechanism phase ships
+owns the grammar; consumer prose it reads is **untrusted input**, never executed or interpolated):
+
+- **Both root files.** `AGENTS.md` is canonical when present; a `CLAUDE.md` whose whole content is
+  the `@AGENTS.md` import is a pure shim and is not consulted for a pointer. When both files carry
+  a marked region, `AGENTS.md` wins and `CLAUDE.md`'s copy is reported as a duplicate finding
+  (remediation: remove it). Two pointer lines inside one region is a FAIL, never first-wins.
+- **Ask, never silently rebind.** A pointer absent while a previously-known home still exists on
+  disk, or a pointer whose target directory is missing, is a FAIL that routes to `apply`'s
+  interview. Inference may *propose* a home from repo evidence; only the operator's confirmation
+  writes the line.
+- **Branch-scoped.** The pointer line is tracked content, so divergent branches may bind different
+  homes and a branch may legitimately re-ask. That is a property of tracked config, not a defect.
+
+**Root-file shape is the downstream repository's call.** Recommended guidance, never forced: an
+AGENTS.md-canonical root with a pure `@AGENTS.md` CLAUDE.md shim (the shape `instruction-placement`
+already installs) — but a repo that keeps `CLAUDE.md` canonical, or a symlink, is served identically
+once setup has discovered which file carries the region.
+
+**Dual-read deprecation window.** A migrated skill that finds the retired dedicated file present
+treats it as WARN **and** reads it as authority (at minimum as inference evidence) until the
+consumer cleans it through the retirement mechanism (`docs/MIGRATION-PLAYBOOK.md`
+§ Retired conventions). This covers a consumer who updated the plugin without re-running setup,
+and is the one sanctioned dual-read: declared per surface by its retirement record, WARN-visible on
+every run, never silent. The window closes for a consumer when that record's cleanup runs, and for
+the fleet when the record is demoted to report-only under the mechanism's demotion rule.
+
+**Scope.** This doctrine governs repository-scope surfaces only. Machine-scope files under
+`~/.claude/` (context-guard, rate-limit-guard, machine-health) are outside both the criterion and
+the retirement mechanism; ADR 0018 records that exclusion.
+
 ## Resolution algorithm
 
 A plugin implementing this contract:
@@ -199,7 +267,9 @@ surface, or amend this contract) is a separate human-gated decision.
 Conformance is tracked, not assumed. A surface is listed here whether or not it conforms — the gap is
 the point. Each row states the surface's conformance **as it exists on `main`**, never as a
 migration intends it to be; a row that ran ahead of the code would report a closed gap that is still
-open.
+open. Every row below is currently expressed as a **dedicated file**; a surface that migrates to a
+convention doc under the expression doctrine above rewrites its row in the same PR (path → the
+convention home, layers → `team, via pointer line`, conformance → the retirement record id).
 
 | Surface | Consumer config path | Layers | Conformance |
 |---|---|---|---|
