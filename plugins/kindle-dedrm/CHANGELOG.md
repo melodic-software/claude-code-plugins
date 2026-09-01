@@ -3,6 +3,22 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.11]
+
+### Fixed
+
+- **`manage`: the primary tutorial's successor URL is recorded as dead too.**
+  `references/sources.md` documented one migration in 2026-07, from `remove-drm-from-kindle-ebooks/`
+  to `drm-removal-from-kindle-ebook-purchases-old-method/`. Re-probing on 2026-08-31 finds that
+  successor also returns 404, with and without the trailing slash and under a browser user-agent;
+  the site root still returns 200, so the article was removed rather than the domain dying, and the
+  Wayback Machine holds no snapshot. The entry's recorded key claims therefore have no live basis:
+  they are what was read on 2026-05-10 and nothing has re-derived them since. Applies the demotion
+  path for a pointer that dies after the fact, keeping the claims, marking the basis dead, and
+  naming the observable event that would restore a live one. The claims are not re-expanded into a
+  copy and nothing else in the file changed. Found by a link check over the 1071 URLs cited in
+  tracked markdown; it was the only confirmed dead citation.
+
 ## [0.7.10]
 
 ### Added

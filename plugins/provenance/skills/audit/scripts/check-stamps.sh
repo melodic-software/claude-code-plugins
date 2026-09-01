@@ -199,8 +199,6 @@ fi
 from_label() {
   if [[ -z "$1" ]]; then
     printf '(bundled default)'
-  elif [[ "$1" == --* ]]; then
-    printf '(from %s)' "$1"
   else
     printf '(from %s)' "$1"
   fi

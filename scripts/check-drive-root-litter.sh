@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Detect the on-disk fingerprint of an unconverted MSYS path handed to a
-# Windows-native consumer: a directory sitting at a drive root whose name is a
-# single letter that is ITSELF a mounted drive.
+# Detect the on-disk fingerprint of an unconverted POSIX path handed to a
+# Windows-native consumer. Two classes share the mechanism:
+#   * a directory at a drive root whose name is a single letter that is ITSELF
+#     a mounted drive (an MSYS /d/... literal), and
+#   * a directory at a drive root carrying a KNOWN TEMP-SINK NAME (a POSIX
+#     /tmp literal), e.g. C:\tmp.
 #
 #   scripts/check-drive-root-litter.sh          scan this host's drive roots
 #
@@ -27,6 +30,27 @@
 # plugins/guardrails/hooks/block-windows-drive-tmp.sh, a PreToolUse guard on the
 # command string); this is the same concern pointed at a producer we own, and it
 # looks at the filesystem AFTER a run rather than at a command before it.
+#
+# The TEMP-SINK class is the same mechanism with the literal spelled `/tmp`
+# instead of `/<drive>/...`: Git Bash's real temp is a mount
+# (`/tmp` -> `%TEMP%`), but a Windows-native consumer given the literal
+# resolves it to `<current-drive>:\tmp` and creates it. The name vocabulary is
+# deliberately the sibling guard's: `tmp` is the only drive-root sink
+# block-windows-drive-tmp.sh blocks (`/var/tmp` and `%TEMP%` are legitimate and
+# never sit at a volume root), so `tmp` is the only name here. Grow both lists
+# together. Precision comes from the name being a sink nothing legitimately
+# roots at a volume top on Windows - unlike the single-letter class there is no
+# mounted-drive coincidence to require, so this class carries an opt-out:
+# DRIVE_ROOT_LITTER_IGNORE_SINKS (space- or comma-separated names) exempts an
+# operator who keeps a deliberate `C:\tmp`. Sink names match CASE-INSENSITIVELY
+# in both directions - Windows filesystems are case-insensitive, so `C:\TMP`
+# and `C:\tmp` are one directory, and the detector enumerates drive-root
+# entries rather than probing the literal lowercase name so the contract holds
+# on the case-sensitive filesystems the test fixtures run on; the opt-out
+# accepts any casing for the same reason. An env var rather than a marker
+# file inside the directory, because the detector cannot trust litter's own
+# contents to prove intent, and the env var keeps the exemption visible at the
+# invocation site. The single-letter class has no opt-out and is unaffected.
 #
 # ADVISORY BY DEFAULT, not wired into a required lane that scans a live machine.
 # docs/adr/0003 is this repo's doctrine for that: a verification guard earns
@@ -65,7 +89,7 @@ mount_root="${DRIVE_ROOT_LITTER_MOUNT_ROOT:-/}"
 mount_root="${mount_root%/}"
 
 # The set of mounted drive letters. This is both the set of roots to scan AND
-# the set of directory names that count as a hit.
+# the set of directory names that count as a single-letter-class hit.
 drives=()
 for letter in {a..z}; do
   [[ -d "$mount_root/$letter" ]] && drives+=("$letter")
@@ -84,21 +108,54 @@ fi
 here="$(pwd -P 2>/dev/null)" || here="$(pwd)"
 
 hits=()
+
+# Shared candidate check for both classes: skip a non-directory, skip a
+# candidate that contains the cwd (a real checkout location, not litter - see
+# the comment above `here`), record everything else as a hit.
+record_if_litter() {
+  local drive="$1" name="$2" candidate cand_real
+  candidate="$mount_root/$drive/$name"
+  [[ -d "$candidate" ]] || return 0
+  cand_real="$(cd "$candidate" 2>/dev/null && pwd -P)"
+  [[ -n "$cand_real" ]] || cand_real="$candidate"
+  case "$here/" in
+  "$cand_real"/*) return 0 ;;
+  *) ;; # the cwd is elsewhere: the candidate is a real hit
+  esac
+  if [[ "$mount_root" == "" ]]; then
+    hits+=("$candidate    (${drive^}:\\${name}\\)")
+  else
+    hits+=("$candidate")
+  fi
+}
+
+# Single-letter class: a drive-root directory named for another mounted drive.
 for drive in "${drives[@]}"; do
   for name in "${drives[@]}"; do
-    candidate="$mount_root/$drive/$name"
-    [[ -d "$candidate" ]] || continue
-    cand_real="$(cd "$candidate" 2>/dev/null && pwd -P)"
-    [[ -n "$cand_real" ]] || cand_real="$candidate"
-    case "$here/" in
-    "$cand_real"/*) continue ;;
-    *) ;; # the cwd is elsewhere: the candidate is a real hit
-    esac
-    if [[ "$mount_root" == "" ]]; then
-      hits+=("$candidate    (${drive^}:\\${name}\\)")
-    else
-      hits+=("$candidate")
-    fi
+    record_if_litter "$drive" "$name"
+  done
+done
+
+# Temp-sink class (see the header): a known sink name at a drive root, matched
+# case-insensitively by ENUMERATING the drive root's entries - a lowercase
+# probe would rely on the host filesystem folding case, which the test
+# fixtures' filesystems do not. DRIVE_ROOT_LITTER_IGNORE_SINKS exempts a name,
+# any casing. The ${var,,} case folds below are bash 4.0+; they only ever
+# execute behind the Windows host gate above (Git Bash ships bash 5.x), so a
+# macOS bash 3.2 exits at the gate before reaching them - keep them below it.
+sink_names=" tmp "
+ignored_sinks="${DRIVE_ROOT_LITTER_IGNORE_SINKS:-}"
+ignored_sinks="${ignored_sinks//,/ }"
+ignored_sinks=" ${ignored_sinks,,} "
+for drive in "${drives[@]}"; do
+  for entry in "$mount_root/$drive"/*/; do
+    [[ -d "$entry" ]] || continue
+    name="${entry%/}"
+    name="${name##*/}"
+    name_lc="${name,,}"
+    [[ "$sink_names" == *" $name_lc "* ]] || continue
+    [[ "$ignored_sinks" == *" $name_lc "* ]] && continue
+    record_if_litter "$drive" "$name"
   done
 done
 
@@ -113,9 +170,11 @@ for hit in "${hits[@]}"; do
 done
 cat >&2 <<'EOF'
 
-Each path above is a directory at a drive root named for another mounted drive -
-the fingerprint of an MSYS path literal (/d/...) handed to a Windows-native
-consumer, which resolved it against the CURRENT drive's root instead.
+Each path above carries this defect's fingerprint at a drive root: a directory
+named for another mounted drive (an MSYS /d/... literal) or a known temp-sink
+name such as tmp (a POSIX /tmp literal). Either way, a POSIX path was handed to
+a Windows-native consumer, which resolved it against the CURRENT drive's root
+instead of the intended location.
 
 The litter is the cheap part. Whatever wrote it wrote to a path it did not
 intend, so any run that produced it may have measured something other than what

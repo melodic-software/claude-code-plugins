@@ -16,6 +16,21 @@ BeforeAll {
     . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
     . (Join-Path $script:TestsRoot 'helpers\Invoke-FixtureRedaction.ps1')
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+
+    # USERNAME/COMPUTERNAME are usually unset on non-Windows hosts. The
+    # redaction tests build their payloads from these variables and the
+    # helper reads the same ones, so pin stable values when empty (and
+    # restore after) instead of changing the helper. Windows keeps its
+    # real values.
+    $script:SavedUserName = $env:USERNAME
+    $script:SavedComputerName = $env:COMPUTERNAME
+    if (-not $env:USERNAME) { $env:USERNAME = 'scaffolduser' }
+    if (-not $env:COMPUTERNAME) { $env:COMPUTERNAME = 'SCAFFOLDHOST' }
+}
+
+AfterAll {
+    $env:USERNAME = $script:SavedUserName
+    $env:COMPUTERNAME = $script:SavedComputerName
 }
 
 Describe 'Scaffold -- Assert-CheckResult' {

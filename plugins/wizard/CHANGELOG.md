@@ -3,6 +3,13 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.6]
+
+### Changed
+
+- **`generate`: explicit `user-invocable: true`.** The documented default, now declared for
+  fleet-wide explicit-key consistency; no behavior change.
+
 ## [0.2.5]
 
 ### Added

@@ -63,7 +63,6 @@ for op in "${GIT_PRUNE_OPS[@]}"; do
     printf 'Planned: %s\n' "$op"
   else
     printf 'Running: %s\n' "$op" >&2
-    # shellcheck disable=SC2086
     eval "$op"
   fi
 done

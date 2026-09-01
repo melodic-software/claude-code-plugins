@@ -117,14 +117,10 @@ def resolve_self_logins(self_csv: str | None, extra_self_csv: str | None) -> lis
         self_login = gh.resolve_author("@me")
         if self_login:
             source.append(self_login)
-    resolved: list[str] = []
-    seen: set[str] = set()
+    resolved: dict[str, str] = {}
     for login in source:
-        key = login.casefold()
-        if key not in seen:
-            seen.add(key)
-            resolved.append(login)
-    return resolved
+        resolved.setdefault(login.casefold(), login)
+    return list(resolved.values())
 
 
 def resolve_scope_repos(

@@ -1,4 +1,5 @@
 #Requires -Version 7.4
+
 <#
 .SYNOPSIS
 Validates that an object conforms to the CheckResult JSON Schema.

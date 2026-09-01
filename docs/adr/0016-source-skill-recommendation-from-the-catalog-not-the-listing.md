@@ -27,6 +27,30 @@ the wrong direction, and — the part that makes it a correctness bug rather tha
 cannot tell that it is blind. The gatekeeping the contract bans would have been reinstated by the
 harness, invisibly.
 
+> **Revised 2026-08-31 ([#3534](https://github.com/melodic-software/claude-code-plugins/issues/3534)):**
+> the drop-order sentence above restates <https://code.claude.com/docs/en/skills> ("Skill
+> descriptions are cut short"), which is itself wrong and **still wrong as of 2026-08-31**. The error
+> is upstream's, not this ADR's, which is why the same sentence keeps re-entering this repo: it is on
+> `main` in the skill's own SKILL.md and in the plugin manifest, and #3524 added a citation pointing
+> at the wrong page for it. Claude Code does not drop descriptions "starting with the skills invoked
+> least". The shipped binary does something else, on two independent axes.
+>
+> It ranks by a decay-weighted score, `usageCount * max(0.5 ^ (daysSinceUse / 7), 0.1)`, so a
+> heavily used but stale skill can be shed before a lightly used fresh one: 100 uses 21 days ago
+> scores 12.5 and loses to 13 uses today. And it then walks every entry in that order with a running
+> budget, granting whatever still fits, with no early exit, so a cheap never-invoked description can
+> be granted after an expensive well-used one was refused. Description length is a second ranking
+> input the documented account does not mention. Both were recovered from the 2.1.251 binary and
+> re-verified at 2.1.252; the stamp, the greps, and the counterexamples are in
+> [`plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md`](../../plugins/claude-ops/skills/audit-skill-visibility/reference/listing-scorer.md).
+>
+> **The ADR's core decision is untouched, and this correction strengthens the case for it.** A
+> never-invoked skill scores exactly zero and is still shed first, so the bias this paragraph
+> identifies holds; the decay term adds a second bias the paragraph did not anticipate, against
+> skills the operator used a while ago and has since forgotten, which is the same population
+> `show-options` exists to surface. The budget arithmetic quoted above is unaffected: it measures
+> demand against the budget, not the order of shedding.
+
 Separately, the no-omission rule was measured against the real catalog at a real moment. Rendering
 every candidate in full produced **139 options across 275 lines, ~7 screens, ~4,100 tokens** — 97.8%
 of the catalog, i.e. the generated cheat sheet with an extra column, which an operator reads once and
@@ -118,6 +142,33 @@ cut first** — Skipped-upstream persistently empty or Spotlight persistently ig
 signals — and revisit the manual-only posture second. Usage-metrics-driven surfacing
 (`~/.claude.json` `skillUsage`, undocumented internal state) stays deferred; rotation runs off a
 ledger the skill writes itself, which is what keeps that deferral honest rather than load-bearing.
+
+> **Revised 2026-08-31 ([#3534](https://github.com/melodic-software/claude-code-plugins/issues/3534)):**
+> the deferral stands, but "undocumented internal state" is no longer the
+> reason and should not be read as one. That substrate is now characterized and dated in
+> [`plugins/claude-ops/skills/audit-skill-visibility/reference/usage-counters.md`](../../plugins/claude-ops/skills/audit-skill-visibility/reference/usage-counters.md),
+> which invites the false inference that the deferral lifts once the state is known. It does not,
+> because three grounds documentation cannot cure survive:
+>
+> - The scorer is **wrong-signed** for the question this skill asks. `zPe` scores high for skills
+>   used recently and often, which are exactly the skills the operator has not forgotten. Inverting
+>   it collapses to a decay-weighted least-recently-used ordering, which the self-written ledger
+>   already supplies without a build-pinned dependency.
+> - `skillUsage` holds only skills that have fired at least once. It structurally cannot name the
+>   never-invoked population the no-omission rule above exists to protect.
+> - It carries no causal-trigger field, so it cannot answer take-up: whether a skill was invoked
+>   *because* it was surfaced. The ledger can. That is not a stopgap for missing documentation; it
+>   measures something these counters never will.
+>
+> A binary-derived stamp is also not what "documented" meant here. Its own fallback rule, treat a
+> version mismatch as scorer-unknown, is what ships alongside ground that can shift without notice,
+> and its recheck trigger fires only when a human reads a release note.
+>
+> **Conditions for a future revisit,** so the next reader does not have to re-derive them: a
+> published, versioned surface for skill-usage data rather than a reverse-engineered internal; a
+> rotation signal not decay-weighted toward recent use; and take-up attribution. The third is
+> unreachable from `skillUsage` by construction, so the ledger survives whatever happens to the
+> first two. **The ADR's core decision is untouched.**
 
 **The probe seam, and why the two-consumer version was withdrawn.** `show-options` adds no probe of
 its own — it routes to `orient` — and the duplication that decision sidestepped is resolved in the

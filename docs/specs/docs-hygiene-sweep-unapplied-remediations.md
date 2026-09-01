@@ -344,13 +344,30 @@ citing text the audit quoted.
 
 > **Closure stamp, 2026-08-28. All 34 rows below are closed. The tables are left verbatim as the
 > inventory this record exists to preserve; only this note is added.** The sentence directly above
-> is the one thing in this section that was never true: #3380 wrote it and fixed 32 of the 34 in the
-> same commit, so it asserts a re-verification of citing text it had already deleted. Three separate
-> later passes each re-derived this roster from scratch because of it. Rows closed by
-> [#3380](https://github.com/melodic-software/claude-code-plugins/pull/3380) (`6c7a1032`): 22 of
-> Group 1, **all 8 of Group 2**, and both of Group 3. `V-review-13` and `V-review-14` closed later,
-> in [#3475](https://github.com/melodic-software/claude-code-plugins/pull/3475). Group 2's eight
-> were rewritten from the bare `skills/<s>/<path>` form to the anchored
+> went stale rather than starting false. It was written on 2026-08-26 by
+> [#3362](https://github.com/melodic-software/claude-code-plugins/pull/3362) (`3fbe9789`), the
+> commit that created this file and this whole section, while all 34 rows were open; it was true
+> then. Rows closed by [#3380](https://github.com/melodic-software/claude-code-plugins/pull/3380)
+> (`6c7a1032`): 22 of Group 1, **all 8 of Group 2**, and both of Group 3. #3380 fixed those 32 in
+> the citing files and never touched this section — `git show 6c7a1032 -- <this file>` has hunks
+> only in "Status at the stamp", L2 structure, L6 and L7 — so the summary above kept asserting a
+> re-verification of citing text that no longer stood. Three separate later passes each re-derived
+> this roster from scratch because of it.
+>
+> **Correction, 2026-08-28 (seventh review round).** An earlier version of this stamp said the
+> sentence "was never true" and that "#3380 wrote it … in the same commit". Both are false, and the
+> generalizable rule the sweep spec drew from them was drawn from something that did not happen.
+> `git log --diff-filter=A -- docs/specs/docs-hygiene-sweep-unapplied-remediations.md` returns
+> `3fbe9789` (#3362), and `git blame -L 340,343` puts the sentence on `3fbe97898`. The corrected
+> rule is in the sweep spec's "The L4 roster is closed" section.
+>
+> `V-review-13` and `V-review-14` closed later, in
+> [#3468](https://github.com/melodic-software/claude-code-plugins/pull/3468) (`c66f26ce`), which
+> rewrote all three `docs/conventions/native-references/README.md` sites to slash invocations. An
+> earlier version of this stamp credited #3475; that PR touched only that convention's CHANGELOG.
+> The 34-closed total is unaffected either way.
+>
+> Group 2's eight were rewritten from the bare `skills/<s>/<path>` form to the anchored
 > `${CLAUDE_PLUGIN_ROOT}/skills/<s>/<path>` form clause 3 requires, and all seven distinct targets
 > resolve on disk. Group 3's two anchors were dropped to file-level links. **Do not re-derive this
 > roster again; verify against the sweep spec's closure section instead.**

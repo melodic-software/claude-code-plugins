@@ -8,11 +8,11 @@
     "node": ">=24"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-code": "2.1.246",
-    "@biomejs/biome": "2.5.9",
+    "@anthropic-ai/claude-code": "2.1.251",
+    "@biomejs/biome": "2.5.10",
     "markdownlint-cli2": "0.23.2"
   },
   "allowScripts": {
-    "@anthropic-ai/claude-code@2.1.209": true
+    "@anthropic-ai/claude-code@2.1.246": true
   }
 }

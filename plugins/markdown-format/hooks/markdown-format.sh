@@ -1095,7 +1095,6 @@ resolve_trust_dir() {
   TRUST_DIR="${state_base%/}/trust-approvals/$signature"
 }
 
-hook::ctx_reset
 collect_risky_configs
 # Trust gate: markdownlint-cli2's configuration contract loads .cjs/.mjs
 # config modules and customRules/markdownItPlugins/outputFormatters module
@@ -1235,7 +1234,6 @@ while IFS= read -r line; do
   esac
 done <<<"$FIX_OUTPUT"
 
-hook::ctx_reset
 CTX=""
 SYSMSG=""
 

@@ -5,6 +5,33 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.29]
+
+### Changed
+
+- **`reference/cloud-headless-capture.md` gains an observable recheck trigger.** Its verdicts are
+  probe results with a date, and a negative finding stops being evidence the moment the surface it
+  probed changes, but nothing said what that change would look like. The file now names it: Claude
+  Code documenting or shipping a channel that could carry per-session occupancy to a local writer (a
+  hook payload with context or token counts, a settings key or environment variable exposing
+  occupancy, a CLI flag or MCP surface reporting it), or a change to whether a configured
+  `statusLine` runs in cloud and headless sessions. Additive only; the verdict paragraph is
+  byte-identical to its prior form.
+
+## [0.7.28]
+
+### Fixed
+
+- **`statusline-tee.sh` no longer leaks temp files when the process dies mid-write.** The tee had
+  no traps, and its snapshot prune deliberately excluded `.tmp.*` names, so a SIGKILL or crash
+  between temp write and rename left the temp file behind forever. Ported the sibling
+  rate-limit-guard tee's proven pattern: a reclaim function wired to EXIT/TERM/INT/HUP traps
+  (signal traps exit so EXIT stays the single reclaim path) plus an age-filtered orphan sweep for
+  the SIGKILL case, glob-guarded so a clean directory spawns no processes. The suite's old case
+  that pinned the leak now asserts reclamation, with a fresh in-flight temp asserted untouched,
+  and a new case proves the trap reclaims when the tee is terminated mid-window. Suite grows from
+  47 to 49 checks, all passing.
+
 ## [0.7.27]
 
 ### Changed

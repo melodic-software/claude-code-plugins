@@ -16,23 +16,66 @@
 #   scripts/check-shell-portability.sh --all         audit every tracked .sh + skill .md
 #   scripts/check-shell-portability.sh --paths F...   scan exactly these files
 #
-# COST of `--all`, and why it is structural rather than environmental. Per-file
-# time grows superlinearly with file length, so a handful of the longest files
-# dominate the entire run while the great majority cost almost nothing. As a
-# dated observation rather than a standing claim -- the figures move with the
-# corpus, the shape does not -- on 2026-08-20 the single worst file took ~123s
-# where its own first 1200 lines took ~3s, and the full sweep took ~10 minutes.
-# This is why CI runs the changed-file mode and never `--all` (see ci.yml's
-# `shell-portability-lint`): a per-PR fleet sweep would be minutes of runner time
-# to re-prove files the PR did not touch.
+# COST of `--all`, and what stopped being true about it. Per-file time used to
+# grow superlinearly, so a handful of files dominated the whole run while the
+# great majority cost almost nothing: on
+# 2026-08-20 the single worst file took ~123s where its own first 1200 lines
+# took ~3s, and the full sweep took ~10 minutes. That was structural rather
+# than environmental, and #3481 removed the structure. Every change below was
+# made in place with the findings held byte-identical. The one that dominates
+# is that the quote-aware walk now RESUMES per physical line of a joined record
+# instead of re-walking the whole accumulation.
 #
-# Two operational consequences, both of which have already cost real time:
+# An earlier revision of this header credited three changes — that walk, a
+# chunked buffer for the two derived views, and matching the stat fallback
+# ladder inside the window a ladder can occupy — and that list is wrong about
+# which of the remaining ones carry weight. Measured on 2026-08-29 by reverting
+# ONE change at a time and re-scanning this file, each ablation confirmed
+# output-identical first: the doubling `blanks()` pad is worth 2.30x, the
+# split-based `after_last_boundary()` 1.69x, the chunked buffer 0.99x, and the
+# cheap `index()`/`!~` pre-filters in is_negated() and status_swallowed()
+# nothing measurable at all (0.96x, inside the run-to-run noise). The two the
+# old list omitted are the two that pay; the buffer and the pre-filters are
+# kept because they cost nothing, not because they bought anything here.
 #
-#   - `--all` exceeds a 600s command timeout on a tree of this size. Run it
-#     detached and wait on it. It is NOT flaky, and re-running it unchanged does
-#     not help: a run that appears to "time out again" is the predicted outcome,
-#     not new information. Four attempts were spent before this was understood,
-#     each recorded as an environment problem.
+# What made a file expensive was never its line count, which is why the shape
+# was so easy to misread: it was the length of its longest LOGICAL record. A
+# file of ordinary one-line commands scanned linearly before and still does
+# (25,600 such lines, ~1.7s then, ~1.9s now). A file carrying one long
+# quote-joined record paid a quadratic price for it, and this file is the
+# extreme of that class. Cost is linear in file length now ONLY while the
+# longest logical record stays bounded: a file that is one enormous record is
+# still superlinear in that record's length, just with a far smaller constant.
+# The residue tracks record LENGTH, not how many hits the record carries, which
+# is why this file is still the corpus's worst case. Measured on 2026-08-29
+# against a synthetic file that is one quote-joined record with no hits in it
+# at all: 1,600 lines 0.11s, 6,400 lines 0.35s, 25,600 lines 6.58s. Holding the
+# record at 6,400 lines and varying hit density instead moved nothing outside
+# the noise: 0.35s with no hits, 0.38s with a hit every eighth line, 0.34s with
+# a hit on every line.
+#
+# As dated observations rather than standing claims -- the figures move with
+# the corpus and the machine, the shape does not -- both versions measured on
+# 2026-08-29 on one machine over one tree, before and after: this file, the
+# worst case in the corpus because its own awk program is a single ~1,580-line
+# quote-joined record, ~70s before and ~1.8s after; a 2,900-line script ~173s
+# before and ~0.4s after; the whole `--all` sweep of 1,537 files ~1,019s
+# before and ~35s after; and this gate's own suite, whose fixtures re-scan
+# this file, ~471s before and ~15s after.
+#
+# CI still runs the changed-file mode rather than `--all` (see ci.yml's
+# `shell-portability-lint`), and not because of what a sweep costs: a per-PR
+# fleet sweep is runner time spent re-proving files the PR did not touch.
+#
+# `--all` now finishes well inside a 600s command timeout, so an audit no
+# longer has to be run detached. What follows is for a run that DOES outlive
+# its timeout, and it is kept because misreading a long run's outcome has cost
+# real time more than once:
+#
+#   - A timeout is not flakiness. Re-running an unchanged command that timed
+#     out is the predicted outcome, not new information; four attempts were
+#     spent on that before it was understood, each recorded as an environment
+#     problem.
 #   - Do NOT wait on it with `pgrep -f 'check-shell-portability'`. That pattern
 #     appears in the waiting shell's OWN command line, so the waiter matches
 #     itself and the condition never clears. Wait on the pid instead.
@@ -544,14 +587,107 @@ scan_file() {
     # second quote tracker written beside this one is the matched-pair shape
     # that has already produced two defects in this corpus — one side widened,
     # the other not — so the class reads these extents instead.
-    function mask_quotes(l,   i, c, m, st, top, len) {
+    #
+    # The walk is RESUMABLE, and the record loop resumes it instead of
+    # restarting it on every physical line (#3481). A quote-joined record grows
+    # by one line at a time, and re-walking the whole accumulation each time
+    # made the cost quadratic in the record length: this script IS the worst
+    # case, since its own awk program is one single-quoted ~1,580-line record,
+    # and a 1,600-line prefix of it pushed 41.7 million characters through this
+    # function to answer 1,600 questions about its last two columns.
+    #
+    # What makes resuming sound is the lookahead bound. Every branch below
+    # reads at most two characters past the one it is deciding (`$((` is the
+    # longest), so a decision taken two characters back from the end of the
+    # text that has arrived so far cannot be revised by text that arrives
+    # next: the same state, the same character, the same lookahead. The walk
+    # therefore COMMITS everything up to `len - 2` and resumes from there,
+    # re-deciding only the two-character tail plus whatever was appended.
+    #
+    # Committed state is the WHOLE walk state, not just the quote stack. The
+    # arithmetic-depth and expansion-open arrays are keyed by stack depth and
+    # the uncommitted tail mutates them, so they are held and restored with the
+    # stack; NV is held too, so extents found in a tail that is about to be
+    # re-walked are not counted twice. MQ_CMT carries the one branch that runs
+    # off the end of the record: an inline comment masks everything after it,
+    # text joined on later included, so a resumed walk keeps masking rather
+    # than re-deciding a `#` it can no longer see.
+    function mq_hold(st,   d) {
+      HELD_ST = st
+      HELD_CMT = MQ_CMT
+      HELD_NV = NV
+      for (d = 1; d <= length(st); d++) {
+        HELD_AR[d] = ARDEPTH[d]
+        HELD_VO[d] = VOPEN[d]
+      }
+    }
+    function mq_resume(   d) {
+      MQ_CMT = HELD_CMT
+      NV = HELD_NV
+      for (d = 1; d <= length(HELD_ST); d++) {
+        ARDEPTH[d] = HELD_AR[d]
+        VOPEN[d] = HELD_VO[d]
+      }
+    }
+    # Start a new record: nothing walked, nothing committed, fresh state.
+    function mq_reset() {
+      HELD_ST = "U"
+      HELD_CMT = 0
+      HELD_NV = 0
+      MQ_POS = 0
+      MQ_MASK = ""
+      MQ_TAIL = ""
+    }
+    # The mask of the whole record so far: the committed prefix plus the tail
+    # the last walk re-decided. Materialized only where a consumer needs it (at
+    # record end), never once per physical line.
+    function mask_full() { return MQ_MASK MQ_TAIL }
+    function mask_quotes(l,   i, c, m, st, top, len, climit, held) {
+      mq_resume()
+      st = HELD_ST
       m = ""
       DANGLING_BS = 0
       DANGLING_QUOTE = 0
-      NV = 0
-      st = "U"
       len = length(l)
-      for (i = 1; i <= len; i++) {
+      # The commit point lags the end of the record by the longest lookahead
+      # any branch below takes, which is two characters (`$((`). It lags by
+      # one MORE when the record ends in a backslash, and that column is the
+      # only one this walk can ever lose: the record loop DELETES a trailing
+      # backslash when it turns out to be a continuation, and a decision that
+      # had already read it would then rest on a character the record no
+      # longer has. The `$((` test is the one branch with reach enough to do
+      # that, and `$` `(` `\` at the last three columns is exactly where it
+      # bites: the arithmetic test fails on the backslash, `$(` gets committed,
+      # and the `(` arriving on the next line can no longer promote it. POSIX
+      # removes `\<newline>` during tokenization (2.2.1), so that spelling IS
+      # `$((`, and committing the shorter reading reported a real `stat -c …
+      # || stat -f …` ladder as unguarded.
+      #
+      # One deletion is all that has to be allowed for, because a second
+      # cannot follow it. For the record loop to strip column `len`, the walk
+      # must have reached that backslash with nothing consuming it, which
+      # means column `len - 1` was not an unconsumed backslash (one there
+      # would have consumed `len`). So the shortened record does not end in an
+      # unconsumed backslash either, and the column a committed decision was
+      # allowed to read stays put.
+      climit = len - 2 - (substr(l, len, 1) == BS)
+      held = 0
+      for (i = MQ_POS + 1; i <= len; i++) {
+        if (!held && i > climit) {
+          MQ_MASK = MQ_MASK m
+          MQ_POS = i - 1
+          mq_hold(st)
+          m = ""
+          held = 1
+        }
+        # Past an inline comment every remaining character is masked, including
+        # any joined on after this walk (2.3 rule 10 runs the comment to the
+        # newline, and this mask deliberately runs it to the end of the record
+        # so a separator inside comment text is never structural).
+        if (MQ_CMT) {
+          m = m "Q"
+          continue
+        }
         c = substr(l, i, 1)
         top = substr(st, length(st), 1)
         # Single quotes preserve every character (2.2.2) — nothing opens
@@ -655,8 +791,9 @@ scan_file() {
         # opening a word comments out the rest of the record. A `#` mid-word
         # (`foo#bar`, `$#`) is an ordinary character and falls through.
         if (c == "#" && (i == 1 || index(WORDSTART, substr(l, i - 1, 1)) > 0)) {
-          while (i <= len) { m = m "Q"; i++ }
-          break
+          MQ_CMT = 1
+          m = m "Q"
+          continue
         }
         if (c == SQ) { m = m "Q"; st = st "S"; continue }
         if (c == DQ) { m = m "Q"; st = st "D"; continue }
@@ -681,7 +818,17 @@ scan_file() {
       # next physical line is part of the SAME command. The record loop joins
       # on this exactly as it does on a dangling backslash.
       DANGLING_QUOTE = (length(st) > 1)
-      return m
+      # A walk that ran off the end without crossing the commit point got there
+      # through a branch that CONSUMED the last characters (a `$((` opening at
+      # `len - 2`, say), so no decision in it read past the text that was
+      # there. Nothing is left to re-decide and the whole walk commits.
+      if (!held) {
+        MQ_MASK = MQ_MASK m
+        MQ_POS = len
+        mq_hold(st)
+        m = ""
+      }
+      MQ_TAIL = m
     }
     # ---- Offset-anchored matching (#1544) ----
     # Structure is decided from the MASK, never by re-splitting the line into
@@ -723,10 +870,22 @@ scan_file() {
     # substitution (`grep -e "$(printf pattern)" -P file`) or on a process
     # substitution staying attached to its option cluster (`echo -e<(printf x)`).
     # The mask is additive; re-segmentation was not.
-    function neutralize(l, m,   i, c, r, len) {
+    # Both derived views are built through a CHUNKED buffer rather than by
+    # appending to one growing string (#3481). awk has no string builder, and
+    # `r = r c` reallocates and re-copies the whole accumulation on every
+    # character, so a view of a joined record cost a quadratic re-copy of the
+    # record. Flushing a bounded chunk into the result keeps the copying
+    # proportional to the record. The output is unchanged; only how it is
+    # assembled is.
+    function neutralize(l, m,   i, c, r, out, len) {
       r = ""
+      out = ""
       len = length(l)
       for (i = 1; i <= len; i++) {
+        if (length(r) >= 4096) {
+          out = out r
+          r = ""
+        }
         c = substr(l, i, 1)
         # A quoted NEWLINE neutralizes to a SPACE, not to the `Q` filler. `Q` is
         # a word character, so it would weld the text on either side of a join
@@ -737,7 +896,7 @@ scan_file() {
         else if (substr(m, i, 1) == "Q" && index(SEPS, c) > 0) r = r "Q"
         else r = r c
       }
-      return r
+      return out r
     }
     # The guard is always evaluated on qline, whichever view produced the hit: a
     # ladder whose BSD side sits inside a substitution
@@ -760,13 +919,18 @@ scan_file() {
     # newly reported. It is recognized by the `<`/`>` immediately before the
     # paren and kept verbatim, so only the frames that DO become their own word
     # collapse.
-    function collapse_subs(q, m,   i, c, r, len, kinds, nc, inbt, prev, top) {
+    function collapse_subs(q, m,   i, c, r, out, len, kinds, nc, inbt, prev, top) {
       r = ""
+      out = ""
       kinds = ""
       nc = 0
       inbt = 0
       len = length(m)
       for (i = 1; i <= len; i++) {
+        if (length(r) >= 4096) {
+          out = out r
+          r = ""
+        }
         c = substr(m, i, 1)
         if (c == BT) {
           inbt = !inbt
@@ -793,7 +957,7 @@ scan_file() {
         if (nc > 0 || inbt) r = r "~"
         else r = r substr(q, i, 1)
       }
-      return r
+      return out r
     }
     # ---- Word layer (#1551 stage 1) ----
     # The mask decides which CHARACTER is quoted; these functions decide which
@@ -1084,10 +1248,16 @@ scan_file() {
     # the call SUCCEEDS and is skipped when it fails — the fallback never runs
     # on the dialect that needs it. A negated probe therefore has no guard at
     # all, however well-formed the ladder after it looks.
-    function blanks(n,   s) {
-      s = ""
-      while (length(s) < n) s = s " "
-      return s
+    # Grown by DOUBLING and kept, not appended one space at a time (#3481). A
+    # joined record is as long as the construct it spans, and every resumed
+    # match blanks the whole prefix behind it, so a per-character loop here
+    # cost a quadratic re-copy of the record for each hit the scan stepped
+    # past. The pad is length-only; nothing reads its content.
+    function blanks(n) {
+      if (n <= 0) return ""
+      if (PAD == "") PAD = " "
+      while (length(PAD) < n) PAD = PAD PAD
+      return substr(PAD, 1, n)
     }
     # The `!` may be separated from the command name by the same prefixes
     # CMDPOS admits after a `||` — an invocation wrapper, an environment
@@ -1116,16 +1286,24 @@ scan_file() {
     # newline is a boundary here for the same reason `;` is: inside a `$( )`
     # frame it ends the command. A quoted newline never reaches this — it is
     # neutralized to a space upstream.
-    function after_last_boundary(h,   i, c) {
-      for (i = length(h); i >= 1; i--) {
-        c = substr(h, i, 1)
-        if (c == ";" || c == "|" || c == "&" || c == ")" || c == NL)
-          return substr(h, i + 1)
-      }
-      return h
+    # The text after the last boundary is the last FIELD of a split on the
+    # boundary characters, which is the same answer the backward per-character
+    # walk gave and reaches it in one pass through the string rather than one
+    # awk-level substr() per character (#3481). The distinction matters only
+    # where the walk had nowhere to stop: inside a quote-joined record every
+    # separator is masked, so a boundary-free run is as long as the record.
+    function after_last_boundary(h,   part, n) {
+      n = split(h, part, "[;|&)" NL "]")
+      if (n == 0) return ""
+      return part[n]
     }
     function is_negated(q, at,   head) {
       head = after_last_boundary(substr(q, 1, at - 1))
+      # The full pattern below cannot match without a `!` followed by
+      # whitespace, and deciding THAT is a trivial scan where deciding the
+      # whole thing is not. A head with no such pair is rejected without
+      # running it.
+      if (head !~ /![[:space:]]/) return 0
       return head ~ ("(^|[[:space:]]|[(]|" BT ")![[:space:]]+" NEGOPEN PREFIXES "$")
     }
     # A `$( )` or backquote frame hands the `||` the status of the matched call
@@ -1160,6 +1338,10 @@ scan_file() {
     # status the `||` tests.
     function status_swallowed(q, at, m,   head, before, opener, i, c, depth, len, closed) {
       head = after_last_boundary(substr(q, 1, at - 1))
+      # Same shape as the negation pre-filter: no substitution opener in the
+      # head means the match below cannot succeed, and index() decides that
+      # far more cheaply than a greedy `.*` over a record-length string.
+      if (index(head, "$(") == 0 && index(head, BT) == 0) return 0
       if (!match(head, ".*(\\$\\(|" BT ")")) return 0
       before = substr(head, 1, RLENGTH)
       opener = substr(before, length(before), 1)
@@ -1191,7 +1373,7 @@ scan_file() {
       }
       return 0
     }
-    function is_guarded(q, p, at, m,   CMDPOS, SEG, PRE, NAME, QP, QL, lend, opos, os, i) {
+    function is_guarded(q, p, at, m,   CMDPOS, SEG, PRE, NAME, QP, QL, lend, opos, os, i, ladder, bar, past) {
       if (is_negated(q, at)) return 0
       # An opener after the `||` may be any spelling that makes the command
       # which follows it what the `||` actually runs: either substitution
@@ -1236,7 +1418,23 @@ scan_file() {
       # its own status propagates to is not what that guard asks about.
       if (index(p, STATNAME) || index(p, "stat")) {
         if (status_swallowed(q, at, m)) return 0
-        if (!match(substr(q, at), "^" STATNAME PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME STATNAME PRE QP "-" QL "f")) return 0
+        # A ladder cannot cross a PIPE, so the text it can possibly cover is
+        # bounded and the match is given that window rather than the whole rest
+        # of the record (#3481). Every component of the pattern excludes `|`
+        # outright (SEG, PRE, NAME, the ASSIGN runs inside PREFIXES, the quote
+        # runs) with the single exception of CMDPOS, which is the `||`
+        # itself. A match therefore contains exactly two `|` characters and
+        # they are adjacent: it must reach the FIRST one at or after the hit,
+        # that one must be doubled, and it must end before the next. Handing
+        # match() everything to the end of the record instead is what cost the
+        # scan its per-file linearity, since a quote-joined record is as long
+        # as the file it came from.
+        ladder = substr(q, at)
+        bar = index(ladder, "|")
+        if (bar == 0 || substr(ladder, bar + 1, 1) != "|") return 0
+        past = index(substr(ladder, bar + 2), "|")
+        if (past > 0) ladder = substr(ladder, 1, bar + past)
+        if (!match(ladder, "^" STATNAME PRE QP "(-" QL "c|--format|--printf)" SEG CMDPOS NAME STATNAME PRE QP "-" QL "f")) return 0
         # match() so the EXTENT of the ladder is known: fallback_proven()
         # walks from its `||` to its final `-f` word. SEG admits no `|`, so
         # the first `||` inside the extent is the operator of the ladder
@@ -1724,11 +1922,23 @@ scan_file() {
         nphys = 0
         joined = 0
         pending = 1
+        mq_reset()
       }
       physoff[++nphys] = length(logical) - length($0) + 1
       physno[nphys] = FNR
-      logical_mask = mask_quotes(logical)
+      # Advances the ONE resumable walk over this record. The two dangling
+      # answers are about the end of the record, so the walk still reaches it
+      # every physical line; what it no longer does is re-decide the prefix
+      # behind it. The mask itself is materialized below, once, where a
+      # consumer actually reads it.
+      mask_quotes(logical)
       if (DANGLING_BS && !is_comment(logical)) {
+        # The stripped backslash sits past the commit point, and so does every
+        # column any committed decision READ: mask_quotes() holds its commit
+        # an extra character back whenever the record ends in a backslash,
+        # precisely so this deletion cannot pull the ground out from under one.
+        # The characters being a prefix is not enough on its own, which is what
+        # an earlier revision of this comment claimed.
         logical = substr(logical, 1, length(logical) - 1)
         pendsep = ""
         next
@@ -1738,6 +1948,7 @@ scan_file() {
         joined = 1
         next
       }
+      logical_mask = mask_full()
       scan_logical(logical, logical_line, logical_mask)
       pending = 0
       if (!in_heredoc) {
@@ -1755,7 +1966,7 @@ scan_file() {
       # A pass-1 fatal (an unknown `!name`) reaches END through the awk `exit`;
       # re-reporting it as an empty pattern set would bury the real diagnostic.
       if (FATAL) exit 2
-      if (pending) scan_logical(logical, logical_line, logical_mask)
+      if (pending) scan_logical(logical, logical_line, mask_full())
       if (np == 0 && ncls == 0) {
         print "Error: token list loaded no active patterns" > "/dev/stderr"
         exit 2

@@ -58,8 +58,12 @@ PROG=${0##*/}
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# Print the header block (everything after the shebang up to the first
+# non-comment line) with its comment markers stripped. Derived rather than a
+# hardcoded line range, which silently truncated or over-ran as the header grew.
 usage() {
-  sed -n '2,53p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
+    "${BASH_SOURCE[0]}"
 }
 
 worktree_path=""

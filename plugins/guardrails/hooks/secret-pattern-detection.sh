@@ -147,31 +147,32 @@ NotebookEdit) CONTENT="${HOOK_JQ_FIELDS[4]}" ;;
 esac
 [[ -n "${CONTENT:-}" ]] || exit 0
 
-# Repo-relative file for telemetry data.file (best-effort prefix strip).
-FILE_REL="$FILE"
-if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  _root="${CLAUDE_PROJECT_DIR//\\//}"
-  _root="${_root%/}"
-  _fwd="${FILE//\\//}"
-  FILE_REL="${_fwd#"$_root"/}"
-fi
-# Redaction: if the path could not be made repo-relative, emit the basename only
-# — never an absolute path (it would embed the developer's username) into telemetry.
-case "$FILE_REL" in
-/* | [A-Za-z]:*)
-  FILE_REL="${FILE_REL##*/}"
-  FILE_REL="${FILE_REL##*\\}"
-  ;;
-*) ;;
-esac
-
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
-# high-res start stamp and the opt-in sink — the unwired path spawns nothing.
+# high-res start stamp and the opt-in sink — the unwired path spawns nothing,
+# which is also why the repo-relative path is resolved in here rather than at
+# the top level: the default unwired run never pays for it.
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
+  # The helper carries the redaction: a path it could not make repo-relative
+  # comes back as the basename, never an absolute path (which would embed the
+  # developer's username) and never a UNC share (which would name an internal
+  # host). CLAUDE_PROJECT_DIR is the anchor the envelope itself carries, so
+  # data.file is expressed against that same root when it is set. This hook
+  # deliberately scans on WITHOUT one (the scope guard above falls through
+  # rather than skipping), and an unanchored path can only degrade to a bare
+  # basename, so resolve the file's own checkout for that case.
+  local file_rel root="${CLAUDE_PROJECT_DIR:-}"
+  [[ -n "$root" ]] || root="$(hook::repo_root "$(dirname "$FILE")")"
+  # The helper strips "$root/", so a root that already ends in a separator
+  # makes the prefix "/repo//" and matches nothing: every in-project file
+  # would collapse to its basename. CLAUDE_PROJECT_DIR is caller-supplied and
+  # a trailing slash is a supported spelling, so trim it here. The copy this
+  # replaced did the same, and hook::repo_root never returns one.
+  root="${root%/}"
+  file_rel="$(hook::repo_relative_path "$FILE" "$root")"
   local data
-  data=$(jq -n --arg file "$FILE_REL" --argjson violations "$2" \
+  data=$(jq -n --arg file "$file_rel" --argjson violations "$2" \
     '{tool:"'"$TOOL"'",file:$file,violations:$violations}' 2>/dev/null) ||
     data='{"tool":"","file":"","violations":[]}'
   hook::emit_telemetry "secret-pattern-detection" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"

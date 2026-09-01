@@ -69,10 +69,9 @@ function Invoke-TrendAnalysis {
         #
         # Only the most recent qualifying value is ever compared against, so the
         # walk overwrites rather than accumulating: the tail is in file order
-        # (oldest -> newest), so the last assignment is the newest baseline. An
-        # earlier version collected every value into a list and read [-1]; the
-        # list was never used for anything else. Reading [0] would compare today
-        # against the STALEST entry, which is the bug the ordering note guards.
+        # (oldest -> newest), so the last assignment is the newest baseline.
+        # Reading [0] would compare today against the STALEST entry, which is
+        # the bug the ordering note guards.
         $lastMetric = $null
         if ($relevantKey) {
             $fullKey = "$($r.id).$relevantKey"
@@ -157,6 +156,7 @@ function Get-TrendRelevantKey {
         'reliability' { return 'stability_min_7d' }
         'claude-temp-root' { return 'total_gb' }
         'environment-health' { return 'user_path_length' }
+        'drive-root-litter' { return 'residue_count' }
         default { return $null }
     }
 }
@@ -191,6 +191,9 @@ function Test-WorseningTrend {
     # not in $upwardWorsens: the check has several independent WARN causes
     # (credential names, DISABLE_AUTOUPDATER, REG_SZ Path). A generic
     # upgrade would turn those into CRIT whenever Path grew by >=5 chars.
+    # drive-root-litter is likewise mapped (residue_count) but excluded:
+    # root litter is tidiness, and its rubric caps at WARN -- a generic
+    # upgrade would mint a CRIT from five new stray files.
     $downwardWorsens = @('battery', 'reliability')
 
     $delta = $cur - $prev

@@ -3,6 +3,63 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1]
+
+### Fixed
+
+- **Uncommitted-code-files probe moved out of the argument-substitution surface.** The
+  pre-computed-context injection in `audit-comment-residue` and `dissolve-comments` carried awk
+  `$0` inline in SKILL.md. Skill argument substitution rewrites `$<digit>` placeholders anywhere
+  in a skill body (0-based, so `$0` is the first argument), so any invocation carrying an
+  argument corrupted the probe before the shell ran. Both lines now call the shared
+  `scripts/changed-code-files.sh` through `${CLAUDE_PLUGIN_ROOT}`, which also removes the inline
+  `$`-expansion the worktree-isolation guard refuses (#1687). Contract tests cover the listing,
+  the rename-origin skip, the cap, and the no-repo fallback exit.
+
+## [0.15.0]
+
+### Changed
+
+- **`batch-simplify` defaults flip from file-and-defer to fix-first.** The old defaults produced
+  backlog: agents could defer anything as "out of scope", Phase 6.5 auto-filed High + Medium
+  deferrals as work items (High-only in repo mode), and every filed item was work pushed to later.
+  Three coordinated changes, all default-behavior, none touching the argument grammar or entry
+  gates:
+  - **The deferral contract now requires a ground.** Agents apply every simplification they
+    identify; a deferral must name HUMAN-DECISION, TOO-LARGE, CROSS-GROUP, or PROTECTED, and
+    "out of scope" / "would dilute the diff" are explicitly not grounds. The `## Deferred` item
+    shape gains a `Ground:` field.
+  - **Phase 6.5 is renamed from "Capture deferred items as issues" to "Resolve deferred items
+    in-run".** Consolidated deferrals are triaged fix-first and a resolution wave (same spawn
+    contract, same verification, and in repo mode the same mandatory refutation verifier) applies
+    the Fix-now set in the same run, its edits landing exactly like the primary wave's: uncommitted
+    working-tree changes in the diff-scoped modes, run-branch commits in repo mode. Each resolution
+    agent receives the complete
+    file set its concern spans, so a CROSS-GROUP ground cannot legitimately recur; a genuinely new
+    file discovered mid-task is folded in with a single re-dispatch of that item, and no further
+    recursion. Only Needs-human items, Too-large items, and deferrals the wave could not finish
+    (carrying their recorded grounds) survive to the Phase 8 report; the bar for Too-large is work
+    needing its own planned effort, not merely many edits. **No work items are filed by default in any mode**;
+    filing happens only on an explicit user request, keeping the one-item-per-concern unit and the
+    no-numeric-cap rule.
+  - **Repo mode delivers one feature branch and one pull request for the whole run**, replacing
+    one PR per wave. The run branch is created from the refreshed tip of the intended PR base
+    (normally the default branch), never silently from an invocation HEAD sitting ahead of it,
+    which would smuggle that branch's pre-existing commits into the repo-wide PR; a non-base HEAD
+    is surfaced at the confirmation gate for an explicit choice.
+    At least one commit per group keeps the run auditable at group granularity,
+    the base branch is merged into the run branch at every wave boundary (and once more before
+    final verification) so the repo-wide PR does not rot behind its base, and the single PR opens
+    after the first wave lands so CI exercises every subsequent push. The known cost, a diff past
+    any workable review budget, is paid deliberately and carried by the machinery that already
+    existed for exactly this reason: the per-group refutation verifiers, per-wave verification,
+    and the end-of-run union pass.
+
+  The checklist template's "Filing tier" section becomes "Deferral posture", the Phase 8 report
+  template's filed-issues section becomes resolved-in-run plus remaining-deferrals sections, and
+  evals 4 and 8 assert the new posture. The run-state inventory still persists every deferral
+  verbatim; nothing is silently dropped, it is fixed instead of filed.
+
 ## [0.14.15]
 
 ### Fixed

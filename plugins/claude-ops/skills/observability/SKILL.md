@@ -97,7 +97,7 @@ When the user asks to inspect traces, logs, metrics, or hook data outside a scop
 
 ### 0. Dispatch. Action vs scope
 
-If `$1 == "clean"`: shift, delegate to `scripts/clean.sh "$@"` and return its exit code.
+If the first argument is `clean`: delegate to `scripts/clean.sh` with the remaining arguments and return its exit code.
 
 ```bash
 if [[ "${1:-}" == "clean" ]]; then

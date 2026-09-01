@@ -10,7 +10,9 @@ C="$(cd "$HERE/../../../conformance/bindings" && pwd)"
 
 norm() { tr '\n' ' ' | tr -s ' ' | sed 's/^ //; s/ $//'; }
 
-# Pull the real WIT_LINEAR_ISSUE_FIELDS out of common.sh by executing just that assignment.
+# Pull the real WIT_LINEAR_ISSUE_FIELDS out of common.sh by sed-extracting the text of its
+# single-quoted assignment (nothing is executed): the readonly...= prefix and the surrounding
+# quotes are stripped, leaving the literal field-selection block.
 FIELDS="$(sed -n "/^readonly WIT_LINEAR_ISSUE_FIELDS='/,/^'$/p" "$A/common.sh" |
   sed "s/^readonly WIT_LINEAR_ISSUE_FIELDS=//" | sed "1s/^'//; \$s/^'$//")"
 echo "--- WIT_LINEAR_ISSUE_FIELDS as extracted from common.sh ---"

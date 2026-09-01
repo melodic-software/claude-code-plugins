@@ -3,6 +3,79 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.23]
+
+### Changed
+
+- **`audit-pass`: two dated reference surfaces gain observable recheck triggers.** `SKILL.md` and
+  `reference/finding-identity.md` carried verification dates with no stated event obliging
+  re-derivation, which the upstream-drift convention treats as the load-bearing part missing: a
+  stale stamp reads identically to a fresh one, so the date alone confers no authority. `SKILL.md`
+  now names the `output-styles` doc's `keep-coding-instructions` / `force-for-plugin` behavior and
+  the `memory` doc's `@path`-imports-load-at-launch claim; `finding-identity.md` names a SARIF spec
+  revision renumbering the sections it keys to, or GitHub CodeQL changing its fingerprinting method.
+  Additive only: no claim, date or existing sentence changed.
+
+## [0.40.22]
+
+### Changed
+
+- **Stamped restated upstream frontmatter facts across three audit references** (2026-08-31
+  frontmatter-alignment sweep, per the marketplace's upstream-drift convention). `audit-instructions`
+  `reference/criteria.md`: the I3 Source bullet's quoted doc spans now carry their owning URLs, a
+  verified date, and a divergence trigger. `audit` `context/validation-categories.md`: the Category
+  G budget defaults (0.01 fraction, 8,000-char fallback, 1,536 per-entry cap) carry a verified date
+  and a trigger tied to the Phase-3 confirm the paragraph already mandates. `audit`
+  `reference/audit-checklist.md`: the per-entry-cap row now cites the frontmatter reference with a
+  date and re-derivation trigger.
+
+## [0.40.21]
+
+### Changed
+
+- **`audit-permission-grants`: `permission-rule-check.test.sh` renumbers a colliding block of case
+  labels.** The regression block after Case 11 reused labels 8b through 8g that an earlier block
+  already carried, so two different cases shared each label. The later block is now Cases 12
+  through 13b, grouped by the issue each case pins. Comment-only: no assertion, variable, or
+  fixture changed, and the suite passes unchanged at 139 checks.
+
+## [0.40.20]
+
+### Changed
+
+- **Two documentation-accuracy fixes and one dead-guard removal in skill
+  scripts.** `audit-pass/scripts/run-state.sh`'s header usage block regains the
+  `--plugin-data` and `[--epoch <n>]` arguments its own `usage()` already
+  documents (comment-only; verified against the negative-test sed targets);
+  `audit-instructions/scripts/conflict-scan.test.sh` drops a prerequisite guard
+  for `grep`, a tool neither the suite nor the script under test invokes (the
+  awk guard stays; skip-discipline gates re-run clean).
+
+## [0.40.19]
+
+### Changed
+
+- **`lib/managed-scope.sh` emits its two Windows registry policy keys from one
+  `printf`.** The merged call reuses the `'%s\n'` format per argument, so the
+  emitted lines, their order, and the trailing newline are byte-identical; the
+  merge also brings the HKCU line under the existing `portability-ok`
+  annotation block, which previously excused only the adjacent HKLM line, so
+  `scripts/check-shell-portability.sh --paths` now passes this file without an
+  unexcused-construct finding. Behavior-preserving; refutation-verified against
+  every line-by-line consumer.
+
+## [0.40.18]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `audit-permission-state`'s
+  `automode-entry-diff.sh` drops a redundant command-substitution wrapper in the empty-prediction
+  guard (`[[ -z "$(printf '%s' "$predicted_dropped")" ]]` to `[[ -z "$predicted_dropped" ]]`);
+  the wrapper only stripped trailing newlines, and the value's grammar (non-empty rules each
+  followed by one newline) makes that stripping unobservable. Refutation-verified by static
+  reachability trace plus a 12-case empirical matrix; the suite's 63 checks and the
+  no-writes property tests pass.
+
 ## [0.40.17]
 
 ### Changed

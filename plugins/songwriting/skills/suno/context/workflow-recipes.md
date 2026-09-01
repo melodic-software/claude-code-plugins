@@ -52,6 +52,8 @@ Suno documents none of these techniques. They are probabilistic rather than dete
 
 **r/SunoAI is no longer unreachable, and one thread has now been read.** Web-search and direct-fetch routes to reddit.com both fail; a browser session reaches it. A voice-cloning thread was read that way on 2026-08-11 and is recorded in `voices.md` under "Two-stage bootstrap for non-singers". Nothing found there bears on Cover harmony. Future sweeps of this subreddit should use the browser route rather than search.
 
+**Recheck trigger:** a first-party Suno source (`help.suno.com` or `suno.com/blog`) documents chord-progression or harmonic-nudge support for Cover, **or** a further r/SunoAI sweep run through the browser route above turns up a thread bearing on Cover harmony specifically, **or** `suno.com/pricing` changes the Free / Pro / Premier upload-limit figures used throughout the recipes below. Not a date.
+
 ## Recipe 1: Demo upload → finished track
 
 **Starting point:** you have a recorded demo (vocal acapella, instrumental sketch, melody hum, full rough demo).

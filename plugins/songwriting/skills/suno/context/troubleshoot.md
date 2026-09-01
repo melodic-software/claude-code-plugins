@@ -50,6 +50,8 @@ Most Suno issues are **prompt-side preventable**. The model can't fix audio post
 4. Simplify rhyme scheme — internal multi-syllable rhymes confuse the model
 5. Verify total char count — count the lyrics text rather than sending the writer to a counter; if > 3,000 chars, trim (quality threshold; the 5,000 hard cap is not the problem)
 
+**Recheck trigger:** the third-party character-limit consensus (hookgenius, aimusicapi) this file's 5,000/3,000 figures rest on revises them, **or** an official Suno page states the lyrics-field limit directly. Not a date.
+
 ### "There's too much pause between lines / the delivery is choppy"
 
 **Why:** Suno phrases at every line break — the same mechanism that makes "one idea per line" good default advice. Separation is what a break buys, so a stack of short clipped lines buys too much of it: the model sets a phrase boundary after each fragment and the section returns as a run of pauses rather than a sung line. The words are not the problem; the line endings are being read as phrasing instructions. This is the entry above turned too far — "break long sentences across lines" has an edge past which it backfires.

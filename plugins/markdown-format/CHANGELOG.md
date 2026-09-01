@@ -3,6 +3,17 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.35]
+
+### Changed
+
+- **Two inert leftovers removed.** `hooks/markdown-format.sh` drops two
+  `hook::ctx_reset` calls (this hook never uses the ctx accumulator — no
+  `ctx_append`/`ctx_flush`, and its emit path never reads the buffer);
+  `hooks/markdown-format.test.sh` drops a three-line `for … do :; done` loop
+  whose body was a no-op. Suite 161/161; deliberate deletion, not a silent
+  revert.
+
 ## [0.11.34]
 
 ### Fixed

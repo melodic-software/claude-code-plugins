@@ -73,6 +73,8 @@ Sweet spot: **5–8 distinct tags**. Fewer than 4 → generic. More than 10 → 
 
 **Verified 2026-07-18**. No official Suno page states field limits; figures are third-party tester consensus ([hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits)).
 
+**Recheck trigger:** hookgenius or the aimusicapi cheat sheet revises the character-limit figures above, **or** an official Suno page states style-prompt / lyrics / title limits directly. Not a date.
+
 ### The lyrics field is a SECOND style channel
 
 Power users treat the lyrics field as more than words to sing. **Per-section style overrides** in lyrics control instrumentation, dynamics, and production section-by-section. Something the global style prompt can't do.

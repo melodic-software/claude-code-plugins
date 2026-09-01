@@ -102,11 +102,14 @@ the nomination's stated suspicion, the fingerprint numbers, another judge's verd
 `expected.json` where it has one, how many judges are running, or any name for the case beyond
 the neutral label ("Neutral labels (required)" above).
 
-**The containing file is an input, not an oversight, and rubric version 3 is why.** C1, C2 and
+**The containing file is an input, not an oversight, and the rubric's scope rule is why** (stated
+from version 3 onward). C1, C2 and
 C4 are graded on the passage. **C3 is graded outward across the whole file** — it asks whether
 the attribution's declared scope matches the derivation's, which cannot be answered from a
 passage alone. Carve-outs 1, 4 and 5 are file-level judgments too ("the surface's purpose",
-"could this passage have been written without the source in hand"), and were already
+"could this passage have been written without the source in hand"), and carve-out 5 from version 4
+also asks whether the file's own attribution enumerates the span, which is a file-level read by
+construction. These were already
 under-supplied by a passage-only dispatch. Withholding the file does not make the panel more
 blind in the sense that matters; it makes a conforming judge grade C3 UNKNOWN on every
 candidate, because the rubric and the prompt below both require a quoted span and instruct

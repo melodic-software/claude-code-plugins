@@ -146,7 +146,9 @@ Three official constraints mean the operative allow-rule cannot be shipped by th
   action classes.** It "grants permission for the listed tools during the turn that invokes the
   skill"; "The grant clears when you send your next message." It "does not restrict which tools
   are available" —
-  [skills](https://code.claude.com/docs/en/skills) — but auto mode still drops the broad/interpreter
+  [skills: pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill)
+  (quotes re-verified 2026-08-31; recheck trigger: a fetch of that section no longer carrying
+  these spans re-derives this bullet) — but auto mode still drops the broad/interpreter
   shapes.
 - **A plugin cannot ship permission rules.** A plugin's `settings.json` supports "Only the `agent` and
   `subagentStatusLine` keys" —

@@ -59,6 +59,13 @@ fgit() { GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git "$@"; }
 help_out=$(bash "$DOCTOR" --help 2>&1)
 assert_exit "--help exits 0" 0 "$?"
 assert_contains "--help documents the exit taxonomy" "$help_out" "at least one warn/error"
+# --help derives the whole header rather than a hardcoded line range, which
+# used to cut off mid exit-codes list. Pin two formerly-truncated lines: the
+# dropped exit code, and the last header line.
+assert_contains "--help includes the usage-error exit code (formerly truncated)" \
+  "$help_out" "2  usage error"
+assert_contains "--help reaches the end of the header, not a truncated range" \
+  "$help_out" "suffix shape IS flagged when a declared pattern carries it"
 
 bash "$DOCTOR" --frobnicate >/dev/null 2>&1
 assert_exit "an unknown argument is a usage error (exit 2)" 2 "$?"

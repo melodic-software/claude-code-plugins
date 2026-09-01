@@ -3,6 +3,91 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Changed
+
+- **`audit`: explicit `user-invocable: true`.** The documented default, now declared for
+  fleet-wide explicit-key consistency; no behavior change.
+
+## [0.12.0]
+
+### Added
+
+- **New check: `drive-root-litter` (catalog #19).** Reports unexpected files and directories at
+  fixed-volume roots — the class a disk audit found as an empty `C:\tmp` path-translation artifact
+  and a 0-byte `C:\log.txt` dropped by an elevated process with CWD `C:\` — so root droppings
+  surface on a routine health run instead of only during a manual audit. The expected-entry set is
+  data (`references/windows/drive-root-baseline.jsonc`), not script logic: the system drive gets a
+  full baseline diff, non-system volumes report only known litter-name shapes (user content there is
+  presumed intentional), and admitting a new legitimate entry is a data edit. Severity caps at WARN
+  (≥10 residue entries) with INFO below — tidiness, never CRIT — and the check is excluded from the
+  trend engine's generic upward upgrade. Output is deterministic (sorted residue, day-granularity
+  `created` dates) so an unchanged dropping feeds `identical_streak` demotion instead of reading as
+  news every run. Read-only, no elevation, Windows only; removal routes to `disk-hygiene:clean`.
+
+## [0.11.18]
+
+### Fixed
+
+- **`audit`: `correlation-rules.md` names the correlation loader by its real name.** The doc said
+  `Get-CorrelationRules`; the function `Invoke-FindingCorrelation.ps1` declares and calls is
+  `Get-CorrelationRule` (singular). One-word doc fix, code authoritative.
+- **`audit`: `Write-ElevationBanner.Tests.ps1` now actually captures the banner's output.** The
+  banner writes through `[Console]::Error.WriteLine`, which bypasses PowerShell's error stream, so
+  the old `2>&1` capture was always empty and the two "emits nothing" assertions could never
+  fail. The suite now swaps `[Console]::Error` for a StringWriter (restored in `finally`), asserts
+  the negative cases on the real capture, and adds a positive control proving the capture path
+  sees the non-elevated banner. Suite: 5 vacuous checks before, 6 real ones after.
+- **`audit`: `Restart-StoppedService.Tests.ps1` runs on Linux.** Pester cannot mock a command that
+  does not exist, and Linux pwsh ships neither `Get-Service` nor `Start-Service`, so all 10 cases
+  errored with CommandNotFoundException. BeforeAll now defines empty stub functions for both, the
+  established pattern `Test-WindowsUpdate.Tests.ps1` already uses. The stubs shadow the real
+  cmdlets on Windows too, so Pester builds its mocks from the param-less stubs everywhere; every
+  case mocks both commands, the stub bodies never run, and all 10 cases pass identically on both
+  platforms. 0 passing on Linux before, 10 after.
+- **`audit`: `Scaffold.Tests.ps1` no longer fails on hosts with empty USERNAME/COMPUTERNAME.** The
+  three redaction-fixture cases build payloads from those variables, which Linux leaves unset.
+  BeforeAll now pins placeholder values only when the variables are empty and AfterAll restores
+  the saved values, leaving the redaction helper and real Windows values untouched. 17 passing
+  plus 3 environment failures before, all 20 after.
+
+## [0.11.17]
+
+### Changed
+
+- **Test scaffolding sheds three dead pieces.** `tests/helpers/Mock-Helpers.psm1`
+  drops the `New-MockWinGetPackage` factory nothing references (its own comment
+  named tests that do not exist); `Test-WindowsUpdate.Tests.ps1` and
+  `Test-WingetUpgrades.Tests.ps1` drop `Import-Module Mock-Helpers` lines whose
+  suites use only inline objects and local factories; and
+  `ConvertFrom-Jsonc.Tests.ps1` inlines a single-use intermediate to the form
+  its sibling assertions use. All suite counts byte-identical before and after
+  on this host (including the pre-existing Linux cmdlet-gap failures, which are
+  unchanged and reported, not hidden).
+
+## [0.11.16]
+
+### Changed
+
+- **Comment accuracy and formatting tidy in the Windows audit lib.**
+  `Assert-CheckResult.ps1` gains the blank line after `#Requires` all 32
+  sibling lib files carry; `Invoke-TrendAnalysis.ps1` drops one
+  historical-residue comment sentence (the live newest-baseline rationale
+  stays); `Clear-TempFiles.ps1` and `New-InvalidCatalogEntryResult.Tests.ps1`
+  normalize comment em dashes to `--` per house style. Comment/whitespace
+  only — AST-token comparison verified the executable content identical.
+
+## [0.11.15]
+
+### Changed
+
+- **`Clear-TempFiles.Tests.ps1` now parses check output through the shared helper.** The suite
+  inlined its own `($raw | Where-Object { $_ }) -join "`n" | ConvertFrom-Json` where sixteen sibling
+  suites already dot-source `tests/helpers/Invoke-CheckScript.ps1` and call `ConvertFrom-CheckOutput`.
+  The helper's body is that same expression, so the parse is unchanged; one copy of it disappears.
+  Test-only, no product behavior change.
+
 ## [0.11.14]
 
 ### Changed

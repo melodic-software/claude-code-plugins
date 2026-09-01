@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.0]
+## [0.5.1]
 
 ### Fixed
 
@@ -203,6 +203,68 @@
 
   `c09` is the control worth noting: it carries no self-describing line, and it graded identically
   to the two that did.
+
+- **This entry now lands above 0.5.0, and every panel figure it reports is pinned to rubric
+  version 3.** 0.5.0 moved the rubric to version 4, narrowed carve-out 5, and invalidated the
+  version-3 golden-set measurement. The `8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall 1.00`
+  table restated above, and the "no class becomes fix-eligible" conclusion drawn beside it, are
+  therefore superseded by 0.5.0 and are not offered as version-4 claims. This work was authored
+  against version 3 and is recorded as it was measured rather than rewritten.
+
+  **What the rubric change does not touch is the deterministic arithmetic.** Containment, jaccard,
+  longest matched span, the matched-span sets and the span re-anchors are computed by
+  `fingerprint.mjs` over the committed bytes; they read no rubric and no carve-out, so every
+  recomputed figure in the entries above stands exactly as recorded. So do the fixture edits
+  themselves: an answer key removed from a case body or a `source.md` is a leak closed under any
+  rubric version. The golden set still awaits its version-4 re-score, per 0.5.0.
+
+## [0.5.0]
+
+### Changed
+
+- **Rubric version 4: carve-out 5 (distilled-product architectures) gains a span-level qualifier,
+  and the version-3 golden-set measurement is invalidated.** Version 3 asked only whether the
+  surface's product is a distillation. That question is satisfiable by almost any reference file
+  that credits a source, and because carve-outs are graded before the criteria and stop grading, a
+  broad reading silently absorbs the C2 and C4 failures the criteria exist to catch. Version 4
+  keeps the purpose test and adds the boundary a distilling file draws for itself: **a verbatim or
+  near-verbatim span the file's own attribution does not enumerate is not covered**, and
+  reformatting (un-fencing a prompt block into prose, tabulating a source's prose) is not
+  distillation.
+
+  **The evidence, recorded here rather than in the rubric** (the rubric is inlined into every judge
+  prompt, so a measurement written there is read by every judge before it grades). In a repo-wide
+  run over 1292 tracked files, carve-out 5 drew **110 of roughly 230 carve-out citations across 138
+  panels** — more than double the next carve-out. An adversarial review pass over the unanimous
+  clears returned three challenges, two of which attacked carve-out 5 specifically and both on the
+  rubric rather than on the file: one on `plugins/playbooks/reference/model-adaptation/opus-5.md`,
+  whose own Sources section enumerates which spans are verbatim while the matched block appears on
+  none of those lists; one on `plugins/mcp-tools/skills/audit/reference/checklist.md`, whose
+  opening line declares a pointer discipline ("do not recap them here, read them at the source"),
+  the opposite of a distillation product. The enumerating-file test in version 4 is the first of
+  those arguments generalized, because it is the one a judge can apply to a span.
+
+  **Consequences.** The golden set must be re-scored against version 4 before any precision figure
+  is cited against it, and no class becomes fix-eligible on a measurement pinned to version 3. The
+  version-3 re-score recorded below is superseded. Expect the change to move findings in one
+  direction only: spans inside distilling files that were previously declined before grading now
+  reach the criteria, where C2 and C4 decide them on their merits.
+
+  This also matters beyond the copy lane. A `restated-upstream-fact` detector of the kind proposed
+  in #3525 would inherit this carve-out, and restated facts live disproportionately in exactly the
+  distilling files version 3 declined wholesale, so the broad reading would have suppressed the new
+  lane before it shipped.
+
+## [0.4.2]
+
+### Changed
+
+- **`audit`: `check-stamps.sh` collapses a duplicate branch in `from_label()`.** The `--*` arm and
+  the fallback arm of the three-way conditional printed the character-identical `(from %s)` string,
+  so the split carried no behavior. The two arms are now one. Verified over an executed 25-case
+  input matrix (flag forms, config-layer paths, format-string hazards, whitespace, multi-arg and
+  no-arg calls): old and new outputs are byte-identical everywhere, and the 71-case suite passes
+  unchanged.
 
 ## [0.4.1]
 

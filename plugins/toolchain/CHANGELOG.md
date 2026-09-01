@@ -3,6 +3,17 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.9]
+
+### Fixed
+
+- **Default-branch detection snippet escaped against argument substitution.** The fenced bash in
+  `check` and `lint` carried awk `$0` and `$2`. Skill argument substitution rewrites `$<digit>`
+  placeholders anywhere in a skill body (0-based), so `/toolchain:lint dotnet` turned `seen[$0]`
+  into `seen[dotnet]` in the loaded snippet, and a third argument corrupted the ls-remote fallback.
+  Both are now written `\$0` / `\$2`, which render back to `$0` / `$2` at load with or without
+  arguments (verified empirically on Claude Code 2.1.251).
+
 ## [0.13.8]
 
 ### Changed

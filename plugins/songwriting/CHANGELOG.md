@@ -3,6 +3,40 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.19]
+
+### Changed
+
+- **`suno`: six dated context surfaces gain observable recheck triggers.** `SKILL.md`,
+  `context/v55-features.md`, `context/voices.md`, `context/workflow-recipes.md`, `context/studio.md`,
+  `context/troubleshoot.md` and `context/style.md` carried verification dates on fast-moving Suno
+  product behavior with no stated event obliging re-derivation. Each now names events specific to
+  what it documents: the third-party character-limit consensus revising its figures or an official
+  Suno page stating limits directly, `suno.com/pricing` changing Studio's tier gating or upload
+  limits, a Studio release adding a capability currently listed as unsupported, or the free-trial
+  platform scoping changing. Follows the `**Recheck trigger:** … Not a date.` form this plugin
+  already ships in `context/power-tips.md` and `context/tips.md`. Additive only.
+
+  `reference/suno-drift-audit-ledger.md` is deliberately left without one: it already carries its
+  own re-derivation mechanism ("when a row moves, update this table and the plugin CHANGELOG in the
+  same PR"), and each of its dated rows reflects a claim now covered by its home file's trigger. It
+  still reports as trigger-less under the audit script's literal keyword match, which is a known gap
+  in that detector rather than a defect in this file.
+
+## [1.4.18]
+
+### Fixed
+
+- **`lyric-melodic-roadmaps.md` cited `meter-prosody` by an unresolvable path.** The
+  keep-these-four-consistent sentence named `prosody.md` and `meter.md`, which are siblings and
+  resolve, alongside `skills/meter-prosody/SKILL.md`, whose implied base is the plugin root while
+  its real base is `context/pat-pattison/research/`, the defect class
+  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  correction 1 names. It now reads `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md`, the
+  anchored form this `research/` tree already uses for the Datamuse script. The sentence is the
+  plugin's own prose, not printed Pat Pattison text, so the distilled-corpus exclusion does not
+  cover it. Intra-plugin citation, legal under clause 1; clause 3 only, so the target is unchanged.
+
 ## [1.4.17]
 
 ### Added

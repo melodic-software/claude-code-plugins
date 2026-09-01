@@ -244,25 +244,26 @@ worktree_rename_out="$(cd "$REPO12" && bash "$DETECT")"
 assert_not_contains "worktree-column rename is not reported as files=0" "$worktree_rename_out" "files=0"
 assert_contains "worktree-column rename resolves to the new path" "$worktree_rename_out" "Summary file: new.py"
 
-# --- 10. SKILL.md pre-computed-context parser stays at parity with detect.sh (#3126) ----
-# SKILL.md's `Uncommitted code files (…):` line re-implements the porcelain parse to
-# preview targets to the model. A divergence there is a false negative on the same surface, so the
-# program is EXTRACTED from SKILL.md and executed rather than being restated here — a copy
-# would pass while the real line rotted. Fixture names force C-quoting through an embedded
-# quote and backslash, not just a space, since quote-stripping alone passes a spaced name.
+# --- 10. SKILL.md pre-computed-context preview stays at parity with detect.sh (#3126) ----
+# SKILL.md's `Uncommitted code files (…):` line previews targets to the model through the
+# shared plugins/code-tidying/scripts/changed-code-files.sh (the porcelain parse moved out of
+# SKILL.md so skill argument substitution cannot rewrite `$0` in the awk body). A divergence
+# between preview and audit is a false negative on the same surface, so the parity check runs
+# the shared script itself, and first asserts the SKILL.md line still calls it — running a
+# script the line no longer references would pass while the real line rotted. Fixture names
+# force C-quoting through an embedded quote and backslash, not just a space, since
+# quote-stripping alone passes a spaced name.
 
 SKILL_MD="$SCRIPT_DIR/../SKILL.md"
-if [[ ! -f "$SKILL_MD" ]]; then
-  fail "SKILL.md located for parity check" "file at $SKILL_MD" "missing"
+PREVIEW_SCRIPT="$SCRIPT_DIR/../../../scripts/changed-code-files.sh"
+if [[ ! -f "$SKILL_MD" || ! -f "$PREVIEW_SCRIPT" ]]; then
+  fail "preview surfaces located for parity check" "SKILL.md and scripts/changed-code-files.sh" "missing"
 else
-  # Pull the awk program out of: ... | awk '<program>' | grep ...
-  # Anchor on the label stem, not the whole label: the label carries a parenthetical naming
-  # what an empty render can mean, so the fallback reads as a failed probe, not an empty filter.
-  skill_awk="$(sed -n "s/^Uncommitted code files[^:]*:.*| awk '\(.*\)' | grep .*$/\1/p" "$SKILL_MD")"
-  if [[ -z "$skill_awk" ]]; then
-    fail "SKILL.md awk program extracted" "non-empty program" "no match — line shape changed"
+  # shellcheck disable=SC2016  # fixed-string match for the literal ${CLAUDE_PLUGIN_ROOT} in SKILL.md; no expansion wanted.
+  if ! grep -qF '!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/changed-code-files.sh"' "$SKILL_MD"; then
+    fail "SKILL.md preview line calls the shared script" "a call through \${CLAUDE_PLUGIN_ROOT}/scripts/changed-code-files.sh" "line shape changed"
   else
-    pass "SKILL.md awk program extracted"
+    pass "SKILL.md preview line calls the shared script"
 
     REPO13="$TEST_TMPDIR/repo13"
     mkdir -p "$REPO13"
@@ -281,30 +282,16 @@ else
     mv "$REPO13/renamed-src.py" "$REPO13/renamed-dst.py"
     git -C "$REPO13" add -N renamed-dst.py
 
-    # Extract the porcelain invocation too, not just the awk program. Hardcoding either form here
-    # would let the harness mask a mismatch: feeding -z to a v1 program makes the v1 program look
-    # correct, because -z output carries no quoting for it to fail at decoding. Reading both ends
-    # from SKILL.md means the fixtures below test the line as it actually runs.
-    # The line now opens with a status-only probe run that guards the `||` fallback, and the run
-    # whose output feeds awk sits inside the brace group after `&&`. Anchor past `&& {` so the
-    # capture is that data run alone: a capture that swallowed the guard too would eval an
-    # unterminated brace group, and widening what this eval executes buys the parity check nothing.
-    skill_porcelain="$(sed -n 's/^Uncommitted code files[^:]*: !`.*&& { \(git status --porcelain[^|]*\)|.*/\1/p' "$SKILL_MD")"
-    if [[ -z "$skill_porcelain" ]]; then
-      fail "SKILL.md porcelain invocation extracted" "non-empty command" "no match — line shape changed"
-    else
-      pass "SKILL.md porcelain invocation extracted"
-    fi
-    skill_out="$(cd "$REPO13" && eval "$skill_porcelain" | awk "$skill_awk")"
+    skill_out="$(cd "$REPO13" && bash "$PREVIEW_SCRIPT")"
 
-    assert_contains "SKILL.md parser reads a non-ASCII path undecoded" "$skill_out" 'café.py'
-    assert_not_contains "SKILL.md parser leaks no octal escape" "$skill_out" '\303'
-    assert_contains "SKILL.md parser unescapes an embedded quote" "$skill_out" 'quote".py'
-    assert_contains "SKILL.md parser unescapes an embedded backslash" "$skill_out" 'back\-slash.py'
-    assert_contains "SKILL.md parser unwraps a spaced path" "$skill_out" 'plain space.py'
-    assert_contains "SKILL.md parser takes the worktree-rename new path" "$skill_out" 'renamed-dst.py'
-    assert_not_contains "SKILL.md parser leaves no rename arrow" "$skill_out" ' -> '
-    assert_not_contains "SKILL.md parser leaves no escaped quote" "$skill_out" '\"'
+    assert_contains "preview script reads a non-ASCII path undecoded" "$skill_out" 'café.py'
+    assert_not_contains "preview script leaks no octal escape" "$skill_out" '\303'
+    assert_contains "preview script unescapes an embedded quote" "$skill_out" 'quote".py'
+    assert_contains "preview script unescapes an embedded backslash" "$skill_out" 'back\-slash.py'
+    assert_contains "preview script unwraps a spaced path" "$skill_out" 'plain space.py'
+    assert_contains "preview script takes the worktree-rename new path" "$skill_out" 'renamed-dst.py'
+    assert_not_contains "preview script leaves no rename arrow" "$skill_out" ' -> '
+    assert_not_contains "preview script leaves no escaped quote" "$skill_out" '\"'
 
     # Parity with detect.sh over the same tree, checked in BOTH directions. Forward: every code
     # file detect.sh audits must also appear in the preview, or the model is shown a tree the
@@ -313,8 +300,8 @@ else
     # see an over-reporting preview: drop the awk rename skip and the src record is printed
     # offset by the status prefix ("...amed-src.py"), a path naming no file, while every forward
     # assertion still passes. REPO13 holds only code files, so the two sets must match exactly;
-    # a non-code fixture added here would need the preview's extension filter extracted
-    # alongside the awk program before the reverse direction stays true.
+    # the preview script applies its own extension filter, so a non-code fixture added here
+    # breaks forward parity only if detect.sh audits it.
     detect_out="$(cd "$REPO13" && bash "$DETECT")"
     mapfile -t audited_paths < <(printf '%s\n' "$detect_out" | sed -n 's/^Summary file: \(.*\) | T1=.*$/\1/p')
     parity_ok=1

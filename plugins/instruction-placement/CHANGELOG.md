@@ -3,6 +3,37 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.15]
+
+### Changed
+
+- **`routing-rubric.md`: stamped the listing-cost restatement.** The rubric's step-3 note (a new
+  skill's listing entry, truncated at 1,536 chars) cited nothing; it now cites the frontmatter
+  reference with a verified date (2026-08-31) and a divergence trigger, per the marketplace's
+  upstream-drift convention. Found in the frontmatter-alignment sweep.
+
+## [0.11.14]
+
+### Fixed
+
+- **`render-index.sh` no longer corrupts brace globs in the rendered rule index.** The glob-list
+  prettifier joined paths with `paste -sd,` and then padded every comma via
+  `sed 's/,/, /g'`, which also padded commas inside brace expressions: `src/*.{ts,tsx}` rendered
+  as `src/*.{ts, tsx}`. The join now inserts the `", "` separator directly in awk, so only
+  join-inserted separators are padded and brace commas are never touched. Reproduced against a
+  fixture rule before the fix and pinned by two new suite cases (one asserting the correct
+  rendering, one asserting the corrupted form is absent); the suite grows from 61 to 63 cases.
+
+## [0.11.13]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `detect.sh` collapses the
+  manual `--` argument-capture loop into the marketplace's precedented `EXPLICIT+=("$@"); break`
+  form and drops a dead `SECTION_COUNT=0` initializer (the variable is unconditionally
+  reassigned before its only read). Emitted rows, exit codes, and `--help` text unchanged;
+  refutation-verified across 23 argv edge cases and the full 40-case suite.
+
 ## [0.11.12]
 
 ### Changed

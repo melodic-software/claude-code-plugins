@@ -4,6 +4,77 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.29]
+
+### Changed
+
+- **video-digest watch: orphaned module removed.** `watch/promotion-name-map.js`
+  is deleted. 0.13.28 removed its last importer (`synthesis-naming.js`'s dead
+  `synthesisDestNameForSlice` export) and confirmed the module carries no
+  load-time side effects; a fresh repo-wide sweep re-proved zero importers of
+  the file or of `loadPromotionNameMap` (only historical changelog text and one
+  now-corrected doc parenthetical in `context/quality-gates.md` named it). It
+  had no test file of its own. Watch suites and `tsc` clean after removal.
+
+## [0.13.28]
+
+### Changed
+
+- **video-digest watch: dead export removed.** `watch/synthesis-naming.js`
+  drops `synthesisDestNameForSlice` (no importer anywhere since its
+  introduction) together with its now-orphaned `loadPromotionNameMap` import,
+  and unexports the internal-only `sourceStem`. A fresh-context sweep confirmed
+  zero consumers across code, markdown, and fixtures, and that
+  `promotion-name-map.js` has no load-time side effects. Watch suites 58/58,
+  `tsc` clean.
+
+## [0.13.27]
+
+### Changed
+
+- **video-digest acquisition: dead fallback removed.** `acquire.js` drops a
+  `?? "staged acquire failed"` default that could never fire — both `ok: false`
+  return sites in `acquireFullStaged` construct non-empty string errors, and
+  the old `??` only replaced null/undefined. Verified by site enumeration and
+  `tsc`; acquisition + adapters suites 205/205. (A second candidate, merging
+  the duplicated initial spawn in `spawn-yt-dlp-with-auth-fallback.js`, was
+  refuted by differential testing — the cookie-config probe it would skip
+  emits a once-per-process deprecation warning — and was reverted rather than
+  shipped.)
+
+## [0.13.26]
+
+### Changed
+
+- **video-digest extraction test suite deduplicated across modules.** The
+  `forbiddenSynthesisFileNameReason` describe block in
+  `watch-vision-validation.test.js` re-tested `synthesis-filename.js` behavior
+  that module's own suite already covers; its two unique cases (the
+  `densification-code-0.png` reject and `benchmark-curve-slide-metrics.png`
+  accept) moved into `synthesis-filename.test.js` and the block and its import
+  were removed. Assertion-level coverage is unchanged (verified pair by pair);
+  the full extraction suite passes 71 files / 501 tests. Test-only change; no
+  runtime code touched.
+
+## [0.13.25]
+
+### Changed
+
+- **Behavior-preserving simplification sweep (batch-simplify).** `docpage-digest`'s
+  digest_fences.py removes dead `unclosed` bookkeeping from parse_claims: the flag was assigned on
+  both arms of the try and the trailing `if unclosed: fence = None` could never change the already
+  computed value. Refutation-verified (per-block flag scoping ruled out cross-iteration leakage;
+  18/18 parse comparisons and 10/10 end-to-end gate runs byte-identical; both suites, 30 tests, OK).
+- **video-digest extraction, same sweep.** setup-deps.mjs drops a redundant per-directory
+  localeCompare sort inside computeStamp's walk (the final code-unit path sort alone determines
+  hash-input order; stamps verified byte-identical on the real vendor tree and an adversarial
+  fixture, including under forced readdir scrambling). acquisition/build-yt-dlp-args.js removes
+  the born-dead export `YT_DLP_CAPTION_ONLY_SLEEP_SUBTITLES_SEC` (zero references at any commit;
+  the consumed constant lives in acquire-retry-policy.js). acquisition/acquire.js drops a
+  double-defaulting spread at the acquireFullStaged call site (the spread's withThrottle value was
+  by construction mergedDeps' own value or the same default the callee re-derives; full
+  case-matrix refutation including the null/undefined split found no divergent reachable shape).
+
 ## [0.13.24]
 
 ### Fixed

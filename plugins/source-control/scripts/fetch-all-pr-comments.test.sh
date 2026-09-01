@@ -254,6 +254,13 @@ help_out=$(bash "$SCRIPT" --help 2>&1)
 assert_contains "--help documents PYTHONUTF8=1 for Windows consumers" "$help_out" "PYTHONUTF8=1"
 assert_contains "--help names the UnicodeDecodeError failure mode" "$help_out" "UnicodeDecodeError"
 
+# Case 12: usage() derives the header block rather than extracting a hardcoded
+# line range, which silently dropped the Exit-codes block as the header grew.
+# Pin a formerly-truncated line (the last header line) so the truncation class
+# cannot come back unnoticed.
+assert_contains "--help reaches the end of the header (Exit codes block)" \
+  "$help_out" "prerequisite missing (gh, jq)"
+
 # ---- Summary ----------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
