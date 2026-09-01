@@ -123,7 +123,7 @@ topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-enca
 `scan-todos` under `work-items`); the verb keeps its fixed meaning from the table.
 
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
-(`worktree`, `pull-request`). Six further documented exceptions: a single-skill vendor-CLI wrapper
+(`worktree`, `pull-request`). Seven further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a `-deep` suffix marks the heavier
 isolated-execution tier of a sibling skill (`research`/`research-deep`); a knowledge router named by
 its method's own literature term keeps that term when renaming would destroy recognized craft
@@ -138,7 +138,16 @@ is kept when the skill is a port whose typed phrase IS the mechanism — the use
 moment of use — and the upstream name carries cross-repo muscle-memory parity
 (`discipline:wait-what` — the lost reader's literal interjection; an imperative paraphrase destroys
 the zero-translation recall the command depends on precisely when its user is, by definition, lost,
-and orphans users arriving from the upstream repo).
+and orphans users arriving from the upstream repo); and a user-typed initialism is kept when both
+of those legs hold AND the skill ships a lane the fleet does not already have (`education:eli5` —
+"ELI5" is the request as the user types it, and the name matches the upstream community plugin the
+skill delegates to, so the word carries across marketplaces; the entry claims the namespaced
+command only and makes no claim on bare `/eli5`). The recorded `bro` decline stands and this last
+entry does not weaken it: `bro` asked for a second entry carrying nothing but `wait-what`'s
+argument, for a capability this marketplace already shipped three times over, which is the blanket
+sanction the closing rule forbids. `eli5` is admitted on what `bro` had none of — delegation to an
+installed upstream skill, and a fixed visual-explainer lane (one idea per diagram, minimal text)
+that no other skill here performs.
 Every exception is an entry on this list, decided per name — a name class is never
 blanket-sanctioned.
 

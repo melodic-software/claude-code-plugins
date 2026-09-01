@@ -160,7 +160,7 @@ Plan-time resolutions of the Brief's deferred questions:
   "Use when:" description carrying `ELI5` verbatim (check 3 trigger-MOVE
   target). No `$ARGUMENTS` body interpolation needed.
 
-### Phase 1: Doctrine amendments [TODO]
+### Phase 1: Doctrine amendments [DONE]
 
 - `docs/PLUGIN-PHILOSOPHY.md`: add the argued naming-exception entry for
   `eli5` to the closed list — both legs (the utterance is the mechanism, the
