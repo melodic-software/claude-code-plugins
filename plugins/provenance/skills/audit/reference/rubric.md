@@ -1,10 +1,19 @@
 # The provenance rubric
 
-Rubric version **3**. This catalog is versioned with the plugin: a change to a carve-out or a
+Rubric version **4**. This catalog is versioned with the plugin: a change to a carve-out or a
 criterion lands in `CHANGELOG.md` and **invalidates any golden-set measurement pinned to the
-prior version**. A precision figure measured against rubric 1 says nothing about rubric 3.
+prior version**. A precision figure measured against rubric 1 says nothing about rubric 4.
 
-**Version 3 states the scope at which C3 is graded, and writes down C4's. It takes the
+**Version 4 narrows carve-out 5 with a span-level qualifier, and takes the invalidation.** Version
+3 asked only whether the surface's product is a distillation, a question almost any reference file
+carrying a link can answer yes to, and carve-outs are graded before the criteria and stop grading —
+so the broad reading suppressed C2 and C4 failures the criteria would have caught. Version 4 keeps
+the purpose test and adds the boundary a distilling file draws for itself: a lift its own
+attribution does not enumerate is not covered. **The golden set must be re-scored against version 4
+before any precision figure is cited against it**, and no class becomes fix-eligible on a
+measurement pinned to a superseded rubric.
+
+**Version 3 stated the scope at which C3 is graded, and wrote down C4's. It took the
 invalidation.** Version 2 left C3's scope implicit; two readers graded a real corpus case, agreed
 on the verdict, and disagreed on which scope produced it, which is what surfaced the gap. C4's
 scope was already passage-level in its worked examples and its replacement test, so recording it
@@ -12,10 +21,10 @@ changes nothing. C3's is a substantive addition: file-scope attribution now disc
 file-wide derivation, which version 2's "a bare link at the bottom of a long file does not
 attribute a specific paragraph in the middle of it" cuts against.
 
-That changes what C3 tests, so the measurement version 2 stands on does **not** carry forward.
-**The golden set must be re-scored against version 3 before any precision figure is cited against
-it**, and no class becomes fix-eligible on a measurement pinned to a superseded rubric. That
-re-score has since been run and its outcome is in `CHANGELOG.md`.
+That changed what C3 tests, so the measurement version 2 stood on did **not** carry forward. The
+golden set was re-scored against version 3 and that outcome is in `CHANGELOG.md`. Version 4's
+carve-out change invalidates that re-score in turn; the live obligation is the one stated at the
+top of this file, against version 4.
 
 **Nothing about a measurement's result belongs in this file, and version 3 shipped a paragraph
 that broke that rule.** The pipeline inlines this whole file into every judge prompt at the
@@ -132,6 +141,20 @@ distills a source **as its stated job**, and names that source, is doing what it
 file that distills a source **incidentally**, in the middle of doing something else, is a
 candidate like any other. If you cannot say what the surface's distillation product is, this
 carve-out does not apply.
+
+**The carve-out covers the file's distillation product. It does not cover a verbatim or
+near-verbatim span the file's own attribution does not enumerate.** Where a distilling file says
+which of its spans are lifted — a Sources section listing the quoted sentences, a marked block, an
+inline citation on the span itself — a lift that appears on none of those lists is a candidate,
+and the file's distilling purpose does not reach it. Reformatting is not distillation: un-fencing
+a source's prompt block into running prose, or turning its prose into a table, is that source's
+content in a different shape, which C4 already says is not transformative.
+
+Grade this the way the surface asks to be graded. A file that never enumerates its lifts is
+judged on purpose alone, as above. A file that does enumerate them has told you where its own
+boundary is, and a span outside that boundary is outside the carve-out. This is the test a judge
+can actually apply to a span; "the file distills something and credits a source" is satisfiable by
+almost any reference file that carries a link, which is why it was not enough on its own.
 
 ### 6. The plugin's own eval-fixture tree
 

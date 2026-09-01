@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.5.0]
+
+### Changed
+
+- **Rubric version 4: carve-out 5 (distilled-product architectures) gains a span-level qualifier,
+  and the version-3 golden-set measurement is invalidated.** Version 3 asked only whether the
+  surface's product is a distillation. That question is satisfiable by almost any reference file
+  that credits a source, and because carve-outs are graded before the criteria and stop grading, a
+  broad reading silently absorbs the C2 and C4 failures the criteria exist to catch. Version 4
+  keeps the purpose test and adds the boundary a distilling file draws for itself: **a verbatim or
+  near-verbatim span the file's own attribution does not enumerate is not covered**, and
+  reformatting (un-fencing a prompt block into prose, tabulating a source's prose) is not
+  distillation.
+
+  **The evidence, recorded here rather than in the rubric** (the rubric is inlined into every judge
+  prompt, so a measurement written there is read by every judge before it grades). In a repo-wide
+  run over 1292 tracked files, carve-out 5 drew **110 of roughly 230 carve-out citations across 138
+  panels** — more than double the next carve-out. An adversarial review pass over the unanimous
+  clears returned three challenges, two of which attacked carve-out 5 specifically and both on the
+  rubric rather than on the file: one on `plugins/playbooks/reference/model-adaptation/opus-5.md`,
+  whose own Sources section enumerates which spans are verbatim while the matched block appears on
+  none of those lists; one on `plugins/mcp-tools/skills/audit/reference/checklist.md`, whose
+  opening line declares a pointer discipline ("do not recap them here, read them at the source"),
+  the opposite of a distillation product. The enumerating-file test in version 4 is the first of
+  those arguments generalized, because it is the one a judge can apply to a span.
+
+  **Consequences.** The golden set must be re-scored against version 4 before any precision figure
+  is cited against it, and no class becomes fix-eligible on a measurement pinned to version 3. The
+  version-3 re-score recorded below is superseded. Expect the change to move findings in one
+  direction only: spans inside distilling files that were previously declined before grading now
+  reach the criteria, where C2 and C4 decide them on their merits.
+
+  This also matters beyond the copy lane. A `restated-upstream-fact` detector of the kind proposed
+  in #3525 would inherit this carve-out, and restated facts live disproportionately in exactly the
+  distilling files version 3 declined wholesale, so the broad reading would have suppressed the new
+  lane before it shipped.
+
 ## [0.4.2]
 
 ### Changed

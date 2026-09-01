@@ -211,5 +211,6 @@ Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2, <T3> Tier 3 findings.
 ## Sources
 
 - [Diataxis Explanation](https://diataxis.fr/explanation/), the Diataxis classifier behind the preamble treatment
+- [Claude 4 best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-4-best-practices), source of the negation rule's worked example ("Do not use markdown" rewritten to the positive form), read 2026-08-31
 - [markdownlint configuration](https://github.com/DavidAnson/markdownlint?tab=readme-ov-file#configuration), opt-out marker HTML-comment form precedent
 - [topic-docs convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md), Memory, concern-scoped tier roster (bare-root ghost-ref exemption)

@@ -175,6 +175,8 @@ These edge cases aren't surfaced in current help articles — verify if you hit 
 
 If any matter for your workflow, contact Suno support directly.
 
+**Recheck trigger:** `suno.com/release-notes` or `suno.com/pricing` states whether the free-plan Voices trial reaches Web (resolving the missing-`Web`-tag caveat above), **or** a `help.suno.com` Voices article states the "make this voice public" toggle's default or addresses the two-stage speech-to-singing bootstrap for non-singers, **or** a second independent source corroborates or contradicts the r/SunoAI post this file cites for either claim, **or** the recording-spec figures (clip length, 2-minute auto-selection) change in a `help.suno.com` update. Not a date.
+
 ## Sources
 
 `help.suno.com/en/articles/11362369` (Voices: Use Your Voice in Suno), `help.suno.com/en/articles/11362433` (Voices FAQ), `help.suno.com/en/categories/2327233-v-5-5-voices-custom-models-my-taste`.

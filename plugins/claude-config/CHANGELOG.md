@@ -3,6 +3,19 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.23]
+
+### Changed
+
+- **`audit-pass`: two dated reference surfaces gain observable recheck triggers.** `SKILL.md` and
+  `reference/finding-identity.md` carried verification dates with no stated event obliging
+  re-derivation, which the upstream-drift convention treats as the load-bearing part missing: a
+  stale stamp reads identically to a fresh one, so the date alone confers no authority. `SKILL.md`
+  now names the `output-styles` doc's `keep-coding-instructions` / `force-for-plugin` behavior and
+  the `memory` doc's `@path`-imports-load-at-launch claim; `finding-identity.md` names a SARIF spec
+  revision renumbering the sections it keys to, or GitHub CodeQL changing its fingerprinting method.
+  Additive only: no claim, date or existing sentence changed.
+
 ## [0.40.22]
 
 ### Changed
