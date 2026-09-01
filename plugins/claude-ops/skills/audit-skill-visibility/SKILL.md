@@ -1,5 +1,5 @@
 ---
-description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when its description is dropped by the skill-listing context budget (Claude Code drops descriptions starting with the least-invoked skills, so an unused skill loses the keywords that would let it be matched and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest. Computing whether the listing overflows from documented settings, and withholding every verdict the data cannot support rather than reporting absence of data as absence of use. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (Claude Code ships that in /doctor and the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
+description: "Audit whether each installed skill is actually VISIBLE to the model, and diagnose why most of a fleet never gets used. A skill is invisible when its description is dropped by the skill-listing context budget (Claude Code drops descriptions by a decay-weighted usage score, so an unused skill loses the keywords that would let it be matched and stays unused), when frontmatter is malformed or a description is missing, when skillOverrides or a disabled plugin hides it, or when disable-model-invocation keeps it out of context by design. Reports reachability, observed usage, and whether it is losing the budget contest. Computing whether the listing overflows from documented settings, and withholding every verdict the data cannot support rather than reporting absence of data as absence of use. Read-only; never disables, deletes, or edits a skill. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'. Not for: which skills are unused versus their context cost as a one-shot check (Claude Code ships that in /doctor and the Stats tab), repo-authoring listing-budget lint (use skill-quality's check-listing-budget), enumerating what is installed (use /claude-ops:inventory), or reading telemetry infrastructure (use /claude-ops:observability)."
 argument-hint: "[--installed [dir]] [--plugins-root <dir>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins"
 user-invocable: true
 disable-model-invocation: false
@@ -23,16 +23,20 @@ my skill fleet never get used?* A skill the model cannot see cannot be chosen, s
 
 Claude Code budgets the model-visible skill listing at a fraction of the context
 window (`skillListingBudgetFraction`, default 0.01) and, when it overflows,
-**drops descriptions starting with the skills you invoke least**. Names always
-survive, descriptions do not. A skill at zero usage therefore loses its
+**sheds descriptions from the lowest-scoring skills first**. Names always
+survive, descriptions do not. A skill at zero usage scores zero, so it loses its
 description, loses the keywords a request would match against, and stays at
-zero. Unused is partly self-causing, and the loop is documented: the budget
-fraction and per-entry cap are owned by
+zero. Unused is partly self-causing.
+
+The budget fraction and per-entry cap are owned by
 <https://code.claude.com/docs/en/settings> (`skillListingBudgetFraction`,
-`skillListingMaxDescChars`) and the drop behavior by
-<https://code.claude.com/docs/en/skills> ("Skill descriptions are cut short").
-Verified 2026-08-31; recheck trigger: a fetch of either page no longer matching
-this paragraph re-derives it and the scripts' `ListingConfig` defaults.
+`skillListingMaxDescChars`); that page is authoritative and matches. **The drop
+ORDER is not.** <https://code.claude.com/docs/en/skills> ("Skill descriptions are
+cut short") says "starting with the skills you invoke least", still as of
+2026-08-31; the binary ranks by a decay-weighted score and then walks the list
+first-fit, so neither the ordering nor the guarantee holds. Take the ordering
+from the binary: [reference/listing-scorer.md](reference/listing-scorer.md)
+carries the counterexamples, the greps, and the stamp.
 
 So the useful question is not *which skills are unused*. Claude Code already
 reports that in `/doctor` and the Stats tab. It is **which skills are starved by
@@ -168,6 +172,14 @@ a user as documented.
 - **Ambiguous attribution is reported, not guessed.** Two marketplaces shipping
   a same-named plugin collapse to one usage key; those rows are marked
   `ambiguous-attribution` rather than attributed to one of them.
+- **Two possible usage keys per skill.** The stores hold the qualified
+  `<plugin>:<leaf>` key and the bare leaf as separate rows. Both are collected; a
+  bare key is attributed only when exactly one skill owns that leaf, ambiguous
+  ones are withheld with their candidates.
+- **The starvation band is decay-weighted, not a count**, and reports
+  `score_basis: "unscored"` when nothing survives to weigh. Read
+  [reference/listing-scorer.md](reference/listing-scorer.md) before changing that
+  ordering or quoting it to a user.
 
 ## Scope boundary
 
