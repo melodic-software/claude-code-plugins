@@ -230,7 +230,7 @@ retrofit-list heading, and the pattern-families heading in the new README; grep 
 `rendered-views` row in the config-cascade Implementers table;
 `scripts/affected-tests.sh --run` exits 0.
 
-### Phase 3: userConfig probe gate [TODO]
+### Phase 3: userConfig probe gate [DONE]
 
 Before any wiring: attempt a non-interactive probe of `${user_config.*}` substitution
 behavior on the installed CLI (inspection of the substitution path without the interactive
@@ -244,7 +244,14 @@ no new dial. Absent that amendment, a blocked probe halts phase 4.
 **Sanity Check:** a `Probe outcome (2026-09-01):` line exists in this section with a
 recorded result; the amendment status is stated on the same line.
 
-### Phase 4: Seam exemplar wiring [TODO]
+Probe outcome (2026-09-01): PASS for the unset path on CLI 2.1.251 (this session's live
+harness rendered a skill body carrying an unset `user_config` reference as the literal
+token, exactly the documented unset behavior the resolution ladders detect); the
+interactive set-value flow is environment-blocked here, so per the owner-confirmed
+amendment the full smoke test rides the gating issue and gates the fleet sweep, and this
+wave's wiring proceeds (it introduces no new dial).
+
+### Phase 4: Seam exemplar wiring [DONE]
 
 Wire the cascade rung into `visualization:visualize`: the `medium` resolution becomes
 `argument > ${user_config.medium} > rendered-views cascade > auto`, with provenance
