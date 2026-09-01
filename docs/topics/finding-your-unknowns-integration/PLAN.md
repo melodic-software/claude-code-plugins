@@ -250,7 +250,7 @@ for all five; education plugin version bump + CHANGELOG.
 expectation growth in both skills (before/after jq pair as in Phase 3);
 `bash scripts/check-changed-skills.sh origin/main` green.
 
-### Phase 5: verification plugin — confirm deltas [TODO]
+### Phase 5: verification plugin — confirm deltas [DONE]
 
 confirm SKILL.md: D19 "existing behavior this leans on" callout (CONTRACT) + D18
 quiz-layer cross-ref doc line (the reroute executed; quiz-me untouched by D18). D19 likely
