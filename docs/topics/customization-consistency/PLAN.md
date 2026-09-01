@@ -145,7 +145,7 @@ section remains (`grep -n "^### .*apply\|action: apply" plugins/<p>/skills/setup
 per holdout) and each cites the check-only carve-out
 (`grep -l "[Cc]heck-only carve-out" <the five files>` returns all five).
 
-### Phase 1c: Tracked-file verification depth [TODO]
+### Phase 1c: Tracked-file verification depth [DOING]
 
 Bring every setup that writes tracked consumer files up to the full verification pair
 (`git check-ignore` AND `git ls-files`) that bugs/improvement/mutation-testing already use.
