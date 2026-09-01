@@ -1,5 +1,17 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.29]
+
+### Fixed
+
+- **`audit-derivability`: uncommitted-md probe moved out of the argument-substitution surface.**
+  The pre-computed-context injection carried awk `$0` inline in SKILL.md. Skill argument
+  substitution rewrites `$<digit>` placeholders anywhere in a skill body (0-based, so `$0` is the
+  first argument), so any invocation carrying an argument corrupted the probe before the shell
+  ran. The line now calls `scripts/uncommitted-md.sh` through `${CLAUDE_SKILL_DIR}`, which also
+  removes the inline `$`-expansion the worktree-isolation guard refuses (#1687). Contract tests
+  cover the listing, the rename handling, the cap, and the no-repo fallback exit.
+
 ## [0.21.28]
 
 ### Changed
