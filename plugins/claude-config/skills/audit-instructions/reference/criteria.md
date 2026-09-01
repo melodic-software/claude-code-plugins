@@ -212,6 +212,11 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Detect:** a line whose removal would not change behavior — restates a default, a truism, or
   something the model already does correctly.
 - **Remediate:** cut it, or (if it enforces something) convert per I5.
+- **Hold instead of delete** when the candidate matches a protected class in the
+  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md),
+  on I5's terms. This bar asks whether removal would change behavior *today*; a protected rail's
+  removal changes behavior only on the occasion it was written for, which this criterion cannot
+  observe.
 - **Source:** best-practices — "For each line, ask: *Would removing this cause Claude to make
   mistakes?* If not, cut it."
 

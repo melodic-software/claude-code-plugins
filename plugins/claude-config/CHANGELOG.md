@@ -7,16 +7,27 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- **`audit-instructions`: I4 and I5 gain a hold verdict for protected instruction classes.** Both
-  criteria remediated to `delete` with no stated exception, which left the "except in highly
-  important areas" carve-out in the source guidance undefined at the point of use — the audit
-  could cut a security rail on the strength of "the model already does this", the weakest evidence
-  available against a rule whose absence is unrecoverable. Each criterion now names the
-  marketplace's instruction exception register, reports a matching candidate as a hold with its
-  class, and proposes compression in place. The register is non-exhaustive and tighten-only, so a
-  candidate absent from it is still judged on the criterion's normal terms and never deleted
-  *because* it is absent. I5's hook conversion stays available: converting a protected rule to a
-  deterministic mechanism is a remediation, deleting it is not.
+- **`unhobble`: Phase 4 no longer leaves a protected rule deleted on silence.** The readd phase
+  ended with "everything the ledger did not defend stays deleted", which is sound for ordinary
+  instructions and wrong for a rail whose absence is unrecoverable: such a rail will not usually
+  announce itself inside one experiment window, so "no stumble was observed" is the weakest
+  evidence available against it. Phase 4 now restores a rule matching a protected class in the
+  marketplace's instruction exception register whether or not the ledger logged against it. The
+  strip itself stays permitted — it is reversible and branch-local, which is why the experiment may
+  run over a protected rail at all. Register holds are recorded separately from the defence tally,
+  so restoring one is not counted as a deletion the ledger defeated.
+- **`audit-instructions`: I1, I4 and I5 gain a hold verdict for protected instruction classes.**
+  All three deletion-class criteria remediated to `delete` with no stated exception, which left the
+  "except in highly important areas" carve-out in the source guidance undefined at the point of
+  use — the audit could cut a security rail on the strength of "the model already does this", the
+  weakest evidence available against a rule whose absence is unrecoverable. Each criterion now
+  names the marketplace's instruction exception register, reports a matching candidate as a hold
+  with its class, and proposes compression in place. I1 carries the additional reason its own bar
+  cannot see the problem: it asks whether removal would change behavior today, and a protected
+  rail's removal changes behavior only on the occasion it was written for. The register is
+  non-exhaustive and tighten-only, so a candidate absent from it is still judged on the criterion's
+  normal terms and never deleted *because* it is absent. I5's hook conversion stays available:
+  converting a protected rule to a deterministic mechanism is a remediation, deleting it is not.
 
 ## [0.40.23]
 
