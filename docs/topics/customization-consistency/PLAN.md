@@ -176,7 +176,7 @@ owning source), and the owning source is cited by every replacement
 (`grep -rln '<owner doc path>' plugins/*/skills/setup/ | wc -l` equals the baseline count ±
 documented exceptions listed in the PR body).
 
-### Phase 2a: Doctrine PR [TODO]
+### Phase 2a: Doctrine PR [DOING]
 
 Amend the three owner docs + ADR (Brief § Goal 2). config-cascade: new expression doctrine
 section (natural-language convention docs at the consumer's discovered convention home;
