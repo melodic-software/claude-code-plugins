@@ -95,6 +95,26 @@ closed enumeration into a general duty with marked examples. Where content
 is genuinely this project's own to hold (an adapted config, a self-pinned
 constraint, a dated research deliverable), say so and leave it.
 
+## External-reference ports. Semantics map + confirmation gate
+
+**Scope.** This section governs external-reference ports only: work whose source of truth
+lives outside this repo's tree: vendored, foreign-language, other-repo. In-tree
+corrections stay on the method doc's do-it-now side; nothing here changes that.
+
+**Declared step delta** (per the method doc's "Declared step deltas" allowance): for an
+external-reference port, insert between the loop's steps 2 and 3 a semantics map and a
+confirmation gate, because a port that starts before the semantics are agreed bakes
+misreads into working code, where the audit can no longer see them as findings:
+
+- **Semantics map**, externalized, five sections: what the source does; side-by-side
+  pairs (source construct against port construct); a preserved / changed / dropped
+  ledger; an edge-case parity table; the open questions the port cannot settle alone.
+  The no-analogue trap check above feeds the dropped ledger: every dropped source
+  primitive names the convention now carrying its invariant.
+- **Confirmation gate.** Stop and wait for the user to confirm the map before port work
+  proceeds. A reply of "semantics confirmed" is the recommended token, not a required
+  one; any clear confirmation opens the gate.
+
 ## What this skill does NOT do
 
 - **Does not strip legitimate local content.** An adapted config, a

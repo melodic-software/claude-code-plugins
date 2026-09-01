@@ -318,7 +318,7 @@ extension — no contract change).
 **Sanity Check:** grep the cross-ref line in workflow SKILL.md; session-flow plugin.json +
 CHANGELOG in the diff; `bash scripts/check-changed-skills.sh origin/main` green.
 
-### Phase 10: Wave 3 — E6 port gate + E1/E2 deviation-log convention [TODO]
+### Phase 10: Wave 3 — E6 port gate + E1/E2 deviation-log convention [DONE]
 
 Own review moment; lands after all W2 phases.
 

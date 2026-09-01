@@ -16,8 +16,14 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   stands. The skill also gains an `argument-hint` showing the canonical invocation. Adopted from
   the "Finding Your Unknowns" corpus at the integration sign-off (E7, E8; provenance in
   `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository). Evals extended.
-  (Provisional entry: the same version's external-reference port gate lands in a follow-up
-  commit on this branch and extends this entry.)
+- **`point-dont-copy`: semantics map + confirmation gate for external-reference ports.** A
+  declared step delta on the shared re-anchor/audit/correct loop, scoped to ports whose source
+  of truth lives outside this repo's tree (vendored, foreign-language, other-repo): between
+  audit and correct-forward, produce a five-section semantics map (what the source does,
+  side-by-side pairs, preserved/changed/dropped ledger, edge-case parity table, open questions)
+  and stop at a confirmation gate until the user confirms it — "semantics confirmed" recommended,
+  not required. In-tree corrections stay do-it-now; the no-analogue trap check feeds the dropped
+  ledger. Same adoption basis (E6, boundary per the signed C3); a new eval case covers the gate.
 
 ## [0.12.20]
 

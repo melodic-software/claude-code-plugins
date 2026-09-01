@@ -49,6 +49,19 @@
         "Recommends consolidating to a single source and pointing at it",
         "Leaves room for a merits-based legitimate-divergence exception rather than an absolute rule"
       ]
+    },
+    {
+      "id": 5,
+      "name": "external-reference-port-gate",
+      "prompt": "Port this Python rate-limiter module from the vendored library into our TypeScript services package. Keep the behavior identical.",
+      "expected_output": "Recognizes an external-reference port (source of truth outside this repo's tree: vendored, foreign-language, other-repo) and applies the declared step delta: produces the five-section semantics map (what the source does; side-by-side pairs; preserved/changed/dropped ledger; edge-case parity table; open questions), with the no-analogue trap check feeding the dropped ledger, then stops at the confirmation gate and waits for the user to confirm the map before any port code is written. A 'semantics confirmed' reply is recommended, not required.",
+      "files": [],
+      "expectations": [
+        "Classifies the task as an external-reference port (source of truth outside this repo's tree) and applies the semantics-map step delta",
+        "Produces a semantics map with side-by-side pairs, a preserved/changed/dropped ledger, and an edge-case parity table before porting",
+        "Stops and waits for the user to confirm the map before port work proceeds, recommending but not requiring a 'semantics confirmed' reply",
+        "Does not extend the stop-and-wait gate to in-tree corrections, which stay do-it-now per the shared method doc"
+      ]
     }
   ]
 }
