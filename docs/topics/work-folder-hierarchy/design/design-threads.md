@@ -17,6 +17,7 @@ status, preserved across regeneration. Contested: the key shape.
 ```yaml
 ---
 slice: identity-migration
+abstract: "One-line abstract of this slice — the parent index mirrors it verbatim"
 status: active        # active | parked | done
 children:             # ordered; this list IS the curated order
   - current-state
@@ -24,10 +25,14 @@ children:             # ordered; this list IS the curated order
 ---
 ```
 
-The `children` list doubles as ordering and as the parity baseline: a
-directory on disk absent from the list (or vice versa) is an orphan the
-gate flags. No per-child metadata here; abstracts live in the generated
-body, verbatim-copied from each child's own header (single-home).
+The `abstract` key is this slice's single-home one-liner: the PARENT's
+generated body mirrors it verbatim (T3's source for a child that is
+itself a slice; an index-less leaf's abstract comes from its sole
+artifact's header instead). The `children` list doubles as ordering and
+as the parity baseline under the child-slice predicate defined in T5: a
+child-slice directory on disk absent from the list (or vice versa) is an
+orphan the gate flags. No other per-child metadata here; per-child facts
+stay at the child (single-home).
 
 **Sketch B — rich child rows:**
 
@@ -90,7 +95,15 @@ on collision the PARENT assigns the sub-slice before dispatch and passes
 that path. The entire ambiguity class (two candidate indexes → exit 2)
 disappears because the gate never searches. Orphan parity joins as
 `--check-children`: compare the graded slice's frontmatter `children` list
-against on-disk child dirs, both directions, exit 1 on mismatch.
+against on-disk CHILD-SLICE directories, both directions, exit 1 on
+mismatch. **Child-slice predicate (deterministic, content-derived):** a
+subdirectory counts as a child slice iff its root contains `INDEX.md` or
+any reserved UPPERCASE index artifact (`EXPLORE.md`, `RESEARCH.md`,
+`INTENT.md`, `PLAN.md`, `PRD.md`, `SOURCES.md`); every other
+subdirectory (`design/`, `baselines/`, `scratch/`, `verification/`,
+`resources/`, `claims/`, and anything else) is slice-interior under the
+interior-freedom clause and exempt from parity. This keeps the two-way
+check from false-orphaning sanctioned noun folders and existing layouts.
 
 **Sketch B — retained scan, tightened:** keep root-plus-one scanning but
 require the payload pointer to disambiguate when two candidates exist.
