@@ -50,10 +50,23 @@ so recency competes with volume. A skill used 100 times sixty days ago scores
 scores 12. Any wording that says descriptions are shed "starting with the
 least-invoked skills" describes a mechanism the product does not have.
 
-The floor matters at both ends. A never-used skill scores exactly zero and is
-always shed first, which is the feedback loop this whole skill exists to expose.
-A once-used skill never decays below `0.1 * usageCount`, so it never falls back
-into the never-used band.
+The floor matters at both ends. A never-used skill scores exactly zero and sorts
+last, so it loses its description first under any material overflow, which is the
+feedback loop this whole skill exists to expose. It is not *always* shed, though:
+because the walk is first-fit, a zero-scored skill with a very short description
+can still be granted from what the others left. A once-used skill never decays
+below `0.1 * usageCount`, so it never falls back into the never-used band.
+
+Two more properties the ordering depends on:
+
+- **Ties keep catalog order, not alphabetical.** The product's sort is stable, so
+  equal scores stay in input order. This decides everything in the `unscored`
+  case, where every score is zero and the tiebreak IS the whole ordering.
+- **The grant budget is computed forward from a floor**, `budget - V`, where `V`
+  is what the listing costs before any description is granted: every listed entry
+  pays for its own name, the exempt classes pay their full rendering, and the
+  separators are charged too. Deriving it by subtracting the overflow instead
+  gets the grant boundary wrong, not just the ordering.
 
 ## Why a bare usage key does not move the band
 

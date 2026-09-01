@@ -816,10 +816,29 @@ def compute_listing(
 
     rows: list[dict] = []
     demand = 0
+    # The grant loop's budget is computed FORWARD from a floor, never backward
+    # from the overflow: the product starts at `budget - V`, where V is what the
+    # listing costs before any description is granted. Every entry that appears
+    # at all pays for its own name; the exempt classes pay their full rendering
+    # because they are never candidates.
+    floor = 0
+    listed = 0
     for entry in denominator:
         eligibility = _eligibility(entry)
-        chars = _demand_chars(entry, cfg) if eligibility == "competing" else 0
+        desc_chars = _demand_chars(entry, cfg)
+        chars = desc_chars if eligibility == "competing" else 0
         demand += chars
+        # A `disable-model-invocation` skill is absent from the listing
+        # ENTIRELY, so unlike the other two exempt classes it costs nothing and
+        # takes no separator.
+        if eligibility != "exempt-user-only":
+            listed += 1
+            name_chars = len(entry["qualified_name"])
+            if eligibility == "exempt-bundled":
+                # Keeps its description unconditionally, so it is charged for it.
+                floor += name_chars + 4 + desc_chars
+            else:
+                floor += name_chars + 2
         rows.append(
             {
                 "qualified_name": entry["qualified_name"],
@@ -836,8 +855,9 @@ def compute_listing(
 
     # Basis is decided by whether any score survived, not by whether a scores
     # argument arrived. A caller can hand over a full map that happens to be all
-    # zeros, and the resulting order is alphabetical either way.
+    # zeros, and the resulting order is catalog order either way.
     score_basis = "native-counters" if any(r["usage_score"] for r in rows) else "unscored"
+    floor += max(0, listed - 1)
 
     competing = [r for r in rows if r["eligibility"] == "competing"]
 
@@ -851,13 +871,14 @@ def compute_listing(
     #
     # Consequence worth stating plainly: description LENGTH is a ranking input,
     # which no prose description of this mechanism mentions.
-    competing.sort(key=lambda r: (-r["usage_score"], r["qualified_name"]))
-    # Budget accounting stays as it was: `demand` counts description bytes
-    # against the whole budget and ignores the name bytes every entry also pays.
-    # That understates pressure slightly and is the CERTAIN half of this report,
-    # so it is deliberately not changed here alongside the ordering fix. Charging
-    # names too is a separate correction with its own evidence.
-    remaining = budget
+    #
+    # Ties keep CATALOG ORDER, not alphabetical. The product's sort is stable, so
+    # equal scores stay in input order; Python's is too, which is why this sorts
+    # on the score alone. It matters most in the `unscored` case, where every
+    # score is 0 and the tiebreaker IS the whole ordering: an alphabetical one
+    # would disagree with the product on every row.
+    competing.sort(key=lambda r: -r["usage_score"])
+    remaining = max(0, budget - floor)
     for row in competing:
         if overflow <= 0:
             row["verdict"] = "listing-fits"
@@ -872,7 +893,7 @@ def compute_listing(
     # least. It can disagree with the verdict, and that disagreement is real
     # rather than a bug -- a band-1 row with a very short description can survive
     # a first-fit pass that sheds a better-scored row with a long one.
-    by_exposure = sorted(competing, key=lambda r: (r["usage_score"], r["qualified_name"]))
+    by_exposure = sorted(competing, key=lambda r: r["usage_score"])
     for rank, row in enumerate(by_exposure, start=1):
         row["band"] = rank if overflow > 0 else None
         # An unscored ordering is alphabetical, so its band carries no signal at

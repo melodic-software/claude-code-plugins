@@ -910,13 +910,25 @@ class OverflowConsumptionTest(unittest.TestCase):
         self.assertEqual(starved[0]["qualified_name"], "a:0")
         self.assertEqual(len(retained), 7)
 
-    def test_starved_set_covers_the_overflow_and_no_more(self):
-        # 10 x 1000 = 10_000 against 8_000 -> overflow 2_000 -> exactly 2 rows.
+    def test_the_name_floor_is_charged_before_any_description_is_granted(self):
+        """The grant budget starts at `budget - V`, not at the whole budget.
+
+        Naive arithmetic says 10 x 1000 against 8_000 sheds exactly two rows. The
+        product charges every listed entry for its own name and the separators
+        first, so slightly less than the full budget is available to
+        descriptions, and a third row goes. Deriving the grant budget by
+        subtracting the overflow instead would miss that row entirely.
+        """
         listing = self._listing(n=10, chars=1000, budget_tokens=200_000)
+        # The overflow figure itself is unchanged: it answers "does the listing
+        # overflow", which is a different question from "which entries win".
         self.assertEqual(listing["overflow_chars"], 2_000)
         starved = [s for s in listing["skills"] if s["verdict"] == "likely-starved"]
-        self.assertEqual(len(starved), 2)
-        self.assertEqual(sorted(s["qualified_name"] for s in starved), ["a:0", "a:1"])
+        self.assertEqual(len(starved), 3)
+        # The three lowest-scored, since nothing here varies in length.
+        self.assertEqual(
+            sorted(s["qualified_name"] for s in starved), ["a:0", "a:1", "a:2"]
+        )
 
     def test_most_used_skill_is_never_starved_while_others_can_absorb_it(self):
         listing = self._listing(n=10, chars=1000, budget_tokens=200_000)
@@ -951,7 +963,7 @@ class OverflowConsumptionTest(unittest.TestCase):
             # Lowest score in the set, but cheap enough to survive the leftovers.
             {
                 "qualified_name": "a:cheap",
-                "frontmatter": {"description": "x" * 300},
+                "frontmatter": {"description": "x" * 200},
                 "plugin_enabled": True,
             },
         ]
@@ -961,9 +973,9 @@ class OverflowConsumptionTest(unittest.TestCase):
             entries, engine.ListingConfig(context_window_tokens=200_000), scores
         )
         by_name = {r["qualified_name"]: r for r in listing["skills"]}
-        # 5 x 1536 = 7680 granted, leaving 320 of the 8000 budget.
-        # a:hog needs 1536 and is shed; the walk does NOT stop there, and
-        # a:cheap needs only 300, so it is granted from the same leftovers.
+        # The name floor takes 67, leaving 7933. 5 x 1536 = 7680 granted, leaving
+        # 253. a:hog needs 1536 and is shed; the walk does NOT stop there, and
+        # a:cheap needs only 200, so it is granted from the same leftovers.
         self.assertEqual(by_name["a:hog"]["verdict"], "likely-starved")
         self.assertEqual(by_name["a:cheap"]["verdict"], "likely-retained")
         self.assertEqual(by_name["a:fill0"]["verdict"], "likely-retained")
