@@ -100,8 +100,9 @@ One atomic PR containing, and only complete when all of:
    commit 863e70d") with a commit-anchored recheck trigger.
 9. Empirical check at implementation time: the `/eli5` bare-command collision
    behavior with both plugins installed, and
-   `CHECK_SKILL_BASE_REF=<merge-base> scripts/check-changed-skills.sh` green
-   (trigger-MOVE WARN accepted).
+   `scripts/check-changed-skills.sh "$(git merge-base origin/main HEAD)"`
+   green (trigger-MOVE WARN accepted; the base ref is the required positional
+   argument — the script exports CHECK_SKILL_BASE_REF itself).
 10. `scripts/affected-tests.sh --run` for the changed paths (evals.json edits
     select ~134 suites; plan the local validation time).
 
@@ -129,7 +130,9 @@ One atomic PR containing, and only complete when all of:
 - Any cross-plugin wiring beyond the Q13 inventory (no eli5 pointers in
   debugging/planning/architecture flows in V1).
 - Vendoring upstream content; any attribution text; a userConfig mode switch;
-  standing automation watching upstream.
+  standing automation watching upstream. (The V1 change inventory is exactly
+  the six phases of the Plan section below — self-contained in this tracked
+  file; no gitignored artifact is load-bearing for implementation.)
 - Verbatim upstream text in the fallback (re-opens the licensing posture).
 
 ### Deferred questions
@@ -164,15 +167,23 @@ Plan-time resolutions of the Brief's deferred questions:
   wait-what shape; upstream-name cross-marketplace parity), explicitly
   answering the recorded `bro` rejection (differentiators: upstream
   delegation; the fixed visual lane the fleet lacks), with no bare-`/eli5`
-  ownership claim.
-- `docs/conventions/seam-phrasing/README.md`: one-paragraph carve-out —
-  install-recipe sites may name a marketplace id; gate sentences still may
-  not.
+  ownership claim. Update the hard-coded exception count ("Six further
+  documented exceptions" → "Seven ...") and splice the sentence chain that
+  currently ends on the `wait-what` entry.
+- `docs/conventions/seam-phrasing/README.md`: the carve-out paragraph
+  (install-recipe sites may name a marketplace id; gate sentences still may
+  not) AND, in the same edit, amend item 1's absolute parenthetical
+  "(marketplace-qualified IDs never appear in reusable content)" to scope it
+  "(... outside install-recipe sites)" so the owner doc does not contradict
+  itself.
 
 **Sanity Check:** `grep -n 'eli5' docs/PLUGIN-PHILOSOPHY.md` shows the new
-entry inside the exceptions list; `grep -n 'install-recipe' docs/conventions/seam-phrasing/README.md`
-(or the carve-out's own phrasing) returns the amendment; both files pass
-`markdownlint-cli2` (hook-enforced on write).
+entry inside the exceptions list and `grep -c 'Six further' docs/PLUGIN-PHILOSOPHY.md`
+returns 0; `grep -n 'install-recipe' docs/conventions/seam-phrasing/README.md`
+hits both the carve-out and the amended item-1 parenthetical;
+`npx markdownlint-cli2 docs/PLUGIN-PHILOSOPHY.md docs/conventions/seam-phrasing/README.md`
+exits 0 (explicit — do not rely on a write-time hook the implementing
+session may not have).
 
 ### Phase 2: The new skill [TODO]
 
@@ -195,22 +206,32 @@ entry inside the exceptions list; `grep -n 'install-recipe' docs/conventions/sea
      guidance (inline SVG, identifiers demoted to parentheses/monospace,
      one-line takeaway captions; artifact-design/artifact-diagramming session
      skills when present);
-  4. the three canonical example invocations (module / tradeoff / incident);
+  4. the three canonical example invocations, verbatim (inlined here so a
+     fresh clone needs no gitignored artifact): "/eli5 how does this module
+     work", "/eli5 why did we make this tradeoff", "/eli5 what caused this
+     incident";
+  4b. a one-line cross-offer to `education:explain` for prose-drop asks
+     (same-plugin Skill-tool phrasing, no presence gate) — the eli5→explain
+     half of acceptance criterion 4;
   5. best-effort interception note (typed `/eli5` may bypass; no frontmatter
      `name`); upstream-drift stamp ("verified 2026-09-01 at upstream commit
      863e70d") + commit-anchored recheck trigger; untrusted-content framing
      for consulted upstream content. NO attribution text.
 - `plugins/education/skills/eli5/evals/evals.json` (new): four birth cases —
-  delegate-when-installed; print-only assist (asserts no execution);
-  inline fallback; boundary anti-case mirroring clarify's split (a prose
-  "explain simply" ask does NOT produce an artifact).
+  delegate-when-installed (installed-ness stated in the case's prompt
+  parenthetical, never as a fixture, per the eval-lint's rules); print-only
+  assist (asserts no execution); inline fallback; boundary anti-case
+  mirroring clarify's split (a prose "explain simply" ask does NOT produce
+  an artifact).
 
 **Sanity Check:** `test -f plugins/education/skills/eli5/SKILL.md`;
 `grep -c "disable-model-invocation: false" plugins/education/skills/eli5/SKILL.md` = 1;
 `grep -n "'ELI5'" plugins/education/skills/eli5/SKILL.md` hits the
-description line; `grep -n '863e70d'` hits the stamp;
+description line; `grep -n '863e70d' plugins/education/skills/eli5/SKILL.md`
+hits the stamp;
 `jq '.evals | length' plugins/education/skills/eli5/evals/evals.json` = 4;
-no match for `-i 'license\|attribution\|MIT'` in the new SKILL.md.
+`grep -cE '\blicense\b|\battribution\b|\bMIT\b' plugins/education/skills/eli5/SKILL.md`
+= 0 (word-bounded, case-sensitive — "commit" in the stamp must not match).
 
 ### Phase 3: explain de-brand [TODO]
 
@@ -226,18 +247,21 @@ anchor (lines ~17-19), keeping the Feynman method sentence; (4) rung-1 label
 strings (lines ~23, 32) to "plain"-phrased equivalents; expectations
 otherwise unchanged.
 
-**Sanity Check:** `grep -ci 'eli5' plugins/education/skills/explain/SKILL.md`
-returns exactly the count of boundary/cross-offer mentions (target ≤2, all
-pointing at the new skill); `grep -ci 'five' .../SKILL.md` = 0 outside the
-boundary line; `grep -ci 'ELI5' .../evals/evals.json` = 0.
+**Sanity Check:** `grep -in 'eli5\|five' plugins/education/skills/explain/SKILL.md`
+returns ONLY the allowlisted boundary/cross-offer line(s) (each hit
+explicitly accounted for; the allowlist is written into the phase commit
+message); `grep -ci 'ELI5' plugins/education/skills/explain/evals/evals.json`
+= 0.
 
 ### Phase 4: adhd:clarify three-way split [TODO]
 
-- `plugins/adhd/skills/clarify/SKILL.md`: description's ELI5 clause and the
-  Boundaries routing become the three-way split — structure stays here;
-  prose altitude drop → `education:explain`; picture explainer / ELI5 →
-  `education:eli5` (presence-gated Skill-tool phrasing, fallback stated);
-  update the ~line-193 altitude note and the NOT-list mention.
+- `plugins/adhd/skills/clarify/SKILL.md`: FOUR ELI5 sites (lines ~2, ~21,
+  ~193, ~232) — the description's ELI5 clause, the line-21 intro sentence
+  ("That means plain words, an analogy, ELI5" — lane-inaccurate post-split),
+  the ~193 altitude note, and the NOT-list mention — all become the
+  three-way split: structure stays here; prose altitude drop →
+  `education:explain`; picture explainer / ELI5 → `education:eli5`
+  (presence-gated Skill-tool phrasing, fallback stated).
 - `plugins/adhd/skills/clarify/evals/evals.json`: split eval 4 into two
   cases: "explain this simply — I don't get it" (routes/holds per explain
   lane) and "ELI5 this / give me the picture version" (routes to eli5 lane).
@@ -245,10 +269,11 @@ boundary line; `grep -ci 'ELI5' .../evals/evals.json` = 0.
   sentence and the disjoint-trigger passage quoting explain's trigger list).
 
 **Sanity Check:** `grep -n 'education:eli5' plugins/adhd/skills/clarify/SKILL.md`
-≥ 1 hit in Boundaries; `grep -c 'education:explain' plugins/adhd/README.md`
-consistent with the rewritten passages; `jq '.evals | length'` on clarify
-evals = prior count + 1; `grep -n "ELI5" plugins/adhd/README.md` shows only
-lane-split-accurate text.
+≥ 1 hit in Boundaries; `grep -in 'eli5' plugins/adhd/skills/clarify/SKILL.md`
+returns only split-accurate hits, each accounted for in the phase commit
+message; `jq '.evals | length' plugins/adhd/skills/clarify/evals/evals.json`
+= 8 (prior 7 + 1 from the eval-4 split); `grep -in 'eli5' plugins/adhd/README.md`
+shows only lane-split-accurate text.
 
 ### Phase 5: Manifests, README, changelogs [TODO]
 
@@ -269,20 +294,24 @@ lane-split-accurate text.
   the entry schema carries fields that changed (verify at implementation;
   category stays `learning`/`personal`).
 
-**Sanity Check:** `scripts/check-changelog-parity.sh --check-bump` exits 0
-for both plugins; `git diff --name-only` includes both CHANGELOGs and both
-plugin.json files; education CHANGELOG entry greps for `0.5.2`.
+**Sanity Check:** `scripts/check-changelog-parity.sh --check-bump "$(git merge-base origin/main HEAD)"`
+exits 0 (the base ref is a required argument); `git diff --name-only` includes
+both CHANGELOGs and both plugin.json files; education CHANGELOG entry greps
+for `0.5.2`.
 
 ### Phase 6: Generated docs, gates, validation [TODO]
 
 - Regenerate `docs/SKILL-CHEAT-SHEET.md` (new skill's
   `metadata.workflow-stage` + `summary` feed it) and `docs/CATALOG.md` if
   any plugin description changed, using the repo's generator scripts.
-- `CHECK_SKILL_BASE_REF=<merge-base> scripts/check-changed-skills.sh` —
+- `scripts/check-changed-skills.sh "$(git merge-base origin/main HEAD)"` —
   expect green with the check-3 trigger-MOVE WARN (accepted; the WARN is the
   designed path).
 - `scripts/affected-tests.sh --run` over the changed paths (evals.json edits
-  fan out to ~134 suites; budget the runtime).
+  fan out to ~134 suites; budget the runtime). Expected exit is **3**, the
+  script's documented "ran all shell suites, selection includes non-shell
+  ecosystems" outcome — not a failure; the NOT-RUN ecosystems (e.g. the
+  Python suites) are then run per the README's contract, not skipped.
 - `/ai-slop:audit` over the new/edited prose files (house style; em-dash
   zero tolerance).
 - Empirical collision probe (best-effort, documented): in a scratch session
