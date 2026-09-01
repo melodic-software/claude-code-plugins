@@ -54,15 +54,19 @@ Installing a plugin is the operator's action, not this skill's (plugin philosoph
 setup contract). Then continue to the inline pass in the same turn: the user asked a
 question, and an install recipe is not an answer.
 
+Print the project-scope form when the behavior should be the same for everyone
+working in the repository. A bare `marketplace add` writes *user* settings, so the
+`--scope project` flag is what actually makes the recipe match the advice:
+
 ```text
-claude plugin marketplace add anthropics/claude-plugins-community
-claude plugin install eli5@claude-community
+claude plugin marketplace add anthropics/claude-plugins-community --scope project
+claude plugin install eli5@claude-community --scope project
 ```
 
-Say alongside it: install at **project scope** when the behavior should be the same
-for everyone working in this repository, and note that **cloud sessions never load
-user scope**, so a user-scope install will not reach them. Close the recipe with:
-run `/reload-plugins` or restart, then re-invoke.
+For a machine-wide install instead, drop both `--scope project` flags. Say
+alongside it that **cloud sessions never load user scope**, so the user-scope form
+will not reach them. Close the recipe with: run `/reload-plugins` or restart, then
+re-invoke.
 
 **Not installed and the user declined, or the upstream invocation did not succeed**
 → the inline pass, Step 3. Re-offer the recipe on a later invocation rather than
@@ -86,13 +90,33 @@ Build the explainer directly, to the same contract.
   available, load them before writing the page; they own the visual bar. Without
   them, hold to the same rules directly.
 
+### Delivering the page
+
+Producing the HTML is half the job; the reader has to be able to look at it. Take
+the first rung that this session supports, and say which one you took:
+
+| Condition | Delivery |
+|---|---|
+| An Artifact surface is available | Publish the page as an artifact |
+| No artifact surface, a writable temp location | Write one file to the OS temp directory and hand back its path |
+| Neither | Describe the diagrams in structured terminal text, and say the page was not rendered |
+
+**Never write the page into the consuming repository**, and never paste raw HTML or
+SVG markup into the terminal as though it were the explainer. A picture the reader
+cannot open is not a delivered picture: when you land on the third rung, say so
+plainly rather than implying a page exists.
+
 ## Examples
 
 The three invocations this lane is shaped around:
 
-- `/eli5 how does this module work`
-- `/eli5 why did we make this tradeoff`
-- `/eli5 what caused this incident`
+- `/education:eli5 how does this module work`
+- `/education:eli5 why did we make this tradeoff`
+- `/education:eli5 what caused this incident`
+
+`/education:eli5` is this skill's command. Bare `/eli5` belongs to the upstream
+plugin and reaches it directly when it is installed, which is the bypass the
+Boundaries section describes.
 
 Each takes its own row from the Step 1 table. The first reads code, the second reads
 the argument behind a decision, the third reconstructs a sequence.

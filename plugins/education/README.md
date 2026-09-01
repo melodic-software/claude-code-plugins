@@ -101,13 +101,14 @@ installed it delegates to that skill instead of producing the explainer itself,
 so the two stay in step rather than drifting apart. To add it:
 
 ```shell
-claude plugin marketplace add anthropics/claude-plugins-community
-claude plugin install eli5@claude-community
+claude plugin marketplace add anthropics/claude-plugins-community --scope project
+claude plugin install eli5@claude-community --scope project
 ```
 
-Install it at project scope when you want every session in a repository to
-behave the same way; user scope covers only your own local sessions, and remote
-sessions never load it. Run `/reload-plugins` or restart afterwards. Installing
+Those flags are what make it repository-wide: a bare `marketplace add` writes
+user settings instead. Drop both flags for a machine-wide install, bearing in
+mind that user scope covers only your own local sessions and remote sessions
+never load it. Run `/reload-plugins` or restart afterwards. Installing
 it manually also satisfies a dependency constraint, so nothing here requires a
 declared dependency.
 
