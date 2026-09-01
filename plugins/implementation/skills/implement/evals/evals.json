@@ -37,7 +37,8 @@
         "Classifies the wrong SDK-capability assumption as major divergence, not a minor inline fixup",
         "STOPS writing code instead of pushing through with workarounds/hacks to force the original plan to fit",
         "Runs external research for alternatives before re-planning, then routes back to the planning skill for the user to approve the new direction",
-        "Does NOT silently expand scope or improvise a new design without surfacing it to the user"
+        "Does NOT silently expand scope or improvise a new design without surfacing it to the user",
+        "When a DEVIATIONS.md exists for the work, completion reads it back and emits a plan-amendment bullet per unresolved deviation or human-decision entry rather than handing the reviewer a log nobody folded back"
       ]
     },
     {

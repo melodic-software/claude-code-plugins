@@ -12,6 +12,8 @@ metadata:
 
 The divergence step before any scoping: unknown-knowns (criteria the user only recognizes when seen) surface cheapest at candidate-list time. Finding one mid-implementation costs a re-plan. A brainstorm round also calibrates scope: reacting to a cheapest→most-ambitious spread prevents locking a scope that is too narrow (missed the high-value approach) or too wide (ambition the problem doesn't need).
 
+Opening a fresh session on a rough problem with a brainstorm is a citable practice, not a detour: the cheapest→ambitious spread is the cheapest artifact that surfaces criteria the user only recognizes when seen (rationale and sources: `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository).
+
 Distinct neighbors: `/planning:design` Phase 1 decomposes the problem space WITHIN a design task already chosen; a proactive architecture-friction scan (e.g. `/architecture:improve`, if installed) hunts on its own lanes; a UI-variation prototyper (e.g. `/prototype:explore-directions`, if installed) builds visual variations of a chosen direction. This skill is the general, problem-shaped entry upstream of all three. Creative-domain ideation owned by a domain skill (e.g. songwriting brainstorms → `/songwriting:workflow`, if installed) stays with that skill.
 
 ## Task

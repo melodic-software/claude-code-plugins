@@ -179,6 +179,10 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | External-evidence item | `/discovery:research` | `research`-typed items route here (autonomous) |
 | The plan itself | `/planning:plan` | Graduation target when the destination is a PLAN |
 
+For pre-implementation efforts, the routed items above compose into a known five-pass order
+(blindspot → brainstorm/prototype → interview → reference port → plan); the workflow section of
+`docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository states it with rationale.
+
 ## What this skill does NOT do
 
 - **Does not do build work.** A map holds decisions; build items live on the ordinary tracker
