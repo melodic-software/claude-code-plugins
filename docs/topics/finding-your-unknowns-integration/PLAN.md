@@ -308,7 +308,7 @@ intermediate commit's entry knowingly under-describes and Phase 10 finalizes it)
 **Sanity Check:** grep E7 line + `argument-hint` in frontmatter; evals growth
 (before/after jq pair); `bash scripts/check-changed-skills.sh origin/main` green.
 
-### Phase 9: session-flow plugin — workflow cross-ref [TODO]
+### Phase 9: session-flow plugin — workflow cross-ref [DONE]
 
 plugins/session-flow/skills/workflow/SKILL.md: the five-pass workflow-section cross-ref
 doc line (Brief constraint 7 / Q7 — marketplace-repo prose pointing at the F1 workflow
