@@ -43,6 +43,18 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   the sanctioned placement (settled here) from the durable cross-machine home
   (still #480's job) instead of letting the reserved name read as the fix.
 
+## [0.39.2]
+
+### Changed
+
+- **`audit-performance`: moved the spawn-noise characterization into `lib/spawn_noise.py`.**
+  `summarize_spawn_samples`, `spawn_probe`, and the `NOOP_SPAWN` / `SPAWN_SAMPLES` /
+  `SLOW_SPAWN_FLOOR_MS` / `BIMODAL_SPREAD_RATIO` constants now live in a plugin-level lib that the
+  engine imports and re-exports. Behavior is unchanged and the engine's surface is unchanged: the
+  45 existing tests, including the six that exercise the bimodal predicate, pass untouched.
+  The move exists so the incoming `performance` plugin can consume the same characterization
+  instead of re-deriving it, keeping the bimodal threshold in exactly one place. Preparing #3530.
+
 ## [0.39.1]
 
 ### Fixed
