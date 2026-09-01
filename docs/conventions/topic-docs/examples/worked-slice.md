@@ -18,6 +18,10 @@ docs/topics/auth-token-refresh/     <- contract slice, committed on branch
 .work/                              <- memory tier, never committed
   .gitignore                        contains "*" (self-ignoring)
   auth-token-refresh/
+    INDEX.md                        slice index: frontmatter state +
+                                    generated child listing (the slice
+                                    holds two artifact families, so the
+                                    index is required, not optional)
     EXPLORE.md                      discovery
     RESEARCH.md                     discovery (recency-gated, prunable)
     interview-checklist.md

@@ -131,7 +131,9 @@ note the rename in the checklist, and continue — never re-inventory over it.
 ## Phase 2. Inventory
 
 Write `<work-root>/SOURCES.md`: every heading/topic/concern in the source, cross-cutting themes, a
-digest-file map (one row per digest unit), and a status checklist. Digest-unit granularity: the
+digest-file map (one row per digest unit), and a status checklist. SOURCES.md opens with a YAML
+frontmatter block carrying at least `abstract:` (ONE unwrapped line naming what the page covers),
+the topic-docs contract's indexable-artifact hook, so a parent slice regen can mirror it. Digest-unit granularity: the
 pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-digests inside
 their unit's file. SOURCES.md is the representation layer every later phase (and the interview)
 walks. Keep its rows in parity with the digest files.

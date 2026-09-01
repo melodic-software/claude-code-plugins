@@ -1,5 +1,20 @@
 # Changelog — discovery plugin
 
+## [0.18.0]
+
+### Changed
+
+- **Index artifacts open with YAML frontmatter** (topic-docs contract v3.0.0 flip). `RESEARCH.md`,
+  `EXPLORE.md`, and `INTENT.md` now carry a frontmatter block with at least a one-line `abstract:`,
+  the contract's indexable-artifact mini-schema hook: a parent slice's `INDEX.md` regeneration
+  mirrors an index-less leaf's header abstract verbatim. Stated once in the shared artifact-shape
+  spec (`skills/research/context/artifact-shape.md`); the trace-intent shape doc already defers to
+  it.
+- **`reference/artifact-protocol.md` synced to protocol version 3.** `INDEX.md` joins the
+  memory-tier artifact kinds, topic slices are recursive, and entering a slice follows the
+  contract's read-first binding (cited, not restated). Copy stays byte-identical to
+  `docs/PLUGIN-ARTIFACT-PROTOCOL.md`.
+
 ## [0.17.0]
 
 ### Changed
@@ -22,6 +37,8 @@
   a slice `INDEX.md` from its children's frontmatter and checks declared-children parity in both
   directions. Kept byte-identical by `scripts/sync-index-regen.sh` and the `index-regen-sync` CI
   job. Topic-docs v3 wave (T1–T5).
+
+## [0.16.18]
 
 ### Fixed
 

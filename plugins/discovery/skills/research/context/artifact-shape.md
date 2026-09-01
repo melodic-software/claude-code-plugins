@@ -19,6 +19,15 @@ wants. A planning step chasing one settled fact should read one sidecar, not the
 
 Always the entry point. A consumer handed that filename must get a readable document.
 
+The index opens with a YAML frontmatter block carrying at least `abstract:` (ONE unwrapped line
+naming what the run covered; the same one-line rule the sidecar headers already follow). This is the
+topic-docs contract's indexable-artifact mini-schema hook: a slice whose sole artifact is this index
+is an index-less leaf, and the parent slice's `INDEX.md` regeneration mirrors this header's abstract
+verbatim, so the header is part of the artifact's public shape, not decoration. It applies to all
+three of this plugin's index families (`RESEARCH.md`, `EXPLORE.md`, `INTENT.md`).
+
+Body sections, after the frontmatter:
+
 1. **Task restatement** — what was asked, in the run's own words.
 2. **One-line abstract per sidecar**, copied verbatim from that sidecar's `abstract` header field.
    Verbatim matters: an abstract paraphrased into the index drifts from the sidecar it describes, and

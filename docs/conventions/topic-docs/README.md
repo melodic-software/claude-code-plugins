@@ -4,6 +4,7 @@
 
 - [Why this exists](#why-this-exists)
 - [The two tiers (and their neighbors)](#the-two-tiers-and-their-neighbors)
+- [The slice tree](#the-slice-tree)
 - [Visibility across execution contexts](#visibility-across-execution-contexts)
 - [The tracked concern file — `.claude/topic-docs.yaml`](#the-tracked-concern-file--claudetopic-docsyaml)
 - [Resolution order](#resolution-order)
@@ -19,7 +20,10 @@ A versioned, marketplace-wide contract for where plugin-generated task
 documents land in a consuming repository. One topic (a unit of work — a
 feature, investigation, or change effort) owns one **slug**; the slug
 names a slice in each of two tiers, and two graduation edges carry
-content out of the working directory when it outgrows the task.
+content out of the working directory when it outgrows the task. A slice
+is recursive: decomposed work grows child slices that are slices in
+their own right, each navigable through one `INDEX.md` read (see
+[The slice tree](#the-slice-tree)).
 
 This directory is the source of truth: this README (tiers, resolution
 order, slug spec, lifecycle), `topic-docs.schema.json` (the tracked
@@ -56,8 +60,8 @@ read again even if that session rarely looks at the file itself.
 | Tier | Location (default) | Git | Holds |
 |---|---|---|---|
 | Ephemeral | An OS-API-created temp file or directory, one per run | Never in the repo | Files nothing downstream reads: a rendered HTML view, a spill file, a throwaway |
-| Memory | `.work/<slug>/` | Never committed (self-ignoring) | `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch |
-| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/exports/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; user-run `/export` conversation snapshots — their axes are session and branch, so they sit outside topic slices |
+| Memory | `.work/<slug>/` | Never committed (self-ignoring) | `INDEX.md`, `EXPLORE.md`, `RESEARCH.md`, `INTENT.md`, `<stage>-checklist.md`, `baselines/`, raw captures and scratch — and child slices, recursively (see [The slice tree](#the-slice-tree)) |
+| Memory, concern-scoped | `.work/handoffs/`, `.work/reviews/<branch-slug>/`, `.work/running-retros/`, `.work/overengineering/<branch-slug>/`, `.work/exports/`, `.work/lanes/` | Never committed | session handoffs; review reports; running-retro ledgers; overengineering findings; user-run `/export` conversation snapshots; claude-ops lane state (`lanes.json` + lane prompts) — their axes are session, branch, or machine, so they sit outside topic slices and stay flat unless their own contract says otherwise |
 | Contract | `docs/topics/<slug>/` | Committed **on the task branch only**; pruned before merge | `PLAN.md` (Brief + Plan), `PRD.md`, `design/` (incl. the `design-threads.md` / `design-resolution.md` gate files), `verification/` (the distilled manifest) |
 | Durable | knowledge-vault seam — default backend `docs/adr/`, `docs/specs/` | Committed, permanent | promotion targets |
 | Machine state | `${CLAUDE_PLUGIN_DATA}`; `.claude/observability/` | Never committed | telemetry; caches; durable machine-scoped state a later session reopens across projects |
@@ -203,6 +207,166 @@ Every fact has exactly one home. Any other surface — a handoff, a
 summary, a map, a PR body — may only *reference* it (path, URL, or
 context pointer), never restate it. An index is not a store.
 
+## The slice tree
+
+A topic slice is **recursive**: a slice is the same thing at every
+depth, and an "epic" is nothing more than a slice with child slices.
+`<memory_dir>/<slug>/` is the first level; a child slice sits at
+`<memory_dir>/<slug>/<child>/`, and every rule in this section applies
+again below it. New levels are created **lazily**, on decomposition
+(the work split into parts) or on collision (a run found its assigned
+root already occupied by unrelated work), never pre-built. Recursion is
+scoped to topic slices only: the reserved first-level concern names
+(see the slug spec) keep their session, branch, and machine axes and
+stay flat unless their own contract says otherwise. Activities (an
+explore pass, a research pass, a stage checklist) share their unit of
+work's slice and never create levels of their own.
+
+### `INDEX.md`, reserved at every depth
+
+The name `INDEX.md` is reserved in every slice. The file is required
+only where it pays for itself: a slice with child slices, or with more
+than one artifact family, must carry one. A single-artifact leaf omits
+it, which keeps simple work one file.
+
+**Read-first binding (normative).** A consumer entering a slice reads
+`INDEX.md` first; in an index-less leaf, the sole artifact is the entry
+point. Bindings, artifact-protocol copies, and agent definitions cite
+this paragraph rather than restating it.
+
+### Frontmatter is the single home for slice state
+
+Where an `INDEX.md` exists, its YAML frontmatter carries the slice's
+state, preserved verbatim across regeneration:
+
+```yaml
+---
+slice: identity-migration
+abstract: "One-line abstract of this slice; the parent index mirrors it verbatim"
+status: active        # active | parked | done
+children:             # ordered; this list IS the curated order
+  - current-state
+  - target-design
+---
+```
+
+- `abstract` is the slice's single-home one-liner, and every indexable
+  artifact opens with a YAML header carrying at least `abstract:` (the
+  mini-schema the regen script parses). An abstract is **ONE unwrapped
+  line, always**: no wrapped or block-scalar continuations, no
+  `_`-delimited emphasis spans, no leading list markers. The regen
+  script rejects each of these rather than guessing, because an
+  always-on markdown formatter was shown to rewrite a wrapped
+  continuation line starting with `+` into a `-` list marker, silently
+  corrupting mirrored text.
+- `status` is the slice lifecycle state: `active | parked | done`. A
+  `done` slice is closed; the slug spec's collision rule says what a
+  same-slug re-derivation does about it.
+- `children` is the ordered list of child-slice directory names, and
+  the list **is** the curated order: ordering is externalized into the
+  index, never encoded as numeric prefixes on slice directory names.
+  Timestamped concern filenames and sanctioned slice-interior ordinals
+  (e.g. `digests/NN-*.md`) are unaffected; the ordering rule scopes to
+  child-slice names. The list is also the parity baseline the regen
+  script grades against the disk.
+- Per-child facts stay at the child (single-home): the parent's
+  generated body mirrors each child's abstract verbatim and stores
+  nothing else about it.
+
+### The generated body and the shared regen script
+
+Below the frontmatter, the index body between these two markers is
+generated, and edits inside it are lost:
+
+```text
+<!-- BEGIN GENERATED: slice index — regenerated by the shared lib script; edits inside are lost -->
+<!-- END GENERATED: slice index -->
+```
+
+The shared lib script (`lib/index-regen.sh` at the marketplace root;
+per-plugin copies are kept byte-identical by `scripts/sync-index-regen.sh`
+and are never hand-edited) rewrites only the span between the markers
+and never touches frontmatter. It emits one line per declared child,
+linking the child's entry point and mirroring its abstract verbatim: a
+child slice's abstract is its own `INDEX.md` frontmatter `abstract`; an
+index-less leaf's abstract is the header abstract of its sole reserved
+artifact, resolved by the predicate below. **Only the orchestrating
+session regenerates**; fan-out workers never write above their assigned
+slice.
+
+Exit codes are distinct per failure class:
+
+- `0` regenerated (or already current), parity ok or explicitly
+  not-applicable.
+- `1` parity mismatch: an orphan in either direction, or a multi-family
+  leaf without an index.
+- `2` ungradeable shape: missing or duplicated markers, unparsable
+  frontmatter, a wrapped or multiline abstract, an unresolvable child
+  abstract.
+- `3` size cap exceeded. The expectation is ~25KB
+  (`INDEX_REGEN_MAX_BYTES`, default 25600 bytes); at the cap the script
+  halts and names the two levers (the cap is abstract length times
+  child count): decompose the slice into sub-slices, or shorten child
+  abstracts. Any pre-existing generated body is left intact, so a
+  cap-fail never destroys navigation. Never silent truncation.
+
+### The child-slice predicate
+
+A subdirectory counts as a child slice **iff** its root contains
+`INDEX.md` or any reserved UPPERCASE index artifact, in abstract-resolution
+precedence order: `INDEX.md` > `EXPLORE.md` > `RESEARCH.md` >
+`INTENT.md` > `PLAN.md` > `PRD.md` > `SOURCES.md`. Two or more reserved
+artifacts with no `INDEX.md` make a multi-family leaf, which requires
+an index (a parity error, no tie-break needed). Every other
+subdirectory (`design/`, `baselines/`, `scratch/`, `verification/`,
+`resources/`, `claims/`, and anything else) is slice-interior under the
+interior-freedom clause and exempt from parity.
+
+Declared-children parity, both directions, lives in the regen script,
+which owns the mini-schema; the dispatch gate below stays header-blind.
+A slice with no `INDEX.md` reports parity `not-applicable` explicitly:
+a skipped check must never look passed.
+
+`SOURCES.md` is the knowledge plugin's docpage-digest source-inventory
+artifact (renamed off the `INDEX.md` name in the v3 wave, freeing it
+for the per-slice index). As a reserved artifact name it carries the
+one-line `abstract:` header like every other, so a parent regen can
+mirror it.
+
+### The interior-freedom clause
+
+Slice-shape rules govern where a slice sits and which names are
+reserved inside it; they never govern slice-interior files beyond those
+reservations.
+
+### Dispatch and fan-out discipline
+
+The parent assigns every slice path **before** dispatching: the
+per-topic sub-slices on a fan-out, and the collision sub-slice when a
+pre-dispatch stat finds the slice root already occupied. Workers never
+pick a sub-slice (two workers choosing independently can choose the
+same one) and never create levels. The discovery acceptance gate
+(`check-dispatch-artifact.sh`) grades **exactly the assigned path** and
+never scans for candidates, so an artifact anywhere else under the
+slice is some other run's output, not evidence this dispatch succeeded.
+A worker that finds its assigned root unexpectedly occupied reports the
+occupancy through its `persistence: by-value` return payload rather
+than relocating; the parent assigns the collision sub-slice, writes
+there, and re-runs the gate against its own choice.
+
+### The corpus seam
+
+Corpora stay inside the knowledge plugin's `library_dir` seam, which
+keeps its own root (the topic-docs carve-out: it does not resolve
+`memory_dir`). Inside that root the same slice shape and `INDEX.md`
+rules apply (shape unification), but this contract does **not** recurse
+into corpora: a topic slice holds pointers to corpus content, never the
+corpus itself. Two roots, one documented relationship. Corpus-scale
+ingestion therefore never overflows a topic slice, and the worktree
+carry consideration below is deliberate: corpus snapshots under a
+`.work` root are not matched by the reserved-name carry patterns, while
+corpus-slice `INDEX.md` files are.
+
 ## Visibility across execution contexts
 
 Tier placement decides more than git hygiene: it decides **which
@@ -252,9 +416,9 @@ Four native mechanisms, no custom machinery:
   files that match a pattern *and* are gitignored are copied. The copy
   is **one-way at worktree-creation time**: later edits sync in neither
   direction, so carried files are read-only context, never a channel.
-  Carry cross-checkout-useful memory files (stage ledgers,
-  `EXPLORE.md` / `RESEARCH.md`); never baselines or raw scratch
-  (machine-bound). Caveat: a `WorktreeCreate` hook replaces the default
+  Carry cross-checkout-useful memory files, keyed on the reserved names
+  at any depth (slice indexes, stage indexes and sidecars, stage
+  ledgers); never baselines or raw scratch (machine-bound). Caveat: a `WorktreeCreate` hook replaces the default
   worktree creation entirely and `.worktreeinclude` is **not
   processed** — the hook script owns any copying.
 - **By-value returns** — a worker running in its **own checkout**
@@ -304,16 +468,14 @@ repository root (substitute a non-default resolved `memory_dir` for
 
 ```text
 .work/.gitignore
-.work/*/EXPLORE.md
-.work/*/EXPLORE-*.md
-.work/*/RESEARCH.md
-.work/*/RESEARCH-*.md
-.work/*/*-checklist.md
-.work/*/*/EXPLORE.md
-.work/*/*/EXPLORE-*.md
-.work/*/*/RESEARCH.md
-.work/*/*/RESEARCH-*.md
-.work/*/*/*-checklist.md
+.work/**/INDEX.md
+.work/**/EXPLORE.md
+.work/**/EXPLORE-*.md
+.work/**/RESEARCH.md
+.work/**/RESEARCH-*.md
+.work/**/INTENT.md
+.work/**/INTENT-*.md
+.work/**/*-checklist.md
 ```
 
 The first line carries the memory root's self-ignore file so the copied
@@ -321,15 +483,28 @@ files are ignored in the new worktree from creation; without it they
 surface as untracked until the self-ignore guard heals on the first
 memory-tier write.
 
-The second group carries a **sub-slice** — `<memory_dir>/<slug>/<sub-slug>/`,
-the layout a producer uses when one slice holds more than one run: a
-parallel fan-out assigning a sub-slice per topic, or a run that found the
-slice root already occupied by unrelated work. Glob patterns do not
-descend on their own, so without the nested group a spawned worktree
-carries the top-level index and silently drops every nested index,
-sidecar, and ledger. That partial set is worse than carrying nothing: the
-receiving session sees an artifact and has no way to tell it is
-incomplete.
+The rest of the recipe is **keyed on the reserved memory-tier names,
+not on how deep a slice happens to sit**: `.work/**/NAME` matches zero
+or more intervening directories, so one line covers the memory root, a
+slice, a sub-slice under an epic, and anything deeper a fan-out
+creates. This is the last recipe migration a consumer ever needs; new
+depths require no pattern change. (Depth-enumerated globs, the pre-v3
+recipe, silently dropped every level past the last one written down,
+and a partial carry is worse than none: the receiving session sees an
+artifact with no way to tell it is incomplete.) Baselines and raw
+scratch stay uncarried, machine-bound as ever.
+
+Two carry caveats. The pattern syntax is gitignore syntax, including
+`**`, in both mechanisms that honor this file, but the carry is not a
+git-native sync: the source-control plugin's `worktree-create.sh`
+reimplements it via `git ls-files --exclude-from` pattern matching, and
+the `**` semantics are verified empirically for that reimplementation
+only. And because the knowledge seam shape-unifies to `INDEX.md` under
+a `.work` root, `.work/**/INDEX.md` also carries corpus-slice indexes
+into spawned worktrees; a corpus-heavy consumer may add its own
+exclusion lines to its consumer-owned `.worktreeinclude` (the corpus
+snapshots themselves match no reserved-name pattern and are never
+carried, deliberately).
 
 Also gitignore `.claude/worktrees/` so worktree contents never appear
 as untracked files. Rollout caveats: pulling a commit that adds
@@ -468,17 +643,27 @@ cite it rather than redefining it.
 - Windows-reserved base names (`con prn aux nul com1-9 lpt1-9`) take an
   `-x` suffix.
 - Collision authority is the contract slice on the branch. Same derived
-  slug + existing dir = **resume**. A genuinely new task disambiguates
-  with a scope qualifier or an ISO date suffix — never a bare ordinal.
+  slug + existing dir = **resume** — unless the slice's `INDEX.md`
+  frontmatter says `status: done`: a done slice is closed, so a
+  same-slug re-derivation **disambiguates, never resumes**. A genuinely
+  new task disambiguates with a scope qualifier or an ISO date suffix —
+  never a bare ordinal.
 - Timestamps in filenames: ISO-basic UTC `YYYYMMDDTHHMMSSZ` (no colons).
 - Reserved first-level names under the memory root: `handoffs`,
-  `reviews`, `running-retros`, `overengineering`, `exports` (a topic
-  slug that collides takes the `-x` suffix).
+  `reviews`, `running-retros`, `overengineering`, `exports`, `lanes`
+  (the claude-ops lanes skill's state home — `lanes.json` plus lane
+  prompt files — which resolves a literal `.work` root by its own
+  stated carve-out, not `memory_dir`). A topic slug that collides with
+  a reserved name takes the `-x` suffix. These names stay flat: the
+  slice-tree recursion does not apply to them unless their own contract
+  says otherwise.
 - The same slug names the topic in both tiers — that is the traceability
   bridge.
 
-Stage-file naming: UPPERCASE files (`EXPLORE.md`, `RESEARCH.md`,
-`PRD.md`, `PLAN.md`) are cross-stage contract/handoff documents;
+Stage-file naming: UPPERCASE files (`INDEX.md`, `EXPLORE.md`,
+`RESEARCH.md`, `INTENT.md`, `PRD.md`, `PLAN.md`, `SOURCES.md`) are
+reserved cross-stage contract/handoff documents — the same set the
+child-slice predicate keys on;
 kebab-case files (`<stage>-checklist.md`) are auxiliary process ledgers.
 Folders are nouns (`design/`, `baselines/`, `verification/`). Repeated
 rounds of a stage append dated sections; a genuinely distinct scope takes
@@ -587,7 +772,7 @@ relationship to the contract is fully stated by their table row.
 | Plugin | Writes | Tier(s) | Binding |
 |---|---|---|---|
 | adhd | rendered decision-table HTML view | ephemeral | by reference — the ephemeral row's five rules are its entire relationship |
-| discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
+| discovery | `EXPLORE.md`, `RESEARCH.md`, `INTENT.md` | memory | delta doc |
 | architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers); deepening HTML report | memory + ephemeral | delta doc |
 | coupling | `coupling-ledger.md` (repo-scoped finding ledger, updated in place; constant-slug delta) | memory | delta doc |
 | planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist; five optional rendered HTML views (dense-round decision table, PRD pitch, brainstorm reaction page, plan view, design topology) | contract + memory + ephemeral | delta doc |
@@ -598,8 +783,8 @@ relationship to the contract is fully stated by their table row.
 | overengineering | `findings.md` — enforcement-surface audit findings, statuses updated in place by its realign skill | memory (`overengineering/<branch-slug>/`) | delta doc |
 | work-items | per-topic action ledger; tracker projections | memory; ticket edge | delta doc |
 | toolchain | nothing of its own — its setup skill offers the concern file | — | delta doc |
-| knowledge | ingest trees — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names), and its nested `<epic>/<slug>/` sub-slices are sanctioned | memory (carved out) | by reference — the carve-out above is its entire delta |
-| claude-ops | telemetry | machine state | by reference — machine state resolves no contract paths |
+| knowledge | ingest trees; `SOURCES.md` (docpage-digest's source inventory, a reserved artifact name) — **formal carve-out**: its work root resolves through its own `library_dir` seam, not `memory_dir`; slug conformance is form-only (charset/reserved names); inside the seam the corpus tree is shape-unified to this contract's slice and `INDEX.md` rules (see [The corpus seam](#the-corpus-seam)) | memory (carved out) | by reference — the carve-out above is its entire delta |
+| claude-ops | telemetry; lane state (`lanes.json` + lane prompts) under the reserved `.work/lanes/` | machine state + memory (`lanes/`) | by reference — the lanes skill states its own literal-`.work` carve-out |
 | education | per-concept `lesson` / `reference` / `exercise` slices; `quiz-me` report library (`recall` reads it back); `primer` vocabulary-ladder HTML | machine state + ephemeral | by reference — its workspace and report library are its own `${CLAUDE_PLUGIN_DATA}` layouts, and only the workspace-less `primer` render resolves a path this contract owns |
 | docs-hygiene | (reader) audit-noise detector recognizes these shapes | — | by reference — reads shapes, writes nothing |
 
@@ -650,3 +835,10 @@ on seeing, per the visibility matrix) is a **major** contract change,
 and every implementer adopts it in the same release wave (clean break —
 this contract carries no compatibility machinery). Additive guidance is
 minor.
+
+v3.0.0 is such a major: the recursive slice tree, the `INDEX.md`
+reservation with its read-first binding, the frontmatter-state and
+generated-body split, index-declared ordering, the child-slice
+predicate, the `SOURCES.md` rename, the `lanes/` reserved name, and the
+depth-proof carry recipe all landed in one wave, with every implementer
+flipped in the same release. There is no v2 compatibility mode.
