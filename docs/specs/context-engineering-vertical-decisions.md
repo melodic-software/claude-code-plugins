@@ -21,7 +21,7 @@ subdirectories, and `context-budget:audit` and `docs-hygiene:audit-progressive-d
 own the measurement. What the corpus adds is a *why* worth citing when those surfaces are
 questioned: the attention-budget and context-rot mechanism, and the guiding principle that the
 target is the smallest set of high-signal tokens rather than the shortest document. Both are
-recorded in [`corpus-knowledge.md`](corpus-knowledge.md) with their sources.
+recorded in [`context-engineering-corpus-knowledge.md`](context-engineering-corpus-knowledge.md) with their sources.
 
 One caveat the sources do not supply and this repo already knows: its own rules table documents that
 the path trigger does not fire inside subagents and can lapse after a compaction. Progressive
@@ -38,7 +38,7 @@ The newer source's claim is that worked examples constrain a capable model's exp
 that expressive parameters (an enum, one behavioral constraint line) teach usage better than a
 worked example does. The older source from the same publisher advises the opposite, strongly, for
 few-shot prompting. That reversal is real and generational, not a contradiction to resolve by
-picking a winner. See [`critical-apparatus.md`](critical-apparatus.md), cross-source tensions.
+picking a winner. See [`context-engineering-critical-apparatus.md`](context-engineering-critical-apparatus.md), cross-source tensions.
 
 Resolution for this repo:
 
@@ -61,7 +61,7 @@ Resolution for this repo:
 The corpus's per-surface guidance (system prompt, CLAUDE.md, skills, references, memory) maps onto
 machinery this repo already has in `instruction-placement:*`, whose Gate 0 and routing rubric are
 more specific than the article's prose. Two upstream facts do change what the repo may say, and both
-are now recorded in [`corpus-knowledge.md`](corpus-knowledge.md):
+are now recorded in [`context-engineering-corpus-knowledge.md`](context-engineering-corpus-knowledge.md):
 
 - The `#` memory hotkey was **removed** (Claude Code changelog v2.0.70), not merely de-emphasized.
   Any repo text implying it exists is wrong.
@@ -83,7 +83,7 @@ artifact this integration adds, and it lands as a convention rather than as doct
 The claim is that a spec is better expressed as code, a test suite, an HTML artifact, or a rubric
 than as prose. This repo's planning pipeline already does the strong form of this: PLAN.md briefs
 carry acceptance criteria, the verification plugins carry rubrics, and the dynamic-workflows
-capability (documented upstream, see [`linked-sources.md`](linked-sources.md)) supplies the
+capability (documented upstream, see [`context-engineering-linked-sources.md`](context-engineering-linked-sources.md)) supplies the
 verifier-agent pattern the source points at.
 
 The gap: this repo has no convention for *mockups or visual references* as specs, because it ships
@@ -119,18 +119,19 @@ as a convention-level input rather than a new convention.**
 The original answer deferred graduation to a later pass. That was wrong for the same reason the
 whole deferral posture was wrong: the memory tier does not survive. Resolved as:
 
-- **Graduated** into this directory: the corpus knowledge base, the critical apparatus, the linked
-  sources, and this decisions record. These are the durable artifacts.
+- **Graduated** into `docs/specs/` through the knowledge-vault seam: the corpus knowledge base,
+  the critical apparatus, the linked sources, and this decisions record. These are the durable
+  artifacts.
 - **Not graduated**: the byte-verified digest slices, pin manifests, verification verdicts, and
   reconciliation tables. They are process evidence for a run that has already been adjudicated, and
   committing 800K of them would trade a real cost for no reader's benefit. Their *conclusions* are
   in the graduated docs; the fact that they existed and what they proved is recorded in
-  [`corpus-knowledge.md`](corpus-knowledge.md).
+  [`context-engineering-corpus-knowledge.md`](context-engineering-corpus-knowledge.md).
 - **Custody findings** (silent page revision, figure-only evidence, provenance stripping through
   text extraction, link defects, contradictory vendor lists, the documented generational reversal in
   official docs) are recorded in the corpus doc, and the one with a mechanism behind it, the silent
   revision, is filed against the `upstream-drift` convention's deferred content-hashing decision as
   near-miss evidence rather than as a new convention.
 
-**Changes: this directory's four documents, plus the upstream-drift changelog entry shipped
-separately.**
+**Changes: the four graduated `docs/specs/context-engineering-*.md` documents, plus the
+upstream-drift changelog entry shipped separately.**

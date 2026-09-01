@@ -70,7 +70,7 @@ Three things this explicitly is not:
 - **Not a proof of harmlessness.** It is bounded evidence over a stated window, and the window is
   named in the commit so a later reader can judge its weight.
 - **Not available for a protected class.** A rule matching the [instruction exception
-  register](../../../conventions/instruction-exception-register/README.md) is not deletable at all,
+  register](../conventions/instruction-exception-register/README.md) is not deletable at all,
   so it never enters a watch. Compression in place or hook conversion are its remedies.
 - **Not required for the editorial tier.** Derivable content, restated obviousness, and stale
   model-era scaffolding are deleted on the auditing skill's normal criteria without a watch. The
