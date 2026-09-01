@@ -225,7 +225,7 @@ row); `test "$(grep -c 'Open, new' docs/topics/context-engineering-claude-5/PLAN
 carries a non-empty disposition (`! grep -E '^\- V[0-9]' disposition-ledger.md | grep -q '\|\s*$'`);
 `npx markdownlint-cli2` over the touched docs exit 0.
 
-### Phase 3: discovery plugin — blindspot contract deltas [TODO]
+### Phase 3: discovery plugin — blindspot contract deltas [DONE]
 
 plugins/discovery/skills/blindspot/SKILL.md: D1 typed finding taxonomy in the output
 contract; D4 scan-scope disclosure line (POLICY). Extend evals/evals.json expectations for

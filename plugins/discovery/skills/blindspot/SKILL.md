@@ -43,9 +43,9 @@ understanding rather than the agent's.
      would break.
    - **Domain lane**. Build a lightweight vocabulary ladder grounded in sources fetched this session
      (repo files, official docs), never bare training recall.
-3. **Output. Blindspot cards.** One card per blindspot: the gap, why it matters here, and a copyable
-   prompt-fix line. Close by assembling the fixes into ONE improved implementation prompt the user can
-   run next.
+3. **Output. Blindspot cards.** One card per blindspot, typed by the kind of gap it is (Landmine /
+   History / Convention / Missing concept): the gap, why it matters here, and a copyable prompt-fix
+   line. Close by assembling the fixes into ONE improved implementation prompt the user can run next.
 4. **Escalate when depth warranted**, a domain too deep for a lightweight ladder gets a recommendation
    to run proper external research (`/discovery:research`) or whatever structured-learning capability
    the environment provides.
@@ -54,12 +54,20 @@ understanding rather than the agent's.
 
 Present each blindspot as a card:
 
+- **Type**, one of four: **Landmine** (the change would break something non-obvious), **History**
+  (a constraint whose reason the code no longer shows), **Convention** (an unwritten team rule the
+  work must follow), or **Missing concept** (a domain idea the user's framing never named). The
+  type tells the user which kind of unknown they were carrying, so repeated runs teach a pattern.
 - **Gap**, the specific thing the user's current framing did not account for.
 - **Why it matters here**, the concrete consequence in this codebase or domain, not a generic caution.
 - **Prompt-fix**, a single copyable line the user can drop into their prompt to close the gap.
 
 Then assemble every prompt-fix into ONE improved implementation prompt, wrapped in clear
 copy-start / copy-end markers so the exact text to reuse is unambiguous.
+
+End with one scan-scope disclosure line: which lane(s) ran and what was and was not scanned (areas
+read, sources fetched), so the user knows what the cards do and do not cover. One line, not a
+methodology dump.
 
 This skill does NOT write `EXPLORE.md`. Its deliverable is the user's understanding plus the improved
 prompt. When the scan's findings also serve as stage-1 codebase exploration, offer to hand off to

@@ -11,7 +11,9 @@
         "Output builds the USER's understanding (blindspot cards + an improved prompt), not just the agent's internal findings",
         "The run asks one intake question about the user's starting point before scanning",
         "Each blindspot is expressed as a card naming the gap, why it matters here, and a copyable prompt-fix line",
+        "Each card carries a finding type from the four-way taxonomy: Landmine, History, Convention, or Missing concept",
         "Output closes by assembling the fixes into a single improved implementation prompt the user can run next",
+        "The output ends with a one-line scan-scope disclosure naming which lane(s) ran and what was and was not scanned",
         "The run does not write EXPLORE.md"
       ]
     },

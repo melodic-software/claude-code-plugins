@@ -1,5 +1,19 @@
 # Changelog — discovery plugin
 
+## [0.17.0]
+
+### Added
+
+- **`blindspot`: typed finding cards and a scan-scope disclosure line.** Each blindspot card now
+  leads with a finding type from a four-way taxonomy — Landmine (breaks something non-obvious),
+  History (a constraint whose reason the code no longer shows), Convention (an unwritten team
+  rule), Missing concept (a domain idea the framing never named) — so repeated runs teach the user
+  which kinds of unknowns they tend to carry. The output also ends with a one-line scan-scope
+  disclosure naming which lane(s) ran and what was and was not scanned. Adopted from the
+  "Finding Your Unknowns" corpus at the integration sign-off (team-convention tier, evidence and
+  provenance in `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository); evals extended to
+  cover both contract lines.
+
 ## [0.16.18]
 
 ### Fixed
