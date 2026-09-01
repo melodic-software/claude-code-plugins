@@ -1,5 +1,18 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.30]
+
+### Fixed
+
+- **`audit-noise`: the negation rule's worked example is now attributed to its source.** The example
+  rewriting *"Do not use markdown"* into the positive form comes from Anthropic's Claude 4
+  best-practices page, but `SKILL.md`'s `## Sources` section credited only Diataxis, markdownlint and
+  the topic-docs convention, so a reader could not tell which text came from upstream. Found by a
+  repo-wide `provenance:audit` run: three blind rubric judges reached a unanimous STANDS on C3
+  (attribution adequacy), because the attribution present did not cover this derivation. The source
+  is added with its read date; the pointer was fetched and identity-checked at edit time, and the
+  page still carries both halves of the example. Additive only.
+
 ## [0.21.29]
 
 ### Fixed

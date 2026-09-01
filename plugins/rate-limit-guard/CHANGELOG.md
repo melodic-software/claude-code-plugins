@@ -3,6 +3,17 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.22]
+
+### Changed
+
+- **`reference/reader-contract.md` gains an observable recheck trigger.** The file carried dated
+  claims about the statusline `rate_limits` payload with no stated event obliging re-derivation. It
+  now names them: the `statusline` doc changing its `rate_limits` schema, or Claude Code shipping
+  statusline wiring or a persistent filesystem in cloud and remote-session containers, which is the
+  event the file's own "Documented residual" section already treats as the path to proactive mode.
+  Additive only.
+
 ## [0.7.21]
 
 ### Fixed

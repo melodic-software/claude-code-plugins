@@ -3,6 +3,18 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.11]
+
+### Changed
+
+- **`stateless`: `reference/official-guidance.md` gains an observable recheck trigger.** The file
+  carried eleven dated stamps and a "refresh before relying on it" note, which is a usage condition
+  rather than an event someone could notice, so nothing said when its auto-memory claims stop being
+  current. It now names the observable events: the `/memory` command gaining, losing or renaming its
+  auto-memory toggle, `autoMemoryEnabled` or `CLAUDE_CODE_DISABLE_AUTO_MEMORY` changing name,
+  default or semantics, the per-project memory path moving, or any of its five source pages changing
+  that section. Additive only.
+
 ## [0.11.10]
 
 ### Changed

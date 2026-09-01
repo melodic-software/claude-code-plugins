@@ -7,6 +7,13 @@ The governing rule: **a capture or input failure is almost always environment st
 defect.** Retrying an action that failed for an environmental reason will fail identically.
 Diagnose, then either fix or hand it to the operator.
 
+**Recheck trigger:** re-verify the measurements below if Claude Desktop's computer-use tool ships
+a release that changes how synthesized input interacts with the OS idle timer, changes the
+allowed-applications focus gate's behavior, or changes capture behavior on a locked or
+screensaver-covered desktop; or if the [Cowork computer
+use](https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork)
+support article's requirement that the machine be awake changes.
+
 ## The idle timer does not see Claude
 
 The single most disruptive finding, and the least obvious.

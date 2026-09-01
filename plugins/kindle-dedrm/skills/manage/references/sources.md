@@ -14,6 +14,8 @@ Every URL this skill depends on, with purpose, drift signal, and last-fetched fi
 
 Upstream moved 2026-07 (re-probed 2026-07-19): the prior URL `remove-drm-from-kindle-ebooks/` now returns HTTP 404. Its successor is inferred to be `drm-removal-from-kindle-ebook-purchases-old-method/` (the site relabeled the Kindle-for-PC + KFXKeyExtractor approach the "OLD Method" and returns HTTP 200 for that slug) — NOT read-confirmed as the same procedure, because the article is now subscriber-gated. The `update` action can therefore no longer walk the public body for the current Key_Finder zip URL; it HEAD-probes the pinned direct zip URL in `references/versions.md` instead. Propagate any new pin there. See the epubor secondary below and the MSIX-successor note when the OLD Method finally breaks.
 
+**The successor is now dead too (re-probed 2026-08-31): `drm-removal-from-kindle-ebook-purchases-old-method/` returns HTTP 404**, with and without the trailing slash, under a browser user-agent. The site root still returns 200, so this is a removed article rather than a dead domain, and the Wayback Machine holds no snapshot of it. This entry therefore has **no live basis**: the key claims recorded above are what was read on 2026-05-10 and nothing has re-derived them since. Treat them as unverified, not current. *Recheck trigger:* any of these becoming true — the site publishes a replacement article for the Kindle-for-PC + KFXKeyExtractor route, an archived snapshot appears, or the epubor secondary below contradicts a recorded claim. Until one of them fires, the secondary is the only walkable source and `references/versions.md`'s pinned zip probe is the only live drift signal.
+
 ## Secondary tutorial (cross-check)
 
 | Field | Value |
