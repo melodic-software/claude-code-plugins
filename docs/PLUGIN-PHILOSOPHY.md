@@ -629,6 +629,8 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Always-on hook cost ceiling | [`docs/conventions/hook-budget/`](conventions/hook-budget/README.md) |
 | Tracker reference form inside a code comment | [`docs/conventions/tracker-reference-form/`](conventions/tracker-reference-form/README.md) |
 | Untrusted-content framing contract | [`docs/conventions/untrusted-content/`](conventions/untrusted-content/README.md) |
+| Reply affordance on decision-collecting artifacts | [`docs/FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md#reply-affordance-convention) |
+| Export button on interactive HTML artifacts | [`docs/FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md#export-button-rule) |
 
 ## Cross-platform contract
 

@@ -193,7 +193,7 @@ Part E + G-block):
 `npx markdownlint-cli2 docs/FINDING-YOUR-UNKNOWNS.md` exit 0 (affected-tests classes
 docs/*.md as no-suite — the hygiene tools must be invoked directly).
 
-### Phase 2: Governance placements — registry, glossary, ctx-eng sequencing, traceability ledger [TODO]
+### Phase 2: Governance placements — registry, glossary, ctx-eng sequencing, traceability ledger [DONE]
 
 - docs/PLUGIN-PHILOSOPHY.md convention registry: add exactly 2 names-and-points rows
   (reply-affordance → the F1 doc's owner section; export-button → same). The registry

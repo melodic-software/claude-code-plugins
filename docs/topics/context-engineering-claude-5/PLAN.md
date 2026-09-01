@@ -1167,6 +1167,19 @@ them.
 - **Open, new** — whether `mcp-tools:audit` actually covers tool-search configuration. The gate
   defers the "deferred tool loading is unowned" remainder out of scope on that basis, which is a
   negative claim about a body nobody has read. Task #44.
+- **Open, new** — a skill-body "genericness" check candidate for `skill-quality:check` (could this
+  skill body be pasted into any repo unchanged?), recorded as an input by the
+  finding-your-unknowns integration (2026-09-01, its topic's signoff-sheet, F2). Resolution
+  belongs to this topic's check-design phases, not that effort.
+- **Open, new** — widening `claude-config:audit-instructions` check I29 (restatement families
+  I29-a/I29-b) with the companion article's repetition-myth duplication lens, recorded as an
+  input by the same F2 reroute. Owner: the phase that next touches the I-check catalog.
+- **Open, new** — a `claude-memory:audit` cross-ref against this topic's `/doctor` prerequisite
+  contract (design/checks-and-sweep.md), recorded as an input by the same F2 reroute.
+- **Note (2026-09-01):** Phase 10's sweep re-inventories current state before running — its
+  recorded surface counts predate the finding-your-unknowns waves landing on
+  `claude/reading-feedback-j4sg96` and are stale; the sweep rebases over whatever has landed.
+  That effort touches none of this topic's audit-instructions criteria files.
 
 ## Handoff to implementation
 

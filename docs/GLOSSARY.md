@@ -72,6 +72,21 @@ The healthiest of `context-guard`'s three context zones (`smart` / `acceptable` 
 the band rather than any token figure — the band numbers are declared judgment defaults and tunable
 per consumer.
 
+**unknowns quadrants**
+
+The four-way pre-prompt breakdown — known knowns, known unknowns, unknown knowns, unknown
+unknowns — used to decide which unknown-finding pass a task needs. Owned by
+[`FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md); entries cite it rather than restating the
+quadrants.
+
+**blindspot finding types**
+
+The typed taxonomy a blindspot pass reports its findings in: Landmine (breaks something
+non-obvious), History (a constraint the code no longer shows), Convention (an unwritten team
+rule), Missing concept (a domain idea the prompt never named). The output contract lives in
+`discovery:blindspot`; the taxonomy's rationale in
+[`FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md).
+
 ## Rejected terms
 
 Names considered for a concept this project already owns, recorded so they are not reintroduced.
@@ -86,11 +101,17 @@ Each maps to the term or doctrine that owns the concept.
 | cache *(the doc-restating-environment sense)* | `docs-hygiene:audit-derivability`'s derivable-from-environment doctrine; the word is overloaded here (plugin cache, prompt cache) |
 | sediment | the `docs-hygiene` audit family's pruning doctrine; collides with the code-sense use in `playbooks:fable-5` |
 | sycophancy | nothing — a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is simply not project vocabulary |
+| map / territory | the source author's metaphor, cited where it appears in [`FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |
 
 ## Provenance
 
-Every term above was graded and adopted in lane 6 of the AI Hero course vetting
+Terms through "smart zone" were graded and adopted in lane 6 of the AI Hero course vetting
 (2026-08-18). The decision rows, including the basis for each verdict and the rejected-term
 mappings, are in [`upstream/aihero-course.md`](upstream/aihero-course.md) under "Term adoption".
 Materialization of this file was tracked as
 [#3000](https://github.com/melodic-software/claude-code-plugins/issues/3000).
+
+"unknowns quadrants", "blindspot finding types", and the map/territory rejected-terms row were
+adopted at the finding-your-unknowns integration sign-off (2026-09-01); the decision rows are in
+[`topics/finding-your-unknowns-integration/signoff-sheet.md`](topics/finding-your-unknowns-integration/signoff-sheet.md)
+Part E.
