@@ -10,7 +10,8 @@
       "expectations": [
         "Flags both the verbatim-pasted reference and the reworded paraphrase as duplication findings",
         "States that a reworded paraphrase drifts the same as a verbatim copy",
-        "Corrects forward by replacing the copied content with a pointer/citation to the owning source"
+        "Corrects forward by replacing the copied content with a pointer/citation to the owning source",
+        "In a cross-stack port, a source-side primitive with no target analogue is flagged unless the port names the convention now carrying its invariant"
       ]
     },
     {

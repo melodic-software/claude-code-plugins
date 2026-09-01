@@ -1,5 +1,6 @@
 ---
 description: "Re-anchor pointer-over-copy discipline, then audit the work in flight for copied content, internal-name coupling, and closed capability lists, and correct by pointing at the living source. Use when: 'point don't copy', 'you copied that', 'don't duplicate the docs', 'cite instead of paste', 'link don't restate', 'you enumerated the tools', 'that couples to internal names', 'this will drift', or at conversation start on documentation work."
+argument-hint: "[target] (e.g., /discipline:point-dont-copy the new setup guide, or empty to audit the work in flight)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -81,7 +82,12 @@ Name concrete, located findings (per the method doc's step 2, self-audit):
   invocation contract would do;
 - a closed enumeration of duties or mechanisms that will drift as the
   surface evolves;
-- the same passage, literal, or concept appearing in two or more places.
+- the same passage, literal, or concept appearing in two or more places;
+- in a port from another stack or language: a source-side primitive with no
+  target-side analogue (a language feature, a library guarantee, an
+  implicit runtime behavior) whose invariant the port silently drops. The
+  port must name the convention now carrying that invariant, or the
+  finding stands.
 
 Correct each forward now: replace the copy with a pointer to its owner,
 swap an internal-name reference for the public contract, and reopen a

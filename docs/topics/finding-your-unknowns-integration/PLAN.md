@@ -295,7 +295,7 @@ affected-tests does not select it for SKILL.md/context edits; D28 must not break
 register gate); evals growth for interview/plan/design (before/after jq pairs);
 `bash scripts/check-changed-skills.sh origin/main` green.
 
-### Phase 8: discipline plugin — point-dont-copy W2 deltas [TODO]
+### Phase 8: discipline plugin — point-dont-copy W2 deltas [DONE]
 
 point-dont-copy SKILL.md: E7 primitive-to-convention trap item (CONTRACT) in the
 "Audit. What to look for" list; E8 canonical invocation line (as `argument-hint`
