@@ -155,18 +155,35 @@ unhobble records.
 
 ### Deferred questions
 
-- Q8 — split routing of gap clusters (arbiter: USER-RESERVED; recommended split above).
-- Q9 — drop /doctor overlap run + CF-7 wording fix (arbiter: USER-RESERVED).
-- Q10 — OPINION-tier + snapshot citations + CF-1 as near-miss evidence, hash store as its
-  own issue (arbiter: USER-RESERVED).
-- Q11 — cite-only now; graduation to V7 after v3 (arbiter: USER-RESERVED).
-- Q12 — critical-apparatus home pending V7/v3 (arbiter: USER-RESERVED).
-- Q13 — P2-slice corrections round 4 (arbiter: USER-RESERVED).
-- Q14 — input-note placement + phase references + tracker receipts (arbiter: USER-RESERVED).
-- Q15 — is `docs/topics/context-engineering-claude-5` alive: resume, finish, or
-  absorb-and-close? (arbiter: USER-RESERVED; surfaced by the devils-advocate pass).
-- Q16 — sequencing of this integration against the topic-docs v3 clean-break wave (#3552)
-  (arbiter: USER-RESERVED).
+All USER-RESERVED items were resolved by the operator's sign-off (2026-09-01, full sheet);
+none remain deferred. Resolutions and receipts:
+
+- Q8 — split routing ADOPTED: execution-changing inputs via the design note; G-SEC → #3566;
+  G-THESIS/G-PRECOND ride the corpus; G-GOV → #3568.
+- Q9 — /doctor overlap run DROPPED; CF-7 wording fix carried in the note (payload 4).
+- Q10 — ADOPTED as revised: upstream-drift CHANGELOG 1.6.3 near-miss entry (deferral
+  untouched, trigger not fired); hash store → #3567.
+- Q11 — cite-only now; graduation deferred to V7, after topic-docs v3.
+- Q12 — critical apparatus rides the corpus slices pending V7 + v3; this Brief + trackers
+  are the durable pointers.
+- Q13 — EXECUTED: P2-slice corrections round 4 applied (figure transcriptions, compaction
+  caveat, economics grounding), PNG re-verified, standing gates 12/12 PASS, re-pinned.
+- Q14 — EXECUTED: `design/corpus-input-2026-09-01.md` + header/Phase 8/Phase 10 references
+  in the prior plan (one commit).
+- Q15 — FINISH the prior plan (phases 8-11; the note is a mandatory Phase 10 input).
+- Q16 — topic-docs v3 wave FIRST; v3-dependent work (Q11/Q12/C1-class) sequences after it.
+
+### Execution receipts
+
+Tracker items: #3562 (C6 exception register), #3563 (C7 deletion-evidence attribution
+design), #3564 (C8 orchestrate reconciliation + annotation), #3565 (C9 I15 boundary reopen,
+written to survive any prior-plan outcome), #3566 (G-SEC security caveats), #3567 (hash
+store designed-issue placeholder), #3568 (G-GOV ownership decision). Commits: 6b7cd132
+(contract), 48d851ea (validator findings), 0c8bc335 (C2/C3/C5 batch), plus this one.
+Operational note: the work-item-tracker seam's `create-item` requires gh >= 2.94 and this
+cloud environment ships 2.45 (seam exit 3), so receipts were filed through the bound GitHub
+adapter's provider-mechanic path (repo-scoped REST) — coordination verbs (claim/lease) were
+not needed for solo-session creates.
 
 ## Plan
 
