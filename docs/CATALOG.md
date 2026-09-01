@@ -117,7 +117,7 @@ plugin manifests and kept in sync by CI — never hand-edit it; the category voc
 
 ## Learning
 
-- [`education`](../plugins/education) — Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, a one-shot plain-language explainer that drops anything to genuinely plain words, and a post-work comprehension check that quizzes the human on a completed change.
+- [`education`](../plugins/education) — Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, a one-shot plain-language explainer that drops anything to genuinely plain words, a picture explainer that answers the same question as a diagram-led HTML artifact for someone who knows nothing about the topic, and a post-work comprehension check that quizzes the human on a completed change.
 
 ## Music
 
