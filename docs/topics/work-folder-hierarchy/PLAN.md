@@ -44,10 +44,14 @@ the reviewable substrate/flip separation the staging intended.
    `contract-slice-baseline.txt` lines dropped; coverage audit produced.
    (Brief decision 6)
 5. **W5 index-regen lib script + tests**: marker-delimited body regen from
-   child headers per T1-T4; registered in the cross-plugin source
-   registry; per-plugin synced copies. (blocked by Phase 0)
-6. **W6 dispatch-gate rework**: exact-assigned-path grading +
-   `--check-children` parity; tests updated. (T5; blocked by Phase 0)
+   child headers per T1-T4, including the orphan-parity check both
+   directions via T5's child-slice predicate (parity lives here, not in
+   the gate); registered in the cross-plugin source registry; per-plugin
+   synced copies. (blocked by Phase 0)
+6. **W6 dispatch-gate rework**: exact-assigned-path grading only — the
+   gate stays header-blind; plus the parent-side collision move across
+   discovery's instruction surfaces; tests updated. (T5; blocked by
+   Phase 0)
 
 Each workstream: worker implements → fresh-context verifier grades the
 diff against the thread's criteria → orchestrator runs
