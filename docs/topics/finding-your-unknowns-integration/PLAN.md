@@ -262,7 +262,7 @@ no em dashes in any new line here.
 **Sanity Check:** grep both lines in confirm SKILL.md; evals growth (before/after jq pair);
 `bash scripts/check-changed-skills.sh origin/main` green; `bash scripts/check-purged-em-dashes.sh` green.
 
-### Phase 6: prototype plugin — explore-directions + pressure-test deltas [TODO]
+### Phase 6: prototype plugin — explore-directions + pressure-test deltas [DONE]
 
 explore-directions SKILL.md: D20 same-data control-variable rule (POLICY); D21 structured
 steal/graft capture; D22 machine-legible reply template (shaped as the skill's OWN output

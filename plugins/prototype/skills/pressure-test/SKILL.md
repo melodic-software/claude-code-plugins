@@ -73,6 +73,15 @@ business, not the reducer, because the driver is not reading code:
    case, an attempt at something that should be illegal. Each is a short plain-language
    description plus the ordered buttons to press; starting a walkthrough **resets to a known
    initial state** so the scenario runs the same way every time.
+5. **Validation answer set**, the questions this demo exists to answer, each as a forced choice
+   with a small authored option set, every option naming its cost in plain language (what
+   picking it gives up), plus a free-text escape hatch for the answer the options missed. The
+   driver's picks are the demo's real output; pair the set with a copy-out control that lifts
+   the filled answers back out as text to paste into the session.
+6. **Fake-data disclosure footer**, one visible line stating the page is synthetic end to end,
+   that nothing on it reads from or writes to the real app, and where the real wiring lives (or
+   will live) behind which flag. The driver is not reading code; the footer is what keeps a
+   convincing mock from being mistaken for the wired feature.
 
 Constraints (the same set as explore-directions' HTML mockup substrate):
 
@@ -172,9 +181,11 @@ Prototypes evolve.
 
 ### 7. Capture the answer
 
-When done, capture what the prototype taught (per the shared discipline). The logic module behind
-the shell is often worth keeping; the shell, TUI or HTML page, is not: lift the validated
-module into production and delete the shell.
+When done, capture what the prototype taught (per the shared discipline). For the HTML demo
+shell, carry the filled validation answer set into the durable answer verbatim: the chosen
+option per question, with the cost the driver accepted, is the record of what was actually
+decided. The logic module behind the shell is often worth keeping; the shell, TUI or HTML page,
+is not: lift the validated module into production and delete the shell.
 
 ## Anti-patterns
 
