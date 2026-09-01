@@ -112,6 +112,6 @@ Materialization of this file was tracked as
 [#3000](https://github.com/melodic-software/claude-code-plugins/issues/3000).
 
 "unknowns quadrants", "blindspot finding types", and the map/territory rejected-terms row were
-adopted at the finding-your-unknowns integration sign-off (2026-09-01); the decision rows are in
-[`topics/finding-your-unknowns-integration/signoff-sheet.md`](topics/finding-your-unknowns-integration/signoff-sheet.md)
-Part E.
+adopted at the finding-your-unknowns integration sign-off (2026-09-01); the decision record is
+[ADR 0025](adr/0025-adopt-the-unknowns-corpus-as-judgment-preserving-contract-deltas.md) and the
+shipping PR carries the full decision sheet.
