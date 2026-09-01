@@ -1,5 +1,11 @@
 # Changelog — session-flow plugin
 
+## [0.34.19]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
 ## [0.34.18]
 
 ### Fixed
