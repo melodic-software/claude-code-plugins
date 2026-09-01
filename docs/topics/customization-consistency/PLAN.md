@@ -271,7 +271,7 @@ repo-only and the 2a ADR records the machine-scope exclusion; the twins' drift f
 detection prose is deleted (`grep -n "shim-revision\|legacy" <plugin setup>` only in the
 rationale line or gone); per skipped plugin, the rationale line exists.
 
-### Phase 2d: Surface-migration PRs [TODO]
+### Phase 2d: Surface-migration PRs [DOING]
 
 Apply the amended criterion per surface (TEAM-SHARED prose config → consumer convention doc +
 AGENTS.md pointer discipline; per-operator-keyed / structured / policy-floor / state stays).
