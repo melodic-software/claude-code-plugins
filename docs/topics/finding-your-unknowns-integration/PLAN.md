@@ -375,6 +375,34 @@ all five gate commands above exit 0; issue URLs recorded in this PLAN; PR URL re
 the criterion-1 double sweep pasted as a dated note with zero unaccounted rows; criteria
 2-7 walk recorded.
 
+#### Close-out record (2026-09-01)
+
+- **Criterion 1 (traceability, both directions):** sweep A iterated all 48 V-id rows of
+  ./disposition-ledger.md — every row carries a disposition and target (zero blank). Sweep
+  B grep-verified all 45 executed sheet rows against their landed hunks — 45/45 PASS
+  (script: criterion1_sweep.sh, session scratchpad; output in the session record). Zero
+  unaccounted rows in either direction.
+- **Criterion 2 (gates):** per-phase gates ran green before each commit;
+  check-changed-skills.sh origin/main = 53 skills, 0 failed; check-purged-em-dashes.sh
+  clean; markdownlint 0 issues and typos clean across all 34 changed markdown files;
+  `node scripts/generate-cheatsheet.mjs --check` exit 0 (frontmatter argument-hint does not
+  feed the sheet, so no regeneration was needed); ai-slop detector 0 findings across the
+  changed set, rubric pass on the F1 doc clean.
+- **Criterion 3:** F1 carries the codification warning byte-faithfully with citation stamp
+  and the C6 fair-quotation basis (grep-verified in sweep B: C3-warn, C3-basis).
+- **Criterion 4:** two names-and-points registry rows landed pointing at F1's owner
+  sections, which carry the conformance surfaces (the Phase-2 reconciliation: the
+  two-column registry never restates; criterion satisfied by owner-section text).
+- **Criterion 5:** ctx-eng topic PLAN carries the three "Open, new" candidate bullets and
+  the Phase-10 rebase note; no phase headings touched (grep-verified).
+- **Criterion 6:** every W2/W3 contract delta's eval expectations landed in the same
+  commit as its contract lines (verifiable via `git log --name-only` per phase commit).
+- **Criterion 7:** this PLAN + ./signoff-sheet.md were the executed contract, phase by
+  phase.
+- **Follow-up issues filed:** #3589 (behavioral eval candidates), #3590 (E4 prd pitch-view
+  extension), #3591 (recorded triggers: D28 schema, Q11 flip, E1 registry row, V7.7
+  digest-pipeline lessons).
+
 ## Blast radius
 
 MEDIUM-HIGH. Six plugins' skill contracts change in one PR plus two governance docs and a
