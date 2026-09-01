@@ -275,7 +275,7 @@ message; `jq '.evals | length' plugins/adhd/skills/clarify/evals/evals.json`
 = 8 (prior 7 + 1 from the eval-4 split); `grep -in 'eli5' plugins/adhd/README.md`
 shows only lane-split-accurate text.
 
-### Phase 5: Manifests, README, changelogs [TODO]
+### Phase 5: Manifests, README, changelogs [DONE]
 
 - `plugins/education/README.md`: two-lane section (explain = adaptive prose,
   eli5 = fixed visual), the manual-install recipe (both commands + scope

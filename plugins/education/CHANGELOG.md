@@ -3,6 +3,32 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`eli5`, the visual explainer lane.** Answers a question as a diagram-led HTML artifact written
+  for someone who knows nothing about the topic: one idea per diagram, minimal text, real
+  identifiers kept but demoted to parentheses and monospace. It grounds itself in the actual
+  artifact first (reads the module, finds the decision record, reads the incident writeup) rather
+  than explaining from memory, and covers repository objects and general concepts alike. When the
+  community `eli5` plugin is installed it delegates to that skill; when the plugin is absent it
+  offers the install commands without running them, and produces the explainer itself either way.
+  Interception is best-effort by design: a typed `/eli5` reaches the upstream skill directly, and
+  the skill says so rather than claiming a guarantee the platform does not provide.
+
+### Changed
+
+- **`explain` is no longer the ELI5 destination.** The `ELI5` trigger keyword, the rung-1 label,
+  the five-year-old tone anchor, the invitation line, and the two eval strings that named ELI5 all
+  move to the new sibling. `explain` keeps every other trigger and its full altitude mechanism,
+  including the plain rung it opens at: it still simplifies, just not to a five-year-old. This
+  **reverses part of the 0.5.2 decision** that closed the explain/clarify trigger design with "All
+  existing `explain` trigger keywords are preserved"; that guarantee held while `explain` was the
+  only lane, and the split by medium supersedes it.
+- **`README.md` documents the two one-shot lanes** and the optional upstream plugin, including why
+  this plugin does not declare it as a hard dependency.
+
 ## [0.8.8]
 
 ### Changed
