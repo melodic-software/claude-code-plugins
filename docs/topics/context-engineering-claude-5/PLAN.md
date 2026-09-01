@@ -66,6 +66,9 @@ plus detectors for the gaps nothing covers.
   deliverable shape, the homing map, the `OPINION`-tier policy, and both independent reviews
 - [design/seam-resolution.md](design/seam-resolution.md) — Phase 2's record: no shared criteria
   artifact, with shape 4 reversed on four verified findings
+- [design/corpus-input-2026-09-01.md](design/corpus-input-2026-09-01.md) — dated input from the
+  signed-off context-engineering-integration effort: mandatory Phase 10 reconcile input, Phase 8
+  criteria-branch input (operator decision Q15: finish this plan)
 
 ### Goal
 
@@ -754,6 +757,12 @@ Review: architecture
 Per the Phase 5 map. Each check ships with its criteria citation (never a restatement), its
 false-positive carve-out, and evals where the owning plugin's conventions require them.
 
+**Mandatory input (added 2026-09-01):** read
+[design/corpus-input-2026-09-01.md](design/corpus-input-2026-09-01.md) before the criteria-edit
+branch — it carries the I15 boundary-reopen candidate (OPINION-tier, detectability-gated), the
+G-SEC caveat Phase 8's deletion-recommending checks must know exists, and settled upstream facts
+verified 2026-08-31/09-01.
+
 **Phase 3's specified criteria edits execute here**, on the implementation branch, because they touch
 live plugin files. Two further live-file corrections ride with them, both found during design and
 neither belonging to the docs branch: the stale path-scoping claim in `claude-memory`'s
@@ -795,7 +804,11 @@ Tasks #31, #30, #20. Order matters and is not the task order.
 
 1. **Reconcile first.** Diff what the parallel `fable-5` session changed and re-check the affected rows
    of `design/official-corroboration.md` — that skill is both a target of the pass and the doctrine
-   source its premises rest on.
+   source its premises rest on. **Mandatory input (added 2026-09-01):**
+   [design/corpus-input-2026-09-01.md](design/corpus-input-2026-09-01.md) — its payloads 3 and 4
+   (rerun-contract.md drift; official-corroboration.md line-3 venue wording) are Phase 10
+   reconcile items, and payload 1 (the never-engaged Anthropic engineering post) is reconcile
+   context.
 2. **Inventory all three scopes before applying any side's fixes.** D1 detects cross-surface conflict;
    it cannot see a repo↔user conflict from a repo-only inventory. `design/skill-inventory.md` names
    `~/.claude/CLAUDE.md` against the 15-skill `discipline` plugin as the most likely conflict site.

@@ -2,10 +2,12 @@
 
 ## Brief
 
-Status: **pending final sign-off** — every answer below, including the provisionally locked
-ones, awaits the operator's explicit sign-off sheet confirmation (standing directive,
-2026-08-31: "I will confirm final answers for ALL questions already answered and all ones you
-are answering. I want final sign off."). Nothing here executes before that.
+Status: **SIGNED OFF** — the operator confirmed the full sheet (Q1-Q16, all recommended
+dispositions as presented) on 2026-09-01 ("lets go with those"), satisfying the standing
+directive of 2026-08-31 ("I will confirm final answers for ALL questions... I want final sign
+off"). Q15 resolved: **finish** the prior plan (phases 8-11, with the corpus input note as a
+mandatory Phase 10 input). Q16 resolved: **topic-docs v3 wave first**; Q11/Q12/C1-class work
+executes against v3 shapes. Execution proceeds per the contract below.
 
 Grounded as of commit `335081c6` (origin/main, fetched 2026-09-01). Evidence artifacts live in
 the session's memory tier (`.work/context-engineering-integration/` and
