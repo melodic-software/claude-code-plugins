@@ -1,0 +1,11 @@
+# Repository-owned gitleaks ignore list (the mechanism .gitleaks.toml's header
+# policy names for intentional findings). One fingerprint per line:
+# commit:file:rule:startline
+#
+# False positive: generic-api-key matching the shell variable inits
+# `CLAUDE_TOKEN=""` / `CLAUDE_SHIM=0` in the AGENTS.md pointer-line resolver on
+# the retired-conventions feature branches ("token" is a parsing token, not a
+# credential; the flagged value is an empty string). The hygiene lane fetches
+# every branch and scans --all, so this finding turns every PR red until the
+# branch merges or rewrites; remove this line when that lands differently.
+f7aec1549dec60407a24a7d8ea720696b7b099af:plugins/claude-config/lib/resolve-convention-home.sh:generic-api-key:248
