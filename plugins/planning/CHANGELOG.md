@@ -15,9 +15,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
   implementation's every-step-lands-green expectation. Adopted from the "Finding Your Unknowns"
   corpus at the integration sign-off (D32, D33, D35; provenance in
   `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository). Evals extended.
-- **`interview`: free-text resolution-field flag.** An answer arriving as free text rather than
-  an authored option is recorded with a `free-text:` prefix in the register row's resolution
-  field so downstream passes scrutinize it. Deliberately a convention inside the free-form
+- **`interview`: free-text resolution-field flag.** A reply that RESOLVES its question but
+  arrives as free text rather than an authored option (a complete answer in the user's own
+  words, or an explicit "you pick", which resolves to the recommendation) is recorded with a
+  `free-text:` prefix in the register row's resolution field so downstream passes scrutinize
+  it; a partial or non-resolving reply keeps its row `open` under the drift check, so the flag
+  never launders a non-answer into `answered`. Deliberately a convention inside the free-form
   field: `check-open-questions.sh` grades statuses, not resolutions, so the flag is
   gate-invisible (limitation recorded in `context/loop.md`); the 5-field register schema is
   unchanged (D28). Evals extended.
