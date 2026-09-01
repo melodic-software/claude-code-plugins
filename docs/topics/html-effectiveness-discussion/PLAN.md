@@ -291,8 +291,9 @@ inline.
 7. Retrofit of existing untrusted-ish lanes:
    <https://github.com/melodic-software/claude-code-plugins/issues/3609>
 
-**Sanity Check:** `grep -c 'github.com/melodic-software/claude-code-plugins/issues/'` on
-this file returns exactly 7; the pre-creation search outcome is recorded in this section.
+**Sanity Check:** counting only the list's URL lines (anchored: lines beginning with
+three spaces and an angle-bracketed issues URL) returns exactly 7; the pre-creation
+search outcome is recorded in this section.
 
 ### Phase 6: Close-out and PR [TODO]
 
