@@ -16,7 +16,7 @@
     {
       "id": 2,
       "name": "non-default-location-routes-through-claude",
-      "prompt": "Our skills live under packages/agent/skills. /skill-quality:setup apply",
+      "prompt": "Our skills live under packages/agent/skills. /skill-quality:setup",
       "expected_output": "Verifies the non-default root non-interactively, routes the persistent skills_root change through Claude Code's plugin configuration prompt (headless: a plain claude plugin install ... --config skills_root=<dir> rerun, never an uninstall), optionally explains the one-run CHECK_SKILL_SKILLS_ROOT override, and never persists either mechanism itself.",
       "files": [],
       "expectations": [

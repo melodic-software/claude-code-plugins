@@ -1,24 +1,23 @@
 ---
-description: "Verify context-budget's external prerequisites on this machine: `node`, which both the always-on settings-write checkpoint hook and the measurement engine depend on; the Claude Code CLI the engine measures against; and the optional Agent SDK that enables exact mode. Then report the effective settings-write-ask toggle. Use when: 'set up context-budget', 'configure context-budget', 'is context-budget working', 'why did the settings-write ask not prompt', 'why is the audit not exact', or an audit run reported a missing prerequisite. Actions: check (read-only verification, default) | apply (point at each remediation; installs nothing). Re-runnable and safe."
-argument-hint: "check | apply"
+description: "Verify context-budget's external prerequisites on this machine: `node`, which both the always-on settings-write checkpoint hook and the measurement engine depend on; the Claude Code CLI the engine measures against; and the optional Agent SDK that enables exact mode. Then report the effective settings-write-ask toggle. Use when: 'set up context-budget', 'configure context-budget', 'is context-budget working', 'why did the settings-write ask not prompt', 'why is the audit not exact', or an audit run reported a missing prerequisite. Check-only: verifies, reports, and points at each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe."
+argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
-"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
-`apply` points at what it found. The warrant is criterion (b), external prerequisites: `node`,
-the Claude Code CLI
-the engine pins and measures against, and the optional `@anthropic-ai/claude-agent-sdk` that
-enables exact mode, none of which a native configuration prompt can see, and each of which setup
-can only verify. The `settings_write_ask_enabled` option is a native `userConfig` toggle whose only
-stored home is the `pluginConfigs` this contract forbids setup to write, so this
-setup is check-only: `apply` installs nothing, writes nothing, and is idempotent by construction.
+Check-only setup under the Check-only carve-out (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit
+and repeatable" in the marketplace repository): this plugin's configuration surface contains no
+writable artifact, so `check` inspects, reports, and points at each remediation, and no `apply` is
+offered because there is nothing it could conformingly write. The warrant is the carve-out's
+external-prerequisites class: `node`, the Claude Code CLI the engine pins and measures against,
+and the optional `@anthropic-ai/claude-agent-sdk` that enables exact mode, none of which a native
+configuration prompt can see, and each of which setup can only verify. The
+`settings_write_ask_enabled` option is a native `userConfig` toggle whose only stored home is the
+`pluginConfigs` this contract forbids setup to write.
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then points at
-each remediation. Both are non-interactive. Never prompt when the action is given.
+Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
 
 ## `check` (read-only)
 
@@ -61,12 +60,12 @@ Install nothing.
    checkpoint is deliberately off and step 1's `node` finding downgrades to INFO for the hook (it
    stays FAIL for the engine).
 
-## `apply` (idempotent)
+## Remediation guidance (printed by `check`; the operator applies it)
 
-Run `check`, then point at each resolution. Every prerequisite here is a system tool or an operator
-install, and the one option lives in Claude Code's native configuration surface, so `apply` writes
-nothing and installs nothing. Re-running it after everything passes changes nothing and reports
-"already configured":
+Every prerequisite here is a system tool or an operator install, and the one option lives in
+Claude Code's native configuration surface (Check-only carve-out, external-prerequisites and
+native-`userConfig` classes), so `check` closes by pointing at each resolution rather than
+writing. Re-running it after everything passes changes nothing and reports "already configured":
 
 - **Missing `node`:** the platform's own install channel (<https://nodejs.org/en/download>). This
   plugin never downloads a runtime. On Windows, confirm the hook's environment resolves the same
@@ -98,6 +97,6 @@ nothing and installs nothing. Re-running it after everything passes changes noth
 ## What this skill does NOT do
 
 - Run a measurement, attribution, or ledger operation. That is `/context-budget:audit`.
-- Install `node`, the CLI, or the Agent SDK, during either `check` or `apply`. Guidance only.
+- Install `node`, the CLI, or the Agent SDK. Guidance only.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor any other Claude Code
   settings surface.
