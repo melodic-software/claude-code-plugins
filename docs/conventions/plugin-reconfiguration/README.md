@@ -57,3 +57,7 @@ record. Canonical citation (installed plugins cannot read this repository's work
 the published URL):
 
 <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>
+
+The setup contract's other fixed step — retired-conventions detection in `check` and gated cleanup
+in `apply` — is conditional on the plugin shipping `retirements.yaml`, and its canonical text lives
+in the [retired-conventions convention](../retired-conventions/README.md#the-two-fixed-setup-lines).

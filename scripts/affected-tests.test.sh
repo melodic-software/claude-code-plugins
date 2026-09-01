@@ -170,9 +170,22 @@ else
 fi
 
 # --- an empty derivation is a loud error, not an empty selection -----------
+# The publisher declares a copy KEY whose entries match nothing on disk — the
+# rot shape: listed copies that no longer exist. This is distinct from a
+# manifest that declares no copy key at all (a canonical-only cluster with no
+# carrier yet, accepted further down); the two differ at the published surface
+# by the copy key's presence, so the copy line here must be explicit — the
+# write_print_manifest fixture's nullglob expansion would drop it entirely.
 sedless="$repo/scripts/sync-widget.sh"
-write_print_manifest "$sedless" "lib/widget.sh" \
-  "plugins/*/hooks/nothing-matches-this.sh"
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'if [[ "${1:-}" == "--print-manifest" ]]; then\n'
+  printf '  printf "src\\tlib/widget.sh\\n"\n'
+  printf '  printf "copy\\tplugins/alpha/hooks/nothing-matches-this.sh\\n"\n'
+  printf '  exit 0\n'
+  printf 'fi\n'
+} >"$sedless"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && printf '%s' "$out" | grep -q 'ZERO copy paths'; then
@@ -299,6 +312,36 @@ else
   fail "empty src with no copies should exit 2 (rc=$RC): $out"
 fi
 rm -f "$repo/scripts/sync-helper.sh"
+
+# --- a src with no copy key is a canonical-only cluster, not fatal ---------
+# A shared lib that has landed with no carrier yet publishes its src and zero
+# copy lines. That is not the rot the zero-yield guard exists for (declared
+# copy patterns matching nothing): it must register with an empty copy set so
+# the selector keeps running and --print-fanout can still name the src.
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'if [[ "${1:-}" == "--print-manifest" ]]; then\n'
+  printf '  printf "src\\tlib/solo.sh\\n"\n'
+  printf '  exit 0\n'
+  printf 'fi\n'
+} >"$repo/scripts/sync-solo.sh"
+printf 'solo_helper() { echo solo; }\n' >"$repo/lib/solo.sh"
+out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && has_line "$out" plugins/alpha/hooks/alpha-hook.test.sh; then
+  ok "a src-only manifest registers as a canonical-only cluster, not fatal"
+else
+  fail "src-only manifest should not be fatal (rc=$RC): $out"
+fi
+out="$(cd "$repo" && bash scripts/affected-tests.sh --print-fanout lib/solo.sh 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 && -z "$out" ]]; then
+  ok "--print-fanout on a canonical-only src prints an empty copy set and exits 0"
+else
+  fail "--print-fanout on a canonical-only src should be empty and exit 0 (rc=$RC): $out"
+fi
+rm -f "$repo/scripts/sync-solo.sh" "$repo/lib/solo.sh"
 
 # --- a file an earlier seed already walked past is still MAPPED ------------
 # Regression: the shared lib's walk reaches alpha-hook.sh as a dependent. With
