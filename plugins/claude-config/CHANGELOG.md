@@ -3,6 +3,21 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.24]
+
+### Changed
+
+- **`audit-instructions`: I4 and I5 gain a hold verdict for protected instruction classes.** Both
+  criteria remediated to `delete` with no stated exception, which left the "except in highly
+  important areas" carve-out in the source guidance undefined at the point of use — the audit
+  could cut a security rail on the strength of "the model already does this", the weakest evidence
+  available against a rule whose absence is unrecoverable. Each criterion now names the
+  marketplace's instruction exception register, reports a matching candidate as a hold with its
+  class, and proposes compression in place. The register is non-exhaustive and tighten-only, so a
+  candidate absent from it is still judged on the criterion's normal terms and never deleted
+  *because* it is absent. I5's hook conversion stays available: converting a protected rule to a
+  deterministic mechanism is a remediation, deleting it is not.
+
 ## [0.40.23]
 
 ### Changed

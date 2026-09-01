@@ -48,9 +48,10 @@ told:
    systems at roughly 15×, with token usage alone explaining most of the performance variance it
    regressed ([multi-agent research
    system](https://www.anthropic.com/engineering/multi-agent-research-system), fetched
-   2026-09-01). Size the spend against the higher figure when the fan-out is research-shaped. "Would flood context"
-   is a measurement, not a hunch, when the instrument exists: with the `context-guard` plugin
-   installed, resolve this session's zone word per its reader contract before a fan-out decision
+   2026-09-01). Size the spend against the higher figure when the fan-out is research-shaped.
+   "Would flood context" is a measurement, not a hunch, when the instrument exists: with the
+   `context-guard` plugin installed, resolve this session's zone word per its reader contract
+   before a fan-out decision
    (the contract owns the snapshot path, staleness rule, and bands. Read them there; this
    imperative consumes only the word, no band values). Never estimate your own remaining window,
    that guess is the failure the seam replaces. A degraded or `unknown` zone shifts the balance

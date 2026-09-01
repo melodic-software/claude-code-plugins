@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.16]
+
+### Changed
+
+- **`routing-rubric.md`: Gate 0 names its deletion counterpart.** The six hard-deny classes now
+  govern two operations across two owners — this rubric decides relocation, and the marketplace's
+  instruction exception register adopts the same classes by reference to decide deletion. Gate 0
+  gained a note saying so, and saying which question routes where, so a consumer asking "may this
+  be deleted" does not read a relocation verdict as an answer. The class list is not re-enumerated
+  anywhere else; this rubric stays its sole owner, which is what keeps one concern on one
+  adjudication chain instead of two lists that drift apart.
+
 ## [0.11.15]
 
 ### Changed
