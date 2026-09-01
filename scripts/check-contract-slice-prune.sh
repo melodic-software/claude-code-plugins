@@ -14,7 +14,7 @@
 #
 # docs/conventions/topic-docs/README.md specifies a required check that the net
 # PR diff carries no path under the resolved contract dir (default docs/topics/).
-# The convention was written but never wired, and 17 slices reached main as a
+# The convention was written but never wired, and 19 slices reached main as a
 # result (#1417).
 #
 # Deletion is the exemption, not an oversight. The convention's own step 4 is a
