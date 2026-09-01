@@ -132,7 +132,7 @@ recursive form (`grep -l '\.claude/\*\*/\*\.local\.\*'` matches each), and a rep
 each known narrow spelling above inside a recommendation context returns only the documented
 negative-example lines (enumerated in the PR body).
 
-### Phase 1b: Drop no-op apply [TODO]
+### Phase 1b: Drop no-op apply [DOING]
 
 Conformance fix to EXISTING doctrine — PLUGIN-PHILOSOPHY already states the "Check-only
 carve-out" (line ~469: no `apply` where there is nothing it could conformingly write). No owner-doc
