@@ -253,7 +253,7 @@ explicitly accounted for; the allowlist is written into the phase commit
 message); `grep -ci 'ELI5' plugins/education/skills/explain/evals/evals.json`
 = 0.
 
-### Phase 4: adhd:clarify three-way split [TODO]
+### Phase 4: adhd:clarify three-way split [DONE]
 
 - `plugins/adhd/skills/clarify/SKILL.md`: FOUR ELI5 sites (lines ~2, ~21,
   ~193, ~232) — the description's ELI5 clause, the line-21 intro sentence
