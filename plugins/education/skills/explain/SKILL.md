@@ -62,7 +62,7 @@ actually know X"). Never front-load a higher rung.
 | Rung | Altitude | Move |
 |------|----------|------|
 | 1 (default) | **Plain / ELI5** | Concrete everyday analogy, zero jargon. The floor and the default landing. |
-| 2 (on request) | **High-school** | Introduce one or two real terms of art, each defined as it appears. Keep the analogy as scaffolding. |
+| 2 (on request) | **High-school** | Introduce one or two real terms of art as vocabulary-ladder entries: the term, its definition in ordinary words, and one modeled "you can now say: …" sentence showing the term doing work in the user's own next prompt. Keep the analogy as scaffolding. |
 | 3 (on request) | **Peer** | Full precision, jargon allowed, edge cases and tradeoffs, the explanation a colleague in the field would want. |
 
 Offer the next rung as a one-line invitation, not a wall of text: "That's the
@@ -78,6 +78,14 @@ rather than papering over it: name the specific part you cannot yet reduce and
 why, and ground harder (re-read the source, fetch the primary reference) before
 claiming to explain it. A confident-sounding restatement of jargon is the failure
 mode this check exists to catch.
+
+## Success condition (original-ask invocations only)
+
+When the explanation serves a task the user was stuck on, the success test is their **next
+prompt**: it names what they mean in the newly plain terms instead of re-gesturing at the
+confusion. Judge the explanation by that, and shape rung-2 vocabulary entries so the user can
+reuse them. A bare comprehension ask with no task behind it ("I don't get it", full stop) has no
+next-prompt contrast; this check does not apply there.
 
 ## Handoff to `education:teach`
 

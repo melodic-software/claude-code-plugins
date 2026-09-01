@@ -239,7 +239,7 @@ version bump + CHANGELOG.md entry.
 as no-suite; this is the gate that runs trigger-keyword preservation, listing cap,
 --require-evals per Part G rule 2).
 
-### Phase 4: education plugin — explain + quiz-me contract deltas [TODO]
+### Phase 4: education plugin — explain + quiz-me contract deltas [DONE]
 
 explain SKILL.md: D12 vocabulary ladder; D14 success condition scoped to original-ask
 invocations. quiz-me SKILL.md: D16 source-anchor + on-miss routing; D17a diff-sourced
