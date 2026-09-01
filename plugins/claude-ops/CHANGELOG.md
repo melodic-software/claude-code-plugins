@@ -3,6 +3,30 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.1]
+
+### Fixed
+
+- **`audit-native-overlap`: the upstream-claims table no longer asserts the
+  documented drop order as fact.** Its row stated name-only degradation goes
+  "least-invoked-first", sourced to the skills page, with "the drop order
+  changes" as its own recheck trigger. That trigger has fired: 0.39.0 established
+  from the shipped binary that the order is a decay-weighted score followed by a
+  greedy first-fit walk, and that the documented order is wrong rather than
+  merely imprecise. The row now records both what the docs say and what the
+  binary does, points at `audit-skill-visibility/reference/listing-scorer.md` for
+  the mechanism, and carries a trigger that watches the binary rather than only
+  the page. Found by a post-merge verifier sweeping for the stale wording.
+- **`audit-native-overlap`: the OPERATIVE drop-order instruction is corrected
+  too.** The Budget exposure guidance separately told the model that descriptions
+  are dropped "starting with the least-invoked skills". That is the line the
+  skill acts on when characterizing an over-budget fleet, so correcting only the
+  claims row above would have left the false mechanism live and made the two
+  sections contradict each other. It now says lowest-score-first and states that
+  raw invocation count is not the exposure ranking and that description length
+  matters. The only surviving "least-invoked" string in the file is the claims
+  row quoting what the docs say, which is that row's purpose.
+
 ## [0.39.0]
 
 ### Fixed

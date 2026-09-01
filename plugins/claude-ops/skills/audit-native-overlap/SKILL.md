@@ -141,7 +141,9 @@ descriptions load into model context by default, while bodies load only on invoc
 is budgeted twice over, the combined `description` + `when_to_use` text truncates at 1,536
 characters per entry by default, and the listing as a whole is capped at a share of the context
 window (1% by default), on overflow keeping every skill *name* and dropping whole descriptions
-starting with the least-invoked skills.
+lowest-score-first. The score is decay-weighted and the walk is first-fit, so raw invocation count
+is NOT the exposure ranking and description length matters too; see
+[`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md).
 
 So the report says what the baking would cost. When the `skill-quality` plugin is installed, invoke
 `/skill-quality:check listing-budget` over the repo's plugin skill roots and fold its aggregate
@@ -274,7 +276,7 @@ Two upstream facts this skill depends on, each with the trigger that obliges re-
 
 | Claim | Basis | Recheck trigger | Verified |
 |---|---|---|---|
-| Descriptions load into context by default, truncated at 1,536 chars per entry, listing capped at 1% of the context window with name-only degradation least-invoked-first | `docs/en/skills.md` (Frontmatter reference; Troubleshooting), `docs/en/settings-reference.md` | Either default moves, or the drop order changes | 2026-08-23 |
+| Descriptions load into context by default, truncated at 1,536 chars per entry, listing capped at 1% of the context window, with name-only degradation on overflow. The docs state that degradation goes least-invoked-first; the shipped binary instead ranks by a decay-weighted score and grants first-fit, so use the mechanism recorded in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md), not the documented order | `docs/en/skills.md` (Frontmatter reference; Troubleshooting), `docs/en/settings-reference.md`, plus the binary for the order | Either default moves, or the binary's scorer or grant loop diverges from that reference | 2026-09-01 |
 | Native availability varies on settings/env, plan, platform/provider, and host surface, so no static availability claim holds | `docs/en/settings-reference.md`, `docs/en/env-vars.md`, `docs/en/commands.md`, `docs/en/cloud-environments.md` | A release or docs change adds, removes, or renames a gating axis | 2026-08-23 |
 
 ## Gotchas
