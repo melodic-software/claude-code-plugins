@@ -81,9 +81,8 @@
       "name": "cascade-preference-resolves-with-provenance",
       "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: the repo root contains .claude/rendered-views.md whose only content is 'medium: file'; no medium argument was given and the userConfig medium option is unset.)",
       "expected_output": "With rung 1 (argument) and rung 2 (userConfig) unset, resolves the rendered-views cascade surface: reads the team layer .claude/rendered-views.md, takes medium: file, and delivers a self-contained local HTML file rather than publishing an Artifact. Names the layer that supplied the preference (the team layer) when reporting the choice. Does not treat the absent user-global and overlay layers as an error.",
-      "files": [
-        ".claude/rendered-views.md"
-      ],
+      "files": [],
+      "narration": true,
       "expectations": [
         "Resolves the medium from the rendered-views cascade surface when argument and userConfig are both unset",
         "Honors medium: file from the team layer (writes a local HTML page; does not publish an Artifact)",
