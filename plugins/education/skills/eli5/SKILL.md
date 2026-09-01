@@ -149,6 +149,12 @@ the argument behind a decision, the third reconstructs a sequence.
   past `863e70d`: if its skill name or plugin id changes, Step 2's address and the
   install recipe both go stale, and the failure is silent because the fallback
   simply always fires.
+- **Officialization.** The upstream author was publicly weighing whether to make
+  `eli5` an official plugin. If it ships as an official or bundled surface, this
+  wrapper's premise changes from "wrap a community plugin" to "duplicate something
+  native", so re-run `/claude-ops:audit-native-overlap` (via the Skill tool, if
+  installed) at that point and re-decide the lane rather than leaving it as-is. No
+  standing automation watches for this; the trigger is the observation.
 
 ## What this skill does NOT do
 
