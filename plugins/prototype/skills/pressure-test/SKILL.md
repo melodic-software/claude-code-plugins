@@ -79,9 +79,11 @@ business, not the reducer, because the driver is not reading code:
    driver's picks are the demo's real output; pair the set with a copy-out control that lifts
    the filled answers back out as text to paste into the session.
 6. **Fake-data disclosure footer**, one visible line stating the page is synthetic end to end,
-   that nothing on it reads from or writes to the real app, and where the real wiring lives (or
-   will live) behind which flag. The driver is not reading code; the footer is what keeps a
-   convincing mock from being mistaken for the wired feature.
+   that nothing on it reads from or writes to the real app, and, when decided, where the real
+   wiring lives (or will live) and behind which flag; when integration is not yet decided, or no
+   flag is planned, the footer says so explicitly rather than inventing production details. The
+   driver is not reading code; the footer is what keeps a convincing mock from being mistaken
+   for the wired feature.
 
 Constraints (the same set as explore-directions' HTML mockup substrate):
 
