@@ -639,12 +639,18 @@ Linked from P2 as the product surface for its compaction and memory-tool claims.
   2025" and `dateModified` "Jun 21, 2026", so the page was edited roughly eight to nine months
   after publication with no in-body revision note. Fetched 2026-08-31 and re-swept 2026-09-01.
 
-**Unresolved between the two passes:** whether the article embeds any image. The 2026-09-01
-sweep reports one diagram image with empty `alt` text in the "Context windows have limits"
-section. The 2026-08-31 pass reports a targeted search of the HTML between the byline block and
-the related-posts section for `<img>` and `<figure>` tags returning zero matches, and concludes
-this is a text-only announcement. Both claim to have parsed the same raw HTML. Recheck against
-the source before asserting either way; nothing else on this page depends on the answer.
+**Resolved, in favor of the later sweep.** The two passes disagreed over whether the article
+embeds any image: the 2026-09-01 sweep reported one diagram, the 2026-08-31 pass reported a
+targeted `<img>` and `<figure>` search returning zero matches and concluded the page was
+text-only. Settled 2026-09-01 by direct inspection of the retained HTML and of the image itself,
+which is the evidence neither pass had: the page carries one content diagram at
+`cdn.prod.website-files.com/.../8ad2952bc0513750088cdfd309ee83ba0fd15438-1920x800.webp`, titled
+"Before context editing" over "After context editing". It shows a context window as a strip of
+alternating tool-use and tool-result blocks; in the "after" strip the earliest pairs are
+compressed to a fraction of their width and the reclaimed span is filled by a single green
+"Available Context" block. The earlier pass's negative result came from searching a byline-to-
+related-posts slice that excludes the figure's position. Treat a bounded-slice absence search as
+evidence about the slice, never about the page.
 
 **What the page contains**
 
