@@ -18,9 +18,11 @@ All notable changes to the `prototype` plugin are documented here. Format follow
 - **`pressure-test`: validation answer set and a fake-data disclosure footer on the HTML demo
   shell.** The demo page carries the questions it exists to answer as forced choices whose
   options each name their cost (plus a free-text escape hatch), with a copy-out control, and a
-  visible footer stating the page is synthetic end to end and where real wiring lives. The
-  capture step carries the filled answer set into the durable answer verbatim. Same adoption
-  basis (D24, D25, D26); evals extended.
+  visible footer stating the page is synthetic end to end and, when decided, where real wiring
+  lives and behind which flag; when integration is not yet decided, or no flag is planned, the
+  footer says so explicitly rather than inventing production details. The capture step carries
+  the filled answer set into the durable answer verbatim. Same adoption basis (D24, D25, D26);
+  evals extended.
 - **Shared discipline: "mock before you wire" ordering note.** The composition table now states
   that the throwaway mock runs before any real wiring when a change has both questions (D27).
 
