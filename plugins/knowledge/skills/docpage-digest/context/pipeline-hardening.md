@@ -75,7 +75,10 @@ its file seven minutes after a presence-based pin).
 
 After every dispatched digest agent has *returned*:
 
-1. Hash each frozen path (digests, INDEX.md, source.\*).
+1. Hash each frozen path (digests, SOURCES.md, source.\*). A pre-0.13.30 pin-manifest whose
+   `files` list an `INDEX.md` path refers to the same artifact under its old name: re-pin it
+   under `SOURCES.md` after the resume-time rename rather than treating the missing path as
+   BLOCKED.
 2. Write `<work-root>/verification/pin-manifest.json`:
 
 ```json
@@ -85,7 +88,7 @@ After every dispatched digest agent has *returned*:
   "pinned_on": "agent-reported-completion",
   "files": [
     {"path": "source.md", "sha256": "<hex64>"},
-    {"path": "INDEX.md", "sha256": "<hex64>"},
+    {"path": "SOURCES.md", "sha256": "<hex64>"},
     {"path": "digests/01-slug.md", "sha256": "<hex64>"}
   ]
 }

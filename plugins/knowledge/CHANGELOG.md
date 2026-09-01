@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.30]
+
+### Changed
+
+- **docpage-digest: the slice-root inventory is now `SOURCES.md`.** The Phase 2 artifact
+  is renamed from `INDEX.md`, with the resume pointer, digest-agent brief context,
+  digest-unit parity invariant, pin-manifest path list, and eval expectations updated to
+  match. Semantics are unchanged; the rename frees the `INDEX.md` name, which the work-folder
+  slice contract reserves for a per-slice index with different semantics.
+
 ## [0.13.29]
 
 ### Changed
