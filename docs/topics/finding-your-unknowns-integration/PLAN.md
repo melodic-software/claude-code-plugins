@@ -37,11 +37,53 @@ either executed as a repo change or recorded with its reason, with no silent dro
 5. House style: all new prose obeys the repo's ai-slop/house-style rules
    (.claude/rules/vendor-docs-are-not-style.md); citation shape follows
    plugins/knowledge/reference/citation-shape.md (URL + retrieval date + content hash).
+6. Execution contract (Q6): each conditional-batch unit is closed only when its verdict is
+   executed-or-recorded and the inventory row links the outcome; no silent drops.
+7. Vehicle placements (Q7-Q10): the five-pass sequencing lands as a workflow section in the
+   central reference doc with cross-refs from planning:wayfind and session-flow:workflow (no
+   new orchestration skill); the reference doc owns the prompt-pattern catalog with one
+   canonical invocation line per owning skill; reply-affordance is a house convention
+   (default-with-judgment) owned by the doc with an artifact-design cross-ref.
+8. Evidence-gate classification (sign-off S1): every delta is classified per-row under
+   PLUGIN-PHILOSOPHY's rubric (docs/PLUGIN-PHILOSOPHY.md:699-742). CONTRACT/POLICY/CONVENTION
+   rows land now as team conventions adopted by the sign-off; DOC rows are citation/doc
+   lines; BEHAVIORAL rows never land as standing instructions — they become reference-doc
+   heuristic lines plus candidate eval cases, awaiting observed-stumble evidence.
+9. Registry discipline (sign-off S2): convention-registry rows for reply-affordance and
+   export-button only, each with an explicit conformance surface, landing owner-doc-first
+   (owner doc before a second adopting plugin, PLUGIN-PHILOSOPHY:594-595).
+10. Sequencing with docs/topics/context-engineering-claude-5/ (sign-off S3): this effort
+    never edits that topic's audit-instructions criteria files; Wave 1 records F2's three
+    candidates in that topic's PLAN plus a Phase-10 re-inventory/rebase note; no freeze.
+11. Schema stability (sign-off G.4 / D37): the `### Phase N` heading/tag vocabulary and any
+    parsed schema (check-open-questions.sh fields) are never renamed without a version bump
+    and changelog; block reordering is safe.
+
+The complete signed decision surface — classified delta roster (D/E/F/G rows), wave
+assignments, per-finding dispositions — is ./signoff-sheet.md (rev 2, operator-confirmed
+".confirm all" on 2026-09-01).
 
 ### Acceptance criteria
 
-- (accumulating; interview in progress — see .work/finding-your-unknowns-integration/
-  interview-checklist.md for the live decision ledger)
+(Signed off with the sheet, 2026-09-01; sign-off sheet Part G.5.)
+
+1. Every decision in corpus-inventory.md has an executed-or-recorded disposition traceable
+   from ./signoff-sheet.md — verified by grep over the disposition lines, not asserted.
+2. All waves green on the per-plugin gates: version bump + CHANGELOG entry;
+   check-changed-skills.sh (trigger-keyword preservation, listing cap, --require-evals);
+   listing budget respected; cheat-sheet regenerated once per PR series, series sequential;
+   scripts/affected-tests.sh --run green.
+3. The F1 reference doc carries the quoted anti-premature-codification warning and the C6
+   permission/quoting basis in its header.
+4. Registry rows (reply-affordance, export-button) carry explicit conformance surfaces and
+   land owner-doc-first.
+5. docs/topics/context-engineering-claude-5/PLAN.md carries the S3 sequencing rows.
+6. Every Wave-2/Wave-3 contract delta lands with eval expectations in the same commit as
+   its contract lines (sign-off Part D eval-impact column).
+7. /planning:plan consumes ./signoff-sheet.md + this Brief as its input contract.
+8. Delivery (operator amendment at sign-off): all execution in one session on branch
+   claude/reading-feedback-j4sg96, delivered as ONE pull request; waves are commit
+   ordering, not separate PR series; deferred items may become filed issues.
 
 ### Captured assumptions
 
@@ -57,7 +99,23 @@ either executed as a repo change or recorded with its reason, with no silent dro
 
 ### Deferred questions
 
-- (populated as the interview defers items)
+(No open-register rows were retired as deferred; the items below are sub-decisions the
+sign-off explicitly deferred, each with its trigger and arbiter.)
+
+- E4-EXT | E4 skill extension (planning:prd durable-output pitch mode vs a design-handoff
+  layer) — deferred behind demand evidence; the doc-tier buy-in pattern ships now (S4).
+  Arbiter: human, at the recorded-candidate evidence point.
+- D28-SCHEMA | Adding a mechanical scrutiny-flag field to the 5-field open-question register
+  schema — the resolution-field convention ships now, gate-invisible by design; the schema
+  change waits until a consumer needs mechanical reads (M4). Arbiter: that consumer's
+  change, via version bump + changelog per constraint 11.
+- EVAL-CAND | Behavioral eval candidates (D5, D7, D11, D17b, D34-residue) — doc lines now;
+  promotion to standing skill instructions only on observed-stumble evidence per the
+  evidence-gated-additions rule (PLUGIN-PHILOSOPHY:699-711). Arbiter: that rule.
+- Q11-FLIP | Flipping tweak-likelihood ordering from documented-default to requestable mode
+  in further consumers — deferred to own-usage evidence (interview Q11 residue).
+- E1-REG | A convention-registry row for the deviation-log — retracted as premature (M3);
+  fires the moment a second plugin reads DEVIATIONS.md (recorded trigger, C5).
 
 ## Plan
 
