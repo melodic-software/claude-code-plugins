@@ -34,12 +34,37 @@ import argparse
 import json
 import os
 import shutil
-import statistics
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+# Re-exported, not merely used: the spawn-noise names are part of this engine's
+# surface (its tests and its --spawn-samples default read them from here), and
+# the module they now live in is shared with the `performance` plugin so the
+# bimodal threshold has exactly one home.
+from spawn_noise import (  # noqa: E402  (path set above; plugin-bundled module)
+    BIMODAL_SPREAD_RATIO,
+    NOOP_SPAWN,
+    SLOW_SPAWN_FLOOR_MS,
+    SPAWN_SAMPLES,
+    spawn_probe,
+    summarize_spawn_samples,
+)
+
+__all__ = [
+    "BIMODAL_SPREAD_RATIO",
+    "NOOP_SPAWN",
+    "SLOW_SPAWN_FLOOR_MS",
+    "SPAWN_SAMPLES",
+    "spawn_probe",
+    "summarize_spawn_samples",
+]
 
 MIN_PYTHON = (3, 11)
 
@@ -58,16 +83,6 @@ ALLOWLISTED_READS = (
     "installed_plugins.json",  # plugins/installed_plugins.json: where each plugin is installed
 )
 
-#: Trivial no-op spawns, one per platform. Never a discovered hook or statusline command.
-NOOP_SPAWN = {
-    "win32": ["cmd", "/c", "exit"],
-    "posix": ["/bin/sh", "-c", "exit 0"],
-}
-SPAWN_SAMPLES = 7
-#: A no-op spawn floored above this is already contended before any hook runs.
-SLOW_SPAWN_FLOOR_MS = 500.0
-#: max/min at or above this across identical no-op spawns is the bimodal contention signature.
-BIMODAL_SPREAD_RATIO = 3.0
 #: Seconds between the two process-population samples that separate churn from accumulation.
 POPULATION_GAP_S = 3.0
 #: A process younger than this is not an orphan candidate however dead its parent looks.
@@ -563,82 +578,6 @@ def population_trend(sample_a: list[dict], sample_b: list[dict], gap_seconds: fl
             "pids turn over is churn. One sample cannot tell them apart."
         ),
     }
-
-
-def summarize_spawn_samples(
-    durations_ms: list[float], timeouts: int, concurrent_processes: int | None
-) -> dict:
-    """Reduce repeated no-op spawn timings to min/median/max plus a load label.
-
-    A single spawn number is misleading because the floor itself moves with
-    machine load: the same no-op that costs ~120 ms on a drained box costs
-    ~1,100 ms under contention. Every reading here is labelled with the process
-    count observed at sample time so a reader cannot mistake a storm-state
-    number for a baseline.
-    """
-    result: dict = {
-        "samples": len(durations_ms),
-        "timeouts": timeouts,
-        "concurrent_processes_at_sample": concurrent_processes,
-        "state_label": "as-sampled",
-        "findings": [],
-    }
-    if not durations_ms:
-        result["findings"].append("no-spawn-samples-captured")
-        return result
-    low, high = min(durations_ms), max(durations_ms)
-    result["min_ms"] = round(low, 1)
-    result["median_ms"] = round(statistics.median(durations_ms), 1)
-    result["max_ms"] = round(high, 1)
-    result["spread_ratio"] = round(high / low, 2) if low > 0 else None
-    if low > SLOW_SPAWN_FLOOR_MS:
-        result["findings"].append("slow-spawn-floor")
-    # A wide RATIO alone is not the contention signature: on a healthy machine a cold
-    # first spawn against a warm second one clears 3x while every sample is still fast.
-    # The signature is a wide spread whose slow mode is itself slow, so the absolute
-    # ceiling has to clear the floor threshold too.
-    if (
-        result["spread_ratio"] is not None
-        and result["spread_ratio"] >= BIMODAL_SPREAD_RATIO
-        and high >= SLOW_SPAWN_FLOOR_MS
-    ):
-        result["findings"].append("bimodal-spawn-latency")
-    if timeouts:
-        result["findings"].append("spawn-probe-timed-out")
-    result["note"] = (
-        "The floor moves with load, so compare these numbers only against another capture "
-        "carrying a similar concurrent_processes_at_sample. A bimodal spread across identical "
-        "no-op spawns IS the contention diagnosis."
-    )
-    return result
-
-
-def spawn_probe(samples: int = SPAWN_SAMPLES, timeout_s: float = SUBPROCESS_TIMEOUT_S,
-                load_probe=None) -> dict:
-    """Time a trivial no-op spawn repeatedly. Never runs a discovered hook.
-
-    This is the baseline every hook, statusline render, and subagent pays before
-    it does any work of its own. Timing an actual hook would mean executing a
-    third-party command with arbitrary side effects, which this engine will not do.
-    """
-    command = NOOP_SPAWN["win32"] if sys.platform == "win32" else NOOP_SPAWN["posix"]
-    durations: list[float] = []
-    timeouts = 0
-    for _ in range(samples):
-        started = time.perf_counter()
-        try:
-            subprocess.run(command, capture_output=True, timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            timeouts += 1
-            durations.append(timeout_s * 1000.0)
-            continue
-        except OSError:
-            break
-        durations.append((time.perf_counter() - started) * 1000.0)
-    load = load_probe() if load_probe else None
-    summary = summarize_spawn_samples(durations, timeouts, load)
-    summary["command"] = " ".join(command)
-    return summary
 
 
 def process_census(records: list[dict] | None = None, error: str | None = None) -> dict:
