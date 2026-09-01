@@ -17,6 +17,15 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   binary does, points at `audit-skill-visibility/reference/listing-scorer.md` for
   the mechanism, and carries a trigger that watches the binary rather than only
   the page. Found by a post-merge verifier sweeping for the stale wording.
+- **`audit-native-overlap`: the OPERATIVE drop-order instruction is corrected
+  too.** The Budget exposure guidance separately told the model that descriptions
+  are dropped "starting with the least-invoked skills". That is the line the
+  skill acts on when characterizing an over-budget fleet, so correcting only the
+  claims row above would have left the false mechanism live and made the two
+  sections contradict each other. It now says lowest-score-first and states that
+  raw invocation count is not the exposure ranking and that description length
+  matters. The only surviving "least-invoked" string in the file is the claims
+  row quoting what the docs say, which is that row's purpose.
 
 ## [0.39.0]
 
