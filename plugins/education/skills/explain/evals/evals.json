@@ -20,7 +20,7 @@
       "expected_output": "Lands at the lowest useful altitude first: one concrete everyday analogy, zero jargon, any unavoidable term defined inline. It leads with what the thing is actually doing, not with vocabulary, and does not open at peer level.",
       "files": [],
       "expectations": [
-        "Opens at rung 1 (plain / ELI5) with a concrete everyday analogy and zero unexplained jargon",
+        "Opens at rung 1 (plain) with a concrete everyday analogy and zero unexplained jargon",
         "Leads with the analogy and the 'what it's doing', not with a vocabulary dump; any unavoidable term is defined inline",
         "Does not front-load the high-school or peer-level explanation"
       ]
@@ -29,7 +29,7 @@
       "id": 3,
       "name": "altitude-climbs-only-on-request",
       "prompt": "/education:explain the CAP theorem — and I already know distributed systems basics, give me the real version.",
-      "expected_output": "Altitude layering is on request. Because the user explicitly asks for the real version, the skill climbs toward peer level (rung 3) rather than staying at ELI5 — but the rungs are still offered as an invitation, not front-loaded across every response by default.",
+      "expected_output": "Altitude layering is on request. Because the user explicitly asks for the real version, the skill climbs toward peer level (rung 3) rather than staying at rung 1 plain — but the rungs are still offered as an invitation, not front-loaded across every response by default.",
       "files": [],
       "expectations": [
         "Recognizes the explicit request for higher altitude and climbs the rung ladder rather than staying pinned at rung 1",

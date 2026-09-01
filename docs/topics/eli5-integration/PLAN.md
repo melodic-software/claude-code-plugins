@@ -233,7 +233,7 @@ hits the stamp;
 `grep -cE '\blicense\b|\battribution\b|\bMIT\b' plugins/education/skills/eli5/SKILL.md`
 = 0 (word-bounded, case-sensitive — "commit" in the stamp must not match).
 
-### Phase 3: explain de-brand [TODO]
+### Phase 3: explain de-brand [DONE]
 
 `plugins/education/skills/explain/SKILL.md` — all six sites, behavior
 untouched: (1) drop `'ELI5'` from the description trigger list; (2) drop the
