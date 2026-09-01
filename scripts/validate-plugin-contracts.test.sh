@@ -28,6 +28,11 @@
 # shellcheck disable=SC2016  # fixture rows are literal markdown; the backticks they carry are content, never expansion
 set -uo pipefail
 
+# Fixture git isolation: the append-only cases below run `git init` in mktemp
+# fixtures; an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would redirect those
+# writes into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SUT="$SCRIPT_DIR/validate-plugin-contracts.mjs"

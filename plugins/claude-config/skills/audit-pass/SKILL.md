@@ -262,19 +262,9 @@ presence-gated with its fallback stated:
   no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:
   the pass reports both as **unchecked**, names that skill as their owner, and emits the one-line
   pointer to the official memory guidance, never a silent skip and never a re-implementation here.
-- **Retired-conventions fleet sweep**: this plugin's own `lib/check-retirements.sh`, always
-  available. The one lane that runs a script rather than a skill: it enumerates every installed
-  plugin's `retirements.yaml` at run time and runs **this plugin's canonical helper copy** over each
-  against the target (`bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest <that file>
-  --root <target>`), so a consumer who updated a plugin and never re-ran its setup still hears about
-  the leftover. The helper takes one manifest, so the lane is **exactly one lane** whose input
-  digest is the set of manifests found plus their contents. One finding per active TSV row, keyed by
-  record id; `report-only` rows at `info`; a helper exit 2 on any manifest is a FAIL finding for
-  that plugin, never a skip. The sweep is derived-tier and **read-only by construction**: it never
-  runs `--clean`; cleanup stays in the owning plugin's setup `apply`, which is where the operator gate
-  and the record's `successor` prose live. Root discovery, its bounded fallback over the plugin
-  cache, and the visible degradation when neither yields a root are in
-  [reference/retired-conventions-sweep.md](reference/retired-conventions-sweep.md).
+- **Retired-conventions fleet sweep**: the one script lane — **exactly one lane** running this
+  plugin's canonical `lib/check-retirements.sh` over every installed plugin's `retirements.yaml`. One finding per active TSV row keyed by record id; `report-only` = `info`; helper exit 2 = FAIL finding, never a skip.
+  Derived-tier, **read-only** (never `--clean`); rest: [reference/retired-conventions-sweep.md](reference/retired-conventions-sweep.md).
 
 Structural skill lint is deliberately **not** dispatched: it answers shape rather than content, and
 its fan-out over a large corpus would consume the dispatch budget reserved for instruction-content
@@ -459,10 +449,8 @@ splitting into imports does not defer or reduce context).
 
 - Never defines a check. Adding criteria here rather than to the owning plugin's catalog is the
   defect this skill's whole shape exists to avoid.
-- Never reads another plugin's files. Cross-plugin cooperation is invocation only. The one
-  exception is declared, not incidental: another plugin's `retirements.yaml` is a published data
-  seam whose schema the retired-conventions convention owns, and the sweep lane reads it through
-  this plugin's own helper, never by opening that plugin's skills or scripts.
+- Never reads another plugin's files — invocation-only cooperation, with one declared exception:
+  `retirements.yaml` is a published data seam, read by the sweep lane via this plugin's own helper.
 - Never edits managed policy or a user-scope file, in any mode.
 - Never scans what it wrote. Where its resolved report path is contained in the target, by
   `--report-to` or by `${CLAUDE_PLUGIN_DATA}` resolving under `~` for a target at or above it, the
