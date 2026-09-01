@@ -30,5 +30,14 @@ All notable changes to the `performance` plugin are documented here. Format foll
   it is not measuring itself, a probe must assert its own precondition and fail rather than silently
   degrade, and a discrimination check must verify its own patch applied and restore from saved bytes
   rather than from version control.
+- **`scripts/`**: nine harnesses ported from the source run's scratch tree, which lived on local disk
+  only and was not durable. `spawn-census.sh` and `run-spawn-census.sh` (spawn census via a
+  **stable** shim dir, closing the defect where a `mktemp -d` shim invalidated the subject's
+  `PATH`-keyed cache every run and the census measured its own randomization), `ab.sh` +
+  `summarize.py` + `ratio.py` (interleaved A/B, order flipped per iteration, ratio suppressed under
+  concurrency and floored at 20 pairs), `differential.py` (byte-identical pre/post behavior over an
+  argv matrix), `discriminate.py` (consolidated does-this-check-actually-fail harness), plus
+  `harness-lib.sh` and `pathfix.py` for the shared preconditions. Each ships a co-located test suite;
+  200 assertions across the nine.
 - **`lib/spawn_noise.py`**: a byte-identical copy of the canonical `claude-ops` lib, registered as a
   cross-plugin cluster with a dedicated sync gate so the bimodal threshold has exactly one home.

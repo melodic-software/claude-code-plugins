@@ -1,0 +1,69 @@
+{
+  "skill_name": "target",
+  "evals": [
+    {
+      "id": 1,
+      "name": "plausible-mechanism-does-not-outrank-a-measured-candidate",
+      "prompt": "/performance:target session: spawns are slow. WDAC code-integrity enforcement is enabled on this host, and a policy check on every process launch is a known cost, so that is probably the cause; rank it first. Separately, a spawn census attributed 4 of the 7 spawns per tool call to the destructive-guard hook. Identical no-op spawns on this host range from 180.5 ms to 2841.3 ms.",
+      "expected_output": "Ranks the census-backed hook candidate at E1 above the WDAC candidate, which lands at E4: a plausible mechanism with no attributed measurement. Notes that the mechanism being real and the policy being genuinely enabled raises no tier, and that a fixed per-spawn policy check cannot produce a 15x spread across identical spawns, so the data contradicts the suspicion it is asked to rank first.",
+      "files": [],
+      "expectations": [
+        "Places the spawn-census candidate (E1, attributed measurement) above the WDAC candidate",
+        "Assigns the WDAC candidate tier E4: a plausible mechanism and nothing else",
+        "Does not raise the WDAC tier because the policy is genuinely enabled or the mechanism sounds expensive",
+        "Notes that a fixed policy check cannot produce the 15x spread the identical no-op spawns show"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unmeasured-system-yields-instrument-this-first",
+      "prompt": "/performance:target what is slow here? Nothing is instrumented and there is no telemetry. I just want your best guess at the bottleneck, ranked.",
+      "expected_output": "With nothing above E3 available, the top recommendation is 'instrument this first', naming the cheapest instrument that would reach E2 aggregate measurement. Declines to substitute a ranked guess even though one was explicitly requested; any candidates listed carry E3/E4 tiers and are labelled as guesses awaiting attribution, not as optimization targets.",
+      "files": [],
+      "expectations": [
+        "Top recommendation is to instrument first, not a ranked guess, despite the explicit request for a best guess",
+        "Names the cheapest instrument that would reach E2 aggregate measurement",
+        "Any candidates listed are tiered E3 or E4 and are not presented as targets ready to optimize"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "attributes-layers-before-choosing-one",
+      "prompt": "/performance:target plugins/guard: the hook is a 125-line shell wrapper that execs a 1903-line Python guard body. The Python file is obviously where the time goes, so plan the optimization there.",
+      "expected_output": "Declines to select the Python body on size alone: line count is not a cost model. Requires cost attribution across the wrapper layer and the body layer before choosing either, naming a concrete per-layer measurement. Notes the shape of the known failure: in the source run the 125-line wrapper was roughly 88% of the cost and the 1903-line body was not the bottleneck.",
+      "files": [],
+      "expectations": [
+        "Does not accept the 1903-line Python body as the target on file size alone",
+        "Requires cost attribution across the shell wrapper and the Python body before choosing a layer",
+        "States that line count is not a cost model",
+        "Names a concrete measurement that would attribute cost per layer"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "anecdote-enters-the-list-at-e4-only",
+      "prompt": "/performance:target session: file edits felt really slow today, so put the edit path at the top of the ranking.",
+      "expected_output": "Admits the edit path onto the candidate list at E4 and no higher: session anecdote is a valid candidate source and an invalid ranking basis. Refuses to place it above any candidate carrying a measurement on the strength of the feeling, and names the drift-immune counter or instrument that would move it up the tiers.",
+      "files": [],
+      "expectations": [
+        "Admits the edit path as a candidate at tier E4",
+        "Does not rank it above any measured candidate on the strength of the anecdote",
+        "States that session anecdote is a valid candidate source and an invalid ranking basis",
+        "Names the counter or instrument that would raise the candidate's tier"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "names-the-counter-and-labels-the-generalization",
+      "prompt": "/performance:target the pre-tool hook chain: a census attributes 4 spawns per tool call to it. Give me the ranked table, and tell me why counting spawns beats timing them.",
+      "expected_output": "The ranked table names process spawns as the drift-immune counter that settles the candidate. Presents the counter as reproducible on a drifting host, never as more truthful than the duration, and labels counts-over-wall-clock for process spawns as this plugin's own generalization: the literature grounds it for instruction counts specifically, and Valgrind's own manual argues that execution time is what users perceive.",
+      "files": [],
+      "expectations": [
+        "Names process spawns as the drift-immune counter for the candidate",
+        "Presents the counter as reproducible, never as more truthful than the duration",
+        "Labels counts-over-wall-clock for spawns as the plugin's own generalization, sourced only for instruction counts",
+        "Acknowledges the counter-argument that execution time is what users perceive"
+      ]
+    }
+  ]
+}
