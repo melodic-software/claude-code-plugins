@@ -165,8 +165,12 @@ Part E + G-block):
 - Prompt-pattern catalog (Q9 home): G3 primer entry, G14 pattern entries, one canonical
   invocation line per owning skill.
 - Reply-affordance convention + export-button rule: the owner sections for both registry
-  rows, each naming its conformance surface verbatim ("conformance = the template blocks
-  in prototype:explore-directions (D21/D22) and prototype:pressure-test (D24)").
+  rows, each following the owner-doc anatomy (the rule, who is bound, conformance) and
+  naming its conformance surface verbatim ("conformance = the template blocks in
+  prototype:explore-directions (D21/D22) and prototype:pressure-test (D24)"). The
+  reply-affordance section carries the one-line artifact-design cross-ref (Q10) as a prose
+  mention of the session built-in skill — the established idiom, since artifact-design has
+  no in-repo surface (verified: only prose mentions exist repo-wide).
 - When-HTML taxonomy: G9 density rubric, G10 ceiling (labeled practitioner anecdote),
   G11 sharing line, G13 scoping rule, the HTML-scoping rule.
 - Buy-in pattern (S4) + E5 objection-evidence checklist, citing Rust RFC / Oxide RFD /
@@ -179,32 +183,46 @@ Part E + G-block):
   heuristic/recipe, D17b non-obvious-behavior keying, D34-residue collapse self-check.
 - Q11/D31 reconciliation line (presentation ordering is already planning:plan's
   documented default).
-- If the doc cites x.com URLs, extend lychee.toml excludes for them (authorized by C6).
+- The doc cites x.com URLs, so extend lychee.toml excludes (authorized by C6; verified
+  absent today — only `twitter.com` is excluded).
 
-**Sanity Check:** `test -f docs/FINDING-YOUR-UNKNOWNS.md`; `grep -c '^## ' docs/FINDING-YOUR-UNKNOWNS.md` ≥ 7;
+**Sanity Check:** `test -f docs/FINDING-YOUR-UNKNOWNS.md`; `test "$(grep -c '^## ' docs/FINDING-YOUR-UNKNOWNS.md)" -ge 7`;
 `grep -q 'retrieved 2026' docs/FINDING-YOUR-UNKNOWNS.md` (citation stamps present);
-`grep -qi 'fair-quotation\|fair quotation' docs/FINDING-YOUR-UNKNOWNS.md`;
-`scripts/affected-tests.sh --run` green (hygiene lane: markdownlint, typos, lychee).
+`grep -qi 'fair.quotation' docs/FINDING-YOUR-UNKNOWNS.md`; `grep -q 'x\.com' lychee.toml`;
+`npx markdownlint-cli2 docs/FINDING-YOUR-UNKNOWNS.md` exit 0 (affected-tests classes
+docs/*.md as no-suite — the hygiene tools must be invoked directly).
 
-### Phase 2: Governance placements — registry, glossary, ctx-eng sequencing [TODO]
+### Phase 2: Governance placements — registry, glossary, ctx-eng sequencing, traceability ledger [TODO]
 
 - docs/PLUGIN-PHILOSOPHY.md convention registry: add exactly 2 names-and-points rows
-  (reply-affordance → the F1 doc's owner section; export-button → same). No restating in
-  the registry; conformance surfaces live in the owner sections (Phase 1).
+  (reply-affordance → the F1 doc's owner section; export-button → same). The registry
+  table is two-column and never restates, so acceptance criterion 4 ("rows carry
+  conformance surfaces") is discharged by the owner sections the rows point at — the
+  reconciliation is recorded here and verified in Phase 11.
 - docs/GLOSSARY.md via the /domain-driven-design:curate-language disposition procedure:
   add the unknowns-quadrant vocabulary + D1's four finding types with "Avoid:" lines and
-  a dated Provenance entry; map/territory deliberately NOT added (G1 cite-only).
+  a dated Provenance entry; map/territory lands as a `## Rejected terms` row pointing at
+  the F1 cite-only disposition (G1) so the next curate-language run sees the decision.
 - docs/topics/context-engineering-claude-5/PLAN.md: add "Open, new" bullets under
   `## Open questions` recording F2's three candidates (skill-quality genericness check;
   audit-instructions I29 widening; claude-memory /doctor cross-ref against its existing
   /doctor contract section) and one line noting Phase 10's sweep re-inventories current
   state (recorded counts stale) and rebases over this topic's landed waves. NO phase
   heading/tag renames in that file (D37 / Part G rule 4).
+- Traceability ledger (acceptance criterion 1 runs corpus→sheet, not the reverse): commit
+  `docs/topics/finding-your-unknowns-integration/delta-resolution.md` (the full delta
+  wording record) and a `disposition-ledger.md` crosswalk keyed by the corpus-inventory
+  V-ids (V1.1-V7.n), each row naming its sheet/G row id and disposition, so criterion 1
+  is verifiable from committed files and every corpus decision is accounted for in the
+  correct direction.
 
-**Sanity Check:** `grep -c 'FINDING-YOUR-UNKNOWNS' docs/PLUGIN-PHILOSOPHY.md` = 2;
-`grep -q 'unknown' docs/GLOSSARY.md`; `grep -c 'Open, new' docs/topics/context-engineering-claude-5/PLAN.md`
-increased by ≥3; `git diff docs/topics/context-engineering-claude-5/PLAN.md | grep -c '^[-].*### Phase'` = 0
-(no phase headings touched).
+**Sanity Check:** `test "$(grep -c 'FINDING-YOUR-UNKNOWNS' docs/PLUGIN-PHILOSOPHY.md)" -ge 2`;
+`grep -q 'unknown' docs/GLOSSARY.md`; `grep -qi 'map.*territory' docs/GLOSSARY.md` (rejected-terms
+row); `test "$(grep -c 'Open, new' docs/topics/context-engineering-claude-5/PLAN.md)" -ge 4`;
+`! git diff HEAD~1 -- docs/topics/context-engineering-claude-5/PLAN.md | grep -q '^-.*### Phase'`;
+`test -f docs/topics/finding-your-unknowns-integration/disposition-ledger.md` and every V-id in it
+carries a non-empty disposition (`! grep -E '^\- V[0-9]' disposition-ledger.md | grep -q '\|\s*$'`);
+`npx markdownlint-cli2` over the touched docs exit 0.
 
 ### Phase 3: discovery plugin — blindspot contract deltas [TODO]
 
@@ -214,9 +232,11 @@ both new contract lines in this same commit. plugins/discovery/.claude-plugin/pl
 version bump + CHANGELOG.md entry.
 
 **Sanity Check:** grep for the taxonomy + disclosure lines in blindspot SKILL.md;
-`jq '.evals[].expectations | length' plugins/discovery/skills/blindspot/evals/evals.json`
-shows growth vs HEAD; `git diff HEAD --name-only` includes discovery plugin.json + CHANGELOG;
-`scripts/affected-tests.sh --run` green.
+`F=plugins/discovery/skills/blindspot/evals/evals.json; test "$(jq '[.evals[].expectations]|flatten|length' $F)" -gt "$(git show HEAD:$F | jq '[.evals[].expectations]|flatten|length')"`;
+`git diff HEAD --name-only` includes discovery plugin.json + CHANGELOG;
+`bash scripts/check-changed-skills.sh origin/main` green (affected-tests classes SKILL.md
+as no-suite; this is the gate that runs trigger-keyword preservation, listing cap,
+--require-evals per Part G rule 2).
 
 ### Phase 4: education plugin — explain + quiz-me contract deltas [TODO]
 
@@ -226,15 +246,20 @@ question authoring; F4 fresh-context answer-key requirement. Same-commit evals e
 for all five; education plugin version bump + CHANGELOG.
 
 **Sanity Check:** grep each of the five contract lines in its SKILL.md; evals.json
-expectation growth in both skills; affected-tests green.
+expectation growth in both skills (before/after jq pair as in Phase 3);
+`bash scripts/check-changed-skills.sh origin/main` green.
 
 ### Phase 5: verification plugin — confirm deltas [TODO]
 
 confirm SKILL.md: D19 "existing behavior this leans on" callout (CONTRACT) + D18
-quiz-layer cross-ref doc line (the reroute executed; quiz-me untouched by D18). Same-commit
-evals extension for D19; verification plugin version bump + CHANGELOG.
+quiz-layer cross-ref doc line (the reroute executed; quiz-me untouched by D18). D19 likely
+also needs a row in the report template in context/outcome.md (read it first). Same-commit
+evals extension for D19; verification plugin version bump + CHANGELOG. CONSTRAINT: the
+em-dash ratchet (scripts/em-dash-purged-paths.txt) covers verification SKILL.md files —
+no em dashes in any new line here.
 
-**Sanity Check:** grep both lines in confirm SKILL.md; evals growth; affected-tests green.
+**Sanity Check:** grep both lines in confirm SKILL.md; evals growth (before/after jq pair);
+`bash scripts/check-changed-skills.sh origin/main` green; `bash scripts/check-purged-em-dashes.sh` green.
 
 ### Phase 6: prototype plugin — explore-directions + pressure-test deltas [TODO]
 
@@ -242,11 +267,14 @@ explore-directions SKILL.md: D20 same-data control-variable rule (POLICY); D21 s
 steal/graft capture; D22 machine-legible reply template (shaped as the skill's OWN output
 contract, never a consumer-repo format — lane-2 constraint). pressure-test SKILL.md: D24
 validation-answer-set shape; D25 fake-data disclosure footnote (POLICY); D26 per-option
-named costs. D27 mock-before-wire composition note as a doc line in the pair. Same-commit
-evals extensions; prototype plugin version bump + CHANGELOG.
+named costs. D27 mock-before-wire composition note in the shared
+plugins/prototype/context/discipline.md Composition table. Same-commit evals extensions;
+prototype plugin version bump + CHANGELOG. CONSTRAINT: the em-dash ratchet covers
+prototype SKILL.md files — no em dashes in any new SKILL.md line here.
 
 **Sanity Check:** grep the six contract/policy lines + D27 note; evals growth in both
-skills; affected-tests green.
+skills (before/after jq pairs); `bash scripts/check-changed-skills.sh origin/main` green;
+`bash scripts/check-purged-em-dashes.sh` green.
 
 ### Phase 7: planning plugin — interview/plan/design/brainstorm deltas [TODO]
 
@@ -255,59 +283,96 @@ interview SKILL.md: D28 free-text scrutiny flag as a RESOLUTION-FIELD convention
 skill text). plan SKILL.md: D32 switch condition on alternatives; D33 closing revision
 replies; D35 lands-green forward-reference doc line. design SKILL.md: D36 the same
 tweak-likelihood presentation ordering plan already documents. brainstorm SKILL.md: D9
-brainstorm-practice citation doc line. Same-commit evals extensions for the four contract
-rows (D28, D32, D33, D36); planning plugin version bump + CHANGELOG.
+brainstorm-practice citation doc line. wayfind SKILL.md: the five-pass workflow-section
+cross-ref doc line (Brief constraint 7 / Q7 — points at the F1 workflow section as
+marketplace-repo prose). Same-commit evals extensions for the four contract rows (D28,
+D32, D33, D36); planning plugin version bump + CHANGELOG.
 
-**Sanity Check:** grep each delta line; `bash plugins/planning/tests/`'s
-check-open-questions suite still green via `scripts/affected-tests.sh --run` (D28 must not
-break the register gate); evals growth for interview/plan/design.
+**Sanity Check:** grep each delta line (incl. the wayfind cross-ref);
+`bash plugins/planning/scripts/check-open-questions.test.sh` green (invoked directly —
+affected-tests does not select it for SKILL.md/context edits; D28 must not break the
+register gate); evals growth for interview/plan/design (before/after jq pairs);
+`bash scripts/check-changed-skills.sh origin/main` green.
 
 ### Phase 8: discipline plugin — point-dont-copy W2 deltas [TODO]
 
-point-dont-copy SKILL.md: E7 primitive-to-convention trap item (CONTRACT); E8 canonical
-invocation doc line. Same-commit evals extension for E7; discipline plugin version bump +
-CHANGELOG.
+point-dont-copy SKILL.md: E7 primitive-to-convention trap item (CONTRACT) in the
+"Audit. What to look for" list; E8 canonical invocation line (as `argument-hint`
+frontmatter, not a description rewrite — trigger keywords stay intact; frontmatter change
+means the cheat-sheet regenerates in Phase 11). Same-commit evals extension for E7;
+discipline plugin version bump + CHANGELOG. The CHANGELOG entry is PROVISIONAL: Phase 10
+extends this same version's entry with the E6 line (one bump per plugin per PR; the
+intermediate commit's entry knowingly under-describes and Phase 10 finalizes it).
 
-**Sanity Check:** grep E7/E8 lines; evals growth; affected-tests green.
+**Sanity Check:** grep E7 line + `argument-hint` in frontmatter; evals growth
+(before/after jq pair); `bash scripts/check-changed-skills.sh origin/main` green.
 
-### Phase 9: Wave 3 — E6 port gate + E1/E2 deviation-log convention [TODO]
+### Phase 9: session-flow plugin — workflow cross-ref [TODO]
+
+plugins/session-flow/skills/workflow/SKILL.md: the five-pass workflow-section cross-ref
+doc line (Brief constraint 7 / Q7 — marketplace-repo prose pointing at the F1 workflow
+section). session-flow plugin version bump + CHANGELOG (a doc-line-only bump; no eval
+extension — no contract change).
+
+**Sanity Check:** grep the cross-ref line in workflow SKILL.md; session-flow plugin.json +
+CHANGELOG in the diff; `bash scripts/check-changed-skills.sh origin/main` green.
+
+### Phase 10: Wave 3 — E6 port gate + E1/E2 deviation-log convention [TODO]
 
 Own review moment; lands after all W2 phases.
 
 - E6 (discipline:point-dont-copy): semantics map + stop-and-wait confirmation gate,
   scoped to external-reference ports with the C3 boundary sentence verbatim ("source of
   truth outside this repo's tree: vendored, foreign-language, other-repo"); in-tree
-  corrections stay do-it-now. Extends the discipline CHANGELOG entry from Phase 8 (one
-  version bump per plugin per PR). Same-commit evals extension.
+  corrections stay do-it-now. Read plugins/discipline/context/re-anchor-audit-correct.md
+  FIRST and confirm the gate does not reverse its correct-forward doctrine (the gate lands
+  in point-dont-copy's own file, never the shared doc). Finalizes the discipline CHANGELOG
+  entry opened in Phase 8 (same version — one bump per plugin per PR). Same-commit evals
+  extension.
 - E1+E2 (implementation plugin: implement + implement-dispatch): opt-in deviation-log
-  convention + fold-back step; the F1 owner section (Phase 1) is the doc home; the
-  recorded-trigger note lands where the convention is stated ("the moment a second plugin
-  reads DEVIATIONS.md, the registry rule fires" — no registry row now, per C5/M3).
-  implementation plugin version bump + CHANGELOG; same-commit evals extension.
+  convention + fold-back step (implement Step 5 gains the read-DEVIATIONS.md item; the
+  schema/taxonomy extension lands in implement-dispatch's "Divergence in non-interactive
+  runs", which implement's interactive path then cites); the F1 owner section (Phase 1)
+  is the doc home; the recorded-trigger note lands where the convention is stated ("the
+  moment a second plugin reads DEVIATIONS.md, the registry rule fires" — no registry row
+  now, per C5/M3). implementation plugin version bump + CHANGELOG; same-commit evals
+  extension. CONSTRAINT: the em-dash ratchet covers implementation SKILL.md files — no
+  em dashes in any new line there.
 
 **Sanity Check:** grep the boundary sentence verbatim in point-dont-copy SKILL.md; grep
 the trigger note in the implementation plugin; both plugins' CHANGELOGs updated;
-affected-tests green.
+`bash scripts/check-changed-skills.sh origin/main` green;
+`bash scripts/check-purged-em-dashes.sh` green.
 
-### Phase 10: Close-out — issues, cheat-sheet, acceptance verification, PR [TODO]
+### Phase 11: Close-out — issues, cheat-sheet, acceptance verification, PR [TODO]
 
 - File follow-up GitHub issues (authorized): one for the behavioral eval candidates
   (D5, D7, D11, D17b, D34-residue), one for the E4 skill extension candidate, one for the
   D28 schema-change deferral, one for Q11-FLIP + E1-REG recorded triggers (or fold small
   ones into a single tracking issue — executor's judgment on granularity).
-- `node scripts/generate-cheatsheet.mjs --check`; regenerate once if any frontmatter
-  changed (descriptions are NOT edited by any delta, so expected clean).
-- Acceptance-criterion 1 verification by grep: every D/E/F/G row id from the sheet
-  resolves to a diff hunk or a recorded disposition line; write the sweep result into this
-  PLAN under a dated note.
-- Full `scripts/affected-tests.sh --run` green on the branch head.
+- `node scripts/generate-cheatsheet.mjs --check`; regenerate once (E8's argument-hint is
+  a frontmatter change, so regeneration is expected).
+- Acceptance-criterion 1 verification in the CORPUS→SHEET direction: iterate every V-id
+  row of the committed disposition-ledger.md (Phase 2) and confirm each names a
+  disposition + sheet row; then confirm every sheet CONTRACT/POLICY/CONVENTION/DOC row
+  resolves to a diff hunk. Write both sweep results into this PLAN under a dated note.
+- Walk acceptance criteria 2-7 explicitly, one recorded line each (2: all phase gates
+  green on head; 3: F1 warning + C6 grep; 4: registry rows + owner-section conformance
+  text, per the Phase 2 reconciliation; 5: ctx-eng rows grep; 6: eval-expectation commits
+  co-located with contract commits via `git log --name-only`; 7: this PLAN + sheet were
+  the executed contract).
+- /ai-slop:audit pass over the new F1 doc + a sample of edited SKILL.md hunks (Brief
+  constraint 5); fix findings before the PR.
+- Full gate battery on the branch head: `bash scripts/check-changed-skills.sh origin/main`;
+  `bash scripts/check-purged-em-dashes.sh`; `npx markdownlint-cli2` on touched .md;
+  `scripts/affected-tests.sh --run` (covers any script/test surfaces touched).
 - Push and open the ONE pull request (explicitly requested), body mapping commits to
   waves and citing ./signoff-sheet.md.
 
-**Sanity Check:** `node scripts/generate-cheatsheet.mjs --check` exit 0;
-`scripts/affected-tests.sh --run` exit 0; issue URLs recorded in this PLAN; PR URL
-recorded; the criterion-1 grep sweep output pasted as a dated note with zero unaccounted
-rows.
+**Sanity Check:** `node scripts/generate-cheatsheet.mjs --check` exit 0 after regeneration;
+all five gate commands above exit 0; issue URLs recorded in this PLAN; PR URL recorded;
+the criterion-1 double sweep pasted as a dated note with zero unaccounted rows; criteria
+2-7 walk recorded.
 
 ## Blast radius
 
@@ -321,12 +386,24 @@ per-phase gates run before each commit; the sibling-topic edit is bullets-only.
 The execution shape this plan sequences was already adversarially tested this session
 before sign-off: /planning:devils-advocate (1 CRITICAL / 4 HIGH / 6 MEDIUM / 4 LOW, all
 folded), then two independent fresh-context Fable validators over the sign-off sheet
-(amendments folded as rev 2). Step 3's fresh-context plan-reviewer ran over THIS phase
-plan; confirmed findings fixed before execution (see dated note below if any).
+(amendments folded as rev 2).
+
+2026-09-01 — Step 3 fresh-context plan review over THIS phase plan returned 3 CRITICAL /
+6 IMPORTANT / 6 SUGGESTION; all verified against the repo and folded: (1) Q7/Q10
+cross-refs gained homes (wayfind in Phase 7, session-flow as new Phase 9, artifact-design
+resolved as prose mention in F1); (2) criterion-1 traceability now runs corpus→sheet off
+a committed disposition ledger (Phase 2); (3) affected-tests was the wrong gate for
+SKILL.md/docs edits — replaced with check-changed-skills.sh, direct markdownlint, the
+em-dash ratchet, and the direct check-open-questions test; (4-6) Part G gates wired into
+every phase, criterion-4 reconciliation recorded, criteria 2-7 walk added to Phase 11;
+(7) F1-as-owner justification extended; (8) map/territory gets a Rejected-terms row;
+(9) delta-resolution.md committed for compaction survivability; plus the six suggestions
+(before/after eval counts, grep idioms, real test path, provisional-CHANGELOG note,
+ai-slop audit pass, unconditional lychee check).
 
 ## Execution shape
 
-Fully sequential, all main-session, phases 1→10 in order (2-8 are order-independent among
+Fully sequential, all main-session, phases 1→11 in order (3-9 are order-independent among
 themselves but run sequentially anyway; commits are serial on one branch). Basis for
 main-session routing: the repo's on-demand convention surfaces (AGENTS.md table) do not
 auto-load inside subagents; every phase is judgment-heavy house-style contract writing;
@@ -336,7 +413,7 @@ is the shape itself — no parallel orchestration to fall back from.
 
 | Phase | Surface | Basis |
 |---|---|---|
-| 1-10 | main session | convention surfaces + house style live in main context; serial commits on one branch |
+| 1-11 | main session | convention surfaces + house style live in main context; serial commits on one branch |
 | Step-3 reviewer | fresh sub-agent | mandatory fresh-context stress-test |
 
 ## Open questions
@@ -362,8 +439,10 @@ Decisions made (gate-passed):
 | [EXEC-SHAPE] F1 doc path = `docs/FINDING-YOUR-UNKNOWNS.md` | Phase 1 target file | SCREAMING-KEBAB at docs/ root is the read precedent for durable cross-cutting references (docs/ inventory read this session); "name at plan time" was delegated by Part E |
 | [EXEC-SHAPE] Per-plugin DOC rows (D9, D18, D27, D35, E8) ride their plugin's W2 commit instead of a separate W1 commit | Phases 3-8 contents | MIGRATION-PLAYBOOK: version bump + CHANGELOG is per plugin; folding avoids two bumps per plugin in one PR; wave intent (review structure) is preserved by commit ordering |
 | [EXEC-SHAPE] Sequential main-session execution, no parallel fan-out | Execution shape | Convention surfaces don't auto-load in subagents (AGENTS.md); serial commits on one branch; judgment-heavy prose work |
-| [EXEC-SHAPE] Registry rows point at the F1 doc as owner (form-2: repo file) | Phase 2 | Registry precedent allows repo-file owners; Part E assigns ownership of both conventions to the F1 doc |
-| [EXEC-SHAPE] Deferred/eval-candidate tracking as GitHub issues, granularity at executor's judgment | Phase 10 | Operator: "Its OK if we file issues" |
+| [EXEC-SHAPE] Registry rows point at the F1 doc as owner (form-2: repo file) | Phase 2 | Registry precedent allows repo-file owners (`lib/hook-utils.sh`, plugin surfaces); Part E assigns ownership of both conventions to the F1 doc; the owner sections carry the full owner-doc anatomy (rule, who is bound, conformance) and versioning rides git history exactly as it does for the existing non-directory owners |
+| [EXEC-SHAPE] Deferred/eval-candidate tracking as GitHub issues, granularity at executor's judgment | Phase 11 | Operator: "Its OK if we file issues" |
+| [EXEC-SHAPE] Q10's artifact-design cross-ref = a prose mention of the session built-in skill inside F1's reply-affordance section | Phase 1 | artifact-design has no in-repo surface (verified repo-wide); prose mention of built-ins is the established idiom |
+| [EXEC-SHAPE] Q7's session-flow:workflow cross-ref is its own phase/commit with a doc-line-only version bump | Phase 9 | The cross-ref is a Part B obligation, not a Part D roster row; MIGRATION-PLAYBOOK requires the bump for any plugin content change |
 
 ### Mechanical work
 
