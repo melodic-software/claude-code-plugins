@@ -59,8 +59,9 @@ devils-advocate stress-test. Evidence trail in `.work/work-folder-hierarchy/`.
    built (`scripts/check-contract-slice-prune.sh` already exists and is wired).
 7. **One clean-break major wave** (documented versioning precedent). Substrate
    PRs land first (lib regen script + tests, reworked dispatch gate),
-   unreferenced; one normative flip PR last (README v3 + schema + all bindings
-   - artifact-protocol copies + setup skills + CHANGELOG major entry).
+   unreferenced; one normative flip PR last (README v3 + schema + all
+   bindings + artifact-protocol copies + setup skills + CHANGELOG major
+   entry).
 
 ### Constraints
 
