@@ -5,7 +5,7 @@
       "id": 1,
       "name": "start-is-default-action",
       "prompt": "launch my lanes",
-      "expected_output": "Routes to the default `start` action: runs lane-launcher.sh, which resolves the lane config (--config, else $CLAUDE_OPS_LANES_CONFIG, else <repo>/.work/lanes.json), pulls the repo and refreshes the plugin marketplace, then launches each configured lane NOT already running as a named background session (claude --bg -n <lane> [--model] [--effort] <prompt-file-contents>). Prints the script output verbatim.",
+      "expected_output": "Routes to the default `start` action: runs lane-launcher.sh, which resolves the lane config (--config, else $CLAUDE_OPS_LANES_CONFIG, else <repo>/.work/lanes/lanes.json, falling back to the pre-move <repo>/.work/lanes.json under a deprecation warning), pulls the repo and refreshes the plugin marketplace, then launches each configured lane NOT already running as a named background session (claude --bg -n <lane> [--model] [--effort] <prompt-file-contents>). Prints the script output verbatim.",
       "files": [],
       "expectations": [
         "Output routes to the start action (lane-launcher.sh with no explicit action), not restart/stop/status",
@@ -54,11 +54,11 @@
       "id": 5,
       "name": "prompt-storage-defers-to-480",
       "prompt": "Where does the launcher read a lane's canonical prompt from, and is that its permanent home?",
-      "expected_output": "It reads each lane's prompt from the file named by lanes[].prompt, resolved against prompt_dir (default '.work', a session-local dir). That is provisional, NOT the permanent home: issue #480 (loop-prompt authoring skill) is slated to own durable prompt storage. When #480 lands, prompt_dir (or the resolve_prompt_dir seam) is repointed at the durable location; this skill does not build that storage itself.",
+      "expected_output": "It reads each lane's prompt from the file named by lanes[].prompt, resolved against prompt_dir (default '.work/lanes', the skill's reserved concern home under the session-local memory root). That home is a sanctioned placement, NOT a durable one: the memory root does not travel between machines, so issue #480 (loop-prompt authoring skill) still owns durable cross-machine prompt storage. When #480 lands, prompt_dir (or the resolve_prompt_dir seam) is repointed at the durable location; this skill does not build that storage itself.",
       "files": [],
       "expectations": [
-        "Output identifies prompt_dir (default .work) as the current, session-local prompt source",
-        "Output states this is provisional and that durable prompt storage is issue #480's responsibility, not this skill's",
+        "Output identifies prompt_dir (default .work/lanes) as the current, session-local prompt source",
+        "Output states the placement is sanctioned but still session-local, and that durable cross-machine prompt storage is issue #480's responsibility, not this skill's",
         "Output does not claim this skill builds or owns durable prompt storage"
       ]
     },

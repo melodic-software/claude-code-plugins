@@ -1,5 +1,16 @@
 # Changelog — session-flow plugin
 
+## [0.34.16]
+
+### Added
+
+- **`workflow`: five-pass pre-implementation cross-ref.** One doc line under the at-a-glance
+  diagram noting that stages 0-3 expand, for unfamiliar territory, into the known five-pass
+  order (blindspot → brainstorm/prototype → interview → reference port → plan), stated with
+  rationale in `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository. Recorded at the
+  finding-your-unknowns integration sign-off (Q7); no contract or trigger change, so no eval
+  delta.
+
 ## [0.34.15]
 
 ### Changed

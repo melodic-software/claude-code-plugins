@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.43]
+
+### Changed
+
+- **Triage's lane-config reference follows the lanes rehoming.** The triage skill and
+  its eval cite the lane launcher's config at its new reserved home,
+  `<repo>/.work/lanes/lanes.json`, matching claude-ops 0.40.0's move of lanes state
+  under `.work/lanes/`. Part of the topic-docs v3 wave (#3554).
+
 ## [0.39.42]
 
 ### Fixed

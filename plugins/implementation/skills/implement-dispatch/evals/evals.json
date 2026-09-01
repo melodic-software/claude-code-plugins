@@ -61,6 +61,7 @@
         "Does NOT deadlock the autonomous run waiting for a human on a moderate divergence",
         "Picks the conservative option (closest to plan intent, smallest blast radius) for the moderate divergence",
         "Logs the deviation to a DEVIATIONS.md beside the plan artifact (what was planned, what was done, why, blast radius)",
+        "The logged entry is typed (plan-confirmed / discovery / deviation / human-decision), and a deviation entry answers plan said / found / chose / revisit",
         "Reserves a hard STOP for major divergence (a fundamental assumption wrong), not this moderate one"
       ]
     },

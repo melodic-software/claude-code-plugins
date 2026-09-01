@@ -24,11 +24,14 @@
 # that `agents --json` reports, and ONLY for a name present in the lane config —
 # so the wrapper can never stop an unrelated session (e.g. a hand-started one).
 #
-# PROMPT-FILE STORAGE IS PROVISIONAL. Today prompts live in a session-local
-# `.work` dir (the config's `prompt_dir`, default `.work`). A forthcoming
-# loop-prompt authoring skill is slated to own durable prompt storage; when it
-# lands, repoint `prompt_dir` at that home — the resolution seam is the single
-# `resolve_prompt_dir` function below and nothing else.
+# PROMPT-FILE STORAGE IS PROVISIONAL. Today prompts live in the lanes concern
+# home under the session-local memory root (the config's `prompt_dir`, default
+# `.work/lanes`). That home is a sanctioned placement, not a durable one: the
+# memory root is session-local, so a fresh machine still starts with no prompts.
+# A forthcoming loop-prompt authoring skill is slated to own durable
+# cross-machine prompt storage; when it lands, repoint `prompt_dir` at that
+# home — the resolution seam is the single `resolve_prompt_dir` function below
+# and nothing else.
 #
 # Usage:
 #   lane-launcher.sh [start]              pull + update, launch lanes not running
@@ -80,12 +83,19 @@
 #   config preflight rejects a name that is not a single path component.
 #
 # Config resolution (first hit wins):
-#   --config FILE  →  $CLAUDE_OPS_LANES_CONFIG  →  <repo>/.work/lanes.json
+#   --config FILE  →  $CLAUDE_OPS_LANES_CONFIG  →  <repo>/.work/lanes/lanes.json
+#   Compatibility: when none of those hit and the pre-move `<repo>/.work/lanes.json`
+#   exists, that file is read instead, with a one-line deprecation WARNING. A
+#   config resolved at the pre-move path also keeps the pre-move `prompt_dir`
+#   default (".work"), so a config that never named one still finds the prompts
+#   it left beside itself. Move both to `.work/lanes/` to clear the warning;
+#   $CLAUDE_OPS_LANES_CONFIG remains the escape hatch for a config kept elsewhere.
 #
 # Config schema (see context/config.md for the full contract):
-#   { "prompt_dir": ".work",
+#   { "prompt_dir": ".work/lanes",
 #     "lanes": [ {"name":"work","prompt":"work.md","model":"opus","effort":"high"} ] }
-#   prompt_dir  optional; base for relative `prompt` paths; default ".work".
+#   prompt_dir  optional; base for relative `prompt` paths; default ".work/lanes"
+#               (".work" for a config resolved at the pre-move path above).
 #   name        required; the lane's session name (also the --name value).
 #   prompt      required; path to the canonical prompt file (absolute, or
 #               relative to prompt_dir).
@@ -174,6 +184,7 @@ declare -a TARGET_LANES=()
 
 # --- Small emitters -----------------------------------------------------------
 err() { printf 'ERROR: %s\n' "$*" >&2; }
+warn() { printf 'WARNING: %s\n' "$*" >&2; }
 info() { printf '%s\n' "$*"; }
 
 # Guard for a space-separated option that consumes the next token: reject a
@@ -305,10 +316,37 @@ resolve_repo() {
     }
 }
 
+# The lanes concern home under the memory root, and the pre-move path it
+# superseded. Lanes state used to sit as bare files AT the memory root, outside
+# any reserved name; `lanes/` is now a reserved first-level concern name, so the
+# config and the lane prompts live inside it.
+LANES_CONFIG_REL=".work/lanes/lanes.json"
+LEGACY_LANES_CONFIG_REL=".work/lanes.json"
+
+# Set when the resolved config IS the pre-move `<repo>/.work/lanes.json` —
+# however it was resolved, not only through the fallback below. A config sitting
+# at the old path was authored against the old prompt-dir default, so
+# resolve_prompt_dir keeps giving it that default; otherwise a config that never
+# named a `prompt_dir` would start looking for its prompts one directory deeper
+# than it left them and skip every lane with "prompt file not found".
+LEGACY_CONFIG_HOME=0
+
 resolve_config() {
   if [[ -z "$CONFIG" ]]; then
-    CONFIG="${CLAUDE_OPS_LANES_CONFIG:-$REPO/.work/lanes.json}"
+    CONFIG="${CLAUDE_OPS_LANES_CONFIG:-$REPO/$LANES_CONFIG_REL}"
+    # Backward compatibility for a checkout that predates the move. Only the
+    # DEFAULT falls back: an explicit --config or $CLAUDE_OPS_LANES_CONFIG is
+    # used verbatim, as documented, so the escape hatch keeps meaning exactly
+    # what it says. Warn rather than fail: an operator whose lanes ran this
+    # morning must not have `start` exit 4 on them, and the warning is what
+    # turns a silent old-path read into a visible one-step migration.
+    if [[ -z "${CLAUDE_OPS_LANES_CONFIG:-}" && ! -f "$CONFIG" && -f "$REPO/$LEGACY_LANES_CONFIG_REL" ]]; then
+      warn "reading the pre-move lane config at $REPO/$LEGACY_LANES_CONFIG_REL"
+      warn "  move it (and the lane prompt files) to $REPO/.work/lanes/ — this fallback is temporary"
+      CONFIG="$REPO/$LEGACY_LANES_CONFIG_REL"
+    fi
   fi
+  [[ "$CONFIG" == "$REPO/$LEGACY_LANES_CONFIG_REL" ]] && LEGACY_CONFIG_HOME=1
   [[ -f "$CONFIG" ]] || {
     err "lane config not found: $CONFIG"
     exit 4
@@ -388,9 +426,14 @@ resolve_config() {
 }
 
 # The one prompt-storage seam — repoint here when a durable prompt home exists.
+# Default: the `lanes/` concern home under the memory root. A config resolved at
+# the pre-move path keeps the pre-move default (see LEGACY_CONFIG_HOME); an
+# explicit `prompt_dir` wins over both, so a moved config that still names
+# ".work" keeps reading prompts from there until its author moves them too.
 resolve_prompt_dir() {
-  local d
-  d="$(jq -r '.prompt_dir // ".work"' "$CONFIG")"
+  local d default=".work/lanes"
+  ((LEGACY_CONFIG_HOME)) && default=".work"
+  d="$(jq -r --arg default "$default" '.prompt_dir // $default' "$CONFIG")"
   case "$d" in
   /* | [A-Za-z]:[\\/]*) printf '%s' "$d" ;; # absolute (POSIX or Windows drive)
   *) printf '%s' "$REPO/$d" ;;

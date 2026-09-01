@@ -336,24 +336,45 @@ function reset(name) {
 #   reading that form as a month would cost 34 false candidates to buy a date
 #   form nobody writes.
 #
-# A known under-report, left rather than chased: this function returns on the
-# digit branch, so RSTART belongs to that match. When a digit-adjacent "may"
-# sits BEYOND the window and a capital "May" sits inside it, the guard in the
-# caller (RSTART <= wlen) rejects the out-of-window digit match and the in-window
-# capital is never consulted, so appending a stray "7 may" to a line can remove
-# its candidacy. No corpus line has this shape. Returning the leftmost of the
-# two matches would fix it; trying the capital branch first only mirrors the
-# bug. Both scripts inherit it identically, so their cross-script agreement
-# assertion cannot see it.
+# The two signals share ONE RSTART, and the caller reads it to decide whether
+# the match began inside the window or out in the 9 characters of slack. So both
+# are evaluated and the LEFTMOST wins, with RSTART and RLENGTH left describing
+# that match — never the one this function passed over.
 #
-# match() leaves RSTART and RLENGTH set globally, so a caller that needs the
-# offset of the accepted match reads them straight after a true return.
-function may_form(w, worig) {
-  if (match(w, /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/)) return 1
+# Returning on whichever branch was tested first under-reported. The digit test
+# came first, so a digit-adjacent "may" out in the slack returned its own RSTART,
+# the caller rejected it against wlen, and a capital "May" sitting INSIDE the
+# window was never consulted: appending a stray "7 may" to "Verified this May"
+# removed that line from the candidates. A second, weaker date signal deleting a
+# stamp is the one direction this detector must not move in. Testing the capital
+# first only mirrors the bug, a capital in the slack then hiding an in-window
+# digit, so neither order is a fix. Leftmost changes nothing wherever the digit
+# match already came first, which is every line in the corpus, measured by
+# comparing parsed and declined counts over 1,352 files at --as-of 2026-08-28
+# before and after.
+#
+# Both scripts carried the same defect, so the cross-script agreement the suites
+# assert was blind to it: the two agreed, on the wrong count. Both suites now pin
+# the count itself as well as the agreement.
+#
+# A false return leaves RSTART = 0 and RLENGTH = -1, the values awk itself sets
+# after a failed match, so a caller cannot read a stale offset off a window this
+# function rejected.
+function may_form(w, worig,   ds, dl, cs, cl) {
+  ds = 0; dl = 0
+  if (match(w, /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/)) { ds = RSTART; dl = RLENGTH }
   # No leading boundary, matching the abbreviation rule below: a capital M after
   # a letter is not a word anyone writes. The trailing one is load-bearing, or
   # "Maybe" opening a sentence reads as a date.
-  if (match(worig, /May([^a-z]|$)/)) return 1
+  cs = 0; cl = 0
+  if (match(worig, /May([^a-z]|$)/)) { cs = RSTART; cl = RLENGTH }
+  # w and worig are the same span cut at the same offsets, so the two offsets are
+  # directly comparable. A tie keeps the digit match, which is the branch that
+  # used to win outright: it cuts the window after the digit rather than before
+  # it, and "May 2026" ties on every line that carries one.
+  if (ds > 0 && (cs == 0 || ds <= cs)) { RSTART = ds; RLENGTH = dl; return 1 }
+  if (cs > 0) { RSTART = cs; RLENGTH = cl; return 1 }
+  RSTART = 0; RLENGTH = -1
   return 0
 }
 
@@ -405,8 +426,10 @@ function keyword_window(line,   low, pos, off, kw, wlen) {
     if (match(win, /(january|february|march|april|june|july|august|september|october|november|december)/) && RSTART <= wlen) return substr(win, 1, RSTART + RLENGTH - 1)
     # "may" is a month and an ordinary English modal; may_form() above carries
     # the two signals that separate them and the corpus measurements behind
-    # them, and leaves RSTART and RLENGTH set on the match it accepted. The
-    # digit half of that test is unbounded in length, unlike every other form
+    # them, and leaves RSTART and RLENGTH set on the LEFTMOST of the two, which
+    # is what keeps a signal out here in the slack from hiding one the guard
+    # below would have taken. The digit half of that test is unbounded in
+    # length, unlike every other form
     # here, so a contrived "may" + 10 or more non-letters + year starting at
     # exactly wlen runs past the 9 characters of slack and stops being a
     # candidate. Latent: no such line exists in the corpus, and the ordinary

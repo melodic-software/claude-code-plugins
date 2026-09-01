@@ -121,7 +121,7 @@ git -C "$REPO" commit -qm seed >/dev/null 2>&1
 CONFIG="$TMP/lanes.json"
 cat >"$CONFIG" <<'JSON'
 {
-  "prompt_dir": ".work",
+  "prompt_dir": ".work/lanes",
   "lanes": [
     { "name": "work", "prompt": "work.md", "model": "opus", "effort": "high",
       "telemetry": { "issue": 42, "marker": "work-items:work-loop" } },
@@ -297,7 +297,7 @@ assert_eq "an observed-only sibling request is not an error" "0" "$RC"
 CONFIG_PIN="$TMP/lanes-pin.json"
 cat >"$CONFIG_PIN" <<'JSON'
 {
-  "prompt_dir": ".work",
+  "prompt_dir": ".work/lanes",
   "lanes": [
     { "name": "work", "prompt": "work.md",
       "telemetry": { "issue": 42, "marker": "work-items:work-loop", "instance": "laptop-b" } },
@@ -795,7 +795,7 @@ assert_not_contains "a lane alive at mutation time is never stopped-and-relaunch
 
 # --- 27. print-schedule preserves behavior-affecting options (#1759 P2) -------
 # Dropping a passed --config/--target-repo silently schedules a run against
-# <repo>/.work/lanes.json and the checkout's own repository instead.
+# <repo>/.work/lanes/lanes.json and the checkout's own repository instead.
 OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --config "$CONFIG" --target-repo "owner/name" 2>&1)"
 for form in 'schtasks /Create /TN' 'ONLOGON' '* * * * cd' "bash '"; do
   line="$(printf '%s\n' "$OUT" | grep -F -- "$form" | head -1)"
@@ -807,6 +807,42 @@ assert_contains "the offline form quotes the passed --config" "$OUT" "--config '
 OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" 2>&1)"
 assert_not_contains "a defaulted --config is not emitted as noise" "$OUT" "--config"
 assert_not_contains "a defaulted --target-repo is not emitted as noise" "$OUT" "--target-repo"
+
+# --- 28. Default config home + pre-move compatibility -------------------------
+# Every case above passes --config, so none of them exercises the DEFAULT
+# resolution — which is what moved into the `lanes/` concern home. This consumer
+# runs unattended on an OS schedule, so the pre-move fallback is what keeps a
+# not-yet-migrated checkout honoring restart requests instead of failing into a
+# log nobody reads.
+run_default_config() {
+  bash "$SCRIPT" check --repo "$REPO" --data-dir "$DATA" --target-repo "owner/name" \
+    --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+    --telemetry-json "$TMP/tel-1.json" --agents-json "$AGENTS_NONE" 2>&1
+}
+
+OUT="$(run_default_config)"
+RC=$?
+assert_eq "a missing config exits 4" "4" "$RC"
+assert_contains "the default names the lanes/ concern home" "$OUT" \
+  "lane config not found: $REPO/.work/lanes/lanes.json"
+
+mkdir -p "$REPO/.work"
+cp "$CONFIG" "$REPO/.work/lanes.json"
+OUT="$(run_default_config)"
+assert_contains "a pre-move config is read rather than failing the scheduled run" "$OUT" \
+  "reading the pre-move lane config at $REPO/.work/lanes.json"
+assert_contains "the warning names the destination" "$OUT" "$REPO/.work/lanes/"
+
+mkdir -p "$REPO/.work/lanes"
+cp "$CONFIG" "$REPO/.work/lanes/lanes.json"
+OUT="$(run_default_config)"
+assert_not_contains "the lanes/ home wins and nothing warns" "$OUT" "reading the pre-move lane config"
+
+OUT="$(CLAUDE_OPS_LANES_CONFIG="$TMP/nowhere.json" run_default_config)"
+RC=$?
+assert_eq "the env override is not fallen back from" "4" "$RC"
+assert_contains "the env override is used verbatim" "$OUT" "lane config not found: $TMP/nowhere.json"
+rm -rf "${REPO:?}/.work"
 
 # --- Summary -----------------------------------------------------------------
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"

@@ -46,9 +46,14 @@ the first write and record the absolute path in the checklist: unset or a surviv
 `${CLAUDE_PROJECT_DIR}`; absolute and `~` are verbatim; a `${NAME}`/`%NAME%` env-var reference is
 read by you, never handed to a shell, an unset variable must fail loudly, not expand empty.
 
-The slice lands at `<resolved-root>/.work/<epic>/<slug>/`. Exactly two levels below `.work/`,
-the depth the topic-docs carve-out sanctions; never deeper. The root self-ignores (a `.gitignore`
-containing `*`); nothing this skill writes is ever committed. Graduating any artifact to a
+The slice lands at `<resolved-root>/.work/<epic>/<slug>/`, and **every corpus artifact this skill
+writes stays inside the `library_dir` seam**: nothing lands under the consuming repo's `memory_dir`,
+and topic slices hold pointers to corpus content, never the corpus itself (the topic-docs contract's
+corpus-seam rule, cited, not restated). Exactly two levels below `.work/`, never deeper: the
+contract's v3 slice tree recurses freely, but the two-level `<epic>/<slug>/` shape is this skill's
+own contract, because the seed-hash slug needs one stable home per topic and seed set. Inside the
+seam the tree is shape-unified to the contract's slice and `INDEX.md` rules. The root self-ignores
+(a `.gitignore` containing `*`); nothing this skill writes is ever committed. Graduating any artifact to a
 tracked repo is a separate, human-gated act. `<slug>` is the slugified topic plus `-<hash8>`, the
 first 8 hex of the SHA-256 of the sorted, normalized seed list, so the same topic+seeds resume
 one slice and different seed sets never share one.

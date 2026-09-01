@@ -1,5 +1,5 @@
 ---
-description: "Ingest a single online documentation page (a docs-site URL) into a verified knowledge slice. Fetch the original, inventory it into an INDEX, fan out per-section digest agents, run dual verification (one cross-vendor verifier), and hand off an interview-ready decision artifact. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on <url>', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL to turn into durable corpus artifacts. Remote documentation PDFs (model cards, system cards) DO belong here; book files (PDF/EPUB books) route to /knowledge:book-distill, video courses to /knowledge:course-digest, single YouTube videos to /knowledge:video-digest; not ad-hoc summarization, the output is a durable verified corpus slice plus an interview handoff, not a chat summary. Publisher profiles live under context/ (first: Anthropic docs)."
+description: "Ingest a single online documentation page (a docs-site URL) into a verified knowledge slice. Fetch the original, inventory it into a SOURCES.md, fan out per-section digest agents, run dual verification (one cross-vendor verifier), and hand off an interview-ready decision artifact. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on <url>', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL to turn into durable corpus artifacts. Remote documentation PDFs (model cards, system cards) DO belong here; book files (PDF/EPUB books) route to /knowledge:book-distill, video courses to /knowledge:course-digest, single YouTube videos to /knowledge:video-digest; not ad-hoc summarization, the output is a durable verified corpus slice plus an interview handoff, not a chat summary. Publisher profiles live under context/ (first: Anthropic docs)."
 argument-hint: "[url] (e.g., /knowledge:docpage-digest https://platform.claude.com/docs/en/build-with-claude/effort)"
 user-invocable: true
 disable-model-invocation: false
@@ -98,7 +98,9 @@ Copy `templates/checklist.md` into `<work-root>/docpage-digest-checklist.md` at 
 the collision check above has passed, and immediately fill its `Canonical URL` and resolved
 work-root lines. Those two are what the next run's collision check reads. Tick each phase as it
 completes; the ticked state is the cross-session resume pointer. On resume, re-read the checklist
-plus `INDEX.md` and continue from the first unticked phase.
+plus `SOURCES.md` and continue from the first unticked phase. A work root written before 0.13.30
+carries the inventory as `INDEX.md`: accept it as the Phase 2 artifact, rename it to `SOURCES.md`,
+note the rename in the checklist, and continue — never re-inventory over it.
 
 ## Phase 1. Fetch
 
@@ -128,10 +130,12 @@ plus `INDEX.md` and continue from the first unticked phase.
 
 ## Phase 2. Inventory
 
-Write `<work-root>/INDEX.md`: every heading/topic/concern in the source, cross-cutting themes, a
-digest-file map (one row per digest unit), and a status checklist. Digest-unit granularity: the
+Write `<work-root>/SOURCES.md`: every heading/topic/concern in the source, cross-cutting themes, a
+digest-file map (one row per digest unit), and a status checklist. SOURCES.md opens with a YAML
+frontmatter block carrying at least `abstract:` (ONE unwrapped line naming what the page covers),
+the topic-docs contract's indexable-artifact hook, so a parent slice regen can mirror it. Digest-unit granularity: the
 pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-digests inside
-their unit's file. INDEX.md is the representation layer every later phase (and the interview)
+their unit's file. SOURCES.md is the representation layer every later phase (and the interview)
 walks. Keep its rows in parity with the digest files.
 
 ## Phase 3. Digest fan-out
@@ -150,7 +154,7 @@ path stays inside `<work-root>/digests/` before writing.
   a brief's body text from the actually-running model, so a pinned brief states its assumption
   conditionally. "this brief assumes model X; if you are not X, note the mismatch in your output
   and continue", never "you are X" as fact.
-- Each brief carries the untrusted-source rule and ONLY the source section plus INDEX.md context, not this conversation.
+- Each brief carries the untrusted-source rule and ONLY the source section plus SOURCES.md context, not this conversation.
 - **Verbatim means verbatim:** in "Key claims (verbatim)", a truncated quote carries an ellipsis,
   joined source lines declare their join convention, and no escaping may alter characters. Verifiers diff quotes character-for-character against the source.
 - **Fence mandate:** every verbatim quote, Key claims and Prompt snippets, lives in a
@@ -219,7 +223,7 @@ matched zero of four real instances).
 
 - **Verify the fetch channel per page.** A raw-markdown channel that worked for one doc can 404
   for the next; the profile records precedent, not a guarantee.
-- **Digest-unit parity is the invariant.** INDEX.md rows, digest files, and checklist entries
+- **Digest-unit parity is the invariant.** SOURCES.md rows, digest files, and checklist entries
   must agree; a dropped section is silent corpus loss the verifiers are told to catch. Parity
   that only checks presence-non-empty will not catch unsubstituted placeholders.
 - **Verdicts are append-only.** Fixing a digest after verification means a corrections-applied

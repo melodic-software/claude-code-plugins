@@ -56,6 +56,8 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 
    `--index-name` is required, not defaulted, the same gate grades `/discovery:research` runs, the two artifact families differ only in that name, and a gate that fails closed everywhere else must not guess which family it is looking at.
 
+   The gate grades exactly the slice path it is given and never scans the slice for an index elsewhere, so on a collision the envelope's slice path is already the sub-slice the parent assigned pre-dispatch, and that same assigned path is the one handed here.
+
    Cite the **exit status**, 0 usable, 1 no usable artifact set, 2 ungradeable, not a reading of the directory, because the context most motivated to call the dispatch finished is the one that would be doing the reading. Only the slice path and `--index-name` are required, and that bare form is still a real gate: every optional check reports `unchecked` rather than passing quietly. Append `--expect-sidecars <n>` when the payload reported a `sidecars:` count, and **drop any flag whose value the payload did not supply**.
 
    **The `index=` path in that output is authoritative** downstream: the verifier's target and the handoff pointer both come from it, not from `artifact:`. `pointer=mismatch` means the payload named a file this gate never graded, a defect in the payload, not a naming preference to reconcile.
@@ -204,7 +206,7 @@ This file is the authoritative stage summary, a fresh session must be able to re
 
 **Sidecar headers use the EXPLORE schema, not the research one.** Local evidence is a repository path and whether the file was actually Read. `verified: read | grep | inferred`, not a URL, a source tier, and a publishing pool. Handed the research header, a run either fabricates fields it has no values for or improvises a shape no consumer can parse; the fabrication is worse, because it launders a grep hit into the field a fetched primary would occupy. Schema and why `verified` is load-bearing: the artifact-shape spoke's "EXPLORE.md sidecar header" section.
 
-**If an unrelated `EXPLORE.md` already exists** in that slice, do not clobber it, and do not rename the index to dodge it, since `EXPLORE-*.md` is the sidecar pattern and a renamed index collides with its own sidecars. Write the whole artifact set, under its normal names, into a sub-slice `<memory_dir>/<slug>/<scope-slug>/`, and report that path. A prior exploration lost to a filename collision is silent and unrecoverable.
+**If an unrelated `EXPLORE.md` already exists** in that slice, do not clobber it, and do not rename the index to dodge it, since `EXPLORE-*.md` is the sidecar pattern and a renamed index collides with its own sidecars. Occupancy is the PARENT's to resolve, before any write: stat the slice root pre-dispatch, and when it is occupied assign a sub-slice `<memory_dir>/<slug>/<scope-slug>/` as the envelope's slice path, so the whole artifact set is written there under its normal names. A worker never picks a sub-slice itself, and on an inline run this session is the parent and applies the same check before writing. A prior exploration lost to a filename collision is silent and unrecoverable.
 
 ## Gotchas
 

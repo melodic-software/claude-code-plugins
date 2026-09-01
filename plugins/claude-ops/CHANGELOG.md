@@ -3,6 +3,46 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0]
+
+### Changed
+
+- **`lanes` state moved into a reserved `lanes/` concern home.** The lane config
+  and the lane prompt files sat as bare files at the memory root:
+  `<repo>/.work/lanes.json` plus `prompt_dir` defaulting to `.work`. That is
+  outside the reserved-name roster and outside the slice model the topic-docs
+  contract defines, and it was the contract's clearest live violation. The
+  defaults are now `<repo>/.work/lanes/lanes.json` and a `prompt_dir` of
+  `.work/lanes`, inside a reserved first-level concern name. `lane-launcher.sh`,
+  `restart-consumer.sh`, and the `probe-lane-config.sh` line that feeds the
+  skill's pre-computed context all move together, so the path the skill reports
+  is the path the launcher opens.
+- **A checkout that has not migrated keeps working, loudly.** When the `lanes/`
+  home holds no config and the pre-move `<repo>/.work/lanes.json` exists, that
+  file is read and a one-line deprecation warning names the move. Only the
+  DEFAULT falls back: `--config` and `$CLAUDE_OPS_LANES_CONFIG` are still used
+  verbatim, so the escape hatch keeps meaning what it says and a config kept
+  outside the memory root fails loudly rather than resolving to a leftover file.
+  A config resolved at the pre-move path also keeps the pre-move `prompt_dir`
+  default (`.work`), because a config that never named one would otherwise start
+  looking one directory deeper than it left its prompts and skip every lane with
+  "prompt file not found". Warning rather than failing is deliberate on both
+  scripts: an operator whose lanes ran this morning must not have `start` exit
+  `4` on them, and the restart consumer runs unattended on an OS schedule, where
+  a hard failure would stop honoring restart requests into a log nobody reads.
+  The fallback is temporary; move both into `.work/lanes/` to clear the warning.
+- **The `.work` root is documented as a hardcoded carve-out.** The launcher does
+  not resolve the topic-docs `memory_dir` setting, because it runs as an
+  operator script outside any session that could resolve one. A consumer that
+  has repointed `memory_dir` passes `--config` or sets
+  `$CLAUDE_OPS_LANES_CONFIG`. SKILL.md and `context/config.md` now say so rather
+  than leaving it inferable from the source.
+- **The prompt-home note stays honest.** The move settles WHERE the prompts sit,
+  not whether they travel: the memory root is session-local, so a fresh machine
+  still starts with no prompts. The gotcha and the config contract now separate
+  the sanctioned placement (settled here) from the durable cross-machine home
+  (still #480's job) instead of letting the reserved name read as the fix.
+
 ## [0.39.2]
 
 ### Changed

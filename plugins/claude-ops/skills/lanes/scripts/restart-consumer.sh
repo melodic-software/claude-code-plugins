@@ -27,7 +27,10 @@
 #
 # Options:
 #   --config FILE        lane config JSON (same resolution as lane-launcher.sh:
-#                        --config -> $CLAUDE_OPS_LANES_CONFIG -> <repo>/.work/lanes.json)
+#                        --config -> $CLAUDE_OPS_LANES_CONFIG ->
+#                        <repo>/.work/lanes/lanes.json, with the same temporary
+#                        default-only fallback to the pre-move
+#                        <repo>/.work/lanes.json under a deprecation warning)
 #   --repo DIR           repo root (default: git toplevel of the cwd). Also the
 #                        default target repo for the telemetry lookups.
 #   --target-repo owner/name
@@ -392,7 +395,18 @@ resolve_repo() {
 }
 
 resolve_config() {
-  [[ -n "$CONFIG" ]] || CONFIG="${CLAUDE_OPS_LANES_CONFIG:-$REPO/.work/lanes.json}"
+  if [[ -z "$CONFIG" ]]; then
+    CONFIG="${CLAUDE_OPS_LANES_CONFIG:-$REPO/.work/lanes/lanes.json}"
+    # Same default-only fallback lane-launcher.sh applies (see its header): a
+    # checkout that predates the `lanes/` concern home keeps working, loudly.
+    # This consumer runs unattended on an OS schedule, so a hard failure here
+    # would silently stop honoring restart requests until someone read a log.
+    if [[ -z "${CLAUDE_OPS_LANES_CONFIG:-}" && ! -f "$CONFIG" && -f "$REPO/.work/lanes.json" ]]; then
+      warn "reading the pre-move lane config at $REPO/.work/lanes.json"
+      warn "  move it (and the lane prompt files) to $REPO/.work/lanes/ — this fallback is temporary"
+      CONFIG="$REPO/.work/lanes.json"
+    fi
+  fi
   [[ -f "$CONFIG" ]] || {
     err "lane config not found: $CONFIG"
     exit 4
@@ -1164,7 +1178,7 @@ action_print_schedule() {
   # action runs BEFORE resolve_config/resolve_target_repo, so these hold exactly
   # what the operator passed — empty means "defaulted", and a defaulted option is
   # the one case it is safe to omit. Dropping a passed one would silently
-  # schedule a run against `<repo>/.work/lanes.json` and the checkout's own
+  # schedule a run against `<repo>/.work/lanes/lanes.json` and the checkout's own
   # repository: a different lane configuration and a different telemetry
   # repository than the command that generated it.
   opts=""

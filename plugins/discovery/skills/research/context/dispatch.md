@@ -124,11 +124,11 @@ that also holds an exploration, could report a research dispatch that wrote noth
 
 **Where the two dispatches genuinely diverge is the fan-out.** `SKILL.md` sanctions a parent that
 assigns N sub-slices up front and then *synthesizes* the slice-root `RESEARCH.md` from their indexes.
-That end state — a root index plus sub-slice indexes — is the exact shape the gate refuses as
-ambiguous, and correctly so: it cannot tell which run wrote which. The obligation is the parent's, not
-the script's. Grade each run against the sub-slice it was assigned, and grade before synthesis. An
-exit 2 from the slice root after synthesis is the gate working, and it says the parent supplied the
-wrong path.
+The gate grades exactly the path it is given and never scans, so that end state — a root index plus
+sub-slice indexes — confuses nothing: each invocation names which artifact it is asking about. The
+obligation is the parent's, not the script's. Grade each run against the sub-slice it was assigned,
+and grade before synthesis — a slice-root invocation grades only the synthesized index, never any
+dispatched run.
 
 ## The coverage ledger is graded separately, and its freshness is not bound
 
@@ -161,10 +161,10 @@ run's marked one is still sitting there. Hence the ladder's first move on a disc
 
 Take these in order. A non-zero exit is never a reason to proceed and note it later.
 
-**Exit 2 — ungradeable.** A parent-envelope problem, not a worker problem: the slice path was wrong,
-two runs are sharing one slice, or a fan-out was graded at its root instead of at the assigned
-sub-slice. Fix the envelope and re-run the gate. Re-dispatching first pays for a whole research run
-again to answer a question the parent could have answered itself.
+**Exit 2 — ungradeable.** A parent-envelope problem, not a worker problem: the slice path was wrong
+or never created, or the baseline it named is missing. Fix the envelope and re-run the gate.
+Re-dispatching first pays for a whole research run again to answer a question the parent could have
+answered itself.
 
 **Exit 1 with `persistence: by-value` — the parent writes the slice. Take this rung before the resume
 rung, because the payload has already told you why the disk is empty.** The agent finished and its
