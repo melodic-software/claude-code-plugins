@@ -6,6 +6,12 @@ Signed off by the user 2026-09-01 ("accept all" on the audited answer set: inter
 blindspot/brainstorm amendments, devils-advocate findings C1/H1-H5/M1-M5/L1-L4, and the
 independent per-answer validation). Ledger: `.work/playground-integration/interview-checklist.md`.
 
+Scope change 2026-09-01 (user directive): ALL work — this vertical plus the native-design-surfaces
+rides-along — is delivered in this session, on this one feature branch, as ONE pull request. The
+previously planned two-PR sequencing collapses to commit ordering within that single PR (engine
+extension commits precede verdict-row commits). "Leading PR" below reads as "leading commit
+sequence in the single PR".
+
 ### TLDR
 
 - Ship one thin wrapper plugin (final plugin AND skill-leaf name deferred, non-colliding with the
@@ -16,7 +22,7 @@ independent per-answer validation). Ledger: `.work/playground-integration/interv
   (`dependencies: [{"name": "playground", "marketplace": "claude-plugins-official"}]`) and this
   repo's root marketplace gains `allowCrossMarketplaceDependenciesOn: ["claude-plugins-official"]`;
   prose install uplift is kept for the contexts where dependency resolution does not run.
-- A leading PR extends the audit-native-overlap engine (new first-party-marketplace-plugin native
+- A leading commit sequence extends the audit-native-overlap engine (new first-party-marketplace-plugin native
   class with its `LANES` entry and invariant test, new `upstream-source` observation class, a
   second greppable parity token with its own parity arm, an `--upstream-sha` self-check advisory
   seam) and amends the seam-phrasing convention with a cross-marketplace install-uplift carve-out.
@@ -51,12 +57,12 @@ playground-shaped and route accordingly.
   (Brief sign-off recorded above does not pre-authorize the Plan).
 - All native/first-party-overlap verdicts go through the audit-native-overlap pipeline:
   candidate pairs in its canonical-pair seed, human-gated rows in `docs/native-surfaces/records.json`,
-  phrasing per the repo's conventions. The leading PR extends the engine BEFORE any row lands
+  phrasing per the repo's conventions. The engine extension lands BEFORE any row
   (rows fail validation on current enums), and extends `LANES` alongside `NATIVE_CLASSES` with an
   invariant test asserting every native class has a lane (a class without a lane validates and
   then silently renders nowhere).
 - The seam-phrasing convention gains a cross-marketplace install-uplift carve-out (its own
-  version bump) in the leading PR; without it the wrapper's install commands violate
+  version bump) in the leading commit sequence; without it the wrapper's install commands violate
   "marketplace-qualified IDs never appear in reusable content" and fleet audits would flag them.
 - Suggest-install lines only where a recorded verdict backs them, enforced by the new parity
   token; rollout-gated bundled surfaces are never mentioned when absent (existing house rule).
@@ -64,7 +70,7 @@ playground-shaped and route accordingly.
   bare `playground` skill; category per `docs/CATALOG-TAXONOMY.md`'s Assignment principle.
 - House conventions apply: ai-slop prose rules on all new instruction surfaces (upstream text
   quoted only under `vendor/`), no new hooks, regeneration outputs (`docs/CATALOG.md`, the
-  cheatsheet, `docs/NATIVE-SURFACES.md`) sequenced into the same PRs that dirty them.
+  cheatsheet, `docs/NATIVE-SURFACES.md`) regenerated in the same commits that dirty them.
 - Upstream verification always uses raw fetches or pinned files, never summarizing fetches (a
   summarizing fetch misreported the upstream marketplace's contents during validation).
 
@@ -95,7 +101,7 @@ playground-shaped and route accordingly.
 - Routing: `visualization:visualize` gains a `## Boundary` section carrying its playground
   routing line (no description edit); `prototype:explore-directions` gains its line within its
   1024-char description headroom or its own Boundary section.
-- The leading engine PR lands first: new native class + `LANES` entry + class/lane invariant
+- The engine extension lands ahead of the rows in the commit sequence: new native class + `LANES` entry + class/lane invariant
   test, `upstream-source` observation class, second parity token with its own parity arm,
   `--upstream-sha` advisory in self-check, claude-ops version bump + CHANGELOG + green
   `test_overlap.py`; then the canonical-pair seed carries both playground pairs and
@@ -151,3 +157,41 @@ playground-shaped and route accordingly.
   **arbiter: USER-RESERVED**.
 
 ## Plan
+
+Delivery: this session, branch `claude/twitter-thread-discussion-wzynta`, one PR. Commit order
+within the PR follows phase order. The native-design-surfaces Brief's items are Phases 5-6 here.
+Awaiting the user's dated sign-off on this section before Phase 0 begins.
+
+- **Phase 0 — Naming (resolves Q8).** Run `/naming:name-it-better` for the wrapper plugin name
+  and skill-leaf name; both must avoid the bare `playground` token, clear
+  `scripts/skill-leaf-name-registry.txt`, and read naturally as `/name:leaf`.
+- **Phase 1 — Engine extension (claude-ops).** In `audit-native-overlap/scripts/overlap.py`: new
+  native class for first-party marketplace plugins with its `LANES` entry; `upstream-source`
+  observation class; a second greppable parity token + parity arm for the new class;
+  `--upstream-sha` advisory in self-check (mirrors `--cli-version`). Tests: class/lane invariant
+  plus per-feature cases in `test_overlap.py`. Version bump + CHANGELOG entry.
+- **Phase 2 — Convention carve-out.** `docs/conventions/seam-phrasing/README.md` gains the
+  cross-marketplace install-uplift carve-out, versioned per its own rules.
+- **Phase 3 — Wrapper plugin.** New `plugins/<name>/`: manifest with the cross-marketplace
+  `dependencies` entry; README with provenance note (read upstream LICENSE first); one skill
+  (provenance presence check via `claude plugin list`, invoke-or-degrade, five article recipes +
+  SKILL.md-critique recipe, feature-detected cloud delivery ladder); `context/` consumer-guidance
+  spoke (commit-stamped); `evals/evals.json`. Root `.claude-plugin/marketplace.json`: plugin
+  entry (category per `docs/CATALOG-TAXONOMY.md`) + `allowCrossMarketplaceDependenciesOn`.
+- **Phase 4 — Routing.** `visualization:visualize` gains a `## Boundary` section with its
+  playground routing line; `prototype:explore-directions` gains its line (description headroom or
+  Boundary). No visualize description edit.
+- **Phase 5 — Registry + catalog data.** Seed both playground candidate pairs; add records.json
+  rows: two playground verdicts (drafted `complementary`, presented to the user for the human
+  gate at review), two design-canvas `complementary` rows, one design-family `defer` row —
+  evidence citing pinned commit `ed404106` and the v2.1.251 extraction, dated. Refresh
+  `visualize/context/decision-matrix.md` design-canvas facts to v2.1.251.
+- **Phase 6 — Regeneration.** `docs/NATIVE-SURFACES.md`, `docs/CATALOG.md`, cheatsheet, options
+  docs — whatever the touched sources feed — regenerated in the same commits.
+- **Phase 7 — Verification.** `test_overlap.py` green; `scripts/validate-plugins.sh` green;
+  `check-skill.sh` on the new skill; `scripts/affected-tests.sh --run` (exit 0 or 3 with
+  delegated lanes run); ai-slop discipline on new prose; best-effort in-session empirical check
+  of the dependency mechanism (documented honestly if the environment cannot exercise it); a
+  fresh-context code review of the full diff before the PR opens.
+- **Phase 8 — PR.** One pull request from this branch, template-conforming, findings and
+  registry rows called out for the human verdict gate; upstream issue-filing nowhere.
