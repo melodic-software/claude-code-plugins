@@ -138,9 +138,12 @@ whole set — index and sidecars, under their normal names — into `<memory_dir
 That is still inside the slice, so rule 1 holds; and the index inside it is still `RESEARCH.md`, so
 rule 2 holds. What is **not** sanctioned is renaming the index to dodge a collision: `RESEARCH-*.md`
 is the sidecar pattern, so a renamed index collides with its own sidecars and every consumer handed
-the declared filename gets the *other* run's artifact. The run reports the path it actually wrote,
-and the parent assigns sub-slices rather than letting workers pick — two workers choosing
-independently can choose the same one.
+the declared filename gets the *other* run's artifact. The parent assigns sub-slices in both
+families — statting the slice root pre-dispatch and putting any collision or fan-out sub-slice in
+the envelope — and a worker never picks one: two workers choosing independently can choose the same
+one, and the acceptance gate grades exactly the assigned path, so a self-chosen sub-slice holds an
+artifact no gate ever grades. A worker that finds its assigned path unexpectedly occupied reports
+the occupancy rather than relocating.
 
 A worktree that carries the index without its sidecars is strictly worse than a self-contained
 artifact, so any glob that ships `RESEARCH.md` must also ship `RESEARCH-*.md` and `*-checklist.md`.
