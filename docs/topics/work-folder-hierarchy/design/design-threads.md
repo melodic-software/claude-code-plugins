@@ -3,8 +3,11 @@
 Input contract: the locked Brief (PR #3552 description, pre-prune SHA
 `dd9752484`; epic #3554). Statuses: resolved | directional | deferred.
 Threads T1 and T5 carry Design-It-Twice sketches per the Brief's mandate.
+All nine threads RESOLVED 2026-09-01 under the session goal directive
+(recommended options locked; fresh-context verifier validation required
+before implementation builds on them — verdict recorded at the end).
 
-## T1 — INDEX.md frontmatter schema (design-it-twice) — status: open
+## T1 — INDEX.md frontmatter schema (design-it-twice) — status: resolved (Sketch A)
 
 The Brief locks: frontmatter is the single home for child order + slice
 status, preserved across regeneration. Contested: the key shape.
@@ -50,7 +53,7 @@ State fully outside the index; INDEX.md becomes 100% generated. Cleanest
 regen story, but two files where one serves, and the read-first binding
 would need to name two files. Rejected-leaning.
 
-## T2 — marker syntax + regen contract — status: directional
+## T2 — marker syntax + regen contract — status: resolved
 
 `<!-- INDEX:BEGIN generated -->` / `<!-- INDEX:END generated -->` fencing
 the body. The regen script rewrites only between markers, fails loudly
@@ -58,7 +61,7 @@ the body. The regen script rewrites only between markers, fails loudly
 frontmatter. Hand-edits inside the fence are lost by design; the markers
 say so on their own line. Only the orchestrating session invokes regen.
 
-## T3 — child-header mini-schema (what regen parses) — status: directional
+## T3 — child-header mini-schema (what regen parses) — status: resolved
 
 Generalize the existing sidecar-header precedent: every indexable artifact
 opens with a YAML header carrying at minimum `abstract:` (one line,
@@ -69,7 +72,7 @@ artifact) is versioned in the contract README, parsed by the shared lib
 script only — plugins never hand-parse it. Existing EXPLORE/RESEARCH
 headers already conform.
 
-## T4 — size-cap behavior — status: open
+## T4 — size-cap behavior — status: resolved (option a — fail with decompose hint)
 
 Brief: ~25KB expectation. Contested: what the regen script DOES at the cap.
 Options: (a) fail with a decompose hint — the cap is a signal the slice
@@ -78,7 +81,7 @@ cross-vendor cap semantics where overflow routes to detail files);
 (b) warn and write anyway; (c) truncate abstracts progressively (rejected:
 silent information loss in the navigation surface).
 
-## T5 — dispatch-gate candidate rule (design-it-twice) — status: open
+## T5 — dispatch-gate candidate rule (design-it-twice) — status: resolved (Sketch A)
 
 **Sketch A — exact assignment, no scan (recommended):** the gate takes the
 exact slice path the parent assigned (it already resolves one pre-dispatch)
@@ -95,7 +98,7 @@ Preserves today's worker-side collision autonomy; keeps the ambiguity
 failure mode alive and adds a payload-trust dependency the gate was built
 to avoid. Rejected-leaning.
 
-## T6 — seam boundaries wording — status: directional
+## T6 — seam boundaries wording — status: resolved
 
 Knowledge `library_dir` keeps its root; inside it the same slice shape and
 INDEX.md rules apply (shape unification). docpage-digest's `INDEX.md` is
@@ -104,14 +107,14 @@ updated in the same wave. Interior-freedom clause: "slice-shape rules
 govern where a slice sits and which names are reserved inside it; they
 never govern slice-interior files beyond those reservations."
 
-## T7 — lanes' reserved concern home — status: open
+## T7 — lanes' reserved concern home — status: resolved (lanes/ reserved name)
 
 Add `lanes/` to the reserved first-level concern names; `lanes.json` and
 lane prompt files move inside it. This sanctions an in-repo, session-local
 home; the durable cross-machine home remains an acknowledged open need
 (out of this wave, per lanes' own SKILL.md note).
 
-## T8 — depth-proof worktree carry — status: directional
+## T8 — depth-proof worktree carry — status: resolved
 
 Replace the depth-enumerated globs with reserved-name-keyed recursive
 patterns (gitignore syntax; both the native copy and worktree-create.sh's
@@ -132,7 +135,7 @@ patterns (gitignore syntax; both the native copy and worktree-create.sh's
 This is the last recipe migration consumers ever need: new depths require
 no pattern change. Baselines and raw scratch stay uncarried (machine-bound).
 
-## T9 — read-first binding placement — status: directional
+## T9 — read-first binding placement — status: resolved
 
 The contract README owns one normative paragraph ("a consumer entering a
 slice reads INDEX.md first; in an index-less leaf, the sole artifact is the
