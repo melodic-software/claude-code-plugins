@@ -103,9 +103,9 @@ nothing and reports "already configured".
    install an X API provider. Note the current X access restriction and link the
    authoritative terms: <https://x.com/en/tos>.
 2. **Offer optional overlays.** Offer `audience.md` and declarative `brand.json`, creating only
-   the files the consumer requests. Keep local logo assets beside `brand.json`. Recommend a
-   project ignore convention such as `.claude/ai-briefing/**/*.local.*` for personal overlays
-   while keeping shared profile files tracked.
+   the files the consumer requests. Keep local logo assets beside `brand.json`. Recommend the
+   recursive `.claude/**/*.local.*` ignore line for personal overlays while keeping shared
+   profile files tracked.
 3. **`apply install-build-deps` installs the optional build toolchain.** Parse the subaction
    before invoking a shell and never interpolate raw arguments into a command. Without it,
    skip this step and change no existing runtime. With it, build and validate a temporary

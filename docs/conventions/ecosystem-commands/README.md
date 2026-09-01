@@ -55,7 +55,7 @@ Resolution per ecosystem, additive per key: **user-global → team file → loca
 layer overrides earlier layers key-by-key and never replaces the base file wholesale (the same
 resolution the extensibility contract specifies for tracked rich config, and the same
 vendor-defaults-plus-drop-in-overrides shape the UAPI configuration-files specification
-standardizes). Recommended consumer `.gitignore` line: `.claude/ecosystems/*.local.*`.
+standardizes). Recommended consumer `.gitignore` line: the recursive `.claude/**/*.local.*`.
 
 The drop-in folder form is deliberate: each ecosystem is an independent slice with its own lifecycle
 — adding one is a new file, retiring one is a deletion, and a toolchain change is a single-file diff.

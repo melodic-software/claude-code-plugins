@@ -73,7 +73,7 @@ Per-layer verdicts:
 - **Team** (`REPO_ROOT/.claude/source-control.md`): present → PASS. **FAIL** when excluded by
   `.gitignore`. Teammates would never receive the shared convention; report the matching rule.
   Absent → INFO, remediable by `apply`.
-- **Local overlay ignore rule** (`.claude/*.local.*`, covering
+- **Local overlay ignore rule** (the recursive `.claude/**/*.local.*`, covering
   `REPO_ROOT/.claude/source-control.local.md`): probe the ignore rule whether or
   not the overlay file exists. The rule's job is to be in place **before** the
   first overlay is written; conditioning the probe on the file already existing
@@ -334,7 +334,7 @@ Skill-behavior failure patterns hit in real runs. Add to this section when new o
 - Enforce the convention at commit time, a project's own `commit-msg` hook (when one exists) remains
   the authoritative gate; this config only tells the plugin's skills what shape to draft and
   pre-check against.
-- Write the consumer's `.gitignore`, except the one `.claude/*.local.*` line at
+- Write the consumer's `.gitignore`, except the one recursive `.claude/**/*.local.*` line at
   team-layer bind / `apply`. That line must exist before any overlay is written,
   so `apply` appends it when missing and announces the edit. Everything else in
   `.gitignore` stays the consumer's.

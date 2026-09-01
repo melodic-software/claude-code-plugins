@@ -280,7 +280,7 @@ With no argument in an interactive session, run the interview:
    bind time, not to `layer=local`. If `git check-ignore --no-index -v --
    .claude/source-control.local.md` reports no match **from a repository
    `.gitignore`** (ignore `$GIT_DIR/info/exclude` and `core.excludesFile`),
-   append `.claude/*.local.*` to the consumer `.gitignore`, announce the edit,
+   append the recursive `.claude/**/*.local.*` line to the consumer `.gitignore`, announce the edit,
    and stage that line with the team file.
 
    For `layer=team`, run these as one Bash tool call so `REPO_ROOT` only needs resolving once:
@@ -338,7 +338,7 @@ With no argument in an interactive session, run the interview:
      echo "FAIL: $OVERLAY is tracked; untrack it with: git rm --cached $OVERLAY" >&2
      exit 1
    else
-     echo "FAIL: no ignore rule matches $OVERLAY; add .claude/*.local.* to .gitignore" >&2
+     echo "FAIL: no ignore rule matches $OVERLAY; add .claude/**/*.local.* to .gitignore" >&2
      exit 1
    fi
    ```
@@ -350,7 +350,7 @@ With no argument in an interactive session, run the interview:
    proceed to step 7. For the team guard (`IGNORE_MATCH` reported), tell the user the matching
    `.gitignore` pattern and ask them to either fix `.gitignore` so `.claude/source-control.md` is no
    longer excluded, or persist the convention to a different layer. For the `layer=local` guard,
-   surface the failure's own remediation — the `.claude/*.local.*` ignore line for a missing rule, or
+   surface the failure's own remediation — the recursive `.claude/**/*.local.*` ignore line for a missing rule, or
    `git rm --cached` for an already-tracked overlay — so the personal overlay does not linger in a
    shareable state. Re-run this step once the state is fixed.
 

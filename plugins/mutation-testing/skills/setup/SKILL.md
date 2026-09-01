@@ -130,8 +130,8 @@ unambiguous; ask only where the answer is genuinely the user's.
    `git add`; never commit on the user's behalf.
 10. **Verify after remediation.** Re-run the `check` probes on what was written, including both
     halves of probe 9, tracked *and* not-ignored, then offer the overlay convention: personal
-    config overrides in `.claude/mutation-testing.local.md`, and recommend `.claude/*.local.*` in
-    `.gitignore` if not already covered. State plainly that the same overlay pattern does **not**
+    config overrides in `.claude/mutation-testing.local.md`, and recommend the recursive
+    `.claude/**/*.local.*` line in `.gitignore` if not already covered. State plainly that the same overlay pattern does **not**
     give personal suppressions effect: an arid entry in a `.local.md` is a draft until promoted to
     the team layer.
 
