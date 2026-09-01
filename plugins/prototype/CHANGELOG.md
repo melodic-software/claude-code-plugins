@@ -3,6 +3,29 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`explore-directions`: same-data control variable, single-decision graft capture, and a
+  machine-legible reply template.** Variants now bind one identical data set (the data is the
+  control variable, so only the design differs); the handover closes with a fillable
+  direction/steal/skip/next-target reply template (what the mockup's copy-out terminator lifts);
+  and the capture step records steal/skip decisions per named piece so grafts compose across
+  variants. Adopted from the "Finding Your Unknowns" corpus at the integration sign-off (D20,
+  D21, D22; provenance in `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository). Evals
+  extended.
+- **`pressure-test`: validation answer set and a fake-data disclosure footer on the HTML demo
+  shell.** The demo page carries the questions it exists to answer as forced choices whose
+  options each name their cost (plus a free-text escape hatch), with a copy-out control, and a
+  visible footer stating the page is synthetic end to end and, when decided, where real wiring
+  lives and behind which flag; when integration is not yet decided, or no flag is planned, the
+  footer says so explicitly rather than inventing production details. The capture step carries
+  the filled answer set into the durable answer verbatim. Same adoption basis (D24, D25, D26);
+  evals extended.
+- **Shared discipline: "mock before you wire" ordering note.** The composition table now states
+  that the throwaway mock runs before any real wiring when a change has both questions (D27).
+
 ## [0.9.8]
 
 ### Added

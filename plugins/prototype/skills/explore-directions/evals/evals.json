@@ -32,7 +32,9 @@
       "files": [],
       "expectations": [
         "The generated variants differ structurally (layout / information hierarchy / primary affordance), not only in color or copy",
-        "The response declines to make recolors the only difference between variants, while still letting each variant carry its own visual direction on top of its structure"
+        "The response declines to make recolors the only difference between variants, while still letting each variant carry its own visual direction on top of its structure",
+        "The handover closes with a machine-legible reply template (direction / steal / skip / next-target) for the user to fill",
+        "The capture records steal/skip decisions at single-decision granularity (per named piece), so grafts compose across variants"
       ]
     },
     {
@@ -54,6 +56,7 @@
       "files": [],
       "expectations": [
         "The mockup is a single self-contained `file://` HTML page using synthetic data only (no real/captured values)",
+        "All variants render one identical data set: the data is the control variable, so only the design differs between variants",
         "The page includes a restrictive CSP meta tag that blocks remote scripts/fonts/fetches",
         "The mockup file is generated into a temp or gitignored scratch location, not a tracked repo path"
       ]

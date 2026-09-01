@@ -3,16 +3,16 @@
 # The self-ignore file rides along so carried files stay ignored in the new
 # worktree from creation, not only after the first memory-tier write heals it.
 .work/.gitignore
-.work/*/EXPLORE.md
-.work/*/EXPLORE-*.md
-.work/*/RESEARCH.md
-.work/*/RESEARCH-*.md
-.work/*/*-checklist.md
-# Sub-slices (<memory_dir>/<slug>/<sub-slug>/) — a parallel fan-out assigns one
-# per topic. Globs do not descend, so without these a worktree carries the
-# top-level index and silently drops every nested index, sidecar, and ledger.
-.work/*/*/EXPLORE.md
-.work/*/*/EXPLORE-*.md
-.work/*/*/RESEARCH.md
-.work/*/*/RESEARCH-*.md
-.work/*/*/*-checklist.md
+# Keyed on the reserved memory-tier filenames, not on how deep the topic folder
+# happens to sit. `.work/**/NAME` matches zero or more intervening directories,
+# so one line covers the top level, a slice, a sub-slice under an epic, and
+# anything deeper a fan-out invents. Depth-enumerated globs (`.work/*/`,
+# `.work/*/*/`) silently dropped every level past the last one written down.
+.work/**/INDEX.md
+.work/**/EXPLORE.md
+.work/**/EXPLORE-*.md
+.work/**/RESEARCH.md
+.work/**/RESEARCH-*.md
+.work/**/INTENT.md
+.work/**/INTENT-*.md
+.work/**/*-checklist.md

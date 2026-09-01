@@ -100,6 +100,10 @@ Constraints:
 
 - **Synthetic data only.** A throwaway prototype binds synthetic data, never real or captured
   values.
+- **Same data across variants.** All variants bind one identical data set; the data is the
+  control variable, so the only thing that differs between variants is the design. On the real
+  stack, sub-shape A's shared fetching above the switcher already enforces this; on the mockup
+  substrate, define the synthetic set once and have every variant render it.
 - **No remote fetch by construction.** Vendor everything inline so the page opens straight from
   `file://`. No external scripts, fonts, or data fetches. Enforce this rather than trusting it:
   emit a restrictive CSP meta tag in the page `<head>` so the browser blocks any remote resource:
@@ -213,14 +217,27 @@ Requirements:
 ### 5. Hand it over
 
 Surface the URL and variant keys. Interesting feedback is usually "I want the header from B with
-the sidebar from C". That's the actual design discovered.
+the sidebar from C". That's the actual design discovered. Close the handover with a
+machine-legible reply template the user fills, so their reaction comes back as the next prompt
+rather than prose to re-parse (on the mockup substrate this is what the copy-out terminator
+lifts):
+
+```text
+direction: <winning variant key, or "graft">
+steal: <piece> from <variant>   (repeat per piece)
+skip: <piece or variant> because <one line>
+next-target: <what to explore or build next>
+```
 
 ### 6. Capture the answer and clean up
 
 Per the shared discipline. Record which variant won and why, and record the directions that lost
-with their reasons. When the verdict is a graft rather than a single winner, say which piece came
-from where **and what the discarded parts held that the graft deliberately left behind**. The
-deletions below are irreversible: whatever is not written down now is gone.
+with their reasons. Capture at single-decision granularity: each named piece (a header, a
+hierarchy choice, a primary affordance) gets its own steal/skip/adapt entry, so grafts compose
+across variants instead of collapsing into one "variant B, mostly" note. When the verdict is a
+graft rather than a single winner, say which piece came from where **and what the discarded parts
+held that the graft deliberately left behind**. The deletions below are irreversible: whatever is
+not written down now is gone.
 
 - **Sub-shape A**. Delete losing variants and the switcher; fold the winner into the existing page.
 - **Sub-shape B**. Promote the winner to a real route; delete the throwaway route and switcher.

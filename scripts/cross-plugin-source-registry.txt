@@ -28,3 +28,10 @@ lib/managed-scope.sh
 
 # Dedicated check: scripts/sync-state-key.sh --check (CI: state-key-sync)
 lib/state-key.sh
+
+# Dedicated check: scripts/sync-index-regen.sh --check. Canonical:
+# lib/index-regen.sh; today's only copy is plugins/discovery/scripts/. The
+# drift checker only sees a cluster once it spans 2+ plugins (a registered
+# single-plugin path fails as stale), so uncomment the line below when a
+# second plugin consumes it.
+# scripts/index-regen.sh

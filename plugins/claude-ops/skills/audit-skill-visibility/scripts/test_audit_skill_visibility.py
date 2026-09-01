@@ -472,6 +472,215 @@ class InferentialBandTest(unittest.TestCase):
         self.assertIsNone(listing["skills"][0]["band"])
 
 
+class ListingScoreTest(unittest.TestCase):
+    """The mirrored scorer, and the refusal to dress zero up as a ranking."""
+
+    def test_score_decays_with_a_seven_day_half_life(self):
+        now = _utc(2026, 8, 31)
+        fresh = engine.listing_score(100, now, now)
+        one_half_life = engine.listing_score(100, now - timedelta(days=7), now)
+        self.assertAlmostEqual(fresh, 100.0)
+        self.assertAlmostEqual(one_half_life, 50.0)
+
+    def test_decay_floors_at_a_tenth(self):
+        now = _utc(2026, 8, 31)
+        ancient = engine.listing_score(100, now - timedelta(days=3650), now)
+        self.assertAlmostEqual(ancient, 10.0)
+
+    def test_a_stale_heavy_user_sorts_below_a_fresh_light_one(self):
+        """The whole reason `least invoked` was the wrong description."""
+        now = _utc(2026, 8, 31)
+        stale = engine.listing_score(100, now - timedelta(days=60), now)
+        fresh = engine.listing_score(12, now, now)
+        self.assertLess(stale, fresh)
+
+    def test_never_used_scores_zero(self):
+        now = _utc(2026, 8, 31)
+        self.assertEqual(engine.listing_score(0, now, now), 0.0)
+        self.assertEqual(engine.listing_score(5, None, now), 0.0)
+
+    def test_all_zero_scores_report_an_unscored_basis(self):
+        """An alphabetical order must not be labelled a usage ranking."""
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        listing = engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=200_000)
+        )
+        self.assertEqual(listing["score_basis"], "unscored")
+        competing = [s for s in listing["skills"] if s["eligibility"] == "competing"]
+        self.assertTrue(all(s["confidence"] == "unscored" for s in competing))
+
+    def test_classify_scores_the_band_from_native_counters(self):
+        """Regression: the band used to sort on a field nothing populated."""
+        now = _utc(2026, 8, 31)
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        # Counts ascend with the index, so the band must descend with it.
+        events = [
+            {"skill": f"a:{i}", "ts": now, "source": "native", "count": (i + 1) * 10}
+            for i in range(10)
+        ]
+        model = engine.classify(
+            denominator=entries,
+            events=events,
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+        )
+        self.assertEqual(model["listing"]["score_basis"], "native-counters")
+        bands = {
+            row["qualified_name"]: row["starvation"]["band"] for row in model["skills"]
+        }
+        # Least-scored is band 1, i.e. first to lose its description.
+        self.assertEqual(bands["a:0"], 1)
+        self.assertEqual(bands["a:9"], 10)
+
+
+class ScoreBasisScopeTest(unittest.TestCase):
+    """The basis is decided by the contenders, not by the whole denominator."""
+
+    def test_usage_on_an_exempt_skill_does_not_score_the_contest(self):
+        """Regression: an exempt row's score used to flip the basis.
+
+        A bundled, name-only, or user-only skill can carry real native usage
+        while being excluded from the contest entirely. Counting it labelled the
+        listing `native-counters` while every actual contender sat at zero, so a
+        pure catalog ordering got dressed as `inferential`. That is the defect
+        this whole report exists to expose, one scope up.
+        """
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        entries.append(
+            {
+                "qualified_name": "a:manual",
+                "frontmatter": {
+                    "description": "x" * 1000,
+                    "disable_model_invocation": True,
+                },
+                "plugin_enabled": True,
+            }
+        )
+        listing = engine.compute_listing(
+            entries,
+            engine.ListingConfig(context_window_tokens=200_000),
+            # Only the exempt row has any usage at all.
+            {"a:manual": 500.0},
+        )
+        self.assertEqual(listing["score_basis"], "unscored")
+        competing = [s for s in listing["skills"] if s["eligibility"] == "competing"]
+        self.assertTrue(all(s["confidence"] == "unscored" for s in competing))
+
+
+class BareUsageKeyTest(unittest.TestCase):
+    """Usage recorded under a bare leaf must reach its qualified skill."""
+
+    def test_bare_key_is_attributed_when_the_leaf_is_unique(self):
+        now = _utc(2026, 8, 31)
+        model = engine.classify(
+            denominator=[_skill("source-control:babysit-prs")],
+            events=[
+                {"skill": "babysit-prs", "ts": now, "source": "native", "count": 378},
+                {
+                    "skill": "source-control:babysit-prs",
+                    "ts": now,
+                    "source": "native",
+                    "count": 97,
+                },
+            ],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        row = model["skills"][0]
+        self.assertEqual(row["observation"]["count"], 475)
+
+    def test_ambiguous_bare_key_is_withheld_not_guessed(self):
+        now = _utc(2026, 8, 31)
+        model = engine.classify(
+            denominator=[_skill("toolchain:check"), _skill("skill-quality:check")],
+            events=[{"skill": "check", "ts": now, "source": "native", "count": 40}],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        for row in model["skills"]:
+            self.assertEqual(row["observation"]["count"], 0)
+        withheld = [w for w in model["withheld"] if w["skill"] == "check"]
+        self.assertEqual(len(withheld), 1)
+        self.assertIn("toolchain:check", withheld[0]["reason"])
+        self.assertIn("skill-quality:check", withheld[0]["reason"])
+
+    def test_a_bare_key_is_withheld_when_the_leaf_has_duplicate_entries(self):
+        """Two marketplaces shipping one plugin give two rows, one name.
+
+        Collapsing owners into a set let the bare key pass the single-owner test
+        and then be reported on BOTH rows, inventing usage for an attribution the
+        report already marks `ambiguous-attribution`.
+        """
+        now = _utc(2026, 8, 31)
+        model = engine.classify(
+            denominator=[_skill("dup:check"), _skill("dup:check")],
+            events=[{"skill": "check", "ts": now, "source": "native", "count": 40}],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        for row in model["skills"]:
+            self.assertEqual(row["observation"]["count"], 0)
+        withheld = [w for w in model["withheld"] if w["skill"] == "check"]
+        self.assertEqual(len(withheld), 1)
+        self.assertIn("dup:check", withheld[0]["reason"])
+
+    def test_a_bare_key_does_not_score_the_band(self):
+        """`zPe` has no bare-key fallback, so the mirror must not add one."""
+        now = _utc(2026, 8, 31)
+        entries = [
+            {
+                "qualified_name": "a:one",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            },
+            {
+                "qualified_name": "b:two",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            },
+        ]
+        model = engine.classify(
+            denominator=entries,
+            events=[{"skill": "one", "ts": now, "source": "native", "count": 900}],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+        )
+        rows = {r["qualified_name"]: r for r in model["skills"]}
+        # The count reaches the observation field ...
+        self.assertEqual(rows["a:one"]["observation"]["count"], 900)
+        # ... but not the band, because the product's own scorer misses it too.
+        self.assertEqual(rows["a:one"]["starvation"]["usage_score"], 0)
+        self.assertEqual(model["listing"]["score_basis"], "unscored")
+
+
 class TierResolutionTest(unittest.TestCase):
     """A claim renders only at a tier that supports it."""
 
@@ -763,18 +972,79 @@ class OverflowConsumptionTest(unittest.TestCase):
         self.assertEqual(starved[0]["qualified_name"], "a:0")
         self.assertEqual(len(retained), 7)
 
-    def test_starved_set_covers_the_overflow_and_no_more(self):
-        # 10 x 1000 = 10_000 against 8_000 -> overflow 2_000 -> exactly 2 rows.
+    def test_the_name_floor_is_charged_before_any_description_is_granted(self):
+        """The grant budget starts at `budget - V`, not at the whole budget.
+
+        Naive arithmetic says 10 x 1000 against 8_000 sheds exactly two rows. The
+        product charges every listed entry for its own name and the separators
+        first, so slightly less than the full budget is available to
+        descriptions, and a third row goes. Deriving the grant budget by
+        subtracting the overflow instead would miss that row entirely.
+        """
         listing = self._listing(n=10, chars=1000, budget_tokens=200_000)
+        # The overflow figure itself is unchanged: it answers "does the listing
+        # overflow", which is a different question from "which entries win".
         self.assertEqual(listing["overflow_chars"], 2_000)
         starved = [s for s in listing["skills"] if s["verdict"] == "likely-starved"]
-        self.assertEqual(len(starved), 2)
-        self.assertEqual(sorted(s["qualified_name"] for s in starved), ["a:0", "a:1"])
+        self.assertEqual(len(starved), 3)
+        # The three lowest-scored, since nothing here varies in length.
+        self.assertEqual(
+            sorted(s["qualified_name"] for s in starved), ["a:0", "a:1", "a:2"]
+        )
 
     def test_most_used_skill_is_never_starved_while_others_can_absorb_it(self):
         listing = self._listing(n=10, chars=1000, budget_tokens=200_000)
         hottest = max(listing["skills"], key=lambda s: s["usage_score"])
         self.assertEqual(hottest["verdict"], "likely-retained")
+
+    def test_a_cheap_low_scored_row_is_granted_after_a_costly_higher_one_is_shed(self):
+        """First-fit, not a prefix: the product's grant loop has no early exit.
+
+        A prefix model sheds a contiguous run of the lowest-scored rows. The real
+        loop walks every entry, so a short description can still be granted after
+        a longer, better-scored one was refused. Description LENGTH is a ranking
+        input, which no prose account of this mechanism mentions.
+        """
+        # Per-entry demand is capped at max_desc_chars (1536), so the budget is
+        # exhausted with full-cap fillers rather than one giant description.
+        entries = [
+            {
+                "qualified_name": f"a:fill{i}",
+                "frontmatter": {"description": "x" * 1536},
+                "plugin_enabled": True,
+            }
+            for i in range(5)
+        ]
+        entries += [
+            # Outscores the cheap row, but cannot fit in what the fillers left.
+            {
+                "qualified_name": "a:hog",
+                "frontmatter": {"description": "x" * 1536},
+                "plugin_enabled": True,
+            },
+            # Lowest score in the set, but cheap enough to survive the leftovers.
+            {
+                "qualified_name": "a:cheap",
+                "frontmatter": {"description": "x" * 200},
+                "plugin_enabled": True,
+            },
+        ]
+        scores = {f"a:fill{i}": 100.0 - i for i in range(5)}
+        scores.update({"a:hog": 50.0, "a:cheap": 1.0})
+        listing = engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=200_000), scores
+        )
+        by_name = {r["qualified_name"]: r for r in listing["skills"]}
+        # The name floor takes 67, leaving 7933. 5 x 1536 = 7680 granted, leaving
+        # 253. a:hog needs 1536 and is shed; the walk does NOT stop there, and
+        # a:cheap needs only 200, so it is granted from the same leftovers.
+        self.assertEqual(by_name["a:hog"]["verdict"], "likely-starved")
+        self.assertEqual(by_name["a:cheap"]["verdict"], "likely-retained")
+        self.assertEqual(by_name["a:fill0"]["verdict"], "likely-retained")
+        # And the band still ranks by exposure, so the cheap survivor is band 1
+        # even though it was retained. Band and verdict answer different
+        # questions and are allowed to disagree.
+        self.assertEqual(by_name["a:cheap"]["band"], 1)
 
 
 class JoinerCharsTest(unittest.TestCase):

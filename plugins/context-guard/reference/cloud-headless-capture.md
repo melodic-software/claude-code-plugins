@@ -29,6 +29,15 @@ install.**
 
 The evidence for each channel is below, with the live URL and the date it was read.
 
+**Recheck trigger for every dated verdict in this file:** re-run the probes when Claude Code
+documents or ships a channel that could carry per-session occupancy to a local writer — a hook
+event whose payload includes context or token counts, a settings key or environment variable
+exposing occupancy, a CLI flag or MCP surface reporting it, or a change to whether a configured
+`statusLine` runs in cloud and headless sessions. A release note touching the status line, hooks,
+or cloud sessions is the usual way one of these surfaces. These verdicts are probe results with a
+date, not standing facts: a negative finding stops being evidence the moment the surface it probed
+changes.
+
 ## Current-state facts (measured, not inferred)
 
 Measured **2026-08-21** inside a live Claude Code on the web container

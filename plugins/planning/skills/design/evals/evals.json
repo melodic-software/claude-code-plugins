@@ -10,6 +10,7 @@
       "expectations": [
         "Output explores the design collaboratively, asking the user rather than unilaterally deciding the types/boundaries",
         "Output tracks design threads with a resolution status (resolved / directional / deferred)",
+        "Discussion-round findings are presented in tweak-likelihood order: contracts, data shapes, and user-facing surfaces lead; settled-looking mechanical threads sit at the bottom",
         "Output builds design artifacts (e.g. capability-matrix / type-inventory / design-threads / topology) rather than jumping to an implementation plan"
       ]
     },

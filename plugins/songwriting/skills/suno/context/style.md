@@ -14,6 +14,8 @@ The style/genre prompt tells Suno **what kind of song to make**. v5/v5.5 expande
 
 **Re-verified 2026-07-18 — position flipped since the 2026-05-10 pass.** Current third-party testers agree the lyrics hard cap is **5,000 chars on v4.5/v5/v5.5**; 3,000 was the v4-and-earlier cap, and the earlier "3,000 consensus" conflated that old cap with the quality threshold. ~3,000 remains the practical budget. No official Suno page states field limits — sources: [hookgenius character limits](https://hookgenius.app/learn/suno-character-limits/), [aimusicapi cheat sheet, 2026-07-03](https://aimusicapi.ai/en/blog/suno-ai-prompt-character-limits).
 
+**Recheck trigger:** hookgenius or the aimusicapi cheat sheet revises the lyrics hard cap or quality-threshold figures above, **or** an official Suno page states style-prompt / lyrics / title character limits directly. Not a date.
+
 ## The 6-layer formula
 
 Order matters. Early tags are weighted more heavily.

@@ -3,6 +3,18 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.7]
+
+### Changed
+
+- **Four-part records on every encoded upstream constant** (2026-08-31 frontmatter-alignment
+  sweep). `check-skill.sh`'s `DESC_CHAR_CAP` and `DESC_FIELD_CAP` and `check-listing-budget.sh`'s
+  budget constants (1,536 cap, 0.01 fraction, 8,000-char fallback, joiner, drop order) now carry
+  their owning-page URLs, a verified date, and recheck triggers, replacing undated "verified at
+  authoring time" notes; a script cannot fetch upstream at runtime, so the dated record is the
+  conforming restatement shape per the marketplace's upstream-drift convention. The `check`
+  SKILL.md and README stamp their 1,536/1% mentions the same way.
+
 ## [0.20.6]
 
 ### Changed

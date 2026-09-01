@@ -1,5 +1,57 @@
 # Changelog — topic-docs convention
 
+## 3.0.0 — 2026-09-01
+
+Major under the Versioning rule: the memory tier's slice shape, the reserved-name set, and the
+worktree-carry recipe all change, and every implementer flips in this same release wave (clean
+break; this contract carries no compatibility machinery, and there is no v2 mode). The design
+record is the work-folder-hierarchy Brief (PR #3552) and its nine resolved design threads;
+the substrate (regen lib, gate rework, carry patterns, renames) landed in the same PR ahead of
+this flip.
+
+Breaking:
+
+- **Recursive topic slices.** A slice is the same thing at every depth; an epic is a slice with
+  child slices. Levels are created lazily, on decomposition or on collision, never pre-built.
+  Recursion scopes to topic slices only; reserved first-level concern names stay flat unless
+  their own contract says otherwise.
+- **`INDEX.md` reserved at every depth**, required for a slice with child slices or more than one
+  artifact family; a single-artifact leaf omits it. "Read `INDEX.md` first; in an index-less leaf
+  the sole artifact is the entry point" is now a normative binding that implementers cite.
+- **Frontmatter is the single home for slice state** (`slice`, one-unwrapped-line `abstract`,
+  `status: active | parked | done`, ordered `children`). Ordering is index-declared and scoped to
+  child-slice names; numeric prefixes on slice directory names are forbidden.
+- **Marker-delimited generated body**, regenerated only by the shared `lib/index-regen.sh`
+  (registered copies synced byte-identical). Exit codes 0 ok / 1 parity / 2 shape / 3 size cap
+  (~25KB, `INDEX_REGEN_MAX_BYTES`); a cap failure names the two levers and preserves any
+  pre-existing body. Declared-children parity, both directions, lives in this script via the
+  child-slice predicate (`INDEX.md` or a reserved UPPERCASE artifact at a subdirectory root,
+  precedence INDEX > EXPLORE > RESEARCH > INTENT > PLAN > PRD > SOURCES); every other
+  subdirectory is slice-interior under the interior-freedom clause.
+- **Dispatch discipline**: parents assign every slice path (fan-out and collision sub-slices)
+  before dispatching; the discovery gate grades exactly the assigned path and never scans;
+  workers report occupancy by value instead of relocating.
+- **`SOURCES.md`** is docpage-digest's renamed source inventory (was `INDEX.md`), freeing the
+  index name and joining the reserved artifact set with the required `abstract:` header.
+- **`lanes/`** joins the reserved first-level concern names (claude-ops lane state, which
+  resolves a literal `.work` root by its own stated carve-out).
+- **`done` + same-slug re-derivation disambiguates, never resumes.**
+- **Depth-proof carry recipe**: `.worktreeinclude` patterns are reserved-name-keyed
+  (`.work/**/NAME`), covering `INDEX.md` and the `INTENT` family for the first time. The carry is
+  not asserted as verified git-native behavior: `worktree-create.sh` reimplements it via
+  `git ls-files --exclude-from`, where the `**` semantics are verified; corpus-slice indexes are
+  carried and corpus snapshots are not, both deliberately.
+- **Corpus seam shape-unified**: inside the knowledge `library_dir` seam the same slice and
+  `INDEX.md` rules apply, and this contract does not recurse into corpora; topic slices hold
+  pointers.
+- **Artifact protocol version 3**: `INDEX.md` joins the memory-tier kinds and the five registered
+  copies cite the read-first binding.
+
+Unchanged, deliberately: `contract_tier: branch` default, the prune-with-pointer lifecycle and
+pre-prune SHA record, the visibility matrix, the runtime guards, the resolution order, and the
+one-way `.worktreeinclude` copy semantics. `topic-docs.schema.json` renames no key; only its
+`memory_dir` description text follows the new reserved-name roster.
+
 ## 2.5.3 — 2026-08-28
 
 Patch under the Versioning rule: no tier moves, no `topic-docs.yaml` key is renamed, the slug spec

@@ -10,7 +10,10 @@
       "expectations": [
         "Produces a self-contained HTML report (inline CSS/JS, no remote fetch) with context/intuition/decisions/what-was-done sections and a quiz at the bottom",
         "Treats the human's comprehension of the completed work as the object under test — not whether the artifact is correct or works",
-        "Embeds the answer key in the artifact (collapsed details in HTML) rather than leaving grading impossible for a later session"
+        "Embeds the answer key in the artifact (collapsed details in HTML) rather than leaving grading impossible for a later session",
+        "Quiz questions are authored from the change's actual diff and the report's own sections, not from generic topic knowledge",
+        "Each question is anchored to the report section that teaches its answer, and a missed question routes the reader to that exact section before any retry",
+        "The answer key is produced or verified by a fresh-context pass reading only the report and diff, or re-derived from the artifact alone when no fresh surface is available"
       ]
     },
     {

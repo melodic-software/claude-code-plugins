@@ -47,6 +47,21 @@ depth belongs there.
 | 1 level | Max reference nesting depth from the hub ("keep references one level deep") | Anthropic-prescribed; corroborated (depth >1 "never helps and sometimes hurts" — academic) |
 | 100 vs 300 lines | Reference-file length above which a TOC is expected — **officially inconsistent** (platform best-practices says >100; skill-creator says >300) | Anthropic-prescribed, conflicting — hence the two-band treatment |
 
+**Provenance of the vendor numbers in both tables** (four-part record): the Claude Code-side
+values (1,536 listing cap for `description` + `when_to_use` with tail-first truncation, the
+1%-of-context listing budget with least-invoked-first dropping, the 5k-per-skill / 25k-combined
+compaction re-attach, the `MEMORY.md` head limits) are owned by
+<https://code.claude.com/docs/en/skills#frontmatter-reference> and that page's content-lifecycle
+and visibility sections plus <https://code.claude.com/docs/en/settings> and
+<https://code.claude.com/docs/en/memory>; the authoring-side values (500-line body cap, <5k-token
+body, 200-line CLAUDE.md target, ~100 tokens/skill metadata, one-level nesting, the >100-line TOC
+band) are owned by
+<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>; the 1,024-char
+`description` validation cap is the Agent Skills spec's (<https://agentskills.io>), enforced on
+upload paths and not by Claude Code locally. Verified 2026-08-31. Recheck trigger: a fetch of the
+owning page no longer carrying a table row's value re-derives that row; each fleet audit re-runs
+the whole table.
+
 **Two-band TOC treatment** (this skill's resolution of the official conflict): a reference file
 **>300 lines with no TOC** is a definite finding (both official sources agree by then); one at
 **100–300 lines with no TOC** is awareness-tier only, and the finding text cites the conflict.

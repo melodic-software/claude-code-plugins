@@ -138,18 +138,40 @@ registering the schedule or changing the consumer.
 ## Lane config
 
 Lanes are defined in a JSON config, resolved first-hit-wins:
-`--config FILE` → `$CLAUDE_OPS_LANES_CONFIG` → `<repo>/.work/lanes.json`. Each lane
+`--config FILE` → `$CLAUDE_OPS_LANES_CONFIG` → `<repo>/.work/lanes/lanes.json`. Each lane
 carries a `name`, a `prompt` file path, and optional `model`/`effort`/`settings`
 (a session-only `claude --settings` override, e.g. opting the lane into the
 `autonomy` plugin's lane-stop gate). The full
 schema, resolution rules, and the prompt-storage seam live in
 [context/config.md](context/config.md). Read it before authoring a config.
 
-**Prompt storage is provisional (composes with #480).** Today prompt files live in
-a session-local `.work` dir (`prompt_dir`, default `.work`). Issue #480 (loop-prompt
-authoring skill) is slated to own durable prompt storage. When it lands, repoint
-`prompt_dir` at that home; the launcher resolves the prompt dir in exactly one place
-(`resolve_prompt_dir` in the script), which is the single seam to update.
+**`lanes/` is this skill's reserved concern home.** The config and the lane prompt
+files live inside `<repo>/.work/lanes/`, a reserved first-level name under the
+memory root, not as bare files at the root itself. Lanes **hardcodes the literal
+`.work` root**: it does not resolve the topic-docs `memory_dir` setting, and a
+consumer that has repointed `memory_dir` elsewhere must pass `--config` or set
+`$CLAUDE_OPS_LANES_CONFIG`. That is a stated carve-out, not an oversight. The
+launcher is an operator script invoked outside a session (an OS schedule, a bare
+shell), where no skill body is loaded to resolve the setting for it, and the
+escape hatch is what covers the remaining case.
+
+**Compatibility with the pre-move layout.** A checkout whose config is still the
+bare `<repo>/.work/lanes.json` keeps working: when the `lanes/` home holds no
+config, the launcher reads the old path and prints a one-line deprecation
+warning naming the move. Only the **default** falls back, so `--config` and
+`$CLAUDE_OPS_LANES_CONFIG` keep meaning exactly what they say. A config resolved
+at the old path also keeps the old `prompt_dir` default (`.work`), so prompts
+that never moved still resolve. Move both into `.work/lanes/` to clear the
+warning; the fallback is temporary.
+
+**Prompt storage is sanctioned, not durable (composes with #480).** Prompt files
+live in `prompt_dir`, default `.work/lanes`. That is a sanctioned placement, and
+it is still **session-local**: the memory root does not travel between machines,
+so a fresh machine has no prompts until they are authored there. The durable
+cross-machine home remains an open need, tracked at #480 (loop-prompt authoring
+skill). When it lands, repoint `prompt_dir` at that home; the launcher resolves
+the prompt dir in exactly one place (`resolve_prompt_dir` in the script), which
+is the single seam to update.
 
 ## Mid-session staleness & restart cadence
 
@@ -203,9 +225,12 @@ only for a configured lane name.
 
 ## Gotchas
 
-- **No durable prompt home yet.** `.work` is session-local; a fresh machine/session
-  has no prompts until they are authored there (or `prompt_dir` is pointed at a
-  committed dir). This is the #480 dependency, not a bug.
+- **No durable prompt home yet.** `.work/lanes` is a sanctioned home, not a durable
+  one: the memory root is session-local, so a fresh machine/session still has no
+  prompts until they are authored there (or `prompt_dir` is pointed at a committed
+  dir). The move into the reserved `lanes/` name settled *where* the files sit, not
+  whether they travel. The durable cross-machine home stays the #480 dependency,
+  not a bug.
 - **Name is the identity.** Lanes are matched by session `name` **and** `kind:
   background`: every lane is launched with `--bg`, so an interactive window sharing
   a lane name is never matched or stopped. Two lanes must not share a name; a

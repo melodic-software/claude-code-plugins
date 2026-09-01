@@ -34,7 +34,8 @@
       "expectations": [
         "Recognizes the explicit request for higher altitude and climbs the rung ladder rather than staying pinned at rung 1",
         "Treats altitude as request-driven — it does not default to dumping the peer-level explanation on an unqualified 'explain X'",
-        "Introduces real terms of art with definitions as altitude increases rather than assuming them silently"
+        "Introduces real terms of art with definitions as altitude increases rather than assuming them silently",
+        "Rung-2 terms arrive as vocabulary-ladder entries: the term, an ordinary-words definition, and a modeled 'you can now say' sentence the user can reuse in their next prompt"
       ]
     },
     {
@@ -83,6 +84,18 @@
         "Detects that there is no prior assistant message in the conversation to treat as the anaphora referent",
         "Asks 'What would you like explained?' (or equivalent) instead of proceeding blind or inventing a topic to explain",
         "Does not hallucinate a referent or produce a confident plain-language explanation of something never stated"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "original-ask-success-condition",
+      "prompt": "I'm trying to write a Postgres migration that adds a partial index but it keeps rejecting my syntax, and I don't get what \"predicate\" means in the docs. Explain it so I can fix my migration.",
+      "expected_output": "Lands a rung-1 plain explanation of a partial-index predicate (concrete analogy, jargon defined inline), aimed at unblocking the migration the user is stuck on. Because an original ask exists, the close shapes the vocabulary so the user's NEXT prompt can name what they mean (using \"predicate\" correctly), treating that next prompt as the success test rather than the explanation itself.",
+      "files": [],
+      "expectations": [
+        "Recognizes the original ask behind the comprehension request and aims the explanation at unblocking it",
+        "Treats the user's next prompt as the success test: the close equips them to name what they mean (reusing the term correctly) rather than re-gesturing at the confusion",
+        "Still lands at rung 1 first with a concrete analogy and inline definitions"
       ]
     }
   ]

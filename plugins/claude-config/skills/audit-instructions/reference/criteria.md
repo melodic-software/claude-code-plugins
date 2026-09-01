@@ -275,7 +275,11 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
   characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
   `skillOverrides`."; subagents, on a skill named in an agent's `skills:` field — "The full content
-  of each listed skill is injected into the subagent's context at startup."
+  of each listed skill is injected into the subagent's context at startup." All quoted spans
+  verified 2026-08-31 against <https://code.claude.com/docs/en/skills#frontmatter-reference> (the
+  1,536 cap and invocation-control quotes) and <https://code.claude.com/docs/en/sub-agents> (the
+  preload quote); recheck trigger: a fetch of either page no longer carrying its quoted span
+  re-derives this check's Remediate mechanics.
 
 ### I4: Inferable or redundant content
 

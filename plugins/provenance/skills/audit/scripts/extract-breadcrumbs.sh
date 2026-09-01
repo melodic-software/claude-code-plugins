@@ -190,9 +190,25 @@ function first_iso(s) {
 # inventory. check-stamps.sh carries the same two tests, and uses them at both
 # of its sites; its copy records the corpus measurements and the two known
 # costs, a capitalised sentence-initial modal and an ALL-CAPS date.
-function may_form(w, worig) {
-  if (match(w, /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/)) return 1
-  if (match(worig, /May([^a-z]|$)/)) return 1
+#
+# The two signals share one RSTART, which is_stamp() reads against wlen, so both
+# are evaluated and the LEFTMOST wins. Returning on whichever branch was tested
+# first under-reported: a digit-adjacent "may" out in the 9 characters of slack
+# returned its own RSTART, is_stamp() rejected it, and a capital "May" inside the
+# window was never consulted, so appending a stray "7 may" to "Verified this May"
+# dropped the line from this inventory. Testing the capital first only mirrors
+# the bug. A false return leaves RSTART = 0 and RLENGTH = -1, the values awk
+# itself sets after a failed match. check-stamps.sh carries the same body and the
+# full account.
+function may_form(w, worig,   ds, dl, cs, cl) {
+  ds = 0; dl = 0
+  if (match(w, /(may[^a-z]*[0-9]|[0-9][^a-z]*may)/)) { ds = RSTART; dl = RLENGTH }
+  cs = 0; cl = 0
+  if (match(worig, /May([^a-z]|$)/)) { cs = RSTART; cl = RLENGTH }
+  # A tie keeps the digit match, the branch that used to win outright.
+  if (ds > 0 && (cs == 0 || ds <= cs)) { RSTART = ds; RLENGTH = dl; return 1 }
+  if (cs > 0) { RSTART = cs; RLENGTH = cl; return 1 }
+  RSTART = 0; RLENGTH = -1
   return 0
 }
 
@@ -204,7 +220,9 @@ function may_form(w, worig) {
 # sentence. check-stamps.sh carries the same two windows — one definition of
 # what looks like a stamp, so the inventory and the check agree.
 # "may" is split out of the month list for the same reason: it is also an
-# ordinary English modal, so may_form() above decides which one a window holds.
+# ordinary English modal, so may_form() above decides which one a window holds
+# and leaves RSTART on the leftmost of its two signals, so a signal out in the
+# slack cannot hide one the wlen guard below would have taken.
 # check-stamps.sh carries that split at both of its sites.
 function is_stamp(line,   low, pos, rest, rest_orig, off, kw, wlen) {
   low = tolower(line)

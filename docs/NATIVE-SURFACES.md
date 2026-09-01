@@ -18,7 +18,7 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
 | Lane | Rows | Baked | Verdicts |
 |---|---|---|---|
 | Built-in CLI commands | 1 | 0 | complementary 1 |
-| Bundled skills | 9 | 1 | complementary 8, defer 1 |
+| Bundled skills | 10 | 1 | complementary 9, defer 1 |
 | Plugin-backed built-ins | 1 | 0 | complementary 1 |
 | Session-provided skills (observation-only) | 1 | 0 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | complementary 2 |
@@ -124,6 +124,21 @@ and when — see [`docs/conventions/native-references/`](conventions/native-refe
   - our description: read-only slowness-diagnostic capture run AT THE MOMENT the machine or a session feels slow, before restarting or deleting anything
 - **Observation:** extraction — extracted from binary v2.1.232 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (integrity: degraded — counts are floors) (2026-08-23)
 - **Recheck trigger:** a Claude Code release gives `/doctor` a timed or profiling mode, or changes its status as a bundled skill (verified 2026-08-23)
+- **Baked:** description phrase no · Boundary section no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
+
+### `doctor` → `claude-ops:audit-skill-visibility`
+
+- **Verdict:** `complementary` — Same native surface as the two sibling rows, a third of our lanes. Bundled `doctor` ships a one-shot check (its Check 1) that groups unused skills, MCP servers, and plugins against their context cost, labels each group with a token-savings estimate, and offers to disable the selected groups. audit-skill-visibility answers a different question, why a skill is unseen: it reconciles three usage sources (native ~/.claude.json counters, its own JSONL store, OTEL) under a max-across-sources rule, computes an observed horizon and withholds every verdict the span cannot support, diagnoses reachability causes, and analyses listing-budget starvation. It disables nothing by contract. The skill's own description and Scope boundary already route the one-shot unused-versus-context-cost question to the native surface; this row records that routing in the store rather than replacing it.
+- **Native surface:** `doctor` (bundled skill; markers: gated)
+- **Our component:** `claude-ops:audit-skill-visibility` (skill)
+- **Evidence:**
+  - `doctor` present in the 2026-08-23 extraction as bundled-skill (markers: gated; aliases: checkup), per the two sibling rows
+  - the shipped doctor skill carries a check titled 'Check 1: unused skills, MCP servers, and plugins' whose prompt groups unused components, labels each group with a benefit estimate ('37 unused skills, saves ~2.2k est. tokens/session'), and applies only the groups the user selects; confirmed by string search of the installed v2.1.252 binary on 2026-08-31
+  - our description: audit whether each installed skill is actually VISIBLE to the model; reconciles native counters, a JSONL store, and OTEL; withholds every verdict the data cannot support; read-only, never disables, deletes, or edits a skill
+  - our description's Not-for clause and the SKILL.md Scope boundary table both already name the native surface ('Claude Code ships that in /doctor and the Stats tab') with no store row behind them until this one; a prose disclaimer without a store row is the drift this registry exists to catch
+- **Observation:** extraction — targeted string search of the installed binary v2.1.252 (doctor Check 1 strings confirmed; a spot observation over the sibling rows' full v2.1.232 extraction, not a re-extraction) (2026-08-31)
+- **Recheck trigger:** a Claude Code release changes doctor's unused-components check (Check 1's grouping, its disable offer, or its benefit estimate), gives it a multi-source reconciliation or observation-horizon discipline, or changes /doctor's status as a bundled skill or its gating switch (verified 2026-08-31)
 - **Baked:** description phrase no · Boundary section no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure — it is the best available routing surface, not a guaranteed one
 
