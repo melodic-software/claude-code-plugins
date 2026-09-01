@@ -76,6 +76,19 @@ pattern ("a quiz at the bottom on the changes that I must pass"). Match each nar
 section's length to what the change needs: cover the substance, but do not pad with filler,
 redundant summaries, or boilerplate.
 
+- **Questions are diff-sourced.** Author each quiz question from the change's actual diff
+  and the report sections that explain it, never from generic topic knowledge a reader
+  could answer without having followed this change.
+- **Each question carries a source anchor, and a miss routes to it.** Anchor every
+  question to the report section that teaches its answer (a report-internal anchor, or a
+  durable pointer per the reference discipline below). On a missed question, send the
+  reader to that exact section — the skimmed material, quoted or linked — before any
+  retry; the miss's job is routing, not scoring.
+- **The answer key is fresh-context authored.** Produce or verify the embedded key with a
+  fresh-context pass that reads only the report and the diff, not the authoring
+  conversation, so grading tests what the artifact actually supports rather than what its
+  author remembers meaning. Where no fresh sub-agent surface is available, re-derive the
+  key from the artifact alone before embedding it.
 - **Answer key persists with the artifact.** Embed the key in the report, a collapsed
   `<details>` block in HTML, an appendix section in the markdown fallback. Grade
   in-conversation in the same session; a later or compacted session grades by reading the

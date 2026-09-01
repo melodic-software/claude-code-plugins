@@ -55,8 +55,9 @@ plugin per hook.
   a capability's subcommands stay action arguments of one skill. The restraint has a context-cost
   basis: the listing of skill names and descriptions loads into every session, and each entry's
   combined description text is truncated at 1,536 characters in that listing
-  ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15) — every extra skill is an
-  always-paid context line. The standing exception is the `setup` lane, always its own skill with
+  ([skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
+  verified 2026-08-31; recheck trigger: that page moving the cap re-derives this bullet) — every
+  extra skill is an always-paid context line. The standing exception is the `setup` lane, always its own skill with
   `disable-model-invocation: true` — see the philosophy's "Setup is explicit and repeatable".
 - **Hooks group by concern.** Per-hook selectivity comes from a `userConfig` toggle (read through
   the hook-process `CLAUDE_PLUGIN_OPTION_<KEY>` mirror), a `matcher`, or an `if` guard —
@@ -458,8 +459,9 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 **The marketplace `renames` map is frozen-historical.** Its twelve entries stay: a consumer whose
 `enabledPlugins` still names a pre-rename plugin id resolves only through the map, and removing an
 entry strands them. But nothing new is added to it. A rename from here on is a clean breaking change
-carried by a version bump and a changelog note — the standing posture in
-[shadowed-skill-renames](topics/shadowed-skill-renames/PLAN.md) — so the map records migrations
+carried by a version bump and a changelog note — the standing posture locked in
+`docs/topics/shadowed-skill-renames/` (pruned per the topic-docs convention; read it
+in history at `c70d8867ccd9f9921fdde25de70cb9a91e718c80`) — so the map records migrations
 already shipped rather than serving as the go-forward mechanism.
 
 ### Same-version commit drift (directory-source marketplaces)

@@ -1587,6 +1587,117 @@ def _bash_denial_guidance(authority: str | None) -> str:
 _WATCHDOG_ENV_VAR = "DISK_HYGIENE_GUARD_WATCHDOG_SECONDS"
 _WATCHDOG_DEFAULT_SECONDS = 10.0
 
+# One decision reaches stdout, written by whichever thread gets there first.
+#
+# `_watchdog_fire` runs on the timer thread while the main thread may be part
+# way through its own `print`. Two writers, no lock, and the host reads a
+# SPLICED JSON object — malformed output, which PreToolUse treats as no
+# decision at all, so the tool call proceeds unguarded. That is a fail-OPEN
+# reached by the very mechanism added to fail closed, so the emission is
+# serialized and latched: the first writer wins and every later writer is a
+# no-op.
+_EMIT_LOCK = threading.Lock()
+_DECISION_EMITTED = False
+# The command under decision, published for `_watchdog_fire` once the payload
+# has parsed. `None` means the stall happened before or during the stdin read,
+# so the watchdog has no command to classify.
+_COMMAND_UNDER_DECISION: str | None = None
+
+
+# How long the WATCHDOG thread waits for `_EMIT_LOCK` before giving up on
+# writing. The main thread takes the lock unconditionally; the watchdog must
+# not, because the one scenario it exists for is a wedged main thread — and a
+# main thread wedged while HOLDING this lock would block the watchdog forever,
+# reproducing the never-fires fail-open the watchdog was added to close. A
+# bounded wait converts that deadlock into a decision.
+_EMIT_LOCK_WAIT_SECONDS = 0.5
+
+
+def _emit_decision(payload: dict[str, object]) -> bool:
+    """Write one decision to stdout. Returns False if one was already written.
+
+    Holds ``_EMIT_LOCK`` across the latch check AND the write. Both halves
+    matter, for different reasons: the latch stops a second object reaching the
+    stream, and holding the lock across ``print`` is what lets the watchdog
+    thread infer, purely from having acquired the lock, that this write has
+    already returned and is therefore safe to flush (see ``_watchdog_fire``).
+
+    This waits for the lock without a timeout, which is correct for the main
+    thread and only for it: the main thread is the one whose decision this is,
+    so it has nothing to protect by giving up. The watchdog thread must never
+    call this, and does not.
+    """
+    global _DECISION_EMITTED
+    with _EMIT_LOCK:
+        if _DECISION_EMITTED:
+            return False
+        _DECISION_EMITTED = True
+        print(json.dumps(payload))
+        return True
+
+
+def _publish_command_for_watchdog(command: str) -> None:
+    global _COMMAND_UNDER_DECISION
+    with _EMIT_LOCK:
+        _COMMAND_UNDER_DECISION = command
+
+
+# Identifies the invocation a timer was armed for.
+#
+# `Timer.cancel()` cannot stop a callback that has already been dispatched, and
+# `main`'s cleanup does not `join()`, so a watchdog can still be running — and
+# can acquire `_EMIT_LOCK` — after `main` has finished and reset the latch. It
+# would then read "no decision yet" about a call that has one and re-decide it,
+# overriding a delivered verdict with a deny.
+#
+# A token settles that without a `join()` (which would deadlock against a
+# callback blocked on the lock the resetter holds). `main` publishes a fresh
+# token, arms the timer with it, and clears it during cleanup; a callback whose
+# token no longer matches knows `main` finished and stands down. `None` is the
+# "no invocation active" value AND the default a directly-invoked
+# `_watchdog_fire` carries, so a unit test calling it outside `main` still gets
+# the full decision path rather than the stand-down.
+_INVOCATION_TOKEN: object | None = None
+
+# The exit code `main` reached, or None if no invocation has completed. A
+# stale-token watchdog exits with THIS rather than an unconditional 0: `main`'s
+# outer `except` returns 2 having emitted nothing (the deny rides the exit
+# status, per this module's contract), and a stand-down that hard-exited 0
+# would race ahead of that return and turn the deny into exit 0 with no JSON —
+# which the host reads as no decision at all, so the command proceeds
+# unguarded. `os._exit` from the timer thread kills the whole process before
+# the main thread can reach `__main__`'s own exit, so this is the only place
+# that outcome can be preserved.
+_MAIN_RESULT: int | None = None
+
+
+def _reset_decision_state(main_result: int | None = None) -> None:
+    """Clear the per-invocation emission latch.
+
+    In production this module is one process per decision, so the latch would
+    never need clearing. The test suite calls ``main`` many times in a single
+    interpreter, and a latch that survived between calls would silently
+    suppress every decision after the first — the guard emitting nothing, which
+    is the fail-open shape this module exists to prevent. Resetting at the top
+    of ``main`` keeps "one decision per invocation" true in both settings.
+
+    ``main_result`` is the exit code ``main`` reached, recorded when this is
+    called from its cleanup so a stale-token watchdog can carry that outcome
+    rather than inventing one. ``None`` means "no invocation has completed",
+    which is the state at the top of ``main`` and in a test that drives
+    ``_watchdog_fire`` directly.
+    """
+    global _DECISION_EMITTED, _COMMAND_UNDER_DECISION, _INVOCATION_TOKEN
+    global _MAIN_RESULT
+    with _EMIT_LOCK:
+        _DECISION_EMITTED = False
+        _COMMAND_UNDER_DECISION = None
+        _INVOCATION_TOKEN = None
+        # Published in the SAME lock hold that clears the token, so a callback
+        # can never see a stale token without also seeing the outcome that
+        # made it stale.
+        _MAIN_RESULT = main_result
+
 # The `timeout` both guard registrations declare (`hooks/hooks.json` and
 # `skills/clean/SKILL.md` frontmatter). Duplicated here because a PreToolUse
 # payload does not carry the hook's own timeout, so the guard cannot read it at
@@ -1693,22 +1804,233 @@ def _discard_stream(stream: object) -> None:
                 os.close(null_fd)
 
 
+def _watchdog_marker_present(command: str | None) -> bool:
+    """Whether ``command`` could possibly be an engine invocation.
+
+    Deliberately the CHEAPEST sound approximation of ``_engine_gate_relevant``:
+    pure regex and string work, no filesystem call of any kind. That is a hard
+    requirement rather than an optimisation — this runs on the timer thread
+    precisely because the main thread is presumed wedged in a filesystem call,
+    so a classifier that touched the filesystem could wedge identically and the
+    watchdog would never fire at all.
+
+    ``None`` (the stall happened before or during the stdin read) is reported
+    as marker-present: no command was ever seen, so nothing can be ruled out.
+    """
+    if command is None:
+        return True
+    try:
+        return any(_carries_marker(token) for token in _marker_tokens(command))
+    except BaseException:  # noqa: BLE001 -- an unclassifiable command is not a safe one
+        return True
+
+
 def _watchdog_fire(deadline: float) -> None:
-    """Watchdog callback (background timer thread): deny fast, never hang silently.
+    """Watchdog callback (background timer thread): decide fast, never hang.
 
     ``os._exit`` — not ``sys.exit`` — is deliberate: the main thread is
-    presumed stuck inside a syscall this callback cannot interrupt or join,
-    so this is a hard process exit, the one way this module can still
-    guarantee "deny, with a diagnostic" once cooperative return is no longer
-    an option.
+    presumed stuck inside a syscall this callback cannot interrupt or join, so
+    this is a hard process exit, the one way this module can still guarantee a
+    delivered outcome once cooperative return is no longer an option.
+
+    WHAT the outcome is now depends on what the guard was interrupted doing,
+    because "the guard could not decide" and "the guard decided deny" are not
+    the same event and must not produce the same result (#3502).
+
+    The deadline is WALL-CLOCK, so it measures contention as readily as it
+    measures a stall. On a loaded host — the concurrent-subagent case this
+    hook fires under constantly — an ordinary read-only command could cross a
+    10s deadline while the guard was still in ``_engine_gate_relevant``'s
+    marker-free fallback, and a blanket ``exit 2`` then BLOCKED it. Denying a
+    read-only command that the guard, given another moment, would have
+    deferred on is a false positive, and a gate that intermittently blocks
+    benign work is worse than a slow one: the observed failures all succeeded
+    on an identical retry, which is the signature of contention, not of a
+    command that deserved denying.
+
+    The downgrade is available in exactly ONE situation, and every other path
+    keeps the pre-change ``exit 2``:
+
+    * ``engine-gate`` mode, with a command that provably carries no engine
+      marker. Only there is the completed verdict knowably the instant
+      plugin-level defer, so ``ask`` is strictly MORE protective than the
+      outcome the guard would have reached (a defer emits no decision at all
+      and lets the command run) and strictly less blocking than ``exit 2``;
+    * ``belt`` mode denies, always. Belt is the skill-frontmatter deployment,
+      where Bash is deny-by-default and ``_engine_gate_relevant`` is never
+      consulted — a marker-free ``rm -rf`` would have been DENIED there, not
+      deferred, so downgrading it to a prompt on "the host was slow" would
+      convert a deny-by-default guard into one the operator is invited to
+      wave through. Belt is also the DEFAULT (``resolve_mode`` falls back to
+      it when no ``--mode`` is passed, which is exactly what the skill
+      frontmatter does), so a mode-blind classifier fails in the unsafe
+      direction;
+    * a command carrying the engine marker denies, unchanged;
+    * a stall before the payload parsed denies: nothing was seen, so nothing
+      can be ruled out.
+
+    EVERY OUTCOME MUST BE SELF-CARRYING OR PROVEN DELIVERED. This is the
+    constraint that shapes the branch order below, and it is easy to lose:
+    ``exit 2`` needs nothing on stdout (the deny rides the exit status;
+    ``_write_diagnostic`` uses stderr), whereas ``exit 0`` asserts that a JSON
+    object reached the host — and exit 0 carrying no JSON is read as NO
+    DECISION, so the command proceeds unguarded. Adding non-deny outcomes to
+    this callback therefore introduced a way to fail open that a deny-only
+    callback could not have: any ``exit 0`` taken while a write is merely
+    buffered, or still in progress on the main thread, discards it. Hence the
+    flush under the lock, and hence the lock-acquisition failure denying rather
+    than exiting 0.
+
+    The residual is measured rather than estimated, and it is wider than a
+    hard link. ``_watchdog_marker_present`` diverges from
+    ``_engine_gate_relevant`` on EXACTLY one set:
+
+        {no token's basename is the engine marker}
+            INTERSECT {some candidate is samefile with the bundled engine}
+
+    That is the whole filesystem-IDENTITY class. It includes hard links and
+    symlinks under a non-marker name, and — the part worth naming, because
+    ``_engine_gate_relevant``'s own docstring says identity is what closes it —
+    the Win32 filename-alias spellings: ``hygiene.py.`` (Win32 discards the
+    trailing dot, and ``_carries_marker``'s ``rstrip("/\\\\")`` does not),
+    ``hygiene.py::$DATA`` (splitting on ``[/\\\\:]`` and taking the last part
+    yields the empty string), and 8.3 short names. Each opens the bundled
+    engine while none has its basename, so each reaches ``ask`` on expiry in
+    engine-gate mode where a completed run would have gated it.
+
+    This residual cannot be closed on this thread: settling identity means
+    asking the filesystem, and this classifier must stay syscall-free precisely
+    because the main thread is presumed wedged in a filesystem call. Closing it
+    would mean resolving identity BEFORE the stall window and publishing the
+    verdict alongside the command — but that resolution IS the stall, so there
+    is no earlier moment at which it is cheap. It is therefore an accepted
+    residual, of the same identity class ``_engine_gate_relevant`` already
+    documents accepted residuals within.
+
+    Not in the set, and verified so rather than assumed: the overbreadth
+    shapes. ``./python-hygiene.py`` and a quoted ``bash -c 'python3
+    test_hygiene.py'`` payload are reported irrelevant by BOTH functions,
+    because the marker-free branch short-circuits before the widening rules
+    that would have caught them can run. A plain byte copy is a different file
+    and is relevant to neither.
+
+    The fail-open this guard exists to prevent is the harness killing a hook
+    that produced no ``permissionDecision`` at all (``docs/adr/0004-...``).
+
+    Every branch below ends in exactly ONE ``os._exit`` and nothing follows it,
+    so the call is terminal under a mock as well as in a real process — a test
+    that patches ``os._exit`` observes one call, not the tail of the function
+    running on.
     """
-    _write_diagnostic(
+    deny_diagnostic = (
         f"destructive_guard: internal deadline of {deadline:g}s exceeded; "
         f"denying by default. Raise {_WATCHDOG_ENV_VAR} (up to "
         f"{_WATCHDOG_MAX_SECONDS:g}s) if this guard legitimately needs longer "
         "on this filesystem."
     )
-    os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
+
+    # Failing to take the lock means the main thread is INSIDE `_emit_decision`,
+    # between `json.dumps` and `print` returning. Its write has not landed, and
+    # this thread cannot make it land: `sys.stdout.flush()` from here contends
+    # for the very buffer the wedged writer holds.
+    #
+    # So this branch denies, and that is the conservative direction rather than
+    # a regression. Exit 2 is SELF-CARRYING: the deny rides the exit status and
+    # `_write_diagnostic` uses stderr, so it needs nothing on stdout. Exiting 0
+    # here would stake the decision on a write known NOT to have completed, and
+    # exit 0 carrying no JSON is read as no decision at all, which is the
+    # command proceeding unguarded. Before this watchdog gained non-deny
+    # outcomes its only exit was 2, so every outcome was self-carrying by
+    # construction; keeping exit 2 for the one state this thread cannot observe
+    # is what preserves that property now that other branches exit 0.
+    if not _EMIT_LOCK.acquire(timeout=_EMIT_LOCK_WAIT_SECONDS):
+        _write_diagnostic(deny_diagnostic)
+        os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
+        return  # unreachable in production; keeps the mocked exit terminal
+
+    # The lock is held from here to whichever `os._exit` runs. That is what
+    # makes the flushes below safe, and the invariant is narrower than "nothing
+    # else writes stdout": holding this lock proves the main thread cannot be
+    # inside `_emit_decision`'s `print`, which is the only stdout write that
+    # happens during `main`'s lifetime. The `__main__` block's own flush and
+    # its `_discard_stream` fallback run AFTER `main` returns and are not under
+    # this lock, so they can still overlap a live daemon timer — `cancel()` is
+    # a no-op on an already-fired one. Both overlaps are benign: two flushes of
+    # the same buffer serialize, and `_discard_stream` runs only when stdout is
+    # already broken and its decision already undeliverable.
+    global _DECISION_EMITTED
+    try:
+        token = getattr(
+            threading.current_thread(), "guard_invocation_token", _INVOCATION_TOKEN
+        )
+        if token is not _INVOCATION_TOKEN:
+            # `main` finished and cleared the token while this callback was in
+            # flight. Its decision is authoritative; re-deciding here would
+            # override a delivered verdict with a deny. Flush (safe: the lock
+            # is held, so no thread is inside `_emit_decision`'s `print`) and
+            # stand down.
+            with contextlib.suppress(BaseException):
+                sys.stdout.flush()
+            # Carry `main`'s own outcome. Defaulting to 2 when it is unknown is
+            # fail-closed: an unknown outcome is not evidence of an allow.
+            os._exit(  # noqa: SLF001 -- hard exit is the point; see docstring
+                _MAIN_RESULT if _MAIN_RESULT is not None else 2
+            )
+            return  # unreachable in production; keeps the mocked exit terminal
+
+        command = _COMMAND_UNDER_DECISION
+
+        if _DECISION_EMITTED:
+            # `_emit_decision` holds this lock across its `print`, so having
+            # acquired it proves that write returned. It may still be BUFFERED,
+            # and `os._exit` skips the interpreter's shutdown flush, so this
+            # flush is what actually delivers the main thread's decision.
+            with contextlib.suppress(BaseException):
+                sys.stdout.flush()
+            os._exit(0)  # noqa: SLF001 -- hard exit is the point; see docstring
+            return  # unreachable in production; keeps the mocked exit terminal
+
+        # MODE GATE. The `ask` downgrade rests on "the completed verdict would
+        # have been the plugin-level defer", and that holds ONLY in engine-gate
+        # mode. The skill-frontmatter registration passes no `--mode` and
+        # `resolve_mode()` defaults to `belt`, where Bash is deny-by-default and
+        # `_engine_gate_relevant` is never consulted at all — so in belt mode a
+        # marker-free `rm -rf /some/dir` would have been DENIED, not deferred.
+        # Downgrading that to `ask` would turn a deny-by-default guard into a
+        # prompt the operator is invited to approve, on nothing more than "the
+        # host was slow". Belt mode therefore keeps the pre-change outcome.
+        #
+        # `resolve_mode` reads only `sys.argv`, so it is safe on this thread
+        # under the same syscall-free rule as `_watchdog_marker_present`.
+        if resolve_mode() != _MODE_ENGINE_GATE or _watchdog_marker_present(command):
+            _write_diagnostic(deny_diagnostic)
+            os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
+            return  # unreachable in production; keeps the mocked exit terminal
+
+        # Engine-gate mode, provably marker-free: the completed verdict really
+        # would have been the instant plugin-level defer, so the reason below is
+        # accurate as written rather than merely plausible.
+        _DECISION_EMITTED = True
+        with contextlib.suppress(BaseException):
+            print(
+                json.dumps(
+                    decision(
+                        "ask",
+                        f"disk-hygiene could not finish checking this command "
+                        f"within {deadline:g}s and is asking rather than "
+                        f"deciding. It names no disk-hygiene engine script, so "
+                        f"it is not a disk-hygiene invocation this plugin-level "
+                        f"gate governs. Raise {_WATCHDOG_ENV_VAR} (up to "
+                        f"{_WATCHDOG_MAX_SECONDS:g}s) if this host is "
+                        f"legitimately slow.",
+                    )
+                )
+            )
+            sys.stdout.flush()
+        os._exit(0)  # noqa: SLF001 -- hard exit is the point; see docstring
+        return  # unreachable in production; keeps the mocked exit terminal
+    finally:
+        _EMIT_LOCK.release()
 
 
 def _decide(command: str, tool_name: str, start: float) -> int:
@@ -1731,7 +2053,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
     if tool_name == "PowerShell":
         verdict = powershell_decision(command, enabled)
         if verdict:
-            print(json.dumps(decision(*verdict)))
+            _emit_decision(decision(*verdict))
             _emit_guard_telemetry(
                 start,
                 tool_name,
@@ -1744,12 +2066,10 @@ def _decide(command: str, tool_name: str, start: float) -> int:
 
     authority = resolve_authorized_data_root()
     if is_exact_kill_switch_probe(command):
-        print(
-            json.dumps(
-                decision(
-                    "allow",
-                    "Exact bundled disk-hygiene kill-switch probe (read-only report).",
-                )
+        _emit_decision(
+            decision(
+                "allow",
+                "Exact bundled disk-hygiene kill-switch probe (read-only report).",
             )
         )
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
@@ -1760,36 +2080,30 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         # that also names the engine path (#2774). `ask` keeps the ergonomic
         # win while preserving the prompt for sessions that never invoked clean.
         permission = "ask" if resolve_mode() == _MODE_ENGINE_GATE else "allow"
-        print(
-            json.dumps(
-                decision(
-                    permission,
-                    "Exact literal-form read-only supporting Bash command "
-                    "(disk-hygiene belt inspection allowlist).",
-                )
+        _emit_decision(
+            decision(
+                permission,
+                "Exact literal-form read-only supporting Bash command "
+                "(disk-hygiene belt inspection allowlist).",
             )
         )
         _emit_guard_telemetry(start, tool_name, "ok", decision_value=permission)
         return 0
     command_kind = classify_exact_engine_command(command, authority)
     if command_kind in {"scan", "preview", "handoff-verify"}:
-        print(
-            json.dumps(
-                decision(
-                    "allow",
-                    "Exact bundled disk-hygiene read-only gate invocation.",
-                )
+        _emit_decision(
+            decision(
+                "allow",
+                "Exact bundled disk-hygiene read-only gate invocation.",
             )
         )
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
         return 0
     if command_kind == "apply" and enabled:
-        print(
-            json.dumps(
-                decision(
-                    "ask",
-                    "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
-                )
+        _emit_decision(
+            decision(
+                "ask",
+                "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
             )
         )
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="ask")
@@ -1799,13 +2113,14 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         if command_kind == "apply"
         else _bash_denial_guidance(authority)
     )
-    print(json.dumps(decision("deny", reason)))
+    _emit_decision(decision("deny", reason))
     _emit_guard_telemetry(start, tool_name, "blocked", decision_value="deny")
     return 0
 
 
 def main() -> int:
     start = time.perf_counter()
+    _reset_decision_state()
     # Fail-closed safety boundary (#1423): only 0 and 2 are reachable past this
     # point. The watchdog denies fast on an internal deadline instead of
     # letting a stalled syscall run toward a harness-level, non-blocking kill
@@ -1835,8 +2150,24 @@ def main() -> int:
     # declared hook `timeout` toward the harness's own non-blocking kill.
     deadline = _watchdog_seconds()
     watchdog: threading.Timer | None = None
+    # Read by the `finally` below even if the try block raises before assigning
+    # it; 2 is the fail-closed default for "we never got far enough to decide".
+    result = 2
+    # Published under the lock so a callback's token check and its state read
+    # are atomic with respect to `main`'s cleanup.
+    global _INVOCATION_TOKEN
+    token = object()
+    with _EMIT_LOCK:
+        _INVOCATION_TOKEN = token
     try:
+        # `args` stays `(deadline,)`: `test_main_arms_watchdog_before_reading_stdin`
+        # pins this construction exactly, so the token rides on the Timer OBJECT
+        # instead. `threading.Timer` is a `Thread`, so the callback recovers it
+        # with `threading.current_thread()` — and a directly-invoked
+        # `_watchdog_fire` runs on a thread that carries no such attribute,
+        # which is what keeps the unit-test path on the full decision route.
         watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
+        watchdog.guard_invocation_token = token  # type: ignore[attr-defined]
         watchdog.daemon = True
         watchdog.start()
         tool_name = ""
@@ -1846,13 +2177,14 @@ def main() -> int:
             command = payload["tool_input"]["command"]
             if not isinstance(command, str):
                 raise TypeError("command is not text")
+            # From here the watchdog can classify what it interrupted; before
+            # this point it deliberately cannot, and denies.
+            _publish_command_for_watchdog(command)
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-            print(
-                json.dumps(
-                    decision(
-                        "deny",
-                        f"disk-hygiene guard could not validate the shell call: {exc}",
-                    )
+            _emit_decision(
+                decision(
+                    "deny",
+                    f"disk-hygiene guard could not validate the shell call: {exc}",
                 )
             )
             _emit_guard_telemetry(
@@ -1861,20 +2193,48 @@ def main() -> int:
                 "blocked",
                 decision_value="deny",
             )
-            return 0
-        return _decide(command, tool_name, start)
+            result = 0
+            return result
+        result = _decide(command, tool_name, start)
+        return result
     except BaseException as exc:
         _emit_guard_telemetry(start, "", "error")
         _write_diagnostic(
             f"destructive_guard: internal error, denying by default "
             f"({type(exc).__name__}: {exc})"
         )
-        return 2
+        result = 2
+        return result
     finally:
         # `watchdog` stays None if construction itself raised; cancelling an
         # armed-but-unstarted timer is harmless.
         if watchdog is not None:
             watchdog.cancel()
+        # Deliver the decision BEFORE clearing the latch.
+        #
+        # `cancel()` does NOT stop a callback that has already started, so a
+        # timer firing in this window still runs. What stops it re-deciding a
+        # call that already has an answer is the INVOCATION TOKEN, not this
+        # ordering and not the flush: `_reset_decision_state` clears the token
+        # under `_EMIT_LOCK`, and a callback that acquires the lock afterwards
+        # sees its own token no longer current and stands down at exit 0.
+        #
+        # Two earlier revisions of this comment each claimed a different
+        # mechanism closed this race — first the cancel-before-reset ordering,
+        # then the flush. Neither did. `cancel()` cannot stop a dispatched
+        # callback, and a flush only makes an already-printed decision durable;
+        # it does nothing about a callback that is about to override it with a
+        # deny. The token is what actually closes it.
+        #
+        # The flush stays, for the narrower thing it does do: `os._exit` skips
+        # the interpreter's shutdown flush, so a decision still buffered when a
+        # standing-down callback exits would otherwise be lost.
+        with contextlib.suppress(BaseException):
+            sys.stdout.flush()
+        # One process per decision makes the reset a no-op in production; it is
+        # what keeps `main` from leaking state into the next call in a test
+        # interpreter, where `_watchdog_fire` is also exercised directly.
+        _reset_decision_state(result)
 
 
 if __name__ == "__main__":

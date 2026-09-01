@@ -9,9 +9,18 @@
 # carrying no artifact pointer at all. A check that sources its own input from
 # the suspect payload cannot see that failure.
 #
+# It grades EXACTLY that path, and never scans for candidates. The parent
+# assigns every slice path before dispatching — including the collision
+# sub-slice when the slice root is already occupied, and the per-topic
+# sub-slices on a fan-out — so the assigned path IS the artifact's one
+# sanctioned home, and an index anywhere else under the slice is some other
+# run's artifact. Reaching for it is how a prior run's output gets accepted as
+# evidence that this dispatch succeeded.
+#
 # One gate serves both skills because they share one on-disk shape: an index
-# plus section-keyed sidecars beside it, the same one-level sub-slice rule, and
-# the same two placement rules (`skills/research/context/artifact-shape.md`).
+# plus section-keyed sidecars beside it, the same parent-assigned sub-slice
+# rule, and the same two placement rules
+# (`skills/research/context/artifact-shape.md`).
 # The part that differs between them is the sidecar YAML header — tiers and
 # publishing pools for research, `verified: read | grep | inferred` for
 # exploration — and this gate never reads a header. `--index-name` is therefore
@@ -28,12 +37,11 @@
 #   bash check-dispatch-artifact.sh --help
 #
 # What it checks, in order:
-#   1. Exactly one <index-name> exists — at the slice root, or one level below
-#      it in a sub-slice (the sanctioned collision path). Two is ambiguous: the
-#      gate cannot tell which run this dispatch produced. For research that
-#      ambiguity is also a REACHABLE END STATE — a parent fanning out over N
-#      topics synthesizes a slice-root index from the sub-slice ones — so grade
-#      each fan-out run against its own assigned sub-slice, before synthesis.
+#   1. <index-name> exists at the root of the given slice path — and nowhere
+#      else is looked. A research fan-out that has synthesized a slice-root
+#      index beside its sub-slice ones confuses nothing: each invocation names
+#      which artifact it is asking about, so grade each fan-out run against its
+#      own assigned sub-slice, before synthesis.
 #   2. That index is non-empty.
 #   3. It names at least one `<PREFIX>-<section>.md` sidecar, and every sidecar
 #      it names exists beside it and is non-empty. A mid-stream stub passes a
@@ -61,10 +69,9 @@
 #          pointer naming a different file, or a sidecar-count mismatch
 #          (status=unusable). The parent discards the run; it does not proceed.
 # Exit 2 = the gate cannot grade — the slice path is missing, is not a
-#          directory, holds more than one candidate index, or names a baseline
-#          file that does not exist — plus usage errors, including a missing or
-#          malformed `--index-name`. FAIL CLOSED: a slice this gate cannot read
-#          is never reported as usable.
+#          directory, or names a baseline file that does not exist — plus usage
+#          errors, including a missing or malformed `--index-name`. FAIL
+#          CLOSED: a slice this gate cannot read is never reported as usable.
 #
 # What it deliberately does NOT check: the coverage ledger a bounded-corpus
 # research run writes. `research-checklist.md` has its own gate
@@ -223,53 +230,21 @@ verdict() {
     "$1" "$2" "$3" "$freshness" "$pointer" "$4"
 }
 
-# Candidate indexes: the slice root, plus exactly one level below it. One level
-# is the whole sub-slice rule — an index deeper than that is not a placement
-# this workflow sanctions, and globbing for it would start matching unrelated
-# artifacts that happen to live under the slice.
-#
-# Each candidate is existence-tested rather than left to the glob. `nullglob`
-# drops a PATTERN that matches nothing; it does nothing to a literal path with
-# no wildcard in it, so `"$slice/$index_name"` would survive into the array as a
-# path to a file that is not there — and a slice holding only a sub-slice index
-# would then read as ambiguous.
-candidates=()
-if [[ -f "$slice/$index_name" ]]; then
-  candidates+=("$slice/$index_name")
-fi
-shopt -s nullglob
-for candidate in "$slice"/*/"$index_name"; do
-  if [[ -f "$candidate" ]]; then
-    candidates+=("$candidate")
-  fi
-done
-shopt -u nullglob
+# Exactly the given path, no candidate scan. The parent assigned this slice
+# path before dispatching — the collision sub-slice included — so the index
+# either sits at its root or the run did not persist a usable artifact. An
+# index anywhere else under the slice is some other run's artifact, and
+# scanning for it is how a prior run's output gets accepted as evidence that
+# THIS dispatch succeeded.
+index="$slice/$index_name"
 
-if [[ ${#candidates[@]} -eq 0 ]]; then
-  echo "unusable: no $index_name in $slice or in a sub-slice one level below it" >&2
+if [[ ! -f "$index" ]]; then
+  echo "unusable: no $index_name at $slice" >&2
   verdict "<none>" 0 0 unusable
   exit 1
 fi
 
-if [[ ${#candidates[@]} -gt 1 ]]; then
-  # Ungradeable rather than unusable: one of these may well be a fine artifact,
-  # but the gate cannot tell which one THIS dispatch wrote, and guessing is how
-  # a prior run's artifact gets accepted as evidence that a failed run
-  # succeeded. The parent assigns sub-slices, so it can disambiguate and re-run
-  # this gate against the specific one.
-  #
-  # On the research side this is also what a COMPLETED fan-out looks like from
-  # the slice root: the parent synthesizes a slice-root index from N sub-slice
-  # ones, so root-plus-sub-slices is a sanctioned end state there rather than a
-  # defect. It is still not a gradeable input — the fix is the same, grade each
-  # run against the sub-slice it was assigned, and do it before synthesis.
-  echo "error: ${#candidates[@]} candidate indexes under $slice — cannot tell which run wrote which:" >&2
-  printf '  %s\n' "${candidates[@]}" >&2
-  exit 2
-fi
-
-index="${candidates[0]}"
-index_dir="$(dirname "$index")"
+index_dir="$slice"
 
 if [[ ! -s "$index" ]]; then
   echo "unusable: index is empty: $index" >&2

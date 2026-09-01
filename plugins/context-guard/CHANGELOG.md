@@ -5,6 +5,19 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.29]
+
+### Changed
+
+- **`reference/cloud-headless-capture.md` gains an observable recheck trigger.** Its verdicts are
+  probe results with a date, and a negative finding stops being evidence the moment the surface it
+  probed changes, but nothing said what that change would look like. The file now names it: Claude
+  Code documenting or shipping a channel that could carry per-session occupancy to a local writer (a
+  hook payload with context or token counts, a settings key or environment variable exposing
+  occupancy, a CLI flag or MCP surface reporting it), or a change to whether a configured
+  `statusLine` runs in cloud and headless sessions. Additive only; the verdict paragraph is
+  byte-identical to its prior form.
+
 ## [0.7.28]
 
 ### Fixed

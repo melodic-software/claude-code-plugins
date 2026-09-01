@@ -139,16 +139,28 @@ loops rather than to save money. All are config keys (`.claude/provenance.json`)
   re-fetching it per candidate spends the corpus ceiling on work already done. The cache lives
   in the run's memory slice and is never tracked.
 
+**Under `sweep`, both are scoped to the sweep rather than to one invocation.** The ceiling is
+spent across the whole sweep, so a resumed sweep restores its spend from the sweep ledger instead
+of starting again at zero, and the cache is likewise the sweep's: a resume re-validates an entry
+before reusing it, because a page fetched before the interruption may have changed since. Neither
+happens on its own. The ledger at `.work/<topic-slug>/sweep-ledger.md` is prose the run keeps by
+hand, no script writes or reads it, and it is checkout-local, so a sweep resumed in a different
+checkout has no spend and no cache to restore and is a new sweep. `SKILL.md` "Sweep" and
+`reference/dispositions.md` "Sweep closure" carry the resume rules and the entry's fields.
+
 Exhausting a budget produces the neutral outcome, not a failure and not a negative verdict:
 `source not identified (budget exhausted; searched: ...)`, naming every surface checked. Absence
 of a located source is never evidence that the passage is original. Record the counts in the
 finding's `budget` block so the human report can show what the run spent and where it stopped.
 
-**The searched-surfaces listing is prose-only, and nothing enforces it.** The requirement above,
-and its restatements in `SKILL.md` and `reference/dispositions.md`, binds the run's conduct and
-no schema: `scripts/emit-findings.sh` has no field, count, or budget block for the listing, and
-the relay boundary withholds `not-found` findings from the findings file entirely, so a listing
-that omits a surface is indistinguishable downstream from a complete one. Treat a report's
-listing as the run's own claim, never as validation evidence that no source exists. Making it
-checkable would mean adding a `searched` array to the report sidecar and a schema check in
-`emit-findings.sh`; until such a change lands, this recorded limitation is the contract.
+**The searched-surfaces listing is schema-checked for presence, never for completeness.** Carry
+it in the report sidecar as a `searched` array on the finding. `scripts/emit-findings.sh` refuses
+a sidecar whose `not-found` finding names no surface at all, on the same input-refusal exit code
+it uses for a sidecar that is not audit output at all.
+
+That check reads the array and stops there, and the rest of the limitation stands. Nothing knows
+which surfaces the run actually visited, so a listing that omits one it checked is still
+indistinguishable from a complete one. The relay boundary withholds `not-found` findings from the
+findings file entirely, so the array reaches the schema check and goes no further; the only
+consumer of the listing remains the human report, where it is prose. Treat a report's listing as
+the run's own claim, never as validation evidence that no source exists.

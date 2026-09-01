@@ -3,6 +3,19 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1]
+
+### Fixed
+
+- **Uncommitted-code-files probe moved out of the argument-substitution surface.** The
+  pre-computed-context injection in `audit-comment-residue` and `dissolve-comments` carried awk
+  `$0` inline in SKILL.md. Skill argument substitution rewrites `$<digit>` placeholders anywhere
+  in a skill body (0-based, so `$0` is the first argument), so any invocation carrying an
+  argument corrupted the probe before the shell ran. Both lines now call the shared
+  `scripts/changed-code-files.sh` through `${CLAUDE_PLUGIN_ROOT}`, which also removes the inline
+  `$`-expansion the worktree-isolation guard refuses (#1687). Contract tests cover the listing,
+  the rename-origin skip, the cap, and the no-repo fallback exit.
+
 ## [0.15.0]
 
 ### Changed

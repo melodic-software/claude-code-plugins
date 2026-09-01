@@ -9,15 +9,32 @@ First hit wins:
 
 1. `--config FILE`
 2. `$CLAUDE_OPS_LANES_CONFIG`
-3. `<repo>/.work/lanes.json` (repo = `--repo DIR`, else the git toplevel of the cwd)
+3. `<repo>/.work/lanes/lanes.json` (repo = `--repo DIR`, else the git toplevel of the cwd)
 
 A missing config exits `4`; malformed JSON or a config with no lanes exits `3`.
+
+`lanes/` is a reserved first-level concern name under the memory root; the config
+and the lane prompt files live inside it rather than as bare files at the root.
+The `.work` root is **hardcoded**: the launcher does not resolve the topic-docs
+`memory_dir` setting, because it runs as an operator script outside any session
+that could resolve one. A consumer that has repointed `memory_dir` passes
+`--config` or sets `$CLAUDE_OPS_LANES_CONFIG` instead.
+
+**Pre-move compatibility.** When step 3 finds nothing and the pre-move
+`<repo>/.work/lanes.json` exists, that file is read and a one-line deprecation
+warning names the move. Only the default falls back: `--config` and
+`$CLAUDE_OPS_LANES_CONFIG` are used verbatim, so a config kept outside the memory
+root still fails loudly rather than silently resolving to a leftover file. A
+config resolved at the pre-move path also keeps the pre-move `prompt_dir` default
+(`.work`), so a config that never named one still finds the prompts it left beside
+itself. Move both into `.work/lanes/` to clear the warning; the fallback is
+temporary.
 
 ## Schema
 
 ```json
 {
-  "prompt_dir": ".work",
+  "prompt_dir": ".work/lanes",
   "lanes": [
     { "name": "work",    "prompt": "work.md",    "model": "opus",   "effort": "high",
       "settings": { "pluginConfigs": { "autonomy@<marketplace>": { "options": {
@@ -31,7 +48,7 @@ A missing config exits `4`; malformed JSON or a config with no lanes exits `3`.
 
 | Field | Required | Meaning |
 |---|---|---|
-| `prompt_dir` | no | Base dir for relative `prompt` paths. Default `.work`. Relative values resolve against the repo root; absolute (POSIX `/…` or Windows `C:\…`) are used as-is. |
+| `prompt_dir` | no | Base dir for relative `prompt` paths. Default `.work/lanes` (`.work` for a config resolved at the pre-move path above). Relative values resolve against the repo root; absolute (POSIX `/…` or Windows `C:\…`) are used as-is. |
 | `lanes[].name` | yes | The lane's session name — the `--name` value the launcher gives the background session, and the key `status`/`stop` match on. Keep distinct from ad-hoc session names. |
 | `lanes[].prompt` | yes | Path to the lane's canonical prompt file. Relative → resolved against `prompt_dir`; absolute → used as-is. The file's full contents seed the session (positional prompt). A missing or empty file skips that lane with an error. |
 | `lanes[].model` | no | Passed as `claude --model`. An alias (`opus`, `sonnet`, `fable`) or a full model id. Omit to inherit the machine default. |
@@ -60,13 +77,15 @@ setting rather than reporting the mistake (#1784).
 
 ## Prompt-storage seam (#480)
 
-`prompt_dir` defaulting to `.work` reflects today's reality: canonical prompts live
-in a session-local `.work` dir, which is **not durable** — a fresh machine or
-session starts empty until the prompts are authored there.
+`prompt_dir` defaulting to `.work/lanes` settles **where** the canonical prompts
+sit: inside this skill's reserved concern home rather than loose at the memory
+root. It does not make them durable. The memory root is session-local, so a fresh
+machine or session still starts empty until the prompts are authored there.
 
-Issue #480 (loop-prompt authoring skill) is slated to **own durable prompt
-storage**. This skill deliberately does not build that: it reads prompt files from
-wherever `prompt_dir` points today and leaves a single seam for the durable home.
+Issue #480 (loop-prompt authoring skill) is slated to **own durable cross-machine
+prompt storage**. This skill deliberately does not build that: it reads prompt
+files from wherever `prompt_dir` points today and leaves a single seam for the
+durable home.
 
 When #480 lands, the only change here is to repoint `prompt_dir` (per-config) or the
 `resolve_prompt_dir` function in the script (the default) at the durable location.

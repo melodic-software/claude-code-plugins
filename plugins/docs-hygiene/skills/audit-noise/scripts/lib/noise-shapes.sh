@@ -61,7 +61,8 @@ audit_noise_convention_roots_pattern() {
 # sharing its line. Angle-bracket slot variables (root followed by '<') are
 # schema placeholders and never match the candidate pattern; the reserved
 # concern-scoped roots (<memory_dir>/handoffs/, <memory_dir>/reviews/,
-# <memory_dir>/running-retros/, <memory_dir>/overengineering/ — reserved
+# <memory_dir>/running-retros/, <memory_dir>/overengineering/,
+# <memory_dir>/exports/, <memory_dir>/lanes/ — reserved
 # first-level names under the memory root per docs/conventions/topic-docs/)
 # are exempt only in bare form — a
 # concrete child under them flags. Configured non-default roots from the
@@ -85,7 +86,7 @@ audit_noise_line_has_ghost_ref() {
     # punctuation, not a hidden child — only `.` followed by a path segment
     # character counts as concrete (`.gitignore`-style names still flag).
     if [[ "$root" != 'docs/topics' && "$root" != "$AUDIT_NOISE_CONTRACT_ROOT" ]] &&
-      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' || "$seg" == 'overengineering' ]] &&
+      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' || "$seg" == 'overengineering' || "$seg" == 'exports' || "$seg" == 'lanes' ]] &&
       { [[ ! "$after" =~ ^[A-Za-z0-9._-] ]] || [[ "$after" =~ ^\.([^A-Za-z0-9_-]|$) ]]; }; then
       rest="$after"
       continue

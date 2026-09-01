@@ -21,7 +21,11 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
 - `description` + `when_to_use` within the 1536-char **per-skill** listing-entry cap (overflow
-  truncates that entry). A different, narrower limit from the shared budget below.
+  truncates that entry). A different, narrower limit from the shared budget below. The cap and the
+  1% budget default are upstream's
+  (<https://code.claude.com/docs/en/skills#frontmatter-reference>,
+  <https://code.claude.com/docs/en/settings>; verified 2026-08-31; recheck trigger: either default
+  moving re-derives this line and the scripts' encoded constants).
 - Trigger-keyword preservation vs `HEAD` (skipped for a new, uncommitted skill).
 - `SKILL.md` under 500 lines (hard) / 200 lines (soft, advisory).
 - Backtick- and link-cited skill-internal supporting files resolve. When a path that misses instead

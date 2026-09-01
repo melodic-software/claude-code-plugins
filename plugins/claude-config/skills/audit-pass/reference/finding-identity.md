@@ -5,6 +5,12 @@ normalization, and the derived `finding_id`.
 
 Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 
+**Recheck trigger:** re-verify the SARIF citations below (§3.27.12, §3.27.17, §3.29.4) if OASIS
+publishes a SARIF spec revision beyond v2.1.0 that renumbers or changes those sections, or if
+GitHub's CodeQL `fingerprints.ts` changes how it computes a result's partial fingerprint or which
+location(s) it hashes — the divergence the "Two deliberate divergences" section below documents
+against.
+
 ## 1. Finding identity
 
 Prose judgements are undiffable. Identity is three parts, emitted machine-readably, and the third is

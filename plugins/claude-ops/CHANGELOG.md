@@ -3,6 +3,153 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0]
+
+### Changed
+
+- **`lanes` state moved into a reserved `lanes/` concern home.** The lane config
+  and the lane prompt files sat as bare files at the memory root:
+  `<repo>/.work/lanes.json` plus `prompt_dir` defaulting to `.work`. That is
+  outside the reserved-name roster and outside the slice model the topic-docs
+  contract defines, and it was the contract's clearest live violation. The
+  defaults are now `<repo>/.work/lanes/lanes.json` and a `prompt_dir` of
+  `.work/lanes`, inside a reserved first-level concern name. `lane-launcher.sh`,
+  `restart-consumer.sh`, and the `probe-lane-config.sh` line that feeds the
+  skill's pre-computed context all move together, so the path the skill reports
+  is the path the launcher opens.
+- **A checkout that has not migrated keeps working, loudly.** When the `lanes/`
+  home holds no config and the pre-move `<repo>/.work/lanes.json` exists, that
+  file is read and a one-line deprecation warning names the move. Only the
+  DEFAULT falls back: `--config` and `$CLAUDE_OPS_LANES_CONFIG` are still used
+  verbatim, so the escape hatch keeps meaning what it says and a config kept
+  outside the memory root fails loudly rather than resolving to a leftover file.
+  A config resolved at the pre-move path also keeps the pre-move `prompt_dir`
+  default (`.work`), because a config that never named one would otherwise start
+  looking one directory deeper than it left its prompts and skip every lane with
+  "prompt file not found". Warning rather than failing is deliberate on both
+  scripts: an operator whose lanes ran this morning must not have `start` exit
+  `4` on them, and the restart consumer runs unattended on an OS schedule, where
+  a hard failure would stop honoring restart requests into a log nobody reads.
+  The fallback is temporary; move both into `.work/lanes/` to clear the warning.
+- **The `.work` root is documented as a hardcoded carve-out.** The launcher does
+  not resolve the topic-docs `memory_dir` setting, because it runs as an
+  operator script outside any session that could resolve one. A consumer that
+  has repointed `memory_dir` passes `--config` or sets
+  `$CLAUDE_OPS_LANES_CONFIG`. SKILL.md and `context/config.md` now say so rather
+  than leaving it inferable from the source.
+- **The prompt-home note stays honest.** The move settles WHERE the prompts sit,
+  not whether they travel: the memory root is session-local, so a fresh machine
+  still starts with no prompts. The gotcha and the config contract now separate
+  the sanctioned placement (settled here) from the durable cross-machine home
+  (still #480's job) instead of letting the reserved name read as the fix.
+
+## [0.39.2]
+
+### Changed
+
+- **`audit-performance`: moved the spawn-noise characterization into `lib/spawn_noise.py`.**
+  `summarize_spawn_samples`, `spawn_probe`, and the `NOOP_SPAWN` / `SPAWN_SAMPLES` /
+  `SLOW_SPAWN_FLOOR_MS` / `BIMODAL_SPREAD_RATIO` constants now live in a plugin-level lib that the
+  engine imports and re-exports. Behavior is unchanged and the engine's surface is unchanged: the
+  45 existing tests, including the six that exercise the bimodal predicate, pass untouched.
+  The move exists so the incoming `performance` plugin can consume the same characterization
+  instead of re-deriving it, keeping the bimodal threshold in exactly one place. Preparing #3530.
+
+## [0.39.1]
+
+### Fixed
+
+- **`audit-native-overlap`: the upstream-claims table no longer asserts the
+  documented drop order as fact.** Its row stated name-only degradation goes
+  "least-invoked-first", sourced to the skills page, with "the drop order
+  changes" as its own recheck trigger. That trigger has fired: 0.39.0 established
+  from the shipped binary that the order is a decay-weighted score followed by a
+  greedy first-fit walk, and that the documented order is wrong rather than
+  merely imprecise. The row now records both what the docs say and what the
+  binary does, points at `audit-skill-visibility/reference/listing-scorer.md` for
+  the mechanism, and carries a trigger that watches the binary rather than only
+  the page. Found by a post-merge verifier sweeping for the stale wording.
+- **`audit-native-overlap`: the OPERATIVE drop-order instruction is corrected
+  too.** The Budget exposure guidance separately told the model that descriptions
+  are dropped "starting with the least-invoked skills". That is the line the
+  skill acts on when characterizing an over-budget fleet, so correcting only the
+  claims row above would have left the false mechanism live and made the two
+  sections contradict each other. It now says lowest-score-first and states that
+  raw invocation count is not the exposure ranking and that description length
+  matters. The only surviving "least-invoked" string in the file is the claims
+  row quoting what the docs say, which is that row's purpose.
+
+## [0.39.0]
+
+### Fixed
+
+- **`audit-skill-visibility`'s starvation band now carries a usage signal.**
+  `compute_listing` sorted on a `usage_score` that only the test fixtures ever
+  set: the live collector builds its denominator from a filesystem walk, and
+  usage events were joined afterwards, so every real run scored zero and the band
+  fell through to its alphabetical tiebreaker while presenting itself as
+  usage-informed. On this machine that ranked `adhd:clarify` (1 use) as first to
+  lose its description and `work-items:triage` (99 uses) as among the safest.
+  Scores are now computed before the listing is built.
+- **Truncation is modelled as the greedy first-fit walk the product runs, not a
+  score-ordered prefix.** The product's grant loop has no early exit, so it walks
+  every competing entry with a running description budget and a cheap low-scored
+  description can be granted after an expensive higher-scored one was refused.
+  Description length is therefore a second ranking input. The budget itself is
+  computed forward from a floor, `budget - V`, where V is what the listing costs
+  before any description is granted; deriving it from the overflow put the
+  grant boundary in the wrong place. Ties keep catalog order rather than
+  alphabetical, matching the product's stable sort, which decides the entire
+  ordering when nothing is scored.
+- **Usage recorded under a skill's bare leaf no longer vanishes.** Events were
+  looked up by qualified `<plugin>:<leaf>` name only, while the stores hold both
+  that key and the bare leaf as separate rows, so the bare row was discarded with
+  nothing saying so. `source-control:babysit-prs` reported 97 invocations against
+  an actual 475. A bare key is now attributed when exactly one skill owns that
+  leaf, and withheld with its candidates when more than one does.
+
+### Added
+
+- **The listing scorer is mirrored rather than guessed at.** `listing_score`
+  implements `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, recovered from
+  Claude Code 2.1.251 and carrying a verification stamp with its basis and
+  recheck trigger. The ordering is decay-weighted, so "least invoked" was never
+  the right description of it: a heavily used but stale skill can rank below a
+  lightly used fresh one. Evidence in
+  `skills/audit-skill-visibility/reference/listing-scorer.md`, with the counters' own
+  semantics and their seeding and throttle traps in the companion
+  `reference/usage-counters.md`.
+- **`listing.score_basis`, so an unscored band admits it.** When no usage
+  survives to weigh, the order is catalog order and nothing more; the basis reads
+  `unscored` and competing rows carry `confidence: "unscored"` rather than
+  borrowing `inferential`, which claims more than the data supports. The basis is
+  decided over the CONTENDERS, not the whole denominator: an exempt skill
+  carrying real usage must not label a contest whose every entrant is at zero.
+  The markdown report renders the distinction too, rather than describing an
+  unranked order as a likelihood band.
+
+## [0.38.23]
+
+### Fixed
+
+- **`observability`: dispatch prose no longer carries a `$1` placeholder.** The action-vs-scope
+  step read "If `$1 == "clean"`". Skill argument substitution rewrites `$<digit>` placeholders
+  anywhere in a skill body, and the indexing is 0-based, so `$1` names the second argument and
+  was rewritten to its value whenever the skill was invoked with two or more arguments. The step
+  now names the first argument in prose.
+
+## [0.38.22]
+
+### Changed
+
+- **`audit-skill-visibility`: stamped the listing-mechanism restatements.** The SKILL.md
+  starvation-loop paragraph asserted `skillListingBudgetFraction` (0.01) and the
+  least-invoked-first drop order as "documented" without naming where; it now cites the owning
+  settings and skills pages with a verified date (2026-08-31) and a divergence trigger. The
+  `ListingConfig` docstring in `audit_skill_visibility.py` carries the same four-part record for
+  its encoded defaults. Per the marketplace's upstream-drift convention; found in the
+  frontmatter-alignment sweep.
+
 ## [0.38.21]
 
 ### Changed

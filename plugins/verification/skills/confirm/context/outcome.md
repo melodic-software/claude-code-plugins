@@ -53,6 +53,11 @@ Justified additions are fine but should be noted. Unjustified additions should b
 |---|----------|-----------|-----------|
 | 1 | <what was added> | Yes/No | <why> |
 
+### Existing behavior this leans on (out-of-diff couplings)
+| # | Coupling | Where it lives | Evidence it still holds |
+|---|----------|----------------|-------------------------|
+| 1 | <unchanged behavior the change depends on> | <file/module> | <test name, assertion, or check run> |
+
 ### Assessment
 - Plan items: X/Y complete (Z%)
 - Deviations: N (all justified / N unjustified)

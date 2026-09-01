@@ -131,7 +131,7 @@ suite() {
   # --- usable ---------------------------------------------------------------
 
   local good multi sub dupes blank stub placeholder orphan hollow
-  local notdir ambiguous two_sub deep old_baseline future_baseline
+  local notdir occupied two_sub deep old_baseline future_baseline
 
   good="$(slice good)"
   index "$good" "# $PREFIX — payments rounding" '| Section | File |' \
@@ -161,13 +161,43 @@ suite() {
   run 0 "three named sidecars all present is usable" "$multi"
   run 0 "a matching --expect-sidecars passes" "$multi" --expect-sidecars 3
 
-  # The sanctioned collision path: the run wrote its whole set one level down.
-  # On the research side this is also the fan-out placement a parent assigns.
+  # The sanctioned collision path: the PARENT assigned a sub-slice pre-dispatch
+  # and passes exactly that path here. On the research side this is also the
+  # fan-out placement a parent assigns.
   sub="$(slice sub)"
   index "$sub/rounding-scope" "$PREFIX-codebase.md"
   sidecar "$sub/rounding-scope" "$PREFIX-codebase.md" 'a'
-  run 0 "an index in a sub-slice one level below is found" "$sub"
-  stdout_has 0 "rounding-scope/$INDEX_NAME" "the sub-slice path is the one reported" "$sub"
+  run 0 "a parent-assigned sub-slice path is graded directly" "$sub/rounding-scope"
+  stdout_has 0 "rounding-scope/$INDEX_NAME" "the graded index is the one at the given path" "$sub/rounding-scope"
+
+  # No scan: an index one level BELOW the given path is NOT found. The gate
+  # grades exactly the path the parent assigned; an index it did not assign is
+  # not a candidate, however close by it sits.
+  run 1 "an index one level below the given path is not found" "$sub"
+
+  # Root and sub-slice indexes coexisting confuse nothing — for research this
+  # is what a completed, synthesized fan-out looks like. Each invocation names
+  # which artifact it is asking about, and grades that one only.
+  occupied="$(slice occupied)"
+  index "$occupied" "$PREFIX-codebase.md"
+  sidecar "$occupied" "$PREFIX-codebase.md" 'a'
+  index "$occupied/other-scope" "$PREFIX-codebase.md"
+  sidecar "$occupied/other-scope" "$PREFIX-codebase.md" 'b'
+  run 0 "the root path is graded even when a sub-slice index coexists" "$occupied"
+  stdout_has 0 "occupied/$INDEX_NAME" "the root invocation reports the root index" "$occupied"
+  run 0 "a sub-slice path is graded even when the root is occupied" "$occupied/other-scope"
+  stdout_has 0 "other-scope/$INDEX_NAME" "the sub-slice invocation reports the sub-slice index" "$occupied/other-scope"
+
+  # A fan-out before synthesis: each run is graded against the sub-slice IT was
+  # assigned, and the un-synthesized root holds no index of its own.
+  two_sub="$(slice two-sub)"
+  index "$two_sub/scope-a" "$PREFIX-codebase.md"
+  sidecar "$two_sub/scope-a" "$PREFIX-codebase.md" 'a'
+  index "$two_sub/scope-b" "$PREFIX-codebase.md"
+  sidecar "$two_sub/scope-b" "$PREFIX-codebase.md" 'b'
+  run 0 "the first fan-out sub-slice is graded against its own path" "$two_sub/scope-a"
+  run 0 "the second fan-out sub-slice is graded against its own path" "$two_sub/scope-b"
+  run 1 "the un-synthesized root of a fan-out is unusable" "$two_sub"
 
   # --- unusable -------------------------------------------------------------
   # Every case below is a slice the parent must NOT proceed from.
@@ -223,32 +253,15 @@ suite() {
   printf 'x\n' >"$notdir"
   run 2 "a slice path that is a file is ungradeable" "$notdir"
 
-  # Two candidates: the gate cannot tell which run this dispatch produced, and
-  # accepting the wrong one would report a failed run as a success. For research
-  # this is also what a synthesized fan-out looks like from the slice root.
-  ambiguous="$(slice ambiguous)"
-  index "$ambiguous" "$PREFIX-codebase.md"
-  sidecar "$ambiguous" "$PREFIX-codebase.md" 'a'
-  index "$ambiguous/other-scope" "$PREFIX-codebase.md"
-  sidecar "$ambiguous/other-scope" "$PREFIX-codebase.md" 'b'
-  run 2 "a root index plus a sub-slice index is ambiguous" "$ambiguous"
-
-  two_sub="$(slice two-sub)"
-  index "$two_sub/scope-a" "$PREFIX-codebase.md"
-  sidecar "$two_sub/scope-a" "$PREFIX-codebase.md" 'a'
-  index "$two_sub/scope-b" "$PREFIX-codebase.md"
-  sidecar "$two_sub/scope-b" "$PREFIX-codebase.md" 'b'
-  run 2 "two sub-slice indexes are ambiguous" "$two_sub"
-
   run 2 "an unknown flag is a usage error" "$good" --nope
   run 2 "a second positional path is a usage error" "$good" "$multi"
   run 2 "--expect-sidecars with no value is a usage error" "$good" --expect-sidecars
   run 2 "--expect-sidecars with a non-integer is a usage error" "$good" --expect-sidecars two
   run 2 "--expect-sidecars with a negative value is a usage error" "$good" --expect-sidecars -1
 
-  # An index deeper than one level is not a placement this workflow sanctions,
-  # so the slice reads as holding no artifact rather than silently reaching for
-  # it.
+  # An index below the given path is never reached, at any depth — the gate
+  # grades the assigned path only, so the slice reads as holding no artifact
+  # rather than silently reaching for one.
   deep="$(slice deep)"
   index "$deep/a/b" "$PREFIX-codebase.md"
   sidecar "$deep/a/b" "$PREFIX-codebase.md" 'a'

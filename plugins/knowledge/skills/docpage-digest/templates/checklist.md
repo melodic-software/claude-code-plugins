@@ -22,7 +22,7 @@ collision check reads them to tell a resume from a slug collision.
 - [ ] Phase 1: Fetch — unaltered original snapshotted as `source.<ext>`, immutable: `source.md`
       for a markdown or rendered-text channel, or `source.pdf` **plus** its `source.txt`
       extraction for a PDF original (both are originals; name the extraction tooling above)
-- [ ] Phase 2: Inventory — `INDEX.md` written (headings, themes, digest map, status rows)
+- [ ] Phase 2: Inventory — `SOURCES.md` written (headings, themes, digest map, status rows)
 - [ ] Phase 3: Digest fan-out — one agent per digest unit → `digests/NN-slug.md` (fixed
       structure; verbatim quotes in column-0 fences under bold `**CN.**` labels)
 - [ ] Phase 4: Dual verification — pin-manifest written on agent-reported completion; standing

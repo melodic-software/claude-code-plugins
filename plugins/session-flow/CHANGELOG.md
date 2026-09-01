@@ -1,5 +1,26 @@
 # Changelog — session-flow plugin
 
+## [0.34.16]
+
+### Added
+
+- **`workflow`: five-pass pre-implementation cross-ref.** One doc line under the at-a-glance
+  diagram noting that stages 0-3 expand, for unfamiliar territory, into the known five-pass
+  order (blindspot → brainstorm/prototype → interview → reference port → plan), stated with
+  rationale in `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository. Recorded at the
+  finding-your-unknowns integration sign-off (Q7); no contract or trigger change, so no eval
+  delta.
+
+## [0.34.15]
+
+### Changed
+
+- **`show-options`: stamped the listing-behavior section in `context/candidate-ladder.md`.** The
+  "why the in-context listing cannot be the sole source" bullets restated the budget keys, drop
+  order, and `disable-model-invocation` visibility with no citation; the section now names its
+  owning pages with a verified date (2026-08-31) and a divergence trigger, per the marketplace's
+  upstream-drift convention. Found in the frontmatter-alignment sweep.
+
 ## [0.34.14]
 
 ### Changed

@@ -3,6 +3,29 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.11]
+
+### Changed
+
+- **`stateless`: `reference/official-guidance.md` gains an observable recheck trigger.** The file
+  carried eleven dated stamps and a "refresh before relying on it" note, which is a usage condition
+  rather than an event someone could notice, so nothing said when its auto-memory claims stop being
+  current. It now names the observable events: the `/memory` command gaining, losing or renaming its
+  auto-memory toggle, `autoMemoryEnabled` or `CLAUDE_CODE_DISABLE_AUTO_MEMORY` changing name,
+  default or semantics, the per-project memory path moving, or any of its five source pages changing
+  that section. Additive only.
+
+## [0.11.10]
+
+### Changed
+
+- **`audit`: stamped the skill-listing facts in `reference/criteria.md`.** The C3 "Why" block
+  quoted the skills page (the 1,536 listing cap, `disable-model-invocation` visibility,
+  `skillOverrides` not reaching plugin skills) with a bare slug citation and no as-of date or
+  recheck trigger. The quotes now cite the frontmatter reference by URL with a verified date
+  (2026-08-31) and a divergence trigger, per the marketplace's upstream-drift convention. Found
+  as an unstamped restatement in the frontmatter-alignment sweep.
+
 ## [0.11.9]
 
 ### Changed

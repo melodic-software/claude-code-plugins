@@ -118,6 +118,8 @@ Char-limit rows verified 2026-07-18 against third-party testers ([hookgenius cha
 - **Stem rows corrected 2026-08-08** against <https://suno.com/pricing>. Free reads "No stem separation" — the previous "2-track stems: Free ✓" row was false. Pro carries "2 stem separation types (Auto; Split from mix)"; Premier carries "3 stem separation types (… and Advanced split)". Naming correction too: Auto Split / Split from Mix / Advanced Split are three **modes**, not track counts — "12-track stems" was a misnomer for Auto Split, which yields up to 12 stems.
 - Free-tier generation runs on **v4.5-all**, not v5.5 (third-party report: TechRadar).
 
+**Recheck trigger:** Suno publishes a release note or blog post naming a model version after v5.5 (superseding the March 26 2026 baseline this file is pinned to), **or** `suno.com/pricing` changes any row in the Subscription tier matrix above (Voices, Custom Models, Studio, stem separation, audio upload), **or** `suno.com/release-notes` resolves the Free-plan Voices trial's missing `Web` tag one way or the other, **or** the hookgenius / aimusicapi character-limit consensus this file cites revises its figures, **or** an official Suno page states field-length limits directly. Not a date.
+
 ## Sources
 
 Primary: `help.suno.com/en/articles/11362305` (v5.5 release), `help.suno.com/en/articles/11362369` (Voices), `help.suno.com/en/articles/11362497` (Custom Models), `suno.com/blog/v5-5`.

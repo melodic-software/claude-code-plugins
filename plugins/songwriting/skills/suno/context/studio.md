@@ -149,6 +149,8 @@ Upload limits (verified 2026-07-18 against <https://suno.com/pricing>):
 4. Repeat for any drifting clips
 5. Export Tempo-Locked WAV
 
+**Recheck trigger:** `suno.com/pricing` changes Studio's tier gating (currently Premier-only), the audio-upload limits, or the stem-separation-mode table (Split from Mix / Auto Split / Advanced Split), **or** Suno ships a Studio release past 1.2 that adds a capability currently listed under "What Studio does NOT do" (third-party plugins, generation-time time signature, real-time MIDI input, multi-user collaboration). Not a date.
+
 ## Sources
 
 `help.suno.com/en/articles/7940161` (Introduction to Studio), `help.suno.com/en/articles/10625089` (Studio 1.2 release notes), `help.suno.com/en/articles/8128193` (Exporting from Studio), `help.suno.com/en/articles/6141505` (Song Editor).

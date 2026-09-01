@@ -58,7 +58,7 @@ gate. Prerequisite: `python3` (3.9+). A PASS covers only what each script prints
 negative-control evidence is `scripts/test_check_fences_exact.py` and
 `scripts/test_check_snippets.py`.
 
-**Commands are replayable in every pipeline artifact, not just digest rows.** INDEX rows, applied
+**Commands are replayable in every pipeline artifact, not just digest rows.** SOURCES rows, applied
 records, verdicts, rulings and handoffs carry commands too, in the same command-plus-raw-count form,
 and each is replayed where it is authored. No sweep reaches an artifact that did not yet exist
 when it ran, so the phase that writes one replays it before that phase ends. (One slice yielded

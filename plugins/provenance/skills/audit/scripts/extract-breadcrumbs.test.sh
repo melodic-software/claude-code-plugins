@@ -303,6 +303,50 @@ assert_eq "both scripts agree on which digitless May lines are candidates" \
   "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | .stamp_lines | length")" "$DIGITLESS_CANDIDATES"
 assert_eq "and they agree on five" "$DIGITLESS_CANDIDATES" "5"
 
+# --- A second May signal out in the window's slack --------------------------------
+#
+# may_form() reports two signals through one RSTART, and is_stamp() reads that
+# RSTART to decide whether the match it accepted began inside the window. So the
+# function has to hand back the LEFTMOST of the two: a digit-adjacent "may" out
+# in the 9 characters of slack used to be tested first and returned first, so a
+# capital "May" sitting inside the window was never consulted and the line left
+# this inventory. A weaker second date signal REMOVED the stamp line.
+#
+# Offsets are measured, not eyeballed. The keyword match ends at column 9 of the
+# line, so window offset = column - 8, wlen is 60 and the slice is wlen + 9 = 69
+# characters. "Verified this May " is 18 columns, putting the capital "May" at
+# window offset 7; the 52-character filler runs to column 70, so the "7" lands at
+# column 71 = window offset 63, three past wlen and inside the slack, with the
+# whole "7 may" tail still inside the 69-character slice. The filler is built
+# rather than typed so the 52 above is the number in the file.
+#
+# The cross-script count below is pinned to a number as well as to agreement:
+# both scripts inherited this defect identically, so agreement alone was blind to
+# it, which is how it survived the last two fixes in this area.
+
+SLACK_DIR="$TEST_TMPDIR/slack-may"
+mkdir -p "$SLACK_DIR"
+SLACK_FILLER="$(printf '%052d' 0 | tr '0' 'a')"
+{
+  echo '# May in the slack'                      # 1
+  echo ''                                        # 2
+  echo 'Verified this May.'                      # 3
+  echo "Verified this May ${SLACK_FILLER}7 may." # 4
+} >"$SLACK_DIR/slack-may.md"
+
+SLACK_OUT="$(run --files "$SLACK_DIR/slack-may.md" 2>/dev/null)"
+SLACK_FILE='.directories[0].files[0]'
+assert_eq "a digitless May stamp is inventoried on its own" \
+  "$(echo "$SLACK_OUT" | jq -r "$SLACK_FILE | [.stamp_lines[] | select(.line == 3)] | length")" "1"
+assert_eq "a stray digit-adjacent \"may\" out in the slack does not remove the stamp line" \
+  "$(echo "$SLACK_OUT" | jq -r "$SLACK_FILE | [.stamp_lines[] | select(.line == 4)] | length")" "1"
+
+SLACK_CANDIDATES="$(bash "$SCRIPT_DIR/check-stamps.sh" --as-of 2026-08-28 \
+  "$SLACK_DIR/slack-may.md" 2>/dev/null | jq -r '.counts.candidates')"
+assert_eq "both scripts agree on the May line carrying a slack signal" \
+  "$(echo "$SLACK_OUT" | jq -r "$SLACK_FILE | .stamp_lines | length")" "$SLACK_CANDIDATES"
+assert_eq "and they agree on two, not on zero" "$SLACK_CANDIDATES" "2"
+
 # --- Fences ----------------------------------------------------------------------
 
 COPIED='.directories[0].files[] | select(.file | endswith("copied.md"))'

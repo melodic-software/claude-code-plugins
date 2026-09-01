@@ -8,6 +8,14 @@ the operable floor below verbatim** and cite this file for provenance only — t
 and the requirement that the inlined values stay byte-identical across consumers, is owned by the
 loop-lane convention (`docs/conventions/loop-lane/README.md` §6 in the marketplace repository).
 
+**Recheck trigger:** re-verify the statusline stdin schema citation under "Tee file shape" below
+if `https://code.claude.com/docs/en/statusline` changes the `rate_limits` object shape, or the
+`used_percentage` / `resets_at` field names or ranges; re-verify the cloud/remote-session
+observation under "Cloud / remote sessions" below if Claude Code ships statusline wiring or a
+persistent `~/.claude/rate-limit-guard/` filesystem inside cloud or remote-session containers —
+the shipped producer the "Documented residual" paragraph below names as the path to proactive
+mode there.
+
 ## Operable floor (consumers inline these values verbatim)
 
 - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`

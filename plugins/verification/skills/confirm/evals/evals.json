@@ -11,6 +11,7 @@
         "Auto-detects the `outcome` criterion from the post-implementation context (no mode argument given)",
         "Stage 1 delegates to /toolchain:check and /toolchain:lint cross-cutting — does NOT reimplement build/test/lint or inline exec-bit/gitleaks bash",
         "Stage 2 retrieves intent (plan / conversation) and produces an intent-match table",
+        "The report names the out-of-diff couplings as their own table: existing behavior the change leans on, where it lives, and evidence it still holds",
         "Emits a CONFIRMED or NEEDS WORK verdict, not just a green build"
       ]
     },

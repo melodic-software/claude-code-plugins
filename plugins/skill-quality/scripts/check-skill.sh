@@ -215,6 +215,14 @@ fi
 
 # Tunables (listing description cap; description field cap; SKILL.md line caps;
 # vendor sync age).
+# DESC_CHAR_CAP restates the harness's documented per-entry listing cap, the
+# default of skillListingMaxDescChars ("truncated at 1,536 characters in the
+# skill listing"). Basis:
+# https://code.claude.com/docs/en/skills#frontmatter-reference and the settings
+# page; verified 2026-08-31. Recheck trigger: either page moving the default
+# re-derives this constant (a script cannot fetch upstream at runtime, so this
+# four-part record is the conforming restatement shape per the marketplace's
+# upstream-drift convention).
 DESC_CHAR_CAP=1536
 # Agent Skills spec field maximum for `description` ALONE — a different limit at a
 # different layer from DESC_CHAR_CAP above, which bounds the assembled listing entry
@@ -223,7 +231,10 @@ DESC_CHAR_CAP=1536
 # 2026-08-23, `claude plugin validate --strict` (Claude Code 2.1.241) passes a
 # 1248-char description clean. A breach is therefore latent for filesystem/plugin
 # skills and hard for any skill uploaded through the Skills API, which is why this
-# is a WARN and DESC_CHAR_CAP stays a FAIL.
+# is a WARN and DESC_CHAR_CAP stays a FAIL. Basis: the Agent Skills spec
+# (https://agentskills.io, "Maximum 1024 characters"); verified 2026-08-31.
+# Recheck trigger: the spec moving the field maximum, or Claude Code starting
+# to enforce it locally, re-derives this constant and the WARN/FAIL split.
 DESC_FIELD_CAP=1024
 LINE_HARD_CAP=500
 LINE_SOFT_CAP=200

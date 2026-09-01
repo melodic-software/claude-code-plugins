@@ -9,8 +9,10 @@
       "files": [],
       "expectations": [
         "Output produces a structured plan with at minimum a goal, an ordered approach, and a test strategy",
+        "Each rejected alternative carries a one-line switch condition naming the observable fact that would make it the better choice",
         "Output includes a blast-radius assessment line",
         "Output ends by requesting explicit user approval before execution rather than starting to implement",
+        "The presentation closes with pre-drafted one-line revision replies, one per flagged close call, each a copyable sentence that flips exactly that decision",
         "The run does not write or edit any source code file"
       ]
     },

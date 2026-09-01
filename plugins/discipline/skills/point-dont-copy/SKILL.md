@@ -1,5 +1,6 @@
 ---
 description: "Re-anchor pointer-over-copy discipline, then audit the work in flight for copied content, internal-name coupling, and closed capability lists, and correct by pointing at the living source. Use when: 'point don't copy', 'you copied that', 'don't duplicate the docs', 'cite instead of paste', 'link don't restate', 'you enumerated the tools', 'that couples to internal names', 'this will drift', or at conversation start on documentation work."
+argument-hint: "[target] (e.g., /discipline:point-dont-copy the new setup guide, or empty to audit the work in flight)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -81,13 +82,38 @@ Name concrete, located findings (per the method doc's step 2, self-audit):
   invocation contract would do;
 - a closed enumeration of duties or mechanisms that will drift as the
   surface evolves;
-- the same passage, literal, or concept appearing in two or more places.
+- the same passage, literal, or concept appearing in two or more places;
+- in a port from another stack or language: a source-side primitive with no
+  target-side analogue (a language feature, a library guarantee, an
+  implicit runtime behavior) whose invariant the port silently drops. The
+  port must name the convention now carrying that invariant, or the
+  finding stands.
 
 Correct each forward now: replace the copy with a pointer to its owner,
 swap an internal-name reference for the public contract, and reopen a
 closed enumeration into a general duty with marked examples. Where content
 is genuinely this project's own to hold (an adapted config, a self-pinned
 constraint, a dated research deliverable), say so and leave it.
+
+## External-reference ports. Semantics map + confirmation gate
+
+**Scope.** This section governs external-reference ports only: work whose source of truth
+lives outside this repo's tree: vendored, foreign-language, other-repo. In-tree
+corrections stay on the method doc's do-it-now side; nothing here changes that.
+
+**Declared step delta** (per the method doc's "Declared step deltas" allowance): for an
+external-reference port, insert between the loop's steps 2 and 3 a semantics map and a
+confirmation gate, because a port that starts before the semantics are agreed bakes
+misreads into working code, where the audit can no longer see them as findings:
+
+- **Semantics map**, externalized, five sections: what the source does; side-by-side
+  pairs (source construct against port construct); a preserved / changed / dropped
+  ledger; an edge-case parity table; the open questions the port cannot settle alone.
+  The no-analogue trap check above feeds the dropped ledger: every dropped source
+  primitive names the convention now carrying its invariant.
+- **Confirmation gate.** Stop and wait for the user to confirm the map before port work
+  proceeds. A reply of "semantics confirmed" is the recommended token, not a required
+  one; any clear confirmation opens the gate.
 
 ## What this skill does NOT do
 

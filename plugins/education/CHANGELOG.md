@@ -3,6 +3,24 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`explain`: vocabulary-ladder entries and an original-ask success condition.** Rung-2 terms of
+  art now arrive as ladder entries — the term, an ordinary-words definition, and a modeled "you
+  can now say" sentence the user can reuse — and when the explanation serves a task the user was
+  stuck on, success is judged by whether their next prompt names what they mean (bare
+  comprehension asks are exempt by scope). Adopted from the "Finding Your Unknowns" corpus at the
+  integration sign-off (team-convention tier; provenance in `docs/FINDING-YOUR-UNKNOWNS.md` in the
+  marketplace repository). Evals extended, including a new original-ask case.
+- **`quiz-me`: diff-sourced, anchored questions and a fresh-context answer key.** Quiz questions
+  are authored from the change's actual diff and the report's own sections; every question is
+  anchored to the section that teaches its answer and a miss routes the reader to that exact
+  section before any retry; the embedded answer key is produced or verified by a fresh-context
+  pass reading only the report and diff (re-derived from the artifact alone when no fresh surface
+  is available). Same adoption basis; evals extended for all three contract lines.
+
 ## [0.8.8]
 
 ### Changed

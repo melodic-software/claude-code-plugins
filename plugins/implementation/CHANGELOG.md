@@ -3,6 +3,32 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Added
+
+- **Deviation-log convention: typed entries, interactive opt-in, and a completion fold-back.**
+  `implement-dispatch`'s "Divergence in non-interactive runs" contract gains entry types
+  (plan-confirmed / discovery / deviation / human-decision, the last marked blocking or
+  non-blocking) and four deviation fields (plan said / found / chose / revisit), stated as this
+  plugin's own output contract for its own log file, never a format imposed on consumer repos.
+  `implement` Step 3 gains the interactive opt-in (same log, same contract, for long or
+  contested sessions), and Step 5 gains a deviation fold-back item: read `DEVIATIONS.md` at
+  completion and emit one plan-amendment bullet per unresolved entry. Recorded trigger: when a
+  second plugin reads `DEVIATIONS.md`, the marketplace's convention-registry rule fires and the
+  contract graduates to an owner doc. Adopted from the "Finding Your Unknowns" corpus at the
+  integration sign-off (E1, E2; provenance in `docs/FINDING-YOUR-UNKNOWNS.md` in the
+  marketplace repository). Evals extended in both skills.
+
+## [0.15.9]
+
+### Changed
+
+- **`reference/artifact-protocol.md` synced to protocol version 3** (topic-docs contract v3.0.0
+  flip): `INDEX.md` joins the memory-tier artifact kinds, topic slices are recursive, and entering
+  a slice follows the contract's read-first binding (cited, not restated). Copy stays
+  byte-identical to `docs/PLUGIN-ARTIFACT-PROTOCOL.md`.
+
 ## [0.15.8]
 
 ### Changed
