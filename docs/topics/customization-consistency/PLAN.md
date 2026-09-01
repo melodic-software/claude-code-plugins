@@ -111,7 +111,7 @@ Program shape: this topic spans multiple PRs. PLAN.md + topic slice ride a
 `chore/customization-consistency` branch; each phase gets its own PR branch off `main`, and this
 file's phase tags advance as phase PRs merge.
 
-### Phase 1a: Gitignore-line convergence [TODO]
+### Phase 1a: Gitignore-line convergence [DOING]
 
 Converge every setup skill's recommended consumer gitignore line on config-cascade's mandated
 recursive form (`.claude/**/*.local.*`). Edit the setups INVENTORY §6.2 names: codebase-health,
