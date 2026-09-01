@@ -217,6 +217,117 @@
       },
       "baked": { "description_phrase": false, "boundary_section": false },
       "budget_caveat": false
+    },
+    {
+      "native": { "name": "playground", "class": "marketplace-plugin", "markers": [] },
+      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "visualize decides the best visual FORM for conversation content and renders it; the first-party playground skill builds an interactive parameter explorer whose output returns as a prompt. The shapes meet only at 'show me this visually', so visualize's Boundary section routes explorer-shaped requests out (to the playground skill, or the playgrounds wrapper which owns install uplift and cloud delivery) and keeps every static form for itself.",
+      "evidence": [
+        "upstream SKILL.md (plugins/playground/skills/playground/SKILL.md) read at commit ed404106fcd80ba98ecb7c851e531dcb626d13b7: 'interactive controls on one side, a live preview on the other, and a prompt output at the bottom with a copy button'",
+        "our description: decide the best visual FORM and MEDIUM for what is in the conversation right now, then render it",
+        "the wrapper plugin `playgrounds` declares the cross-marketplace dependency and carries the install uplift, so the Boundary route has a landing surface in this marketplace",
+        "corpus slice: 27-resource verified map of the announcement article, plugin source, and implicated docs (2026-08-31)"
+      ],
+      "observation": {
+        "class": "upstream-source",
+        "detail": "anthropics/claude-plugins-official at commit ed404106fcd80ba98ecb7c851e531dcb626d13b7 (HEAD of main, re-verified by fetch 2026-09-01)",
+        "date": "2026-09-01"
+      },
+      "recheck": {
+        "trigger": "the upstream repository's default branch moves past the pinned commit with changes under plugins/playground, or the playground plugin is renamed, removed, or absorbed into the CLI as a bundled skill",
+        "verified": "2026-09-01"
+      },
+      "baked": { "description_phrase": false, "boundary_section": true },
+      "budget_caveat": false
+    },
+    {
+      "native": { "name": "playground", "class": "marketplace-plugin", "markers": [] },
+      "component": { "plugin": "prototype", "skill": "explore-directions", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "Both produce a browser page with switchable controls, which is why the pair needs a recorded boundary: explore-directions varies YOUR PROJECT'S own UI (real header, real data, real routes) so you can pick a direction and throw the rest away, while a playground explores an arbitrary parameter space and hands back a prompt. Its description now routes the explorer shape to the playground skill via the playgrounds wrapper.",
+      "evidence": [
+        "upstream SKILL.md read at commit ed404106fcd80ba98ecb7c851e531dcb626d13b7: 'especially when the input space is large, visual, or structural and hard to express as plain text'",
+        "our description: builds throwaway UI variations, several radically different visual layouts on one route, switchable from a floating control bar",
+        "the baked routing clause carries the marketplace parity token so fleet parity traces it to this row",
+        "corpus slice: 27-resource verified map (2026-08-31)"
+      ],
+      "observation": {
+        "class": "upstream-source",
+        "detail": "anthropics/claude-plugins-official at commit ed404106fcd80ba98ecb7c851e531dcb626d13b7 (HEAD of main, re-verified by fetch 2026-09-01)",
+        "date": "2026-09-01"
+      },
+      "recheck": {
+        "trigger": "the upstream repository's default branch moves past the pinned commit with changes under plugins/playground, or the playground plugin is renamed, removed, or absorbed into the CLI as a bundled skill",
+        "verified": "2026-09-01"
+      },
+      "baked": { "description_phrase": true, "boundary_section": false },
+      "budget_caveat": true
+    },
+    {
+      "native": { "name": "design", "class": "bundled-skill", "markers": ["gated"] },
+      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "visualize's form matrix already routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas when it is present, with the shadowing check and never-mention-when-absent rule its catalog spoke documents. This row records the live integration the registry was previously blind to; the routing stays organic body text, so nothing is baked.",
+      "evidence": [
+        "our SKILL.md step 2: 'a design canvas. Route to a design-canvas capability (the bundled design skill), when available'",
+        "catalog spoke plugins/visualization/skills/visualize/context/decision-matrix.md carries the canvas surface facts with their own verified-on line",
+        "binary extraction v2.1.251 (vendored node_modules/@anthropic-ai/claude-code/bin/claude.exe, 2026-08-31): design skill registered with a /design command dispatch table"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.251 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design-family registrations read from the bundle strings)",
+        "date": "2026-08-31"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release names the design canvas skill in its changelog or commands reference, changes bundled-skill invocability, or removes the research-preview gating",
+        "verified": "2026-09-01"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": false
+    },
+    {
+      "native": { "name": "design", "class": "bundled-skill", "markers": ["gated"] },
+      "component": { "plugin": "prototype", "skill": "explore-directions", "kind": "skill" },
+      "verdict": "complementary",
+      "reason": "explore-directions offers the editable design-canvas Artifact as one of its mockup surfaces where the bundled skill is available, alongside real-stack and self-contained-HTML variants. Same live integration as the visualize row, sibling component; organic body/description text, nothing baked (its presence phrasing predates the registry and carries no gate token).",
+      "evidence": [
+        "our description: 'or, where the bundled design skill is available, an editable design-canvas Artifact'",
+        "binary extraction v2.1.251 (2026-08-31): design skill registered, research-preview gated"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.251 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design-family registrations read from the bundle strings)",
+        "date": "2026-08-31"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release names the design canvas skill in its changelog or commands reference, changes bundled-skill invocability, or removes the research-preview gating",
+        "verified": "2026-09-01"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": false
+    },
+    {
+      "native": { "name": "design-sync", "class": "bundled-skill", "markers": ["hidden", "gated"] },
+      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "verdict": "defer",
+      "reason": "Deliberately undetermined. The design-sync family (design-sync skill with disableModelInvocation, hidden design-consent/design-revoke commands managing a durable agent-access grant, design-login credential flow, DesignSync tool) is registered in the binary but documented nowhere through v2.1.251, and no operator of this marketplace uses claude.ai/design design-system projects. Real enough to record next to the canvas integration it ships beside; too thin to rule on, and design-system sync is publishing, not visualization, so no integration text ships anywhere.",
+      "evidence": [
+        "binary extraction v2.1.251 (2026-08-31): design-sync registered with disableModelInvocation true; design-consent/design-revoke registered as hidden commands ('Grant/Revoke Claude agent access to your Design projects'); design-login flow strings present",
+        "docs and changelog through v2.1.251 carry none of the four names (checked 2026-08-31)",
+        "no claude.ai/design usage among this marketplace's operators (user-confirmed 2026-09-01)"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.251 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (design-family registrations read from the bundle strings)",
+        "date": "2026-08-31"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release documents any of design-sync/design-consent/design-revoke/design-login, or an operator of this marketplace adopts claude.ai/design design-system projects",
+        "verified": "2026-09-01"
+      },
+      "baked": { "description_phrase": false, "boundary_section": false },
+      "budget_caveat": false
     }
   ]
 }

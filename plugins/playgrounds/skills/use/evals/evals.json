@@ -1,0 +1,53 @@
+{
+  "skill_name": "use",
+  "evals": [
+    {
+      "id": 1,
+      "name": "installed-routes-to-upstream-skill",
+      "prompt": "/playgrounds:use help me balance the 'Inferno' hero's deck",
+      "expected_output": "Confirms the upstream playground plugin is installed by its claude-plugins-official install record, then invokes the bare `playground` skill via the Skill tool with the balancing brief, and does not generate any playground HTML itself.",
+      "files": [],
+      "expectations": [
+        "Presence is judged from the marketplace-qualified install record, not from description wording",
+        "The upstream skill is invoked with the user's brief; template choice is left to it",
+        "No HTML is authored by this skill in any branch"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "absent-emits-install-commands",
+      "prompt": "/playgrounds:use I want an interactive explorer for my API's rate-limit settings",
+      "expected_output": "Finding no playground plugin installed, emits /plugin marketplace add claude-plugins-official and /plugin install playground@claude-plugins-official with scope guidance, and offers to proceed once installed instead of building a substitute.",
+      "files": [],
+      "expectations": [
+        "The exact install commands appear, marketplace-qualified",
+        "Scope guidance distinguishes user scope from project scope",
+        "No attempt to hand-build an explorer as a fallback"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "cloud-session-feature-detects-delivery",
+      "prompt": "/playgrounds:use tune the easing curves on this animation (we are in a cloud session, there is no local browser)",
+      "expected_output": "Routes generation upstream, then instead of relying on open <file>.html, feature-detects the delivery path: offers an Artifact publish or a file send only if the session supports it, and otherwise reports the file path, saying plainly which tiers were unavailable.",
+      "files": [],
+      "expectations": [
+        "open <file>.html is not assumed to work",
+        "Each delivery tier is offered conditionally on actual availability, not asserted",
+        "Unavailable tiers are named visibly rather than skipped silently"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "shadowed-name-is-not-invoked",
+      "prompt": "/playgrounds:use make a playground for my color palette (note: this project defines a local skill named playground that formats SQL)",
+      "expected_output": "Notices the listed playground skill does not describe an interactive-explorer builder, says a local shadow is likely, and takes the install/guidance path rather than invoking the shadowing skill.",
+      "files": [],
+      "expectations": [
+        "The description mismatch is treated as a shadow signal, not as proof upstream is absent",
+        "The shadowing skill is not invoked",
+        "The user is told what is shadowing what"
+      ]
+    }
+  ]
+}

@@ -122,10 +122,16 @@ playground-shaped and route accordingly.
   light+dark diff-review vs light-only code-map, document-critique's placeholder output groups,
   data-explorer's unescaped innerHTML rendering — revisit any dependent wording when upstream
   moves past that commit; the `--upstream-sha` advisory arm makes that event observable.
-- The dependency mechanism's happy path is documented and schema-backed (current docs + live
-  schemastore, both fetched 2026-09-01), but its failure-path behavior in managed cloud
-  environments is unverified — the empirical check in the acceptance criteria is load-bearing,
-  not ceremony.
+- The dependency mechanism was verified empirically on 2026-09-01 (isolated HOME, CLI 2.1.251):
+  installing the wrapper without the official marketplace succeeds but leaves the plugin
+  "failed to load" with the exact remedy command in the error; adding the
+  `claude-plugins-official` marketplace auto-installed the dependency ("+ 1 dependency:
+  playground") and the wrapper flipped to enabled; the root-marketplace allowlist raised no
+  cross-marketplace block. Consequence recorded: this repo's own cloud sessions have no
+  official marketplace configured, so `playgrounds@melodic-software` is set `false` in
+  `.claude/settings.json` (a recorded enablement decision) rather than shipping a
+  perpetually failed-to-load plugin into every session here — revisit if the environment
+  gains the official marketplace.
 - The pilot runs on the user's local desktop with the upstream plugin as-is, plus one cloud
   smoke (artifact-published playground; copy-to-clipboard inside the artifact sandbox is
   unverified and may reorder the delivery tiers). Pilot learnings may add wrapper enrichments
