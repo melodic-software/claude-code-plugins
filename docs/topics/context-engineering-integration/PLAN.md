@@ -68,11 +68,15 @@ its locked Brief, or authoring against surfaces that have drifted.
   trims/dedupes/migrates CLAUDE.md guidance into skills and finds unused skills by context
   cost; no official surface says "rightsize" or skill-content simplification. The
   audit-native-overlap run is unnecessary (Q9); repo docs citing /doctor cite commands.md.
-- **Q5 (80% claim posture):** OPINION-tier WITH directional-corroboration annotation —
-  the figure appears on no official surface; changelog v2.1.154 ("lean system prompt is now
-  the default") corroborates direction only. Magnitude and "no measurable loss" stay
-  vendor-voice (verifier's world-truth ruling); scope qualifier ("on our coding
-  evaluations") always carried.
+- **Q5 (80% claim posture):** OPINION-tier WITH directional-corroboration annotation.
+  Carriers (corrected 2026-09-01 by validator 2): the X article AND its claude.com/blog twin
+  (the-new-rules-of-context-engineering-for-claude-5-generation-models) both carry the
+  figure — under the repo's recorded precedent (audit-instructions criteria.md:153-158) a
+  vendor blog corroborates rather than defines, so the tier stands; changelog v2.1.154
+  ("lean system prompt is now the default") corroborates direction only. Magnitude and "no
+  measurable loss" stay vendor-voice (verifier's world-truth ruling); scope qualifier ("on
+  our coding evaluations") always carried. Never phrase the annotation as "no official
+  surface carries it" — falsifiable in one fetch.
 - **Q6 (model-upgrade re-test):** documented trigger only; the shipped `audit-pass` re-run
   contract (lease/epoch, suppression, three-scope inventory) is the ritual vehicle. Cite
   shipped reference files, not design/rerun-contract.md (drifted; flagged to plan owner).
@@ -107,6 +111,17 @@ its locked Brief, or authoring against surfaces that have drifted.
 - **Q14:** the dated input note lands under the prior plan's `design/` per topic-docs, is
   referenced from PLAN.md AND from the phase sections it gates (Phase 8 criteria edits,
   Phase 10 reconcile) in the same commit, with tracker items for each actionable payload.
+
+### Validation record
+
+Two independent fresh-context validators (rationale withheld, devils-advocate evidence
+discipline, 2026-09-01) each audited all seven locked decisions: 14/14 CONFIRMED, 0
+CHALLENGED, 0 RECLASSIFIED. Standing findings carried to execution: (1) D3's tracker item
+must be written to survive an absorb-and-close outcome on Q15; (2) D1's consequential tier
+is deliberately unclearable until its attribution design exists — the ordering is enforced,
+not incidental; (3) Q5's annotation cites both first-party carriers (above); (4) D2's
+same-change wiring into shipped skills respects the repo/product "two hats" boundary
+unhobble records.
 
 ### Captured assumptions
 
