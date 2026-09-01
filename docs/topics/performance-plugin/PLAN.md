@@ -111,4 +111,144 @@ enforces has itself been proven to discriminate.
 
 ## Plan
 
-<!-- empty — populated by /planning:plan -->
+Written 2026-08-31 against `feat/performance-plugin` (branched from `origin/main` at `79f1c29`).
+Resolves Q10 and Q11 (arbiter `/planning:plan`). Q12 stays USER-RESERVED and is surfaced at the
+approval gate below, not resolved here.
+
+### Q11 resolved — skill decomposition
+
+**Four skills, no router.** Each names its successor, the way the repo's own planning pipeline
+chains (`interview` -> `explore` -> `plan` -> `implement`) rather than routing through a hub.
+
+| Skill | Phases | Owns |
+|---|---|---|
+| `/performance:target` | 0 | Identify and rank candidate targets by **evidence quality**, not suspicion. When nothing is measured, the top recommendation is "instrument this first". Entry point. |
+| `/performance:goal` | 1 | Human-gated always. Metric + the exact command producing it, a **realistic** target, an **ideal** target, and the computed **floor**. Refuses to accept a target below the measured floor without the user deciding. |
+| `/performance:snapshot` | 2, 4 | Host qualification, snapshot capture, interleaved and duet A/B, the drift-immune counter, and the unmeasurable-host refusal. |
+| `/performance:verify` | 5, 6 | Fresh-context adversarial re-derivation that does not inherit the implementer's numbers, plus the report. |
+
+**Naming.** `snapshot`, not `measure`. Q2 locked "depend + route" on `/verification:measure`; two
+skills named `measure` in two plugins is the routing line failing to route. `snapshot` is also
+#3530's own vocabulary ("baseline snapshot", "post snapshot").
+
+**Harness-integrity is a shared reference plus a script, not a fifth skill.** The five
+confident-wrong harnesses are the plugin's most important content, but they are a discipline applied
+*inside* `snapshot` and `verify`, not something invoked standalone. Ships as
+`reference/harness-integrity.md` plus `scripts/discriminate.py`, both consumed by the two skills that
+need them. Promoting it to a fifth skill is the obvious V2 move if users start asking "does my
+harness actually discriminate?" as a standalone question; deferring keeps the shared skill-listing
+budget lower for V1.
+
+### Q10 resolved — the shared lib, and the PR split
+
+**A cross-plugin runtime import is not available.** Plugins install independently, so
+`performance` cannot import from `claude-ops` at runtime. The interview's accepted answer ("promote
+into a shared lib") is implemented through the repo's established mechanism for exactly this, not
+through an import.
+
+**The established pattern**, already carrying six clusters (`scripts/cross-plugin-source-registry.txt`):
+
+- canonical source at repo root `lib/<name>`;
+- byte-identical copies at `plugins/<name>/lib/<name>` in each carrying plugin;
+- a dedicated `scripts/sync-<name>.sh` built on `scripts/lib/sync-cluster.sh`, giving `--check`,
+  `--check-bump <ref>`, and `--print-manifest`;
+- registered in `scripts/cross-plugin-source-registry.txt` with its check named;
+- a CI job.
+
+This satisfies the brief's constraint that the threshold has exactly one home: `lib/` is the home,
+and every copy that drifts fails CI loudly.
+
+**Applied here:**
+
+- Canonical `lib/spawn-noise.py`, holding `summarize_spawn_samples`, `spawn_probe`,
+  `BIMODAL_SPREAD_RATIO`, `SLOW_SPAWN_FLOOR_MS`, `SPAWN_SAMPLES`, `NOOP_SPAWN`.
+- Copies at `plugins/claude-ops/lib/spawn-noise.py` and (in PR 2)
+  `plugins/performance/lib/spawn-noise.py`.
+- `scripts/sync-spawn-noise.sh` + registry entry + CI job `spawn-noise-sync`.
+- `audit_performance.py` imports it with the `sys.path.insert(_LIB_DIR)` shape already used by
+  `plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py:55`, and **re-exports the names**
+  so `test_audit_performance.py`'s `engine.summarize_spawn_samples` keeps resolving. The promotion is
+  test-invisible; the six existing cases are the proof.
+
+**The threshold is a two-part predicate, not a constant.** `bimodal-spawn-latency` fires on
+`spread_ratio >= BIMODAL_SPREAD_RATIO (3.0)` **AND** `max >= SLOW_SPAWN_FLOOR_MS`. A wide ratio alone
+is not the contention signature: a cold first spawn against a warm second clears 3x while every
+sample is still fast. `performance` must consume the predicate, never re-derive a verdict from the
+ratio alone.
+
+**Two PRs.**
+
+- **PR 1** — lib promotion, sync gate, registry entry, CI job, `claude-ops` refactor + CHANGELOG +
+  version bump. Self-contained, test-invisible, independently reviewable.
+- **PR 2** — the `performance` plugin itself, consuming the lib, plus the one routing line into
+  `/verification:measure`.
+
+Rationale: PR 2 is already large (four skills, harness scripts, evals, marketplace entry). Folding a
+cross-plugin refactor of a third plugin into it makes review materially worse. The split is
+reversible: if PR 1 reviews trivially, PR 2 can be opened before it merges and rebased.
+
+### Category
+
+`verification`. Checked against the taxonomy's Assignment principle rather than assumed: the subject
+is arbitrary code, not one of the special subjects (Claude Code, the workstation, music, personal),
+so the plugin files by lifecycle activity. `verification`'s scope line is "Prove a change achieved
+its intended outcome against baseline and intent", which is this plugin's whole shape.
+`codebase-health` is filed `quality` because it audits artifacts on an absolute axis; this plugin is
+before/after proof against a baseline, which is the distinguishing trait.
+
+### Approach, in order
+
+1. **PR 1.** Extract `lib/spawn-noise.py`; add `scripts/sync-spawn-noise.sh` + its `.test.sh`;
+   register the cluster; add the CI job; refactor `audit_performance.py` to import and re-export;
+   bump `claude-ops` version + CHANGELOG. Gate: the six existing `summarize_spawn_samples` cases pass
+   unchanged.
+2. **Scaffold `plugins/performance/`** — `.claude-plugin/plugin.json`, `CHANGELOG.md`, `README.md`,
+   `lib/spawn-noise.py` (synced copy), marketplace entry, regenerated `docs/CATALOG.md`. Gate:
+   `plugin-schema` and `changelog-parity` green.
+3. **Author `reference/harness-integrity.md`** first, before any skill body. It is the content the
+   other four depend on, and it is the plugin's reason for existing.
+4. **Author the four skills**, each citing the research slice. Parallelizable across workers once
+   step 3 lands, since each is a separate file with no shared edit surface.
+5. **Port the harnesses** from `D:/worktrees/bench-dh/` into `scripts/`, with precondition assertions
+   built in. They live on local disk only and are not durable.
+6. **Add the routing line** to `plugins/verification/skills/measure/SKILL.md` + CHANGELOG + version
+   bump.
+7. **Evals** per skill; `/skill-quality:check` per skill.
+8. **PR 2** per the repo's body template.
+
+### Test strategy
+
+- **The refusal criterion is the highest-risk one.** Per the source session, four of five
+  discrimination checks failed by exiting identically in *both* arms and reporting "not
+  discriminating". So the refusal test asserts three things, not two: the high-variance arm refuses,
+  the low-variance arm reports normally, and **the two arms produced different output** as a
+  first-class assertion. Annotated `# discriminating-skip-required:` so
+  `scripts/check-discriminating-test-skips.sh` forbids skipping it.
+- Contract tests as `plugins/performance/**/*.test.sh`, modelled on
+  `plugins/disk-hygiene/hooks/run-python-hook.test.sh` (32 assertions, full cache-invalidation
+  matrix) — tests that assert their own preconditions.
+- Python unit tests for `lib/spawn-noise.py`.
+- Validate with `scripts/affected-tests.sh --run`, never a hand-picked suite.
+- Lint against LF content (`tr -d '\r'`): `core.autocrlf=true` on this machine makes shellcheck
+  report SC1017 on every line and bury real findings.
+
+### Blast radius
+
+| Surface | Change |
+|---|---|
+| `lib/spawn-noise.py`, `scripts/sync-spawn-noise.sh` (+ test), CI workflow, registry | New (PR 1) |
+| `plugins/claude-ops/**` | Refactor + CHANGELOG + version bump (PR 1) |
+| `plugins/performance/**` | New (PR 2) |
+| `.claude-plugin/marketplace.json`, `docs/CATALOG.md` | New entry + regeneration (PR 2) |
+| `plugins/verification/skills/measure/SKILL.md` + CHANGELOG + version | One routing line (PR 2) |
+
+Three plugins are touched in total. Two of them (`claude-ops`, `verification`) are existing,
+installed, and working; both changes are additive and version-bumped.
+
+### Surfaced at the approval gate
+
+**Q12 (USER-RESERVED) — sample count and percentile choice.** #3530 specifies "p50 and p95 over >=20
+samples". The research grounds none of it: no benchmarking-community sample count for a meaningful
+percentile exists beyond the derivable `1/(1-p)` floor, and the SRE Book names the 99th and 99.9th
+percentiles rather than p95. Whatever ships is a house choice that must be labelled as one in the
+skill body. This needs the user at the approval gate, because it changes what the skills assert.
