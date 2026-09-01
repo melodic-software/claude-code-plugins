@@ -267,17 +267,29 @@ validators demand (plugin semver bump, changelog entry, options-doc regeneration
 cascade eval in the visualize evals file; `scripts/affected-tests.sh --run` exits 0
 (skill-quality, options-docs sync, and changelog parity gates included).
 
-### Phase 5: Deferred-work issues [TODO]
+### Phase 5: Deferred-work issues [DONE]
 
-File seven issues, each carrying its distilled context inline (the 31-demo inventory
-slices, talking points, and license split ride the issues that need them, since the topic
-slice does not survive merge): fleet ladder sweep and evals reconciliation; userConfig
-live smoke test (gates the sweep); deterministic escape helper plus the review-plugin PR
-explainer (wave 2, gated); reports and research genre lanes; loop-closure and export
-pattern snippets; template vendoring decision; retrofit execution for the doctrine's
-retrofit list. Search before creating; check issue types first; record the search outcome.
-Then replace this phase's body with a `#### Deferred-work issues` list holding exactly the
-seven URLs.
+Pre-creation search outcome: semantic search over the repo's issues for the deferred
+topics returned zero matches (no duplicates existed); issue types checked
+(Task/Bug/Feature). All seven filed 2026-09-01, each carrying its distilled context
+inline.
+
+#### Deferred-work issues
+
+1. Fleet ladder sweep and evals reconciliation:
+   <https://github.com/melodic-software/claude-code-plugins/issues/3603>
+2. Interactive userConfig smoke test (gates the sweep):
+   <https://github.com/melodic-software/claude-code-plugins/issues/3604>
+3. Deterministic escape helper plus review-plugin PR explainer (wave 2):
+   <https://github.com/melodic-software/claude-code-plugins/issues/3605>
+4. Reports and research genre lanes:
+   <https://github.com/melodic-software/claude-code-plugins/issues/3606>
+5. Loop-closure and export pattern snippets:
+   <https://github.com/melodic-software/claude-code-plugins/issues/3607>
+6. Template vendoring decision:
+   <https://github.com/melodic-software/claude-code-plugins/issues/3608>
+7. Retrofit of existing untrusted-ish lanes:
+   <https://github.com/melodic-software/claude-code-plugins/issues/3609>
 
 **Sanity Check:** `grep -c 'github.com/melodic-software/claude-code-plugins/issues/'` on
 this file returns exactly 7; the pre-creation search outcome is recorded in this section.

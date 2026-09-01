@@ -58,6 +58,11 @@ Two sentences reconcile this with the local-first residence decision:
 Rendered views are untracked by default; publishing anywhere is optional and configured,
 never the default.
 
+Standing re-check trigger: cross-account and cross-subscription artifact sharing/editing
+was verified absent with no documented roadmap (docs current at Claude Code v2.1.252).
+That absence claim is re-checked against the upstream artifacts doc and changelog on
+future version bumps before any plan relies on it staying true.
+
 ## Genre rubric and stopping rule
 
 A skill's deliverable is in scope for an HTML-view lane only when it falls in one of the
