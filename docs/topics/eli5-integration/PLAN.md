@@ -144,4 +144,218 @@ One atomic PR containing, and only complete when all of:
 
 ## Plan
 
-(Empty — /planning:plan fills this section.)
+Plan-time resolutions of the Brief's deferred questions:
+
+- **Q19 (taxonomy)**: no category change — education stays `learning`
+  ("coaching the human through a subject", docs/CATALOG-TAXONOMY.md
+  vocabulary); category is plugin-level; the `eli5` keyword already exists in
+  `plugins/education/.claude-plugin/plugin.json`.
+- **Q20 (conventions)**: fleet frontmatter shape — `argument-hint: "[topic to
+  explain] (…)"` free-text, `user-invocable: true`, explicit
+  `disable-model-invocation: false` (skill-quality check 24),
+  `metadata.workflow-stage: anytime` + `metadata.summary`, third-person
+  "Use when:" description carrying `ELI5` verbatim (check 3 trigger-MOVE
+  target). No `$ARGUMENTS` body interpolation needed.
+
+### Phase 1: Doctrine amendments [TODO]
+
+- `docs/PLUGIN-PHILOSOPHY.md`: add the argued naming-exception entry for
+  `eli5` to the closed list — both legs (the utterance is the mechanism, the
+  wait-what shape; upstream-name cross-marketplace parity), explicitly
+  answering the recorded `bro` rejection (differentiators: upstream
+  delegation; the fixed visual lane the fleet lacks), with no bare-`/eli5`
+  ownership claim.
+- `docs/conventions/seam-phrasing/README.md`: one-paragraph carve-out —
+  install-recipe sites may name a marketplace id; gate sentences still may
+  not.
+
+**Sanity Check:** `grep -n 'eli5' docs/PLUGIN-PHILOSOPHY.md` shows the new
+entry inside the exceptions list; `grep -n 'install-recipe' docs/conventions/seam-phrasing/README.md`
+(or the carve-out's own phrasing) returns the amendment; both files pass
+`markdownlint-cli2` (hook-enforced on write).
+
+### Phase 2: The new skill [TODO]
+
+- `plugins/education/skills/eli5/SKILL.md` (new): frontmatter per Q20;
+  description = tight "Use when" sentence with triggers `ELI5` (verbatim,
+  single-quoted), "explain like I'm five", "picture explainer", plus the
+  boundary pointer to `education:explain` for prose drops. Body sections:
+  1. grounding pre-pass per object type (module → read the code; tradeoff →
+     ADRs/git/PR history; incident → writeup/logs; general → fetch a primary);
+  2. presence-gate: upstream installed → invoke the upstream `eli5` skill via
+     the Skill tool with the topic; absent → print-only install-assist
+     (`claude plugin marketplace add anthropics/claude-plugins-community`,
+     `claude plugin install eli5@claude-community` + scope guidance: project
+     scope for repo-consistent behavior, cloud sessions never load user
+     scope; ends "run /reload-plugins or restart, then re-invoke");
+     absent-and-declined OR invocation fails → inline fallback in genuinely
+     original prose;
+  3. output contract: "a visual HTML explainer that assumes zero prior
+     knowledge: one idea per diagram, minimal text"; diagram-first rendering
+     guidance (inline SVG, identifiers demoted to parentheses/monospace,
+     one-line takeaway captions; artifact-design/artifact-diagramming session
+     skills when present);
+  4. the three canonical example invocations (module / tradeoff / incident);
+  5. best-effort interception note (typed `/eli5` may bypass; no frontmatter
+     `name`); upstream-drift stamp ("verified 2026-09-01 at upstream commit
+     863e70d") + commit-anchored recheck trigger; untrusted-content framing
+     for consulted upstream content. NO attribution text.
+- `plugins/education/skills/eli5/evals/evals.json` (new): four birth cases —
+  delegate-when-installed; print-only assist (asserts no execution);
+  inline fallback; boundary anti-case mirroring clarify's split (a prose
+  "explain simply" ask does NOT produce an artifact).
+
+**Sanity Check:** `test -f plugins/education/skills/eli5/SKILL.md`;
+`grep -c "disable-model-invocation: false" plugins/education/skills/eli5/SKILL.md` = 1;
+`grep -n "'ELI5'" plugins/education/skills/eli5/SKILL.md` hits the
+description line; `grep -n '863e70d'` hits the stamp;
+`jq '.evals | length' plugins/education/skills/eli5/evals/evals.json` = 4;
+no match for `-i 'license\|attribution\|MIT'` in the new SKILL.md.
+
+### Phase 3: explain de-brand [TODO]
+
+`plugins/education/skills/explain/SKILL.md` — all six sites, behavior
+untouched: (1) drop `'ELI5'` from the description trigger list; (2) drop the
+body Use-when `ELI5` echo (line ~22); (3) remove the Michael Scott tone
+anchor (lines ~17-19), keeping the Feynman method sentence; (4) rung-1 label
+"Plain / ELI5" → "Plain"; (5) rewrite the invitation line (~68-69) without
+"five-year-old" ("That's the plain version, want the high-school one?");
+(6) add one boundary line + cross-offer: picture-explainer / ELI5 asks →
+`education:eli5` (Skill-tool phrasing per invocation-mode conventions).
+`plugins/education/skills/explain/evals/evals.json` — relabel the two ELI5
+strings (lines ~23, 32) to "plain"-phrased equivalents; expectations
+otherwise unchanged.
+
+**Sanity Check:** `grep -ci 'eli5' plugins/education/skills/explain/SKILL.md`
+returns exactly the count of boundary/cross-offer mentions (target ≤2, all
+pointing at the new skill); `grep -ci 'five' .../SKILL.md` = 0 outside the
+boundary line; `grep -ci 'ELI5' .../evals/evals.json` = 0.
+
+### Phase 4: adhd:clarify three-way split [TODO]
+
+- `plugins/adhd/skills/clarify/SKILL.md`: description's ELI5 clause and the
+  Boundaries routing become the three-way split — structure stays here;
+  prose altitude drop → `education:explain`; picture explainer / ELI5 →
+  `education:eli5` (presence-gated Skill-tool phrasing, fallback stated);
+  update the ~line-193 altitude note and the NOT-list mention.
+- `plugins/adhd/skills/clarify/evals/evals.json`: split eval 4 into two
+  cases: "explain this simply — I don't get it" (routes/holds per explain
+  lane) and "ELI5 this / give me the picture version" (routes to eli5 lane).
+- `plugins/adhd/README.md`: update the two ELI5 sites (the altitude-lane
+  sentence and the disjoint-trigger passage quoting explain's trigger list).
+
+**Sanity Check:** `grep -n 'education:eli5' plugins/adhd/skills/clarify/SKILL.md`
+≥ 1 hit in Boundaries; `grep -c 'education:explain' plugins/adhd/README.md`
+consistent with the rewritten passages; `jq '.evals | length'` on clarify
+evals = prior count + 1; `grep -n "ELI5" plugins/adhd/README.md` shows only
+lane-split-accurate text.
+
+### Phase 5: Manifests, README, changelogs [TODO]
+
+- `plugins/education/README.md`: two-lane section (explain = adaptive prose,
+  eli5 = fixed visual), the manual-install recipe (both commands + scope
+  note + "manual pre-install also satisfies a dependency constraint"), and
+  the downstream-marketplace-maintainer note re
+  `allowCrossMarketplaceDependenciesOn`.
+- `plugins/education/.claude-plugin/plugin.json`: version bump (minor —
+  new skill); description updated only if the two-lane split makes the
+  current text inaccurate; keywords unchanged (`eli5` already present).
+- `plugins/adhd/.claude-plugin/plugin.json`: version bump (patch —
+  routing/reference updates).
+- `plugins/education/CHANGELOG.md` + `plugins/adhd/CHANGELOG.md`: entries
+  matching the bumps; the education entry explicitly names the 0.5.2
+  "all triggers preserved" reversal and the trigger's new home.
+- `.claude-plugin/marketplace.json`: education/adhd entry updates only if
+  the entry schema carries fields that changed (verify at implementation;
+  category stays `learning`/`personal`).
+
+**Sanity Check:** `scripts/check-changelog-parity.sh --check-bump` exits 0
+for both plugins; `git diff --name-only` includes both CHANGELOGs and both
+plugin.json files; education CHANGELOG entry greps for `0.5.2`.
+
+### Phase 6: Generated docs, gates, validation [TODO]
+
+- Regenerate `docs/SKILL-CHEAT-SHEET.md` (new skill's
+  `metadata.workflow-stage` + `summary` feed it) and `docs/CATALOG.md` if
+  any plugin description changed, using the repo's generator scripts.
+- `CHECK_SKILL_BASE_REF=<merge-base> scripts/check-changed-skills.sh` —
+  expect green with the check-3 trigger-MOVE WARN (accepted; the WARN is the
+  designed path).
+- `scripts/affected-tests.sh --run` over the changed paths (evals.json edits
+  fan out to ~134 suites; budget the runtime).
+- `/ai-slop:audit` over the new/edited prose files (house style; em-dash
+  zero tolerance).
+- Empirical collision probe (best-effort, documented): in a scratch session
+  with the upstream plugin installed, observe where bare `/eli5` and a
+  conversational ELI5 ask route; record the observation in the PR
+  description (the Brief's acceptance criterion 9; if the probe is
+  infeasible in the implementation environment, record it as
+  known-unverified rather than skipping silently).
+
+**Sanity Check:** cheat-sheet/catalog drift checks exit 0; check-changed-skills
+exit status cited with the WARN enumerated; affected-tests summary line
+cited; ai-slop verdict cited.
+
+## Blast radius
+
+MEDIUM — two plugins' instruction surfaces, two owner docs, generated docs,
+and cross-plugin routing; zero runtime code, zero hooks, zero CI definition
+changes; all edits are markdown/JSON on tracked conventions with script
+gates. Formal stress-test: fulfilled this session (see below).
+
+## Stress-test summary
+
+Fulfilled pre-plan over the identical decision content: fresh-context
+devils-advocate (Rounds 1-4; 2 HIGH, 5 MEDIUM, 4 LOW — all folded into the
+Brief), fresh-context scrutiny pass (6 substantive findings, corrected), and
+a two-validator answer audit (18/18 decisions confirmed post-amendment).
+The plan phases transcribe those validated decisions; a second full DA over
+the transcription would re-run the same attack surface. The Step 3
+fresh-context plan-reviewer still ran on this plan document (see approval
+presentation for its findings and dispositions).
+
+## Execution shape
+
+Fully sequential, single main session — no phase carries ≥100 LOC of
+independent work, and Phases 3-5 all depend on Phase 2's skill existing
+(check 3's trigger-MOVE needs the new description in the same diff;
+changelogs describe all prior phases). Routing: every phase → main session
+(judgment-heavy prose in repo house style; no mechanical volume worth a
+worker). Sequential fallback: n/a (already sequential).
+
+## Open questions
+
+None at approval time. (Q19/Q20 resolved above; the `/eli5` collision
+behavior is an implementation-time observation by design, not an open
+decision.)
+
+## Handoff to implementation
+
+### User-approval gates
+
+- Phase 5 [FALLBACK — confirm or override]: whether
+  `plugins/education/.claude-plugin/plugin.json`'s `description` needs
+  rewording for the two-lane split, and the exact education version bump
+  (minor assumed). Surface the proposed text before committing that phase.
+- Any mid-flight deviation from the six-site de-brand list or the birth-eval
+  set changes acceptance criteria → stop and flag.
+
+### Execution shape ([EXEC-SHAPE] tagged)
+
+- [EXEC-SHAPE] Sequential phases 1→6 in one session, one atomic PR; commit
+  per phase with conventional messages; PLAN.md phase tags advanced in the
+  same commit as each phase.
+- [EXEC-SHAPE] Phase 1 lands doctrine first so every later phase conforms to
+  amended law rather than violating it mid-PR.
+- Per-phase sanity checks as specified; failures stop the phase.
+
+### Mechanical work
+
+- Branch: continue on `claude/twitter-thread-review-itwj32` (already carries
+  the Brief; conventional-prefix rename unnecessary for this session's
+  designated branch).
+- Verification checkpoints: Phase 6 is the consolidated gate run; do not
+  defer per-phase sanity checks to it.
+- PR: one PR from this branch when phases complete; PR description carries
+  the PLAN.md pointer, the WARN acceptance, and the collision-probe
+  observation.
