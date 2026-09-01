@@ -185,7 +185,7 @@ hits both the carve-out and the amended item-1 parenthetical;
 exits 0 (explicit — do not rely on a write-time hook the implementing
 session may not have).
 
-### Phase 2: The new skill [TODO]
+### Phase 2: The new skill [DONE]
 
 - `plugins/education/skills/eli5/SKILL.md` (new): frontmatter per Q20;
   description = tight "Use when" sentence with triggers `ELI5` (verbatim,
