@@ -2,22 +2,33 @@
 
 ## Brief
 
+Signed off by the user 2026-09-01 ("accept all" on the audited answer set: interview rounds 1-2,
+blindspot/brainstorm amendments, devils-advocate findings C1/H1-H5/M1-M5/L1-L4, and the
+independent per-answer validation). Ledger: `.work/playground-integration/interview-checklist.md`.
+
 ### TLDR
 
-- Ship one thin wrapper plugin (final name deferred, non-colliding with the upstream bare
-  `playground` skill) that points to `playground@claude-plugins-official`: install uplift,
-  routing, recipes, cloud-session delivery guidance, and neutral limitation notes. It generates
-  nothing itself.
-- When the upstream skill is present, the wrapper invokes it; when absent, it emits the install
-  commands; when invocation is refused, it degrades to guidance.
-- Seed two candidate pairs (playground vs `visualization:visualize`, playground vs
-  `prototype:explore-directions`) and record human-gated verdicts through the
-  audit-native-overlap pipeline; suggest-install lines exist only where a recorded verdict backs
-  them.
-- A user-run local pilot (upstream document-critique template reviewing this repo's own SKILL.md
-  files) gathers real round-trip evidence; its learnings may revise wrapper content.
-- No upstream contributions of any kind: findings about the upstream plugin live only in this
-  Brief and in verdict-row evidence.
+- Ship one thin wrapper plugin (final plugin AND skill-leaf name deferred, non-colliding with the
+  upstream bare `playground` skill) that points to `playground@claude-plugins-official`: install
+  uplift, routing, recipes, cloud-session delivery guidance, and consumer-guidance notes. It
+  generates nothing itself.
+- The wrapper declares the upstream dependency in its manifest
+  (`dependencies: [{"name": "playground", "marketplace": "claude-plugins-official"}]`) and this
+  repo's root marketplace gains `allowCrossMarketplaceDependenciesOn: ["claude-plugins-official"]`;
+  prose install uplift is kept for the contexts where dependency resolution does not run.
+- A leading PR extends the audit-native-overlap engine (new first-party-marketplace-plugin native
+  class with its `LANES` entry and invariant test, new `upstream-source` observation class, a
+  second greppable parity token with its own parity arm, an `--upstream-sha` self-check advisory
+  seam) and amends the seam-phrasing convention with a cross-marketplace install-uplift carve-out.
+  Only then do the two playground verdict rows land.
+- Routing lines: a new `## Boundary` section in `visualization:visualize` (its description is at
+  the 1024-char cap) and a description or Boundary line in `prototype:explore-directions` (has
+  headroom); presence checks verify provenance via `claude plugin list`
+  (`playground@claude-plugins-official`), with any description comparison advisory only.
+- A user-run pilot (upstream document-critique over this repo's SKILL.md files, local) plus one
+  cloud smoke (publish one generated playground as an Artifact and press its copy button) gathers
+  round-trip evidence; learnings may revise wrapper content.
+- No upstream contributions of any kind; findings live in this Brief and verdict-row evidence.
 
 ### Goal
 
@@ -33,48 +44,89 @@ playground-shaped and route accordingly.
 - Do not reimplement playground generation: no templates, no generator, no competing skill. The
   wrapper points, uplifts, and routes.
 - NEVER file issues or PRs to anthropics/claude-plugins-official for the findings in this topic
-  (user directive, 2026-08-31). Findings are recorded here and in verdict evidence only, and any
-  user-facing limitation note is phrased neutrally, never as an upstream defect list.
+  (user directive, 2026-08-31). Findings are recorded here and in verdict evidence only. Shipped
+  notes are consumer guidance (what to do), never an upstream defect list (what is wrong), and
+  every restated upstream fact carries an upstream-drift stamp (claim/basis/as-of/recheck).
+- Implementation starts only after the user signs off on the completed `## Plan` section, dated
+  (Brief sign-off recorded above does not pre-authorize the Plan).
 - All native/first-party-overlap verdicts go through the audit-native-overlap pipeline:
   candidate pairs in its canonical-pair seed, human-gated rows in `docs/native-surfaces/records.json`,
-  phrasing per `docs/conventions/native-references/README.md`. No ad-hoc baked references.
-- Suggest-install lines only where a recorded verdict backs them; rollout-gated bundled surfaces
-  are never mentioned when absent (existing house rule, reaffirmed).
-- The wrapper plugin's name must not collide with or shadow the upstream bare `playground`
-  skill; its category follows `docs/CATALOG-TAXONOMY.md` (read the taxonomy rule before
-  assigning).
-- House conventions apply: ai-slop prose rules on all new instruction surfaces, no new hooks,
-  `scripts/affected-tests.sh --run` gates the change.
+  phrasing per the repo's conventions. The leading PR extends the engine BEFORE any row lands
+  (rows fail validation on current enums), and extends `LANES` alongside `NATIVE_CLASSES` with an
+  invariant test asserting every native class has a lane (a class without a lane validates and
+  then silently renders nowhere).
+- The seam-phrasing convention gains a cross-marketplace install-uplift carve-out (its own
+  version bump) in the leading PR; without it the wrapper's install commands violate
+  "marketplace-qualified IDs never appear in reusable content" and fleet audits would flag them.
+- Suggest-install lines only where a recorded verdict backs them, enforced by the new parity
+  token; rollout-gated bundled surfaces are never mentioned when absent (existing house rule).
+- The wrapper plugin's name AND its skill-leaf name must not collide with or shadow the upstream
+  bare `playground` skill; category per `docs/CATALOG-TAXONOMY.md`'s Assignment principle.
+- House conventions apply: ai-slop prose rules on all new instruction surfaces (upstream text
+  quoted only under `vendor/`), no new hooks, regeneration outputs (`docs/CATALOG.md`, the
+  cheatsheet, `docs/NATIVE-SURFACES.md`) sequenced into the same PRs that dirty them.
+- Upstream verification always uses raw fetches or pinned files, never summarizing fetches (a
+  summarizing fetch misreported the upstream marketplace's contents during validation).
 
 ### Acceptance criteria
 
 - The wrapper plugin exists in `.claude-plugin/marketplace.json` with a taxonomy-conforming
-  category, a README, and one skill; `skill-quality:check` passes on the skill.
-- The skill performs a presence check for the upstream `playground` skill; with it installed, a
-  playground-shaped request invokes it via the Skill tool; without it, the skill emits
-  `/plugin marketplace update claude-plugins-official` and
-  `/plugin install playground@claude-plugins-official` with scope guidance.
-- The skill's guidance covers cloud/remote sessions, where upstream's `open <file>.html` cannot
-  work: the generated HTML is delivered to the user (file send or artifact) instead of a local
-  browser launch.
-- The skill carries the five article recipes plus a repo-native SKILL.md-critique recipe.
-- The audit-native-overlap canonical-pair seed carries both new candidate pairs, and
-  `docs/native-surfaces/records.json` carries human-approved verdict rows whose evidence cites
-  upstream commit `ed404106fcd80ba98ecb7c851e531dcb626d13b7` and the corpus slice, dated.
-- `scripts/affected-tests.sh --run` passes for the full change set.
+  category, a README, and one skill; `skill-quality:check` passes on the skill; the upstream
+  LICENSE has been read and its terms recorded in the plugin README's provenance note.
+- The wrapper's `plugin.json` declares the cross-marketplace dependency and the root
+  `marketplace.json` carries `allowCrossMarketplaceDependenciesOn: ["claude-plugins-official"]`;
+  implementation empirically verifies install-time resolution AND the failure path
+  (`dependency-unsatisfied`, `cross-marketplace` errors) in a consumer-style session before
+  merge.
+- Context-conditional install behavior: where dependency resolution runs, install is automatic
+  and the wrapper documents the error paths; in contexts where resolution does not run
+  (synced/cloud/manual), the skill's guidance path emits the install commands with scope
+  guidance. Both paths are testable and tested.
+- Presence/invocation: with upstream installed, a playground-shaped request invokes the upstream
+  skill via the Skill tool; the presence check is provenance-based (`claude plugin list` showing
+  `playground@claude-plugins-official`), description comparison advisory only; invocation refusal
+  or absence degrades to guidance, never silently.
+- Cloud guidance feature-detects each delivery tier (Artifact → SendUserFile → file path) and
+  degrades visibly; no tier is asserted as universally available.
+- The skill carries the five article recipes plus a repo-native SKILL.md-critique recipe, and a
+  `context/` spoke of commit-stamped consumer guidance (theming variance across templates;
+  "sanitize any untrusted data fed to a generated explorer"; the document-critique output groups
+  that are placeholders at the pinned commit).
+- Routing: `visualization:visualize` gains a `## Boundary` section carrying its playground
+  routing line (no description edit); `prototype:explore-directions` gains its line within its
+  1024-char description headroom or its own Boundary section.
+- The leading engine PR lands first: new native class + `LANES` entry + class/lane invariant
+  test, `upstream-source` observation class, second parity token with its own parity arm,
+  `--upstream-sha` advisory in self-check, claude-ops version bump + CHANGELOG + green
+  `test_overlap.py`; then the canonical-pair seed carries both playground pairs and
+  `records.json` carries the human-approved verdict rows citing commit
+  `ed404106fcd80ba98ecb7c851e531dcb626d13b7` and the corpus slice, dated.
+- `scripts/affected-tests.sh --run` completes with exit 0 or 3; any exit-3 delegated suites
+  (at minimum `test_overlap.py`) are run in their own lanes and pass; the plugin-gate checks
+  (`scripts/validate-plugins.sh`, catalog/cheatsheet/NATIVE-SURFACES `--check`, changelog
+  parity) pass locally.
 - Nothing in the change set proposes, automates, or documents filing anything upstream.
 
 ### Captured assumptions
 
 - Consumers can reach `claude-plugins-official`; no air-gapped/offline install path is
   documented in v1 — revisit if a consumer reports an offline or proxy-restricted need.
-- Upstream facts are pinned to commit `ed404106fcd80ba98ecb7c851e531dcb626d13b7` (6 templates,
-  three output-prompt shapes, dark-only mandate vs light+dark diff-review vs light-only
-  code-map, document-critique's partially-stubbed prompt generator, data-explorer's unescaped
-  innerHTML rendering) — revisit any dependent wording when upstream moves past that commit, and
-  re-verify before baking any phrase.
-- The pilot runs on the user's local desktop with the upstream plugin as-is; pilot learnings may
-  add wrapper enrichments but never generation.
+- Upstream facts are pinned to commit `ed404106fcd80ba98ecb7c851e531dcb626d13b7` (verified still
+  HEAD of `main` on 2026-09-01): 6 templates, three output-prompt shapes, dark-only mandate vs
+  light+dark diff-review vs light-only code-map, document-critique's placeholder output groups,
+  data-explorer's unescaped innerHTML rendering — revisit any dependent wording when upstream
+  moves past that commit; the `--upstream-sha` advisory arm makes that event observable.
+- The dependency mechanism's happy path is documented and schema-backed (current docs + live
+  schemastore, both fetched 2026-09-01), but its failure-path behavior in managed cloud
+  environments is unverified — the empirical check in the acceptance criteria is load-bearing,
+  not ceremony.
+- The pilot runs on the user's local desktop with the upstream plugin as-is, plus one cloud
+  smoke (artifact-published playground; copy-to-clipboard inside the artifact sandbox is
+  unverified and may reorder the delivery tiers). Pilot learnings may add wrapper enrichments
+  but never generation.
+- `/plugin marketplace update claude-plugins-official` may be unnecessary ceremony given default
+  auto-update for Anthropic marketplaces — verify during the empirical pass before baking it
+  into required uplift.
 
 ### Out-of-scope
 
@@ -85,12 +137,17 @@ playground-shaped and route accordingly.
   does) — the V2 vertical owns it.
 - Description/listing-budget, spec-conformance, eval, and script-convention work — V3-V7
   verticals.
+- A `userConfig` delivery-preference option and an artifact-tier publishing bridge for generated
+  playgrounds — deferred; triggers are pilot demand and the V2 vertical respectively.
 
 ### Deferred questions
 
-- Q8 — Final wrapper plugin name (non-colliding with the upstream bare `playground` skill) —
-  defer until implementation; **arbiter: /planning:plan** (route through `/naming:name-it-better`).
-- Q9 — Pilot learnings intake (what the local document-critique pilot changes in wrapper
-  content) — defer until the user has run the pilot; **arbiter: USER-RESERVED**.
+- Q8 — Final wrapper plugin name AND skill-leaf name (non-colliding with the upstream bare
+  `playground` skill) — defer until implementation; **arbiter: /planning:plan** (route through
+  `/naming:name-it-better`).
+- Q9 — Pilot learnings intake (local document-critique run over this repo's SKILL.md files, plus
+  the cloud smoke: one artifact-published playground and its copy button; what the results change
+  in wrapper content and tier ordering) — defer until the user has run the pilot;
+  **arbiter: USER-RESERVED**.
 
 ## Plan
