@@ -1,4 +1,4 @@
-# Deletion-evidence attribution — making the consequential tier clearable
+# Deletion-evidence attribution: making the consequential tier clearable
 
 Design record for the mechanism decision Q1 depends on. Signed off 2026-09-01 as a two-tier
 threshold: an editorial pass may delete trivial legacy guards, a consequential rule needs ledger

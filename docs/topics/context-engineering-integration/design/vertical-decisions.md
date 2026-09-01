@@ -1,4 +1,4 @@
-# Vertical decisions V2 to V7 — resolved in-session
+# Vertical decisions V2 to V7, resolved in-session
 
 The corpus work was organized into seven verticals. V1 (unhobbling) was resolved by the signed-off
 answer set in [`../PLAN.md`](../PLAN.md). The remaining six were originally routed to "future
@@ -10,7 +10,7 @@ Each entry states the decision, its basis, and what actually changes. Several re
 and here is why", which is a real outcome for a corpus pass over a repo that already does most of
 this.
 
-## V2 — Progressive disclosure
+## V2. Progressive disclosure
 
 **Decision: no new mechanism; the corpus's rationale is adopted as citation, not as a rule.**
 
@@ -29,7 +29,7 @@ enthusiasm does not change that.
 
 **Changes: none to any skill.** The rationale lands in the graduated corpus docs.
 
-## V3 — Interface design over examples
+## V3. Interface design over examples
 
 **Decision: adopt for tool and parameter surfaces; explicitly do not adopt for teaching skills.**
 
@@ -53,7 +53,7 @@ Resolution for this repo:
 
 **Changes: none.** The boundary is the deliverable.
 
-## V4 — Placement: which surface an instruction lives on
+## V4. Placement: which surface an instruction lives on
 
 **Decision: the settled facts are recorded; no placement doctrine is minted.**
 
@@ -75,7 +75,7 @@ covers the memory layer.
 **Changes: none to `instruction-placement`.** The register from Q2 is the one placement-adjacent
 artifact this integration adds, and it lands as a convention rather than as doctrine.
 
-## V5 — Rich references over simple specs
+## V5. Rich references over simple specs
 
 **Decision: adopted as practice already in force; one gap named and left open deliberately.**
 
@@ -91,7 +91,7 @@ consumer here. Named rather than invented.
 
 **Changes: none.** Adoption is a no-op because the practice predates the corpus.
 
-## V6 — Long-horizon techniques
+## V6. Long-horizon techniques
 
 **Decision: annotate the existing orchestration guidance; do not mint a notes-file convention.**
 
@@ -110,7 +110,7 @@ consumer here. Named rather than invented.
 
 **Changes: the orchestrate annotation, shipped here.**
 
-## V7 — Corpus meta and custody
+## V7. Corpus meta and custody
 
 **Decision: graduate the knowledge now; keep the raw slices untracked; record the custody findings
 as a convention-level input rather than a new convention.**
