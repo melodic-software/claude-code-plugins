@@ -1,7 +1,8 @@
 # Vertical decisions V2 to V7, resolved in-session
 
 The corpus work was organized into seven verticals. V1 (unhobbling) was resolved by the signed-off
-answer set in [`../PLAN.md`](../PLAN.md). The remaining six were originally routed to "future
+answer set in the topic's decision contract, which is contract tier and therefore pruned before
+merge, surviving as the `<details>` paste in its pull request. The remaining six were originally routed to "future
 interview rounds", which was a mistake: the evidence those rounds would have consumed lived only in
 an untracked memory tier, so a future session would have inherited the questions without the
 answers. They are resolved here instead, on the evidence gathered while it was in hand.

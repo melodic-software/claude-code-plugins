@@ -12,9 +12,12 @@ This file is the graduation of that work: it inlines the substance rather than p
 artifacts a future reader cannot open. Where an in-session artifact is named below, it is named
 only to record how a fact was produced, never as a path to follow.
 
-Companion documents in this repo: `docs/topics/context-engineering-integration/PLAN.md` (the
-signed-off decision contract this corpus fed) and `docs/topics/context-engineering-claude-5/`
-(the earlier plan built on P1 alone, which never engaged P2).
+Companion documents: the signed-off decision contract this corpus fed, which was a contract-tier
+slice and is therefore pruned before merge under the topic-docs convention, so it survives as the
+`<details>` paste in its pull request; and the earlier `context-engineering-claude-5` plan, built
+on P1 alone and never engaging P2, whose slice main pruned in the topic-docs v3.0.0 adoption.
+Sibling durable outputs of the same corpus family: `docs/FINDING-YOUR-UNKNOWNS.md` and the
+neighboring `context-engineering-*.md` specs listed at the end of this section.
 
 ## Contents
 
@@ -796,8 +799,9 @@ delegate pages. The corpus's advice-shelf-life thesis is therefore not just a bl
 phenomenon; it is instantiated in first-party reference documentation, which means "the docs
 say" is itself model-generation-scoped.
 
-**CF-7. Venue error in the prior plan.**
-`docs/topics/context-engineering-claude-5/design/official-corroboration.md` opens by calling P1
+**CF-7. Venue error in the prior plan.** Recorded for the pattern, not for repair: the document
+described here was pruned from main with its slice in the topic-docs v3.0.0 adoption, so the
+error is no longer live anywhere. That plan's `design/official-corroboration.md` opened by calling P1
 "a post on Anthropic's Claude blog". It is a personal X Article by an Anthropic employee. The
 consequence is bounded, since that file's per-claim verdicts already treat unconfirmed claims as
 OPINION-tier, but the wording inflates the venue's authority. The finding was flagged for that
@@ -849,7 +853,7 @@ its tensions and unstated preconditions. Three conflicts: the recoverable public
 (fixed), the augment-versus-replace shading on just-in-time retrieval (recorded in 3.5), and one
 interpretive disagreement about whether the why-it-matters section establishes a mechanism or
 assumes one (left open, recorded in 3.2). The reconciliation also established by bounded grep
-that the prior plan in `docs/topics/context-engineering-claude-5/` never cited, corroborated
+that the prior `context-engineering-claude-5` plan never cited, corroborated
 against, or even linked P2: zero hits for the URL, "context rot", "attention budget",
 "karpathy", or any anthropic.com URL. P2 was net-new to this repo's knowledge work.
 

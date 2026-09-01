@@ -9,8 +9,11 @@ clarification is a patch.
 Recorded near-miss evidence ADJACENT to the content-hashing deferral; docs-only, the deferral's
 verdict does not change and its trigger has NOT fired.
 
-The context-engineering-integration corpus pass (signed off 2026-09-01; contract at
-`docs/topics/context-engineering-integration/PLAN.md`) found the live
+The context-engineering-integration corpus pass (signed off 2026-09-01; its decision contract is
+contract tier and was pruned before merge, surviving as the `<details>` paste in its pull request,
+with the durable evidence in
+[`docs/specs/context-engineering-corpus-knowledge.md`](../../specs/context-engineering-corpus-knowledge.md))
+found the live
 anthropic.com/research/building-effective-agents page silently revised after publication: the
 page still says "Published Dec 19, 2024" while its body now names models and products that
 post-date that date, so any citation of "the December 2024 post" at that URL quotes post-hoc

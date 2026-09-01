@@ -39,7 +39,7 @@ is the committed record of their content.
 
 **This file is a source reference, not an analysis.** The assumption, omission, and tension
 rows for these pages, and the adjudication of what each page does and does not establish, live
-in `design/critical-apparatus.md` alongside this file. Do not duplicate those rows here; cite
+in `context-engineering-critical-apparatus.md` alongside this file. Do not duplicate those rows here; cite
 that file instead.
 
 **Snapshot discipline.** Every page below is a live vendor URL that can change without a
@@ -138,9 +138,10 @@ are the named upstream of interview-style and blindspot planning skills in this 
 
 **Where the deep apparatus lives**
 
-`design/critical-apparatus.md`. Note additionally that this page already has a dedicated repo
-integration audit at `docs/topics/fable-field-guide-audit/`, which dispositions the article's
-claims against the `fable-5` playbook and governs its own remediation ledger. That audit and
+`context-engineering-critical-apparatus.md`. Note additionally that this page has a dedicated repo
+integration whose durable output is `docs/FINDING-YOUR-UNKNOWNS.md`, landed separately, which
+carries the article's claims into this marketplace's own contract deltas; the audit slice that
+produced it was contract tier and has been pruned. That integration and
 the critical apparatus are complementary: the audit is repo-facing, the apparatus is
 article-facing.
 
@@ -291,7 +292,7 @@ rules a model ignores.
 
 **Where the deep apparatus lives**
 
-`design/critical-apparatus.md`.
+`context-engineering-critical-apparatus.md`.
 
 ---
 
@@ -392,7 +393,7 @@ MCP tools and shape tool output.
 
 **Where the deep apparatus lives**
 
-`design/critical-apparatus.md`.
+`context-engineering-critical-apparatus.md`.
 
 ---
 
@@ -494,7 +495,7 @@ the tool-interface discipline that T4 later expands.
 
 **Where the deep apparatus lives**
 
-`design/critical-apparatus.md`, which also carries the tension between the page's
+`context-engineering-critical-apparatus.md`, which also carries the tension between the page's
 anti-framework stance and the framework list the revision inserted.
 
 ---
@@ -617,7 +618,7 @@ skills encode, plus an evaluation methodology directly reusable for skill evals.
 
 **Where the deep apparatus lives**
 
-`design/critical-apparatus.md`, including the tension between the page's own compression claim
+`context-engineering-critical-apparatus.md`, including the tension between the page's own compression claim
 and its Appendix's game-of-telephone framing of the same relay step.
 
 ---
@@ -719,7 +720,7 @@ lowest-risk context-reduction lever.
 
 **Where the deep apparatus lives**
 
-`design/critical-apparatus.md`.
+`context-engineering-critical-apparatus.md`.
 
 ---
 
@@ -839,7 +840,7 @@ any durable-memory or note-writing guidance.
 
 **Where the deep apparatus lives**
 
-`design/critical-apparatus.md`.
+`context-engineering-critical-apparatus.md`.
 
 ---
 
@@ -964,4 +965,4 @@ worked case of an instruction that should be deleted rather than rewritten.
 
 **Where the deep apparatus lives**
 
-`design/critical-apparatus.md`.
+`context-engineering-critical-apparatus.md`.

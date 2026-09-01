@@ -71,8 +71,9 @@ changes no behavior, which is the failure mode this table exists to prevent.
 
 ## Provenance
 
-Adopted 2026-09-01 from the context-engineering corpus integration
-([`docs/topics/context-engineering-integration/PLAN.md`](../../topics/context-engineering-integration/PLAN.md),
-decision Q2). The carve-out this register answers is quoted from a vendor-voice source and carries
+Adopted 2026-09-01 from the context-engineering corpus integration, decision Q2. That decision
+contract is contract tier and was pruned before merge; it survives as the `<details>` paste in its
+pull request, and the evidence behind it is in
+[`docs/specs/context-engineering-corpus-knowledge.md`](../../specs/context-engineering-corpus-knowledge.md). The carve-out this register answers is quoted from a vendor-voice source and carries
 that source's status: the wording is first-party, the definition of "highly important areas" is
 this repo's own and is not claimed to be upstream doctrine.

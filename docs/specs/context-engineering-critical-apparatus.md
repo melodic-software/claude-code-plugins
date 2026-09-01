@@ -10,8 +10,8 @@ pass, and it records what each source rests on, leaves out, and says against its
 produced by a fresh unbiased paragraph-grain sweep whose workers were barred from reading the
 existing digests, four lenses per source (concept inventory, implicit assumptions, omissions
 and glosses, internal tensions), followed by bidirectional reconciliation: every fresh row
-adjudicated against the prior digests and the in-flight
-`docs/topics/context-engineering-claude-5/` plan (COVERED / THIN / GAP), plus a reverse check
+adjudicated against the prior digests and the then in-flight
+`context-engineering-claude-5` plan (COVERED / THIN / GAP), plus a reverse check
 for prior-layer content the fresh pass missed. The sweep and its reconciliations lived in the
 session memory tier, which is gitignored and gone; the row IDs below (`P1-A01`, `P2-T08`,
 `T6-T05`) are provenance labels carried into this doc, not links to anything readable. The
