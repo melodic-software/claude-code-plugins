@@ -299,7 +299,7 @@ exits 0 (the base ref is a required argument); `git diff --name-only` includes
 both CHANGELOGs and both plugin.json files; education CHANGELOG entry greps
 for `0.5.2`.
 
-### Phase 6: Generated docs, gates, validation [DOING]
+### Phase 6: Generated docs, gates, validation [DONE]
 
 - Regenerate `docs/SKILL-CHEAT-SHEET.md` (new skill's
   `metadata.workflow-stage` + `summary` feed it) and `docs/CATALOG.md` if
