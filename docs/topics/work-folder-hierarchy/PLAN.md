@@ -17,8 +17,10 @@ story at every depth: simple work stays one file, decomposed work grows child
 slices, every slice is navigable through one index read, and corpus-scale
 ingestion never overflows a topic slice.
 
-### Decisions (locked 2026-09-01, validated by two fresh-context validators + a
-stress-test; evidence in `.work/work-folder-hierarchy/`)
+### Decisions
+
+Locked 2026-09-01; validated by two fresh-context validators and a
+devils-advocate stress-test. Evidence trail in `.work/work-folder-hierarchy/`.
 
 1. **Recursive slice tree.** A slice is the same thing at every depth; an "epic"
    is a slice with child slices. A new level is created lazily — on decomposition
@@ -52,7 +54,7 @@ stress-test; evidence in `.work/work-folder-hierarchy/`)
 7. **One clean-break major wave** (documented versioning precedent). Substrate
    PRs land first (lib regen script + tests, reworked dispatch gate),
    unreferenced; one normative flip PR last (README v3 + schema + all bindings
-   + artifact-protocol copies + setup skills + CHANGELOG major entry).
+   - artifact-protocol copies + setup skills + CHANGELOG major entry).
 
 ### Constraints
 
