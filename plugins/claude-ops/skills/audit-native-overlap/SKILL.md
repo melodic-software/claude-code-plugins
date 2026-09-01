@@ -141,7 +141,9 @@ descriptions load into model context by default, while bodies load only on invoc
 is budgeted twice over, the combined `description` + `when_to_use` text truncates at 1,536
 characters per entry by default, and the listing as a whole is capped at a share of the context
 window (1% by default), on overflow keeping every skill *name* and dropping whole descriptions
-starting with the least-invoked skills.
+lowest-score-first. The score is decay-weighted and the walk is first-fit, so raw invocation count
+is NOT the exposure ranking and description length matters too; see
+[`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md).
 
 So the report says what the baking would cost. When the `skill-quality` plugin is installed, invoke
 `/skill-quality:check listing-budget` over the repo's plugin skill roots and fold its aggregate
