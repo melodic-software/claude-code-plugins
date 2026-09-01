@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.23]
+
+### Fixed
+
+- **`observability`: dispatch prose no longer carries a `$1` placeholder.** The action-vs-scope
+  step read "If `$1 == "clean"`". Skill argument substitution rewrites `$<digit>` placeholders
+  anywhere in a skill body, and the indexing is 0-based, so `$1` names the second argument and
+  was rewritten to its value whenever the skill was invoked with two or more arguments. The step
+  now names the first argument in prose.
+
 ## [0.38.22]
 
 ### Changed
