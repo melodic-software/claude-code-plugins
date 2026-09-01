@@ -12,7 +12,7 @@
         "Each question leads with a recommended answer and a one-line basis",
         "The round is asked inline in prose, not via a side-by-side AskUserQuestion card",
         "Where a question is answerable from the codebase, the skill resolves it by inspection instead of spending a question on it",
-        "An answer arriving as free text rather than an authored option is recorded with the free-text: resolution-field flag so downstream passes scrutinize it"
+        "A reply that resolves its question but arrives as free text rather than an authored option is recorded with the free-text: resolution-field flag so downstream passes scrutinize it; a partial or non-resolving reply keeps its row open"
       ]
     },
     {

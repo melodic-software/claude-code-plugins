@@ -577,7 +577,7 @@ pin_case_digest "case 12 still refuses to read drift as consent" \
   "e45fe64a00cf78e6dd089837e81c52d8a0947ccf924be6472c6f47eeadcd5942"
 pin_case_digest "case 1 still resolves codebase-answerable questions without asking, and only those" \
   "relentless-me-mode-frontier-rounds" \
-  "cddd012ee8334177839d116ae564a61a5158f3b9ee996c5903c4fc820b973a36"
+  "5e38782253a410890320cddc3c5c44d71ab64666bb596bc954167f1447059bdd"
 
 pin_file "case A fixture: the task context still plants the open decision" \
   "$FIXTURES/lock-stop-on-gap/task-context.md" \
