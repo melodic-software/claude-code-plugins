@@ -182,7 +182,7 @@ preference, no cross-plugin path citations), the affected-tests contract (`READM
 fewer than two plugins fails as REGISTRY STALE). Hook budget and catalog taxonomy are
 untouched by this wave.
 
-### Phase 1: Chrome and token reference asset plus validation lane [TODO]
+### Phase 1: Chrome and token reference asset plus validation lane [DONE]
 
 Author `plugins/visualization/reference/html-chrome.html`: a self-contained reference page
 carrying the corpus design-token system (ivory/slate/clay/oat/olive palette, serif/sans/mono

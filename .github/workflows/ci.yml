@@ -1318,6 +1318,17 @@ jobs:
       - name: Run affected-suite selector tests
         if: needs.scope.outputs.run_full == 'true'
         run: bash scripts/affected-tests.test.sh
+      # Same reason — run-plugin-tests.sh never reaches scripts/. The
+      # html-assets gate needs the root npm ci from this job (its linter is the
+      # exact-pinned htmlhint in node_modules/.bin), so it lives here rather
+      # than in hygiene: a tracked rendered-view asset must lint clean and be
+      # registered in the gate's manifest, per the rendered-views convention.
+      - name: Test the html-assets gate
+        if: needs.scope.outputs.run_full == 'true'
+        run: bash scripts/check-html-assets.test.sh
+      - name: Check rendered-view HTML assets
+        if: needs.scope.outputs.run_full == 'true'
+        run: scripts/check-html-assets.sh
       # Same reason again — run-plugin-tests.sh never reaches scripts/. This
       # suite covers scripts/lib/changed-files.sh, the base-ref and changed-file
       # resolver the checker gates share. Its NUL-safety cases are the invariant
