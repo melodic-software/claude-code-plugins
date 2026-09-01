@@ -160,7 +160,7 @@ on that inventory contains both `check-ignore` and `ls-files`
 (`grep -rln "check-ignore" plugins/*/skills/setup/ --include='*.md' | xargs -r grep -L "ls-files"`
 returns only the documented exclusions; evals fixtures excluded from the sweep).
 
-### Phase 1d: Setup-prose SSOT [TODO]
+### Phase 1d: Setup-prose SSOT [DOING]
 
 Move the ~120-word `--config`/CC-version setup paragraph (duplicated with drift across ~25
 skills, INVENTORY §6.5) to one owned source — PINNED (DA M2): a NEW spoke under
