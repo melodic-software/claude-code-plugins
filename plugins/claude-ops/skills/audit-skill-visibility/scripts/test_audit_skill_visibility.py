@@ -549,6 +549,47 @@ class ListingScoreTest(unittest.TestCase):
         self.assertEqual(bands["a:9"], 10)
 
 
+class ScoreBasisScopeTest(unittest.TestCase):
+    """The basis is decided by the contenders, not by the whole denominator."""
+
+    def test_usage_on_an_exempt_skill_does_not_score_the_contest(self):
+        """Regression: an exempt row's score used to flip the basis.
+
+        A bundled, name-only, or user-only skill can carry real native usage
+        while being excluded from the contest entirely. Counting it labelled the
+        listing `native-counters` while every actual contender sat at zero, so a
+        pure catalog ordering got dressed as `inferential`. That is the defect
+        this whole report exists to expose, one scope up.
+        """
+        entries = [
+            {
+                "qualified_name": f"a:{i}",
+                "frontmatter": {"description": "x" * 1000},
+                "plugin_enabled": True,
+            }
+            for i in range(10)
+        ]
+        entries.append(
+            {
+                "qualified_name": "a:manual",
+                "frontmatter": {
+                    "description": "x" * 1000,
+                    "disable_model_invocation": True,
+                },
+                "plugin_enabled": True,
+            }
+        )
+        listing = engine.compute_listing(
+            entries,
+            engine.ListingConfig(context_window_tokens=200_000),
+            # Only the exempt row has any usage at all.
+            {"a:manual": 500.0},
+        )
+        self.assertEqual(listing["score_basis"], "unscored")
+        competing = [s for s in listing["skills"] if s["eligibility"] == "competing"]
+        self.assertTrue(all(s["confidence"] == "unscored" for s in competing))
+
+
 class BareUsageKeyTest(unittest.TestCase):
     """Usage recorded under a bare leaf must reach its qualified skill."""
 
@@ -587,6 +628,27 @@ class BareUsageKeyTest(unittest.TestCase):
         self.assertEqual(len(withheld), 1)
         self.assertIn("toolchain:check", withheld[0]["reason"])
         self.assertIn("skill-quality:check", withheld[0]["reason"])
+
+    def test_a_bare_key_is_withheld_when_the_leaf_has_duplicate_entries(self):
+        """Two marketplaces shipping one plugin give two rows, one name.
+
+        Collapsing owners into a set let the bare key pass the single-owner test
+        and then be reported on BOTH rows, inventing usage for an attribution the
+        report already marks `ambiguous-attribution`.
+        """
+        now = _utc(2026, 8, 31)
+        model = engine.classify(
+            denominator=[_skill("dup:check"), _skill("dup:check")],
+            events=[{"skill": "check", "ts": now, "source": "native", "count": 40}],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        for row in model["skills"]:
+            self.assertEqual(row["observation"]["count"], 0)
+        withheld = [w for w in model["withheld"] if w["skill"] == "check"]
+        self.assertEqual(len(withheld), 1)
+        self.assertIn("dup:check", withheld[0]["reason"])
 
     def test_a_bare_key_does_not_score_the_band(self):
         """`zPe` has no bare-key fallback, so the mirror must not add one."""

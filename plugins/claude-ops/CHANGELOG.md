@@ -15,6 +15,16 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   usage-informed. On this machine that ranked `adhd:clarify` (1 use) as first to
   lose its description and `work-items:triage` (99 uses) as among the safest.
   Scores are now computed before the listing is built.
+- **Truncation is modelled as the greedy first-fit walk the product runs, not a
+  score-ordered prefix.** The product's grant loop has no early exit, so it walks
+  every competing entry with a running description budget and a cheap low-scored
+  description can be granted after an expensive higher-scored one was refused.
+  Description length is therefore a second ranking input. The budget itself is
+  computed forward from a floor, `budget - V`, where V is what the listing costs
+  before any description is granted; deriving it from the overflow put the
+  grant boundary in the wrong place. Ties keep catalog order rather than
+  alphabetical, matching the product's stable sort, which decides the entire
+  ordering when nothing is scored.
 - **Usage recorded under a skill's bare leaf no longer vanishes.** Events were
   looked up by qualified `<plugin>:<leaf>` name only, while the stores hold both
   that key and the bare leaf as separate rows, so the bare row was discarded with
@@ -34,9 +44,13 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   semantics and their seeding and throttle traps in the companion
   `reference/usage-counters.md`.
 - **`listing.score_basis`, so an unscored band admits it.** When no usage
-  survives to weigh, the order is alphabetical and nothing more; the basis reads
+  survives to weigh, the order is catalog order and nothing more; the basis reads
   `unscored` and competing rows carry `confidence: "unscored"` rather than
-  borrowing `inferential`, which claims more than the data supports.
+  borrowing `inferential`, which claims more than the data supports. The basis is
+  decided over the CONTENDERS, not the whole denominator: an exempt skill
+  carrying real usage must not label a contest whose every entrant is at zero.
+  The markdown report renders the distinction too, rather than describing an
+  unranked order as a likelihood band.
 
 ## [0.38.23]
 

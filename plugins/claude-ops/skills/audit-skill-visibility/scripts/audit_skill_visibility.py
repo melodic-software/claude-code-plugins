@@ -166,11 +166,17 @@ def resolve_event_keys(
     ambiguous key is returned for the withheld section instead of being spent.
     """
     qualified = {entry["qualified_name"] for entry in denominator}
-    leaf_owners: dict[str, set[str]] = defaultdict(set)
+    # Owners are counted per ENTRY, not per distinct qualified name. Two
+    # marketplaces shipping the same plugin produce two denominator rows with an
+    # identical qualified name, which the report already marks
+    # `ambiguous-attribution`. Collapsing them into a set would let a bare key
+    # pass the single-owner test and then be reported on BOTH rows, inventing
+    # usage for an attribution the audit already knows it cannot make.
+    leaf_owners: dict[str, list[str]] = defaultdict(list)
     for entry in denominator:
         name = entry["qualified_name"]
         leaf = name.split(":", 1)[1] if ":" in name else name
-        leaf_owners[leaf].add(name)
+        leaf_owners[leaf].append(name)
 
     by_skill: dict[str, list[dict]] = defaultdict(list)
     ambiguous: dict[str, list[str]] = {}
@@ -181,11 +187,11 @@ def resolve_event_keys(
         if key in qualified:
             by_skill[key].append(event)
             continue
-        owners = leaf_owners.get(key, set())
+        owners = leaf_owners.get(key, [])
         if len(owners) == 1:
-            by_skill[next(iter(owners))].append(event)
+            by_skill[owners[0]].append(event)
         elif len(owners) > 1:
-            ambiguous[key] = sorted(owners)
+            ambiguous[key] = sorted(set(owners))
     return by_skill, sorted(ambiguous.items())
 
 
@@ -853,13 +859,20 @@ def compute_listing(
     overflow = max(0, demand - budget)
     verdict = "overflowing" if overflow > 0 else "listing-fits"
 
-    # Basis is decided by whether any score survived, not by whether a scores
-    # argument arrived. A caller can hand over a full map that happens to be all
-    # zeros, and the resulting order is catalog order either way.
-    score_basis = "native-counters" if any(r["usage_score"] for r in rows) else "unscored"
     floor += max(0, listed - 1)
 
     competing = [r for r in rows if r["eligibility"] == "competing"]
+
+    # Basis is decided by whether any score survived AMONG THE CONTENDERS, not
+    # by whether a scores argument arrived and not over the whole denominator. A
+    # bundled, name-only, or disable-model-invocation skill can carry real native
+    # usage while being excluded from the contest entirely; counting its score
+    # here would label a listing `native-counters` whose every actual contender
+    # is at zero, so a pure catalog ordering would be dressed as `inferential`.
+    # That is the exact defect this report exists to stop, one scope up.
+    score_basis = (
+        "native-counters" if any(r["usage_score"] for r in competing) else "unscored"
+    )
 
     # WHICH rows are shed is a GREEDY FIRST-FIT walk, not a score-ordered
     # prefix. The product sorts descending by score and then walks EVERY
@@ -1304,19 +1317,38 @@ def _render_markdown(model: dict) -> str:
                 f"{listing['overflow_chars']:,} characters.** "
                 f"{listing['competing_count']} skills compete for "
                 f"{listing['budget_chars']:,} characters of description budget, "
-                f"and descriptions are dropped least-invoked-first — so roughly "
+                f"and descriptions are shed lowest-score-first, so roughly "
                 f"**{listing['starved_count']}** of them are running name-only, "
                 f"which is why the model stops matching requests to those.",
                 "",
                 f"The other {listing['competing_count'] - listing['starved_count']} "
-                f"competing skills keep their descriptions: only enough of the "
-                f"least-used tail is dropped to close the gap, not the whole set.",
-                "",
-                "*Which* particular skills lost theirs is inferential — the ordering",
-                "comes from an undocumented scorer. Treat the ranking as a likelihood",
-                "band, not a cutoff line.",
+                f"competing skills keep their descriptions. The score is "
+                f"decay-weighted, not a raw invocation count, and the walk grants "
+                f"whatever still fits rather than shedding a clean tail, so "
+                f"description length matters too.",
                 "",
             ]
+            # An unscored run has no usage behind its ordering at all. Saying
+            # "inferential" there would repeat the exact defect this report
+            # exists to expose, one level up, so the two cases get different
+            # prose rather than a shared hedge.
+            if listing.get("score_basis") == "unscored":
+                lines += [
+                    "**No usage signal was available for any competing skill, so "
+                    "*which* particular skills lost their descriptions is NOT "
+                    "ranked here.** The order below is the catalog order and "
+                    "carries no information about starvation likelihood. The "
+                    "over-budget figure above is unaffected and still holds.",
+                    "",
+                ]
+            else:
+                lines += [
+                    "*Which* particular skills lost theirs is inferential: the "
+                    "ordering mirrors a scorer recovered from the shipped binary, "
+                    "not a documented interface. Treat the ranking as a likelihood "
+                    "band, not a cutoff line.",
+                    "",
+                ]
         else:
             lines += [
                 f"Listing fits: {listing['demand_chars']:,} of "
