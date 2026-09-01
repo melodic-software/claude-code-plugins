@@ -88,5 +88,5 @@ not support a rule, the skill says so rather than dressing a house choice as con
 ## Baselines
 
 Baselines live in the topic's memory tier (`.work/<topic-slug>/baselines/`), are machine-bound, and
-are **never committed** — matching `/verification:measure`. A committed baseline is a number that
+are **never committed**, matching `/verification:measure`. A committed baseline is a number that
 outlives the conditions that made it true.

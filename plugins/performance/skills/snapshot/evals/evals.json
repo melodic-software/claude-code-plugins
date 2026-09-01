@@ -1,0 +1,67 @@
+{
+  "skill_name": "snapshot",
+  "evals": [
+    {
+      "id": 1,
+      "name": "refuses-a-wall-clock-claim-from-an-unmeasurable-host",
+      "prompt": "/performance:snapshot post — the host qualification returned min 180.5 ms, median 1107.7 ms, max 2841.3 ms across seven identical no-op spawns, spread ratio 15.74. Give me the before/after latency numbers.",
+      "expected_output": "REFUSES to report a wall-clock claim. Names the bimodal contention signature and the numbers behind it, then names the drift-immune counter it CAN still report (process spawns). Offers the recorded-override path rather than silently complying, and states that this refusal is a house rule rather than field consensus.",
+      "files": [],
+      "expectations": [
+        "Does NOT produce before/after millisecond figures for this host",
+        "Names the drift-immune counter it can still report instead — the refusal is not a dead end",
+        "States the refusal is stricter than the benchmarking field, where tools warn and print anyway",
+        "Any override is explicit, human-supplied, and recorded in the report rather than assumed"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "reports-normally-from-a-quiet-host",
+      "prompt": "/performance:snapshot post — the host qualification returned min 120 ms, median 125 ms, max 130 ms across seven identical no-op spawns. Give me the before/after numbers.",
+      "expected_output": "Proceeds and reports. Leads with the drift-immune counter and reports p50/p95 as context beneath it. Does not refuse: this host carries no contention signature. The negative arm of the refusal gate — a skill that refused here would be refusing on every host and therefore refusing nothing.",
+      "files": [],
+      "expectations": [
+        "Does NOT refuse; this host is within the measurable band",
+        "Ranks the drift-immune counter above the duration in the report",
+        "Reports p50 and p95 rather than a single sample or a bare mean"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-a-percentile-the-sample-count-cannot-support",
+      "prompt": "/performance:snapshot post — I have 12 samples and I want the p99.",
+      "expected_output": "Refuses the p99 on arithmetic grounds: a percentile p needs at least 1/(1-p) samples to be expressible at all, so p99 needs 100 and p95 needs 20. Twelve samples support neither. Offers the raw samples or more sampling, and distinguishes this enforced arithmetic floor from the p50/p95-over-20 default, which is a labelled house convention with no community grounding.",
+      "files": [],
+      "expectations": [
+        "Refuses p99 at 12 samples and cites the 1/(1-p) floor as the reason",
+        "Separates the ENFORCED arithmetic floor from the UNGROUNDED house convention for sample count",
+        "Offers raw samples or additional sampling rather than reporting an unsupportable percentile"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "interleaves-rather-than-comparing-two-passes",
+      "prompt": "/performance:snapshot post — I measured the old version 20 times this morning and the new version 20 times just now. Compare them.",
+      "expected_output": "Declines to treat that as a valid comparison and explains why: two separate passes on a drifting host attribute the host's drift to the change. Requires the arms to be interleaved within one run (order flipped each iteration), or run simultaneously duet-style on a genuinely shared machine, and re-measures both arms rather than reusing the morning's numbers.",
+      "files": [],
+      "expectations": [
+        "Rejects the two-pass comparison and names host drift as the reason",
+        "Requires interleaving within one run, or simultaneous duet execution",
+        "Re-measures BOTH arms rather than comparing new measurements against stale ones",
+        "Does not claim benchstat uses paired statistics — it recommends interleaved collection but analyzes with an independent two-sample test"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "catches-a-harness-that-measures-itself",
+      "prompt": "/performance:snapshot baseline — my spawn census puts a shim directory from `mktemp -d` on PATH and the subject caches its interpreter lookup keyed on PATH. The census says there was no improvement.",
+      "expected_output": "Identifies that the harness invalidates the subject's cache every run, so every run is a forced cache miss and the census measured its own randomization rather than the change. Requires the injected PATH entry to be fixed across runs or proven irrelevant to the subject, then re-runs before believing any result.",
+      "files": [],
+      "expectations": [
+        "Identifies the mktemp shim directory as the cause, not the change under test",
+        "States the rule: anything the harness injects into the environment is fixed across runs or provably irrelevant",
+        "Does not accept the 'no improvement' verdict at face value"
+      ]
+    }
+  ]
+}

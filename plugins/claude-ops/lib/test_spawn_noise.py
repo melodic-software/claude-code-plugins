@@ -83,5 +83,57 @@ class TestBimodalPredicateIsTwoPart(unittest.TestCase):
         self.assertIn("bimodal-spawn-latency", slow)
 
 
+class TestMeasurabilityVerdict(unittest.TestCase):
+    """The refusal must discriminate, and must never be a dead end."""
+
+    QUIET = [120.0, 130.0, 125.0]
+    CONTENDED = [180.0, 1200.0, 1400.0]
+
+    def test_a_quiet_host_is_measurable_and_a_contended_one_is_not(self):
+        # discriminating-skip-required: a refusal that fires on every host refuses nothing.
+        quiet_ok, quiet_why = spawn_noise.is_measurable(
+            spawn_noise.summarize_spawn_samples(self.QUIET, 0, 200)
+        )
+        loud_ok, loud_why = spawn_noise.is_measurable(
+            spawn_noise.summarize_spawn_samples(self.CONTENDED, 0, 900)
+        )
+        self.assertNotEqual(
+            quiet_ok,
+            loud_ok,
+            "both hosts produced the same verdict, so this test would pass whether or not "
+            "is_measurable looks at the samples at all",
+        )
+        self.assertTrue(quiet_ok, quiet_why)
+        self.assertFalse(loud_ok, loud_why)
+
+    def test_a_refusal_states_the_numbers_that_caused_it(self):
+        _, why = spawn_noise.is_measurable(
+            spawn_noise.summarize_spawn_samples(self.CONTENDED, 0, 900)
+        )
+        # An unexplained refusal gets overridden reflexively, so the reason has to
+        # carry the evidence rather than just naming the finding.
+        self.assertIn("180.0", why)
+        self.assertIn("1400.0", why)
+
+    def test_an_uncharacterized_host_is_refused_rather_than_assumed_fine(self):
+        ok, why = spawn_noise.is_measurable(spawn_noise.summarize_spawn_samples([], 0, None))
+        self.assertFalse(ok)
+        self.assertIn("never characterized", why)
+
+
+class TestPercentileFloor(unittest.TestCase):
+    """`1/(1-p)` is the only sample-count rule this repo can actually ground."""
+
+    def test_the_documented_floors(self):
+        self.assertEqual(spawn_noise.percentile_floor(0.5), 2)
+        self.assertEqual(spawn_noise.percentile_floor(0.95), 20)
+        self.assertEqual(spawn_noise.percentile_floor(0.99), 100)
+
+    def test_a_percentile_outside_the_open_unit_interval_raises(self):
+        for bad in (0.0, 1.0, -0.1, 1.5):
+            with self.subTest(percentile=bad), self.assertRaises(ValueError):
+                spawn_noise.percentile_floor(bad)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -35,3 +35,6 @@ lib/state-key.sh
 # single-plugin path fails as stale), so uncomment the line below when a
 # second plugin consumes it.
 # scripts/index-regen.sh
+
+# Dedicated check: scripts/sync-spawn-noise.sh --check (CI: spawn-noise-sync)
+lib/spawn_noise.py
