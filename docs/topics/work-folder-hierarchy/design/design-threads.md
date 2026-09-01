@@ -201,7 +201,9 @@ pointers — no new per-agent restatement.
 
 ## Dependency order
 
-T1 blocks T3 (header keys) and T5's `--check-children` (parity baseline).
+T1 blocks T3 (header keys) and the regen script's parity check, which
+consumes T5's child-slice predicate (parity lives in the lib script, not
+the gate, per T5's revision).
 T4 is independent. T6/T7/T8/T9 are independent of each other; all feed the
 flip PR. The lib regen script (substrate PR) needs T1-T4 resolved; the
 gate rework (substrate PR) needs T5.
