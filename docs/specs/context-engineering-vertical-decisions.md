@@ -2,10 +2,12 @@
 
 The corpus work was organized into seven verticals. V1 (unhobbling) was resolved by the signed-off
 answer set in the topic's decision contract, which is contract tier and therefore pruned before
-merge, surviving as the `<details>` paste in its pull request. The remaining six were originally routed to "future
-interview rounds", which was a mistake: the evidence those rounds would have consumed lived only in
-an untracked memory tier, so a future session would have inherited the questions without the
-answers. They are resolved here instead, on the evidence gathered while it was in hand.
+merge, surviving as the `<details>` paste in its pull request; the one V1 answer whose disposition
+had no other durable home is restated at the end of this document. The remaining six were
+originally routed to "future interview rounds", which was a mistake: the evidence those rounds
+would have consumed lived only in an untracked memory tier, so a future session would have
+inherited the questions without the answers. They are resolved here instead, on the evidence
+gathered while it was in hand.
 
 Each entry states the decision, its basis, and what actually changes. Several resolve to "no change,
 and here is why", which is a real outcome for a corpus pass over a repo that already does most of
@@ -135,3 +137,30 @@ whole deferral posture was wrong: the memory tier does not survive. Resolved as:
 
 **Changes: the four graduated `docs/specs/context-engineering-*.md` documents, plus the
 upstream-drift changelog entry shipped separately.**
+
+## V1 residue: re-testing instructions after a model upgrade
+
+**Decision: a documented trigger only; no new re-test mechanism.**
+
+Every other V1 answer landed somewhere durable — the deletion threshold became the exception
+register and its attribution design, the conflict-coverage reopen became a tracker item, and the
+`/doctor` and 80%-figure findings are recorded as settled facts and tier posture in
+[`context-engineering-corpus-knowledge.md`](context-engineering-corpus-knowledge.md). One did not,
+so it is restated here rather than left to the pruned contract alone.
+
+The corpus argues that instructions written against one model generation can become dead weight,
+or actively wrong, against the next, and that a model upgrade is therefore an occasion to re-test
+what a repo's instruction surfaces are still buying. The question was whether this repo needs a
+new mechanism to act on that.
+
+It does not. `claude-config`'s `audit-pass` already ships the ritual: a re-run contract with a
+lease and epoch, finding suppression that survives across runs, and a three-scope inventory. A
+model upgrade is a reason to invoke it, not a reason to build a second thing beside it. What the
+corpus adds is the documented trigger, and the caution that a re-run after an upgrade should
+expect *removals* to be the finding, which is the opposite of the drift most audits look for.
+
+Cite `audit-pass`'s shipped reference files when pointing at that contract. The design note the
+original answer named was already drifting from what shipped, and it has since been pruned along
+with its slice, so it is not a citable surface.
+
+**Changes: none.** The mechanism exists; only the occasion to run it was unrecorded.
