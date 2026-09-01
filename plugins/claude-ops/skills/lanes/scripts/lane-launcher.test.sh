@@ -40,10 +40,10 @@ assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" 
 
 # --- Fixture repo -------------------------------------------------------------
 REPO="$TMP/repo"
-mkdir -p "$REPO/.work"
-cat >"$REPO/.work/lanes.json" <<'JSON'
+mkdir -p "$REPO/.work/lanes"
+cat >"$REPO/.work/lanes/lanes.json" <<'JSON'
 {
-  "prompt_dir": ".work",
+  "prompt_dir": ".work/lanes",
   "lanes": [
     { "name": "work",    "prompt": "work.md",    "model": "opus",   "effort": "high" },
     { "name": "babysit", "prompt": "babysit.md", "model": "sonnet", "effort": "medium",
@@ -52,11 +52,11 @@ cat >"$REPO/.work/lanes.json" <<'JSON'
   ]
 }
 JSON
-printf 'You are the work lane.\n' >"$REPO/.work/work.md"
-printf 'You are the babysit lane.\n' >"$REPO/.work/babysit.md"
-printf 'You are the decide lane.\n' >"$REPO/.work/decide.md"
+printf 'You are the work lane.\n' >"$REPO/.work/lanes/work.md"
+printf 'You are the babysit lane.\n' >"$REPO/.work/lanes/babysit.md"
+printf 'You are the decide lane.\n' >"$REPO/.work/lanes/decide.md"
 
-CONFIG="$REPO/.work/lanes.json"
+CONFIG="$REPO/.work/lanes/lanes.json"
 
 # agents --json fixture: "work" running as a background session, others absent.
 AGENTS_RUNNING="$TMP/agents-running.json"
@@ -320,7 +320,7 @@ assert_not_contains "work has no settings flag" "$out" "-n work --settings"
 # per-lane settings must be a JSON object — a non-object skips that lane only
 cat >"$TMP/badsettings.json" <<'JSON'
 {
-  "prompt_dir": ".work",
+  "prompt_dir": ".work/lanes",
   "lanes": [
     { "name": "work",   "prompt": "work.md", "settings": "not-an-object" },
     { "name": "decide", "prompt": "decide.md" }
@@ -340,7 +340,7 @@ assert_eq "bad settings surfaces a non-zero exit" 1 "$rcbad"
 # with `--settings` silently omitted (#1784).
 cat >"$TMP/falsesettings.json" <<'JSON'
 {
-  "prompt_dir": ".work",
+  "prompt_dir": ".work/lanes",
   "lanes": [
     { "name": "work",   "prompt": "work.md", "settings": false },
     { "name": "decide", "prompt": "decide.md" }
@@ -357,7 +357,7 @@ assert_eq "settings:false surfaces a non-zero exit" 1 "$rcfalse"
 # `null` stays the JSON spelling of "no value": the lane launches, without
 # --settings, rather than being skipped as mistyped.
 cat >"$TMP/nullsettings.json" <<'JSON'
-{ "prompt_dir": ".work", "lanes": [ { "name": "work", "prompt": "work.md", "settings": null } ] }
+{ "prompt_dir": ".work/lanes", "lanes": [ { "name": "work", "prompt": "work.md", "settings": null } ] }
 JSON
 outnull="$(run_launcher start --repo "$REPO" --config "$TMP/nullsettings.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
 rcnull=$?
@@ -417,7 +417,7 @@ assert_contains "stop unknown lane message" "$out" "unknown lane 'bogus'"
 # missing / empty prompt + invalid effort are skipped, not launched
 # ============================================================================
 cat >"$TMP/badprompt.json" <<'JSON'
-{ "prompt_dir": ".work",
+{ "prompt_dir": ".work/lanes",
   "lanes": [
     { "name": "gone",  "prompt": "missing.md" },
     { "name": "blank", "prompt": "blank.md" },
@@ -425,7 +425,7 @@ cat >"$TMP/badprompt.json" <<'JSON'
     { "name": "ultra", "prompt": "work.md", "effort": "ultracode" }
   ] }
 JSON
-: >"$REPO/.work/blank.md"
+: >"$REPO/.work/lanes/blank.md"
 out="$(run_launcher start --repo "$REPO" --config "$TMP/badprompt.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
 assert_contains "missing prompt file skipped" "$out" "prompt file not found"
 assert_contains "empty prompt file skipped" "$out" "prompt file is empty"
@@ -439,7 +439,7 @@ assert_contains "ultracode passed through as --effort" "$out" "claude --bg -n ul
 # preflights it BEFORE stopping so a healthy running lane stays up
 # ============================================================================
 cat >"$TMP/ultra.json" <<'JSON'
-{ "prompt_dir": ".work",
+{ "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md", "effort": "ultracode" } ] }
 JSON
 out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
@@ -462,7 +462,7 @@ assert_not_contains "healthy lane not stopped by a refused restart" "$(cat "$CLA
 # global directly; a `$(cli_version)` substitution would fill it in a subshell and
 # re-probe once per lane, so this counts the probes rather than trusting the shape.
 cat >"$TMP/ultra3.json" <<'JSON'
-{ "prompt_dir": ".work",
+{ "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "u1", "prompt": "work.md", "effort": "ultracode" },
              { "name": "u2", "prompt": "work.md", "effort": "ultracode" },
              { "name": "u3", "prompt": "work.md", "effort": "ultracode" } ] }
@@ -533,7 +533,7 @@ assert_contains "stop failure reported" "$out" "work — stop failed"
 # stop must never fire and the session must stay up.
 # ============================================================================
 cat >"$TMP/restart-badprompt.json" <<'JSON'
-{ "prompt_dir": ".work",
+{ "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "missing.md" } ] }
 JSON
 : >"$CLAUDE_LOG"
@@ -749,14 +749,14 @@ assert_eq "marker: falls back to \$CLAUDE_PLUGIN_DATA when --data-dir is unset" 
 # The data dir is plugin-wide, so a second repo running the same conventional
 # lane name must not overwrite the first repo's marker.
 REPO_B="$TMP/repo-b"
-mkdir -p "$REPO_B/.work"
-cp "$REPO/.work/lanes.json" "$REPO_B/.work/lanes.json"
-cp "$REPO/.work/work.md" "$REPO/.work/babysit.md" "$REPO/.work/decide.md" "$REPO_B/.work/"
+mkdir -p "$REPO_B/.work/lanes"
+cp "$REPO/.work/lanes/lanes.json" "$REPO_B/.work/lanes/lanes.json"
+cp "$REPO/.work/lanes/work.md" "$REPO/.work/lanes/babysit.md" "$REPO/.work/lanes/decide.md" "$REPO_B/.work/lanes/"
 REPO_B_KEY="$(marker_repo_key "$REPO_B")"
 DATA_DIR7="$TMP/data7"
 mkdir -p "$DATA_DIR7/lanes/$REPO_KEY"
 printf 'repo-a-sha\n' >"$DATA_DIR7/lanes/$REPO_KEY/work-launch-commit"
-out="$(run_launcher start --repo "$REPO_B" --config "$REPO_B/.work/lanes.json" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR7" 2>&1)"
+out="$(run_launcher start --repo "$REPO_B" --config "$REPO_B/.work/lanes/lanes.json" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR7" 2>&1)"
 marker="$(cat "$DATA_DIR7/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: launching 'work' in another repo leaves repo A's marker intact" "repo-a-sha" "$marker"
 marker="$(cat "$DATA_DIR7/lanes/$REPO_B_KEY/work-launch-commit" 2>/dev/null)"
@@ -795,13 +795,13 @@ assert_eq "marker: nothing is written under the un-canonicalized --repo key" 0 "
 # then compare two SHA-1 keys and discriminate nothing.
 SHA256_REPO="$TMP/sha256-repo"
 if "$REAL_GIT" init --object-format=sha256 -q "$SHA256_REPO" 2>/dev/null; then
-  mkdir -p "$SHA256_REPO/.work"
-  cp "$REPO/.work/work.md" "$SHA256_REPO/.work/"
-  cat >"$SHA256_REPO/.work/lanes.json" <<'JSON'
-{ "prompt_dir": ".work", "lanes": [ { "name": "work", "prompt": "work.md" } ] }
+  mkdir -p "$SHA256_REPO/.work/lanes"
+  cp "$REPO/.work/lanes/work.md" "$SHA256_REPO/.work/lanes/"
+  cat >"$SHA256_REPO/.work/lanes/lanes.json" <<'JSON'
+{ "prompt_dir": ".work/lanes", "lanes": [ { "name": "work", "prompt": "work.md" } ] }
 JSON
   DATA_DIR9="$TMP/data9"
-  out="$(run_launcher start --repo "$SHA256_REPO" --config "$SHA256_REPO/.work/lanes.json" \
+  out="$(run_launcher start --repo "$SHA256_REPO" --config "$SHA256_REPO/.work/lanes/lanes.json" \
     --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR9" --no-pull --no-update 2>&1)"
   # The key the target repo's own object format yields — 64 hex for SHA-256.
   sha256_key="$(marker_repo_key "$SHA256_REPO" "$SHA256_REPO")"
@@ -846,7 +846,7 @@ assert_eq "arm: only the gate-requesting lane arms (one helper call)" 1 "$gate_c
 
 # The lane's sentinel/marker settings ride into the arm call.
 cat >"$TMP/gateopts.json" <<'JSON'
-{ "prompt_dir": ".work",
+{ "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md",
     "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
       "lane_stop_gate_enabled": true,
@@ -871,7 +871,7 @@ assert_contains "arm: the lane's marker reaches the helper" "$armlog" "--marker 
 # buy no behavior while suppressing the record's fall-through to the user-level
 # sentinel — so an empty sentinel is still treated as absent.
 cat >"$TMP/gate-empty-marker.json" <<'JSON'
-{ "prompt_dir": ".work",
+{ "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md",
     "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
       "lane_stop_gate_enabled": true,
@@ -888,7 +888,7 @@ assert_not_contains "arm: an explicitly empty sentinel is still treated as absen
 # gate's own resolution order (managed ▷ arm record ▷ user settings) still
 # reaches user settings for it.
 cat >"$TMP/gate-no-opts.json" <<'JSON'
-{ "prompt_dir": ".work",
+{ "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md",
     "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
       "lane_stop_gate_enabled": true } } } } } ] }
@@ -912,7 +912,7 @@ assert_not_contains "arm: an unset sentinel passes no --sentinel" "$armlog" "--s
 # marker whether or not the filter scopes to requesting entries, and would pin
 # nothing.
 cat >"$TMP/gate-multi.json" <<'JSON'
-{ "prompt_dir": ".work",
+{ "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md",
     "settings": { "pluginConfigs": {
       "autonomy@a": { "options": {
@@ -971,7 +971,7 @@ assert_eq "arm: dry-run does not run the helper" 0 "$armran"
 # checks). `work` is running; a gate-requesting config with no helper must not
 # take the session down. No --gate-arm-script → no helper discoverable.
 cat >"$TMP/gate-work.json" <<'JSON'
-{ "prompt_dir": ".work",
+{ "prompt_dir": ".work/lanes",
   "lanes": [ { "name": "work", "prompt": "work.md",
     "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": {
       "lane_stop_gate_enabled": true } } } } } ] }
@@ -1018,6 +1018,71 @@ assert_eq "arm: discovery finds every installed marketplace's helper" 2 "$armed_
 assert_eq "arm: one helper failing fails the whole arming" 1 "$rc"
 assert_contains "arm: a partial arm names the lane and skips it" "$out" "lane-stop gate arming failed"
 assert_not_contains "arm: a partially-armed lane is NOT launched" "$log" "--bg -n work"
+
+# --- Default config home + pre-move compatibility -----------------------------
+# Every case above passes --config explicitly, so nothing there exercises the
+# DEFAULT resolution — which is exactly what moved. These drive it with no
+# --config at all.
+#
+# The `lanes/` concern home: config and prompts both inside it, and no
+# `prompt_dir` in the config, so the default has to be the one doing the work.
+HOME_REPO="$TMP/home-repo"
+mkdir -p "$HOME_REPO/.work/lanes"
+cat >"$HOME_REPO/.work/lanes/lanes.json" <<'JSON'
+{ "lanes": [ { "name": "work", "prompt": "work.md", "model": "opus" } ] }
+JSON
+printf 'You are the work lane.\n' >"$HOME_REPO/.work/lanes/work.md"
+: >"$CLAUDE_LOG"
+out="$(run_launcher start --repo "$HOME_REPO" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-home" --dry-run 2>&1)"
+assert_contains "default config resolves to .work/lanes/lanes.json" "$out" "DRY-RUN: claude --bg -n work"
+assert_contains "default prompt_dir resolves to .work/lanes" "$out" "$HOME_REPO/.work/lanes/work.md"
+assert_not_contains "the lanes/ home emits no deprecation warning" "$out" "pre-move lane config"
+
+# A checkout that predates the move: config and prompts still at the memory
+# root, and the config never named a prompt_dir. Both must keep resolving, with
+# the migration said out loud.
+OLD_REPO="$TMP/old-repo"
+mkdir -p "$OLD_REPO/.work"
+cat >"$OLD_REPO/.work/lanes.json" <<'JSON'
+{ "lanes": [ { "name": "work", "prompt": "work.md", "model": "opus" } ] }
+JSON
+printf 'You are the work lane.\n' >"$OLD_REPO/.work/work.md"
+out="$(run_launcher start --repo "$OLD_REPO" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-old" --dry-run 2>&1)"
+assert_contains "pre-move config is read rather than failing the run" "$out" "DRY-RUN: claude --bg -n work"
+assert_contains "pre-move config warns about the move" "$out" "reading the pre-move lane config"
+assert_contains "the warning names the destination" "$out" "$OLD_REPO/.work/lanes/"
+assert_contains "a pre-move config keeps the pre-move prompt_dir default" "$out" "$OLD_REPO/.work/work.md"
+
+# Both present: the `lanes/` home wins outright and nothing warns.
+BOTH_REPO="$TMP/both-repo"
+mkdir -p "$BOTH_REPO/.work/lanes"
+cat >"$BOTH_REPO/.work/lanes.json" <<'JSON'
+{ "lanes": [ { "name": "stale", "prompt": "stale.md" } ] }
+JSON
+cat >"$BOTH_REPO/.work/lanes/lanes.json" <<'JSON'
+{ "lanes": [ { "name": "work", "prompt": "work.md" } ] }
+JSON
+printf 'You are the work lane.\n' >"$BOTH_REPO/.work/lanes/work.md"
+printf 'stale\n' >"$BOTH_REPO/.work/stale.md"
+out="$(run_launcher start --repo "$BOTH_REPO" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-both" --dry-run 2>&1)"
+assert_contains "with both present the lanes/ home wins" "$out" "DRY-RUN: claude --bg -n work"
+assert_not_contains "the leftover pre-move config is not read" "$out" "-n stale"
+assert_not_contains "no warning when the lanes/ home exists" "$out" "pre-move lane config"
+
+# $CLAUDE_OPS_LANES_CONFIG stays the escape hatch: used verbatim, never
+# suffixed and never fallen back from, so a config kept outside the memory root
+# fails loudly rather than silently resolving to a pre-move file.
+out="$(CLAUDE_OPS_LANES_CONFIG="$TMP/nowhere.json" run_launcher status --repo "$OLD_REPO" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+assert_eq "the env override is not fallen back from" 4 "$rc"
+assert_contains "the env override is used verbatim" "$out" "lane config not found: $TMP/nowhere.json"
+
+# An explicit --config at the pre-move path is honored verbatim (no warning),
+# and still gets the pre-move prompt_dir default — the default is keyed on
+# WHERE the config resolved, not on how.
+out="$(run_launcher start --repo "$OLD_REPO" --config "$OLD_REPO/.work/lanes.json" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-explicit" --dry-run 2>&1)"
+assert_not_contains "an explicit pre-move --config does not warn" "$out" "reading the pre-move lane config"
+assert_contains "an explicit pre-move --config keeps the pre-move prompt_dir" "$out" "$OLD_REPO/.work/work.md"
 
 # ============================================================================
 echo
