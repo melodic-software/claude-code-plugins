@@ -459,8 +459,9 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 **The marketplace `renames` map is frozen-historical.** Its twelve entries stay: a consumer whose
 `enabledPlugins` still names a pre-rename plugin id resolves only through the map, and removing an
 entry strands them. But nothing new is added to it. A rename from here on is a clean breaking change
-carried by a version bump and a changelog note — the standing posture in
-[shadowed-skill-renames](topics/shadowed-skill-renames/PLAN.md) — so the map records migrations
+carried by a version bump and a changelog note — the standing posture locked in
+`docs/topics/shadowed-skill-renames/` (pruned per the topic-docs convention; read it
+in history at `c70d8867ccd9f9921fdde25de70cb9a91e718c80`) — so the map records migrations
 already shipped rather than serving as the go-forward mechanism.
 
 ### Same-version commit drift (directory-source marketplaces)
