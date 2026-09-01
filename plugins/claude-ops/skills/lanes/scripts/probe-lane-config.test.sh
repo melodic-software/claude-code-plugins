@@ -4,15 +4,21 @@
 # The script exists only to reproduce, from a bundled file, what a pre-compute
 # line used to compute inline (#1687). So every case asserts TWO things: the
 # script's output against the expected literal, and the script's output against
-# the ORIGINAL inline one-liner run in the same environment. The second assertion
-# is the one that matters — it is the byte-for-byte equivalence claim, checked
-# rather than reasoned about, and it stays honest whatever jq the host ships.
+# the INLINE equivalent of the same resolution run in the same environment. The
+# second assertion is the one that matters — it is the byte-for-byte equivalence
+# claim, checked rather than reasoned about, and it stays honest whatever jq the
+# host ships. That inline baseline tracks the resolution the script documents:
+# when the default path moves, it moves here in the same edit, or the pair stops
+# proving anything.
 #
 # Coverage:
-#   - CLAUDE_OPS_LANES_CONFIG override: used verbatim, no `.work/lanes.json`
-#     suffix appended; an EMPTY value falls through to the default
+#   - CLAUDE_OPS_LANES_CONFIG override: used verbatim, no
+#     `.work/lanes/lanes.json` suffix appended; an EMPTY value falls through to
+#     the default
 #   - default path from the git toplevel, and from the working directory when
 #     not inside a repo
+#   - the pre-move `<root>/.work/lanes.json` is reported when it exists and the
+#     `lanes/` home does not; the `lanes/` home wins when both exist
 #   - a CRLF-terminated git toplevel does not leak a stray CR into the path
 #   - present config → `<path> (<N> lanes)`; `.lanes` absent → `0 lanes`
 #   - unavailable count (jq missing / malformed JSON) degrades to `( lanes)`
@@ -50,10 +56,10 @@ fail() {
 }
 assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
 
-# --- The pre-compute line this script replaced, verbatim ---------------------
+# --- The inline equivalent of the resolution the script bundles --------------
 ORIGINAL="$TMP/original.sh"
 cat >"$ORIGINAL" <<'ORIG'
-c="${CLAUDE_OPS_LANES_CONFIG:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.work/lanes.json}"; [[ -f "$c" ]] && echo "$c ($(jq -r '(.lanes//[])|length' "$c" 2>/dev/null) lanes)" || echo "absent ($c) — author one (see context/config.md)"
+r="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"; c="${CLAUDE_OPS_LANES_CONFIG:-}"; if [[ -z "$c" ]]; then c="$r/.work/lanes/lanes.json"; [[ ! -f "$c" && -f "$r/.work/lanes.json" ]] && c="$r/.work/lanes.json"; fi; [[ -f "$c" ]] && echo "$c ($(jq -r '(.lanes//[])|length' "$c" 2>/dev/null) lanes)" || echo "absent ($c) — author one (see context/config.md)"
 ORIG
 
 # --- Stubs -------------------------------------------------------------------
@@ -91,9 +97,28 @@ export PATH="$BASE_PATH"
 
 # --- Fixtures ----------------------------------------------------------------
 ROOT="$TMP/repo"
-mkdir -p "$ROOT/.work"
-cat >"$ROOT/.work/lanes.json" <<'JSON'
+mkdir -p "$ROOT/.work/lanes"
+cat >"$ROOT/.work/lanes/lanes.json" <<'JSON'
 { "lanes": [ { "name": "a" }, { "name": "b" }, { "name": "c" } ] }
+JSON
+
+# A checkout that predates the `lanes/` concern home: config still at the memory
+# root. The probe must report the file the launcher would actually open, so this
+# one resolves to the pre-move path rather than reading "absent".
+LEGACY_ROOT="$TMP/legacy-repo"
+mkdir -p "$LEGACY_ROOT/.work"
+cat >"$LEGACY_ROOT/.work/lanes.json" <<'JSON'
+{ "lanes": [ { "name": "a" }, { "name": "b" } ] }
+JSON
+
+# Both present: the `lanes/` home wins and the pre-move file is ignored.
+BOTH_ROOT="$TMP/both-repo"
+mkdir -p "$BOTH_ROOT/.work/lanes"
+cat >"$BOTH_ROOT/.work/lanes.json" <<'JSON'
+{ "lanes": [ { "name": "old" } ] }
+JSON
+cat >"$BOTH_ROOT/.work/lanes/lanes.json" <<'JSON'
+{ "lanes": [ { "name": "a" }, { "name": "b" }, { "name": "c" }, { "name": "d" } ] }
 JSON
 
 NO_LANES_KEY="$TMP/no-lanes-key.json"
@@ -133,14 +158,14 @@ run_both() {
 
 # --- 1. Env override, present config -----------------------------------------
 export STUB_GIT_TOPLEVEL="$ROOT"
-export CLAUDE_OPS_LANES_CONFIG="$ROOT/.work/lanes.json"
+export CLAUDE_OPS_LANES_CONFIG="$ROOT/.work/lanes/lanes.json"
 if ((HAVE_JQ)); then
-  run_both "override → present config with a lane count" "$ROOT/.work/lanes.json (3 lanes)"
+  run_both "override → present config with a lane count" "$ROOT/.work/lanes/lanes.json (3 lanes)"
 else
   run_both "override → present config (jq absent; equivalence only)" "SKIP"
 fi
 
-# --- 2. Env override used verbatim (no .work/lanes.json suffix appended) ------
+# --- 2. Env override used verbatim (no .work/lanes/lanes.json suffix appended) -
 export CLAUDE_OPS_LANES_CONFIG="$TMP/nowhere.json"
 run_both "override is used verbatim when the file is absent" \
   "absent ($TMP/nowhere.json) — author one (see context/config.md)"
@@ -148,8 +173,8 @@ run_both "override is used verbatim when the file is absent" \
 # --- 3. Empty override falls through to the default --------------------------
 export CLAUDE_OPS_LANES_CONFIG=""
 if ((HAVE_JQ)); then
-  run_both "empty override falls through to <toplevel>/.work/lanes.json" \
-    "$ROOT/.work/lanes.json (3 lanes)"
+  run_both "empty override falls through to <toplevel>/.work/lanes/lanes.json" \
+    "$ROOT/.work/lanes/lanes.json (3 lanes)"
 else
   run_both "empty override falls through (jq absent; equivalence only)" "SKIP"
 fi
@@ -158,12 +183,12 @@ unset CLAUDE_OPS_LANES_CONFIG
 # --- 4. Default path from the git toplevel -----------------------------------
 export STUB_GIT_TOPLEVEL="$ELSEWHERE"
 run_both "default resolves under the git toplevel" \
-  "absent ($ELSEWHERE/.work/lanes.json) — author one (see context/config.md)"
+  "absent ($ELSEWHERE/.work/lanes/lanes.json) — author one (see context/config.md)"
 
 # --- 5. A CRLF-terminated toplevel leaves no stray CR in the path ------------
 export STUB_GIT_CRLF=1
 assert_eq "CRLF toplevel is stripped" \
-  "absent ($ELSEWHERE/.work/lanes.json) — author one (see context/config.md)" \
+  "absent ($ELSEWHERE/.work/lanes/lanes.json) — author one (see context/config.md)" \
   "$(bash "$SCRIPT" 2>/dev/null)"
 unset STUB_GIT_CRLF
 
@@ -171,8 +196,26 @@ unset STUB_GIT_CRLF
 unset STUB_GIT_TOPLEVEL
 cd "$ELSEWHERE" || exit 1
 run_both "not in a repo → default resolves under the working directory" \
-  "absent ($ELSEWHERE/.work/lanes.json) — author one (see context/config.md)"
+  "absent ($ELSEWHERE/.work/lanes/lanes.json) — author one (see context/config.md)"
 cd "$START_DIR" || exit 1
+
+# --- 6b. Pre-move config: reported rather than read as absent ----------------
+export STUB_GIT_TOPLEVEL="$LEGACY_ROOT"
+if ((HAVE_JQ)); then
+  run_both "pre-move <root>/.work/lanes.json is reported when the lanes/ home is empty" \
+    "$LEGACY_ROOT/.work/lanes.json (2 lanes)"
+else
+  run_both "pre-move config is reported (jq absent; equivalence only)" "SKIP"
+fi
+
+# --- 6c. Both present: the lanes/ home wins ----------------------------------
+export STUB_GIT_TOPLEVEL="$BOTH_ROOT"
+if ((HAVE_JQ)); then
+  run_both "the lanes/ home wins over a leftover pre-move config" \
+    "$BOTH_ROOT/.work/lanes/lanes.json (4 lanes)"
+else
+  run_both "the lanes/ home wins over a leftover pre-move config (jq absent)" "SKIP"
+fi
 
 # --- 7. `.lanes` absent from the config, and malformed JSON ------------------
 export STUB_GIT_TOPLEVEL="$ROOT"
@@ -188,8 +231,8 @@ fi
 
 # --- 8. jq missing → the count degrades to empty, not an error ---------------
 export PATH="$NOJQ:$BASE_PATH"
-export CLAUDE_OPS_LANES_CONFIG="$ROOT/.work/lanes.json"
-run_both "jq missing degrades the count to empty" "$ROOT/.work/lanes.json ( lanes)"
+export CLAUDE_OPS_LANES_CONFIG="$ROOT/.work/lanes/lanes.json"
+run_both "jq missing degrades the count to empty" "$ROOT/.work/lanes/lanes.json ( lanes)"
 unset CLAUDE_OPS_LANES_CONFIG
 export PATH="$BASE_PATH"
 

@@ -3,6 +3,12 @@
 Why every screenshot arrives smaller than your screen, why that is not tunable, and the one
 mechanism that recovers detail.
 
+**Recheck trigger:** re-verify the quotes and figures below if the `computer-use` CLI page's
+downscaling section starts documenting a setting to change the target size, if the
+`computer-use-tool` platform page changes its "full resolution" zoom wording or its
+implementation-best-practices resolution guidance, or if the linked best-practices blog post
+revises its recommended resolutions or its "single highest impact optimization" claim.
+
 ## Downscaling is automatic and has no setting
 
 Claude Code downscales **every** screenshot before it reaches the model. Official wording

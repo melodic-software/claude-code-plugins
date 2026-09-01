@@ -3,6 +3,55 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Changed
+
+- **The guard's watchdog no longer blocks commands it never judged.** The
+  internal deadline is wall-clock, so it measured contention as readily as it
+  measured a stall, and this hook fires on every `Bash`/`PowerShell` call in
+  every session. Under concurrent load an ordinary read-only command could
+  cross the 10s deadline while the guard was still inside
+  `_engine_gate_relevant`'s marker-free fallback, and the blanket `exit 2` then
+  BLOCKED it — observed about six times in one session, each succeeding on an
+  identical retry. At expiry the guard now distinguishes "could not decide"
+  from "decided deny", and the downgrade is available in exactly one situation:
+  **`engine-gate` mode with a provably marker-free command**, where the
+  completed verdict would knowably have been the instant plugin-level defer, so
+  `ask` is strictly more protective than the outcome the guard would have
+  reached (a defer emits no decision at all and lets the command run) and
+  strictly less blocking than the `exit 2` it replaces. Everything else keeps
+  the pre-change deny: **`belt` mode always denies** — belt is the default the
+  skill-frontmatter registration runs under, since it passes no `--mode` and
+  `resolve_mode()` falls back to it, and there Bash is deny-by-default with
+  `_engine_gate_relevant` never consulted, so a marker-free `rm -rf` would have
+  been denied rather than deferred — as do a command carrying the engine marker
+  and a stall before the payload parses. Every path still delivers a decision,
+  so the killed-hook fail-open ADR 0004 documents stays closed. Decision
+  emission is now serialized and latched to one object,
+  because two threads writing stdout would splice malformed JSON, which
+  PreToolUse reads as no decision at all.
+
+### Performance
+
+- **The hook launcher resolves its interpreter once instead of on every tool
+  call.** It re-derived the interpreter every invocation: a `sed` read of the
+  engine for `MIN_PYTHON`, a whole extra Python spawned only to evaluate a
+  version predicate, a `dirname`, and on the `py` branch a third spawn.
+  Process creation is the dominant cost on Windows and the term that explodes
+  under concurrent load. Measured spawn census for one warm invocation,
+  counted through a `PATH` shim: **4 spawns to 1** — the remaining one is the
+  guard itself. Interleaved A/B over 24 alternating pairs on a Windows host:
+  p50 5446ms to 1418ms, p95 16991ms to 7874ms, median paired ratio 3.71x.
+  Resolution logic is unchanged and still runs on a cache miss; the floor is
+  now recovered inside the candidate interpreter, keeping `hygiene.MIN_PYTHON`
+  the single origin. The resolved interpreter is cached under
+  `$HOME/.cache/disk-hygiene`, keyed on the launcher's own (version-pinned)
+  directory and invalidated by `PATH` change, loss of executability, a
+  zero-length App Execution Alias stub, an interpreter newer than the record,
+  or TTL expiry. Any miss or corrupt record re-resolves; a cache failure can
+  never produce "no interpreter", which is the guard's silent fail-open.
+
 ## [0.20.35]
 
 ### Fixed

@@ -3,6 +3,32 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.23]
+
+### Changed
+
+- **`audit-pass`: two dated reference surfaces gain observable recheck triggers.** `SKILL.md` and
+  `reference/finding-identity.md` carried verification dates with no stated event obliging
+  re-derivation, which the upstream-drift convention treats as the load-bearing part missing: a
+  stale stamp reads identically to a fresh one, so the date alone confers no authority. `SKILL.md`
+  now names the `output-styles` doc's `keep-coding-instructions` / `force-for-plugin` behavior and
+  the `memory` doc's `@path`-imports-load-at-launch claim; `finding-identity.md` names a SARIF spec
+  revision renumbering the sections it keys to, or GitHub CodeQL changing its fingerprinting method.
+  Additive only: no claim, date or existing sentence changed.
+
+## [0.40.22]
+
+### Changed
+
+- **Stamped restated upstream frontmatter facts across three audit references** (2026-08-31
+  frontmatter-alignment sweep, per the marketplace's upstream-drift convention). `audit-instructions`
+  `reference/criteria.md`: the I3 Source bullet's quoted doc spans now carry their owning URLs, a
+  verified date, and a divergence trigger. `audit` `context/validation-categories.md`: the Category
+  G budget defaults (0.01 fraction, 8,000-char fallback, 1,536 per-entry cap) carry a verified date
+  and a trigger tied to the Phase-3 confirm the paragraph already mandates. `audit`
+  `reference/audit-checklist.md`: the per-entry-cap row now cites the frontmatter reference with a
+  date and re-derivation trigger.
+
 ## [0.40.21]
 
 ### Changed

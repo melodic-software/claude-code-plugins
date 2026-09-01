@@ -5,11 +5,11 @@
       "id": 1,
       "name": "full-pipeline-docs-url",
       "prompt": "Run /knowledge:docpage-digest https://platform.claude.com/docs/en/build-with-claude/effort",
-      "expected_output": "Resolves library_dir work root, selects the Anthropic docs profile, fetches via the profile's preferred channel (raw .md, verifying it works for this page, with recorded fallback on failure), snapshots source.md, writes INDEX.md, fans out per-section digest agents whose verbatim quotes are column-0 fences under bold **CN.** labels, pins the tree on agent-reported completion with pin-manifest.json, runs check-fences-exact.py and check-snippets.py, runs dual verification (one cross-vendor verifier) with append-only verdicts that restate audited hashes, and authors interview-handoff.md.",
+      "expected_output": "Resolves library_dir work root, selects the Anthropic docs profile, fetches via the profile's preferred channel (raw .md, verifying it works for this page, with recorded fallback on failure), snapshots source.md, writes SOURCES.md, fans out per-section digest agents whose verbatim quotes are column-0 fences under bold **CN.** labels, pins the tree on agent-reported completion with pin-manifest.json, runs check-fences-exact.py and check-snippets.py, runs dual verification (one cross-vendor verifier) with append-only verdicts that restate audited hashes, and authors interview-handoff.md.",
       "expectations": [
         "Copies templates/checklist.md into the work root and ticks phases as they complete",
         "Snapshots the unaltered original to source.md before any digesting",
-        "INDEX.md digest-map rows stay in parity with digest file count",
+        "SOURCES.md digest-map rows stay in parity with digest file count",
         "Verbatim quotes are fenced under **CN.** labels, not blockquotes or inline code spans",
         "verification/pin-manifest.json is written only after digest agents report, not on file presence",
         "check-fences-exact.py and check-snippets.py PASS before verifier verdicts are believed",

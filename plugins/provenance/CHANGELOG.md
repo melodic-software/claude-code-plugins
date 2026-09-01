@@ -1,5 +1,260 @@
 # Changelog
 
+## [0.5.1]
+
+### Fixed
+
+- **Three statements in 0.4.0 are no longer true, and this entry supersedes them rather than
+  editing them.** That entry deferred a fixture leak as "deliberately NOT fixed here", recorded
+  four case bodies stating their own answer as a limit that could not be worked around without
+  editing a fixture, and said the deterministic layer "reproduced every containment, jaccard and
+  matched-span figure the fixtures record". All three are now overtaken: the leaks are removed and
+  two jaccard figures moved as a direct result. Dated records are not rewritten here, so 0.4.0
+  stands as what was true when it was written and this entry carries what changed.
+
+- **The shared source page for `c08`, `c09` and `c10` named the cases and gave away the answer.**
+  It opened by stating it was the shared basis for the three synonym-rotation cases and that
+  holding it fixed made rotation density the single variable. Judges read `source.md`, so that
+  paragraph settled C1 and C2 before either was graded, and nine of the thirty judges in the
+  version-3 re-score read it.
+
+  **The removal and the re-measurement are one change, because the first moves the second.** The
+  fingerprint compares the case body against `source.md`, so deleting from the source changes the
+  arithmetic those three cases record, and shipping the deletion alone would leave a measurement
+  that no longer reproduced from its own fixtures. Containment, longest matched span and the
+  matched-span set are unchanged, because the removed paragraph shares no five-word shingle with
+  any case body; the union shrank while the intersection did not, so jaccard rises: `c08` 0.232 to
+  0.280, `c09` 0.146 to 0.178, `c10` unchanged at zero. Each case still classifies as its
+  `expected.json` says, `c09` still on the containment limb alone and `c10` on neither, so the
+  density ladder still measures density.
+
+- **Four case bodies stated their own answer, in the graded passage itself.** `c06` and `c07`
+  opened "A hard negative", `c08` called the passage below it "the copied passage", and `c10`
+  supplied its own C1 and C2 findings outright along with a tier hint. 0.4.0 recorded these as
+  accepted because withholding them "would mean editing a fixture" — an objection the fixture edit
+  above overtakes. They are removed under the same fix-and-re-measure discipline, and the affected
+  `notes.measured` figures are corrected in the same commit: `c06` containment 0.031 to 0.039,
+  `c08` 0.473 to 0.570 with jaccard 0.312.
+
+  Two `span` line ranges moved with them. That is a re-anchor, not a verdict change: deleting
+  leading lines shifts every line number below, the shift matches the deleted count exactly, and
+  the spanned text is byte-identical before and after. No `class` or `tier` field was touched.
+
+- **A weaker date signal could delete a stamp instead of reinforcing it.** `may_form()` reports two
+  signals for the month May — a digit beside the word, and a capital M on the original line —
+  through a single `RSTART` that all three call sites read to decide whether the match began inside
+  the keyword window. It returned on whichever branch matched first, so a digit-adjacent "may" out
+  in the window's slack handed back an out-of-window offset, the caller rejected it, and a capital
+  "May" sitting inside the window was never consulted: appending a stray "7 may" to "Verified this
+  May" removed the line from the candidates entirely. Both signals are now evaluated and the
+  leftmost returned, in `check-stamps.sh` and `extract-breadcrumbs.sh` alike, so a signal the
+  window would reject can no longer hide one it would accept. Corpus output is unchanged over
+  1,352 files: 530 candidates, 499 parsed, 31 declined, 0 findings.
+
+  Swapping the branch order was rejected as a fix because it mirrors the bug rather than removing
+  it. The cross-implementation agreement assertion is what let this survive: it compared the two
+  scripts' candidate sets and **passed while both were wrong**, agreeing on one where the answer
+  was two. Agreement tests are blind to a shared error by construction, and the assertion now pins
+  the count rather than only the agreement.
+
+- **The relay boundary leaked through the `## Unparsed` appendix.** A judgment verdict
+  (`source-fetched-similar`, `llm-suspected`, `not-found`) carrying no rule id matched no branch in
+  the projection and was dumped verbatim into the findings file, tier name and payload included —
+  the one file those verdicts are withheld from, and the apply relay's input. Withholding is now
+  decided on the **declared** tier ahead of any rule lookup, read from a fixed key allowlist and
+  matched exactly against the three verdict names. The record is still counted in `## Surfaces`, so
+  nothing is dropped.
+
+  **Reaching that took ten rounds, and for the first nine each fix opened the next hole.** Recorded
+  in full because the sequence, not any one defect, is the finding.
+
+  1. The first version matched the tier exactly at the top level. An adversarial probe defeated it
+     four ways: a padded `"  not-found  "`, an array-valued `["not-found"]`, an object-valued
+     `{"name":"llm-suspected"}`, and a capitalised `"Tier"` key.
+  2. Widening it to any key named `tier` at any depth closed those and **silently dropped
+     relay-eligible findings**: a `fingerprint-confirmed` copy carrying an unrelated nested tier —
+     `"review":{"tier":"one agent argued llm-suspected and was vetoed"}`, a note `SKILL.md` invites
+     — was withheld, reaching neither the relay table nor `## Unparsed`, while `## Surfaces` called
+     it a judgment finding that stays on a human report it was never on. Seven vectors.
+  3. Narrowing to a key allowlist fixed the drop and **relayed a judgment verdict**: the allowlist
+     read `verdict.tier` but not `verdict` itself, so `{"verdict":"not-found"}` on a stamp rule
+     reached the relay table.
+  4. Reading a whole `verdict` closed that and re-introduced the drop from a different direction. A
+     `verdict` holds the judges' output while the tier is mapped by fixed rule from the evidence —
+     `SKILL.md` step 9, "never from a judge's confidence" — so a confirmed copy beside
+     `"verdict":{"prior":"llm-suspected"}` was withheld again, and one shape refused the whole
+     sidecar. The same round trimmed invisible characters by enumerating two code points, leaving
+     six other `Cf` characters to walk a verdict onto a relay row; an unhandled one at the end even
+     neutralised a handled one at the start.
+  5. The declared `tier` now wins whenever the record has one, falling back to the `verdict` only
+     when it does not — and the fallback turns on the slot **naming** a known tier rather than the
+     key merely being present, which is what `{"tier":null}`, `{"tier":[]}` and `{"tier":"pending"}`
+     beside a verdict had been slipping through.
+  6. The same defect one container down: the `verdict` → `verdict.tier` step still keyed off the
+     child being present, so `{"verdict":{"tier":"pending","result":"not-found"}}` declared nothing
+     and printed its outcome verbatim. Both steps now share one definition — the first fix in the
+     sequence to address the class rather than an instance.
+  7. Format characters were stripped only at the ends of a value, so one sitting *inside* the name
+     — a word joiner placed mid-word in `not-found` — failed the exact match and relayed. Stripped
+     everywhere now.
+  8. Stripping was by an enumerated class, which missed a variation selector and a combining
+     grapheme joiner. It now strips by the Unicode property that defines rendering as nothing.
+  9. Three routes at once. A verdict spelled as a **key** (`{"tier":{"not-found":true}}`) was read
+     by neither reader, because both walked string values only. A hyphen homoglyph (U+2010)
+     rendered identically to the name it spelled and relayed, so hyphen-likes now fold to ASCII by
+     the dash class. And `Location` was the one cell carrying input that was never pipe-escaped, so
+     a path like `a|b.md` split the row and a consumer read the Finding cell as a Surface.
+  10. The `searched` key was read literally while `tier` and `verdict` were case-folded, so a
+      sidecar that **did** name its surfaces under `Searched` was refused whole, taking every
+      relay-eligible finding beside it — the one direction that gate has no excuse for failing in.
+      And the stamp rules relayed on any tier at all, which falsified round 9's own safety argument
+      for the homoglyph limit: a Cyrillic-`о` spelling took a relay row instead of the ordinary
+      path. A stamp rule now still relays whatever a record does or does not declare, except when
+      its own `tier` field names no tier this reader knows.
+
+  **Every one of these passed review before it was probed.** Across the rounds a bot reviewer, five
+  security passes and three code-review passes read this file; all of them characterised the
+  failure direction as over-withholding and therefore safe. Over-withholding was destroying
+  relay-eligible findings, and the boundary was leaking in two separate rounds. Reading a diff and
+  attacking an invariant are different activities, and only the second found any of this. The suite
+  went from 110 assertions to 307, the gap being almost entirely the direction nobody was testing:
+  that a legitimate finding still **survives**.
+
+  Two limits are stated rather than papered over. A record that is not an object has no declared
+  tier to read, so it is withheld when a verdict name appears anywhere inside it — the blast radius
+  the malformed-record route exists to avoid. And `source-not-identified`, the neutral tier name
+  `SKILL.md` publishes, is not one of the three the reader knows.
+
+  `context/persist-findings.md` required both that withheld tier names never appear and that an
+  unmappable finding lands in `## Unparsed` verbatim, never a silent drop, without saying how the
+  two coexist — a conflict landing precisely on the leaking record. It now states the ordering and
+  names the `## Surfaces` count as where the no-silent-drop guarantee is discharged, so the next
+  reader does not restore the leak as a bug fix.
+
+- **The relabeling that kept fixture paths away from judges was a habit, not a rule.** 0.4.0 records
+  that the version-3 re-score relabelled cases "so no directory name or path reached a judge".
+  Nothing in the plugin required it: a grep across `SKILL.md`, every `reference/*.md`,
+  `evals/evals.json` and every script found exactly one mention of relabeling in the whole plugin,
+  in that changelog entry. The golden directories are named for their own answers —
+  `c06-negative-quoted-and-cited`, `c08-adversarial-rotation-sparse` — so a judge handed a path
+  reads the class, the carve-out and the rotation density before opening the file.
+
+  `reference/nomination.md`, which constructs all three subagent prompts, now carries "Neutral
+  labels (required)": a case reaches any subagent the run dispatches over it — nominating, judging,
+  reviewing, guarding a fix — under an opaque label, and the run holds the label-to-path mapping.
+  `SKILL.md` and `reference/dispositions.md` reference the rule rather than restating it.
+
+  Two channels beyond the directory name are closed with it. `SOURCE TEXT` said "fetched bytes,
+  with its URL and the rung it came from"; under the vendored-snapshot route and in the golden set
+  the source is served from a local file, so that field could hand over an in-repo path. It now
+  carries the source's declared URL and route, never the local path. And every golden `source.md`
+  opens by naming the golden set and calling the page invented for these fixtures — the answer
+  arriving in the body text once the path was shut — so that paragraph is dropped from the copy a
+  subagent is handed. `fingerprint.mjs` is not a subagent and reads the file as committed, so no
+  containment, jaccard or span figure moves.
+
+  The directories are not renamed: the names carry meaning for the humans maintaining the set, and
+  renaming would churn the 30 paths `evals.json` enumerates for no gain over fixing the dispatch.
+  Four verifier rounds went into this, three of which failed — the third catching that a fix had
+  quietly narrowed the judge prompt to four of the rubric's six carve-outs, which is a grading
+  change this work was not allowed to make. It was reverted. The requirement remains unmeasured:
+  no `evals.json` expectation asserts that a run relabelled before dispatch.
+
+### Added
+
+- **The `not-found` searched-surfaces listing is schema-checked at the sidecar.**
+  `emit-findings.sh` refuses a report sidecar whose `not-found` finding names no surface at all, on
+  exit 3, the input-refusal code it already uses for a sidecar that is not audit output. The check
+  validates the sidecar rather than an emitted row, and it has to: the relay boundary withholds
+  every `not-found` finding from the findings file, so there is no row to check.
+
+  Presence is all it can assert. Nothing knows which surfaces a run actually visited, so a listing
+  omitting one it checked is still indistinguishable from a complete one, and a report's listing
+  remains the run's own claim rather than validation evidence that no source exists.
+
+### Changed
+
+- **Sweep resume semantics are stated where a run will read them.** The closure ledger is now named
+  by its path, `.work/<topic-slug>/sweep-ledger.md`, rather than left to a repo-local spec no
+  plugin file pointed at, and the three facts the sweep Brief requires and the shipped docs
+  contradicted are recorded: `corpus_fetch_ceiling` is spent across the whole sweep and a resume
+  restores its spend rather than restarting at zero; the response cache is per-sweep and a resume
+  re-validates an entry rather than reusing a body nobody in this sweep read; the ledger is
+  checkout-local, so a sweep resumed elsewhere is a new sweep and reports itself as one.
+  `reference/dispositions.md` carries the entry's required fields.
+
+  **No ledger machinery exists, and the prose says so at every mention.** Nothing in this plugin
+  creates, reads, or validates that file. These are rules for how a run conducts itself, and they
+  hold only as far as the run keeps the ledger honestly.
+
+### Method, and what it does not support
+
+- **The version-3 re-score reported here was not a blind panel, and is not offered as one.** The
+  worker that ran it had no subagent tool, so it graded sequentially inline, one pass per case
+  rather than three. `c01` through `c07` were graded without their `expected.json` ever being
+  opened. `c08`, `c09` and `c10` were graded *after* it, because checking the classification
+  against the answer key required reading it; those three verdicts are worth less than the other
+  seven and are marked contaminated rather than averaged in silently.
+
+  The result reproduces the recorded table — **8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall
+  1.00, no verdict moved** — and no class becomes fix-eligible, every one still below
+  `min_n_per_class` 10 at n = 2, 5, 1, 2. The arithmetic beside it was re-derived independently and
+  holds; it is the *method* claim that is narrower than 0.4.0's.
+
+  `c09` is the control worth noting: it carries no self-describing line, and it graded identically
+  to the two that did.
+
+- **This entry now lands above 0.5.0, and every panel figure it reports is pinned to rubric
+  version 3.** 0.5.0 moved the rubric to version 4, narrowed carve-out 5, and invalidated the
+  version-3 golden-set measurement. The `8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall 1.00`
+  table restated above, and the "no class becomes fix-eligible" conclusion drawn beside it, are
+  therefore superseded by 0.5.0 and are not offered as version-4 claims. This work was authored
+  against version 3 and is recorded as it was measured rather than rewritten.
+
+  **What the rubric change does not touch is the deterministic arithmetic.** Containment, jaccard,
+  longest matched span, the matched-span sets and the span re-anchors are computed by
+  `fingerprint.mjs` over the committed bytes; they read no rubric and no carve-out, so every
+  recomputed figure in the entries above stands exactly as recorded. So do the fixture edits
+  themselves: an answer key removed from a case body or a `source.md` is a leak closed under any
+  rubric version. The golden set still awaits its version-4 re-score, per 0.5.0.
+
+## [0.5.0]
+
+### Changed
+
+- **Rubric version 4: carve-out 5 (distilled-product architectures) gains a span-level qualifier,
+  and the version-3 golden-set measurement is invalidated.** Version 3 asked only whether the
+  surface's product is a distillation. That question is satisfiable by almost any reference file
+  that credits a source, and because carve-outs are graded before the criteria and stop grading, a
+  broad reading silently absorbs the C2 and C4 failures the criteria exist to catch. Version 4
+  keeps the purpose test and adds the boundary a distilling file draws for itself: **a verbatim or
+  near-verbatim span the file's own attribution does not enumerate is not covered**, and
+  reformatting (un-fencing a prompt block into prose, tabulating a source's prose) is not
+  distillation.
+
+  **The evidence, recorded here rather than in the rubric** (the rubric is inlined into every judge
+  prompt, so a measurement written there is read by every judge before it grades). In a repo-wide
+  run over 1292 tracked files, carve-out 5 drew **110 of roughly 230 carve-out citations across 138
+  panels** — more than double the next carve-out. An adversarial review pass over the unanimous
+  clears returned three challenges, two of which attacked carve-out 5 specifically and both on the
+  rubric rather than on the file: one on `plugins/playbooks/reference/model-adaptation/opus-5.md`,
+  whose own Sources section enumerates which spans are verbatim while the matched block appears on
+  none of those lists; one on `plugins/mcp-tools/skills/audit/reference/checklist.md`, whose
+  opening line declares a pointer discipline ("do not recap them here, read them at the source"),
+  the opposite of a distillation product. The enumerating-file test in version 4 is the first of
+  those arguments generalized, because it is the one a judge can apply to a span.
+
+  **Consequences.** The golden set must be re-scored against version 4 before any precision figure
+  is cited against it, and no class becomes fix-eligible on a measurement pinned to version 3. The
+  version-3 re-score recorded below is superseded. Expect the change to move findings in one
+  direction only: spans inside distilling files that were previously declined before grading now
+  reach the criteria, where C2 and C4 decide them on their merits.
+
+  This also matters beyond the copy lane. A `restated-upstream-fact` detector of the kind proposed
+  in #3525 would inherit this carve-out, and restated facts live disproportionately in exactly the
+  distilling files version 3 declined wholesale, so the broad reading would have suppressed the new
+  lane before it shipped.
+
 ## [0.4.2]
 
 ### Changed

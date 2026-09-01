@@ -1,5 +1,51 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.31]
+
+### Changed
+
+- **audit-noise: the ghost-ref bare-root exemption roster matches topic-docs v3.0.0.** `lanes/`
+  (the claude-ops lanes state home, reserved in the v3 wave) and `exports/` (reserved since
+  contract 2.5.2 but missing here) join `handoffs/`, `reviews/`, `running-retros/`, and
+  `overengineering/` as memory-root concern names exempt in bare form; a concrete child under any
+  of them still flags. Tests pin both the bare-form exemption and the child flag for the new names.
+
+## [0.21.30]
+
+### Fixed
+
+- **`audit-noise`: the negation rule's worked example is now attributed to its source.** The example
+  rewriting *"Do not use markdown"* into the positive form comes from Anthropic's Claude 4
+  best-practices page, but `SKILL.md`'s `## Sources` section credited only Diataxis, markdownlint and
+  the topic-docs convention, so a reader could not tell which text came from upstream. Found by a
+  repo-wide `provenance:audit` run: three blind rubric judges reached a unanimous STANDS on C3
+  (attribution adequacy), because the attribution present did not cover this derivation. The source
+  is added with its read date; the pointer was fetched and identity-checked at edit time, and the
+  page still carries both halves of the example. Additive only.
+
+## [0.21.29]
+
+### Fixed
+
+- **`audit-derivability`: uncommitted-md probe moved out of the argument-substitution surface.**
+  The pre-computed-context injection carried awk `$0` inline in SKILL.md. Skill argument
+  substitution rewrites `$<digit>` placeholders anywhere in a skill body (0-based, so `$0` is the
+  first argument), so any invocation carrying an argument corrupted the probe before the shell
+  ran. The line now calls `scripts/uncommitted-md.sh` through `${CLAUDE_SKILL_DIR}`, which also
+  removes the inline `$`-expansion the worktree-isolation guard refuses (#1687). Contract tests
+  cover the listing, the rename handling, the cap, and the no-repo fallback exit.
+
+## [0.21.28]
+
+### Changed
+
+- **`audit-progressive-disclosure`: the vendor numbers now carry a four-part provenance record.**
+  `context/tier-model.md` tagged its constants (500/200/1,024/1,536/1%/~100 tokens/5k/25k)
+  "Anthropic-prescribed" with no URL, date, or recheck trigger. A provenance paragraph under the
+  size table now names each value's owning page, a verified date (2026-08-31), and per-row plus
+  per-fleet-audit triggers; the SKILL.md citation-posture bullet points at that record instead of
+  restating the list bare. Found in the frontmatter-alignment sweep.
+
 ## [0.21.27]
 
 ### Fixed

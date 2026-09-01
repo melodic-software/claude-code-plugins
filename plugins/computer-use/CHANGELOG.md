@@ -3,6 +3,18 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2]
+
+### Changed
+
+- **`diagnose`: two dated reference surfaces gain observable recheck triggers.**
+  `reference/screenshots-and-zoom.md` and `reference/failure-diagnostics.md` carried verification
+  dates with no stated event obliging re-derivation. They now name what would invalidate their
+  claims: for screenshots, the `computer-use` and `computer-use-tool` pages changing their
+  no-downscale-setting claim, the "full resolution" zoom wording, or the resolution guidance; for
+  failure diagnostics, a Claude Desktop release changing idle-timer, focus-gate or capture behavior,
+  or the cited support article changing its machine-must-be-awake requirement. Additive only.
+
 ## [0.1.1]
 
 ### Changed

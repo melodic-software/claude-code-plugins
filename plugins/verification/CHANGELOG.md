@@ -16,6 +16,15 @@ All notable changes to the `verification` plugin are documented here. Format fol
   Unknowns" corpus at the integration sign-off (D19, D18; provenance in
   `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository). Evals extended.
 
+## [0.5.11]
+
+### Changed
+
+- **`reference/artifact-protocol.md` synced to protocol version 3** (topic-docs contract v3.0.0
+  flip): `INDEX.md` joins the memory-tier artifact kinds, topic slices are recursive, and entering
+  a slice follows the contract's read-first binding (cited, not restated). Copy stays
+  byte-identical to `docs/PLUGIN-ARTIFACT-PROTOCOL.md`.
+
 ## [0.5.10]
 
 ### Changed

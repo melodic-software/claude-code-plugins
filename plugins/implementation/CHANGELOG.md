@@ -20,6 +20,15 @@ All notable changes to the `implementation` plugin are documented here. Format f
   integration sign-off (E1, E2; provenance in `docs/FINDING-YOUR-UNKNOWNS.md` in the
   marketplace repository). Evals extended in both skills.
 
+## [0.15.9]
+
+### Changed
+
+- **`reference/artifact-protocol.md` synced to protocol version 3** (topic-docs contract v3.0.0
+  flip): `INDEX.md` joins the memory-tier artifact kinds, topic slices are recursive, and entering
+  a slice follows the contract's read-first binding (cited, not restated). Copy stays
+  byte-identical to `docs/PLUGIN-ARTIFACT-PROTOCOL.md`.
+
 ## [0.15.8]
 
 ### Changed

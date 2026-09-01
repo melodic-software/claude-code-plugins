@@ -9,6 +9,15 @@ other pages were last verified 2026-07-30. Per the
 [upstream-drift convention](conventions/upstream-drift/README.md), re-fetch a page before acting
 on it.
 
+**Recheck trigger:** re-verify the claims this document restates from those pages when any of
+these change: the
+`cloud-environments` page's Setup scripts vs SessionStart hooks, Environment caching, Default
+allowed domains, Access levels, or What carries over from your setup sections; the
+`web-quickstart` page's Connect GitHub or New sessions hang or time out during setup sections;
+the `hooks#sessionstart` reference's documented pickup timing for hook effects; or Claude Code
+ships a `/plugin`-equivalent or `--plugin-dir` mechanism usable in cloud sessions (closing the
+first-turn slash gap tracked as #2733).
+
 ## Contents
 
 - [What this is](#what-this-is)

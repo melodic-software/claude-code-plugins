@@ -24,7 +24,11 @@
 # Path resolution:
 #   CLAUDE_OPS_LANES_CONFIG when set and non-empty — used verbatim, no suffix
 #   appended; otherwise <git toplevel, or the working directory when not inside a
-#   repo>/.work/lanes.json.
+#   repo>/.work/lanes/lanes.json, falling back to the pre-move
+#   <root>/.work/lanes.json when that exists and the new path does not. The
+#   fallback mirrors lane-launcher.sh's own default-only compatibility read, so
+#   this line reports the file the launcher would actually open; a reported
+#   pre-move path is the migration cue (move it into `.work/lanes/`).
 #
 # The jq count is CR-stripped per this directory's standing convention (see
 # machine-behavior.sh): some native-Windows jq builds CRLF-terminate their output
@@ -66,7 +70,13 @@ repo_root() {
   fi
 }
 
-CONFIG="${CLAUDE_OPS_LANES_CONFIG:-$(repo_root)/.work/lanes.json}"
+if [[ -n "${CLAUDE_OPS_LANES_CONFIG:-}" ]]; then
+  CONFIG="$CLAUDE_OPS_LANES_CONFIG"
+else
+  ROOT="$(repo_root)"
+  CONFIG="$ROOT/.work/lanes/lanes.json"
+  [[ ! -f "$CONFIG" && -f "$ROOT/.work/lanes.json" ]] && CONFIG="$ROOT/.work/lanes.json"
+fi
 
 if [[ -f "$CONFIG" ]]; then
   printf '%s (%s lanes)\n' "$CONFIG" "$(jq -r '(.lanes//[])|length' "$CONFIG" 2>/dev/null | tr -d '\r')"
