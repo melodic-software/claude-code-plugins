@@ -37,8 +37,10 @@ Determine whether the upstream plugin is installed by its identity, not its word
 
 ## Step 2: Present, so invoke
 
-When the upstream skill is present, invoke it via the Skill tool (skill name
-`playground`, bare, no namespace) with the user's brief as arguments. Pass the request
+When the upstream skill is present, invoke it via the Skill tool with the user's
+brief as arguments: the namespaced form `playground:playground` is the reliable
+address for a plugin skill; the bare `playground` form resolves only while no other
+skill carries that name. Pass the request
 as stated; the upstream skill owns template choice and generation. If the invocation
 is refused, do not retry blind: tell the user the skill is installed but this session
 could not invoke it, and suggest they run it themselves by asking for a playground in
@@ -53,7 +55,7 @@ contexts where resolution does not run (a synced or cloud session, a manual setu
 emit the commands directly:
 
 ```shell
-/plugin marketplace add claude-plugins-official
+/plugin marketplace add anthropics/claude-plugins-official
 /plugin install playground@claude-plugins-official
 ```
 

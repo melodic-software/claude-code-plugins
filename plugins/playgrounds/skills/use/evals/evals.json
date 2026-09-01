@@ -17,7 +17,7 @@
       "id": 2,
       "name": "absent-emits-install-commands",
       "prompt": "/playgrounds:use I want an interactive explorer for my API's rate-limit settings",
-      "expected_output": "Finding no playground plugin installed, emits /plugin marketplace add claude-plugins-official and /plugin install playground@claude-plugins-official with scope guidance, and offers to proceed once installed instead of building a substitute.",
+      "expected_output": "Finding no playground plugin installed, emits /plugin marketplace add anthropics/claude-plugins-official and /plugin install playground@claude-plugins-official with scope guidance, and offers to proceed once installed instead of building a substitute.",
       "files": [],
       "expectations": [
         "The exact install commands appear, marketplace-qualified",

@@ -38,9 +38,12 @@ rule above exists so reusable references stay portable across marketplaces that 
 plugin; an install command targeting a foreign marketplace has no unqualified form, so the
 qualification IS the content, not a leak. Bounds:
 
-- The carve-out covers install-uplift text only: commands, the `dependencies` manifest
-  entry's documented error paths, and scope guidance. Routing gates still name the plugin,
-  never the marketplace.
+- The carve-out covers install-uplift text (commands, the `dependencies` manifest
+  entry's documented error paths, scope guidance) plus the wrapper's own
+  identity-bearing references: a provenance-based presence check reading the
+  marketplace-qualified install record, a README provenance section, and eval
+  expectations that assert the qualified command. Routing gates still name the
+  plugin, never the marketplace.
 - Such a routing gate carries the marketplace parity token ("installed from its
   marketplace") when its overlap verdict row records `baked.description_phrase`, so fleet
   parity traces it to the store exactly as native gates trace to theirs

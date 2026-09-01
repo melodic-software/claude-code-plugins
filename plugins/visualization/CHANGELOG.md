@@ -3,6 +3,23 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.7]
+
+### Added
+
+- **A `## Boundary` section in the visualize skill** routing the explorer shape out:
+  an interactive parameter explorer whose output returns as a prompt goes to the
+  first-party playground skill (or the `playgrounds` wrapper) when installed, with a
+  visible static-form fallback when it is not. Traced to its verdict row in the
+  native-surfaces registry.
+
+### Changed
+
+- **Design-canvas catalog facts refreshed to v2.1.251.** The decision-matrix spoke
+  now records the `/design` skill's subcommand dispatch (with `consent`/`revoke`
+  reserved for the hidden grant-management commands), the registered design-sync
+  family and its registry disposition, and an updated verified-on/recheck line.
+
 ## [0.3.6]
 
 ### Changed

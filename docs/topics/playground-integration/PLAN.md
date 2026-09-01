@@ -61,8 +61,9 @@ playground-shaped and route accordingly.
   (rows fail validation on current enums), and extends `LANES` alongside `NATIVE_CLASSES` with an
   invariant test asserting every native class has a lane (a class without a lane validates and
   then silently renders nowhere).
-- The seam-phrasing convention gains a cross-marketplace install-uplift carve-out (its own
-  version bump) in the leading commit sequence; without it the wrapper's install commands violate
+- The seam-phrasing convention gains a cross-marketplace install-uplift carve-out (a dated
+  amendment; the convention carries no version scheme) in the leading commit sequence; without
+  it the wrapper's install commands violate
   "marketplace-qualified IDs never appear in reusable content" and fleet audits would flag them.
 - Suggest-install lines only where a recorded verdict backs them, enforced by the new parity
   token; rollout-gated bundled surfaces are never mentioned when absent (existing house rule).
