@@ -297,6 +297,24 @@ EOF
 rr_out="$(bash "$DETECT" "$RUNNING_RETRO_CHILD")"
 assert_contains "concrete child under .work/running-retros/ is a ghost ref" "$rr_out" "Finding shape: ghost-ref"
 
+LANES_EXPORTS_BARE="$TEST_TMPDIR/lanes-exports-bare.md"
+cat >"$LANES_EXPORTS_BARE" <<'EOF'
+# Lanes and exports bare-root fixture
+
+Lane state lives in .work/lanes/ and snapshots in .work/exports/.
+EOF
+lanes_out="$(bash "$DETECT" "$LANES_EXPORTS_BARE")"
+assert_not_contains "bare .work/lanes/ and .work/exports/ roots stay exempt" "$lanes_out" "Finding shape: ghost-ref"
+
+LANES_CHILD="$TEST_TMPDIR/lanes-child.md"
+cat >"$LANES_CHILD" <<'EOF'
+# Lanes child fixture
+
+Config kept at .work/lanes/lanes.json for the loop.
+EOF
+lanes_child_out="$(bash "$DETECT" "$LANES_CHILD")"
+assert_contains "concrete child under .work/lanes/ is a ghost ref" "$lanes_child_out" "Finding shape: ghost-ref"
+
 OVERENG_BARE="$TEST_TMPDIR/overengineering-bare.md"
 cat >"$OVERENG_BARE" <<'EOF'
 # Overengineering bare-root fixture

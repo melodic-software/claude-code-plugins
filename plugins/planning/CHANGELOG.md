@@ -3,6 +3,53 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0]
+
+### Added
+
+- **`plan`: switch conditions on alternatives and pre-drafted revision replies.** Every rejected
+  alternative in the plan template now carries a one-line switch condition (the observable fact
+  that would make it the better choice), and Step 5's presentation closes with 2-4 pre-drafted
+  one-line revision replies, one per flagged close call, so the user's cheapest reaction is
+  pasting one back. The sanity-check paragraph also names what those checks back downstream:
+  implementation's every-step-lands-green expectation. Adopted from the "Finding Your Unknowns"
+  corpus at the integration sign-off (D32, D33, D35; provenance in
+  `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository). Evals extended.
+- **`interview`: free-text resolution-field flag.** A reply that RESOLVES its question but
+  arrives as free text rather than an authored option (a complete answer in the user's own
+  words, or an explicit "you pick", which resolves to the recommendation) is recorded with a
+  `free-text:` prefix in the register row's resolution field so downstream passes scrutinize
+  it; a partial or non-resolving reply keeps its row `open` under the drift check, so the flag
+  never launders a non-answer into `answered`. Deliberately a convention inside the free-form
+  field: `check-open-questions.sh` grades statuses, not resolutions, so the flag is
+  gate-invisible (limitation recorded in `context/loop.md`); the 5-field register schema is
+  unchanged (D28). Evals extended.
+- **`design`: tweak-likelihood ordering in discussion rounds.** Phase 5 findings are presented
+  in the same tweak-likelihood order `plan` Step 5 documents: contracts, data shapes, and
+  user-facing surfaces lead; mechanical threads sit at the bottom (D36). Evals extended.
+- **`brainstorm`: session-start rationale line; `wayfind`: five-pass workflow cross-ref.** One
+  citable line each (D9; Q7), both pointing at the marketplace repository's
+  `docs/FINDING-YOUR-UNKNOWNS.md`.
+
+### Changed
+
+- **`interview-defenses` digests refreshed for the D28 addition.** The free-text-flag paragraph
+  lands inside the digested open-question-register section of `context/loop.md`, and its eval
+  expectation moved from case 12 (no answer arrives in that scenario, so the criterion was
+  ungradeable there) to case 1 (answers arrive). Both defenses re-read and confirmed intact:
+  the flag adds scrutiny on answered rows and qualifies neither the ask-time write rule nor
+  the gap/blocker register bindings. Register-section and case-1 digests updated in the same
+  change, per the suite's own contract.
+
+## [0.34.16]
+
+### Changed
+
+- **`reference/artifact-protocol.md` synced to protocol version 3** (topic-docs contract v3.0.0
+  flip): `INDEX.md` joins the memory-tier artifact kinds, topic slices are recursive, and entering
+  a slice follows the contract's read-first binding (cited, not restated). Copy stays
+  byte-identical to `docs/PLUGIN-ARTIFACT-PROTOCOL.md`.
+
 ## [0.34.15]
 
 ### Changed

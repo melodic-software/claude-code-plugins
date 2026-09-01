@@ -30,6 +30,14 @@ component change lands simply misses it until its next rebuild, because publishi
 change does **not** invalidate already-built caches; only a script/network edit in the account
 UI or ~7-day expiry does.
 
+**Recheck trigger:** re-verify the "Why this layout" claims above, and the identical claims
+restated in the Part 1 and Part 3 paste blocks below, if any of these happen: Claude Code starts
+re-reading the plugin/command/skill registry after a SessionStart hook runs (closing the
+same-session gap this rollout exists to route around, tracked as #2733); the `cloud-environments`
+docs' Setup scripts vs SessionStart hooks or Environment caching sections change; or
+`docs/CLOUD-SESSIONS.md`'s "Plugins in sessions on this repo" section, which this file cites as
+ground truth, changes its verified date or verdict.
+
 ## Part 1 — standards repo, once (paste into a session on `melodic-software/standards`)
 
 ```text

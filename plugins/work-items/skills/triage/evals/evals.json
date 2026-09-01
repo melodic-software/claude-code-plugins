@@ -150,7 +150,7 @@
     {
       "id": 12,
       "name": "triage-excludes-a-config-pinned-telemetry-issue-with-a-non-default-title",
-      "prompt": "/work-items:triage — `.work/lanes.json` pins `lanes[0] = {\"name\": \"work\", \"telemetry\": {\"issue\": 412}}`, and open issue #412 is titled `Worker lane state (do not close)`, carries `priority: needs-triage` and one comment opening `<!-- claude-ops:lane-telemetry marker=work-items:work-loop -->`; there is also one ordinary unlabeled bug report",
+      "prompt": "/work-items:triage — `.work/lanes/lanes.json` pins `lanes[0] = {\"name\": \"work\", \"telemetry\": {\"issue\": 412}}`, and open issue #412 is titled `Worker lane state (do not close)`, carries `priority: needs-triage` and one comment opening `<!-- claude-ops:lane-telemetry marker=work-items:work-loop -->`; there is also one ordinary unlabeled bug report",
       "expected_output": "The attention view lists only the ordinary bug report. #412 is excluded as lane infrastructure even though its title does not match `Lane telemetry: <lane>`, on either signal available: the launch config pins it as the `work` lane's telemetry home, and it carries the convention's sentinel status comment. It is not relabeled, not commented on, and not closed.",
       "files": [],
       "expectations": [

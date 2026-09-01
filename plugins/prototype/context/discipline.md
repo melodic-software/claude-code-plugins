@@ -71,3 +71,8 @@ written here is gone, and the question gets re-litigated from scratch the next t
 | Architecture discovery surfaced a design question | `/architecture:improve` (when installed) | Improvement pass surfaces the opportunity → prototype validates the approach |
 | Prototype answered the question | `/planning:plan` (when installed) | Validated decision feeds the plan |
 | Logic module worth keeping | `/implementation:implement` (when installed) | Lift the pure module into production; delete the TUI shell |
+
+Ordering note — **mock before you wire**: when a change has both a "does the interaction work"
+question and real integration work, run the throwaway mock (this plugin) before any wiring. A
+mock that fails kills the wiring work for free; wiring first turns every design misfire into
+rework of live code.

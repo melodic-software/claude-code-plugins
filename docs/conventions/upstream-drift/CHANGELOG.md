@@ -4,6 +4,26 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.6.2 — 2026-08-31
+
+Recorded firing of the no-adoption-gate decision's recheck trigger; docs-only under this contract's
+own rule (the enforceability verdict does not change).
+
+The 2026-08-12 recorded decision ("no CI gate is built for adoption of this convention") names as
+its trigger "a third unstamped upstream-fact carrier reaches `main`". The skill-frontmatter
+alignment sweep's verified census found eleven prose surfaces restating frontmatter facts with no
+stamp and no trigger, plus three constant-encoding scripts with undated stamps, all on `main` — the
+trigger has fired, several times over. Re-derived outcome: the decision is **upheld**. Its premise
+is unchanged — classifying a sentence as an upstream restatement is reasoning-only under the tiers
+doc, and a harness-vocabulary grep still fires on every correct citation, so a gate would train
+authors to suppress it. The remedy that actually ran is editorial: the same sweep converted all
+eleven surfaces to pointers or four-part records and dated the scripts' stamps. The candidate
+detector shape the decision's second reopen condition asks for ("a detector that separates an
+upstream restatement from an in-repo one without a suppression list") is now tracked as a proposed
+redesign of the `provenance` plugin — an LLM nomination lens for restated upstream facts, with this
+sweep's census as its golden corpus — rather than a CI gate; that proposal's fate is that issue's,
+and this decision stays as written until its trigger fires again.
+
 ## 1.6.1 — 2026-08-28
 
 Docs-only clarification; patch under this contract's own rule. No required part, canonical name, or

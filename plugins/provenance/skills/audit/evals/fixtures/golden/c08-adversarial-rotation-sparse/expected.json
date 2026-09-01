@@ -4,7 +4,7 @@
     {
       "class": "near-verbatim",
       "tier": "fingerprint-confirmed",
-      "span": { "start_line": 6, "end_line": 10 },
+      "span": { "start_line": 3, "end_line": 7 },
       "rule": "provenance/audit/rule-verbatim-copy"
     }
   ],
@@ -12,7 +12,7 @@
     "shape": "Adversarial probe 1 of 3 (design thread T15). Systematic synonym rotation at low density: four substitutions across a 77-word passage, roughly one every nineteen words. c08, c09 and c10 share one source page and differ only in rotation density, which is what makes density the single variable.",
     "carve_outs": "None apply.",
     "rubric": "C1 holds. C2 holds: the rotation changes words, not the enumerated structure the source chose. C3 holds: no attribution. C4 holds: swapping four words is not doing work the source does not do, which is the whole reason rotation is an evasion rather than a rewrite.",
-    "measured": "fingerprint.mjs at k=5: containment 0.473, jaccard 0.232, longest matched span 22 words at local lines 6-7, five spans in total. BOTH limbs of the separation rule fire.",
+    "measured": "fingerprint.mjs at k=5: containment 0.570, jaccard 0.312, longest matched span 22 words at local lines 3-4, five spans in total. BOTH limbs of the separation rule fire.",
     "tier_reason": "fingerprint-confirmed. At this density the rotation costs the attacker nothing and buys nothing: long unrotated runs survive and the span limb alone would carry the finding."
   }
 }

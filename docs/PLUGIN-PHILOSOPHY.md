@@ -168,9 +168,17 @@ Never degrade a name to dodge a built-in command: plugin skills are namespaced a
 with other levels. When a name matches a built-in, the bare token still belongs to the built-in; the
 namespaced form is the plugin skill's only command.
 
-Resolution settled, **display** follows from it. The docs pin the history — before v2.1.216 a
-declared `name` replaced the whole command, so the menu showed the bare form and the namespaced one
-did not autocomplete; that is gone. The rest is observed in the client rather than documented
+Resolution settled, **display** follows from it. Before v2.1.216 a declared `name` replaced the
+whole command, so the menu showed the bare form and the namespaced one did not autocomplete; that
+is gone. The skills page no longer pins that history; the basis is now the v2.1.216
+[changelog](https://code.claude.com/docs/en/changelog) entry, "Fixed plugin skills with a `name`
+frontmatter field losing their plugin prefix in slash-command autocomplete" (verified 2026-08-31;
+recheck trigger: a fetch of the changelog or the skills page no longer matching this record). What
+the skills page pins instead is a successor quirk: a `name` that itself carries the plugin's own
+prefix was doubled from v2.1.216 through v2.1.245 and is not re-prefixed on v2.1.246 or later
+([how a skill gets its command name](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
+fetched 2026-08-31), moot under this doctrine because the only sanctioned value is the bare
+directory name. The rest is observed in the client rather than documented
 (2.1.225): the picker labels a row with the command it resolves — `/planning:plan`, prefix and all —
 and appends a bare alias in parentheses only when what you typed prefix-matches that alias, so a
 skill declaring no `name` never renders the stuttering `/plugin:skill (skill)`. Re-observe before
@@ -638,6 +646,8 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Always-on hook cost ceiling | [`docs/conventions/hook-budget/`](conventions/hook-budget/README.md) |
 | Tracker reference form inside a code comment | [`docs/conventions/tracker-reference-form/`](conventions/tracker-reference-form/README.md) |
 | Untrusted-content framing contract | [`docs/conventions/untrusted-content/`](conventions/untrusted-content/README.md) |
+| Reply affordance on decision-collecting artifacts | [`docs/FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md#reply-affordance-convention) |
+| Export button on interactive HTML artifacts | [`docs/FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md#export-button-rule) |
 
 ## Cross-platform contract
 

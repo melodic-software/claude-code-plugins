@@ -122,6 +122,10 @@ style conflicts route to the consuming ecosystem, not a house verdict.
   a skill (combined description text truncated at 1,536 chars in the skill
   listing). So the name serves the human; the trigger phrases live in the
   description. HIGH confidence — falsification survived in the research pass.
+  Verified 2026-08-31 against
+  <https://code.claude.com/docs/en/skills#frontmatter-reference>; recheck
+  trigger: that page changing the discovery mechanism or the cap re-derives
+  this entry.
 - Documented, unresolved style conflicts — route to the consuming
   ecosystem's guide, do not pick a side:
   - abbreviation policy — .NET forbids ([dotnet-naming]) vs Go endorses

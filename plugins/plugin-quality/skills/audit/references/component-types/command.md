@@ -7,7 +7,10 @@ and a skill both produce `/x`. Commands still work, but skills are recommended (
 
 ## Read first
 
-- The command `.md`: frontmatter (argument-hint, allowed-tools) and body.
+- The command `.md`: frontmatter and body, graded against the current field set on
+  <https://code.claude.com/docs/en/skills#frontmatter-reference> (fetched at audit time, never
+  from memory; the [commands page](https://code.claude.com/docs/en/commands) covers the legacy
+  flat-file form).
 
 ## Check
 

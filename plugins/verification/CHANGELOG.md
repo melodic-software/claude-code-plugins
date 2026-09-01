@@ -3,6 +3,28 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **`confirm`: out-of-diff couplings get their own report table.** Stage 2's intent match now
+  names the existing behavior the change leans on: unchanged code whose contract the diff depends
+  on, carried in the outcome report as a dedicated table (coupling, where it lives, evidence it
+  still holds). A named coupling is checkable; an implied one is where regressions hide. The
+  PR-prep edge case also records that a comprehension layer (`education:quiz-me`, when installed)
+  may precede the gate while the merge gate itself stays here. Adopted from the "Finding Your
+  Unknowns" corpus at the integration sign-off (D19, D18; provenance in
+  `docs/FINDING-YOUR-UNKNOWNS.md` in the marketplace repository). Evals extended.
+
+## [0.5.11]
+
+### Changed
+
+- **`reference/artifact-protocol.md` synced to protocol version 3** (topic-docs contract v3.0.0
+  flip): `INDEX.md` joins the memory-tier artifact kinds, topic slices are recursive, and entering
+  a slice follows the contract's read-first binding (cited, not restated). Copy stays
+  byte-identical to `docs/PLUGIN-ARTIFACT-PROTOCOL.md`.
+
 ## [0.5.10]
 
 ### Changed

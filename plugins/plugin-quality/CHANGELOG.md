@@ -5,6 +5,17 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.5]
+
+### Changed
+
+- **`audit`: command frontmatter is graded against the live reference, not a hardcoded field
+  pair.** `references/component-types/command.md` named `argument-hint` and `allowed-tools` as
+  the frontmatter to read, uncited; it now points at the skills page's frontmatter reference
+  (fetched at audit time) with the commands page for the legacy form, so the audit tracks the
+  current field set instead of a two-field snapshot. Found in the 2026-08-31
+  frontmatter-alignment sweep.
+
 ## [0.7.4]
 
 ### Changed

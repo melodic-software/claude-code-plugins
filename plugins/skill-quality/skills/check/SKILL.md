@@ -143,7 +143,10 @@ that line before editing, since it may be an illustrative example path rather th
    always exits 0 on a successful run).
 
 This is a **different, cross-skill limit** from `check`'s per-skill entry cap (`description` +
-`when_to_use` <= 1536 chars): the shared budget every loaded skill draws from together
+`when_to_use` <= 1536 chars, the documented default of `skillListingMaxDescChars` per
+<https://code.claude.com/docs/en/skills#frontmatter-reference>, verified 2026-08-31; recheck
+trigger: that page or the settings page moving either default re-derives this sentence and the
+scripts' constants): the shared budget every loaded skill draws from together
 (`skillListingBudgetFraction`, default 1% of the model's context window). It is always advisory.
 The script exits 0 regardless of overflow, because the live budget depends on the model's context window and a
 consumer's own settings, neither of which this static check can observe. Point `/doctor` at the live

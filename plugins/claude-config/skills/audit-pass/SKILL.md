@@ -422,6 +422,12 @@ When it held, any derived-tier inequality is a defect, and judged-tier growth be
 instability finding against this skill**, naming the checks that moved, never absorbed by
 recalibration.
 
+**Recheck trigger:** re-verify the `output-styles` doc citation in Phase 1 above if the
+`keep-coding-instructions` default, the `force-for-plugin` override behavior, or the built-in
+software-engineering instructions it names change; re-verify the `memory` doc citation below if
+`code.claude.com/docs/en/memory` changes its claim that `@path` imports load at launch (and so
+splitting into imports does not defer or reduce context).
+
 ## Gotchas
 
 - **A suppression naming a registered cluster copy is a hard error, not a warning.** The copy is

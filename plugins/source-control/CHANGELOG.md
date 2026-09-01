@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.35]
+
+### Changed
+
+- **The worktree memory carry is depth-proof.** The consuming repo's `.worktreeinclude`
+  recipe moved to reserved-name-keyed recursive patterns (`.work/**/NAME`), and
+  `worktree-create.test.sh` gains six cases proving the reimplemented carry honors
+  `**` at depth 1-3 including the zero-directory case, carries the newly listed
+  `INDEX.md` and `INTENT` family, and still skips non-reserved names. The carry
+  implementation itself needed no change: `git ls-files --exclude-from` already
+  applies full gitignore semantics. Part of the topic-docs v3 wave (#3554).
+
 ## [0.55.34]
 
 ### Fixed

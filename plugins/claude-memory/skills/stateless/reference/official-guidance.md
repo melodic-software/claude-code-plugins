@@ -12,6 +12,14 @@ Sources: [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory
 Refresh this file from current official docs before relying on it (re-fetch every source listed
 above).
 
+**Recheck trigger:** re-derive every claim below when any of these becomes observable — the
+`/memory` command gains, loses or renames its auto-memory toggle; the `autoMemoryEnabled` setting
+or the `CLAUDE_CODE_DISABLE_AUTO_MEMORY` environment variable changes name, default or semantics;
+the per-project memory path under `~/.claude/projects/<project>/memory/` moves; or any of the five
+source pages above changes its auto-memory section. A Claude Code release note touching memory,
+settings or the CLI reference is the usual way one of these surfaces. The dates above record when
+the claims last matched their sources and confer no standing authority on their own.
+
 ---
 
 ## What auto memory is

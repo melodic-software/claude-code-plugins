@@ -33,30 +33,26 @@ assert_contains() {
   fi
 }
 
-# --- the engine is read ONCE per launch, and that read stops at MIN_PYTHON ---
+# --- the engine is NOT read by this launcher, and the floor still comes from it ---
 #
-# #2853. This launcher sits behind an always-on `Bash|PowerShell` PreToolUse
-# matcher, so every shell tool call in every session pays whatever it does here.
-# It used to run two separate full-file `sed` passes over the ~3,500-line
-# engine, neither of which stopped at the match, to recover one constant that
-# sits near the top of the file.
+# #3502, superseding #2853. #2853 made the launcher's `sed` read of the engine a
+# single read that stopped at the `MIN_PYTHON` line, and the previous revision of
+# this file held that reader to a one-read/stops-at-the-match contract. That
+# reader no longer exists: recovering the floor now happens INSIDE the candidate
+# interpreter, on the cold path only, so the launcher spends one process spawn
+# per candidate where it used to spend a `sed` plus a whole extra Python.
 #
-# Both assertions below are BEHAVIORAL, not spelling checks. They observe the
-# reader the launcher actually runs, through a `sed` shim on PATH that records
-# each invocation's argv and delegates to the real sed:
+# The contract that replaces it has two halves, because deleting a cost must not
+# quietly delete the property that cost was buying:
 #
-#   1. exactly one recorded invocation names the engine;
-#   2. replaying that recorded argv against a fixture whose FIRST `MIN_PYTHON`
-#      line is `(3, 14)` and whose LAST LINE is `MIN_PYTHON = (9, 99)` prints
-#      exactly one line. A reader that scanned to EOF could not print one match
-#      when a second match sits on the final line, so one line is proof the read
-#      terminated at the first match.
+#   1. no launch reads the engine through `sed` at all — the recorded-argv shim
+#      below observes zero invocations naming the engine;
+#   2. `hygiene.MIN_PYTHON` is still the single origin of the floor (#1028) and
+#      is still ENFORCED — proven behaviorally against fixture engines, by
+#      observing whether the launcher runs its target at all.
 #
-# Assertion 2 is what a naive single-pass cannot fake: the tempting one-liner
-# `sed -n 's/^MIN_PYTHON = (...).*/\1 \2/p;/^MIN_PYTHON/q'` halves the passes but
-# never quits, because `q`'s address sees the already-substituted pattern space.
-# The fixture's floor values are deliberately NOT the real 3/11, so the
-# launcher's hardcoded fallback cannot be mistaken for a pass.
+# Half 2 is what a "delete the reader" regression cannot fake. A launcher that
+# stopped consulting the engine would run its target under both fixtures.
 SED_REAL="$(command -v sed)"
 PROBE_DIR="$(mktemp -d)"
 # NOTE: the later `trap ... EXIT` in this file REPLACES this one rather than
@@ -64,7 +60,8 @@ PROBE_DIR="$(mktemp -d)"
 trap 'rm -rf "$PROBE_DIR"' EXIT
 PROBE_BIN="$PROBE_DIR/bin"
 PROBE_CALLS="$PROBE_DIR/calls"
-mkdir -p "$PROBE_BIN" "$PROBE_CALLS"
+PROBE_HOME="$PROBE_DIR/home"
+mkdir -p "$PROBE_BIN" "$PROBE_CALLS" "$PROBE_HOME"
 
 cat >"$PROBE_BIN/sed" <<'SHIM'
 #!/usr/bin/env bash
@@ -88,25 +85,15 @@ SHIM
 chmod +x "$PROBE_BIN/sed"
 
 # No interpreter resolves under this PATH, so the launcher takes its documented
-# guard fail-open (exit 0) instead of spawning Python. The engine read happens
-# before interpreter resolution either way, which is the whole point.
+# guard fail-open (exit 0). Whether it reads the engine is independent of that.
 for stub in python3 python py; do
   printf '#!/usr/bin/env bash\nexit 127\n' >"$PROBE_BIN/$stub"
   chmod +x "$PROBE_BIN/$stub"
 done
 
-PROBE_FIXTURE="$PROBE_DIR/fixture.py"
-{
-  printf '%s\n' '"""Fixture engine for the single-read contract."""'
-  printf '%s\n' 'MIN_PYTHON = (3, 14)'
-  for ((_filler = 0; _filler < 400; _filler++)); do
-    printf '%s\n' 'FILLER = 0'
-  done
-  printf '%s\n' 'MIN_PYTHON = (9, 99)'
-} >"$PROBE_FIXTURE"
-
 RUN_PYTHON_HOOK_SED="$SED_REAL" \
   RUN_PYTHON_HOOK_CALLS="$PROBE_CALLS" \
+  HOME="$PROBE_HOME" \
   PATH="$PROBE_BIN:$PATH" \
   bash "$LAUNCHER" \
   "$SCRIPT_DIR/../skills/clean/scripts/destructive_guard.py" \
@@ -117,39 +104,233 @@ for call in "$PROBE_CALLS"/call-*; do
   [[ -e "$call" ]] || continue
   engine_reads=$((engine_reads + 1))
 done
-assert_eq "one hook launch reads the engine exactly once" "1" "$engine_reads"
+assert_eq "the launcher never sed-reads the engine" "0" "$engine_reads"
 
-if [[ "$engine_reads" -ne 1 ]]; then
-  fail "cannot check the stop-at-match contract without exactly one recorded read"
+# --- the floor is still read from the engine, and still enforced ---
+#
+# A fixture plugin tree: a verbatim copy of the launcher, a fixture engine
+# carrying a chosen MIN_PYTHON, and a target script that leaves a marker file
+# when it runs. The launcher resolves `ENGINE` relative to its own location, so
+# copying it into the fixture tree is what points it at the fixture engine.
+FIXTURE_ROOT="$PROBE_DIR/plugin"
+mkdir -p "$FIXTURE_ROOT/hooks" "$FIXTURE_ROOT/skills/clean/scripts"
+cp "$LAUNCHER" "$FIXTURE_ROOT/hooks/run-python-hook.sh"
+FIXTURE_TARGET="$FIXTURE_ROOT/skills/clean/scripts/destructive_guard.py"
+FIXTURE_MARKER="$PROBE_DIR/target-ran"
+printf 'import pathlib, sys\npathlib.Path(sys.argv[1]).write_text("ran")\n' \
+  >"$FIXTURE_TARGET"
+
+# `written_floor <major> <minor>` rewrites the fixture engine's floor. The
+# SECOND MIN_PYTHON line is a decoy on the final line: a reader that scanned to
+# EOF and kept the last match would take (9, 99) and reject every interpreter,
+# so the "below the floor" case passing is also proof the read is first-match.
+write_fixture_engine() {
+  {
+    printf '%s\n' '"""Fixture engine for the version-floor contract."""'
+    printf 'MIN_PYTHON = (%s, %s)\n' "$1" "$2"
+    printf '%s\n' 'FILLER = 0'
+    printf '%s\n' 'MIN_PYTHON = (9, 99)'
+  } >"$FIXTURE_ROOT/skills/clean/scripts/hygiene.py"
+}
+
+# Each case gets its OWN HOME, so the interpreter cache of one never answers
+# for another — the cache is keyed on the launcher's directory, which these
+# two cases share.
+run_fixture() {
+  local floor_major="$1" floor_minor="$2" case_home="$PROBE_DIR/home-$1-$2"
+  write_fixture_engine "$floor_major" "$floor_minor"
+  rm -f "$FIXTURE_MARKER"
+  mkdir -p "$case_home"
+  HOME="$case_home" bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+    "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
+  [[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped'
+}
+
+assert_eq "an engine floor at or below the running interpreter runs the target" \
+  "ran" "$(run_fixture 3 0)"
+assert_eq "an engine floor above every interpreter refuses to run the target" \
+  "skipped" "$(run_fixture 99 0)"
+
+# The real engine's real floor must still resolve to a runnable interpreter —
+# the property the deleted `sed` read was buying, restated as an outcome.
+rm -f "$FIXTURE_MARKER"
+cp "$SCRIPT_DIR/../skills/clean/scripts/hygiene.py" \
+  "$FIXTURE_ROOT/skills/clean/scripts/hygiene.py"
+FIXTURE_REAL_HOME="$PROBE_DIR/home-real"
+mkdir -p "$FIXTURE_REAL_HOME"
+HOME="$FIXTURE_REAL_HOME" bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+  "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
+assert_eq "the engine's real floor still admits this host's interpreter" \
+  "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
+
+# --- the resolved interpreter is cached, and the cache invalidates correctly ---
+#
+# The launcher sits behind an always-on `Bash|PowerShell` matcher, so the cost
+# that matters is what a WARM invocation spends. These assertions observe spawns
+# through a counting interpreter shim: a cold launch resolves (probe spawn plus
+# the target) and a warm launch must reach the target having probed nothing.
+CACHE_ROOT="$PROBE_DIR/cache-case"
+CACHE_BIN="$CACHE_ROOT/bin"
+CACHE_HOME="$CACHE_ROOT/home"
+CACHE_LOG="$CACHE_ROOT/python-calls"
+mkdir -p "$CACHE_BIN" "$CACHE_HOME"
+REAL_PYTHON="$(command -v python3 || true)"
+if [[ -z "$REAL_PYTHON" ]]; then
+  printf 'SKIP: no python3 on PATH; cache contract not exercised\n'
+else
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "call\\n" >>"%s"\n' "$CACHE_LOG"
+    printf 'exec "%s" "$@"\n' "$REAL_PYTHON"
+  } >"$CACHE_BIN/python3"
+  chmod +x "$CACHE_BIN/python3"
+
+  cache_launch() {
+    : >"$CACHE_LOG"
+    rm -f "$FIXTURE_MARKER"
+    HOME="$CACHE_HOME" PATH="$CACHE_BIN:$PATH" \
+      bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+      "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
+    grep -c . "$CACHE_LOG" 2>/dev/null || printf '0'
+  }
+
+  cold_calls="$(cache_launch)"
+  assert_eq "a cold launch spends a version probe on top of the target" \
+    "2" "$cold_calls"
+  warm_calls="$(cache_launch)"
+  assert_eq "a warm launch spawns only the target, no probe" "1" "$warm_calls"
+  assert_eq "a warm launch still runs the target" \
+    "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
+
+  cache_record="$(find "$CACHE_HOME/.cache/disk-hygiene" -name 'interpreter-*' \
+    -type f 2>/dev/null | head -n 1)"
+  if [[ -z "$cache_record" ]]; then
+    fail "no interpreter cache record was written"
+  fi
+  pass "the cache record is keyed per launcher directory, not a shared file"
+
+  # PATH is part of the key: a different PATH may resolve a different python3.
+  altered_path_calls="$(
+    : >"$CACHE_LOG"
+    HOME="$CACHE_HOME" PATH="$CACHE_BIN:$PROBE_DIR:$PATH" \
+      bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+      "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
+    grep -c . "$CACHE_LOG" 2>/dev/null || printf '0'
+  )"
+  assert_eq "a changed PATH invalidates the cached interpreter" \
+    "2" "$altered_path_calls"
+
+  # An interpreter modified after the record was written is not the one that
+  # was validated — the in-place-upgrade case.
+  cache_launch >/dev/null
+  touch "$CACHE_BIN/python3"
+  upgraded_calls="$(cache_launch)"
+  assert_eq "an interpreter newer than the record invalidates the cache" \
+    "2" "$upgraded_calls"
+
+  # A record from a future schema is not readable by this launcher.
+  cache_launch >/dev/null
+  printf 'schema=999\nwritten=1\ninterpreter=/nonexistent\npath=%s\n' "$PATH" \
+    >"$cache_record"
+  schema_calls="$(cache_launch)"
+  assert_eq "a foreign schema invalidates the cached interpreter" \
+    "2" "$schema_calls"
+
+  # An expired record is re-resolved rather than trusted. The staleness is
+  # forged in the RECORD (an old `written=` epoch), not through an environment
+  # override: the TTL is compiled in precisely so it cannot be widened by the
+  # environment, and a test that reached for such a knob would be asserting a
+  # channel this launcher deliberately does not have.
+  cache_launch >/dev/null
+  cached_interp="$(sed -n 's/^interpreter=//p' "$cache_record")"
+  {
+    printf 'schema=1\n'
+    printf 'written=%s\n' "1"
+    printf 'interpreter=%s\n' "$cached_interp"
+    printf 'path=%s\n' "$CACHE_BIN:$PATH"
+  } >"$cache_record"
+  ttl_calls="$(cache_launch)"
+  assert_eq "an expired record is re-resolved" "2" "$ttl_calls"
+
+  # A corrupt record must fall back to full resolution — never to "no
+  # interpreter", which is the guard's silent fail-open.
+  cache_launch >/dev/null
+  printf 'this is not a cache record\n' >"$cache_record"
+  rm -f "$FIXTURE_MARKER"
+  corrupt_calls="$(cache_launch)"
+  assert_eq "a corrupt record falls back to resolution" "2" "$corrupt_calls"
+  assert_eq "a corrupt record still runs the target" \
+    "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
+
+  # A record naming a NON-INTERPRETER is the cache's residual exposure, and it
+  # is recorded here as a known limit rather than a passing property: the hot
+  # path validates SHAPE only (`-x`, `-s`, an interpreter basename), because
+  # proving the binary is really Python costs the very spawn the cache exists
+  # to remove. A shape-valid record pointing at an executable that is not an
+  # interpreter is therefore `exec`'d, the guard never runs, and the hook exits
+  # 0 having enforced nothing.
+  #
+  # The assertion below pins the boundary that IS enforced — a non-interpreter
+  # BASENAME is rejected and re-resolved — so a future change that widened the
+  # basename allowlist would fail here.
+  cache_launch >/dev/null
+  cached_interp="$(sed -n 's/^interpreter=//p' "$cache_record")"
+  IMPOSTOR_DIR="$CACHE_ROOT/impostor"
+  mkdir -p "$IMPOSTOR_DIR"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$IMPOSTOR_DIR/node"
+  chmod +x "$IMPOSTOR_DIR/node"
+  {
+    printf 'schema=1\n'
+    printf 'written=%s\n' "$(date +%s)"
+    printf 'interpreter=%s\n' "$IMPOSTOR_DIR/node"
+    printf 'path=%s\n' "$CACHE_BIN:$PATH"
+  } >"$cache_record"
+  rm -f "$FIXTURE_MARKER"
+  impostor_calls="$(cache_launch)"
+  assert_eq "a record naming a non-interpreter basename is re-resolved" \
+    "2" "$impostor_calls"
+  assert_eq "and the target still runs under a real interpreter" \
+    "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
+
+  # A NATIVE WINDOWS interpreter path must be accepted from the cache.
+  #
+  # The `py -3` fallback resolves through `print(sys.executable)`, which on
+  # Windows emits `C:\...\python.exe`. A basename check that split only on `/`
+  # left the whole backslash path in place, the allowlist never matched, and the
+  # record was rejected on EVERY invocation — so the warm path was dead on
+  # exactly the host class the `py` fallback exists for (neither `python3` nor
+  # `python` on PATH), silently and with no error. Nothing in the previous
+  # contract set caught it, because every path this suite produced was POSIX.
+  if command -v cygpath >/dev/null 2>&1; then
+    cache_launch >/dev/null
+    native_shim="$(cygpath -w "$CACHE_BIN/python3")"
+    {
+      printf 'schema=1\n'
+      printf 'written=%s\n' "$(date +%s)"
+      printf 'interpreter=%s\n' "$native_shim"
+      printf 'path=%s\n' "$CACHE_BIN:$PATH"
+    } >"$cache_record"
+    rm -f "$FIXTURE_MARKER"
+    native_calls="$(cache_launch)"
+    assert_eq "a native Windows interpreter path is accepted from the cache" \
+      "1" "$native_calls"
+    assert_eq "and the target runs under it" \
+      "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
+  else
+    printf 'SKIP: no cygpath; native-path cache acceptance not exercised\n'
+  fi
+
+  # An unwritable cache directory must not stop the launcher from working.
+  NOCACHE_HOME="$CACHE_ROOT/home-readonly"
+  mkdir -p "$NOCACHE_HOME"
+  rm -f "$FIXTURE_MARKER"
+  HOME="$NOCACHE_HOME/does-not-exist" PATH="$CACHE_BIN:$PATH" \
+    bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+    "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
+  assert_eq "an unusable cache location still runs the target" \
+    "ran" "$([[ -e "$FIXTURE_MARKER" ]] && printf 'ran' || printf 'skipped')"
 fi
 
-recorded_argv=()
-while IFS= read -r recorded_arg; do
-  recorded_argv+=("$recorded_arg")
-done <"$PROBE_CALLS/call-1"
-
-# Replay the SAME argv, with the engine operand swapped for the fixture.
-replay_argv=()
-for recorded_arg in "${recorded_argv[@]}"; do
-  case "$recorded_arg" in
-  *"/skills/clean/scripts/hygiene.py") replay_argv+=("$PROBE_FIXTURE") ;;
-  *) replay_argv+=("$recorded_arg") ;;
-  esac
-done
-
-replay_out="$("$SED_REAL" "${replay_argv[@]}")"
-replay_lines="$(printf '%s\n' "$replay_out" | grep -c . || true)"
-assert_eq "the engine read stops at the MIN_PYTHON line instead of scanning to EOF" \
-  "1" "$replay_lines"
-assert_eq "the stopped read yields the fixture's first floor" \
-  "3 14" "${replay_out//$'\r'/}"
-
-# Same replay against the REAL engine: the refinement must still produce the
-# floor the two-pass form produced, which is what keeps MIN_PYTHON the single
-# origin (#1028) rather than a second hardcoded copy.
-real_out="$("$SED_REAL" "${recorded_argv[@]}")"
-assert_eq "the single read recovers the engine's real floor" \
-  "${FLOOR/./ }" "${real_out//$'\r'/}"
 
 # --- hooks.json wires this launcher in portable shell form ---
 #

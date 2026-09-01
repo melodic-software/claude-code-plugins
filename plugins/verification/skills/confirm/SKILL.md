@@ -95,7 +95,7 @@ Read the criterion context file for the dispatched mode, then run the flow below
 1. **Auto-trigger `/testing:run-e2e` (when runtime-affecting)**. Inspect changed files. If any match an `e2e-*` category from the Runtime-affecting paths above, or touch observability code paths verifiable end-to-end, or the user said "test the app", invoke `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed. Otherwise drive the live app directly (Claude Code's bundled `/run`, or a manual orchestrator launch) and capture the same evidence. When present, it validates prerequisites, starts the app, exercises the changed flow, and captures evidence (screenshots, console, network, traces). Carry that into the evidence table. If not runtime-affecting (pure refactor, internal lib, doc-only): note "E2E not applicable" and skip.
 2. **Intent retrieval**. Scan the conversation for the original request, the approved plan, refinements, and acceptance criteria. If none is clear, ask the user what the goal was.
 3. **Implementation inventory**. Changed files, new capabilities, behavior changes, config/infra changes.
-4. **Intent match**. Every requirement has implementation; every implementation traces to a requirement; flag scope additions and gaps (including implicit requirements. Error handling, edge cases, tests).
+4. **Intent match**. Every requirement has implementation; every implementation traces to a requirement; flag scope additions and gaps (including implicit requirements. Error handling, edge cases, tests). Name the out-of-diff couplings: the existing behavior this change leans on, unchanged code whose contract the diff now depends on. A named coupling is checkable; an implied one is where regressions hide. The report carries them as their own table (see [context/outcome.md](context/outcome.md)).
 5. **Evidence collection**. Stage-1 results, E2E results, test names + assertions proving the claimed behavior. For UI changes: the UI evidence artifacts per [context/outcome.md](context/outcome.md) (pre/action/post snapshot, console, network, behavior assertion. "screenshot looks fine" is NOT an assertion). When the plan states a measurable goal: the `/verification:measure` comparison table.
 6. **Report + verdict**. Emit the outcome report (intent-match table, mechanical results, E2E + UI-evidence tables when triggered, evidence table, measurements when applicable) and a `CONFIRMED` / `NEEDS WORK` verdict. Report template and verdict criteria in [context/outcome.md](context/outcome.md).
 
@@ -116,7 +116,7 @@ For "run the live app and watch it behave," beyond automated `/testing:run-e2e`,
 - **No git changes but user runs `/verification:confirm all`**: run Stage 1 across all ecosystems anyway (useful after a rebase or pull), then outcome verification if intent is in scope.
 - **Changed file outside any known ecosystem**: Stage 1 skips it with a note; Stage 2 still assesses intent match.
 - **Missing tools**: `/toolchain:check` / `/toolchain:lint` report `skip` with install hint, not failure. Except the core toolchain the project's own code requires.
-- **Invoked from a PR-prep flow**: treat the verdict as a hard gate. Any FAIL or unresolved CRITICAL gap blocks PR creation.
+- **Invoked from a PR-prep flow**: treat the verdict as a hard gate. Any FAIL or unresolved CRITICAL gap blocks PR creation. A comprehension layer (an `education:quiz-me` report, when that plugin is installed) may precede this gate and inform it; the merge gate itself lives here, one mechanism per concern.
 
 ## Skill chaining
 
