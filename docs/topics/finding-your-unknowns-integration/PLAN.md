@@ -147,7 +147,7 @@ options: F1 pattern entries, skill edits deferred. G15 workflow shape: covered b
 five-pass workflow section. G16 named-expert anecdotes: dropped from all graduated
 artifacts.
 
-### Phase 1: F1 reference doc — docs/FINDING-YOUR-UNKNOWNS.md [TODO]
+### Phase 1: F1 reference doc — docs/FINDING-YOUR-UNKNOWNS.md [DONE]
 
 Create the graduated reference doc following the top-level precedent shape (H1 →
 `## Contents` anchor TOC → charter paragraph → H2 sections). Content contract (signed
@@ -183,12 +183,13 @@ Part E + G-block):
   heuristic/recipe, D17b non-obvious-behavior keying, D34-residue collapse self-check.
 - Q11/D31 reconciliation line (presentation ordering is already planning:plan's
   documented default).
-- The doc cites x.com URLs, so extend lychee.toml excludes (authorized by C6; verified
-  absent today — only `twitter.com` is excluded).
+- The doc cites x.com URLs; lychee.toml already excludes `^https?://(www\.)?x\.com/`
+  (verified at execution — the review's "no x.com entry" finding was itself wrong), so no
+  config change was needed.
 
 **Sanity Check:** `test -f docs/FINDING-YOUR-UNKNOWNS.md`; `test "$(grep -c '^## ' docs/FINDING-YOUR-UNKNOWNS.md)" -ge 7`;
 `grep -q 'retrieved 2026' docs/FINDING-YOUR-UNKNOWNS.md` (citation stamps present);
-`grep -qi 'fair.quotation' docs/FINDING-YOUR-UNKNOWNS.md`; `grep -q 'x\.com' lychee.toml`;
+`grep -qi 'fair.quotation' docs/FINDING-YOUR-UNKNOWNS.md`; `grep -qF 'x\.com' lychee.toml`;
 `npx markdownlint-cli2 docs/FINDING-YOUR-UNKNOWNS.md` exit 0 (affected-tests classes
 docs/*.md as no-suite — the hygiene tools must be invoked directly).
 
