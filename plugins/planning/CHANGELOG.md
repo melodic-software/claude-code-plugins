@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.3]
+
+### Changed
+
+- setup's migration bullet carries a rationale line: versioned-contract upgrade under apply, the sanctioned schema-evolution path, not a retirement (customization-consistency Phase 2c)
+
 ## [0.35.2]
 
 ### Changed

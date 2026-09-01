@@ -122,7 +122,8 @@ implement it by reference, do not restate it. Plugin-side notes only:
   (interactive only), and reorganizing mixed or spread standards content toward the SRP + index
   shape.
 - **Migration is this skill re-run**. No separate action; direction and messaging per the
-  binding.
+  binding. It stays bespoke rather than becoming a retirement-manifest record: it is a
+  versioned-contract upgrade under `apply`, the sanctioned schema-evolution path, not a retirement.
 
 ### Interview-rendering toggle
 

@@ -649,6 +649,24 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-check-retirements.sh --check-bump "origin/$BASE_REF"
 
+  legacy-statusline-detect-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify legacy-statusline-detect cluster matches canonical
+        run: scripts/sync-legacy-statusline-detect.sh --check
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-legacy-statusline-detect.sh --check-bump "origin/$BASE_REF"
+
   resolve-convention-pattern-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1778,6 +1796,7 @@ jobs:
       - state-key-sync
       - spawn-noise-sync
       - check-retirements-sync
+      - legacy-statusline-detect-sync
       - resolve-convention-pattern-sync
       - index-regen-sync
       - standards-contract-sync

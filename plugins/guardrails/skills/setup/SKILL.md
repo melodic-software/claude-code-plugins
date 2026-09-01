@@ -74,10 +74,12 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 ## `apply install-commit-msg` (opt-in, explicit argument only)
 
 The DEPTH layer of commit-convention enforcement: a git `commit-msg` hook validating every
-commit on this machine in this repo (editor commits, `git commit -F <file>`, IDE
-integrations, humans outside Claude) against the same team-tracked pattern the CC-layer
-`block-convention-violation` guard reads. Never runs from bare `apply`; only the explicit
-`install-commit-msg` argument installs anything.
+commit on this machine in this repo: editor commits, `git commit -F <file>`, IDE
+integrations, humans outside Claude, against the same team-tracked pattern the CC-layer
+`block-convention-violation` guard reads, through a copy of the same resolver. Never runs
+from bare `apply`; only the explicit `install-commit-msg` argument installs anything. This flow
+stays bespoke rather than becoming a retirement-manifest record: it is provisioning — chaining and
+wiring live hook executables — not retirement detection of a repo artifact.
 
 Read [context/install-commit-msg.md](context/install-commit-msg.md) when invoked with
 `apply install-commit-msg`: the personal-lane contract, the refuse-rather-than-surprise

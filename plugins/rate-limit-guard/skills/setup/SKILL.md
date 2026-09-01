@@ -64,35 +64,12 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    transparent and shows a visible notice) and the standalone statusline degrades. Remediation:
    install jq (<https://jqlang.org/download/>).
 2. **Installed shim state.** The shim is the wiring target, so check it before the wiring. Compare
-   `~/.claude/rate-limit-guard/bin/statusline-shim.sh` against
-   `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the installed copy is byte-identical by
-   contract, so `cmp -s` is the test):
-   - **Absent.** FAIL when the statusline is wired to it (that wiring cannot run), INFO otherwise.
-     Remediation: `apply`.
-   - **Present and identical.** PASS. Nothing about it needs revisiting on a plugin update; that
-     is the whole point of the shim.
-   - **Present but differing.** Classify by what the installed revision can still do, not by the
-     fact that it differs. Report the shipped `# shim-revision:` marker against the installed one
-     either way, and offer `apply` as the refresh.
-     - Installed revision **>= 3.** INFO: an older-but-adequate or hand-edited copy that still
-       resolves the newest tee correctly. A refresh is housekeeping.
-     - Installed revision **< 3, or unmarked.** FAIL. Revision 3 is the first that skips a
-       candidate whose version directory carries the orphan marker; every earlier revision keeps
-       teeing from an UNINSTALLED plugin's directory for the ~14 days before Claude Code reaps it,
-       writing snapshots the operator has no reason to expect. That is a behavior defect in the
-       running statusline, not drift, and INFO would leave it sitting under a heading operators
-       are told they can defer.
-     - **The migration matters more than the classification.** The durable copy at
-       `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is what the statusline actually runs;
-       a plugin update never overwrites it. An operator who ran `apply` before 0.4.3 therefore
-       keeps running the old shim until they re-run `apply`, and if they uninstall the plugin
-       first, this skill is gone and the stale shim keeps teeing with no remaining way to reach
-       the remediation. Say that in the finding, so the reason to act now is on screen.
-   - **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`).
-     INFO, and skip the comparison entirely: this installed plugin version predates the shim
-     (< 0.2.0). Never report the operator's installed copy as drifted on this branch. Remediation:
-     `/plugin update rate-limit-guard`, then re-run `check`. Until then the legacy version-pinned
-     wiring in step 3 is the only wiring this version can offer.
+   `~/.claude/rate-limit-guard/bin/statusline-shim.sh` (the durable shim copy) against
+   `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and classify per
+   [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Installed shim
+   state", shared with the sibling guard plugin and synced byte-identical. This legacy detection
+   stays bespoke prose because it targets machine-scope surfaces under `~/.claude/`, outside the
+   repo-scope retirement-manifest schema (ADR 0018, decision 6).
 3. **Statusline wiring state.** Read (never write) every settings scope that can carry a
    `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
    `.claude/settings.local.json`) and determine which one owns the EFFECTIVE command (the most
@@ -107,12 +84,9 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      wrapper missing. Print the wrapped wiring below with the user's current command preserved as
      the wrapped command.
    - **`statusLine` references a `rate-limit-guard` `statusline-tee.sh` under the plugin cache.**
-     LEGACY VERSION-PINNED WIRING, regardless of whether that file currently exists. It is running
-     today only until the next version bump, and it breaks the whole statusline once the old
-     version directory is pruned (~14 days after an update). Report it as the failure mode the shim
-     exists to remove, and print the shim wiring as the fix (`apply` first if the shim is not
-     installed). An interim `[ -f … ]` existence guard around such a path is the same state: it
-     survives pruning but still stops teeing on a version bump.
+     LEGACY VERSION-PINNED WIRING: classify, report, and remediate per
+     [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Legacy
+     version-pinned wiring" (the fix's `apply` is step 2's).
    - **`statusLine` invokes `~/.claude/rate-limit-guard/bin/statusline-shim.sh`.** PASS. No path
      comparison against `${CLAUDE_PLUGIN_ROOT}` applies or is meaningful here; the shim resolves
      the tee at run time.

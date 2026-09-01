@@ -50,7 +50,9 @@ Plugin-side notes on top of the binding's procedure:
 4. **Optional offers, never demands:** reorganizing mixed or spread standards content toward the
    SRP + index shape.
 5. **Migration is this skill re-run**. No separate action; direction and messaging per the
-   binding.
+   binding. It stays bespoke rather than becoming a retirement-manifest record: it is a
+   versioned-contract upgrade under `apply`, the sanctioned schema-evolution path, not a
+   retirement.
 
 ## Output
 

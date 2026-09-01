@@ -259,6 +259,20 @@
         "Missing .claude/**/*.local.* is FAIL even when .claude/*.local.* is present",
         "Remediation is apply appending the recursive line at team-layer bind"
       ]
+    },
+    {
+      "id": 21,
+      "name": "retirement-record-source-control-r001-detect-and-clean",
+      "prompt": "/source-control:setup check\n\nThe repo's .claude/source-control.md declares a `## convention_source` section whose value line is docs/conventions/source-control/commit-convention.yml, and that neutral file exists and is git-tracked.",
+      "expected_output": "check runs bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\" and the helper exits 1 with one TSV row for source-control-r001 (the redundant convention_source pointer naming the well-known default path, which rung 2 resolves pointer-free). Because the record's action is migrate, the finding is FAIL with remediation apply. In apply, the model follows the record's successor prose (verifies the neutral file is git-tracked), the operator confirms the migrated result, and cleanup runs --clean source-control-r001 --i-migrated; a --clean without --i-migrated is refused (exit 2). After cleanup the pointer value line is gone, the emptied ## convention_source heading is removed in the same edit, and a detection re-run reports no active leftover (exit 0). In a repo with no such pointer line, detection exits 0 and the step is PASS with no source-control-r001 finding.",
+      "files": [".claude/source-control.md"],
+      "narration": true,
+      "expectations": [
+        "check runs the synced lib/check-retirements.sh against the plugin's retirements.yaml and maps exit 1 rows to findings (migrate = FAIL), exit 0 to PASS, and exit 2 to FAIL, never silent",
+        "The source-control-r001 detect-hit path reports the redundant well-known-path convention_source pointer as a leftover with remediation apply",
+        "Cleanup is gated: --clean source-control-r001 without --i-migrated is refused; only after the successor prose is followed and the operator confirms does --clean source-control-r001 --i-migrated run",
+        "After cleanup the emptied ## convention_source heading is also removed and a detection re-run is clean (exit 0); a repo without the pointer line yields no source-control-r001 finding"
+      ]
     }
   ]
 }
