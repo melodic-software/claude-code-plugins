@@ -483,7 +483,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3 — Recognize the stop condition" \
-  "66dd3352d4ad6152aa6237b92f1cc1abc31f2cdd5ad5a517adb859408f52f26e"
+  "6b3deb652af3048e961b5780e62d7d6fba8ca6edc015c6612b3931844d2cf380"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -577,7 +577,7 @@ pin_case_digest "case 12 still refuses to read drift as consent" \
   "e45fe64a00cf78e6dd089837e81c52d8a0947ccf924be6472c6f47eeadcd5942"
 pin_case_digest "case 1 still resolves codebase-answerable questions without asking, and only those" \
   "relentless-me-mode-frontier-rounds" \
-  "a1d108f02272c18494b5ca0a0c108385b776ff63bc423cb075c6e052810abc4a"
+  "cddd012ee8334177839d116ae564a61a5158f3b9ee996c5903c4fc820b973a36"
 
 pin_file "case A fixture: the task context still plants the open decision" \
   "$FIXTURES/lock-stop-on-gap/task-context.md" \

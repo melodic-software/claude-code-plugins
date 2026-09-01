@@ -11,7 +11,8 @@
         "Output asks the round's independent frontier questions together as one numbered set, not spread across separate turns",
         "Each question leads with a recommended answer and a one-line basis",
         "The round is asked inline in prose, not via a side-by-side AskUserQuestion card",
-        "Where a question is answerable from the codebase, the skill resolves it by inspection instead of spending a question on it"
+        "Where a question is answerable from the codebase, the skill resolves it by inspection instead of spending a question on it",
+        "An answer arriving as free text rather than an authored option is recorded with the free-text: resolution-field flag so downstream passes scrutinize it"
       ]
     },
     {
@@ -155,7 +156,6 @@
       "expectations": [
         "A register row per asked question exists at ask-time, before any reply arrives — not written only once an answer lands",
         "The unrelated reply does not resolve any open question; every unaddressed row stays `open`",
-        "An answer arriving as free text rather than an authored option is recorded with the free-text: resolution-field flag so downstream passes scrutinize it",
         "The next response restates the still-open questions in one line rather than continuing as though they were answered",
         "The skill does not lock the contract or hand off while a register row is still `open`"
       ]

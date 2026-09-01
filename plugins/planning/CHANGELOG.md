@@ -28,6 +28,16 @@ All notable changes to the `planning` plugin are documented here. Format follows
   citable line each (D9; Q7), both pointing at the marketplace repository's
   `docs/FINDING-YOUR-UNKNOWNS.md`.
 
+### Changed
+
+- **`interview-defenses` digests refreshed for the D28 addition.** The free-text-flag paragraph
+  lands inside the digested open-question-register section of `context/loop.md`, and its eval
+  expectation moved from case 12 (no answer arrives in that scenario, so the criterion was
+  ungradeable there) to case 1 (answers arrive). Both defenses re-read and confirmed intact:
+  the flag adds scrutiny on answered rows and qualifies neither the ask-time write rule nor
+  the gap/blocker register bindings. Register-section and case-1 digests updated in the same
+  change, per the suite's own contract.
+
 ## [0.34.15]
 
 ### Changed

@@ -345,7 +345,7 @@ the trigger note in the implementation plugin; both plugins' CHANGELOGs updated;
 `bash scripts/check-changed-skills.sh origin/main` green;
 `bash scripts/check-purged-em-dashes.sh` green.
 
-### Phase 11: Close-out — issues, cheat-sheet, acceptance verification, PR [TODO]
+### Phase 11: Close-out — issues, cheat-sheet, acceptance verification, PR [DOING]
 
 - File follow-up GitHub issues (authorized): one for the behavioral eval candidates
   (D5, D7, D11, D17b, D34-residue), one for the E4 skill extension candidate, one for the
@@ -402,6 +402,14 @@ the criterion-1 double sweep pasted as a dated note with zero unaccounted rows; 
 - **Follow-up issues filed:** #3589 (behavioral eval candidates), #3590 (E4 prd pitch-view
   extension), #3591 (recorded triggers: D28 schema, Q11 flip, E1 registry row, V7.7
   digest-pipeline lessons).
+- **Full battery:** `scripts/affected-tests.sh --run` selected the wide suite set (the
+  plugin.json edits fan out); 2569 assertions passed, one suite failed — the
+  `interview-defenses` digest ratchet caught D28's paragraph inside its digested register
+  section and the eval expectation in a case where it was ungradeable. Resolution per that
+  suite's own contract: defenses re-read and confirmed intact, the expectation moved to
+  case 1, digests refreshed in the same change; suite re-run green (89/0). The 13
+  NOT-RUN-ecosystem suites were then run from their own lane: 785 passed + 330 subtests
+  (the one PowerShell suite is Windows-lane, CI covers it).
 
 ## Blast radius
 
