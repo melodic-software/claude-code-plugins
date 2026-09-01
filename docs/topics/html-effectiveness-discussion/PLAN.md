@@ -206,7 +206,7 @@ the ci edit is in scope if the contract demands a named lane.
 asset selects the new suite; `scripts/check-cross-plugin-source-drift.sh --check` exits 0
 (no registry row added); `scripts/affected-tests.sh --run` exits 0.
 
-### Phase 2: Doctrine doc plus cascade concern registration [TODO]
+### Phase 2: Doctrine doc plus cascade concern registration [DONE]
 
 Write `docs/conventions/rendered-views/README.md`, the single owner doc, carrying: the
 boundary rule (Brief decision 2) with the reachability-and-preference matrix; both
