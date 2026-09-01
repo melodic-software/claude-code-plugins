@@ -29,6 +29,25 @@ Every optional reference to another plugin's skill carries, at the reference sit
 - Not a tool-availability check: probing for a CLI or MCP tool at runtime is the
   prerequisites-and-failure-behavior rules' territory.
 
+## Cross-marketplace install uplift (carve-out, 2026-09-01)
+
+A wrapper skill whose deliverable is getting a plugin from ANOTHER marketplace installed
+may emit that plugin's marketplace-qualified install commands
+(`/plugin install <name>@<marketplace>`) in its own content. The no-marketplace-qualification
+rule above exists so reusable references stay portable across marketplaces that re-host a
+plugin; an install command targeting a foreign marketplace has no unqualified form, so the
+qualification IS the content, not a leak. Bounds:
+
+- The carve-out covers install-uplift text only: commands, the `dependencies` manifest
+  entry's documented error paths, and scope guidance. Routing gates still name the plugin,
+  never the marketplace.
+- Such a routing gate carries the marketplace parity token ("installed from its
+  marketplace") when its overlap verdict row records `baked.description_phrase`, so fleet
+  parity traces it to the store exactly as native gates trace to theirs
+  (`plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.py`).
+- Fleet seam audits treat a marketplace-qualified ID outside install-uplift content as a
+  violation, unchanged.
+
 ## Conformance
 
 Fleet audits check dim-11-adjacent seam phrasing against this shape: gate present, fallback

@@ -65,8 +65,9 @@ NATIVE_CLASSES = (
     "bundled-skill",
     "plugin-backed-builtin",
     "session-skill",
+    "marketplace-plugin",
 )
-OBSERVATION_CLASSES = ("extraction", "live-roster")
+OBSERVATION_CLASSES = ("extraction", "live-roster", "upstream-source")
 COMPONENT_KINDS = ("skill", "agent")
 NATIVE_MARKERS = ("hidden", "gated")
 
@@ -82,11 +83,22 @@ LANES: tuple[tuple[str, str, str], ...] = (
         "Session-provided skills (observation-only)",
         "session-provided skill",
     ),
+    (
+        "marketplace-plugin",
+        "First-party marketplace plugins",
+        "first-party marketplace plugin",
+    ),
 )
 
 # The canonical presence-gate token owned by docs/conventions/native-references.
 # A baked description phrase carries it; the reverse-parity scan keys on it.
 GATE_TOKEN = "resolves in your session"
+
+# The parity token for marketplace-plugin rows (a first-party plugin skill is
+# not a native surface, so its routing lines phrase per seam-phrasing, not
+# native-references). A baked description phrase for that class carries this
+# token instead; the reverse-parity scan keys on both, per class.
+MARKETPLACE_GATE_TOKEN = "installed from its marketplace"
 
 START_MARKER = "<!-- native-surfaces:start -->"
 END_MARKER = "<!-- native-surfaces:end -->"
@@ -98,6 +110,11 @@ BARE_DATE_TRIGGER_RE = re.compile(
     r"^\W*(?:by|after|before|on|from)?\W*\d{4}(?:-\d{2}(?:-\d{2})?)?\W*$", re.IGNORECASE
 )
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
+# An upstream commit in an observation detail: 8-40 hex chars with at least one
+# letter, so a bare numeric run (a date, a count) never reads as a commit. A
+# genuinely all-digit real SHA prefix is possible in principle; cite more of
+# the SHA in the detail and the lookahead is satisfied.
+UPSTREAM_SHA_RE = re.compile(r"\b(?=[0-9a-f]*[a-f])[0-9a-f]{8,40}\b")
 
 VIEW_HEADER = """# Native surfaces registry
 
@@ -347,6 +364,14 @@ def validate_row(row: Any, index: int) -> list[str]:
             "detail"
         ):
             problems.append(f"{label}: `observation.detail` must be a non-empty string")
+        elif observation.get(
+            "class"
+        ) == "upstream-source" and not UPSTREAM_SHA_RE.search(observation["detail"]):
+            problems.append(
+                f"{label}: an `upstream-source` observation names the upstream commit "
+                "in its `detail` (8+ hex chars) - source evidence without a pin cannot "
+                "be re-derived when its trigger fires"
+            )
         if not DATE_RE.match(str(observation.get("date", ""))):
             problems.append(f"{label}: `observation.date` must be YYYY-MM-DD")
 
@@ -614,7 +639,14 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
     `metadata` neither satisfies a baked claim nor counts as an orphan.
     """
     problems: list[str] = []
-    baked_desc: set[tuple[str, str]] = set()
+    # Parity is keyed per token: native rows bake the native-references gate,
+    # marketplace-plugin rows bake the seam-phrasing marketplace gate. One
+    # description may legitimately carry both (one skill, two rows of the two
+    # classes), so each token's orphan scan consults its own claimed set.
+    baked_desc: dict[str, set[tuple[str, str]]] = {
+        GATE_TOKEN: set(),
+        MARKETPLACE_GATE_TOKEN: set(),
+    }
 
     for index, row in enumerate(rows):
         component = row["component"]
@@ -622,6 +654,11 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
             repo, component["plugin"], component["skill"], component["kind"]
         )
         label = _row_label(row, index)
+        row_token = (
+            MARKETPLACE_GATE_TOKEN
+            if row["native"].get("class") == "marketplace-plugin"
+            else GATE_TOKEN
+        )
         wants_desc = row["baked"]["description_phrase"]
         wants_boundary = row["baked"]["boundary_section"]
         if not (wants_desc or wants_boundary):
@@ -647,13 +684,13 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
             # Scoped to the description field, never the whole frontmatter: the
             # description is the routing-effective surface, so the same token in
             # `argument-hint` or `metadata` must not satisfy a baked claim.
-            if GATE_TOKEN not in frontmatter_description(frontmatter):
+            if row_token not in frontmatter_description(frontmatter):
                 problems.append(
                     f"{label}: `baked.description_phrase` is true but the description in "
-                    f'{path} carries no presence gate ("{GATE_TOKEN}")'
+                    f'{path} carries no presence gate ("{row_token}")'
                 )
             else:
-                baked_desc.add((component["plugin"], component["skill"]))
+                baked_desc[row_token].add((component["plugin"], component["skill"]))
         if wants_boundary and not re.search(r"^## Boundary", body, re.MULTILINE):
             problems.append(
                 f"{label}: `baked.boundary_section` is true but {path} has no "
@@ -667,17 +704,19 @@ def check_baked_parity(repo: Path, rows: list[dict[str, Any]]) -> list[str]:
                 frontmatter, _ = split_frontmatter(skill_md.read_text(encoding="utf-8"))
             except OSError:
                 continue
-            if GATE_TOKEN not in frontmatter_description(frontmatter):
-                continue
+            description = frontmatter_description(frontmatter)
             plugin = skill_md.parents[2].name
             skill = skill_md.parent.name
-            if (plugin, skill) not in baked_desc:
-                problems.append(
-                    f"{plugin}:{skill} carries a baked presence gate in its description "
-                    "with no store row claiming it - every baked line traces to a row "
-                    "(a row without a baked line is legal pending-sweep state; the "
-                    "reverse is not)"
-                )
+            for token, claimed in baked_desc.items():
+                if token not in description:
+                    continue
+                if (plugin, skill) not in claimed:
+                    problems.append(
+                        f'{plugin}:{skill} carries a baked presence gate ("{token}") in '
+                        "its description with no store row claiming it - every baked "
+                        "line traces to a row (a row without a baked line is legal "
+                        "pending-sweep state; the reverse is not)"
+                    )
     return problems
 
 
@@ -943,6 +982,38 @@ def cmd_self_check(args: argparse.Namespace) -> int:
                 "stale-but-honest until re-derived"
             )
 
+    recorded_shas = sorted(
+        {
+            match.group(0)
+            for row in rows
+            if row["observation"]["class"] == "upstream-source"
+            for match in [UPSTREAM_SHA_RE.search(row["observation"]["detail"])]
+            if match
+        }
+    )
+    if recorded_shas:
+        # Mirrors the --cli-version seam: the registry never fetches upstream
+        # itself, so without the flag the comparison is honestly undecidable.
+        if args.upstream_sha:
+            current_sha = args.upstream_sha.strip().lower()
+            drifted = [
+                sha
+                for sha in recorded_shas
+                if not (sha.startswith(current_sha) or current_sha.startswith(sha))
+            ]
+            if drifted:
+                advisories.append(
+                    f"recorded upstream commit(s) {', '.join(drifted)} differ from "
+                    f"--upstream-sha {current_sha}; rows sourced from them are "
+                    "stale-but-honest until re-derived"
+                )
+        else:
+            advisories.append(
+                "upstream commit comparison not locally decidable (no --upstream-sha); "
+                f"the recorded upstream commit(s) {', '.join(recorded_shas)} were not "
+                "checked"
+            )
+
     if problems:
         for problem in problems:
             _fail(problem)
@@ -1023,6 +1094,15 @@ def build_parser(default_repo: Path, default_pairs: Path) -> argparse.ArgumentPa
             "compare recorded extraction versions against this value instead of probing "
             "`claude --version` (test and offline-CI seam; neither path ever re-extracts "
             "the binary)"
+        ),
+    )
+    self_check.add_argument(
+        "--upstream-sha",
+        default=None,
+        help=(
+            "compare upstream-source rows' recorded commits against this SHA (offline "
+            "seam; the registry never fetches upstream itself - without the flag the "
+            "comparison is reported as not locally decidable)"
         ),
     )
     add_paths(self_check)

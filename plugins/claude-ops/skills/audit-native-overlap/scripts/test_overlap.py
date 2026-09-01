@@ -133,7 +133,7 @@ class TempRepo:
             ]
         )
 
-    def self_check(self, cli_version=FIXTURE_CLI_VERSION):
+    def self_check(self, cli_version=FIXTURE_CLI_VERSION, upstream_sha=None):
         args = [
             "self-check",
             "--repo",
@@ -145,6 +145,8 @@ class TempRepo:
         ]
         if cli_version is not None:
             args += ["--cli-version", cli_version]
+        if upstream_sha is not None:
+            args += ["--upstream-sha", upstream_sha]
         return overlap.main(args)
 
     def cleanup(self):
@@ -480,6 +482,134 @@ class SelfCheckTests(unittest.TestCase):
         self.repo.write_store(make_store([row]))
         self.repo.generate()
         self.assertEqual(self.repo.self_check(), 1)
+
+
+FIXTURE_UPSTREAM_SHA = "ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12"
+
+MARKETPLACE_ROW = {
+    "native": {"name": "demo-upstream", "class": "marketplace-plugin", "markers": []},
+    "component": {"plugin": "demo", "skill": "demo-route", "kind": "skill"},
+    "verdict": "complementary",
+    "reason": "the wrapper routes to the first-party plugin instead of rebuilding it",
+    "evidence": ["upstream SKILL.md read at the pinned commit"],
+    "observation": {
+        "class": "upstream-source",
+        "detail": f"upstream repo at commit {FIXTURE_UPSTREAM_SHA}",
+        "date": "2026-09-01",
+    },
+    "recheck": {
+        "trigger": "the upstream repository's default branch moves past the pinned commit",
+        "verified": "2026-09-01",
+    },
+    "baked": {"description_phrase": False, "boundary_section": False},
+    "budget_caveat": False,
+}
+
+
+class MarketplaceLaneTests(unittest.TestCase):
+    """The marketplace-plugin class: lanes, validation, parity, freshness."""
+
+    def test_every_native_class_has_a_lane(self):
+        # A class without a lane validates and then renders nowhere - the
+        # silent-vanish failure this invariant exists to prevent.
+        lane_classes = {lane for lane, _heading, _noun in overlap.LANES}
+        self.assertEqual(set(overlap.NATIVE_CLASSES), lane_classes)
+
+    def test_every_lane_has_a_native_class(self):
+        native = set(overlap.NATIVE_CLASSES)
+        for lane, _heading, _noun in overlap.LANES:
+            self.assertIn(lane, native)
+
+    def test_valid_marketplace_row_has_no_problems(self):
+        self.assertEqual(overlap.validate_row(deep_copy(MARKETPLACE_ROW), 0), [])
+
+    def test_upstream_source_detail_must_name_a_commit(self):
+        row = deep_copy(MARKETPLACE_ROW)
+        row["observation"]["detail"] = "read from the upstream repo on 2026-09-01"
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("upstream-source" in problem for problem in problems))
+
+    def test_a_bare_numeric_run_is_not_a_commit(self):
+        row = deep_copy(MARKETPLACE_ROW)
+        row["observation"]["detail"] = "snapshot 20260901 of the upstream repo"
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("upstream-source" in problem for problem in problems))
+
+    def test_marketplace_row_renders_into_its_lane(self):
+        block = overlap.render_block([deep_copy(MARKETPLACE_ROW)])
+        self.assertIn("First-party marketplace plugins", block)
+        self.assertIn("demo-upstream", block)
+
+    def test_marketplace_forward_parity_wants_the_marketplace_token(self):
+        repo = TempRepo(rows=[])
+        self.addCleanup(repo.cleanup)
+        row = deep_copy(MARKETPLACE_ROW)
+        row["baked"]["description_phrase"] = True
+        # BASE_ROW rides along so the extraction-version advisory (a store with
+        # no extraction row degrades) does not mask the parity verdict.
+        repo.write_store(make_store([BASE_ROW, row]))
+        repo.generate()
+        # The native gate token does not satisfy a marketplace-plugin row.
+        repo.write_skill(
+            "demo",
+            "demo-route",
+            description=f"When the upstream thing {overlap.GATE_TOKEN}, route there.",
+        )
+        self.assertEqual(repo.self_check(upstream_sha=FIXTURE_UPSTREAM_SHA), 1)
+        repo.write_skill(
+            "demo",
+            "demo-route",
+            description=(
+                "When the upstream plugin is "
+                f"{overlap.MARKETPLACE_GATE_TOKEN}, route there."
+            ),
+        )
+        repo.generate()
+        self.assertEqual(repo.self_check(upstream_sha=FIXTURE_UPSTREAM_SHA), 0)
+
+    def test_marketplace_token_without_a_row_is_an_orphan(self):
+        repo = TempRepo(rows=[])
+        self.addCleanup(repo.cleanup)
+        repo.generate()
+        repo.write_skill(
+            "demo",
+            "orphan",
+            description=(
+                f"When the upstream plugin is {overlap.MARKETPLACE_GATE_TOKEN}, "
+                "route there."
+            ),
+        )
+        self.assertEqual(repo.self_check(), 1)
+
+    def test_self_check_without_upstream_sha_degrades(self):
+        repo = TempRepo(rows=[BASE_ROW, MARKETPLACE_ROW])
+        self.addCleanup(repo.cleanup)
+        repo.generate()
+        self.assertEqual(repo.self_check(), 3)
+
+    def test_self_check_with_matching_upstream_sha_is_ok(self):
+        repo = TempRepo(rows=[BASE_ROW, MARKETPLACE_ROW])
+        self.addCleanup(repo.cleanup)
+        repo.generate()
+        self.assertEqual(repo.self_check(upstream_sha=FIXTURE_UPSTREAM_SHA), 0)
+
+    def test_self_check_with_short_prefix_sha_still_matches(self):
+        repo = TempRepo(rows=[BASE_ROW, MARKETPLACE_ROW])
+        self.addCleanup(repo.cleanup)
+        repo.generate()
+        self.assertEqual(
+            repo.self_check(upstream_sha=FIXTURE_UPSTREAM_SHA[:8]),
+            0,
+        )
+
+    def test_self_check_with_drifted_upstream_sha_degrades(self):
+        repo = TempRepo(rows=[BASE_ROW, MARKETPLACE_ROW])
+        self.addCleanup(repo.cleanup)
+        repo.generate()
+        self.assertEqual(
+            repo.self_check(upstream_sha="ffffffffffffffffffffffffffffffffffffffff"),
+            3,
+        )
 
 
 class DetectTests(unittest.TestCase):
