@@ -211,7 +211,7 @@ Stress-test-mandated doctrine content (must be in the 2a text, not discovered mi
 `grep -n "retirements\.yaml" docs/MIGRATION-PLAYBOOK.md docs/PLUGIN-PHILOSOPHY.md` hits in both
 (distinctive new marker; the bare word "retire" pre-exists in both docs).
 
-### Phase 2b: Mechanism PR [TODO]
+### Phase 2b: Mechanism PR [DOING]
 
 Implement the approved hybrid per the committed spec (`design/mechanism-spec.md` +
 `design/mechanism-validation.md` — graduated from .work, now the normative contract):
