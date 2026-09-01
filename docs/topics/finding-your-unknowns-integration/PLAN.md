@@ -277,7 +277,7 @@ prototype SKILL.md files — no em dashes in any new SKILL.md line here.
 skills (before/after jq pairs); `bash scripts/check-changed-skills.sh origin/main` green;
 `bash scripts/check-purged-em-dashes.sh` green.
 
-### Phase 7: planning plugin — interview/plan/design/brainstorm deltas [TODO]
+### Phase 7: planning plugin — interview/plan/design/brainstorm deltas [DONE]
 
 interview SKILL.md: D28 free-text scrutiny flag as a RESOLUTION-FIELD convention (the
 5-field register schema is untouched; gate-invisible by design, limitation recorded in the

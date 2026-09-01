@@ -155,6 +155,7 @@
       "expectations": [
         "A register row per asked question exists at ask-time, before any reply arrives — not written only once an answer lands",
         "The unrelated reply does not resolve any open question; every unaddressed row stays `open`",
+        "An answer arriving as free text rather than an authored option is recorded with the free-text: resolution-field flag so downstream passes scrutinize it",
         "The next response restates the still-open questions in one line rather than continuing as though they were answered",
         "The skill does not lock the contract or hand off while a register row is still `open`"
       ]

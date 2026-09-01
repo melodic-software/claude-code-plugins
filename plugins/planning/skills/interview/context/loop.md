@@ -206,6 +206,8 @@ Fields: `Q<N> | status | round | question | resolution`. Statuses:
 
 `Q<N>` matches the terminal numbering, runs continuously across rounds, and never has a gap — a gap means a row was dropped after it was written, and the gate refuses to grade a register with one.
 
+**Free-text flag — a resolution-field convention.** When an answer arrives as free text rather than a pick from the authored options — the escape hatch, a partial answer, a "whatever you think is best" — lead the resolution field with `free-text:` before the answer. Downstream passes (answer audits, plan formulation) treat flagged rows as deserving scrutiny rather than as settled picks: a free-text answer is where a misread lands silently. This lives inside the free-form resolution field by design; `check-open-questions.sh` grades statuses, not resolutions, so the flag is gate-invisible (a known limitation, recorded here) — a consumer needing mechanical reads of it means a register-schema change, carried by a version bump per the plugin's changelog discipline.
+
 ### Drift check — a reply that does not answer is not an answer
 
 **After every user reply, before doing anything else, check the reply against the register's `open` rows.** Any row the reply did not address stays `open`, and you restate it at the top of your next response — even when the reply changed the subject entirely, even when you are mid-answer to something else, and even when the reply reads as agreement. Conversational drift is never consent, and the user changing the subject is ordinary conversation, not a defect on their side.

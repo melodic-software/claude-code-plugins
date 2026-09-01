@@ -136,7 +136,7 @@ Systematic gap-finding. For each round:
 
 1. Re-read all design artifacts
 2. Identify underspecified types, missing contracts, boundary friction, pattern concerns, and design-default gaps (configurability, extension axes, observability, testability). Record these as design threads
-3. Present findings to user for discussion
+3. Present findings to user for discussion, ordered by tweak likelihood (the same presentation default `/planning:plan` Step 5 documents): the threads the user is most likely to redirect — public contracts, data shapes, user-facing surfaces — lead the round; settled-looking mechanical threads sit at the bottom. Presentation order only; thread dependencies still govern what can resolve when
 4. When discussion surfaces project-wide principles, suggest codifying them immediately in the project's own rules
 
 Continue rounds until no new gaps surface. Then run the `handoff` action, which invokes `/planning:design-handoff` via the Skill tool for the binary gate and plan-ready summary.
