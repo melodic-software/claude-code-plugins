@@ -274,7 +274,7 @@ Two upstream facts this skill depends on, each with the trigger that obliges re-
 
 | Claim | Basis | Recheck trigger | Verified |
 |---|---|---|---|
-| Descriptions load into context by default, truncated at 1,536 chars per entry, listing capped at 1% of the context window with name-only degradation least-invoked-first | `docs/en/skills.md` (Frontmatter reference; Troubleshooting), `docs/en/settings-reference.md` | Either default moves, or the drop order changes | 2026-08-23 |
+| Descriptions load into context by default, truncated at 1,536 chars per entry, listing capped at 1% of the context window, with name-only degradation on overflow. The docs state that degradation goes least-invoked-first; the shipped binary instead ranks by a decay-weighted score and grants first-fit, so use the mechanism recorded in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md), not the documented order | `docs/en/skills.md` (Frontmatter reference; Troubleshooting), `docs/en/settings-reference.md`, plus the binary for the order | Either default moves, or the binary's scorer or grant loop diverges from that reference | 2026-09-01 |
 | Native availability varies on settings/env, plan, platform/provider, and host surface, so no static availability claim holds | `docs/en/settings-reference.md`, `docs/en/env-vars.md`, `docs/en/commands.md`, `docs/en/cloud-environments.md` | A release or docs change adds, removes, or renames a gating axis | 2026-08-23 |
 
 ## Gotchas
