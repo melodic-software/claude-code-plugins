@@ -42,7 +42,13 @@ told:
    tool-restricted specialist. Decompose by what CONTEXT each piece needs, not by head-count or
    work-type. Sequential or shared-context steps stay in one agent. Coding parallelizes less than
    research: never split one feature across agents. Multi-agent costs 3–10× the tokens (returns
-   cost context too), so spend it on value + parallelism, not convenience. "Would flood context"
+   cost context too), so spend it on value + parallelism, not convenience. That range is this
+   plugin's own operating figure and it is the floor, not the ceiling: Anthropic's multi-agent
+   research write-up measures agents at roughly 4× a chat interaction's tokens and multi-agent
+   systems at roughly 15×, with token usage alone explaining most of the performance variance it
+   regressed ([multi-agent research
+   system](https://www.anthropic.com/engineering/multi-agent-research-system), fetched
+   2026-09-01). Size the spend against the higher figure when the fan-out is research-shaped. "Would flood context"
    is a measurement, not a hunch, when the instrument exists: with the `context-guard` plugin
    installed, resolve this session's zone word per its reader contract before a fan-out decision
    (the contract owns the snapshot path, staleness rule, and bands. Read them there; this
@@ -153,7 +159,11 @@ verdict rather than its reasoning.
 an output format (imperative 2). In a multi-tier tree the output format IS the context-economy
 lever: name the identifiers, the verdict, and where the bulky payload was parked, so the tier above
 can act without re-reading the work. A return that narrates cannot be summarized after the fact,
-it has already been paid for.
+it has already been paid for. A useful magnitude for "compressed": a sub-agent may explore across
+tens of thousands of tokens and still return roughly 1,000 to 2,000 ([Effective context engineering
+for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents),
+2025-09-29, fetched 2026-09-01). Treat it as the shape a return should aim for, never a budget to
+spend up to.
 
 **Workers are ephemeral, and the deeper the tier the shorter the life.** A worker that finishes and
 stays alive keeps costing the tier above, notifications, status, re-acknowledgement, for zero
