@@ -502,6 +502,35 @@ assert_file_exists "worktreeinclude: matched+ignored env copied" "$out/secrets.e
 assert_file_absent "worktreeinclude: gitignored-but-unmatched skipped" "$out/.work/task1/OTHER.md"
 assert_file_absent "worktreeinclude: unignored file never copied" "$out/loose.txt"
 
+# --- Case: reserved-name `**` patterns carry a memory tier at any depth ---
+# The repo's own .worktreeinclude keys on the reserved memory-tier filenames via
+# `.work/**/NAME` instead of enumerating one depth per line. Depth-enumerated
+# globs (`.work/*/`, `.work/*/*/`) drop every level past the last one written
+# down, so a sub-slice under an epic loses its index, sidecars, and ledger. This
+# proves the `**` form is honored by `ls-files -o -i --exclude-from` — including
+# the zero-directory case, where `.work/**/INDEX.md` matches `.work/INDEX.md`.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+printf '.work/\n' >"$repo/.gitignore"
+printf '.work/.gitignore\n.work/**/INDEX.md\n.work/**/EXPLORE.md\n.work/**/INTENT.md\n.work/**/*-checklist.md\n' \
+  >"$repo/.worktreeinclude"
+git -C "$repo" add .gitignore .worktreeinclude
+git -C "$repo" commit -qm "recursive include"
+mkdir -p "$repo/.work/epic/slice" "$repo/.work/slice"
+printf 'x\n' >"$repo/.work/.gitignore"                     # self-ignore rides along
+printf 'x\n' >"$repo/.work/INDEX.md"                       # depth 1 (zero-dir `**`)
+printf 'x\n' >"$repo/.work/slice/INTENT.md"                # depth 2
+printf 'x\n' >"$repo/.work/epic/slice/EXPLORE.md"          # depth 3
+printf 'x\n' >"$repo/.work/epic/slice/review-checklist.md" # depth 3 ledger
+printf 'x\n' >"$repo/.work/slice/scratch-foo"              # gitignored, NOT matched
+root="$TEST_TMPDIR/wtroot-recursive"
+out=$(bash "$HELPER" --name feat/deep --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_file_exists "worktreeinclude **: self-ignore carried" "$out/.work/.gitignore"
+assert_file_exists "worktreeinclude **: depth-1 INDEX.md carried" "$out/.work/INDEX.md"
+assert_file_exists "worktreeinclude **: depth-2 INTENT.md carried" "$out/.work/slice/INTENT.md"
+assert_file_exists "worktreeinclude **: depth-3 EXPLORE.md carried" "$out/.work/epic/slice/EXPLORE.md"
+assert_file_exists "worktreeinclude **: depth-3 checklist carried" "$out/.work/epic/slice/review-checklist.md"
+assert_file_absent "worktreeinclude **: non-reserved name skipped" "$out/.work/slice/scratch-foo"
+
 # --- Case: settings.local.json copied from the git common dir (#2119) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 mkdir -p "$repo/.claude"

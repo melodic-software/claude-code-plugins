@@ -1,5 +1,15 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.31]
+
+### Changed
+
+- **audit-noise: the ghost-ref bare-root exemption roster matches topic-docs v3.0.0.** `lanes/`
+  (the claude-ops lanes state home, reserved in the v3 wave) and `exports/` (reserved since
+  contract 2.5.2 but missing here) join `handoffs/`, `reviews/`, `running-retros/`, and
+  `overengineering/` as memory-root concern names exempt in bare form; a concrete child under any
+  of them still flags. Tests pin both the bare-form exemption and the child flag for the new names.
+
 ## [0.21.30]
 
 ### Fixed

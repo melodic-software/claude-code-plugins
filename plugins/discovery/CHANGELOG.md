@@ -1,5 +1,43 @@
 # Changelog — discovery plugin
 
+## [0.18.0]
+
+### Changed
+
+- **Index artifacts open with YAML frontmatter** (topic-docs contract v3.0.0 flip). `RESEARCH.md`,
+  `EXPLORE.md`, and `INTENT.md` now carry a frontmatter block with at least a one-line `abstract:`,
+  the contract's indexable-artifact mini-schema hook: a parent slice's `INDEX.md` regeneration
+  mirrors an index-less leaf's header abstract verbatim. Stated once in the shared artifact-shape
+  spec (`skills/research/context/artifact-shape.md`); the trace-intent shape doc already defers to
+  it.
+- **`reference/artifact-protocol.md` synced to protocol version 3.** `INDEX.md` joins the
+  memory-tier artifact kinds, topic slices are recursive, and entering a slice follows the
+  contract's read-first binding (cited, not restated). Copy stays byte-identical to
+  `docs/PLUGIN-ARTIFACT-PROTOCOL.md`.
+
+## [0.17.0]
+
+### Changed
+
+- **`check-dispatch-artifact.sh` grades the exact assigned path only.** The gate no longer scans
+  the slice for a plausible index when the assigned path is empty: the parent resolves one path
+  before dispatch, feeds that same path to the gate, and the gate answers for that path alone.
+  The one-level collision escape moves parent-side to match — a worker that finds its assigned
+  root occupied reports the occupancy through the `persistence: by-value` payload instead of
+  choosing a sub-slice itself, and the parent assigns the collision sub-slice, writes there, and
+  re-runs the gate against the path it chose (dropping `--expect-index` on that re-run, since the
+  payload's pointer names the blocked root, not the file the parent wrote). Instruction surfaces
+  updated across the explore and research skills, the explorer agent definition, and both
+  dispatch references; gate tests extended to pin the no-scan behavior. Topic-docs v3 wave (T5).
+
+### Added
+
+- **Synced copy of the shared slice-index regeneration script.** `scripts/index-regen.sh` is the
+  plugin's registered copy of `lib/index-regen.sh`, which regenerates the marker-delimited body of
+  a slice `INDEX.md` from its children's frontmatter and checks declared-children parity in both
+  directions. Kept byte-identical by `scripts/sync-index-regen.sh` and the `index-regen-sync` CI
+  job. Topic-docs v3 wave (T1–T5).
+
 ## [0.16.18]
 
 ### Fixed

@@ -629,6 +629,26 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-resolve-convention-pattern.sh --check-bump "origin/$BASE_REF"
 
+  index-regen-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify plugin copies match the shared regen script
+        run: scripts/sync-index-regen.sh --check
+      - name: Run shared regen-script tests
+        run: bash lib/index-regen.test.sh
+      - name: Verify consuming plugins bumped when the lib changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-index-regen.sh --check-bump "origin/$BASE_REF"
+
   standards-contract-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1699,6 +1719,7 @@ jobs:
       - managed-scope-sync
       - state-key-sync
       - resolve-convention-pattern-sync
+      - index-regen-sync
       - standards-contract-sync
       - cross-plugin-source-drift
       - loop-lane-floor-drift-gate

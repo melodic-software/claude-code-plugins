@@ -80,22 +80,25 @@ The gate therefore requires substance a stub cannot fake: the index names at lea
 keys on the sidecar **filename** contract rather than parsing the index's section → file table, so a
 formatting edit to that table does not break the gate.
 
-It searches the slice root and exactly one level below it, which is the whole sub-slice rule. Two
-candidate indexes exit 2 rather than picking one: accepting a prior run's artifact as evidence that
-*this* run succeeded is the same class of silent success the gate exists to refuse.
+It grades exactly the slice path it is given — the one the parent assigned pre-dispatch, collision
+sub-slice included — and never scans the slice for candidates: reaching for an index the parent did
+not assign is how a prior run's artifact gets accepted as evidence that *this* run succeeded, the
+same class of silent success the gate exists to refuse.
 
 ## Recovery ladder
 
 Take these in order. A non-zero exit is never a reason to proceed and note it later.
 
 **Exit 2 — ungradeable.** This is a parent-envelope problem, not a worker problem: the slice path
-was wrong, or two runs are sharing one slice. Fix the envelope — the parent assigns sub-slices, so
-it can disambiguate — and re-run the gate. Re-dispatching first pays for a whole exploration again
-to answer a question the parent could have answered itself.
+was wrong or never created, or the baseline it named is missing. Fix the envelope and re-run the
+gate. Re-dispatching first pays for a whole exploration again to answer a question the parent could
+have answered itself.
 
 **Exit 1 with `persistence: by-value` — the parent writes the slice. Take this rung before the
 resume rung, because the payload has already told you why the disk is empty.** The agent finished
-and its environment refused every write. Neither of the rungs below helps: a resume asks a worker
+and its environment refused every write — or the slice it was assigned turned out to be occupied,
+which it reports the same way rather than picking a sub-slice itself. Neither of the rungs below
+helps: a resume asks a worker
 to redo the one thing it just proved it cannot do, and a re-dispatch pays for the whole exploration
 again to reproduce the same refusal at full cost.
 
@@ -113,15 +116,18 @@ So the parent does the writing, which it can — this is the checkout-not-proces
    neither payload is a trusted source of paths.
 2. **Pick the destination the way a written run would have.** Anchor on the memory-slice path **the
    parent resolved before dispatch** — the same path it fed the gate. If that slice root already
-   holds an unrelated `EXPLORE.md` from an earlier exploration, the collision rule applies here
-   exactly as it applies to a worker that could write: the parent assigns a sub-slice under the root
-   and writes the whole set there, rather than overwriting the index the collision rule exists to
-   protect. The parent chooses that sub-slice, as it chooses every other one; the payload's
-   `artifact:` value is the destination the agent *names*, never the anchor.
+   holds an unrelated `EXPLORE.md` from an earlier exploration (the case a worker reports as
+   occupancy rather than resolving itself), the collision rule is the parent's to apply: assign a
+   sub-slice under the root and write the whole set there, rather than overwriting the index the
+   collision rule exists to protect. The parent chooses that sub-slice, as it chooses every other
+   one; the payload's `artifact:` value is the destination the agent *names*, never the anchor.
 3. **Re-run the identical gate command**, against whichever of the two the parent wrote to. Do not
    hand-inspect the directory instead; the whole reason this rung is safe is that the artifact ends
    up graded by the same check as every other run. Freshness needs no special handling: the parent
-   writes after its own `touch`, so the index is strictly newer than the baseline.
+   writes after its own `touch`, so the index is strictly newer than the baseline. When the parent
+   wrote into a collision sub-slice, **drop `--expect-index`** for this re-run: the payload's
+   `artifact:` names the root the worker was blocked from, not the file the parent wrote, and on
+   this rung the parent is itself the writer, so there is no payload pointer left to corroborate.
 4. Proceed only on exit 0. A non-zero second run drops through to the rungs below — the exception
    is to the halt, never to the gate, and `persistence: by-value` grades nothing on its own.
 

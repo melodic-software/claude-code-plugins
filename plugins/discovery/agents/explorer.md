@@ -147,11 +147,14 @@ Sidecars never live outside the slice, and `EXPLORE.md` is always the entry poin
 **If an `EXPLORE.md` already exists in that slice for an unrelated task**, do not clobber it — losing
 a prior exploration to a filename collision is silent and unrecoverable. Do not rename your index to
 `EXPLORE-<section>.md` either: that is the **sidecar** pattern, so your index would collide with your
-own sidecars, and the payload below would still be naming a file you did not write. Instead write
-your whole artifact set — index and sidecars, under their normal names — into a sub-slice
-`<memory-slice path>/<scope-slug>/`, and put **that** path in `artifact:` and in
-`verification_request.target`. The parent must verify the artifact this run produced, not the
-unrelated one that was already there.
+own sidecars, and the payload below would still be naming a file you did not write. And do not
+relocate to a sub-slice of your own choosing: sub-slice paths are the parent's to assign — it stats
+the slice root before dispatching and puts any collision sub-slice in the envelope, and its gate
+grades exactly the path it assigned, so a path you picked yourself holds an artifact no gate ever
+grades. Occupancy you discover mid-run is a finding to REPORT, not a write to reroute: finish the
+work, return `persistence: by-value` with the artifact bodies appended (the occupied root is a slice
+you cannot safely write, the same as one that refuses the write), and name the collision in
+`open_questions`. The parent assigns a fresh sub-slice and writes the set itself.
 
 **Paths in the artifact are machine-agnostic.** Resolve the absolute project root to work with, but
 never echo it into an artifact; every path you record is relative to the repo root, or to the
@@ -192,7 +195,7 @@ preload_token: <echoed verbatim from the preloaded skill, or MISSING>
 scope_as_received: <the scope from your dispatch prompt, verbatim>
 status: complete            # complete | truncated
 persistence: written        # written | by-value
-artifact: <the index path you actually wrote — the sub-slice one on a collision>/EXPLORE.md
+artifact: <the index path you actually wrote — the slice path from your dispatch prompt>/EXPLORE.md
 sidecars: <count>
 coverage: complete          # complete | partial — any load-bearing area left as a numbered gap is partial
 verification: pending       # never anything else; you render no verdict on your own work
@@ -234,14 +237,15 @@ only — never about whether anything was written.
 - **`persistence: written`** — the normal case. The artifact set is in the slice, `artifact:` names
   the index you wrote, and the parent's gate grades it off disk.
 - **`persistence: by-value`** — you finished the work and **every** attempt to write the slice was
-  refused. Do not retry through another tool, and do not silently downgrade to `truncated`. Instead:
+  refused, **or the slice you were assigned turns out to be occupied**. Do not retry through
+  another tool, and do not silently downgrade to `truncated`. Instead:
   1. `status:` stays `complete` if the exploration is complete. It is.
-  2. `artifact:` carries **the path you would have written** — the same path the collision rule
-     above would have sent you to, so a slice root already holding an unrelated `EXPLORE.md` still
-     resolves to the sub-slice rather than to the root. On this path it is a **destination for the
-     parent, not a claim that a file exists**, and it does not override the parent's own anchor:
-     the parent writes under the slice path it resolved before dispatching you, choosing the
-     sub-slice itself when the collision rule applies.
+  2. `artifact:` carries **the path you would have written** — the slice path from your dispatch
+     prompt, and on an occupancy you reported, still that path: you never substitute a sub-slice of
+     your own choosing. On this path it is a **destination for the parent, not a claim that a file
+     exists**, and it does not override the parent's own anchor: the parent writes under the slice
+     path it resolved before dispatching you, assigning a fresh sub-slice itself when the root
+     turns out to be occupied.
   3. `sidecars:` is the count of sidecar bodies you are returning, not a count of files on disk.
   4. **Append the artifact bodies verbatim after the YAML block**, each in its own fenced block
      introduced by the filename it belongs in — the index first, then every sidecar. This is the one
@@ -251,7 +255,8 @@ only — never about whether anything was written.
      filename, never a path — no directory component, no `..`, no leading `/`. On this one path a
      name you emit becomes a name the *parent* writes, and the parent holds wider write permission
      than you do; a name outside that set is a failed dispatch and the parent will treat it as one.
-  6. Say in one line what refused the write and what the refusal text said.
+  6. Say in one line what refused the write and what the refusal text said — or, on an occupancy,
+     name the `EXPLORE.md` already at that path.
 
   The bodies you return are the same bodies you would have written — full artifact text under the
   normal output format, already through the outcome gate. They are not a summary, not an abstract,
