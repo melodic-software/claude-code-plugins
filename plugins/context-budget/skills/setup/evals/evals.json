@@ -72,12 +72,12 @@
       "id": 6,
       "name": "headless-toggle-change-reruns-install-never-uninstalls",
       "prompt": "/context-budget:setup — I want settings_write_ask_enabled set to false, headless. I cannot use the interactive configure prompt from this session.",
-      "expected_output": "Routes the headless option change to a plain `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=false` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, stamps the claim with the CLI version it was verified against, and closes by rerunning check in a fresh session to report the observed value.",
+      "expected_output": "Routes the headless option change to a plain `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=false` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, cites the plugin-reconfiguration convention as the owner of the verified-version record, and closes by rerunning check in a fresh session to report the observed value.",
       "files": [],
       "expectations": [
         "Prescribes a plain `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=false` rerun, and states that against an already-installed plugin it prints `already installed` and still writes the value",
         "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README Options reference table to its manifest default",
-        "Stamps the --config claim with the CLI version it was verified against — Claude Code 2.1.240, a non-sensitive option at user scope — and flags a sensitive option and project/local scope as not covered",
+        "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record for the --config-against-an-installed-plugin claim, rather than stamping a CLI version or its verification conditions itself",
         "Tells the operator to pass the scope `claude plugin list` reports for this plugin instead of relying on the -s default of user, and to run from that project's directory for a project or local scope",
         "Ends by rerunning check in a FRESH session, because the rendered user_config token is injected at skill load, and reports the OBSERVED effective value rather than asserting an unobserved change"
       ]

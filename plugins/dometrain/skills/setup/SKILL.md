@@ -91,15 +91,15 @@ successful and delivers no tools.
 time) is the recommended rotation path regardless. It masks input, where a key passed on the
 command line lands in shell history and the process table.
 
-The older claim that `--config` is ignored once the plugin is installed was never
-version-stamped, and on Claude Code 2.1.240 a plain `claude plugin install … --config` was
-observed to write the value of an already-installed plugin for a **non-sensitive** option at
-`user` scope. Whether that holds for a `sensitive` option such as `dometrain_api_key` has not
-been verified, so do not rely on it for a credential. Do **not** uninstall to rotate either:
-uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting every option in
-the README's Options reference table to its manifest default, and it can drop the
-`enabledPlugins` entry as well. A `defaultEnabled: false` plugin reinstalls DISABLED, so a
-rotation that ends at `install` completes with no tools available.
+Headless `--config` reruns follow the plugin-reconfiguration convention, which owns the verified-version record
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
+against an already-installed plugin a plain `claude plugin install … --config` prints
+`already installed` and still writes the value, but that record covers only a **non-sensitive**
+option, and whether it holds for a `sensitive` option such as `dometrain_api_key` has not been
+verified, so do not rely on it for a credential. Do **not** uninstall to rotate either: uninstalling
+drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's Options
+reference to its manifest default, and it can drop the `enabledPlugins` entry as well. A
+`defaultEnabled: false` plugin reinstalls DISABLED, so a rotation that ends at `install` completes with no tools available.
 
 Full detail, including the command-line-exposure caveat, is in the README's
 [Rotating or clearing the key](../../README.md#rotating-or-clearing-the-key) section.

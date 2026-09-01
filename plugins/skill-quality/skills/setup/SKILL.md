@@ -42,17 +42,17 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
 
 - **Skills not found / wrong root (FAIL):** if the skills live somewhere other than the resolved root,
   the personal `skills_root` should point there. Reconfigure through the path below, then rerun `check`.
-- **Reconfiguring the personal option:** `/plugin configure skill-quality@<marketplace>` (interactive, any time).
-  Headless: rerun the install with the new value.
-  `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`. Against
-  an already-installed plugin it prints `already installed` and still writes the value, verified on
-  Claude Code 2.1.240 for a non-sensitive option at `user` scope; a `sensitive` option, and
-  `project`/`local` scope, were not covered, so re-verify before relying on it there. Do **not**
-  uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry, resetting
-  every option in the README's Options reference table to its manifest default. `-s` defaults to
-  `user`, so pass the scope `claude plugin list` reports for this plugin, and run from that
-  project's directory for a `project`/`local` scope, or the write lands at a scope that does not
-  load. This skill never writes user settings or `pluginConfigs`.
+- **Reconfiguring the personal option:** through Claude Code's native flow, per the marketplace's
+  plugin-reconfiguration convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  which owns the verified-version record): interactive `/plugin configure skill-quality@<marketplace>`
+  any time, or headless `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`
+  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
+  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
+  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
+  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
+  does not load. This skill never writes user settings or `pluginConfigs`.
 - **One-run override (no persistence):** for a single run against a different root, the checker also
   honors the `CHECK_SKILL_SKILLS_ROOT` environment variable; do not persist that variable on the user's
   behalf.

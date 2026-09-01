@@ -55,16 +55,16 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    corpus checkout for long-lived recall across machines. For a repository-backed library,
    inspect the consumer's artifact conventions and recommend one portable location. Never
    recommend a machine-absolute team path.
-6. If a recommended value differs from the effective one, direct the user to Claude Code's plugin
-   configuration prompt for `education` (interactive `/plugin configure education@<marketplace>` any time;
-   headless, rerun `claude plugin install education@<marketplace> -s <scope> --config
-   quiz_policy=<value>`. Against an already-installed plugin it prints `already installed` and
-   still writes the value, verified on Claude Code 2.1.240 for a non-sensitive option at `user`
-   scope. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry and
-   resets every option to its manifest default). Claude Code owns persistence. Do not hand-edit
-   any `pluginConfigs` key.
-7. Tell the user to rerun `check` after reconfiguration, in a fresh session, since the rendered
-   values are injected at load, then verify and report the effective settings.
+6. To adopt a recommended value, reconfigure through Claude Code's native flow per the plugin-reconfiguration convention
+   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+   which owns the verified-version record): interactive `/plugin configure education@<marketplace>` any time;
+   headless, rerun `claude plugin install education@<marketplace> -s <scope> --config quiz_policy=<value>`
+   (repeatable per key) — against an already-installed plugin it prints `already installed` and still writes the
+   value. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry, resetting every
+   option to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
+   `project`/`local` writes from that project's directory, or they land at a scope that does not load.
+7. Tell the user to rerun `check` after reconfiguration in a **fresh session** — rendered values are injected at
+   skill load, so a same-session rerun still reports the OLD values — then report the observed effective settings.
 
 ## Output
 

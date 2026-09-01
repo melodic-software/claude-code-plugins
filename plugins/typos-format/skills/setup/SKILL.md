@@ -78,25 +78,20 @@ Never claim resolved without re-verifying. For everything else `apply` only poin
 
 - missing `jq` / Bash: platform install instructions from the README Requirements section;
   this skill never installs system packages.
-- toggle off: direct to `/plugin configure typos-format` (interactive, any
-  time). Headless: rerun the install with the new value,
-  `claude plugin install typos-format@<marketplace> -s <scope> --config typos_format_enabled=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed` **and
-  still writes the value**, verified on Claude Code 2.1.240 (a non-sensitive option at `user`
-  scope: a non-default value written to an installed plugin, then restored). The short-circuit is
-  about the install, not the config write. Re-verify before relying on it outside those
-  conditions. A `sensitive` option, or `project`/`local` scope, were not covered. Do **not**
-  uninstall to reconfigure: uninstalling drops this plugin's entire stored `pluginConfigs` entry,
-  resetting every option in the README's Options reference table to its manifest default. `-s`
-  defaults to `user`, so pass the scope `claude plugin list` reports for this plugin, and run from
-  that project's directory for a `project`/`local` scope, or the write lands at a scope that does
-  not load. This skill never writes user settings or `pluginConfigs`.
-  Afterwards, keep the two claims apart. The write is issued and the stored value is what you
-  passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
-  skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-  session start, so a same-session `check` still reports the OLD value. Reporting that as a
-  failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
-  session**, and never claim an unobserved change.
+- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
+  plugin-reconfiguration convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  which owns the verified-version record): interactive `/plugin configure typos-format@<marketplace>`
+  any time, or headless `claude plugin install typos-format@<marketplace> -s <scope> --config typos_format_enabled=true`
+  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
+  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
+  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
+  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
+  does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  `check` in a **fresh session** — the rendered `${user_config.*}` is injected at skill load and
+  each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a same-session `check` still
+  reports the OLD value; report the observed effective value, never an unobserved change.
 - report-only mode (`typos_format_write_changes` unset, or set to anything but `true`): the
   hook is working as shipped. Writes were never turned on, so this is a configuration
   answer, not a repair. Say so, then offer the same `/plugin configure typos-format` route

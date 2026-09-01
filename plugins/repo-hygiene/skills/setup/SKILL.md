@@ -73,20 +73,20 @@ after everything passes changes nothing and reports "already configured":
 - **Missing `ghq` and fleet actions wanted:** install it (<https://github.com/x-motemen/ghq>), or
   keep using `--repo` / `--repos-from` and say so. This is a convenience, not a blocker.
 - **Missing Git Bash on Windows:** install Git for Windows; nothing in this plugin runs without it.
-- **Toggle off (or on):** direct to `/plugin configure repo-hygiene@<marketplace>` (interactive, any
-  time). Headless: rerun the install with the new value: `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true`
-  (repeatable per key). Against an already-installed plugin it
-  prints `already installed` **and still writes the value**. Verified on Claude Code 2.1.240 (a
-  non-sensitive option at `user` scope: a non-default value written to an installed plugin, then
-  restored). The short-circuit is about the install, not the config write. Re-verify before relying
-  on it outside those conditions. A `sensitive` option, or `project`/`local` scope, were not
-  covered. Do **not** uninstall to reconfigure: uninstalling drops this plugin's entire stored
-  `pluginConfigs` entry, resetting every option in the README's Options reference table to its
-  manifest default. `-s` defaults to `user`, so pass the scope `claude plugin list` reports for this
-  plugin, and run from that project's directory for a `project`/`local` scope, or the write lands at
-  a scope that does not load. This skill never writes user settings or `pluginConfigs`. Afterwards
-  rerun `check` **in a fresh session**, the rendered token is injected at skill load, and report
-  the observed effective toggle value; never claim an unobserved change.
+- **Toggle off (or on):** reconfigure through Claude Code's native flow, per the marketplace's
+  plugin-reconfiguration convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  which owns the verified-version record): interactive `/plugin configure repo-hygiene@<marketplace>`
+  any time, or headless `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true`
+  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
+  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
+  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
+  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
+  does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  `check` in a **fresh session** — the rendered token is injected at skill load, so a same-session
+  `check` still reports the OLD value; report the observed effective toggle value, never an
+  unobserved change.
 
 ## What this skill does NOT do
 

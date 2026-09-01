@@ -56,24 +56,19 @@ anything.
    the configured value is wrong for this repository, also report the reconfiguration route:
    - **Interactive, any time:** `/plugin configure ai-briefing@<marketplace>`. The recommended
      route; this skill never writes `pluginConfigs`.
-   - **Headless:** rerun the install with the new value. `claude plugin install
-     ai-briefing@<marketplace> -s <scope> --config active_profile=<name>` (repeatable per key).
-     Against an already-installed plugin it prints `already installed` **and still writes the
-     value**. Verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a
-     non-default value written to an installed plugin, then restored). The short-circuit is about
-     the install, not the config write. Re-verify before relying on it outside those conditions.
-     A `sensitive` option, or `project`/`local` scope, were not covered. Do **not** uninstall to
-     reconfigure: uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting
-     every option in the README's Options reference table to its manifest default. `-s` defaults
-     to `user`, so pass the scope `claude plugin list` reports for this plugin, and run from that
-     project's directory for a `project`/`local` scope, or the write lands at a scope that does
-     not load.
-     Afterwards, keep the two claims apart. The write is issued and the stored value is what you
-     passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
-     skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-     session start, so a same-session `check` still reports the OLD value. Reporting that as a
-     failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
-     session**, and never claim an unobserved change.
+   - **Headless:** rerun the install with the new value, per the marketplace's
+     plugin-reconfiguration convention
+     (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+     which owns the verified-version record): `claude plugin install ai-briefing@<marketplace>
+     -s <scope> --config active_profile=<name>` (repeatable per key) — against an
+     already-installed plugin it prints `already installed` **and still writes the value**. Do
+     **not** uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs`
+     entry, resetting every option in the README's Options reference to its manifest default.
+     `-s` defaults to `user`; pass the scope `claude plugin list` reports for this plugin, and
+     run from that project's directory for a `project`/`local` scope, or the write lands at a
+     scope that does not load. Afterwards rerun `check` in a **fresh session** — the rendered
+     `${user_config.*}` is injected at skill load, so a same-session `check` still reports the
+     OLD value; report the observed effective value, never an unobserved change.
    - **Neither, for a one-off:** a per-run `--profile <name>` selects a different profile without
      touching stored config.
 2. **`sources.md`.** FAIL if the resolved profile has no `sources.md`: `/ai-briefing:generate`

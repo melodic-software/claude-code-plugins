@@ -66,28 +66,21 @@ writing:
   (default `${CLAUDE_PLUGIN_DATA}`); if repository-resident, recommend a portable contained path,
   inspecting the consumer's declared artifact conventions. Same for `skill_usage_dir` (default
   `.claude/observability`). State the tradeoff and let the reader pick. Do not prompt.
-- **Reconfiguring a personal option:** `/plugin configure claude-ops@<marketplace>` (interactive, any
-  time). Headless: rerun the install with the new value:
-  `claude plugin install claude-ops@<marketplace> -s <scope> --config KEY=VALUE …` (repeatable per
-  key). Against an already-installed plugin it prints `already installed` **and still writes the
-  value**. Verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default
-  value written to an installed plugin, then restored). The short-circuit is about the install, not
-  the config write. Re-verify before relying on it outside those conditions. A `sensitive` option,
-  or `project`/`local` scope, were not covered. Do **not** uninstall to reconfigure: uninstalling
+- **Reconfiguring a personal option:** through Claude Code's native flow, per the marketplace's
+  plugin-reconfiguration convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  which owns the verified-version record): interactive `/plugin configure claude-ops@<marketplace>`
+  any time, or headless `claude plugin install claude-ops@<marketplace> -s <scope> --config
+  registry_dir=<path>` (repeatable per key) — against an already-installed plugin it prints
+  `already installed` **and still writes the value**. Do **not** uninstall to reconfigure: that
   drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
-  Options reference table to its manifest default. All fifteen, so the eight `*_audit_enabled`
-  toggles come back on and `registry_dir`, `skill_usage_dir`, `skill_usage_scope`,
-  `skill_usage_git_exclude`, `install_new`, `instructions_loaded_audit_log_session_start`, and
-  `stdin_read_timeout` all revert. `-s` defaults to `user`, so pass the scope `claude plugin list`
-  reports for this plugin, and run from that project's directory for a `project`/`local` scope, or
-  the write lands at a scope that does not load. This skill never writes user settings or
-  `pluginConfigs`.
-  Afterwards, keep the two claims apart. The write is issued and the stored value is what you
-  passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
-  skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-  session start, so a same-session `check` still reports the OLD value. Reporting that as a
-  failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
-  session**, and never claim an unobserved change.
+  Options reference (the audit toggles included) to its manifest default. `-s` defaults to `user`;
+  pass the scope `claude plugin list` reports for this plugin, and run from that project's directory
+  for a `project`/`local` scope, or the write lands at a scope that does not load. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session** — the
+  rendered `${user_config.*}` is injected at skill load and each hook receives its
+  `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session `check`
+  still reports the OLD value; report the observed effective value, never an unobserved change.
 
 After any reconfiguration, rerun `check` in a **fresh session** and report both observed effective
 destinations, never claim an unobserved change, and never read a same-session `check` still showing
