@@ -3,6 +3,16 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.3]
+
+### Fixed
+
+- **`ConvertFrom-WingetTextOutput` length-guards every column `Substring`.** A row that
+  reached the Version column but stopped before Available threw, and the row-level catch
+  dropped the package. Short rows now parse with empty later columns. The Available
+  span also requires `$idxSource -gt $idxAvail`, matching the Version span, so a
+  malformed header cannot subtract a negative length.
+
 ## [0.12.2]
 
 ### Fixed
