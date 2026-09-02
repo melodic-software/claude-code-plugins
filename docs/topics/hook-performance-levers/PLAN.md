@@ -407,7 +407,9 @@ dispatcher wall. This phase makes that path builtin-only (JSON assembled with `p
 escaping, an append with `>>` under the existing lock discipline, no temp file), byte-identical JSONL
 rows proven by a diff of the sink output before and after on the same payloads, through
 `scripts/sync-hook-utils.sh` with every carrying plugin bumped and the `hook-utils-sync` CI lane green.
-It still runs last among the code phases (17-carrier bump). The original sketch below is kept for
+It also makes `hook::read_file_path` (about 7 execs and 10 forks per hook, identical in every Write
+hook, per the phase 4c profile) builtin-only where the payload is small and well-formed, with the jq
+path kept as the fallback. It still runs last among the code phases (17-carrier bump). The original sketch below is kept for
 reference and is not executed.
 
 Repo: claude-code-plugins. Runs only if 4a's parse measurement clears a threshold the operator
