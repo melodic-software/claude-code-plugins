@@ -222,7 +222,11 @@ def main() -> int:
         override = f"  OVERRIDE: min_pairs={minimum} (default {DEFAULT_MIN_PAIRS})"
 
     p50_cell, p50_value = ratio_of_percentile(old, new, 50.0, len(pairs), minimum)
-    p95_cell, _ = ratio_of_percentile(old, new, 95.0, len(pairs), minimum)
+    # Capture the p95 VALUE too, not just its rendered cell. Discarding it left
+    # the disagreement check blind to the one statistic it never inspected, so a
+    # quotable ratio_of_p95=5.95x could sit beside median_paired_ratio=1.00x and
+    # ratio_of_p50=1.00x with nothing on the line saying they disagree.
+    p95_cell, p95_value = ratio_of_percentile(old, new, 95.0, len(pairs), minimum)
 
     if len(pairs) < minimum:
         # EVERY ratio on the line is refused below the floor, not just the
@@ -251,15 +255,26 @@ def main() -> int:
     # not the paired median. Predicting it is not enough: when the two disagree
     # this far, one of them is noise, and the reader has no way to tell which
     # unless the line says so.
+    # Every printed ratio is checked, not only ratio-of-p50. A reader quotes
+    # whichever number is on the line, so a statistic excluded from the check is
+    # a statistic that can be quoted while the other two silently disagree with
+    # it. Take the widest spread across all three.
     disagreement = ""
-    if p50_value is not None and min(median_paired, p50_value) > 0:
-        spread = max(median_paired, p50_value) / min(median_paired, p50_value)
-        if spread >= DISAGREEMENT_FACTOR:
-            disagreement = (
-                f"  DISAGREEMENT: paired median and ratio-of-p50 differ by {spread:.1f}x. "
-                f"They measure the same thing, so one is drift. Trust the paired median; "
-                f"it is the only one whose samples shared conditions."
-            )
+    candidates = {"ratio-of-p50": p50_value, "ratio-of-p95": p95_value}
+    worst_spread = 0.0
+    worst_name = ""
+    for name, value in candidates.items():
+        if value is None or min(median_paired, value) <= 0:
+            continue
+        spread = max(median_paired, value) / min(median_paired, value)
+        if spread > worst_spread:
+            worst_spread, worst_name = spread, name
+    if worst_spread >= DISAGREEMENT_FACTOR:
+        disagreement = (
+            f"  DISAGREEMENT: paired median and {worst_name} differ by {worst_spread:.1f}x. "
+            f"They measure the same thing, so one is drift. Trust the paired median; "
+            f"it is the only one whose samples shared conditions."
+        )
 
     print(
         f"{'SPEEDUP':<{LABEL_WIDTH}} pairs={len(pairs):<4} "

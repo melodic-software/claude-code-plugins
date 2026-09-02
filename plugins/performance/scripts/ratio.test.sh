@@ -186,6 +186,29 @@ assert_contains "the refusal names the concurrent-append cause" "concurrent appe
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1 BENCH_MIN_PAIRS=lots
 assert_eq "a non-integer BENCH_MIN_PAIRS is refused" "2" "$RUN_RC"
 
+# --- 8. the disagreement check inspects EVERY printed ratio, not just p50 ---
+# A tail spike in one arm moves ratio_of_p95 while the paired median and
+# ratio_of_p50 both sit at 1.00x. The p95 value was previously discarded at the
+# call site, so a quotable 5.95x could sit beside two 1.00x figures with nothing
+# saying they disagree. A statistic excluded from the check is a statistic that
+# can be quoted while the rest of the line silently contradicts it.
+# discriminating-skip-required: this is the only case covering p95 in the
+# disagreement check; without it the flag can regress to p50-only and every
+# other assertion here still passes.
+write_samples "$WORK/spike_old" 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 400
+write_samples "$WORK/spike_new" 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10
+run_ratio BENCH_OLD="$WORK/spike_old" BENCH_NEW="$WORK/spike_new" BENCH_CONC=1
+assert_eq "a p95-only divergence still exits 0" "0" "$RUN_RC"
+assert_contains "the paired median is unmoved by the tail spike" "median_paired_ratio=1.00x" "$RUN_OUT"
+assert_contains "ratio-of-p50 is unmoved too" "ratio_of_p50=1.00x" "$RUN_OUT"
+assert_contains "the divergence is flagged" "DISAGREEMENT" "$RUN_OUT"
+assert_contains "the flag names the diverging statistic" "ratio-of-p95" "$RUN_OUT"
+
+# The negative arm. Three agreeing ratios must NOT be flagged, or the check
+# fires on every run and flags nothing.
+run_ratio BENCH_OLD="$WORK/spike_new" BENCH_NEW="$WORK/spike_new" BENCH_CONC=1
+assert_not_contains "agreeing ratios are not flagged" "DISAGREEMENT" "$RUN_OUT"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: ratio suppression and pairing"
 exit 0
