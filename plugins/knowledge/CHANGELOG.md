@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.37]
+
+### Changed
+
+- **Video-digest extraction lib tidyings from the repo-wide sweep.**
+  `synthesis-filename.js` removes a provably dead stub-token set in
+  `isStubQualityAuditNote` (every token sat under the function's 20-character
+  early-return floor); `work-root.js` rewrites a history-narration JSDoc line to
+  present tense; `watch-slice-sessions.js` reduces a block-bodied map callback to a
+  concise arrow; one restating comment dropped from `run-args.test.js`. Vitest lib
+  suites 50/50 and the whole extraction package 501/501 before and after.
+
 ## [0.13.36]
 
 ### Changed

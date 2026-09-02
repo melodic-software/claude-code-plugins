@@ -3,6 +3,16 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.7]
+
+### Changed
+
+- **Audit lib tidyings from the repo-wide sweep.** `Get-CisaKevCache.ps1` drops the
+  `UseBasicParsing` switch from its web-request splat (a documented no-op on the
+  PowerShell 7.4 floor the file requires); `Get-GpuDriverInfo.Tests.ps1` normalizes
+  two comment em dashes to the tree's double-hyphen form. Linux-runnable Pester
+  suites green before and after under the pinned Pester 5.
+
 ## [0.12.6]
 
 ### Changed

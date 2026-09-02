@@ -3,6 +3,19 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.31]
+
+### Changed
+
+- **Audit script cleanups from the repo-wide tidy sweep.** `check-hook-coverage.sh`
+  replaces three manual counter loops with the `for i in "${!ARR[@]}"` idiom;
+  `check-plugin-drift.sh` collapses the two-stage pairs_obj jq build into the single
+  `jq -nR` form its sibling calls use, which also silences a spurious stderr
+  diagnostic when a marketplace declares no enabled plugins; `fix-plugin-drift.sh`
+  drops a GNU-only `sed \?` quantifier from `--help` rendering (BSD-sed
+  compatibility, output byte-identical); three test files pick up shfmt case-label
+  normalization. No behavior or contract changes.
+
 ## [0.40.30]
 
 ### Changed
