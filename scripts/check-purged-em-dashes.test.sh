@@ -92,6 +92,13 @@ printf '%s\n' \
 
 write "other/unlisted.md" "Not on the allowlist ${EM} so not this gate's business."
 
+# Tells that OTHER detector rules would fire on, and no em dash. The gate
+# must stay clean: it judges rule-em-dash only. Combined with the one-rule
+# liveness assertion in the SUT, a passing run of this surface is what pins
+# that the throwaway layer disabled the rest of the roster rather than
+# merely ignoring those findings.
+write "surface/other-tells.md" 'I hope this helps. It is important to note this, in order to keep the check cheap.'
+
 # A file the detector opens and then declines on an in-file marker. The detector
 # counts such a file BOTH as scanned and as declined, so a gate that adds those
 # two totals sees one file too many and reports a coverage mismatch on a file the
@@ -119,6 +126,7 @@ list() {
 }
 
 list "only-clean" 'surface/clean.md'
+list "other-tells" 'surface/clean.md' 'surface/other-tells.md'
 list "marked" 'surface/clean.md' 'surface/marked.md'
 list "clean-and-data" 'surface/clean.md' 'surface/data.md'
 list "with-dirty" 'surface/clean.md' 'surface/dirty.md'
@@ -182,12 +190,35 @@ if [[ "$OUT" != *"config layer did not take effect"* ]]; then
 else
   fail "the derived config layer takes effect: $OUT"
 fi
+# The real detector ships ~15 rules. A throwaway layer that only re-enabled
+# rule-em-dash and left the rest of the roster running would still fail the
+# seeded violation (so the case above would stay green) and would still
+# balance the file-count arithmetic. The one-rule liveness guard is what
+# makes that shape exit 2 instead of a slow, silently-wide check.
+if [[ "$OUT" != *"expected only rule-em-dash enabled"* ]]; then
+  ok "the one-rule liveness guard is not what failed the seeded violation"
+else
+  fail "the one-rule liveness guard is not what failed the seeded violation: $OUT"
+fi
 
 run "$REPO" "clean-and-data.txt"
 if ((RC == 0)); then
   ok "em dashes in a code fence and an ignore-marked line do not fire"
 else
   fail "em dashes in a code fence and an ignore-marked line do not fire (rc=$RC): $OUT"
+fi
+
+# THE NARROW-RULE PIN. other-tells.md carries chatbot and filler residue the
+# real detector would report if those rules ran enabled. The SUT only greps
+# rule-em-dash findings, so ignoring those rows is not enough to stay cheap;
+# the one-rule liveness guard is what fails a wide run at exit 2. A passing
+# result here is the coverage arithmetic re-proven under the narrower config
+# #3342 asked for: two declared files, one enabled rule, no em dashes.
+run "$REPO" "other-tells.txt"
+if ((RC == 0)) && [[ "$OUT" == *"2 declared paths, 2 files scanned"* ]]; then
+  ok "other-rule tells on a declared path do not fail a one-rule run"
+else
+  fail "other-rule tells on a declared path do not fail a one-rule run (rc=$RC): $OUT"
 fi
 
 # A whole-file ignore marker is one of the exemptions this gate documents, so an
