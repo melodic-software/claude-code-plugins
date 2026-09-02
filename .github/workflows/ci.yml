@@ -609,6 +609,26 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-state-key.sh --check-bump "origin/$BASE_REF"
 
+  spawn-noise-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify spawn-noise cluster matches canonical
+        run: scripts/sync-spawn-noise.sh --check
+      - name: Run spawn-noise tests
+        run: bash plugins/claude-ops/lib/spawn_noise.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-spawn-noise.sh --check-bump "origin/$BASE_REF"
+
   resolve-convention-pattern-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1729,6 +1749,7 @@ jobs:
       - parse-concern-value-sync
       - managed-scope-sync
       - state-key-sync
+      - spawn-noise-sync
       - resolve-convention-pattern-sync
       - index-regen-sync
       - standards-contract-sync

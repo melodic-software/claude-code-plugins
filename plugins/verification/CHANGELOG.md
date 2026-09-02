@@ -3,6 +3,18 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Added
+
+- **`measure`: a routing line to `/performance:snapshot` for hosts a noise-floor warning cannot
+  cover.** When the machine's own spread makes a wall-clock comparison meaningless, this skill warns
+  and reports anyway; the new `performance` plugin qualifies the host first, interleaves the arms
+  within one run, ranks a drift-immune counter above any duration, and refuses the claim outright.
+  The gotcha now names that boundary. `measure` stays SSOT for baseline capture, storage, and the
+  compare mechanics `performance` depends on rather than reimplements. Settled as Q2 of the #3530
+  interview.
+
 ## [0.6.0]
 
 ### Added
