@@ -20,9 +20,9 @@ BeforeAll {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '',
             Justification = 'Deliberately shadows the nvidia-smi executable under test.')]
         param([Parameter(ValueFromRemainingArguments = $true)] [object[]] $Arguments)
-        # Flattened through the pipeline so a nested array — which is what
+        # Flattened through the pipeline so a nested array -- which is what
         # PowerShell's argument-mode comma operator builds, and what a native
-        # command would spread into separate argv entries — is captured the way
+        # command would spread into separate argv entries -- is captured the way
         # nvidia-smi would have received it, rather than as one joined string.
         $global:NvidiaSmiCapturedArgs = @($Arguments | ForEach-Object { $_ })
         $global:LASTEXITCODE = 0

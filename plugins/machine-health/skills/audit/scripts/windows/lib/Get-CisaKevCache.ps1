@@ -98,11 +98,10 @@ function Invoke-KevFetch {
     $tempPath = "$CachePath.download"
     try {
         $fetchParams = @{
-            Uri             = $script:CisaKevUrl
-            OutFile         = $tempPath
-            UseBasicParsing = $true
-            TimeoutSec      = 30
-            ErrorAction     = 'Stop'
+            Uri         = $script:CisaKevUrl
+            OutFile     = $tempPath
+            TimeoutSec  = 30
+            ErrorAction = 'Stop'
         }
         Invoke-WebRequest @fetchParams | Out-Null
         $downloaded = Get-Content -LiteralPath $tempPath -Raw -ErrorAction Stop |
