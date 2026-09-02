@@ -28,11 +28,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   existence guards, both no-ops on the steady path. The prune, the atomic rename and the permission
   repair on the shared contract directory stay: PostCompact fires once per compaction, not per tool
   batch.
+- **The zone resolver drops from six processes to one.** `scripts/context-zone.sh` is the band
+  authority the hooks call once per resolve, so its cost lands on the PostToolBatch path too. It
+  spent one `jq` for the snapshot, two `date` for the staleness arithmetic, and three `awk` for the
+  two band comparisons and the version gate. The band resolution now runs ahead of the snapshot
+  pass and the resolved bands are handed to that one `jq` as data, so the comparisons happen where
+  the snapshot is already parsed; the two `zones.json` passes became one over the same file, still
+  validating the percentage and token shapes independently and still emitting their own separate
+  notices; and `date -u +%s` became printf's `%()T`. A `zones.json` override costs exactly one
+  additional `jq`. Measured with old and new interleaved in one loop against the same floor: 9.5
+  spawn-equivalents to 2.3.
+- **The resolver's `captured_at` gate keeps its strictness on purpose.** jq's `fromdateiso8601`
+  NORMALIZES a structurally well-formed but calendar-invalid timestamp instead of refusing it, so
+  February 30th would have become March 2nd and second 60 would have rolled into the next minute.
+  That would have quietly widened the staleness gate the strict format test exists to hold. The
+  parsed epoch is formatted back and required to equal the input byte for byte, which restores
+  `date -u -d`'s answer on every value in that class.
 - **What did not change: any decision, any emitted text, any state file.** An eleven-scenario
   capture covering both events, both crossing directions, hostile and absent session ids and an
-  empty payload diffs byte-identical on stdout, exit code and every state file. One process for
-  `scripts/context-zone.sh` stays by design, because it is the single band authority these hooks
-  must not re-implement, and it is now the whole remaining cost of a steady fire.
+  empty payload diffs byte-identical on stdout, exit code and every state file. For the resolver, a
+  differential harness compares the old and new implementation over 103 inputs on stdout, stderr
+  and exit code: both band shapes at every boundary, the window-class selection, the plausibility
+  guard, the version gate either side of 2.1.132, the combination rule, the staleness window either
+  side, the whole calendar-invalid `captured_at` class, all four trust gates, and every
+  `zones.json` variant including both malformed-notice paths. Zero differences across three runs.
+  A whole steady PostToolBatch fire is now 3 processes, down from 15.
+- **The resolver still runs as its own process rather than being sourced.** It is a documented seam
+  that `zone-gate.sh` and its test suite invoke as an executable, and it signals through `exit`.
+  Making it sourceable would change a public interface to save one process, and it is the only
+  structural cut left on this path.
 
 ### Added
 
@@ -40,6 +64,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   cannot prove it: `dirname`, `tr`, `head` and a per-field `jq` each look like one harmless call at
   the call site and only add up in a trace. The new cases assert exact counts rather than absence,
   so a regression back to a second `jq` fails a test instead of quietly slowing every tool batch.
+- **`context-zone.test.sh` asserts the per-resolve process budget the same way.** A zero-config
+  resolve must spawn exactly one process and exactly one `jq`, with no `date` and no `awk`; a
+  `zones.json` override must cost exactly one more `jq`, pinning the single-pass read so a future
+  change cannot quietly go back to one pass per shape.
 
 ## [0.7.31]
 

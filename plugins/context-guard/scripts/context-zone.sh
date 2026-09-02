@@ -192,14 +192,14 @@ printf -v now_epoch '%(%s)T' -1 2>/dev/null || unknown
 
 # One pass over the snapshot, carrying every gate and both band comparisons.
 # Trust gates (shape, captured_at, embedded session_id equal to the REQUESTED
-# id — the seam is per-session and a copied/renamed snapshot must not answer
-# for another session, non-null current_usage) resolve to unknown, as do a
+# id, because the seam is per-session and a copied or renamed snapshot must not
+# answer for another session, non-null current_usage) resolve to unknown, as do a
 # non-conforming captured_at, a stale or future-dated one, and a snapshot
 # whose measurement fields are all out of documented range.
 # TOKEN-SHAPE VERSION GATE: the token fields carry current-occupancy semantics
 # only from this version on. Compared component by component, missing
-# components reading as 0 so "2.2" means 2.2.0 — the same rule the awk gate
-# applied, now an array comparison in the pass below.
+# components reading as 0 so "2.2" means 2.2.0. That is the same rule the awk
+# gate applied, now an array comparison inside the pass below.
 TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
 
 # THE CAPTURED_AT GATE, AND WHY THE ROUND TRIP IS PART OF IT. The strict

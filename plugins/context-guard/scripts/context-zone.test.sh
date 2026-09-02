@@ -280,6 +280,55 @@ GOT="$(HOME="$H" PATH="$FAKEBIN" bash "$ZONE" s0 2>/dev/null)"
 RC=$?
 if [[ "$GOT" == "unknown" && $RC -eq 0 ]]; then ok "jq absent → unknown (fail-open)"; else fail "jq absent: got '$GOT' rc $RC"; fi
 
+# --- The per-resolve process budget, proven by trace -------------------------
+# This resolver runs once per tool batch behind the PostToolBatch hook, so its
+# process count lands on that path. Reading the code cannot prove the budget: a
+# `date` for the clock, an `awk` for a band comparison and a second jq for the
+# override each look like one harmless call at the call site and only add up in
+# a trace. The assertion is on EXACT COUNTS, not absence, so a regression back
+# to a second `date` or a per-comparison `awk` fails here.
+#
+# Budget with no zones.json (the zero-config common case): exactly 1 jq, and
+# nothing else. A zones.json override adds exactly one more jq, asserted
+# separately, because that file is read in ONE pass rather than the two the
+# percentage and token shapes used to take.
+TRACE_H="$WORK/h-trace"
+write_snapshot_tok "$TRACE_H" strace 40 90000 5000 200000
+TRACE_LOG="$WORK/zone-xtrace.log"
+HOME="$TRACE_H" BASH_XTRACEFD=9 bash -x "$ZONE" strace >/dev/null 2>/dev/null 9>"$TRACE_LOG"
+TRACE_PAT='^\++ (jq|git|date|mktemp|sed|grep|awk|cat|mkdir|mv|rm|tr|head|tail|cut|wc|uname|dirname|basename|readlink|sort|find|chmod|touch|sleep|expr|stat|cygpath|bash) '
+if [[ -s "$TRACE_LOG" ]]; then ok "trace: the resolve path was traced"; else fail "trace: no usable xtrace captured"; fi
+T_ALL=$(grep -cE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+T_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
+if [[ "$T_ALL" == "1" ]]; then
+  ok "trace: a zero-config resolve spawns exactly 1 process"
+else
+  fail "trace: zero-config resolve spawns $T_ALL processes, budget is 1: $T_DETAIL"
+fi
+T_JQ=$(grep -cE '^\++ jq ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$T_JQ" == "1" ]]; then
+  ok "trace: exactly one jq pass over the snapshot"
+else
+  fail "trace: $T_JQ jq processes on a zero-config resolve, budget is 1"
+fi
+T_GONE=$(grep -cE '^\++ (date|awk) ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$T_GONE" == "0" ]]; then
+  ok "trace: no date or awk on the resolve path"
+else
+  fail "trace: $T_GONE date/awk process(es) returned: $T_DETAIL"
+fi
+# With an override present the file is read in ONE pass, not one per shape.
+printf '{"smart_max_used_percentage":30,"acceptable_max_used_percentage":60}\n' \
+  >"$TRACE_H/.claude/context-guard/zones.json"
+TRACE_LOG2="$WORK/zone-xtrace-zones.log"
+HOME="$TRACE_H" BASH_XTRACEFD=9 bash -x "$ZONE" strace >/dev/null 2>/dev/null 9>"$TRACE_LOG2"
+T_JQ2=$(grep -cE '^\++ jq ' "$TRACE_LOG2" 2>/dev/null | tr -cd '0-9')
+if [[ "$T_JQ2" == "2" ]]; then
+  ok "trace: a zones.json override costs exactly one additional jq"
+else
+  fail "trace: $T_JQ2 jq processes with zones.json present, budget is 2"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

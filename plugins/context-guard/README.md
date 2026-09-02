@@ -89,6 +89,9 @@ by that run's floor) because the absolute figure moves with load: the measured f
 baseline. Process counts are of commands in command position in the hook process, so a shell
 builtin such as `command -v jq` is correctly not counted.
 
+Counts below are processes started by the hook itself. The zone resolver is one of them, and it
+starts its own; the whole-fire total is in the paragraph after the table.
+
 | Path | Processes before | Processes after | Spawn-equivalents before | After |
 |---|---|---|---|---|
 | PostToolBatch, steady zone (the common case) | 11 | 2 | 18.9 | 10.8 |
@@ -97,6 +100,23 @@ builtin such as `command -v jq` is correctly not counted.
 | UserPromptSubmit, steady zone | 11 | 2 | 18.4 | 11.8 |
 | PreToolUse gate, default advisory posture | 2 | 0 | 2.5 | 1.4 |
 | PostCompact marker | 9 | 4 | 9.4 | 5.7 |
+
+`scripts/context-zone.sh`, the band authority the hooks call once per resolve, was cut in the same
+pass. It spent six processes: one `jq` for the snapshot, two `date` for the staleness arithmetic,
+and three `awk` for the two band comparisons and the version gate. It now spends one, and a second
+only when a `zones.json` override is present. The band resolution moved ahead of the snapshot pass
+so the resolved bands are handed to that one `jq` as data, and the two `zones.json` passes became
+one over the same file. Measured with old and new interleaved in a single loop against the same
+floor, so machine load cannot skew the comparison:
+
+| Resolver, realistic snapshot | Processes | Spawn-equivalents |
+|---|---|---|
+| Before | 6 | 9.5 |
+| After | 1 | 2.3 |
+
+Whole steady PostToolBatch fire, end to end: 15 processes before this pass (17 when the snapshot
+carries the token fields), 3 after. Those three are one `jq` in the hook, the resolver's own
+process, and one `jq` inside it.
 
 What went: every `dirname` call, replaced by parameter expansion (three in the zone-crossing hook,
 two in each of the others); a second `jq`, by reading both envelope fields in one pass;
@@ -109,12 +129,28 @@ both events, both crossing directions, hostile and absent session ids and an emp
 byte-identical on stdout, exit code and every state file, and the contract tests assert the
 remaining process budget by trace so a regression fails a test rather than slowing a session.
 
-What stays, and why: one `jq` pass, because a PostToolBatch payload carries every serialized tool
-result, so a regex for the envelope fields would be matching against tool output; and one process
-for `scripts/context-zone.sh`, which is the single band authority these hooks must not
-re-implement. That resolver is the floor. Measured alone it costs 199 ms at a 25 ms floor, about
-8 spawn-equivalents, in 4 processes of its own, which is now the whole remaining cost of a steady
-PostToolBatch fire. Cutting further means changing the resolver, not these hooks.
+The resolver's own equivalence was proven the same way, at more depth, because its rewrite moved
+security-relevant gates. A differential harness runs the old and new resolver over 103 inputs and
+compares stdout, stderr and exit code byte for byte: both band shapes at every boundary, the
+window-class selection, the plausibility guard, the version gate either side of 2.1.132, the
+combination rule, the staleness window either side, the whole calendar-invalid `captured_at` class,
+all four trust gates, and every `zones.json` variant including both malformed-notice paths. Zero
+differences, stable across three runs.
+
+One subtlety is worth stating, because it would have been a silent widening. jq's
+`fromdateiso8601` is not `date -u -d`: it NORMALIZES a structurally well-formed but
+calendar-invalid timestamp rather than refusing it, so February 30th would have become March 2nd
+and second 60 would have rolled into the next minute. The strict ISO-8601 format test exists to
+stop a lenient parser accepting a forged `captured_at`, and normalizing there would have undone it.
+The parsed epoch is therefore formatted back and required to equal the input byte for byte, which
+restores `date`'s answer on every such value.
+
+What stays, and why: one `jq` pass in the hook, because a PostToolBatch payload carries every
+serialized tool result, so a regex for the envelope fields would be matching against tool output;
+one `jq` in the resolver, carrying every gate and both comparisons; and the resolver's own process.
+Running it rather than sourcing it is deliberate: it is a documented seam that `zone-gate.sh` and
+its test suite invoke as an executable, and it signals through `exit`. Making it sourceable would
+change a public interface to save one process, and that is the only structural cut left here.
 
 ## Install
 
