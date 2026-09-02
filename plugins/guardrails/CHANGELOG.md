@@ -3,6 +3,56 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1]
+
+### Changed
+
+- **Guards stop spending processes on work their own inputs rule out.** Four
+  always-on guards did expensive setup before checking whether the payload could
+  ever produce a finding. `skill-reference-verify` built a plugin name-to-directory
+  index from every plugin manifest (two `jq` processes each, 74 manifests in this
+  marketplace) before looking at whether the written content cites a skill at all;
+  the index is now built once, only when the reference scan has produced a
+  candidate. `stale-path-verify` listed the whole git index on every write; it now
+  does so only when the content carries an inline-code token to adjudicate.
+  `cli-flag-verify` ran its fragment pipeline on content that cannot contain a flag;
+  a `-` is now required before any of it runs. Four guards resolved the repo root
+  through a `$(dirname …)` subshell, which is a fork per call on Windows Git Bash,
+  and now use parameter expansion. Every decision is unchanged: the guards' contract
+  tests hold, and the exit code and JSON output are byte-identical on benign and
+  must-fire payloads alike. Measured on Windows Git Bash against the same tree in a
+  paired run, PostToolUse of a short in-repo markdown file fell from 368.4 to 79.3
+  spawn-equivalents.
+- **The convention patterns are resolved once per convention change, not once per
+  command.** `block-convention-violation` forked the convention resolver twice on
+  every Bash and PowerShell tool call, because the resolver answers one key per
+  call. That cost 12.8 spawn-equivalents on every command the agent ran, to
+  re-derive an answer that changes only when the convention files change, and the
+  cached form measures 3.0 in the same paired run. The pair is
+  now cached per repo root under the plugin data directory and invalidated by mtime
+  against the team markdown, the well-known neutral YAML, and an explicit
+  `convention_source` target when one is declared. The resolver itself is untouched
+  and remains the only authority for what a pattern is. With no plugin data
+  directory the gate does not cache and behaves exactly as before.
+- **The convention cache also notices a convention file that disappears or
+  appears.** An mtime comparison against a file that no longer exists reads as
+  fresh, so a cache warmed while the team markdown, the well-known YAML, or an
+  explicit `convention_source` target existed would have kept enforcing a policy
+  the team had since deleted, where the resolver answers no enforcement. The cache
+  entry now records each dependency with its existence at warm time, and a
+  recorded-as-present file that is now missing, or a recorded-as-absent file that
+  now exists (even with an older mtime, as a restore from an archive produces),
+  re-resolves. The warm path still forks the resolver zero times.
+- **The four guards that anchor the repo root on the written file's directory
+  answer as `dirname` did for a root-level path.** The parameter expansion that
+  replaced the `dirname` fork produced an empty string for `/file.md`, which the
+  root helper read as the process working directory. It now yields `/`, so the
+  anchor for every path shape is the one the fork gave.
+- **`cli-flag-verify`'s flag-shape pre-gate is covered by its contract test.**
+  Content with no `-` character is proven to spawn no scan process, and content
+  carrying a `--flag` is proven to report the identical finding it reported before
+  the gate existed.
+
 ## [0.31.0]
 
 ### Changed
