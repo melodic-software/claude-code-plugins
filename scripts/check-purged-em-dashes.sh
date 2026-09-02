@@ -48,12 +48,19 @@
 # (#2891, checkbox 4). So this gate does not touch that file, and running it
 # changes nothing about what /ai-slop:audit reports. It instead builds a
 # THROWAWAY config layer for its own detector invocation: the tracked config
-# copied, with every switch that can quiet rule-em-dash removed and nothing else
-# altered. Copying rather than synthesizing is deliberate: excluded_paths and
-# every threshold stay whatever the tracked file says, so the vendor, catalog
-# and eval-fixture exclusions that exist precisely because they contain em
-# dashes as DATA keep applying here, and keep applying without a second copy of
-# that list to drift.
+# copied, with every switch that can quiet rule-em-dash removed, and with every
+# other detector rule disabled. Copying rather than synthesizing is deliberate:
+# excluded_paths and every threshold stay whatever the tracked file says, so the
+# vendor, catalog and eval-fixture exclusions that exist precisely because they
+# contain em dashes as DATA keep applying here, and keep applying without a
+# second copy of that list to drift.
+#
+# THE GATE ONLY JUDGES rule-em-dash. The rest of the roster is wasted work here:
+# each enabled rule greps every declared file, and this script ignores those
+# findings. #3342 needs a several-hundred-file allowlist; that is only
+# affordable when this invocation is a one-rule run. Slugs are read from the
+# detector's own rule tables so a newly shipped rule is disabled here without a
+# second roster to drift.
 #
 # WHAT THE THROWAWAY LAYER DOES OVERRIDE is exactly the set of keys that would
 # let a declared path pass without being judged: rule-em-dash's entry in
@@ -198,10 +205,11 @@ if [[ "$MODE" == list ]]; then
 fi
 
 # --- Throwaway detector config ----------------------------------------------
-# The tracked config with every switch that can quiet rule-em-dash removed. An
-# empty HOME keeps the user-global layer out: detect.sh cascades
-# $HOME/.claude/ai-slop.json under the repo layer, and a contributor who happens
-# to carry one must not be able to change this gate's verdict.
+# The tracked config with every switch that can quiet rule-em-dash removed, and
+# with every other detector rule disabled. An empty HOME keeps the user-global
+# layer out: detect.sh cascades $HOME/.claude/ai-slop.json under the repo layer,
+# and a contributor who happens to carry one must not be able to change this
+# gate's verdict.
 #
 # Three keys can silence this rule and all three are stripped, because a path on
 # the allowlist declares the surface purged and a per-rule exemption claims it
@@ -216,9 +224,37 @@ fi
 # `excluded_paths` is deliberately NOT stripped. Those files are never opened,
 # so they surface as excluded-glob declines that the verdict below names and
 # fails on, which is the report this gate wants rather than a silent override.
+#
+# `disabled_rules` is REPLACED, not merged, with every detector slug except
+# rule-em-dash. Merging with the tracked list would keep the rest of the roster
+# enabled (this repo only disables three rules corpus-wide) and the one-rule
+# claim would be a comment, not a property of the run.
 
 mkdir -p "$TMP/root/.claude" "$TMP/home" || exit 2
-if ! jq '.disabled_rules |= ((. // []) | map(select(. != "rule-em-dash")))
+
+# Table rows in detect.sh are `  "rule-<slug>|...`. Reading them from $DETECT
+# keeps this list identical to the roster the invocation will actually run.
+mapfile -t DETECT_SLUGS < <(sed -n 's/^  "\(rule-[a-z0-9-]*\)|.*/\1/p' "$DETECT")
+if ((${#DETECT_SLUGS[@]} == 0)); then
+  echo "check-purged-em-dashes: could not read the detector rule roster from $DETECT" >&2
+  exit 2
+fi
+have_em_dash=0
+for slug in "${DETECT_SLUGS[@]}"; do
+  [[ "$slug" == rule-em-dash ]] && have_em_dash=1 && break
+done
+if ((have_em_dash == 0)); then
+  echo "check-purged-em-dashes: detector roster from $DETECT does not include rule-em-dash" >&2
+  exit 2
+fi
+other_rules="$(printf '%s\n' "${DETECT_SLUGS[@]}" | grep -vx 'rule-em-dash' | jq -R . | jq -s .)"
+if [[ -z "$other_rules" || "$other_rules" == '[]' ]]; then
+  echo "check-purged-em-dashes: detector roster from $DETECT has no rules to disable besides rule-em-dash" >&2
+  exit 2
+fi
+
+if ! jq --argjson disabled "$other_rules" \
+  '.disabled_rules = $disabled
   | del(.em_dash_allowed_paths)
   | .rule_allowed_paths |= ((. // {}) | del(."rule-em-dash"))' \
   "$SLOP_CONFIG" >"$TMP/root/.claude/ai-slop.json"; then
@@ -243,6 +279,22 @@ if [[ -z "$summary" ]]; then
 fi
 if [[ "$summary" != *" disabled=0"* ]]; then
   echo "check-purged-em-dashes: rule-em-dash was disabled for this run ($summary); the config layer did not take effect" >&2
+  exit 2
+fi
+
+# Narrow-rule liveness. The coverage arithmetic below is only the one-rule run
+# this gate claims if every other Summary line reports disabled=1. A throwaway
+# layer that re-enabled the rest of the roster would still look live
+# (rule-em-dash disabled=0, file counts balance) and would silently put the
+# backfill cost back.
+enabled_rules=0
+while IFS= read -r line; do
+  case "$line" in
+  *' disabled=0'*) enabled_rules=$((enabled_rules + 1)) ;;
+  esac
+done < <(grep '^Summary rule=' "$OUT")
+if ((enabled_rules != 1)); then
+  echo "check-purged-em-dashes: expected only rule-em-dash enabled, found $enabled_rules enabled rule(s)" >&2
   exit 2
 fi
 
