@@ -5,6 +5,83 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.34]
+
+### Changed
+
+- **The zone-crossing hook's steady PostToolBatch path drops from 11 processes to 2.** PostToolBatch
+  fires once per tool batch, so every process `zone-crossing-inject.sh` started was paid on the
+  critical path of every batch. Removed: three `dirname` calls (two sources plus the resolver path),
+  replaced by `${BASH_SOURCE[0]%/*}` with dirname's own `.` answer for a slash-free invocation; a
+  second `jq`, by reading `hook_event_name` and `session_id` in one pass instead of one call each;
+  `tr -cd '[:lower:]' | head -c 16` on both state markers, replaced by `$(<file)` plus parameter
+  expansion that keeps the `[:lower:]` class so the result stays locale-independent; and the
+  per-batch `mkdir -p` on the state directory, behind a `-d` guard so it is paid once per session.
+  Measured on Windows 11 under Git Bash, 12 trials against a `bash -c :` floor: 18.9
+  spawn-equivalents to 10.8. The accounting table is in the plugin README.
+- **`zone-gate.sh` spawns nothing in the default advisory posture.** Its two `dirname` calls were
+  its entire cost there, since the gate exists only in blocking mode and otherwise starts, sources
+  and exits. 2.5 spawn-equivalents to 1.4.
+- **The PostCompact marker drops from 9 processes to 4.** Two `dirname` calls went the same way;
+  `date -u` became printf's `%()T` format, the idiom the shared telemetry helper already uses, for
+  an identical string and no process; and the `mkdir` and the blocking-mode counter `rm` are behind
+  existence guards, both no-ops on the steady path. The prune, the atomic rename and the permission
+  repair on the shared contract directory stay: PostCompact fires once per compaction, not per tool
+  batch.
+- **The zone resolver drops from six processes to one.** `scripts/context-zone.sh` is the band
+  authority the hooks call once per resolve, so its cost lands on the PostToolBatch path too. It
+  spent one `jq` for the snapshot, two `date` for the staleness arithmetic, and three `awk` for the
+  two band comparisons and the version gate. The band resolution now runs ahead of the snapshot
+  pass and the resolved bands are handed to that one `jq` as data, so the comparisons happen where
+  the snapshot is already parsed; the two `zones.json` passes became one over the same file, still
+  validating the percentage and token shapes independently and still emitting their own separate
+  notices; and `date -u +%s` became printf's `%()T`. A `zones.json` override costs exactly one
+  additional `jq`. Measured with old and new interleaved in one loop against the same floor: 9.5
+  spawn-equivalents to 2.3.
+- **The resolver's `captured_at` gate keeps its strictness on purpose.** jq's `fromdateiso8601`
+  NORMALIZES a structurally well-formed but calendar-invalid timestamp instead of refusing it, so
+  February 30th would have become March 2nd and second 60 would have rolled into the next minute.
+  That would have quietly widened the staleness gate the strict format test exists to hold. The
+  parsed epoch is formatted back and required to equal the input byte for byte, which restores
+  `date -u -d`'s answer on every value in that class.
+- **What did not change: any decision, any emitted text, any state file.** An eleven-scenario
+  capture covering both events, both crossing directions, hostile and absent session ids and an
+  empty payload diffs byte-identical on stdout, exit code and every state file. For the resolver, a
+  differential harness compares the old and new implementation over 103 inputs on stdout, stderr
+  and exit code: both band shapes at every boundary, the window-class selection, the plausibility
+  guard, the version gate either side of 2.1.132, the combination rule, the staleness window either
+  side, the whole calendar-invalid `captured_at` class, all four trust gates, and every
+  `zones.json` variant including both malformed-notice paths. Zero differences across three runs.
+  A whole steady PostToolBatch fire is now 3 processes, down from 15.
+- **The resolver still runs as its own process rather than being sourced.** It is a documented seam
+  that `zone-gate.sh` and its test suite invoke as an executable, and it signals through `exit`.
+  Making it sourceable would change a public interface to save one process, and it is the only
+  structural cut left on this path.
+- **The `%()T` clock keeps `date` as its fallback on a shell without it.** printf's `%()T`
+  conversion arrived in bash 4.2, and stock macOS ships 3.2, which this plugin supports. There the
+  builtin fails and binds nothing, so without a fallback every resolve answered `unknown`, which
+  silently disabled both the zone-crossing notice and the blocking gate, and the PostCompact marker
+  recorded an empty `compacted_at`. Both sites now try the builtin first and run the exact `date`
+  invocation they replaced only when it fails. On 4.2 and later the fallback is never reached, so
+  the process budgets above stand; both suites emulate the 3.2 printf with an exported shim and
+  assert by trace that `date` runs exactly once there.
+- **The state-marker reads are silent again when the file vanishes between the `-r` test and the
+  read.** `$(<file)` had lost the `2>/dev/null` the `tr` pipeline carried, so bash's own "No such
+  file" reached the hook's stderr in that window. The redirect now sits on a brace group around the
+  read. It cannot sit inside the substitution: a second redirection there turns the fast-path read
+  into a null command, and the marker would read as empty on every fire.
+
+### Added
+
+- **`zone-crossing-inject.test.sh` asserts the per-batch process budget by trace.** Reading the code
+  cannot prove it: `dirname`, `tr`, `head` and a per-field `jq` each look like one harmless call at
+  the call site and only add up in a trace. The new cases assert exact counts rather than absence,
+  so a regression back to a second `jq` fails a test instead of quietly slowing every tool batch.
+- **`context-zone.test.sh` asserts the per-resolve process budget the same way.** A zero-config
+  resolve must spawn exactly one process and exactly one `jq`, with no `date` and no `awk`; a
+  `zones.json` override must cost exactly one more `jq`, pinning the single-pass read so a future
+  change cannot quietly go back to one pass per shape.
+
 ## [0.7.33]
 
 ### Changed
