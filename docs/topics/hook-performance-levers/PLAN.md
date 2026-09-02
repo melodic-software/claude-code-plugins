@@ -506,7 +506,7 @@ on crossing and non-crossing payloads; an xtrace test pins the non-crossing spaw
 `diff` of outputs and state files empty per payload; PostToolBatch `max_ms` after is below before, both in
 spawn-equivalents; `gh pr checks` 0 failing.
 
-### Phase 5: Windows path-form correctness [TODO]
+### Phase 5: Windows path-form correctness [DONE]
 
 Repo: claude-code-plugins. One PR. File-disjoint from phases 2 to 4.
 
