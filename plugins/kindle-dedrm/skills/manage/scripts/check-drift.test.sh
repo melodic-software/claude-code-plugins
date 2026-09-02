@@ -58,8 +58,11 @@ assert_eq() {
 assert_file "check-drift.sh is present" "${SUT}"
 
 src="$(cat "${SUT}")"
+# Needles are literal SUT source. ${SCRIPT_DIR} must not expand here.
+# shellcheck disable=SC2016
 assert_contains "versions pin path is reference/" "${src}" \
   'VERSIONS_MD="${SCRIPT_DIR}/../reference/versions.md"'
+# shellcheck disable=SC2016
 assert_contains "sources pin path is reference/" "${src}" \
   'SOURCES_MD="${SCRIPT_DIR}/../reference/sources.md"'
 assert_lacks "no leftover references/ pin path" "${src}" "../references/"
