@@ -33,7 +33,8 @@ prompt when the action and profile are given.
 ## Profile contents
 
 Files at `.claude/ai-briefing/` form the default profile. Each
-`.claude/ai-briefing/<name>/` directory is a named profile overlay.
+`.claude/ai-briefing/<name>/` directory is a named profile. Selecting a named
+profile is profile selection, not resolution of a `*.local.*` cascade layer.
 
 | Artifact | Purpose |
 |---|---|
@@ -77,7 +78,7 @@ anything.
      touching stored config.
 2. **`sources.md`.** FAIL if the resolved profile has no `sources.md`: `/ai-briefing:generate`
    has no authorized sources to collect from. Remediation: `apply`.
-3. **Optional overlays.** INFO: report whether `audience.md` and declarative `brand.json`
+3. **Optional profile files.** INFO: report whether `audience.md` and declarative `brand.json`
    exist; their absence is expected and never a FAIL.
 4. **Build toolchain.** INFO unless the consumer intends `--format html`/`--format slides`.
    Report whether the locked runtime at `${CLAUDE_PLUGIN_DATA}/runtime/build` exists and its
@@ -102,10 +103,10 @@ nothing and reports "already configured".
    existing file unchanged. Do not seed X handles, navigate X, scrape following graphs, or
    install an X API provider. Note the current X access restriction and link the
    authoritative terms: <https://x.com/en/tos>.
-2. **Offer optional overlays.** Offer `audience.md` and declarative `brand.json`, creating only
-   the files the consumer requests. Keep local logo assets beside `brand.json`. Recommend the
-   recursive `.claude/**/*.local.*` ignore line for personal overlays while keeping shared
-   profile files tracked.
+2. **Offer optional profile files.** Offer `audience.md` and declarative `brand.json`, creating only
+   the files the consumer requests. Keep local logo assets beside `brand.json`. These files are
+   team-tracked in the selected profile directory. This surface has no gitignored `*.local.*`
+   overlay.
 3. **`apply install-build-deps` installs the optional build toolchain.** Parse the subaction
    before invoking a shell and never interpolate raw arguments into a command. Without it,
    skip this step and change no existing runtime. With it, build and validate a temporary
@@ -190,7 +191,7 @@ nothing and reports "already configured".
    Never claim the toolchain is ready on the swap's exit code alone.
 
 4. **Confirm.** Report the profile path, whether `sources.md` was created or preserved, which
-   optional overlays were created, and whether build dependencies were installed or
+   optional profile files were created, and whether build dependencies were installed or
    intentionally skipped. Point the consumer to `/ai-briefing:generate`.
 
 ## This skill does not
