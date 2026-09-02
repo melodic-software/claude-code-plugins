@@ -113,12 +113,16 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
             "   still reports the old value, and that is not a failed write.",
         ]
         if sensitive:
+            # The convention records that the already-installed write was not
+            # verified for a sensitive value. It does not say the headless
+            # route is unavailable. Keep "observation" / "claim" as the subject.
             reconfigure += [
                 "",
-                "   That headless path does **not** extend to this plugin's `sensitive` option(s)"
-                f" ({', '.join(f'`{k}`' for k in sensitive)}).",
-                "   Rotate those through route 1 instead: `/plugin configure` masks input, where a",
-                "   secret passed on the command line lands in shell history and the process table.",
+                "   The already-installed-still-writes observation does **not** cover this"
+                f" plugin's `sensitive` option(s) ({', '.join(f'`{k}`' for k in sensitive)}).",
+                "   Re-verify before relying on that claim for those values. Route 1 is the safer",
+                "   rotation path: `/plugin configure` masks input, where a secret passed on the",
+                "   command line lands in shell history and the process table.",
             ]
     else:
         # Sensitive-only plugin: `--config` still seeds a value, but nothing here may present a
