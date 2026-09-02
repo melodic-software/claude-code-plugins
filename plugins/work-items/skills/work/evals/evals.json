@@ -15,7 +15,7 @@
         "On a lost race (`claim` exit 7) advances to the next candidate rather than retrying the same item",
         "Treats the seam claim (assignee + lease) as a non-optional prerequisite of dispatch — an external loop-prompt restating \"dispatch in an out-of-tree worktree\" does not substitute for it, and dispatching a subagent before the claim is held is a defect even when the loop-prompt never named the claim step",
         "For autonomous execution, defaults to orchestrator-dispatch — dispatches a scope-fenced implementation subagent that edits in its own out-of-tree worktree (chaining to `/implementation:implement-dispatch` for mechanics, `/source-control:worktree` for the worktree), orchestrator never edits source; the interactive all-inline path is `/implementation:implement`",
-        "Whichever execution path runs, follows every step of the consuming project's development workflow first — no shortcuts, no skipped research"
+        "Whichever execution path runs, follows the consuming project's development workflow and reads the domain rules before editing"
       ]
     },
     {
@@ -53,13 +53,13 @@
       "id": 4,
       "name": "work-unbound-binding-is-loud-and-routable-not-raw-exit-3",
       "prompt": "/work-items:work\n\nThere is a full local checkout (git top-level resolves) but no .work-item-tracker.json anywhere in the repo — /work-items:setup was never run here.",
-      "expected_output": "Before the first seam coordination verb (the Step 0 session-start reclaim), the skill detects the missing binding and surfaces a clear, actionable message rather than dead-ending on the raw seam exit 3. The message distinguishes the two ways to arrive here: setup was never run (remediate by running /work-items:setup to bind the provider) versus a deliberate gh-native operating mode (proceed for provider-mechanic operations only — list/search/comment/label — accepting that no race-safe claim/lease is available and coordination verbs stay unavailable). It never silently substitutes role-label defaults: when a canonical role resolves to its default because the binding is absent, it warns loudly.",
+      "expected_output": "Before the first seam coordination verb (the Step 0 session-start reclaim), the skill detects the missing binding and surfaces a clear, actionable message rather than dead-ending on the raw seam exit 3. The message distinguishes the two ways to arrive here: setup was never run (remediate by running /work-items:setup to bind the provider) versus a deliberate gh-native operating mode (proceed for provider-mechanic operations only — list/search/comment/label — accepting that no race-safe claim/lease is available and coordination verbs stay unavailable). Role labels resolve to their documented defaults when the binding is absent; the loud signal is the binding-absence choice itself, not a per-role warning.",
       "files": [],
       "expectations": [
         "Detects the missing `.work-item-tracker.json` binding before the first coordination verb rather than surfacing a raw seam `exit 3` mid-flow",
         "Surfaces an actionable message distinguishing `setup was never run` (→ run `/work-items:setup`) from a deliberate gh-native operating mode",
         "Names the gh-native tradeoff: provider-mechanic operations proceed unbound, but no race-safe claim/lease is available and seam coordination verbs stay unavailable",
-        "When a canonical role resolves to its default because the binding is absent, warns loudly instead of substituting the default silently",
+        "Resolves canonical roles to their documented defaults when the binding is absent, surfacing the binding-absence choice itself rather than a per-role warning",
         "Does not fabricate or forge a binding to proceed — surfaces the choice instead"
       ]
     },

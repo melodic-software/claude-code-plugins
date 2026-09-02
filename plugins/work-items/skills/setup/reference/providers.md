@@ -119,5 +119,5 @@ file.
 
 **Secrets never go in the binding file** — it is tracked in git. A provider needing an API token
 references it by env-var name (or the repo's secret-store convention) from inside its adapter,
-never as a literal. `github` needs none (ambient `gh`); `jira` and `gitea` reference theirs by
+never as a literal. `github` needs none (ambient `gh`); `jira`, `gitea`, and `linear` reference theirs by
 `auth_env` name.
