@@ -3,6 +3,14 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.17]
+
+### Changed
+
+- **`index-drift` carries an `if` filter, `Edit(**/.claude/rules/*.md)`.** The hook only
+  ever acts on a rule file under `.claude/rules/`, which is also its own first check, so
+  every other Write/Edit no longer spawns it.
+
 ## [0.11.16]
 
 ### Changed

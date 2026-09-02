@@ -3,6 +3,15 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1]
+
+### Changed
+
+- **The engine gate carries an `if` filter, `Bash(*hygiene.py*)`.** The gate only ever
+  judges a command that carries the engine's file name (`_engine_gate_relevant`), so the
+  filter is a superset of its own relevance check; every other Bash call no longer pays
+  a Python interpreter start to be told it is irrelevant.
+
 ## [0.21.0]
 
 ### Changed

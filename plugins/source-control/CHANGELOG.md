@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.36]
+
+### Changed
+
+- **The Bash gates carry `if` filters, so they spawn only for the commands they judge.**
+  `pr-body-linkage-gate` runs under `Bash(gh *)`, and `worktree-add-containment-gate`
+  and `worktree-add-claim-gate` under `Bash(*worktree*)`; each filter is a superset of
+  the gate's own first check (`gh` on the command line; `worktree` in the command), so
+  no command the gate would have judged is skipped. A plain `git status` no longer
+  costs three hook processes.
+
 ## [0.55.35]
 
 ### Changed

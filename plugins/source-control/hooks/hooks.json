@@ -7,12 +7,14 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-body-linkage-gate.sh",
+            "if": "Bash(gh *)",
             "timeout": 15,
             "statusMessage": "Checking PR body against the repo's pr-issue-linkage gate..."
           },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-add-containment-gate.sh",
+            "if": "Bash(*worktree*)",
             "timeout": 15,
             "statusMessage": "Checking git worktree add target against the nesting invariant..."
           }
@@ -37,6 +39,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-add-claim-gate.sh",
+            "if": "Bash(*worktree*)",
             "timeout": 15,
             "statusMessage": "Claiming a newly added worktree..."
           }

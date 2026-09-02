@@ -3,6 +3,24 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0]
+
+### Changed
+
+- **One hook process per event instead of one per guard.** The always-on guards are
+  now registered through `hooks/run-guards.sh`, a dispatcher that reads stdin once,
+  extracts the payload fields with one `jq` process, and sources each guard in turn
+  inside that one bash process. Per Bash/PowerShell call this is one hook process
+  where there were eight; per Write/Edit it is one where there were three on
+  PreToolUse and one where there were three on PostToolUse. Every guard still ships as
+  its own script with its own contract test, kill switch, and telemetry envelope, and
+  decides exactly as before; the dispatcher owns only the spawn shape, the exit-code
+  aggregation (2 wins, every guard still runs), and the merge of several guards'
+  `additionalContext` into the one JSON document a hook process may emit. Measured on
+  the reference Windows host with a benign `git status` payload the per-Bash-call set
+  fell from ≈ 3.0 s of summed hook time to under 1 s; the hook-budget accounting in the
+  README carries the per-guard figures.
+
 ## [0.30.0]
 
 ### Fixed

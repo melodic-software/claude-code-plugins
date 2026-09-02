@@ -7,6 +7,14 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/actionlint-check.sh",
+            "if": "Edit(**/.github/workflows/*.yml)",
+            "timeout": 15,
+            "statusMessage": "Checking workflow with actionlint..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/actionlint-check.sh",
+            "if": "Edit(**/.github/workflows/*.yaml)",
             "timeout": 15,
             "statusMessage": "Checking workflow with actionlint..."
           }

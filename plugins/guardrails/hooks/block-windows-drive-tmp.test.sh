@@ -235,6 +235,7 @@ reg_cmd=$(jq -r --arg h "block-windows-drive-tmp.sh" '
   [ .hooks.PreToolUse[].hooks[].command | select(contains($h)) ] | first // ""' \
   "$HOOKS_JSON" 2>/dev/null)
 reg_rel="${reg_cmd##*\"/}"
+reg_rel="${reg_rel%% *}" # the dispatcher form carries the guard as an argument
 assert_eq "the registered command resolves to a file on disk" "yes" \
   "$([[ -n "$reg_rel" && -f "$HOOK_DIR/../$reg_rel" ]] && echo yes || echo no)"
 
