@@ -384,7 +384,7 @@ and value grammar are owned by the
 [commit-convention seam](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md);
 this skill's part:
 
-- **Recommend it as the default when a second enforcement consumer exists (F1).** Inference (step 2)
+- **Recommend it as the default when a second enforcement consumer exists.** Inference (step 2)
   already resolves the commit-msg hooks dir via `git rev-parse --git-path hooks`; when a second
   consumer of the convention is present — a commit-msg hook, a CI title check, or a user-stated one —
   **recommend the neutral SSOT as the default**, because the tool-agnostic file is what that second
@@ -401,7 +401,7 @@ this skill's part:
   with machine keys (`subject_pattern`, `pr_title_pattern`, optionally `pr_body_required_sections`,
   `dialect: posix-ere`) plus a **1–2 line** `#` header (what the file is, who reads it) — not a
   multi-line preamble; the flat YAML is self-describing and the human document proper lives in
-  CONTRIBUTING/AGENTS.md, not in ceremony comments (F4).
+  CONTRIBUTING/AGENTS.md, not in ceremony comments.
 - **Migration retires duplicates.** When the team markdown file already carries a key the neutral
   file now declares, REMOVE it from the markdown in the same apply — the resolver would prefer the
   neutral value anyway, but leaving both invites hand-edit drift, which is the disease this shape

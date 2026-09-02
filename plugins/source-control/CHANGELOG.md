@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.40]
+
+### Changed
+
+- babysit-loop: removed issue numbers and "today" phrasing from the loop-knob, budget, and promotion-gate rules; restated the promotion-evidence seam state as a present-tense fail-closed rule with a recheck trigger; dropped the merge-authority protocol and the trigger-phrase list from the description
+- babysit-prs: removed incident narration and issue numbers from the pre-compute note, the autopilot merge tier, the gotchas, and the safety, freshness, cadence, independent-resolution, orchestration, runbook-cycle, and stuck-checks references; stated the classifier-denial and reachability rules in the present tense; replaced the description's trigger-phrase list with intent categories; regenerated guard-contract.md from the edited claim strings
+- commit: removed revision history and pinned model names from the pre-compute, trailer, and key-spelling sections; the exec-bit reference states the rename-arm rule without the decision record
+- pull-request: lowered the register of the monitor checklists; removed observed-incident narration from the gotchas and the monitor, readiness, create, and merge references; made the stale-base guard portable to consuming repos
+- resolve-conflicts: merged the two pre-compute notes into one present-tense rule
+- setup: dropped the review-finding ids, the gotchas session-log intro, and the retirement-manifest justification sentence on the shadowed-markdown probe; tightened the description to intent categories
+- worktree: removed pre-compute archaeology, the closed upstream issue pointers, and the author-machine record counts; stated the reap-record rules in the present tense
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.55.39]
 
 ### Changed

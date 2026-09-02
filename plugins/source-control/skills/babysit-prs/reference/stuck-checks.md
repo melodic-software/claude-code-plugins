@@ -69,7 +69,7 @@ conflict makes the absent lanes appear and the count jumps by an order of magnit
 So read `mergeStateStatus` BEFORE reasoning about a check list that looks too short. `DIRTY`
 explains the absence completely, and the remedy is to merge the base branch or rebase, not to
 investigate CI. Diagnosing the missing lanes as a trigger, permissions, or App-token problem is
-time spent on a mechanism that is not involved; that misdiagnosis has already been made here once.
+time spent on a mechanism that is not involved.
 
 The event split is a repo fact, not a constant: derive it by reading the `on:` blocks under
 `.github/workflows/` rather than trusting any count written down, since a lane added tomorrow
