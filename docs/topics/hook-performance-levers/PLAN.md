@@ -356,7 +356,7 @@ Repo: claude-code-plugins. One PR.
 
 **Sanity Check:**
 
-- `jq -e '[.hooks.PreToolUse[] | .hooks[] | select(.if == null)] | length == 0' plugins/context-budget/hooks/hooks.json` exits 0 (no ungated row remains, unless the probe recorded a miss, in which case exactly the missed row is ungated and named in the README), and `jq -r '.hooks.PreToolUse[].hooks[].if' plugins/context-budget/hooks/hooks.json | sort` prints the project-scope, `~/`-anchored and `//`-anchored rules above.
+- `jq -e '[.hooks.PreToolUse[] | .hooks[] | select(.if == null)] | length == 0' plugins/context-budget/hooks/hooks.json` exits 0 (no ungated row remains, unless the probe recorded a miss, in which case exactly the missed row is ungated and named in the README), and `jq -r '.hooks.PreToolUse[].hooks[].if' plugins/context-budget/hooks/hooks.json | sort` prints the three `//**/`-anchored rules (`.claude/settings.json`, `.claude/settings.local.json`, `managed-settings.json`), mirroring the script's two path regexes; see DEVIATIONS.md for why the cwd and `~/` scheme was dropped.
 - The `--debug-file` log lines for the three probe writes (user-scope Write, managed-settings Write, project-scope Edit), each naming the hook and `ask`, are pasted; the session was started after delivery and its `installed_plugins.json` `gitCommitSha` matches the delivered HEAD.
 - `for f in plugins/*/hooks/hooks.json; do jq -e '[.hooks[][] .hooks[] | select(.timeout == null)] | length == 0' "$f" >/dev/null || { echo "FAIL $f"; exit 1; }; done` exits 0.
 - `grep -c 'best-effort\|\$()' plugins/source-control/README.md plugins/disk-hygiene/README.md` is at least 1 per file.
