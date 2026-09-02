@@ -3,6 +3,23 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.20]
+
+### Fixed
+
+- **`clean`: `batch_read_lines_into` no longer treats a trailing blank line as
+  "file not found".** The helper's exit status is now a source-open verdict: 0
+  once the selected source was opened and consumed to ordinary EOF (empty
+  input, blank lines, a trailing blank line, and a final non-newline-terminated
+  line are all success), and 1 only when a named source is missing, not a
+  regular file, or cannot be opened. An explicit `return 0` after EOF stops the
+  last `[[ -n "$line" ]]` from becoming the function result. Both
+  `clean-batch.sh` and `git-tree-reset-batch.sh` trust that contract, so a
+  `--repos-from` / `--skip-from` file ending `a\n\n` is accepted and a missing
+  file still errors as file-not-found. Named sources open on fixed fd 3 so a
+  `ulimit -n 10` runner can still read the list
+  ([#3482](https://github.com/melodic-software/claude-code-plugins/issues/3482)).
+
 ## [0.10.19]
 
 ### Changed

@@ -140,8 +140,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   --repos-from)
     [[ $# -ge 2 ]] || fail_usage "--repos-from requires a file or -"
-    [[ "$2" == "-" || -f "$2" ]] || fail_usage "file not found: $2"
-    batch_read_lines_into REPO_INPUTS "$2"
+    batch_read_lines_into REPO_INPUTS "$2" || fail_usage "file not found: $2"
     shift
     ;;
   --skip)
@@ -151,8 +150,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skip-from)
     [[ $# -ge 2 ]] || fail_usage "--skip-from requires a file"
-    [[ -f "$2" ]] || fail_usage "file not found: $2"
-    batch_read_lines_into SKIP_INPUTS "$2"
+    batch_read_lines_into SKIP_INPUTS "$2" || fail_usage "file not found: $2"
     shift
     ;;
   -h | --help)

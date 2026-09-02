@@ -325,6 +325,63 @@ out="$(bash "$BATCH" --dry-run --repos-from "$NOEOL_REPOS" 2>&1)" || true
 assert_contains "unterminated repos-from still enumerates the repo" "$out" "Repos: 1"
 assert_contains "unterminated repos-from repo would reset" "$out" "would-reset"
 
+# --- 22b. source-open contract (#3482): trailing blank / empty / CR / missing ---
+# A file ending `path\n\n` is ordinary EOF success. The sibling clean-batch used
+# to map that helper rc 1 onto "file not found"; tree-batch must keep accepting
+# it after dropping its duplicate `-f` precheck, and a truly missing file must
+# still error as file-not-found.
+TRAIL_REPOS="$TEST_TMPDIR/repos-trail.txt"
+printf '%s\n\n' "$CLEAN_REPO" >"$TRAIL_REPOS"
+rc=0
+out="$(bash "$BATCH" --dry-run --repos-from "$TRAIL_REPOS" 2>&1)" || rc=$?
+assert_exit "trailing-blank --repos-from is accepted (exit 0)" 0 "$rc"
+assert_not_contains "trailing blank is not reported as file-not-found" "$out" "file not found"
+assert_contains "trailing-blank list enumerates the repo" "$out" "Repos: 1"
+
+: >"$TEST_TMPDIR/repos-empty.txt"
+rc=0
+out="$(bash "$BATCH" --dry-run --repos-from "$TEST_TMPDIR/repos-empty.txt" 2>&1)" || rc=$?
+assert_exit "empty --repos-from is a usage error (exit 2)" 2 "$rc"
+assert_not_contains "empty file is not reported missing" "$out" "file not found"
+assert_contains "empty file reaches no-repos usage" "$out" "no repos given"
+
+printf '%s\r\n' "$CLEAN_REPO" >"$TEST_TMPDIR/repos-cr.txt"
+rc=0
+out="$(bash "$BATCH" --dry-run --repos-from "$TEST_TMPDIR/repos-cr.txt" 2>&1)" || rc=$?
+assert_exit "CR-terminated --repos-from is accepted (exit 0)" 0 "$rc"
+assert_contains "CR-stripped list enumerates the repo" "$out" "Repos: 1"
+
+rc=0
+out="$(bash "$BATCH" --dry-run --repos-from "$TEST_TMPDIR/no-such-repos.txt" 2>&1)" || rc=$?
+assert_exit "missing --repos-from exits 2" 2 "$rc"
+assert_contains "missing file reported not found" "$out" "file not found:"
+
+TRAIL_SKIP="$TEST_TMPDIR/skips-trail.txt"
+printf 'keepme\n\n' >"$TRAIL_SKIP"
+rc=0
+out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" --repo "$SKIP_REPO" --skip-from "$TRAIL_SKIP" 2>&1)" || rc=$?
+assert_exit "trailing-blank --skip-from is accepted (exit 0)" 0 "$rc"
+assert_not_contains "trailing-blank skip-from is not file-not-found" "$out" "file not found"
+assert_contains "trailing-blank skip-from still skips" "$out" "skip-list"
+
+rc=0
+out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" --skip-from "$TEST_TMPDIR/no-such-skips.txt" 2>&1)" || rc=$?
+assert_exit "missing --skip-from exits 2" 2 "$rc"
+assert_contains "missing skip-from reported not found" "$out" "file not found:"
+
+UNREAD_LIST="$TEST_TMPDIR/unreadable-repos.txt"
+printf '%s\n' "$CLEAN_REPO" >"$UNREAD_LIST"
+chmod 000 "$UNREAD_LIST" 2>/dev/null || true
+if [[ -r "$UNREAD_LIST" ]]; then
+  skip_case "unopenable --repos-from: chmod 000 not enforced on this filesystem (CAP_DAC_OVERRIDE)"
+else
+  rc=0
+  out="$(bash "$BATCH" --dry-run --repos-from "$UNREAD_LIST" 2>&1)" || rc=$?
+  assert_exit "unopenable --repos-from exits 2" 2 "$rc"
+  assert_contains "unopenable file reported not found" "$out" "file not found:"
+fi
+chmod 644 "$UNREAD_LIST" 2>/dev/null || true
+
 # --- 23. a single --repo consumes consecutive paths (shell-glob-after-expansion) ---
 # `--repo ~/repos/*` reaches the script as ONE --repo flag followed by N positional
 # paths (the shell expanded the glob before exec). A single --repo must ingest every
