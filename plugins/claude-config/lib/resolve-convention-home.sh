@@ -251,7 +251,7 @@ valid_home() {
 # renamed, because the name is right for what the variable holds.
 AGENTS_STATE="none"; AGENTS_TOKEN=""
 CLAUDE_STATE="none"; CLAUDE_TOKEN="" # gitleaks:allow
-CLAUDE_SHIM=0
+CLAUDE_SHIM=0 # gitleaks:allow
 
 if [[ -f "$ROOT/AGENTS.md" ]]; then
   scan_file "$ROOT/AGENTS.md"
