@@ -22,7 +22,7 @@ If a non-2.8.0 Kindle for PC is installed, user must uninstall it first (Setting
 
 ## Step 1 — Download three artifacts
 
-Land in `~/Downloads/` for predictability + retention. SHA256 verify against `references/versions.md`.
+Land in `~/Downloads/` for predictability + retention. SHA256 verify against `reference/versions.md`.
 
 ```bash
 mkdir -p ~/Downloads && cd ~/Downloads
@@ -33,7 +33,7 @@ curl -L -o KindleForPC-installer-2.8.70980.exe \
 # Resolve the latest Satsuoni pre-release tag dynamically. Requires the
 # authenticated `gh` CLI (declared in the plugin README). When gh is absent or
 # the query returns nothing, fall back to the REAL pinned tag: before running
-# this block, read the DeDRM_tools tag out of references/versions.md (the
+# this block, read the DeDRM_tools tag out of reference/versions.md (the
 # `releases/download/<tag>/DeDRM_tools.zip` asset row) and substitute it for
 # PINNED_TAG_FROM_VERSIONS_MD below. The guard refuses to continue with the
 # placeholder still in place, so a malformed URL can never be composed.
@@ -41,32 +41,32 @@ LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.pre
 if [[ -z "${LATEST_TAG}" || "${LATEST_TAG}" == "null" ]]; then
   LATEST_TAG="PINNED_TAG_FROM_VERSIONS_MD" # substitute the literal tag, e.g. v10.0.20
   if [[ "${LATEST_TAG}" == "PINNED_TAG_FROM_VERSIONS_MD" ]]; then
-    echo "gh unavailable and no pinned tag substituted — read it from references/versions.md, then rerun." >&2
+    echo "gh unavailable and no pinned tag substituted — read it from reference/versions.md, then rerun." >&2
     exit 1
   fi
-  echo "gh unavailable — using pinned DeDRM tag ${LATEST_TAG} from references/versions.md"
+  echo "gh unavailable — using pinned DeDRM tag ${LATEST_TAG} from reference/versions.md"
 fi
 curl -L -o "DeDRM_tools-${LATEST_TAG}.zip" \
   "https://github.com/Satsuoni/DeDRM_tools/releases/download/${LATEST_TAG}/DeDRM_tools.zip"
 
-# Kindle_Key_Finder zip: use the pinned direct URL from references/versions.md.
+# Kindle_Key_Finder zip: use the pinned direct URL from reference/versions.md.
 # The former article-body discovery is dead — the tutorial is subscriber-gated
-# as of 2026-07 (see references/sources.md), so a new build's URL can only be
+# as of 2026-07 (see reference/sources.md), so a new build's URL can only be
 # obtained by a subscriber reading the current article and re-pinning by hand.
 # This block runs from ~/Downloads, so no relative path can reach the plugin's
-# references directory. Before running, substitute the absolute path of the
+# reference directory. Before running, substitute the absolute path of the
 # versions.md that sits next to this workflow file (the same file the DeDRM
 # fallback above reads) for VERSIONS_MD_ABS_PATH. The guard refuses to continue
 # with the placeholder still in place.
 VERSIONS_MD="VERSIONS_MD_ABS_PATH"
 if [[ "${VERSIONS_MD}" == "VERSIONS_MD_ABS_PATH" || ! -f "${VERSIONS_MD}" ]]; then
-  echo "versions.md path not substituted or not found — set VERSIONS_MD to the absolute path of references/versions.md, then rerun." >&2
+  echo "versions.md path not substituted or not found — set VERSIONS_MD to the absolute path of reference/versions.md, then rerun." >&2
   exit 1
 fi
 ZIP_URL=$(awk '/^## Kindle_Key_Finder/{s=1} s&&/^\| Captured URL \|/{if(match($0,/`[^`]+`/)){print substr($0,RSTART+1,RLENGTH-2);exit}}' \
   "${VERSIONS_MD}")
 if [[ -z "${ZIP_URL}" ]]; then
-  echo "Key_Finder URL not found in references/versions.md — repair the pin, then rerun from this step." >&2
+  echo "Key_Finder URL not found in reference/versions.md — repair the pin, then rerun from this step." >&2
   exit 1
 fi
 curl -L -o "$(basename "$ZIP_URL")" "$ZIP_URL"
@@ -74,7 +74,7 @@ curl -L -o "$(basename "$ZIP_URL")" "$ZIP_URL"
 sha256sum KindleForPC-installer-2.8.70980.exe DeDRM_tools-*.zip Kindle_Key_Finder_*.JH.zip
 ```
 
-Verify hashes against `references/versions.md`. If hashes diverge, **stop and re-fetch** — Amazon binaries do not legitimately change at a fixed version pin; a hash mismatch means the binary changed (either Amazon repackaged or URL now serves something different) and you should investigate before running it.
+Verify hashes against `reference/versions.md`. If hashes diverge, **stop and re-fetch** — Amazon binaries do not legitimately change at a fixed version pin; a hash mismatch means the binary changed (either Amazon repackaged or URL now serves something different) and you should investigate before running it.
 
 ## Step 2 — Extract DeDRM_tools and Kindle_Key_Finder
 
@@ -125,7 +125,7 @@ Verify install:
 powershell.exe -NoProfile -Command "(Get-Item '${LOCALAPPDATA}\Amazon\Kindle\application\Kindle.exe').VersionInfo | Select-Object FileVersion"
 ```
 
-Expect `2.8.0.70980`. If anything else, installer ran an upgrade (see `references/troubleshooting.md` "Installed wrong Kindle for PC version").
+Expect `2.8.0.70980`. If anything else, installer ran an upgrade (see `reference/troubleshooting.md` "Installed wrong Kindle for PC version").
 
 ## Step 4 — Sign-in race window (CRITICAL)
 

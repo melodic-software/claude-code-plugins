@@ -1,6 +1,6 @@
 # Windows remediation policy
 
-This policy is the **only** authorization source for remediations on Windows. If a remediation is not listed here with exact conditions, it does not run — even if a check recommends it. Shared `references/shared/remediation-philosophy.md` still governs global behavior (one attempt, before/after logging, fail-safe posture).
+This policy is the **only** authorization source for remediations on Windows. If a remediation is not listed here with exact conditions, it does not run — even if a check recommends it. Shared `reference/shared/remediation-philosophy.md` still governs global behavior (one attempt, before/after logging, fail-safe posture).
 
 Every authorized remediation has:
 

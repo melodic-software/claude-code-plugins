@@ -3,13 +3,20 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.29]
+## [0.6.30]
 
 ### Changed
 
 - **The hook carries `if` filters, `Edit(*.py)` and `Edit(*.pyi)`.** These are exactly
   the extensions the hook formats, so a Write/Edit of any other file no longer spawns it;
   behavior on Python files is unchanged.
+
+## [0.6.29]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.6.28]
 

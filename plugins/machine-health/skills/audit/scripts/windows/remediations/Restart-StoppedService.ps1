@@ -13,8 +13,8 @@ the contract used by every other remediation; reading it from
 [Console]::In is unreliable under Start-Job isolation and some
 PowerShell hosts.
 
-Policy: references/windows/remediation-policy.md#1-restart-stoppedservice
-Philosophy: references/shared/remediation-philosophy.md
+Policy: reference/windows/remediation-policy.md#1-restart-stoppedservice
+Philosophy: reference/shared/remediation-philosophy.md
 #>
 [CmdletBinding(DefaultParameterSetName = 'Finding', SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
 param(

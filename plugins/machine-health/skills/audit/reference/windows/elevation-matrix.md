@@ -42,7 +42,7 @@ Banner and report pull from `Get-ElevationMatrix.ps1`; table above is prose coun
 
 The **concept** is shared (elevation exists on Windows, macOS, Linux — spelled differently: admin SID, euid 0, sudo). The **matrix data** is OS-specific. When macOS/Linux implementations land:
 
-- `references/macos/elevation-matrix.md` — enumerates capabilities gated on `EUID == 0` or Keychain/Authorization Services
-- `references/linux/elevation-matrix.md` — enumerates capabilities gated on `EUID == 0`, capabilities(7), or polkit
+- `reference/macos/elevation-matrix.md` — enumerates capabilities gated on `EUID == 0` or Keychain/Authorization Services
+- `reference/linux/elevation-matrix.md` — enumerates capabilities gated on `EUID == 0`, capabilities(7), or polkit
 
 Banner renderer (`Write-ElevationBanner.ps1`) and coverage-markdown renderer (`Get-ElevationCoverageMarkdown`) are already OS-neutral; they consume whichever matrix the orchestrator loads.

@@ -21,6 +21,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   fell from ≈ 3.0 s of summed hook time to under 1 s; the hook-budget accounting in the
   README carries the per-guard figures.
 
+## [0.30.5]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.30.4]
 
 ### Changed

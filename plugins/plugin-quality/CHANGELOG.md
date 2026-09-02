@@ -5,6 +5,13 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.7]
+
+### Changed
+
+- **audit:** rename the spoke directory `references/` to `reference/` so it
+  matches the fleet majority (#3546).
+
 ## [0.7.6]
 
 ### Changed

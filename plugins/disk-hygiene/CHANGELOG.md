@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.21.3]
+## [0.21.4]
 
 ### Changed
 
@@ -11,6 +11,13 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   judges a command that carries the engine's file name (`_engine_gate_relevant`), so the
   filter is a superset of its own relevance check; every other Bash call no longer pays
   a Python interpreter start to be told it is irrelevant.
+
+## [0.21.3]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.21.2]
 

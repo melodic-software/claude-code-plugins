@@ -11,6 +11,13 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   ever acts on a rule file under `.claude/rules/`, which is also its own first check, so
   every other Write/Edit no longer spawns it.
 
+## [0.11.18]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.11.17]
 
 ### Fixed

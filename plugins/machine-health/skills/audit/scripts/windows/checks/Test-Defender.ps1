@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Defender status + threats. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#5-defender-status--threats for rubric.
+See reference/windows/check-catalog.md#5-defender-status--threats for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)
