@@ -39,11 +39,13 @@ resume on their own after the reset. Four parts:
   a documented residual that a live cloud producer is out of scope until one exists.
 - **An unchanged payload costs no rename.** When a refresh's snapshot body matches what is already
   on disk, `captured_at` aside, it takes no lock, stages no temp file and performs no rename. The
-  skip is bounded at 5 minutes since the last real write, half the staleness budget, so a session
-  whose windows sit still still refreshes `captured_at` well before a reader could call it stale.
-  The spool's 15-minute record sweep runs on the same 5-minute cadence rather than on every drain.
-  The render path itself has been fork-free since the spool landed, which the suite asserts directly
-  by tracing a non-elected render (`statusline-tee.test.sh`, "the zero-fork render path").
+  skip is bounded at 5 minutes since the last real write, tracked by a `.last-write` stamp in the
+  contract directory, half the staleness budget, so a session whose windows sit still still
+  refreshes `captured_at` well before a reader could call it stale. The spool's 15-minute record
+  sweep runs on the same 5-minute cadence rather than on every drain, tracked by `spool/.last-sweep`.
+  Both stamps are writer-private: they hold epoch seconds, carry no session data, and readers ignore
+  them. The render path itself has been fork-free since the spool landed, which the suite asserts
+  directly by tracing a non-elected render (`statusline-tee.test.sh`, "the zero-fork render path").
 - **Multi-account operation is a known gap, not a supported mode.** The snapshot carries no account
   identifier (none exists in the statusline schema today), so a machine switching accounts mid-drain
   feeds wrong windows to running lanes and the guard cannot detect it. The loop-lane convention §6
@@ -203,6 +205,27 @@ hands a configured value to a hook process; the value comes from the routes abov
 Written for the loop-lane convention's three lanes (work-items `work-loop` and `attend-queue`,
 source-control `babysit-loop`), which inline the reader contract's operable floor. Any session or
 tool on the machine may read the same files under the same contract.
+
+## Measured cost
+
+Measured 2026-09-02 on Windows/MSYS with Git Bash, both tees interleaved in one loop so each meets
+the same machine load. Two lanes matter and they cost very different amounts: the steady render,
+which every refresh pays, and the drain, which one elected refresh per cadence pays for the whole
+machine. The floor is one `bash -c :` spawn, 45 ms and 57 ms on the two runs below, and a
+spawn-equivalent is the tee's cost over the bare render divided by that floor.
+
+| Lane | Before | After |
+| --- | --- | --- |
+| Drain, external commands | 7 | 3 |
+| Drain, total process creations | 10 | 5 |
+| Drain, spawn-equivalents | 8 to 10 | 5 to 6 |
+| Steady render, spawn-equivalents | 1.2 to 1.3 | 1.1 to 1.5 |
+
+The drain loses the rename, the snapshot lock's `mkdir` and `rmdir`, and the sweep's `find`. The
+process-creation row counts the pure-bash forks the external-command row does not: the managed-scope
+probe's two, unchanged, and the atomic write's `umask` subshell, which disappears along with the
+write it wraps. The steady render is unchanged within measurement noise and sits well inside the
+2 spawn-equivalent bar, because the spool had already reduced it to zero external processes.
 
 ## Tuning: `RLG_TEE_ASYNC`
 
