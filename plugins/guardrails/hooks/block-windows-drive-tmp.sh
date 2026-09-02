@@ -84,6 +84,18 @@ msys* | cygwin* | win32) ;;
 *) exit 0 ;;
 esac
 
+# Path-qualified / quoted writers, assigned as literals (no cat/subshell).
+# Bash ERE has no backrefs, so quoted and unquoted command-position
+# patterns are separate. A trailing ["']? on the bare-word branch also
+# matched `echo 'run mkdir' /tmp/x`.
+# shellcheck disable=SC2089,SC2090  # quotes in the character class are literal
+_DRIVE_TMP_CREATOR_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)[\"']([[:space:]]|\$)"
+_DRIVE_TMP_CREATOR_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|\$)"
+_DRIVE_TMP_CREATOR_BARE="[[:space:]](tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|\$)"
+_DRIVE_TMP_COPY_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)[\"']([[:space:]]|\$)"
+_DRIVE_TMP_COPY_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
+_DRIVE_TMP_COPY_BARE="[[:space:]](cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
@@ -400,20 +412,21 @@ segment_writes_drive_root_tmp() {
   # Path-qualified verbs only in command position: start of the segment, or
   # after `sudo`. After any other space the verb must be bare, or
   # `echo /usr/bin/mkdir /tmp/x` / `cat /some/path/mkdir /tmp/x` are false
-  # positives (#3502). Optional quotes cover `"/usr/bin/mkdir" -p /tmp/x`.
-  # Assigned so the pattern can include literal `"` without breaking `=~`.
-  local creator_cmd_re copy_cmd_re
-  creator_cmd_re='((^|[[:space:]])sudo[[:space:]]+"?([^[:space:]"]*/)?|^[[:space:]]*"?([^[:space:]"]*/)?|[[:space:]])(tee|mktemp|mkdir|touch|dd|tee\.exe)"?([[:space:]]|$)'
-  copy_cmd_re='((^|[[:space:]])sudo[[:space:]]+"?([^[:space:]"]*/)?|^[[:space:]]*"?([^[:space:]"]*/)?|[[:space:]])(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)"?([[:space:]]|$)'
+  # positives (#3502). Quoted and unquoted command-position patterns are
+  # separate because bash ERE cannot pair opening and closing quotes.
   # Creators / content writers: any drive-root tmp path in the segment is a write.
-  if [[ "$subject" =~ $creator_cmd_re ]] ||
+  if [[ "$subject" =~ $_DRIVE_TMP_CREATOR_QUOTED ]] ||
+    [[ "$subject" =~ $_DRIVE_TMP_CREATOR_UNQUOTED ]] ||
+    [[ "$subject" =~ $_DRIVE_TMP_CREATOR_BARE ]] ||
     [[ "$subject" =~ (^|[[:space:];|&]|/)(set-content|add-content|out-file|tee-object|new-item|export-clixml|export-csv)([[:space:]]|:|$) ]] ||
     [[ "$subject" =~ (^|[[:space:]])(ac|ni)([[:space:]]|$) ]]; then
     has_drive_root_tmp "$subject" && return 0
     return 1
   fi
   # Copy / move / install: destination operand only (avoids `cp /tmp/src ./dst`).
-  if [[ "$subject" =~ $copy_cmd_re ]]; then
+  if [[ "$subject" =~ $_DRIVE_TMP_COPY_QUOTED ]] ||
+    [[ "$subject" =~ $_DRIVE_TMP_COPY_UNQUOTED ]] ||
+    [[ "$subject" =~ $_DRIVE_TMP_COPY_BARE ]]; then
     dest=$(segment_destination_operand "$subject")
     [[ -n "$dest" ]] || return 1
     has_drive_root_tmp "$dest" && return 0
