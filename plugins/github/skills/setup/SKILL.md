@@ -34,7 +34,7 @@ Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing
    |---|---|
    | user-global | INFO exists or INFO absent. No git verdict applies outside the worktree |
    | team | PASS when the pair (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0) holds. Present but ignored: FAIL, report the matching rule and say to unignore it. Present but untracked: FAIL, "commit it to share with the team" |
-   | local overlay | PASS when present, gitignored, and never staged. Tracked or staged: FAIL, remediation is `git rm --cached <path>` plus rotating any credential that was committed (adding a gitignore line does not untrack it). Present but unignored: FAIL, recommend `.claude/**/*.local.*` for the user to add themselves |
+   | local overlay | PASS when present, gitignored, and never staged. Tracked or staged: FAIL, remediation is `git rm --cached <path>` plus rotating any credential that was committed (adding a gitignore line does not untrack it). Present but unignored: FAIL, recommend `.claude/**/*.local.*` for the user to add themselves. Tracked outranks unignored: when both hold, name the tracked finding |
 
    All three layers absent is INFO: "unconfigured: routing resolves to propose-only", not FAIL.
    A malformed layer is named and skipped, per the contract.
