@@ -86,8 +86,10 @@ set -uo pipefail
 STALENESS_SECONDS=600 # 10 minutes — byte-matches the reader contract
 DEFAULT_SMART_MAX=50
 DEFAULT_ACCEPTABLE_MAX=75
-# "class smart_max acceptable_max" rows, ascending class order.
-DEFAULT_TOKEN_BANDS=$'200000 100000 160000\n1000000 200000 400000'
+# [class, smart_max, acceptable_max] rows, ascending class order. JSON rather
+# than whitespace rows because the bands are handed to the snapshot pass as
+# data, so the comparison happens there instead of in a separate awk process.
+DEFAULT_TOKEN_BANDS='[[200000,100000,160000],[1000000,200000,400000]]'
 
 unknown() {
   printf 'unknown\n'
@@ -104,187 +106,168 @@ command -v jq >/dev/null 2>&1 || unknown
 snap="$HOME/.claude/context-guard/context/$sid.json"
 [[ -r "$snap" ]] || unknown
 
-# One validation pass over the snapshot. Trust gates (shape, captured_at,
-# embedded session_id equal to the REQUESTED id — the seam is per-session and
-# a copied/renamed snapshot must not answer for another session, non-null
-# current_usage) emit "invalid"; past them it emits one line
-# "captured_at ver pct ti to cws" where each measurement field is a number or
-# the literal x when that field is null / missing / out of documented range,
-# and ver is the snapshot's cli_version string or x.
-parsed=$(jq -r --arg sid "$sid" '
-  if (type != "object") then "invalid"
-  elif ((.captured_at? // null) | type) != "string" then "invalid"
-  elif (.session_id? // null) != $sid then "invalid"
-  elif ((.context_window? // null) | type) != "object" then "invalid"
-  elif (.context_window.current_usage? // null) == null then "invalid"
-  else
-    [ .captured_at,
-      (if ((.cli_version? // null) | type) == "string" and (.cli_version | test("^[0-9]+(\\.[0-9]+)*$"))
-        then .cli_version else "x" end),
-      (if ((.context_window.used_percentage? // null) | type) == "number"
-          and (.context_window.used_percentage >= 0)
-          and (.context_window.used_percentage <= 100)
-        then (.context_window.used_percentage | tostring) else "x" end),
-      (if ((.context_window.total_input_tokens? // null) | type) == "number"
-          and (.context_window.total_input_tokens >= 0)
-        then (.context_window.total_input_tokens | tostring) else "x" end),
-      (if ((.context_window.total_output_tokens? // null) | type) == "number"
-          and (.context_window.total_output_tokens >= 0)
-        then (.context_window.total_output_tokens | tostring) else "x" end),
-      (if ((.context_window.context_window_size? // null) | type) == "number"
-          and (.context_window.context_window_size > 0)
-        then (.context_window.context_window_size | tostring) else "x" end)
-    ] | join(" ")
-  end' "$snap" 2>/dev/null) || unknown
-[[ -n "$parsed" && "$parsed" != "invalid" ]] || unknown
-read -r ts ver pct ti to cws <<<"$parsed" || unknown
-
-# Strict ISO-8601 UTC format gate BEFORE any date parsing: GNU date -d also
-# accepts natural-language values ("now", "1 second ago") that would let a
-# forged captured_at defeat the staleness check. Untrusted data is validated
-# to the documented format, then parsed — never handed to a lenient parser.
-[[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || unknown
-
-# Staleness: GNU date (-d, Git Bash/Linux) with a BSD (-j -f, macOS) fallback.
-now_epoch=$(date -u +%s 2>/dev/null) || unknown
-# portability-ok: GNU-first, BSD fallback on the continuation line below (#1510)
-snap_epoch=$(date -u -d "$ts" +%s 2>/dev/null ||
-  date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" +%s 2>/dev/null) || unknown
-[[ "$snap_epoch" =~ ^[0-9]+$ ]] || unknown
-age=$((now_epoch - snap_epoch))
-# Small negative tolerance for clock skew; a snapshot from the future beyond
-# that is as untrustworthy as a stale one.
-((age >= -60 && age <= STALENESS_SECONDS)) || unknown
+# SPAWN DISCIPLINE. This resolver sits on the PostToolBatch path, so it runs
+# once per tool batch and every process it starts is paid there. It used to
+# spend six: one jq for the snapshot, two `date` for the staleness arithmetic,
+# and three `awk` for the band comparisons and the version gate. It now spends
+# one jq on the common path, and a second only when a zones.json override is
+# present. The gates above this line stay in bash and still cost nothing, so
+# the no-snapshot and hostile-id cases exit without starting anything at all.
+#
+# The band resolution therefore moves AHEAD of the snapshot pass: the resolved
+# bands are handed to that one jq as data, so the comparisons happen where the
+# snapshot is already parsed instead of in three separate awk processes.
 
 # Band resolution: zones.json override when present and valid, shipped
-# defaults otherwise (with a visible notice when a present shape is bad).
+# defaults otherwise (with a visible notice when a present shape is bad). The
+# two shapes are still validated INDEPENDENTLY and still emit their own
+# notices; they are read in one jq pass rather than two because both read the
+# same file. Output is two lines: the percentage result, then the token result.
 smart_max=$DEFAULT_SMART_MAX
 acceptable_max=$DEFAULT_ACCEPTABLE_MAX
 token_bands=$DEFAULT_TOKEN_BANDS
 zones="$HOME/.claude/context-guard/zones.json"
 if [[ -e "$zones" ]]; then
-  bands=$(jq -r '
-    if (type == "object")
+  zres=$(jq -r '
+    def pct_ok:
+      (type == "object")
       and ((.smart_max_used_percentage? // null) | type) == "number"
       and ((.acceptable_max_used_percentage? // null) | type) == "number"
       and (.smart_max_used_percentage > 0)
       and (.smart_max_used_percentage < .acceptable_max_used_percentage)
-      and (.acceptable_max_used_percentage <= 100)
-    then "\(.smart_max_used_percentage) \(.acceptable_max_used_percentage)"
-    else "invalid"
-    end' "$zones" 2>/dev/null) || bands="invalid"
-  if [[ -z "$bands" || "$bands" == "invalid" ]]; then
+      and (.acceptable_max_used_percentage <= 100);
+    def tb_state:
+      if (.token_bands? // null) == null then "absent"
+      elif ((.token_bands | type) == "object")
+        and ((.token_bands | length) > 0)
+        and (.token_bands | to_entries | all(
+          (.key | test("^[0-9]+$"))
+          and ((.value | type) == "object")
+          and ((.value.smart_max_tokens? // null) | type) == "number"
+          and ((.value.acceptable_max_tokens? // null) | type) == "number"
+          and (.value.smart_max_tokens > 0)
+          and (.value.smart_max_tokens < .value.acceptable_max_tokens)
+          and (.value.acceptable_max_tokens <= (.key | tonumber))
+        ))
+      then "valid" else "invalid" end;
+    (if pct_ok then "\(.smart_max_used_percentage) \(.acceptable_max_used_percentage)"
+     else "invalid" end),
+    (tb_state as $s
+     | if $s == "valid"
+       then (.token_bands | to_entries | sort_by(.key | tonumber)
+             | map([(.key | tonumber), .value.smart_max_tokens, .value.acceptable_max_tokens])
+             | tojson)
+       else $s end)
+  ' "$zones" 2>/dev/null) || zres=""
+  # jq writes CRLF on some hosts and command substitution strips only the
+  # trailing terminator, so the separator's carriage return would otherwise
+  # ride along on the first line.
+  zres=${zres//$'\r'/}
+  zpct=${zres%%$'\n'*}
+  ztb=${zres#*$'\n'}
+  # An unreadable or unparsable file yields no output at all: both shapes fall
+  # back, and both say so, exactly as two independent failing passes did.
+  [[ -n "$zres" && "$ztb" != "$zres" ]] || {
+    zpct="invalid"
+    ztb="invalid"
+  }
+  if [[ "$zpct" == "invalid" ]]; then
     printf 'context-guard: zones.json malformed — using shipped default bands (%s/%s)\n' \
       "$DEFAULT_SMART_MAX" "$DEFAULT_ACCEPTABLE_MAX" >&2
   else
-    smart_max=${bands%% *}
-    acceptable_max=${bands#* }
+    smart_max=${zpct%% *}
+    acceptable_max=${zpct#* }
   fi
-  # token_bands is optional (a v1 percentage-only file is zero-config for the
-  # token shape); when PRESENT it must validate as a whole or the shipped
-  # token bands apply with a notice.
-  tb=$(jq -r '
-    if (.token_bands? // null) == null then "absent"
-    elif ((.token_bands | type) == "object")
-      and ((.token_bands | length) > 0)
-      and (.token_bands | to_entries | all(
-        (.key | test("^[0-9]+$"))
-        and ((.value | type) == "object")
-        and ((.value.smart_max_tokens? // null) | type) == "number"
-        and ((.value.acceptable_max_tokens? // null) | type) == "number"
-        and (.value.smart_max_tokens > 0)
-        and (.value.smart_max_tokens < .value.acceptable_max_tokens)
-        and (.value.acceptable_max_tokens <= (.key | tonumber))
-      ))
-    then (.token_bands | to_entries
-      | sort_by(.key | tonumber)
-      | map("\(.key) \(.value.smart_max_tokens) \(.value.acceptable_max_tokens)")
-      | join("\n"))
-    else "invalid"
-    end' "$zones" 2>/dev/null) || tb="invalid"
-  if [[ "$tb" == "invalid" || -z "$tb" ]]; then
+  if [[ "$ztb" == "invalid" ]]; then
     printf 'context-guard: zones.json token_bands malformed — using shipped default token bands (200000:100000/160000, 1000000:200000/400000)\n' >&2
-  elif [[ "$tb" != "absent" ]]; then
-    token_bands=$tb
+  elif [[ "$ztb" != "absent" ]]; then
+    token_bands=$ztb
   fi
 fi
 
-# Percentage shape: used_percentage against the percentage bands.
-pct_zone="x"
-if [[ "$pct" != "x" ]]; then
-  pct_zone=$(awk -v u="$pct" -v s="$smart_max" -v a="$acceptable_max" 'BEGIN {
-    if (u <= s) print "smart"
-    else if (u <= a) print "acceptable"
-    else print "dumb"
-  }' 2>/dev/null) || pct_zone="x"
-fi
+# `now` from the printf builtin rather than `date -u +%s`: same integer, no
+# process. The snapshot's own epoch is computed inside the jq pass below.
+printf -v now_epoch '%(%s)T' -1 2>/dev/null || unknown
+[[ "$now_epoch" =~ ^[0-9]+$ ]] || unknown
 
-# Token-shape version gate: the token fields carry current-occupancy
-# semantics only from TOKEN_SEMANTICS_MIN_VERSION on. Compared component by
-# component in awk — deliberately NOT `sort -V`, which is a GNU-only
-# construct this repo's portability lane rejects. Missing components compare
-# as 0, so "2.2" reads as 2.2.0; a version the jq gate already rejected
-# arrives as x and fails here.
+# One pass over the snapshot, carrying every gate and both band comparisons.
+# Trust gates (shape, captured_at, embedded session_id equal to the REQUESTED
+# id — the seam is per-session and a copied/renamed snapshot must not answer
+# for another session, non-null current_usage) resolve to unknown, as do a
+# non-conforming captured_at, a stale or future-dated one, and a snapshot
+# whose measurement fields are all out of documented range.
+# TOKEN-SHAPE VERSION GATE: the token fields carry current-occupancy semantics
+# only from this version on. Compared component by component, missing
+# components reading as 0 so "2.2" means 2.2.0 — the same rule the awk gate
+# applied, now an array comparison in the pass below.
 TOKEN_SEMANTICS_MIN_VERSION="2.1.132"
-version_at_least() { # <candidate> <minimum>
-  [[ "$1" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
-  awk -F. -v a="$1" -v b="$2" 'BEGIN {
-    na = split(a, x, "."); nb = split(b, y, ".")
-    n = (na > nb ? na : nb)
-    for (i = 1; i <= n; i++) {
-      av = (i <= na ? x[i] + 0 : 0); bv = (i <= nb ? y[i] + 0 : 0)
-      if (av > bv) exit 0
-      if (av < bv) exit 1
-    }
-    exit 0
-  }' 2>/dev/null
-}
 
-# Token shape: occupancy = total_input_tokens + total_output_tokens against
-# the selected window-class row. Requires the version gate above, plus the
-# independent plausibility guard that occupancy above the window size is
-# impossible as current occupancy (corrupt or forged data).
-tok_zone="x"
-if [[ "$ti" != "x" && "$to" != "x" && "$cws" != "x" ]] &&
-  version_at_least "$ver" "$TOKEN_SEMANTICS_MIN_VERSION"; then
-  tok_zone=$(awk -v ti="$ti" -v to="$to" -v cws="$cws" '
-    BEGIN { occ = ti + to; cls = -1 }
-    {
-      # rows arrive "class smart acceptable", ascending: keep the largest
-      # class that fits inside this window.
-      if ($1 + 0 <= cws + 0 && $1 + 0 > cls) { cls = $1 + 0; s = $2; a = $3 }
-    }
-    END {
-      if (occ > cws) { print "x"; exit }   # plausibility guard
-      if (cls < 0) { print "x"; exit }      # window smaller than every class
-      if (occ <= s) print "smart"
-      else if (occ <= a) print "acceptable"
-      else print "dumb"
-    }' <<<"$token_bands" 2>/dev/null) || tok_zone="x"
-fi
+# THE CAPTURED_AT GATE, AND WHY THE ROUND TRIP IS PART OF IT. The strict
+# ISO-8601 format test still runs FIRST and still exists to stop a lenient
+# parser accepting natural-language values ("now", "1 second ago") that would
+# let a forged captured_at defeat the staleness check. `fromdateiso8601` then
+# parses it, but unlike `date -u -d` it NORMALIZES a structurally well-formed
+# yet calendar-invalid value instead of refusing it: February 30th becomes
+# March 2nd, and second 60 rolls into the next minute. Normalizing there would
+# quietly widen the gate this code exists to hold. So the parsed epoch is
+# formatted back and required to equal the input byte for byte; anything that
+# does not round-trip is refused, which restores `date`'s answer on every such
+# value. The two implementations part company only for timestamps thousands of
+# years from now, and those fail the staleness window either way.
+zone=$(jq -r --arg sid "$sid" --arg minver "$TOKEN_SEMANTICS_MIN_VERSION" \
+  --argjson now "$now_epoch" --argjson stale "$STALENESS_SECONDS" \
+  --argjson smax "$smart_max" --argjson amax "$acceptable_max" \
+  --argjson tbands "$token_bands" '
+  def vge($cand; $min):
+    ($cand | test("^[0-9]+(\\.[0-9]+)*$"))
+    and (($cand | split(".") | map(tonumber)) as $c
+      | ($min | split(".") | map(tonumber)) as $m
+      | ([($c | length), ($m | length)] | max) as $n
+      | (($c + [range($n) | 0]) | .[0:$n]) as $cp
+      | (($m + [range($n) | 0]) | .[0:$n]) as $mp
+      | $cp >= $mp);
+  def band($v; $s; $a):
+    if $v <= $s then "smart" elif $v <= $a then "acceptable" else "dumb" end;
+  if (type != "object") then "unknown"
+  elif ((.captured_at? // null) | type) != "string" then "unknown"
+  elif (.session_id? // null) != $sid then "unknown"
+  elif ((.context_window? // null) | type) != "object" then "unknown"
+  elif (.context_window.current_usage? // null) == null then "unknown"
+  elif ((.captured_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) | not) then "unknown"
+  else
+    (try (.captured_at | fromdateiso8601) catch null) as $e
+    | if $e == null then "unknown"
+      elif ((try ($e | todateiso8601) catch "") != .captured_at) then "unknown"
+      elif ((($now - $e) < -60) or (($now - $e) > $stale)) then "unknown"
+      else
+        .context_window as $w
+        | (if ((($w.used_percentage? // null) | type) == "number")
+              and ($w.used_percentage >= 0) and ($w.used_percentage <= 100)
+           then band($w.used_percentage; $smax; $amax) else null end) as $pz
+        | (if ((($w.total_input_tokens? // null) | type) == "number") and ($w.total_input_tokens >= 0)
+              and ((($w.total_output_tokens? // null) | type) == "number") and ($w.total_output_tokens >= 0)
+              and ((($w.context_window_size? // null) | type) == "number") and ($w.context_window_size > 0)
+              and vge((if (((.cli_version? // null) | type) == "string") then .cli_version else "" end); $minver)
+           then (($w.total_input_tokens + $w.total_output_tokens) as $occ
+             | if $occ > $w.context_window_size then null
+               else ($tbands | map(select(.[0] <= $w.context_window_size)) | sort_by(.[0]) | last) as $row
+                 | if $row == null then null else band($occ; $row[1]; $row[2]) end
+               end)
+           else null end) as $tz
+        | ([$pz, $tz] | map(select(. != null))) as $zs
+        | if ($zs | length) == 0 then "unknown"
+          else ($zs | map(if . == "smart" then 0 elif . == "acceptable" then 1 else 2 end) | max
+            | if . == 0 then "smart" elif . == 1 then "acceptable" else "dumb" end)
+          end
+      end
+  end' "$snap" 2>/dev/null) || unknown
+zone=${zone//$'\r'/}
 
-# Combination rule (verbatim in the reader contract): both computable → the
-# worse zone wins; one computable → it stands alone; neither → unknown.
-rank() {
-  case "$1" in
-  smart) printf '0' ;;
-  acceptable) printf '1' ;;
-  dumb) printf '2' ;;
-  *) printf 'x' ;;
-  esac
-}
-pr=$(rank "$pct_zone")
-tr_=$(rank "$tok_zone")
-if [[ "$pr" == "x" && "$tr_" == "x" ]]; then
-  unknown
-fi
-worst=-1
-[[ "$pr" != "x" ]] && ((pr > worst)) && worst=$pr
-[[ "$tr_" != "x" ]] && ((tr_ > worst)) && worst=$tr_
-case "$worst" in
-0) printf 'smart\n' ;;
-1) printf 'acceptable\n' ;;
-2) printf 'dumb\n' ;;
-*) printf 'unknown\n' ;;
+# The word is the contract. Anything the pass above could not resolve, and
+# anything outside the vocabulary, leaves here as unknown.
+case "$zone" in
+smart | acceptable | dumb) printf '%s\n' "$zone" ;;
+*) unknown ;;
 esac
+
 exit 0
