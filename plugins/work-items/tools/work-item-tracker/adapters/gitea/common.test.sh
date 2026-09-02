@@ -43,7 +43,7 @@ trap 'rm -rf "$FIX"' EXIT
 for fn in wit_require_gitea_id wit_need_gitea_config \
   wit_gitea_scope_in_scope wit_gitea_token \
   wit_gitea_auth_header wit_gitea_http \
-  wit_gitea_require_ok wit_gitea_unimplemented \
+  wit_gitea_require_ok wit_gitea_require_array wit_gitea_unimplemented \
   wit_help_if_requested; do
   if declare -F "$fn" >/dev/null; then
     pass "common.sh exposes $fn"
@@ -91,6 +91,19 @@ check_map() {
   )
   assert_eq "$label" "$want" "$?"
 }
+check_array() {
+  local label="$1" body="$2" want="$3"
+  (
+    WIT_GITEA_BODY="$body"
+    wit_gitea_require_array "test" 2>/dev/null
+  )
+  assert_eq "$label" "$want" "$?"
+}
+check_array "empty array → 0" "[]" "0"
+check_array "label array → 0" '[{"id":1,"name":"type: fix"}]' "0"
+check_array "object 200 → 1" '{"message":"proxy error"}' "1"
+check_array "html 200 → 1" "<html>login</html>" "1"
+
 check_map "200 → ok (0)" "200" "0"
 check_map "401 → auth (4)" "401" "4"
 check_map "403 → auth (4)" "403" "4"

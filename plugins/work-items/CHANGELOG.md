@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.49]
+
+### Fixed
+
+- **Gitea label walk fails closed on a non-array 200 body.** `create-item` treated any 200 as
+  iterable. A proxy error page or auth-redirect object has `jq length` equal to its key count, so
+  the walk accepted garbage instead of erroring. `wit_gitea_require_array` now type-checks each
+  label page (`jq 'type == "array"'`) after the HTTP-status gate.
+
 ## [0.39.48]
 
 ### Fixed
