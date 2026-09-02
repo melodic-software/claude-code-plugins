@@ -1018,4 +1018,15 @@ else
 fi
 rm -rf "$repo3"
 
+# --- --help reaches the actual end of the header -----------------------------
+# usage() used to extract a hardcoded sed range that stopped mid-header as the
+# comment block grew (#3424). Pin a sentence that lives on the last header
+# lines so a drifted range cannot come back unnoticed.
+help_out="$(bash scripts/affected-tests.sh --help)"
+if printf '%s' "$help_out" | grep -q 'Both stages fail loud'; then
+  ok "--help reaches the end of the header (derived usage)"
+else
+  fail "--help truncated before the header's last sentence: $help_out"
+fi
+
 test_harness::report
