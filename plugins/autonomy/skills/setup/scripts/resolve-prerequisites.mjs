@@ -150,7 +150,6 @@ function loadBinding(repoRoot) {
     return {
       present: false,
       path: posixJoin(".claude", "autonomy", "binding.json"),
-      reason: result.reason,
       declarations: [],
       surfaces: {},
     };
