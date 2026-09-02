@@ -185,8 +185,8 @@ sweeping the directory expects them:
   seconds at which it was written. While it is present and younger than the recheck interval the
   refreshes stop recording entirely; when it ages out the next drain re-reads the real setting and
   removes the marker, so re-enabling the plugin recovers without a restart.
-- `.last-write` and `spool/.last-sweep` — writer-private stamps holding epoch seconds, the first for
-  the last real snapshot write and the second for the last spool sweep. They bound how often the
+- `.last-write` and `spool/.last-sweep` are writer-private stamps holding epoch seconds, the first
+  for the last real snapshot write and the second for the last spool sweep. They bound how often the
   writer repeats work that changed nothing. Readers must ignore both: neither carries session data,
   and staleness is still decided by `captured_at` alone, never by a stamp or by a file's mtime.
 - `.rate-limits.json.tmp.<pid>.<random>` — the tee's atomic-write staging file. Normally it exists

@@ -900,7 +900,7 @@ run "$HOME_FL" "$(build_input)" cat >/dev/null
 if [[ ! "$FL_SNAP" -ot "$FL_SENTINEL" ]]; then
   ok "floor: past the floor the identical payload rewrites (captured_at stays fresh)"
 else
-  fail "floor: an expired floor still skipped the write — captured_at can go stale"
+  fail "floor: an expired floor still skipped the write, so captured_at can go stale"
 fi
 if jq -r '.captured_at' <"$FL_SNAP" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'; then
   ok "floor: the refreshed snapshot carries a well-formed captured_at"
