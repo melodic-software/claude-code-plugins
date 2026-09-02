@@ -28,3 +28,23 @@ Describe 'Test-SdkVersions -- baseline' -Tag 'check' {
         $result.detail.runtimes_detected | Should -Be 0
     }
 }
+
+Describe 'Test-SdkVersions -- oldest label' -Tag 'check' {
+    It 'sorts by EOL date so the first-detected runtime is not automatically oldest' {
+        # Pin the sort the INFO summary uses: earliest eol_date wins, unknown last.
+        $findings = @(
+            [pscustomobject]@{ runtime = 'node'; version = '22'; eol_date = '2027-04-30'; state = 'active' }
+            [pscustomobject]@{ runtime = 'dotnet'; version = '6.0'; eol_date = '2024-11-12'; state = 'eol' }
+            [pscustomobject]@{ runtime = 'python'; version = '3.12'; eol_date = $null; state = 'unknown_eol' }
+        )
+        $oldest = @(
+            $findings | Sort-Object @{
+                Expression = {
+                    if ($_.eol_date) { [datetime]$_.eol_date } else { [datetime]::MaxValue }
+                }
+            }, runtime, version
+        )[0]
+        $oldest.runtime | Should -Be 'dotnet'
+        $oldest.version | Should -Be '6.0'
+    }
+}

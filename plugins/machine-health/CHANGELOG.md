@@ -3,6 +3,16 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.4]
+
+### Fixed
+
+- **`Test-SdkVersions` labels the oldest runtime by EOL date, not detection order.** The
+  INFO summary used `$findings[0]`, which is first-detected (dotnet, then node, then
+  python), not oldest.
+- **`Test-Reliability` renders a null stability average as `n/a`.** The OK and INFO
+  summaries interpolated `$stabilityAvg` directly, producing `Stability avg  / 10`.
+
 ## [0.12.3]
 
 ### Fixed

@@ -129,7 +129,16 @@ try {
         $summary = "$($warn.Count) SDK(s) reach EOL within 90 days."
     } elseif ($findings.Count -gt 0) {
         $severity = 'INFO'
-        $summary = "$($findings.Count) SDK(s) detected; oldest: $($findings[0].runtime) $($findings[0].version)."
+        # Detection order is not age. Sort by EOL date (unknown last) so
+        # "oldest" names the runtime whose support window ends first (#3435).
+        $oldest = @(
+            $findings | Sort-Object @{
+                Expression = {
+                    if ($_.eol_date) { [datetime]$_.eol_date } else { [datetime]::MaxValue }
+                }
+            }, runtime, version
+        )[0]
+        $summary = "$($findings.Count) SDK(s) detected; oldest: $($oldest.runtime) $($oldest.version)."
     }
 
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
