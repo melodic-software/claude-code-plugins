@@ -29,6 +29,40 @@ case "$out3" in
 *) fail "lean fixture classifies SKIP (got: $out3)" ;;
 esac
 
+# Repo-relative .claude/rules path is signal 1 (no leading slash).
+RULES_REL="$(mktemp -d)"
+mkdir -p "$RULES_REL/.claude/rules"
+printf '# rule\n\njust really basically actually simply perhaps somewhat very quite might note that keep in mind\n' >"$RULES_REL/.claude/rules/example.md"
+# Enough flavor tokens that a missed signal-1 would fall through to COMPRESS
+# rather than SKIP. Word-count floor is 50.
+out4="$(bash "$SCAN" "$RULES_REL/.claude/rules/example.md" 2>/dev/null)" || true
+case "$out4" in
+*'author-time-disciplined path (signal 1)'*) ok "repo-relative .claude/rules classifies as signal 1" ;;
+*) fail "repo-relative .claude/rules should be signal 1 (got: $out4)" ;;
+esac
+rm -rf "$RULES_REL"
+
+# Two path-shaped tokens on one line count as two occurrences, not one line.
+OCC="$(mktemp)"
+# 50+ words so the density floor does not rewrite the count; two .md refs on
+# one line; enough flavor tokens to escape the flavor-density SKIP.
+{
+  printf 'see docs/a.md and docs/b.md on one line. '
+  printf 'just really basically actually simply perhaps somewhat very quite might '
+  printf 'in order to due to the fact that make use of it is important to note that keep in mind '
+  printf 'word word word word word word word word word word word word word word word '
+  printf 'word word word word word word word word word word word word word word word\n'
+} >"$OCC"
+# Isolated occurrence counter: same regex the scanner uses.
+occ_count=$(grep -Eo '(@|[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml))' "$OCC" | wc -l | tr -d ' ')
+line_count=$(grep -Ec '(@|[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml))' "$OCC" | tr -d ' ')
+if [[ "$occ_count" -gt "$line_count" ]]; then
+  ok "path-hit regex counts occurrences ($occ_count) above line hits ($line_count)"
+else
+  fail "expected occurrence count > line count (occ=$occ_count line=$line_count)"
+fi
+rm -f "$OCC"
+
 if [[ $FAIL -ne 0 ]]; then
   echo "$FAIL check(s) failed." >&2
   exit 1

@@ -1,5 +1,17 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.32]
+
+### Fixed
+
+- **`compress` `audit-scan.sh` counts path-reference occurrences, not lines.** `grep -Eoc`
+  made `path_hits` a line count while the `path_dens > 8` threshold and the "cross-ref
+  density %s/kw" label assume occurrences, so two refs on one line under-counted. It now
+  uses `grep -Eo | wc -l`, matching the flavor-token counter.
+- **Signal 1 accepts a repo-relative `.claude/rules/` path.** The matcher required a
+  literal `/` before `.claude/rules/`, so a target spelled from the repo root skipped
+  signal 1 and fell through to flavor density.
+
 ## [0.21.31]
 
 ### Changed
