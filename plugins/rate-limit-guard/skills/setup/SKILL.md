@@ -110,16 +110,11 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    marked clearly as the operator's to apply. The wiring target is the SHIM's fixed path, never
    `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned and belongs in no operator file:
 
-   **Unwrap before you compose.** `<current statusline command>` below means the operator's OWN
-   renderer, never the raw effective `command` string. Before substituting, strip every leading
-   guard-shim invocation from that string: `bash <path>/rate-limit-guard/bin/statusline-shim.sh`
-   and `bash <path>/context-guard/bin/statusline-shim.sh`, in whatever order they appear, plus any
-   legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix, and treat what remains as the renderer.
-   Substituting the raw string instead is what produces `context → rate → rate → renderer` when the
-   sibling plugin was configured first, or a doubled self-wrap on a re-run: each duplicated tee runs
-   and writes on EVERY refresh and costs another 0.6–0.9 s (below). Unwrapping also makes the
-   printed edit idempotent. Re-running `check` on already-correct wiring prints the wiring it
-   already has.
+   Read [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md) now, before
+   composing: it owns the peel rules and the shell-syntax guard, shared byte-identical with
+   context-guard. Bare quoting is never a wrap trigger; `type -P` / `type -t` is how a builtin
+   renderer is detected. Composing without it is what produced `context -> rate -> rate ->
+   renderer` and the compounding `sh -c` wrap.
 
    Wrapping an existing statusline command (preserve the user's unwrapped command verbatim as the
    trailing arguments):
@@ -144,10 +139,7 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    }
    ```
 
-   Shell-syntax guard: the wrapped form passes the user's command as ARGV. It only works for
-   plain `executable arg…` commands. If the current command contains shell syntax (an inline env
-   assignment like `THEME=dark my-statusline`, a pipe, `&&`, `;`, or quoting), print the
-   shell-wrapped variant instead:
+   When the shared guard selects the shell-wrapped form:
 
    ```json
    {
@@ -184,9 +176,10 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    }
    ```
 
-   The shell-syntax guard applies UNCHANGED to this form: `<current statusline command>` is the
-   innermost ARGV here too, so a command carrying shell syntax must be substituted as
-   `sh -c '<escaped original command>'`, never raw. Substituting `THEME=dark my-statusline` raw
+   The shell-syntax guard in [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md)
+   applies UNCHANGED to this form: `<current statusline command>` is the innermost ARGV here too,
+   so run that test on the same unwrapped renderer and substitute whichever of the two forms it
+   selects, never raw. Substituting `THEME=dark my-statusline` raw
    makes `THEME=dark` the executable, which fails `command not found` (127) instead of setting the
    variable. The shim paths are the only part that nests; the innermost substitution rule never
    changes:
