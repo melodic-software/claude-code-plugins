@@ -632,8 +632,41 @@ Repo: claude-code-plugins. One PR (docs only) plus the final transcript proof.
 | Loaded-host `bash -c :` seen during the dispatcher measurement | 4,498 ms | guardrails README, 2026-08-30 |
 | Per-Bash-call guard set before the dispatcher | 8 processes, about 2,450 ms summed medians | guardrails README 0.31.0 |
 | Per-Bash-call guard set after the dispatcher | 1 process, about 1,220 ms of guard slices | guardrails README 0.31.0 |
-| Harness `=== per event` at `main` with the extended harness | pending phase 1 | `baselines/phase1-harness-main.tsv` |
+| Harness `=== per event` at `main` with the extended harness | block below, S=33 ms, valid, `--runs 3`, 2026-09-02 (cache: `main` plus PR #3621 delivered, see DEVIATIONS.md) | `baselines/phase1-harness-main.tsv` (135 rows), `phase1-harness-main.out`, `phase1-installed-plugins.txt` |
 | Harness sha256 at the dotfiles PR commit | `32295c08767a20c3c6b384f7b7e2df11c6ac13e82eae926d24fbf816c6fa01b8` (harness commit `c1b722b`, branch head `4b3286e`) | dotfiles branch `perf/hook-fanout-samples` |
+
+#### Phase 0 baseline run (2026-09-02, extended harness at `c1b722b`, `--runs 3`, S=33 ms, valid)
+
+Installed cache measured (`installed_plugins.json`, first entry per plugin; full list in `baselines/phase1-installed-plugins.txt`): guardrails 0.31.0, source-control 0.55.36, disk-hygiene 0.21.1, ruff-format 0.6.28, bash-format 0.7.28, biome-format 0.6.27, go-format 0.3.30, powershell-format 0.7.30, actionlint 0.8.27, instruction-placement 0.11.17, all at `a423e2c05` (PR #3621); every other plugin at its `main` install.
+
+```text
+=== per event: hook processes that fire, CPU sum of medians, slowest hook ===
+(hooks run in parallel: wall per event ~= max; CPU per event ~= sum)
+ConfigChange:user_settings fires= 1 skipped= 0 cpu_sum_ms=  604 max_ms=  604 async= 0 cpu_x_s=  18.3 max_x_s=  18.3
+InstructionsLoaded:session_start fires= 1 skipped= 0 cpu_sum_ms=  343 max_ms=  343 async= 0 cpu_x_s=  10.4 max_x_s=  10.4
+Notification:permission_prompt fires= 1 skipped= 0 cpu_sum_ms= 1029 max_ms= 1029 async= 0 cpu_x_s=  31.2 max_x_s=  31.2
+PostCompact:-            fires= 1 skipped= 0 cpu_sum_ms=  630 max_ms=  630 async= 0 cpu_x_s=  19.1 max_x_s=  19.1
+PostToolBatch:Read       fires= 1 skipped= 0 cpu_sum_ms= 1254 max_ms= 1254 async= 0 cpu_x_s=  38.0 max_x_s=  38.0
+PostToolUse:Bash         fires= 0 skipped= 2 cpu_sum_ms=    0 max_ms=    0 async= 0 cpu_x_s=   0.0 max_x_s=   0.0
+PostToolUse:Edit         fires= 4 skipped=22 cpu_sum_ms= 3276 max_ms= 1374 async= 0 cpu_x_s=  99.3 max_x_s=  41.6
+PostToolUse:Write        fires= 4 skipped=22 cpu_sum_ms= 2757 max_ms= 1211 async= 0 cpu_x_s=  83.5 max_x_s=  36.7
+PostToolUseFailure:Bash  fires= 1 skipped= 1 cpu_sum_ms=  739 max_ms=  739 async= 0 cpu_x_s=  22.4 max_x_s=  22.4
+PreCompact:auto          fires= 1 skipped= 0 cpu_sum_ms=  694 max_ms=  694 async= 0 cpu_x_s=  21.0 max_x_s=  21.0
+PreToolUse:Bash          fires= 1 skipped= 3 cpu_sum_ms= 2475 max_ms= 2475 async= 0 cpu_x_s=  75.0 max_x_s=  75.0
+PreToolUse:Bash:subst    fires= 4 skipped= 0 cpu_sum_ms= 5176 max_ms= 3979 async= 0 cpu_x_s= 156.8 max_x_s= 120.6
+PreToolUse:Edit          fires= 3 skipped= 0 cpu_sum_ms= 1495 max_ms= 1147 async= 0 cpu_x_s=  45.3 max_x_s=  34.8
+PreToolUse:Write         fires= 3 skipped= 0 cpu_sum_ms=  971 max_ms=  773 async= 0 cpu_x_s=  29.4 max_x_s=  23.4
+SessionStart:compact     fires= 2 skipped= 0 cpu_sum_ms=  303 max_ms=  209 async= 0 cpu_x_s=   9.2 max_x_s=   6.3
+SessionStart:startup     fires= 2 skipped= 0 cpu_sum_ms=  298 max_ms=  210 async= 0 cpu_x_s=   9.0 max_x_s=   6.4
+Stop:-                   fires= 4 skipped= 0 cpu_sum_ms= 1327 max_ms=  376 async= 0 cpu_x_s=  40.2 max_x_s=  11.4
+StopFailure:rate_limit   fires= 2 skipped= 0 cpu_sum_ms=  871 max_ms=  531 async= 0 cpu_x_s=  26.4 max_x_s=  16.1
+UserPromptExpansion:-    fires= 1 skipped= 0 cpu_sum_ms=  285 max_ms=  285 async= 0 cpu_x_s=   8.6 max_x_s=   8.6
+UserPromptSubmit:-       fires= 1 skipped= 0 cpu_sum_ms=  975 max_ms=  975 async= 0 cpu_x_s=  29.5 max_x_s=  29.5
+WorktreeCreate:-         fires= 1 skipped= 0 cpu_sum_ms=  523 max_ms=  523 async= 0 cpu_x_s=  15.8 max_x_s=  15.8
+statusline:-             fires= 1 skipped= 0 cpu_sum_ms=  229 max_ms=  229 async= 0 cpu_x_s=   6.9 max_x_s=   6.9
+```
+
+Parse and spawn floor on the same host, 12 interleaved trials, medians: `bash -c :` 22 ms; `bash -c "source hook-utils.sh"` (2,139 lines) 26 ms, so the library parse is about 4 ms (0.2 spawn-equivalents) and phase 4b's switch condition (one spawn-equivalent) is not met; `bash -c` plus one `jq` call 72 ms, so each external `jq` costs about 50 ms (2.3 spawn-equivalents). The per-hook cost is external spawns (`jq`, `git`, formatters), not the library parse.
 
 ## Alternatives considered
 
