@@ -101,17 +101,23 @@ RESOLVER="$HOOK_SELF_DIR/resolve-convention-pattern.sh"
 # answer changes only when the convention files do: measured at 423 ms, 10.1
 # spawn-equivalents against a 42 ms spawn floor on Windows Git Bash, paid on
 # every command the agent runs. So the resolved pair is cached per repo root and
-# invalidated by mtime against every file the resolver reads.
+# invalidated by mtime and by existence against every file the resolver reads.
 #
 # The resolver is not edited and not re-implemented here. It stays the single
 # authority for what a pattern IS. What is cached is only its answer.
 #
 # Freshness is `[[ cache -nt dep ]]` per dependency, a bash builtin rather than a
 # `stat` process. Equal mtimes read as NOT newer, so a same-timestamp write
-# re-resolves rather than serving a stale pattern; a dependency that does not
-# exist reads as older, which is the right answer for a repo that tracks no
-# convention. The repo root is stored in the file and compared on read, so two
-# roots that sanitize to the same name cannot serve each other's patterns, and a
+# re-resolves rather than serving a stale pattern. That test alone is blind to a
+# dependency that DISAPPEARS: `-nt` against a missing file is true, so a cache
+# warmed while `.claude/source-control.md` (or the pointer target) existed would
+# keep enforcing a policy the team has since deleted, where the resolver now
+# answers no enforcement. So the entry also records every dependency with its
+# existence at warm time, and any recorded-as-existing dependency now missing,
+# or recorded-as-missing dependency now present (a higher-precedence file
+# appearing with an OLD mtime, restored from an archive or a `cp -p`), is a
+# miss. The repo root is stored in the file and compared on read, so two roots
+# that sanitize to the same name cannot serve each other's patterns, and a
 # terminator line makes a truncated write read as a miss.
 #
 # RESIDUAL, deliberately not solved here: the resolver's well-known-path rung
@@ -162,34 +168,62 @@ CONV_CACHE=""
 SUBJECT_ERE=""
 TITLE_ERE=""
 CONV_HIT=0
+# Entry layout: root, subject pattern, title pattern, one `DEP <0|1> <path>`
+# line per dependency in CONV_DEPS order (1 = existed at warm time), `END`.
+# One pass over the file, bash builtins only: a dependency line is checked as
+# it is read, and the first stale one ends the read as a miss.
+# shellcheck disable=SC2094  # the entry is only READ here; the write below is a separate branch
 if [[ -n "$CONV_CACHE" && -f "$CONV_CACHE" ]]; then
+  conv_root=""
+  conv_subj=""
+  conv_title=""
+  conv_end=""
+  conv_i=0
   conv_fresh=1
-  for conv_dep in "${CONV_DEPS[@]}"; do
-    [[ "$CONV_CACHE" -nt "$conv_dep" ]] || {
-      conv_fresh=0
-      break
-    }
-  done
-  if ((conv_fresh)); then
-    conv_root=""
-    conv_subj=""
-    conv_title=""
-    conv_end=""
-    {
-      IFS= read -r conv_root
-      IFS= read -r conv_subj
-      IFS= read -r conv_title
-      IFS= read -r conv_end
-    } <"$CONV_CACHE"
-    if [[ "$conv_end" == "END" && "$conv_root" == "$REPO_ROOT" ]]; then
-      SUBJECT_ERE="$conv_subj"
-      TITLE_ERE="$conv_title"
-      CONV_HIT=1
-    fi
+  {
+    IFS= read -r conv_root
+    IFS= read -r conv_subj
+    IFS= read -r conv_title
+    while IFS= read -r conv_line; do
+      if [[ "$conv_line" == "END" ]]; then
+        conv_end="END"
+        break
+      fi
+      # Recorded set must be the current set, in order: a pointer that changed
+      # already moved the team file's mtime, but this keeps the read honest.
+      [[ "$conv_line" == "DEP "[01]" "* && "${conv_line:6}" == "${CONV_DEPS[conv_i]:-}" ]] || {
+        conv_fresh=0
+        break
+      }
+      conv_dep="${conv_line:6}"
+      if [[ -e "$conv_dep" ]]; then
+        [[ "${conv_line:4:1}" == 1 && "$CONV_CACHE" -nt "$conv_dep" ]] || conv_fresh=0
+      else
+        [[ "${conv_line:4:1}" == 0 ]] || conv_fresh=0
+      fi
+      ((conv_fresh)) || break
+      ((conv_i++))
+    done
+  } <"$CONV_CACHE"
+  if ((conv_fresh && conv_i == ${#CONV_DEPS[@]})) &&
+    [[ "$conv_end" == "END" && "$conv_root" == "$REPO_ROOT" ]]; then
+    SUBJECT_ERE="$conv_subj"
+    TITLE_ERE="$conv_title"
+    CONV_HIT=1
   fi
 fi
 
 if ((CONV_HIT == 0)) && [[ -f "$RESOLVER" ]]; then
+  # Existence is sampled BEFORE the resolver forks, so the entry records the
+  # dependency set the answer was resolved against.
+  conv_dep_lines=""
+  for conv_dep in "${CONV_DEPS[@]}"; do
+    if [[ -e "$conv_dep" ]]; then
+      conv_dep_lines+="DEP 1 $conv_dep"$'\n'
+    else
+      conv_dep_lines+="DEP 0 $conv_dep"$'\n'
+    fi
+  done
   for conv_key in subject_pattern pr_title_pattern; do
     conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key" 2>/dev/null) || conv_val=""
     case "$conv_key" in
@@ -199,7 +233,7 @@ if ((CONV_HIT == 0)) && [[ -f "$RESOLVER" ]]; then
   done
   # Write through a temp name and rename, so a reader never sees a half file.
   if [[ -n "$CONV_CACHE" ]] && mkdir -p "${CONV_CACHE%/*}" 2>/dev/null; then
-    if printf '%s\n%s\n%s\nEND\n' "$REPO_ROOT" "$SUBJECT_ERE" "$TITLE_ERE" \
+    if printf '%s\n%s\n%s\n%sEND\n' "$REPO_ROOT" "$SUBJECT_ERE" "$TITLE_ERE" "$conv_dep_lines" \
       >"$CONV_CACHE.$$" 2>/dev/null; then
       mv -f "$CONV_CACHE.$$" "$CONV_CACHE" 2>/dev/null || rm -f "$CONV_CACHE.$$" 2>/dev/null
     else

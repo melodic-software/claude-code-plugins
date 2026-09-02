@@ -101,9 +101,11 @@ fi
 # Repo root for telemetry data.file + relative sink resolution (file-anchored).
 # Parameter expansion, not a `$(dirname …)` subshell: this hook runs on every
 # Write and Edit, and a command substitution is a fork per call on Windows Git
-# Bash.
+# Bash. Same answers as `dirname`: no slash -> `.`, and a root-level `/x` ->
+# `/` rather than the empty string, which hook::repo_root would read as `.`.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
 REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 
 # Known binaries to check. Override via the cli_flag_verify_bins userConfig option.

@@ -715,6 +715,21 @@ assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-sta
 assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$FILE_DIR"'
 assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DIR="${FILE%/*}"'
 assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
+# The expansion must answer as `dirname` did for every shape. For a root-level
+# `/bar.md` the shortest `/*` suffix is the whole string, so the bare expansion
+# is EMPTY and hook::repo_root's `${1:-.}` would anchor on the process CWD, not
+# `/`. That shape cannot reach the hook end to end (hook::read_file_path needs
+# the file to exist and `/` is not writable), so the seam is lifted from the
+# hook source and evaluated against each shape; its answer must be dirname's.
+FILE_DIR_SEAM=$(sed -n '/^FILE_DIR="\${FILE%\/\*}"$/,/^REPO_ROOT=/{/^REPO_ROOT=/d;p}' "$HOOK")
+assert_contains "file-dir seam: lifted from the hook" "$FILE_DIR_SEAM" 'FILE_DIR="${FILE%/*}"'
+for fp in /bar.md bar.md /a/b/bar.md; do
+  # shellcheck disable=SC2034  # read by the eval below
+  FILE="$fp"
+  FILE_DIR=""
+  eval "$FILE_DIR_SEAM"
+  assert_eq "file-dir seam: $fp anchors where dirname does" "$(dirname "$fp")" "$FILE_DIR"
+done
 
 # The whole-index `git ls-files` must not run for a write that cites nothing.
 assert_contains "tracked-file list is warmed only when a candidate exists" "$HOOK_SRC" \

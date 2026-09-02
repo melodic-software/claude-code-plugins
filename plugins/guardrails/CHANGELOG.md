@@ -34,6 +34,24 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `convention_source` target when one is declared. The resolver itself is untouched
   and remains the only authority for what a pattern is. With no plugin data
   directory the gate does not cache and behaves exactly as before.
+- **The convention cache also notices a convention file that disappears or
+  appears.** An mtime comparison against a file that no longer exists reads as
+  fresh, so a cache warmed while the team markdown, the well-known YAML, or an
+  explicit `convention_source` target existed would have kept enforcing a policy
+  the team had since deleted, where the resolver answers no enforcement. The cache
+  entry now records each dependency with its existence at warm time, and a
+  recorded-as-present file that is now missing, or a recorded-as-absent file that
+  now exists (even with an older mtime, as a restore from an archive produces),
+  re-resolves. The warm path still forks the resolver zero times.
+- **The four guards that anchor the repo root on the written file's directory
+  answer as `dirname` did for a root-level path.** The parameter expansion that
+  replaced the `dirname` fork produced an empty string for `/file.md`, which the
+  root helper read as the process working directory. It now yields `/`, so the
+  anchor for every path shape is the one the fork gave.
+- **`cli-flag-verify`'s flag-shape pre-gate is covered by its contract test.**
+  Content with no `-` character is proven to spawn no scan process, and content
+  carrying a `--flag` is proven to report the identical finding it reported before
+  the gate existed.
 
 ## [0.31.0]
 

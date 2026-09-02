@@ -165,8 +165,11 @@ emit_tel() {
   local file_rel root="${CLAUDE_PROJECT_DIR:-}"
   # Parameter expansion, not a `$(dirname …)` subshell: a command substitution
   # is a fork per call on Windows Git Bash and this guard runs on every write.
+  # Same answers as `dirname`: no slash -> `.`, and a root-level `/x` -> `/`
+  # rather than the empty string, which hook::repo_root would read as `.`.
   local file_dir="${FILE%/*}"
   [[ "$file_dir" == "$FILE" ]] && file_dir="."
+  [[ -n "$file_dir" ]] || file_dir=/
   [[ -n "$root" ]] || root="$(hook::repo_root "$file_dir")"
   # The helper strips "$root/", so a root that already ends in a separator
   # makes the prefix "/repo//" and matches nothing: every in-project file

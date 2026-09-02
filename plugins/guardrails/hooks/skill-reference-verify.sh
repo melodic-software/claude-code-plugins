@@ -153,8 +153,12 @@ Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
 
+# Parameter expansion, not a `$(dirname …)` subshell, with the same answers:
+# no slash -> `.`, and a root-level `/x` -> `/` rather than the empty string,
+# which hook::repo_root would read as `.`.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
 REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 PLUGINS_DIR="$REPO_ROOT/plugins"
 

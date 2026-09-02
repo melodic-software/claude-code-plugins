@@ -113,9 +113,12 @@ esac
 
 # Parameter expansion, not a `$(dirname …)` subshell: this hook runs on every
 # Write and Edit, and a command substitution is a fork per call on Windows Git
-# Bash. The anchor is still the FILE's own directory.
+# Bash. The anchor is still the FILE's own directory, with `dirname`'s answers:
+# no slash -> `.`, and a root-level `/x` -> `/` rather than the empty string,
+# which hook::repo_root would read as `.`.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
 REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 [[ -d "$REPO_ROOT" ]] || exit 0
 

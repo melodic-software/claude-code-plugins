@@ -179,6 +179,96 @@ OUT=$(run_edit 'faketool sub --real --otherbogus' '--real'); RC=$?
 assert_exit "partial-edit: unrelated pre-existing flag not re-fired → exit 0" 0 "$RC"
 assert_silent "partial-edit: only hunk-flag verified, --otherbogus stays quiet" "$OUT"
 
+# ================= FLAG-SHAPE PRE-GATE (spawn cost) =========================
+# A candidate always carries a `-`, so content without one cannot yield a
+# finding, and the fragment pipeline (grep, sed, awk) must not run to build an
+# empty set. Counted, not asserted from the source: a `sed` shim ahead of the
+# real one on PATH records every invocation and then delegates, so the hook
+# still behaves exactly as it would. Both extract_candidates (split_segments)
+# and reconstruct_partial_edit pass through sed, so an Edit whose hunk names a
+# scanned bin but carries no `-` reaches both and must spawn neither.
+SED_SHIM_DIR="$TEST_TMPDIR/sed-shim"
+mkdir -p "$SED_SHIM_DIR"
+SED_LOG="$TEST_TMPDIR/sed-calls"
+REAL_SED="$(command -v sed)"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'printf "x\\n" >>"%s"\n' "$SED_LOG"
+  printf 'exec "%s" "$@"\n' "$REAL_SED"
+} >"$SED_SHIM_DIR/sed"
+chmod +x "$SED_SHIM_DIR/sed"
+
+# run_gated <tool> <disk-body> <payload-content> -> OUT; sed count in SED_COUNT.
+run_gated() {
+  local tool="$1" disk="$2" content="$3" case_dir target json
+  case_dir="$TEST_TMPDIR/gate-$((PASS + FAIL + 1))"
+  mkdir -p "$case_dir/cache"
+  target="$case_dir/target.sh"
+  printf '%s\n' "$disk" >"$target"
+  if [[ "$tool" == "Edit" ]]; then
+    json=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" --arg s "$content" '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s}}')
+  else
+    json=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" --arg c "$content" '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
+  fi
+  : >"$SED_LOG"
+  OUT=$(PATH="$SED_SHIM_DIR:$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$case_dir" \
+    CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+    LOCALAPPDATA="$case_dir/cache" XDG_CACHE_HOME="$case_dir/cache" \
+    bash "$HOOK" <<<"$json" 2>&1)
+  RC=$?
+  SED_COUNT=$(wc -l <"$SED_LOG" | tr -d ' ')
+}
+
+# (a) No `-` anywhere: the scan is skipped. The hunk names the scanned bin, so
+#     without the gate extract_candidates would run the pipeline, find no flag,
+#     and reconstruct_partial_edit would then grep the hunk for flag tokens.
+run_gated Edit 'faketool sub --fake' 'faketool sub real'
+assert_exit "flag-shape gate: no-dash hunk -> exit 0" 0 "$RC"
+assert_silent "flag-shape gate: no-dash hunk stays quiet" "$OUT"
+assert_eq "flag-shape gate: no-dash hunk spawns no sed (scan skipped)" 0 "$SED_COUNT"
+run_gated Write 'faketool sub real' 'faketool sub real'
+assert_exit "flag-shape gate: no-dash write -> exit 0" 0 "$RC"
+assert_silent "flag-shape gate: no-dash write stays quiet" "$OUT"
+assert_eq "flag-shape gate: no-dash write spawns no sed (scan skipped)" 0 "$SED_COUNT"
+
+# (b) A `--flag` in the content passes the gate and the decision is the one
+#     the cases above pinned before the gate existed: the same UNKNOWN_FLAG
+#     line, the same count, and the scan demonstrably ran.
+run_gated Write 'faketool sub --fake' 'faketool sub --fake'
+assert_exit "flag-shape gate: --flag write -> exit 0" 0 "$RC"
+ctx_contains "flag-shape gate: --flag write reports the same finding" "$OUT" "UNKNOWN_FLAG: faketool sub --fake (not found in 'faketool sub --help')"
+ctx_contains "flag-shape gate: --flag write reports the same count" "$OUT" "cli-flag-verify: 1 unknown flag(s) in"
+if ((SED_COUNT > 0)); then
+  ok "flag-shape gate: --flag write does run the scan ($SED_COUNT sed)"
+else
+  bad "flag-shape gate: --flag write never reached the scan"
+fi
+run_gated Edit 'faketool sub --fake' '--fake'
+assert_exit "flag-shape gate: bare-flag hunk -> exit 0" 0 "$RC"
+ctx_contains "flag-shape gate: bare-flag hunk still reconstructs and reports" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+run_gated Write 'faketool sub --real' 'faketool sub --real'
+assert_exit "flag-shape gate: real --flag write -> exit 0" 0 "$RC"
+assert_silent "flag-shape gate: real --flag write stays quiet" "$OUT"
+
+# ================= FILE DIRECTORY ANCHOR (dirname parity) ===================
+# The repo root is anchored on the file's directory, computed by parameter
+# expansion rather than a `$(dirname …)` fork. For a root-level `/bar.md` the
+# shortest `/*` suffix is the whole string, so the bare expansion is EMPTY and
+# hook::repo_root's `${1:-.}` would anchor on the process CWD, not `/`. The
+# root-level shape cannot reach the hook end to end here (hook::read_file_path
+# needs the file to exist and `/` is not writable), so the seam itself is
+# lifted from the hook source and evaluated against each shape; its answer
+# must be dirname's.
+FILE_DIR_SEAM=$(sed -n '/^FILE_DIR="\${FILE%\/\*}"$/,/^REPO_ROOT=/{/^REPO_ROOT=/d;p}' "$HOOK")
+assert_contains "file-dir seam: lifted from the hook" "$FILE_DIR_SEAM" 'FILE_DIR="${FILE%/*}"'
+for fp in /bar.md bar.md /a/b/bar.md; do
+  # shellcheck disable=SC2034  # read by the eval below
+  FILE="$fp"
+  FILE_DIR=""
+  eval "$FILE_DIR_SEAM"
+  assert_eq "file-dir seam: $fp anchors where dirname does" "$(dirname "$fp")" "$FILE_DIR"
+done
+
 # Kill switch — disabled path is a clean no-op despite a hallucinated flag.
 dis_dir="$TEST_TMPDIR/fake-disabled"
 mkdir -p "$dis_dir/cache"

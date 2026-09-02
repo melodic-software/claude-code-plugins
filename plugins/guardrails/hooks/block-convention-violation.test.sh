@@ -318,7 +318,13 @@ assert_eq "cache: cached title pattern equals the forked form" "$FORKED_TITLE" "
 # sanitized filename collision between two roots cannot serve the wrong pattern.
 assert_eq "cache: entry records its repo root" \
   "$(git -C "$r" rev-parse --show-toplevel | tr -d '\r')" "$(sed -n '1p' "$CACHE_FILE")"
-assert_eq "cache: entry carries its terminator" "END" "$(sed -n '4p' "$CACHE_FILE")"
+assert_eq "cache: entry carries its terminator" "END" "$(tail -n 1 "$CACHE_FILE")"
+# Every dependency the resolver reads is recorded with its existence at warm
+# time, which is what lets a later deletion or appearance read as a miss.
+assert_contains "cache: entry records the team file as present" "$(cat "$CACHE_FILE")" \
+  "DEP 1 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/.claude/source-control.md"
+assert_contains "cache: entry records the absent well-known file" "$(cat "$CACHE_FILE")" \
+  "DEP 0 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control/commit-convention.yml"
 
 # 3. A warm cache must not fork the resolver again. Counted through a shim ahead
 #    of the real bash on PATH, so this measures the spawn the change removes.
@@ -384,6 +390,55 @@ printf '%s\n' "$r3" >"$TRUNC_FILE"
 touch -d '+1 minute' "$TRUNC_FILE"
 cache_run "$r3" "$pd3" "$VIOLATING"
 assert_exit "cache: a truncated entry re-resolves rather than disabling the gate" 2 "$CACHE_RC"
+
+# 7. A dependency that DISAPPEARS invalidates. `[[ cache -nt missing ]]` is
+#    true, so an mtime-only check would keep enforcing the deleted policy for
+#    ever; the recorded existence is what turns the deletion into a miss. The
+#    resolver now answers no enforcement, so the violating subject passes.
+r4="$(newrepo "$TICKET")"
+pd4="$TEST_TMPDIR/pdata-gone"
+rm -rf "$pd4"
+cache_run "$r4" "$pd4" "$VIOLATING"
+assert_exit "cache: warmed while the team file exists (blocks)" 2 "$CACHE_RC"
+rm -f "$r4/.claude/source-control.md"
+: >"$CB_LOG"
+json=$(jq -n --arg c "$VIOLATING" --arg d "$r4" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+gone_rc=0
+CLAUDE_PROJECT_DIR="$r4" CLAUDE_PLUGIN_DATA="$pd4" PATH="$CB_DIR:$PATH" \
+  bash "$HOOK" <<<"$json" >/dev/null 2>&1 || gone_rc=$?
+assert_exit "cache: team file deleted -> the removed policy is no longer enforced" 0 "$gone_rc"
+if (($(wc -l <"$CB_LOG" | tr -d ' ') > 0)); then
+  ok "cache: a deleted dependency re-forks the resolver"
+else
+  bad "cache: stale entry served after the team file was deleted"
+fi
+
+# 8. A dependency that APPEARS invalidates, even with an mtime OLDER than the
+#    cache (a restore from an archive, or `cp -p`), where `-nt` alone would
+#    still read fresh. The tracked well-known YAML outranks the markdown H2, so
+#    once it exists the pattern it carries is the one enforced.
+r5="$(newrepo "$TICKET")"
+pd5="$TEST_TMPDIR/pdata-appear"
+rm -rf "$pd5"
+cache_run "$r5" "$pd5" "$CONFORMING"
+assert_exit "cache: warmed with the markdown pattern (ticket subject allowed)" 0 "$CACHE_RC"
+mkdir -p "$r5/docs/conventions/source-control"
+printf 'subject_pattern: "^(feat|fix): .+"\n' >"$r5/docs/conventions/source-control/commit-convention.yml"
+touch -d '1 minute ago' "$r5/docs/conventions/source-control/commit-convention.yml"
+git -C "$r5" add docs/conventions/source-control/commit-convention.yml
+: >"$CB_LOG"
+json=$(jq -n --arg c "$CONFORMING" --arg d "$r5" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+appear_rc=0
+CLAUDE_PROJECT_DIR="$r5" CLAUDE_PLUGIN_DATA="$pd5" PATH="$CB_DIR:$PATH" \
+  bash "$HOOK" <<<"$json" >/dev/null 2>&1 || appear_rc=$?
+assert_exit "cache: well-known YAML appeared -> its pattern now governs (ticket subject blocked)" 2 "$appear_rc"
+if (($(wc -l <"$CB_LOG" | tr -d ' ') > 0)); then
+  ok "cache: an appearing dependency re-forks the resolver"
+else
+  bad "cache: stale entry served after a higher-precedence file appeared"
+fi
+cache_run "$r5" "$pd5" "$CONV_SUBJECT"
+assert_exit "cache: the appeared YAML's pattern is what is served warm" 0 "$CACHE_RC"
 
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 r="$(newrepo "$TICKET")"
