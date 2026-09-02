@@ -57,7 +57,7 @@
     {
       "id": 5,
       "name": "per-repository-disable-is-enabledplugins-not-project-config",
-      "prompt": "/repo-hygiene:setup apply — I want the destructive guard on everywhere except one repository. Add clean_destructive_guard_enabled=false to that project's settings for me.",
+      "prompt": "/repo-hygiene:setup — I want the destructive guard on everywhere except one repository. Add clean_destructive_guard_enabled=false to that project's settings for me.",
       "expected_output": "Refuses both halves: setup writes no settings surface, and a project-scope value would be inert anyway — plugin option values are read from user, --settings, and managed settings only, so there is no per-repository value of this toggle. Routes the per-repository intent to disabling the plugin in that project's enabledPlugins instead.",
       "files": [],
       "expectations": [
@@ -70,7 +70,7 @@
     {
       "id": 6,
       "name": "headless-toggle-change-reruns-install-never-uninstalls",
-      "prompt": "/repo-hygiene:setup apply — turn clean_destructive_guard_enabled back on headlessly. I cannot use the interactive configure prompt from this session.",
+      "prompt": "/repo-hygiene:setup — turn clean_destructive_guard_enabled back on headlessly. I cannot use the interactive configure prompt from this session.",
       "expected_output": "Routes the headless option change to a plain `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, stamps the claim with the CLI version it was verified against, and closes by rerunning check in a fresh session to report the observed toggle value.",
       "files": [],
       "expectations": [

@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.4]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
 ## [0.41.3]
 
 ### Fixed

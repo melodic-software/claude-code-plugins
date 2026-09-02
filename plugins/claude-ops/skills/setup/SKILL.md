@@ -1,25 +1,25 @@
 ---
-description: "Verify claude-ops's personal path configuration for this repository, where the known-issues registry and the skill-usage log resolve, and explain how to change them through Claude Code. Use when: 'set up claude-ops', 'configure claude-ops', 'claude-ops setup', 'where does the known-issues registry live', or 'where is skill usage logged'. Actions: check (read-only verification, default) | apply (route a reconfiguration once you've chosen a destination). Re-runnable and safe."
-argument-hint: "check | apply"
+description: "Verify claude-ops's personal path configuration for this repository, where the known-issues registry and the skill-usage log resolve, and explain how to change them through Claude Code. Use when: 'set up claude-ops', 'configure claude-ops', 'claude-ops setup', 'where does the known-issues registry live', or 'where is skill usage logged'. Check-only: verifies, reports, and prints reconfiguration guidance; there is nothing setup may write here. Re-runnable and safe."
+argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
-"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports the
-effective personal path options, `apply` resolves what it found. `registry_dir` and `skill_usage_dir`
-are personal `userConfig` scalars owned by Claude Code's native configuration surface. Claude Code
-prompts for them when the plugin is enabled, stores non-sensitive options in user settings, and ignores
-`pluginConfigs` entries in project and local settings on current releases (≥ 2.1.207). This skill never
-writes them; `apply` verifies and routes.
+Check-only setup under the Check-only carve-out (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit
+and repeatable" in the marketplace repository): this plugin's configuration surface contains no
+writable artifact, so `check` verifies, reports, and prints the reconfiguration guidance below,
+and no `apply` is offered because there is nothing it could conformingly write. `registry_dir` and
+`skill_usage_dir` are personal `userConfig` scalars owned by Claude Code's native configuration
+surface. Claude Code prompts for them when the plugin is enabled, stores non-sensitive options in
+user settings, and ignores `pluginConfigs` entries in project and local settings on current
+releases (≥ 2.1.207). This skill never writes them.
 
 Official contract (verified 2026-07-18):
 <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then the
-reconfiguration guidance below. Both are non-interactive, never prompt when the action is given.
+Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
 
 ## `check` (read-only)
 
@@ -51,13 +51,14 @@ table, one remediation line per FAIL. Do not modify anything.
    either separator, and any existing symlink path that resolves outside that base. Do not normalize
    an invalid value into acceptance, and do not run any operation that would use an invalid destination.
 4. **Personal-vs-project**. INFO: both options are personal, user-scoped preferences, not tracked team
-   policy. Note the per-machine-vs-repository-resident tradeoff so the reader can choose in `apply`.
+   policy. Note the per-machine-vs-repository-resident tradeoff so the reader can choose a
+   destination via the guidance below.
 
-## `apply` (idempotent)
+## Reconfiguration guidance (printed by `check`; the operator applies it)
 
-Run `check`, then resolve what it found. This skill has no legitimate write of its own, the two
-options live in Claude Code's native config surface, which setup must not hand-edit, so `apply` is
-verify-and-route:
+The two options live in Claude Code's native config surface, which setup must not hand-edit
+(Check-only carve-out, native `userConfig` class), so `check` closes by routing rather than
+writing:
 
 - **Uncontained value (FAIL):** the destination is invalid; do not use it. Direct the user to set a
   contained project-relative path through the reconfiguration path below, then rerun `check`.
@@ -91,7 +92,7 @@ verify-and-route:
 After any reconfiguration, rerun `check` in a **fresh session** and report both observed effective
 destinations, never claim an unobserved change, and never read a same-session `check` still showing
 the old value as a failed write (see the reconfiguration note above for why it does). Re-running
-`apply` when both destinations are contained (or defaulted) changes nothing and reports
+`check` when both destinations are contained (or defaulted) changes nothing and reports
 "already configured".
 
 ## What this skill does NOT do

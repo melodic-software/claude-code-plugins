@@ -1,23 +1,23 @@
 ---
-description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', the SessionStart observer isn't arming, or the observer hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe; only the observer substrate has prerequisites, the other thirteen skills are zero-config."
-argument-hint: "check | apply"
+description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', the SessionStart observer isn't arming, or the observer hook reported a missing prerequisite. Check-only: verifies, reports, and offers each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe; only the observer substrate has prerequisites, the other thirteen skills are zero-config."
+argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
-"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
-`apply` resolves. Only the **detached observer** (see
+Check-only setup under the Check-only carve-out (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit
+and repeatable" in the marketplace repository): this plugin's configuration surface contains no
+writable artifact, so `check` inspects, reports, and offers each remediation, and no `apply` is
+offered because there is nothing it could conformingly write. Only the **detached observer** (see
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md)) has
-runtime prerequisites and configuration; the other skills are zero-config. The observer's tunables are
-all native `userConfig`, and its remaining prerequisites are system tools (Python 3.10+, `jq`), so
-`apply` is guidance-and-verify with **no write path**: it installs nothing and edits nothing (writing
-`pluginConfigs` is what the setup contract forbids).
+runtime prerequisites and configuration; the other skills are zero-config. The observer's tunables
+are all native `userConfig` (the carve-out's native-`userConfig` class), and its remaining
+prerequisites are system tools (Python 3.10+, `jq` — the external-prerequisites class), so setup
+installs nothing and edits nothing (writing `pluginConfigs` is what the setup contract forbids).
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then offers the
-resolution for each finding. Both are non-interactive, never prompt when the action is given.
+Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
 
 ## `check` (read-only)
 
@@ -55,10 +55,10 @@ and note that re-enabling restores the FAIL semantics.
 5. **Hook registration**. INFO: confirm the plugin is enabled for this project (`/plugin` → Installed)
    rather than parsing settings files. The SessionStart hook only auto-arms when `observer_enabled` is on.
 
-## `apply`
+## Remediation guidance (printed by `check`; the operator applies it)
 
-No write path. Run `check`, then for each FAIL offer the remediation: install the missing tool, or route
-observer reconfiguration through Claude Code's native flow.
+No write path. For each FAIL, `check` closes by offering the remediation: install the missing
+tool, or route observer reconfiguration through Claude Code's native flow.
 Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 
 Reconfiguring the observer's `userConfig` keys has exactly two routes, and both work on an already

@@ -5,6 +5,12 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.16]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
 ## [0.6.15]
 
 ### Fixed

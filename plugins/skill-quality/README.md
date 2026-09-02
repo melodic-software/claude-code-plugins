@@ -12,7 +12,7 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 | Skill | What it does |
 |---|---|
 | `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), or schema-validates and quality-lints evals (`validate-evals`) for one skill, a set of roots, or every skill. |
-| `/skill-quality:setup` | `check` (default) resolves and verifies the skills directory; `apply` routes a non-default `skills_root` change through Claude Code. |
+| `/skill-quality:setup` | Check-only: resolves and verifies the skills directory and prints the guidance for routing a non-default `skills_root` change through Claude Code. |
 
 ## Checks
 
@@ -89,8 +89,8 @@ the setup skill neither writes nor persists it. When your skills live at the def
 configuration is needed:
 
 ```shell
-/skill-quality:setup         # check (default): resolve + verify the skills directory (re-runnable)
-/skill-quality:setup apply   # route a non-default skills_root change through Claude Code
+/skill-quality:setup         # check-only: resolve + verify the skills directory (re-runnable);
+                             # prints how to route a skills_root change through Claude Code
 ```
 
 ## Evals schema + quality lint
