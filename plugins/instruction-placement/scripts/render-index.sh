@@ -291,16 +291,55 @@ fi
 
 # Resolve the target before entering --root, so a relative --file is read
 # relative to the caller's cwd rather than silently re-anchored.
-if [[ -n "$TARGET" && "$TARGET" != /* ]]; then
+#
+# A drive-letter path is ABSOLUTE. `git rev-parse --show-toplevel` answers
+# `C:/repo` under Git Bash, so that spelling is what the index-drift hook hands
+# `--file` and `--root` on every Windows write. Testing only the leading `/`
+# read it as relative and joined it to the calling directory, producing
+# `/d/cwd/C:/repo/AGENTS.md` -- unreadable, so `check` died, the hook swallowed
+# the error and exited 0. The production check was a no-op for every Windows
+# user until this test was widened.
+if [[ -n "$TARGET" && "$TARGET" != /* && ! "$TARGET" =~ ^[A-Za-z]:[\\/] ]]; then
   TARGET="$PWD/$TARGET"
 fi
 
 cd "$ROOT" || die "cannot enter --root: $ROOT"
 
+# One directory has several spellings on Git Bash: `C:/repo` from git, `/c/repo`
+# from `pwd`. After the `cd` above, `$PWD` holds the shell's own spelling of
+# ROOT, so a TARGET still written in git's spelling shares no prefix with it and
+# every `${TARGET#"$PWD"/}` strip below silently leaves the path absolute --
+# which makes `reachable` ask about a target it cannot name and `write` warn
+# about reachability it never actually tested.
+#
+# TARGET_NORM re-spells the target in the shell's own form by asking the
+# directory itself (`cd "$dir" && pwd`), which is the same call that produced
+# `$PWD`. TARGET itself is left exactly as the caller wrote it: every read, every
+# write and every `WROTE`/`DRIFTED`/`IN-SYNC` line still names the path the
+# caller asked about.
+#
+# Residual, recorded rather than implied: this unifies spellings of the SAME
+# directory family. A `--root C:/repo` paired with a `--file` reached through an
+# unrelated alias (a mount whose `pwd` form differs from the target's) still
+# shares no prefix and stays absolute -- the fail-open direction, and not a
+# shape any caller in this repository produces.
+TARGET_NORM="$TARGET"
+if [[ -n "$TARGET" ]]; then
+  target_dir="$(dirname -- "$TARGET")"
+  target_base="$(basename -- "$TARGET")"
+  if target_dir_norm="$(cd "$target_dir" 2>/dev/null && pwd)"; then
+    if [[ "$target_dir_norm" == "/" ]]; then
+      TARGET_NORM="/$target_base"
+    else
+      TARGET_NORM="$target_dir_norm/$target_base"
+    fi
+  fi
+fi
+
 # `reachable` answers a question about wiring, not about content, so it runs
 # before the (comparatively expensive) block render.
 if [[ "$SUBCOMMAND" == "reachable" ]]; then
-  rel_target="${TARGET#"$PWD"/}"
+  rel_target="${TARGET_NORM#"$PWD"/}"
   ip_index_target_loaded "." "$rel_target"
   exit $?
 fi
@@ -381,7 +420,7 @@ write)
     printf 'WROTE\t%s\n' "$TARGET"
     # An index Claude Code never loads is the whole point silently not working,
     # so say so at the moment of writing rather than leaving it for a later gate.
-    rel_written="${TARGET#"$PWD"/}"
+    rel_written="${TARGET_NORM#"$PWD"/}"
     if ! reach="$(ip_index_target_loaded "." "$rel_written")"; then
       printf 'WARNING\t%s\n' "${reach#*$'\t'}" >&2
     fi

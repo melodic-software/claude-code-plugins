@@ -16,10 +16,18 @@ SCRIPT="$SCRIPT_DIR/render-index.sh"
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
+}
+# A case this host cannot run is neither a pass nor a failure. It prints its own
+# visible line, carries its own counter, and never routes through pass(), so a
+# host-blocked proof can never be read off the summary as a case that ran.
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -362,8 +370,56 @@ run render --root "$many" --max-rows abc >/dev/null 2>&1
 assert_eq "a non-integer --max-rows is a usage error" "2" "$?"
 
 # --------------------------------------------------------------------------
+# Windows path forms: a drive-letter --root and --file round trip
+# --------------------------------------------------------------------------
+# `git rev-parse --show-toplevel` answers `C:/repo` under Git Bash, and that is
+# the spelling hooks/index-drift.sh hands this script on every Windows write.
+# Reading such a target as relative made the production check a silent no-op for
+# every Windows user, so the round trip is pinned here rather than in the hook.
+#
+# The probe IS that spelling: where git answers the same string the fixture was
+# built under, the host has one path form, there is no second form to drive, and
+# the case reports a visible SKIP rather than a pass it never earned.
+winrepo="$(build_fixture)"
+win_root="$(git -C "$winrepo" rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$win_root" || "$win_root" == "$winrepo" ]]; then
+  # silent-skip-ok: printed as a visible SKIP line and counted apart from PASS
+  skip "a drive-letter --root and --file round trip" \
+    "git reports a single path spelling for this checkout"
+else
+  win_target="$win_root/AGENTS.md"
+
+  out="$(run check --file "$win_target" --root "$win_root")"
+  assert_not_contains "a drive-letter --file is absolute, never joined to the cwd" \
+    "$out" "not a readable file"
+  assert_contains "check reads a drive-letter target" "$out" "NO-BLOCK"
+
+  out="$(run write --file "$win_target" --root "$win_root")"
+  assert_contains "write reports the drive-letter target it wrote" "$out" "WROTE"
+  assert_not_contains "write does not misreport a drive-letter target as unreachable" \
+    "$out" "WARNING"
+
+  out="$(run check --file "$win_target" --root "$win_root")"
+  assert_contains "the drive-letter round trip lands in sync" "$out" "IN-SYNC"
+
+  out="$(run reachable --file "$win_target" --root "$win_root")"
+  assert_contains "reachable names the drive-letter target relative to the root" \
+    "$out" "AGENTS.md"
+
+  # The written index must match the one a shell-form run produces byte for
+  # byte, so the drive-letter path stays a spelling and never becomes a second
+  # result. The two fixtures are built the same way, so only the spelling differs.
+  posixrepo="$(build_fixture)"
+  run write --file "$posixrepo/AGENTS.md" --root "$posixrepo" >/dev/null 2>&1
+  assert_eq "the drive-letter run writes the same index as the shell-form run" \
+    "$(cat "$posixrepo/AGENTS.md")" "$(cat "$winrepo/AGENTS.md")"
+  rm -rf "$posixrepo"
+fi
+rm -rf "$winrepo"
+
+# --------------------------------------------------------------------------
 rm -rf "$repo" "$empty"
 
-printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
+printf '\n%d case(s), %d failure(s), %d host skip(s)\n' "$CASE_NUM" "$FAILED" "$SKIPPED"
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0
