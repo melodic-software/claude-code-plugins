@@ -3,6 +3,15 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.8]
+
+### Changed
+
+- **Synced `@playwright/cli` vendor baseline to 0.1.19.** Added distilled `recording-start` /
+  `recording-stop` to `reference/commands.md` (record a user-driven browser flow as Playwright
+  code). Corrected the trace output directory in `reference/tracing-and-video.md` to
+  `.playwright-cli/traces/`. Upstream: [playwright-cli v0.1.19](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.19).
+
 ## [0.6.7]
 
 ### Changed
