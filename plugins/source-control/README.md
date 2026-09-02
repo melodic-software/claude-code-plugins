@@ -164,7 +164,11 @@ The registration carries an `if` filter, `Bash(gh *)`, so the hook process is sp
 only for a command that runs `gh` (Claude Code checks each subcommand of a compound
 command, and runs the hook regardless when it cannot tell what a command expands to).
 That is a superset of the hook's own first check, so nothing it would have judged is
-skipped; a plain `git status` no longer pays for it.
+skipped; a plain `git status` no longer pays for it. The filter is best-effort on the
+Bash side: a pattern beyond a bare command name still spawns the process on any command
+containing `$()`, a backtick or `$VAR`, because Claude Code cannot tell what such a
+command expands to. The dotfiles fan-out harness reports those spawns as
+`RAN(best-effort)` on its `$()` sample.
 
 #### Telemetry (opt-in)
 
@@ -218,7 +222,9 @@ with the `if` filter `Bash(*worktree*)`: the hook process is spawned only for a 
 whose text carries `worktree`, which is also each hook's own first check, so every
 `git worktree add` spelling they judged before (including `git -C <dir> worktree add`
 and wrapped forms) still reaches them, and every other Bash call no longer pays for
-two hook processes.
+two hook processes. The same best-effort caveat applies: a command containing `$()`, a
+backtick or `$VAR` spawns both processes whatever its text, since the filter cannot see
+what the substitution expands to.
 
 ## Works in any repo
 
