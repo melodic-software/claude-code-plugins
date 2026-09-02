@@ -272,6 +272,119 @@ CLAUDE_PROJECT_DIR="$r" CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED=false
   bash "$HOOK" <<<"$json" >/dev/null 2>&1
 assert_exit "kill switch off: violating subject allowed" 0 $?
 
+# --- resolved pattern cache ---------------------------------------------------
+# The gate forks the resolver twice per call, on every Bash command the agent
+# runs. The cache must answer with EXACTLY what the fork answered, must stop
+# forking once warm, and must notice a convention change.
+
+# cache_run <repo> <plugin-data> <command> -> exit code in $CACHE_RC
+cache_run() {
+  local json
+  json=$(jq -n --arg c "$3" --arg d "$1" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+  CACHE_RC=0
+  CLAUDE_PROJECT_DIR="$1" CLAUDE_PLUGIN_DATA="$2" bash "$HOOK" <<<"$json" >/dev/null 2>&1 ||
+    CACHE_RC=$?
+}
+
+VIOLATING=$'git commit -F - <<\'EOF\'\nnot a ticket subject\nEOF\n'
+CONFORMING=$'git commit -F - <<\'EOF\'\nABC-1: a conforming subject\nEOF\n'
+
+r="$(newrepo "$TICKET")"
+pd="$TEST_TMPDIR/pdata-cache"
+rm -rf "$pd"
+
+# 1. Cold: the fork decides. Warm: the cache must decide the SAME way.
+cache_run "$r" "$pd" "$VIOLATING"
+assert_exit "cache: cold run blocks a violating subject" 2 "$CACHE_RC"
+CACHE_FILE="$(find "$pd/convention-pattern" -type f 2>/dev/null | head -1)"
+if [[ -n "$CACHE_FILE" ]]; then ok "cache: cold run wrote a cache entry"; else bad "cache: no cache entry written"; fi
+cache_run "$r" "$pd" "$VIOLATING"
+assert_exit "cache: warm run blocks the same subject" 2 "$CACHE_RC"
+cache_run "$r" "$pd" "$CONFORMING"
+assert_exit "cache: warm run allows a conforming subject" 0 "$CACHE_RC"
+
+# 2. The cached pattern EQUALS what the fork produces. Compared value to value,
+#    not decision to decision: two different patterns can agree on one subject.
+CACHED_SUBJECT="$(sed -n '2p' "$CACHE_FILE")"
+CACHED_TITLE="$(sed -n '3p' "$CACHE_FILE")"
+FORKED_SUBJECT="$(bash "$HOOK_DIR/resolve-convention-pattern.sh" "$r" subject_pattern 2>/dev/null)"
+FORKED_TITLE="$(bash "$HOOK_DIR/resolve-convention-pattern.sh" "$r" pr_title_pattern 2>/dev/null)"
+assert_eq "cache: cached subject pattern equals the forked form" "$FORKED_SUBJECT" "$CACHED_SUBJECT"
+assert_eq "cache: cached title pattern equals the forked form" "$FORKED_TITLE" "$CACHED_TITLE"
+# The recorded root is git's own answer, which on Windows Git Bash is the
+# drive-letter form and not the MSYS path the fixture was created under. What
+# this case holds is that the entry names the root it was resolved for, so a
+# sanitized filename collision between two roots cannot serve the wrong pattern.
+assert_eq "cache: entry records its repo root" \
+  "$(git -C "$r" rev-parse --show-toplevel | tr -d '\r')" "$(sed -n '1p' "$CACHE_FILE")"
+assert_eq "cache: entry carries its terminator" "END" "$(sed -n '4p' "$CACHE_FILE")"
+
+# 3. A warm cache must not fork the resolver again. Counted through a shim ahead
+#    of the real bash on PATH, so this measures the spawn the change removes.
+CB_DIR="$TEST_TMPDIR/bash-shim"
+mkdir -p "$CB_DIR"
+CB_LOG="$TEST_TMPDIR/resolver-forks"
+REAL_BASH="$(command -v bash)"
+{
+  # The shebang names the real interpreter by path. `#!/usr/bin/env bash` would
+  # resolve `bash` through the PATH this shim is installed on and find the shim,
+  # which never terminates.
+  printf '#!%s\n' "$REAL_BASH"
+  printf 'case "$*" in *resolve-convention-pattern.sh*) printf "x\\n" >>"%s" ;; esac\n' "$CB_LOG"
+  printf 'exec "%s" "$@"\n' "$REAL_BASH"
+} >"$CB_DIR/bash"
+chmod +x "$CB_DIR/bash"
+
+: >"$CB_LOG"
+json=$(jq -n --arg c "$VIOLATING" --arg d "$r" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+CLAUDE_PROJECT_DIR="$r" CLAUDE_PLUGIN_DATA="$pd" PATH="$CB_DIR:$PATH" \
+  bash "$HOOK" <<<"$json" >/dev/null 2>&1
+assert_eq "cache: a warm run forks the resolver zero times" 0 "$(wc -l <"$CB_LOG" | tr -d ' ')"
+
+# 4. An mtime change on the convention file invalidates. The new pattern must be
+#    the one enforced, proven by a subject that the OLD pattern rejected and the
+#    NEW one accepts. `touch -d` rather than a bare write: two writes inside one
+#    filesystem timestamp tick would not move the mtime at all.
+printf '%s\n' "$CC" >"$r/.claude/source-control.md"
+touch -d '+1 minute' "$r/.claude/source-control.md"
+: >"$CB_LOG"
+CONV_SUBJECT=$'git commit -F - <<\'EOF\'\nfeat: a conventional-commits subject\nEOF\n'
+json=$(jq -n --arg c "$CONV_SUBJECT" --arg d "$r" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+inval_rc=0
+CLAUDE_PROJECT_DIR="$r" CLAUDE_PLUGIN_DATA="$pd" PATH="$CB_DIR:$PATH" \
+  bash "$HOOK" <<<"$json" >/dev/null 2>&1 || inval_rc=$?
+assert_exit "cache: after an mtime change the NEW pattern is enforced" 0 "$inval_rc"
+if (($(wc -l <"$CB_LOG" | tr -d ' ') > 0)); then
+  ok "cache: an mtime change re-forks the resolver"
+else
+  bad "cache: stale entry served after the convention file changed"
+fi
+# The old pattern is genuinely gone: a ticket subject no longer satisfies the
+# gate, and the entry on disk now carries the Conventional Commits pattern.
+cache_run "$r" "$pd" "$CONFORMING"
+assert_exit "cache: the superseded pattern is no longer enforced" 2 "$CACHE_RC"
+assert_contains "cache: entry now holds the new pattern" "$(sed -n '2p' "$CACHE_FILE")" "feat|fix"
+
+# 5. No plugin data dir -> no caching, and the gate still decides correctly.
+r2="$(newrepo "$TICKET")"
+json=$(jq -n --arg c "$VIOLATING" --arg d "$r2" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+nodata_rc=0
+CLAUDE_PROJECT_DIR="$r2" env -u CLAUDE_PLUGIN_DATA bash "$HOOK" <<<"$json" >/dev/null 2>&1 ||
+  nodata_rc=$?
+assert_exit "cache: unset plugin data still blocks a violating subject" 2 "$nodata_rc"
+
+# 6. A truncated entry is a miss, never a silent no-enforcement.
+r3="$(newrepo "$TICKET")"
+pd3="$TEST_TMPDIR/pdata-trunc"
+rm -rf "$pd3"
+cache_run "$r3" "$pd3" "$VIOLATING"
+TRUNC_FILE="$(find "$pd3/convention-pattern" -type f 2>/dev/null | head -1)"
+printf '%s\n' "$r3" >"$TRUNC_FILE"
+touch -d '+1 minute' "$TRUNC_FILE"
+cache_run "$r3" "$pd3" "$VIOLATING"
+assert_exit "cache: a truncated entry re-resolves rather than disabling the gate" 2 "$CACHE_RC"
+
 # --- NUL in payload must fail closed (#2136) ----------------------------------
 r="$(newrepo "$TICKET")"
 nul_rc=0

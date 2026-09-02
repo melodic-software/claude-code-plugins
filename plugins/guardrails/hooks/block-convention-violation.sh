@@ -91,13 +91,121 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 HOOK_CWD="${HOOK_JQ_FIELDS[2]}"
 
 REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
-RESOLVER="$(dirname "${BASH_SOURCE[0]}")/resolve-convention-pattern.sh"
+HOOK_SELF_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_SELF_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_SELF_DIR="."
+RESOLVER="$HOOK_SELF_DIR/resolve-convention-pattern.sh"
+
+# --- resolved pattern cache ---------------------------------------------------
+# Resolving costs two resolver forks, because the resolver answers one key per
+# call. This gate runs on EVERY Bash and PowerShell tool call, and the
+# answer changes only when the convention files do: measured at 423 ms, 10.1
+# spawn-equivalents against a 42 ms spawn floor on Windows Git Bash, paid on
+# every command the agent runs. So the resolved pair is cached per repo root and
+# invalidated by mtime against every file the resolver reads.
+#
+# The resolver is not edited and not re-implemented here — it stays the single
+# authority for what a pattern IS. What is cached is only its answer.
+#
+# Freshness is `[[ cache -nt dep ]]` per dependency, a bash builtin rather than a
+# `stat` process. Equal mtimes read as NOT newer, so a same-timestamp write
+# re-resolves rather than serving a stale pattern; a dependency that does not
+# exist reads as older, which is the right answer for a repo that tracks no
+# convention. The repo root is stored in the file and compared on read, so two
+# roots that sanitize to the same name cannot serve each other's patterns, and a
+# terminator line makes a truncated write read as a miss.
+#
+# RESIDUAL, deliberately not solved here: the resolver's well-known-path rung
+# only honours `docs/conventions/source-control/commit-convention.yml` when git
+# reports it TRACKED, and tracked status can change with no mtime change on any
+# file below. Such a change is picked up when any dependency is next written,
+# not at the moment of `git add`. Probing it would cost the `git ls-files` spawn
+# this cache exists to avoid.
+CONV_DEPS=(
+  "$REPO_ROOT/.claude/source-control.md"
+  "$REPO_ROOT/docs/conventions/source-control/commit-convention.yml"
+)
+
+# An explicit `## convention_source` H2 names a third file the resolver reads.
+# Scanned with bash builtins, never a process: the whole point here is that the
+# hit path spawns nothing. Reading the pointer wrong can only DELAY an
+# invalidation until the team file itself changes, never enforce a pattern the
+# resolver did not produce.
+conv_pointer() {
+  local f="$REPO_ROOT/.claude/source-control.md" line t in_sec=0
+  CONV_POINTER=""
+  [[ -f "$f" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    if [[ "$line" == '##'[[:space:]]* ]]; then
+      t="${line#\#\#}"
+      t="${t#"${t%%[![:space:]]*}"}"
+      t="${t%"${t##*[![:space:]]}"}"
+      [[ "$t" == "convention_source" ]] && in_sec=1 || in_sec=0
+      continue
+    fi
+    ((in_sec)) || continue
+    t="${line#"${line%%[![:space:]]*}"}"
+    t="${t%"${t##*[![:space:]]}"}"
+    [[ -n "$t" ]] || continue
+    CONV_POINTER="$t"
+    return 0
+  done <"$f"
+  return 0
+}
+conv_pointer
+[[ -n "$CONV_POINTER" ]] && CONV_DEPS+=("$REPO_ROOT/$CONV_POINTER")
+
+CONV_CACHE=""
+[[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] &&
+  CONV_CACHE="$CLAUDE_PLUGIN_DATA/convention-pattern/${REPO_ROOT//[^A-Za-z0-9]/_}"
 
 SUBJECT_ERE=""
 TITLE_ERE=""
-if [[ -f "$RESOLVER" ]]; then
-  SUBJECT_ERE=$(bash "$RESOLVER" "$REPO_ROOT" subject_pattern 2>/dev/null) || SUBJECT_ERE=""
-  TITLE_ERE=$(bash "$RESOLVER" "$REPO_ROOT" pr_title_pattern 2>/dev/null) || TITLE_ERE=""
+CONV_HIT=0
+if [[ -n "$CONV_CACHE" && -f "$CONV_CACHE" ]]; then
+  conv_fresh=1
+  for conv_dep in "${CONV_DEPS[@]}"; do
+    [[ "$CONV_CACHE" -nt "$conv_dep" ]] || {
+      conv_fresh=0
+      break
+    }
+  done
+  if ((conv_fresh)); then
+    conv_root=""
+    conv_subj=""
+    conv_title=""
+    conv_end=""
+    {
+      IFS= read -r conv_root
+      IFS= read -r conv_subj
+      IFS= read -r conv_title
+      IFS= read -r conv_end
+    } <"$CONV_CACHE"
+    if [[ "$conv_end" == "END" && "$conv_root" == "$REPO_ROOT" ]]; then
+      SUBJECT_ERE="$conv_subj"
+      TITLE_ERE="$conv_title"
+      CONV_HIT=1
+    fi
+  fi
+fi
+
+if ((CONV_HIT == 0)) && [[ -f "$RESOLVER" ]]; then
+  for conv_key in subject_pattern pr_title_pattern; do
+    conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key" 2>/dev/null) || conv_val=""
+    case "$conv_key" in
+    subject_pattern) SUBJECT_ERE="$conv_val" ;;
+    *) TITLE_ERE="$conv_val" ;;
+    esac
+  done
+  # Write through a temp name and rename, so a reader never sees a half file.
+  if [[ -n "$CONV_CACHE" ]] && mkdir -p "${CONV_CACHE%/*}" 2>/dev/null; then
+    if printf '%s\n%s\n%s\nEND\n' "$REPO_ROOT" "$SUBJECT_ERE" "$TITLE_ERE" \
+      >"$CONV_CACHE.$$" 2>/dev/null; then
+      mv -f "$CONV_CACHE.$$" "$CONV_CACHE" 2>/dev/null || rm -f "$CONV_CACHE.$$" 2>/dev/null
+    else
+      rm -f "$CONV_CACHE.$$" 2>/dev/null
+    fi
+  fi
 fi
 # Neither key enforceable -> nothing this gate could ever block.
 [[ -n "$SUBJECT_ERE" || -n "$TITLE_ERE" ]] || exit 0
