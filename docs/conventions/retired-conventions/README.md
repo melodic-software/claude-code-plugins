@@ -296,9 +296,11 @@ the row states the manifest as it exists on `main`.
 | Plugin | Manifest record count | First record date |
 |---|---|---|
 | `source-control` | 1 | 2026-07-23 |
+| `plugin-quality` | 2 | 2026-09-01 |
 
-Row shape for a plugin adding itself: `` `<plugin>` `` \| count \| `YYYY-MM-DD`. The pilot surface
-for the convention-doc expression form is `plugin-quality`'s `.claude/plugin-quality.md` (ADR 0018).
+Row shape for a plugin adding itself: `` `<plugin>` `` \| count \| `YYYY-MM-DD`. The convention-doc
+expression-form pilot was `plugin-quality`'s `.claude/plugin-quality.md` (ADR 0018), retired by that
+plugin's first two records.
 
 ## Deferred
 

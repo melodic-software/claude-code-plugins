@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.30]
+
+### Changed
+
+- Phase 2d pilot wiring. `lib/resolve-convention-home.sh` gains its sync cluster (`scripts/sync-resolve-convention-home.sh`, first carrier: plugin-quality) and its shared-source header note now cites the cross-plugin source registry instead of the pre-carrier placeholder wording.
+
 ## [0.40.29]
 
 ### Changed

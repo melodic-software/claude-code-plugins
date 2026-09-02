@@ -186,6 +186,20 @@
         "Does not merge the aborted run's empty packet into the completed run's recovered set",
         "Does not treat the completed run's packets as stale merely because a newer directory exists"
       ]
+    },
+    {
+      "id": 15,
+      "name": "dual-read-carries-old-values-after-update-without-re-setup",
+      "prompt": "Run the audit in a consumer repo that updated plugin-quality but never re-ran setup: no convention-home pointer line exists anywhere, and the retired .claude/plugin-quality.md is still present with sink: markdown-dir and markdown_dir: ~/audit-items. Resolve the config and state which sink step 6 will use.",
+      "expected_output": "The resolver exits 1 (unconfigured), and the dual-read window applies: the retired file is read as AUTHORITY, so sink resolves to markdown-dir with markdown_dir ~/audit-items — the old values carry, they do not silently fall to defaults. One visible WARN line names plugin-quality-r001 and recommends /plugin-quality:setup apply. The retired user-global and overlay layers are not consulted.",
+      "files": [],
+      "expectations": [
+        "Reads the retired .claude/plugin-quality.md as authority while it is present",
+        "The effective sink is markdown-dir with the file's markdown_dir — the old values carry into this run",
+        "Prints the visible dual-read WARN naming plugin-quality-r001 and the setup remediation",
+        "Does not silently ignore the retired file or resolve defaults over it",
+        "Does not read ~/.claude/plugin-quality.md or .claude/plugin-quality.local.md"
+      ]
     }
   ]
 }
