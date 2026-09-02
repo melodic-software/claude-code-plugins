@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Reliability Monitor stability index + recent records. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#9-reliability-monitor for rubric.
+See reference/windows/check-catalog.md#9-reliability-monitor for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)

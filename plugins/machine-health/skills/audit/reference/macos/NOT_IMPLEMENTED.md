@@ -5,7 +5,7 @@ Scaffolding placeholder. When `machine-health` is invoked on a macOS host, the s
 ## What the skill should do on macOS today
 
 1. Detect OS: `$IsMacOS -eq $true` (PowerShell 7+) or `uname -s` returns `Darwin`.
-2. Load `references/shared/*.md` for semantics, schema, and discovery guidance.
+2. Load `reference/shared/*.md` for semantics, schema, and discovery guidance.
 3. Read this file; note `scripts/macos/NOT_IMPLEMENTED.md` is also present.
 4. Produce a single-check report:
    - `id: "os-support"`, `category: "reliability"`, `severity: "UNKNOWN"`.
@@ -15,17 +15,17 @@ Scaffolding placeholder. When `machine-health` is invoked on a macOS host, the s
 
 ## Porting checklist
 
-Goal is "populate two folders," not "refactor the skill." Everything under `references/shared/` stays the same; OS-agnostic by design.
+Goal is "populate two folders," not "refactor the skill." Everything under `reference/shared/` stays the same; OS-agnostic by design.
 
 1. **Read the shared references** in order:
-   - `references/shared/severity-rubric.md` — inherits the five levels and the trend rule.
-   - `references/shared/output-schema.md` — every macOS check must emit this exact schema.
-   - `references/shared/report-template.md` — report renderer is already OS-agnostic.
-   - `references/shared/discovery-guide.md` — **macOS** section lists candidate dimensions to probe (Homebrew, FileVault, Keychain expiry, smartctl/system_profiler, kernel panics, etc.).
-   - `references/shared/remediation-philosophy.md` — posture (fail-safe, one attempt, forbidden actions) is universal.
-2. **Populate `references/macos/`** with:
+   - `reference/shared/severity-rubric.md` — inherits the five levels and the trend rule.
+   - `reference/shared/output-schema.md` — every macOS check must emit this exact schema.
+   - `reference/shared/report-template.md` — report renderer is already OS-agnostic.
+   - `reference/shared/discovery-guide.md` — **macOS** section lists candidate dimensions to probe (Homebrew, FileVault, Keychain expiry, smartctl/system_profiler, kernel panics, etc.).
+   - `reference/shared/remediation-philosophy.md` — posture (fail-safe, one attempt, forbidden actions) is universal.
+2. **Populate `reference/macos/`** with:
    - `check-catalog.md` — macOS equivalent of the Windows catalog, thresholds tailored to macOS (e.g., `pmset -g batt` instead of `powercfg /batteryreport`).
-   - `remediation-policy.md` — explicit per-remediation authorization, same structure as `references/windows/remediation-policy.md`.
+   - `remediation-policy.md` — explicit per-remediation authorization, same structure as `reference/windows/remediation-policy.md`.
 3. **Populate `scripts/macos/`** with:
    - `Invoke-MachineHealthCheck.ps1` — orchestrator, same responsibilities as Windows one. PowerShell 7 runs fine on macOS (`brew install --cask powershell` or pkg installer).
    - `checks/Test-*.ps1` — one per catalog entry. macOS-specific commands: `softwareupdate`, `diskutil`, `fdesetup`, `pmset`, `log show`, `system_profiler`, `security find-identity`.
@@ -42,7 +42,7 @@ Goal is "populate two folders," not "refactor the skill." Everything under `refe
 
 Replace this stub only when all of these hold:
 
-- Every check seeded in `references/windows/check-catalog.md` has a macOS analog (or is explicitly marked "not applicable to macOS" in `references/macos/check-catalog.md` with rationale).
+- Every check seeded in `reference/windows/check-catalog.md` has a macOS analog (or is explicitly marked "not applicable to macOS" in `reference/macos/check-catalog.md` with rationale).
 - `scripts/macos/Invoke-MachineHealthCheck.ps1` passes the dry-run smoke test against `$env:TMPDIR/machine-health-smoketest` with `-DryRun -RunMode first-run`.
 - Run produces a valid report and a valid `history.jsonl` line.
 
