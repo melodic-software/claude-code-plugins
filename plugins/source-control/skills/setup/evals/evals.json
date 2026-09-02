@@ -237,13 +237,27 @@
       "id": 19,
       "name": "check-reports-missing-overlay-ignore-without-overlay-file",
       "prompt": "/source-control:setup check\n\nThe repo has a tracked team .claude/source-control.md and no .claude/source-control.local.md. .gitignore does not mention .claude/**/*.local.*.",
-      "expected_output": "Reports FAIL on the local-overlay ignore rule even though no overlay file exists: the rule must be in place before the first overlay is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes the recursive .claude/**/*.local.* line at team-layer bind.",
+      "expected_output": "Reports FAIL on the local-overlay ignore rule even though no overlay file exists: the rule must be in place before the first overlay is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes the recursive .claude/**/*.local.* line at team-layer bind. The presence probe is git check-ignore --no-index -v -- .claude/nested/overlay.local.md, not the flat overlay path.",
       "files": [],
       "expectations": [
         "Probes the ignore rule without requiring the overlay file to exist",
+        "Probes a nested sentinel (.claude/nested/overlay.local.md) rather than the flat overlay path",
         "Counts only a repository .gitignore match, not info/exclude or core.excludesFile",
         "Missing .claude/**/*.local.* rule is FAIL, not INFO",
         "Remediation is apply writing the ignore line at team-layer bind"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "check-does-not-accept-leftover-nonrecursive-ignore-as-the-recursive-rule",
+      "prompt": "/source-control:setup check\n\nThe repo has a tracked team .claude/source-control.md and no .claude/source-control.local.md. .gitignore contains .claude/*.local.* and does not contain .claude/**/*.local.*.",
+      "expected_output": "Reports FAIL on the local-overlay ignore rule. The leftover .claude/*.local.* line matches the flat overlay path, so probing .claude/source-control.local.md would have passed; the nested sentinel .claude/nested/overlay.local.md does not match that line, so check still FAILs and names apply as the remediation (append .claude/**/*.local.* at team-layer bind).",
+      "files": [],
+      "expectations": [
+        "A leftover .claude/*.local.* rule is not treated as the recursive overlay ignore rule",
+        "The presence probe uses .claude/nested/overlay.local.md",
+        "Missing .claude/**/*.local.* is FAIL even when .claude/*.local.* is present",
+        "Remediation is apply appending the recursive line at team-layer bind"
       ]
     }
   ]

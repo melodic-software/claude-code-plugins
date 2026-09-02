@@ -79,8 +79,10 @@ Per-layer verdicts:
   first overlay is written; conditioning the probe on the file already existing
   is the window that produces the exposure. Missing rule → FAIL, remediable by
   `apply` (which writes the line at team-layer bind, not only at `layer=local`).
-  Probe with `git check-ignore --no-index -v -- .claude/source-control.local.md`
-  (the path does not need to exist). A match counts only when `-v` names a
+  Probe with `git check-ignore --no-index -v -- .claude/nested/overlay.local.md`
+  (the path does not need to exist). The sentinel is nested so a leftover
+  `.claude/*.local.*` rule, which still matches the flat overlay path, is not
+  mistaken for the recursive rule. A match counts only when `-v` names a
   repository `.gitignore` as the source. `$GIT_DIR/info/exclude` and
   `core.excludesFile` are operator-local and do not protect a teammate.
 - **Local overlay file** (`REPO_ROOT/.claude/source-control.local.md`): when

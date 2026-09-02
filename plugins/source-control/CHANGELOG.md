@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- `setup` (and the README/reference docs) now recommend config-cascade's mandated recursive `.claude/**/*.local.*` gitignore line for personal overlays instead of a narrow or bespoke spelling (#3582, customization-consistency Phase 1a).
+- `setup` (and the README/reference docs) now recommend config-cascade's mandated recursive `.claude/**/*.local.*` gitignore line for personal overlays instead of a narrow or bespoke spelling (#3582, customization-consistency Phase 1a). The overlay-ignore presence probe (check, and team-layer apply before append) uses a nested sentinel (`.claude/nested/overlay.local.md`) so a leftover `.claude/*.local.*` line is not mistaken for the recursive rule.
 
 ## [0.55.35]
 

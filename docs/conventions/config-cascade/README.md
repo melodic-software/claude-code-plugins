@@ -228,7 +228,7 @@ sweep — and each migration updates its own row in the same change.
 
 ### Overlay spelling drift
 
-Every setup surface now recommends (or, for `source-control` and `work-items`, appends) the
+Every setup surface now recommends (or, for `source-control`, appends) the
 recursive line above. The narrow spellings the fleet used to ship — `.claude/*.local.*`,
 `.claude/ecosystems/*.local.*`, `.claude/autonomy/**/*.local.*` — were each narrowly correct for
 their own surface but collectively defeated the one-line promise: a consumer running three plugins
