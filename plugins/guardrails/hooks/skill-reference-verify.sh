@@ -153,7 +153,9 @@ Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
 
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 PLUGINS_DIR="$REPO_ROOT/plugins"
 
 # PLUGINS-ROOT GATE. Outside a marketplace repo there is no local authority.
@@ -181,16 +183,30 @@ shopt -u nullglob
 # stays in the search set, so at worst a reference resolves that Claude Code would
 # not offer and this advisory stays quiet. Staying quiet is the failure this guard
 # is allowed to have; a false alarm is not.
+# BUILT ON DEMAND. Two jq processes per manifest, and this marketplace carries
+# 76 of them, so the index costs ~150 spawns — measured at 11.4 s (272
+# spawn-equivalents) on Windows Git Bash, which was the whole PostToolUse:Write
+# cost of this plugin on a file that cites nothing. Nothing below the reference
+# scan reads the index, and the scan needs no plugin knowledge to find its
+# candidates, so the index is built once, only when a candidate exists. The gates
+# above stay where they are: their `exit 0` paths deliberately skip telemetry, and
+# moving them would change that.
 declare -A PLUGIN_DIR=() PLUGIN_SKILL_PATHS=()
-for m in "${manifests[@]}"; do
-  pdir="${m%/.claude-plugin/plugin.json}"
-  pname=$(jq -r '.name // empty' "$m" 2>/dev/null | tr -d '\r')
-  [[ -n "$pname" ]] || pname="${pdir##*/}"
-  PLUGIN_DIR["$pname"]="$pdir"
-  PLUGIN_SKILL_PATHS["$pname"]=$(
-    jq -r '.skills // empty | if type == "array" then .[] else . end' "$m" 2>/dev/null | tr -d '\r'
-  )
-done
+PLUGIN_INDEX_BUILT=0
+build_plugin_index() {
+  ((PLUGIN_INDEX_BUILT)) && return 0
+  PLUGIN_INDEX_BUILT=1
+  local m pdir pname
+  for m in "${manifests[@]}"; do
+    pdir="${m%/.claude-plugin/plugin.json}"
+    pname=$(jq -r '.name // empty' "$m" 2>/dev/null | tr -d '\r')
+    [[ -n "$pname" ]] || pname="${pdir##*/}"
+    PLUGIN_DIR["$pname"]="$pdir"
+    PLUGIN_SKILL_PATHS["$pname"]=$(
+      jq -r '.skills // empty | if type == "array" then .[] else . end' "$m" 2>/dev/null | tr -d '\r'
+    )
+  done
+}
 
 # Extract a plugin skill's frontmatter `name`, or nothing when it declares none.
 # Tolerates quoting and a trailing YAML comment (`name: renamed # public
@@ -697,6 +713,8 @@ mapfile -t REFS < <(emit_refs)
 if [[ "$TOOL" == "Edit" ]]; then
   mapfile -t -O "${#REFS[@]}" REFS < <(reconstruct_partial_edit)
 fi
+
+((${#REFS[@]})) && build_plugin_index
 
 for ref in "${REFS[@]}"; do
   [[ -n "$ref" ]] || continue

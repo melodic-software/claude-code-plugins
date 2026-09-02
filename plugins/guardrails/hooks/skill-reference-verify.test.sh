@@ -857,7 +857,57 @@ assert_silent "empty stdin → no output" "$OUT"
 HOOK_SRC=$(cat "$HOOK")
 assert_contains "jq guard: uses hook::require_jq" "$HOOK_SRC" 'hook::require_jq'
 assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-skill-reference-verify'
-assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$(dirname "$FILE")"'
+# The directory comes from parameter expansion, not a `$(dirname …)` subshell:
+# this hook runs on every Write and Edit, and a command substitution is a fork
+# per call on Windows Git Bash. The anchor is still the FILE's directory, which
+# is what this case exists to hold.
+assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$FILE_DIR"'
+assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DIR="${FILE%/*}"'
+assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
+
+# =================== LAZY PLUGIN INDEX (spawn cost) =========================
+# The name -> directory index costs two jq processes per plugin manifest, and a
+# marketplace carries dozens. Nothing below the reference scan reads it, so it
+# must not be built for a write that cites no skill at all — which is almost
+# every write this PostToolUse hook sees. Counted, not asserted from the source:
+# a `jq` shim ahead of the real one on PATH records every invocation that names a
+# manifest, then delegates so the hook still behaves exactly as it would.
+SHIM_DIR="$TEST_TMPDIR/jq-shim"
+mkdir -p "$SHIM_DIR"
+JQ_LOG="$TEST_TMPDIR/jq-manifest-calls"
+REAL_JQ="$(command -v jq)"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'for a in "$@"; do case "$a" in *plugin.json) printf "%%s\\n" "$a" >>"%s" ;; esac; done\n' "$JQ_LOG"
+  printf 'exec "%s" "$@"\n' "$REAL_JQ"
+} >"$SHIM_DIR/jq"
+chmod +x "$SHIM_DIR/jq"
+
+: >"$JQ_LOG"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'Plain prose with a `code span` and no command.')" 2>&1)
+assert_exit "lazy index: no-reference write exits 0" 0 "$?"
+assert_silent "lazy index: no-reference write stays quiet" "$OUT"
+assert_eq "lazy index: no-reference write reads no manifest" 0 "$(wc -l <"$JQ_LOG" | tr -d ' ')"
+
+: >"$JQ_LOG"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'Run `/alpha:nonexistent`.')" 2>&1)
+assert_contains "lazy index: a reference still resolves against the index" "$OUT" "/alpha:nonexistent"
+if (($(wc -l <"$JQ_LOG" | tr -d ' ') > 0)); then
+  ok "lazy index: a reference-bearing write does read the manifests"
+else
+  bad "lazy index: index was never built for a reference-bearing write"
+fi
+
+# Built at most once even with several references to several plugins.
+: >"$JQ_LOG"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" \
+  <<<"$(write_json "$TARGET" 'Both `/alpha:nonexistent` and `/alpha:missing-too`.')" 2>&1)
+MANIFEST_COUNT=$(sort -u "$JQ_LOG" | wc -l | tr -d ' ')
+CALL_COUNT=$(wc -l <"$JQ_LOG" | tr -d ' ')
+assert_eq "lazy index: built once, two jq per manifest" \
+  "$((MANIFEST_COUNT * 2))" "$CALL_COUNT"
 
 # ============================ TELEMETRY =====================================
 
