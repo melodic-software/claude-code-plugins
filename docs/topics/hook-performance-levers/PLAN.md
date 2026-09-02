@@ -574,7 +574,11 @@ Host-only test defects, documented skip, never a silent PASS:
 - `bash scripts/check-silent-skips.sh` exits 0.
 - The seven suites still exit 0 on Linux CI (`gh pr checks` 0 failing).
 
-### Phase 6: skill listing budget [TODO, route (a) chosen 2026-09-02 evening]
+### Phase 6: skill listing budget [DONE, route (a); PR #3677 merged as `3d55e1fc7`]
+
+Outcome: 182 listing-eligible skills; aggregate 136,209 to 135,424 characters; over-cap entries 0
+before and after (largest 1,526 of the 1,536 cap); no skill qualified for
+`disable-model-invocation` (every side-effect skill is cited); eight plugins bumped.
 
 Repo: claude-code-plugins. One PR. The operator delegated the route choice; route (a) is the one
 the skills doc supports (per-entry cap of 1,536 characters, `disable-model-invocation` for skills
