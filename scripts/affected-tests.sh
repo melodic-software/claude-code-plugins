@@ -237,8 +237,12 @@ STRUCTURAL_BASENAMES="README.md SKILL.md AGENTS.md CLAUDE.md CHANGELOG.md
 plugin.json marketplace.json settings.json hooks.json package.json
 package-lock.json index.md LICENSE"
 
+# Print the header block (everything after the shebang up to the first
+# non-comment line) with its comment markers stripped. Derived rather than a
+# hardcoded line range, which silently truncated as the header grew.
 usage() {
-  sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
+    "${BASH_SOURCE[0]}"
 }
 
 base_ref=""

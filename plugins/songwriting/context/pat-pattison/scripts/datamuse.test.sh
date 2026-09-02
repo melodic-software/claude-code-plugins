@@ -181,7 +181,15 @@ assert_contains "usage banner names the API" "$ERR" "https://www.datamuse.com/ap
 # Narrowing the range drops one or both.
 assert_contains "usage banner reaches the last mode listed" "$ERR" "datamuse.sh family"
 assert_contains "usage banner documents the LIMIT override" "$ERR" "LIMIT=<n>"
+assert_contains "usage banner reaches the Examples block" "$ERR" "datamuse.sh rhyme lonely"
+assert_contains "usage banner includes the LIMIT=50 example" "$ERR" "LIMIT=50 datamuse.sh near grief"
 assert_eq "no arguments issues no request" "0" "$(request_count)"
+
+reset_stub
+run_datamuse --help
+assert_eq "--help -> exit 0" "0" "$RC"
+assert_contains "--help reaches the Examples block" "$ERR" "datamuse.sh rhyme lonely"
+assert_eq "--help issues no request" "0" "$(request_count)"
 assert_eq "no arguments writes nothing to stdout" "" "$OUT"
 
 reset_stub
