@@ -73,21 +73,6 @@ else
   pass "no issue is created when a label is unknown"
 fi
 
-# A non-array 200 (proxy error page, auth redirect body) must fail closed, not
-# be treated as an empty/garbage label set. jq length of an object is its key
-# count, which would otherwise look like a one-item page.
-gitea_reset_routes
-gitea_seed "/labels" 200 '{"message":"proxy error"}'
-gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'x')"
-rc="$(gitea_run "$S" --title "x" --labels "type: fix")"
-assert_eq "non-array label 200 → exit 1" "1" "$rc"
-assert_contains "names the type failure" "$(gitea_err)" "expected a JSON array"
-if [[ "$(gitea_requests)" == *"POST"* ]]; then
-  fail "no issue is created when the label list is not an array" "no POST" "POST issued"
-else
-  pass "no issue is created when the label list is not an array"
-fi
-
 # --- --type cannot be honored, and says so ---
 # Gitea has no issue-type registry, so the normalized `type` is structurally null.
 gitea_reset_routes
@@ -208,20 +193,28 @@ rc="$(gitea_run "$S" --title "t" --labels "nonexistent")"
 assert_eq "a label in neither scope → exit 5" "5" "$rc"
 assert_contains "and it is named" "$(gitea_err)" "nonexistent"
 
-# A non-array 200 on the first labels page used to make `jq 'length'` empty
-# and `(( < PAGE_SIZE ))` an arithmetic error, so the walk continued to page 2
-# instead of treating the page as exhausted (#3484). No X-Total-Count, so the
-# page-length arm is the one that fires.
+# A non-array 200 (proxy error page, auth redirect body) must fail closed with
+# an explicit adapter error, not be treated as an empty or garbage label set
+# (#3439). jq length of an object is its key count, which would otherwise look
+# like a one-item page. The same fixture used to hang into page 2 via an
+# arithmetic error on empty jq length (#3484); the type gate stops the walk
+# before that arm.
 gitea_reset_routes
 gitea_seed "/labels?page=1" 200 '{"message":"not a list"}'
 gitea_seed "/labels?page=2" 200 "$(jq -cn '[{id:3,name:"type: fix"}]')"
 gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'x')"
 rc="$(gitea_run "$S" --title "x" --labels "type: fix")"
-assert_eq "non-array labels page → no hang, non-zero" "5" "$rc"
+assert_eq "non-array labels page → exit 1" "1" "$rc"
+assert_contains "names the type failure" "$(gitea_err)" "expected a JSON array"
 if [[ "$(gitea_requests)" == *"page=2"* ]]; then
   fail "malformed labels page must not continue paging" "no page=2" "page=2 requested"
 else
   pass "malformed labels page stops the walk"
+fi
+if [[ "$(gitea_requests)" == *"POST"* ]]; then
+  fail "no issue is created when the label list is not an array" "no POST" "POST issued"
+else
+  pass "no issue is created when the label list is not an array"
 fi
 
 [[ $FAILED -eq 0 ]] || exit 1
