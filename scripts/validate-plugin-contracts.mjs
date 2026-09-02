@@ -22,7 +22,7 @@ function loadOrgAgnosticismTokens() {
   const byClass = Object.fromEntries(ORG_AGNOSTICISM_CLASSES.map((cls) => [cls, []]));
   const path = join(root, "scripts", "org-agnosticism-tokens.txt");
   if (!existsSync(path)) {
-    failures.push(`scripts/org-agnosticism-tokens.txt: missing (org-agnosticism SSOT)`);
+    failures.push("scripts/org-agnosticism-tokens.txt: missing (org-agnosticism SSOT)");
     return byClass;
   }
   for (const raw of read(path).split(/\r?\n/)) {
