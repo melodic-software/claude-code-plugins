@@ -46,6 +46,31 @@
       "native": { "name": "export", "class": "builtin-command" },
       "component": { "plugin": "session-flow", "skill": "clean-stop", "kind": "skill" },
       "why": "clean-stop, handoff, and retro suggest the built-in /export at session-end moments; the command is the only stable conversation-export surface and the skills reference it by name."
+    },
+    {
+      "native": { "name": "playground", "class": "marketplace-plugin" },
+      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "why": "Both can answer 'show me this visually'; the first-party plugin's interactive explorer with a prompt round-trip overlaps visualize's rich-page medium."
+    },
+    {
+      "native": { "name": "playground", "class": "marketplace-plugin" },
+      "component": { "plugin": "prototype", "skill": "explore-directions", "kind": "skill" },
+      "why": "Both build a browser page with switchable controls; explore-directions varies your project's own UI while a playground explores an arbitrary parameter space."
+    },
+    {
+      "native": { "name": "design", "class": "bundled-skill" },
+      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "why": "visualize already routes hand-tweakable layouts to the bundled design canvas; the live integration deserves a recorded verdict."
+    },
+    {
+      "native": { "name": "design", "class": "bundled-skill" },
+      "component": { "plugin": "prototype", "skill": "explore-directions", "kind": "skill" },
+      "why": "explore-directions offers the design-canvas Artifact as one of its mockup surfaces; same live integration, sibling component."
+    },
+    {
+      "native": { "name": "design-sync", "class": "bundled-skill" },
+      "component": { "plugin": "visualization", "skill": "visualize", "kind": "skill" },
+      "why": "The design-sync family (sync, consent, revoke, login) is registered in the binary near the canvas skill visualize gates; recorded to rule on, not to integrate."
     }
   ]
 }

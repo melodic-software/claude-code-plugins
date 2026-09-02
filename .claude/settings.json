@@ -71,6 +71,7 @@
     "overengineering@melodic-software": true,
     "planning@melodic-software": true,
     "playbooks@melodic-software": true,
+    "playgrounds@melodic-software": false,
     "playwright@melodic-software": true,
     "plugin-quality@melodic-software": true,
     "powershell-format@melodic-software": true,

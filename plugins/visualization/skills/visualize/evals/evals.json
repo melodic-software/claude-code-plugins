@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "tabular-content-stays-a-terminal-table",
-      "prompt": "visualize the comparison — option A is $5/mo, self-hosted, no SLA; option B is $20/mo, managed, 99.9% SLA; option C is $50/mo, managed, 99.99% SLA.",
+      "prompt": "visualize the comparison \u2014 option A is $5/mo, self-hosted, no SLA; option B is $20/mo, managed, 99.9% SLA; option C is $50/mo, managed, 99.99% SLA.",
       "expected_output": "Recognizes the content as tabular attribute-comparison, picks a markdown table as the form, and renders it inline in the terminal. It does NOT escalate a small comparison into a rich page or Artifact.",
       "files": [],
       "expectations": [
@@ -42,7 +42,7 @@
     {
       "id": 4,
       "name": "genuine-ambiguity-asks-one-recommended-question",
-      "prompt": "there's a lot going on in this thread — the module dependency graph, the rollout timeline, and the error-rate numbers. visualize it.",
+      "prompt": "there's a lot going on in this thread \u2014 the module dependency graph, the rollout timeline, and the error-rate numbers. visualize it.",
       "expected_output": "Detects genuine ambiguity (several equally plausible targets and no form named) and asks exactly ONE question offering the candidate targets, with a RECOMMENDED default listed first. It does not fan out multiple questions and does not silently pick one target without surfacing the choice.",
       "files": [],
       "expectations": [
@@ -54,26 +54,40 @@
     {
       "id": 5,
       "name": "surface-gate-degrades-visibly-not-silently",
-      "prompt": "render this state machine as a diagram I can actually look at — [in a context where the Artifact publishing surface is unavailable].",
+      "prompt": "render this state machine as a diagram I can actually look at \u2014 [in a context where the Artifact publishing surface is unavailable].",
       "expected_output": "Chooses a mermaid state diagram. Because a mermaid diagram renders natively only on a published Artifact, and that surface is unavailable, it either produces a local HTML file that embeds a mermaid renderer (a local file is not under the artifact CSP) or, if it cannot render mermaid on a reachable surface, emits the mermaid source fence in the terminal with a visible one-line notice that it is unrendered. It does NOT open a plain local page that shows the source instead of the promised picture, and the degradation is stated, never silent.",
       "files": [],
       "expectations": [
         "Selects a mermaid state diagram as the form",
         "Recognizes that a mermaid diagram renders natively only on a published Artifact; a local HTML file needs an embedded renderer",
-        "Degrades to a mermaid-capable surface or to a terminal source fence — never a plain local page that renders nothing",
-        "Surfaces the degradation with a visible notice — never a silent failure"
+        "Degrades to a mermaid-capable surface or to a terminal source fence \u2014 never a plain local page that renders nothing",
+        "Surfaces the degradation with a visible notice \u2014 never a silent failure"
       ]
     },
     {
       "id": 6,
       "name": "file-preference-never-publishes",
-      "prompt": "/visualize file — make a dashboard of the release metrics for this sensitive project.",
+      "prompt": "/visualize file \u2014 make a dashboard of the release metrics for this sensitive project.",
       "expected_output": "Honors the explicit `file` medium: renders the dashboard as a self-contained local HTML file on the machine and never publishes an Artifact, even if the Artifact surface is available. Reports the file path.",
       "files": [],
       "expectations": [
         "Honors the `file` argument/preference and renders a local self-contained HTML file",
         "Never publishes an Artifact when the preference is `file`, even if that surface is available",
         "Reports the local file path"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "cascade-preference-resolves-with-provenance",
+      "prompt": "visualize the deploy pipeline we discussed as a diagram. (Fixture: the repo root contains .claude/rendered-views.md whose only content is 'medium: file'; no medium argument was given and the userConfig medium option is unset.)",
+      "expected_output": "With rung 1 (argument) and rung 2 (userConfig) unset, resolves the rendered-views cascade surface: reads the team layer .claude/rendered-views.md, takes medium: file, and delivers a self-contained local HTML file rather than publishing an Artifact. Names the layer that supplied the preference (the team layer) when reporting the choice. Does not treat the absent user-global and overlay layers as an error.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves the medium from the rendered-views cascade surface when argument and userConfig are both unset",
+        "Honors medium: file from the team layer (writes a local HTML page; does not publish an Artifact)",
+        "Reports which cascade layer supplied the value",
+        "Treats absent sibling layers as a valid state, not an error"
       ]
     }
   ]

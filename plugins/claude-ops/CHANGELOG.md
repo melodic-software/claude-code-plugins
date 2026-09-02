@@ -3,6 +3,31 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0]
+
+### Added
+
+- **`marketplace-plugin` native class with its own registry lane** ("First-party
+  marketplace plugins") in the native-overlap engine, so overlap verdicts against
+  a first-party marketplace plugin's skill validate and render instead of failing
+  the closed class enum. A class/lane invariant test now asserts every native
+  class has a lane, closing the silent-vanish path where a valid row rendered
+  into no lane.
+- **`upstream-source` observation class** for evidence read from an upstream
+  repository's pinned source. Validation requires the observation detail to name
+  the upstream commit (8+ hex characters), keeping such rows re-derivable when
+  their recheck triggers fire.
+- **Second parity token for marketplace-plugin rows** ("installed from its
+  marketplace"): a baked description phrase for that class carries it, and the
+  reverse-parity scan now keys on both tokens per class, so suggest-install
+  routing lines stay traceable to store rows exactly as native gates do.
+- **`self-check --upstream-sha` advisory seam**, mirroring `--cli-version`:
+  upstream-source rows' recorded commits are compared against the given SHA
+  (prefix match in either direction), and without the flag the comparison is
+  reported as not locally decidable. A malformed value (anything but an 8-40
+  character hex prefix) is reported as unchecked rather than silently matching
+  everything. Degraded, never broken.
+
 ## [0.40.0]
 
 ### Changed
