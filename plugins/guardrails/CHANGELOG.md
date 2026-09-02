@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.2]
+
+### Fixed
+
+- **`block-windows-drive-tmp` treats a single-quoted path-qualified writer as a
+  command.** `"/usr/bin/mkdir"` was recognized; `'/usr/bin/mkdir' -p /tmp/x`
+  still missed because the quote class was `"` only. Both quote styles are
+  accepted at command position, matching `segment_destination_operand`.
+
 ## [0.30.1]
 
 ### Fixed

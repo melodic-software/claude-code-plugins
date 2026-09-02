@@ -400,11 +400,18 @@ segment_writes_drive_root_tmp() {
   # Path-qualified verbs only in command position: start of the segment, or
   # after `sudo`. After any other space the verb must be bare, or
   # `echo /usr/bin/mkdir /tmp/x` / `cat /some/path/mkdir /tmp/x` are false
-  # positives (#3502). Optional quotes cover `"/usr/bin/mkdir" -p /tmp/x`.
-  # Assigned so the pattern can include literal `"` without breaking `=~`.
+  # positives (#3502). Optional quotes cover `"/usr/bin/mkdir"` and
+  # `'/usr/bin/mkdir'`. Assigned via a heredoc so the pattern can include
+  # both quote glyphs without breaking `=~`.
   local creator_cmd_re copy_cmd_re
-  creator_cmd_re='((^|[[:space:]])sudo[[:space:]]+"?([^[:space:]"]*/)?|^[[:space:]]*"?([^[:space:]"]*/)?|[[:space:]])(tee|mktemp|mkdir|touch|dd|tee\.exe)"?([[:space:]]|$)'
-  copy_cmd_re='((^|[[:space:]])sudo[[:space:]]+"?([^[:space:]"]*/)?|^[[:space:]]*"?([^[:space:]"]*/)?|[[:space:]])(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)"?([[:space:]]|$)'
+  creator_cmd_re=$(cat <<'RE'
+((^|[[:space:]])sudo[[:space:]]+["']?([^[:space:]"']*/)?|^[[:space:]]*["']?([^[:space:]"']*/)?|[[:space:]])(tee|mktemp|mkdir|touch|dd|tee\.exe)["']?([[:space:]]|$)
+RE
+)
+  copy_cmd_re=$(cat <<'RE'
+((^|[[:space:]])sudo[[:space:]]+["']?([^[:space:]"']*/)?|^[[:space:]]*["']?([^[:space:]"']*/)?|[[:space:]])(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)["']?([[:space:]]|$)
+RE
+)
   # Creators / content writers: any drive-root tmp path in the segment is a write.
   if [[ "$subject" =~ $creator_cmd_re ]] ||
     [[ "$subject" =~ (^|[[:space:];|&]|/)(set-content|add-content|out-file|tee-object|new-item|export-clixml|export-csv)([[:space:]]|:|$) ]] ||
