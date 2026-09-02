@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.36]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
 ## [0.13.35]
 
 ### Fixed

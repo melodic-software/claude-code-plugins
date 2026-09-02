@@ -77,15 +77,15 @@ successful and delivers no tools.
 time) is the recommended rotation path regardless. It masks input, unlike anything passed on the
 command line (see the security note below).
 
-The older claim here, that `--config` is ignored once the plugin is installed, was never
-version-stamped, and on Claude Code 2.1.240 a plain `claude plugin install … --config` was
-observed to write the value of an already-installed plugin for a **non-sensitive** option at
-`user` scope. Whether that holds for a `sensitive` option such as `miro_api_token` has not been
-verified, so do not rely on it for a credential. Do **not** uninstall to rotate either:
-uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting every option in
-the README's Options reference table to its manifest default, and it can drop the
-`enabledPlugins` entry as well. A `defaultEnabled: false` plugin reinstalls DISABLED, so a
-rotation that ends at `install` completes with no tools available.
+Per the marketplace's plugin-reconfiguration convention
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+which owns the verified-version record), a headless `claude plugin install … --config` rerun
+against an already-installed plugin prints `already installed` and still writes the value — but
+that record covers only a non-sensitive option, so do not rely on it for a `sensitive` credential
+such as `miro_api_token`. Do **not** uninstall to rotate either: uninstalling drops this
+plugin's entire stored `pluginConfigs` entry, resetting every option in the README's Options
+reference to its manifest default, and it can drop the `enabledPlugins` entry as well; a
+`defaultEnabled: false` plugin reinstalls DISABLED, so a rotation ending at `install` delivers no tools.
 
 **Security note:** passing the token as a CLI argument records it in shell history
 (`.bash_history`, `.zsh_history`) and briefly exposes it in the process table

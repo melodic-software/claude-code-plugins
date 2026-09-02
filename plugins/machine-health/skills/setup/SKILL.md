@@ -125,24 +125,21 @@ give, rather than writing a dangling entry.
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/windows/remediation-policy.md`; on an explicit yes, write the approval per
    `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md`. Never enable a remediation the user did not explicitly approve.
 6. **Confirm the report directory.** Show where reports land (the `report_dir` plugin option when
-   set, else `$env:USERPROFILE\Documents\MachineHealth`); to change it, direct the user to
-   `/plugin configure machine-health@<marketplace>` (interactive, any time). The option is stored in plugin
-   config, not the overlay. Headless: rerun the install with the new value,
-   `claude plugin install machine-health@<marketplace> -s <scope> --config report_dir=<path>`.
-   Against an already-installed plugin it prints `already installed` and still writes the value,
-   verified on Claude Code 2.1.240 for a non-sensitive option at `user` scope; a `sensitive`
-   option, and `project`/`local` scope, were not covered, so re-verify before relying on it there.
-   Do **not** uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs`
-   entry, resetting every option in the README's Options reference table to its manifest default.
-   `-s` defaults to `user`, so pass the scope `claude plugin list` reports for this plugin, and run
+   set, else `$env:USERPROFILE\Documents\MachineHealth`). The option is stored in plugin config,
+   not the overlay; reconfigure through Claude Code's native flow, per the marketplace's
+   plugin-reconfiguration convention
+   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+   which owns the verified-version record): interactive `/plugin configure machine-health@<marketplace>`
+   any time, or headless `claude plugin install machine-health@<marketplace> -s <scope> --config report_dir=<path>`
+   (repeatable per key) — against an already-installed plugin it prints `already installed` and
+   still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
+   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
+   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
    from that project's directory for a `project`/`local` scope, or the write lands at a scope that
-   does not load. This skill never writes user settings or `pluginConfigs`.
-   Afterwards, keep the two claims apart. The write is issued and the stored value is what you
-   passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
-   skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-   session start, so a same-session `check` still reports the OLD value. Reporting that as a
-   failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
-   session**, and never claim an unobserved change.
+   does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+   `check` in a **fresh session** — the rendered `${user_config.*}` and each hook's
+   `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
+   the OLD value; report the observed effective value, never an unobserved change.
 
 Re-running `apply` after everything is already set changes nothing and reports "already configured".
 

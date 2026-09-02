@@ -260,14 +260,12 @@ sanctioned paths:
   `claude plugin install source-control@<marketplace> -s <scope> --config KEY=VALUE` (repeatable
   per key). Multi-value keys (`babysit_watched_owners`, `babysit_self_logins`,
   `babysit_review_bot_logins`, `babysit_extra_bot_logins`) are supplied comma-joined. Against an
-  already-installed plugin it prints `already installed` **and still writes the value**, verified
-  on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default value written to
-  an installed plugin, then restored). The short-circuit is about the install, not the config
-  write. Re-verify before relying on it outside those conditions. A `sensitive` option, or
-  `project`/`local` scope, were not covered. Do **not** uninstall to reconfigure: uninstalling
-  drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
-  Options reference table to its manifest default: the babysit fleet's owners, logins, tiers,
-  caps, and worktree roots all revert. `-s` defaults to `user`, so pass the scope
+  already-installed plugin it prints `already installed` **and still writes the value** (per the
+  marketplace's plugin-reconfiguration convention,
+  <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  which owns the verified-version record). Do **not** uninstall to reconfigure: uninstalling drops
+  this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
+  Options reference to its manifest default. `-s` defaults to `user`; pass the scope
   `claude plugin list` reports for this plugin, and run from that project's directory for a
   `project`/`local` scope, or the write lands at a scope that does not load.
 
