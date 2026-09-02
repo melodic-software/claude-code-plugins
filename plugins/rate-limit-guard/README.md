@@ -38,14 +38,19 @@ resume on their own after the reset. Four parts:
   [`reference/reader-contract.md`](reference/reader-contract.md) ("Cloud / remote sessions"), with
   a documented residual that a live cloud producer is out of scope until one exists.
 - **An unchanged payload costs no rename.** When a refresh's snapshot body matches what is already
-  on disk, `captured_at` aside, it takes no lock, stages no temp file and performs no rename. The
-  skip is bounded at 5 minutes since the last real write, tracked by a `.last-write` stamp in the
-  contract directory, half the staleness budget, so a session whose windows sit still still
-  refreshes `captured_at` well before a reader could call it stale. The spool's 15-minute record
-  sweep runs on the same 5-minute cadence rather than on every drain, tracked by `spool/.last-sweep`.
-  Both stamps are writer-private: they hold epoch seconds, carry no session data, and readers ignore
-  them. The render path itself has been fork-free since the spool landed, which the suite asserts
-  directly by tracing a non-elected render (`statusline-tee.test.sh`, "the zero-fork render path").
+  on disk, `captured_at` aside, it takes no lock, stages no temp file and performs no rename. So an
+  unchanged payload can leave the file, `captured_at` included, untouched for up to the skip floor:
+  300 seconds by default (`RLG_TEE_NOCHANGE_FLOOR`), measured from the last real write by a
+  `.last-write` stamp in the contract directory. That is half the reader contract's 10-minute
+  staleness budget, so a session whose windows sit still still refreshes `captured_at` well before a
+  reader could call it stale, and a changed payload is written on the next refresh regardless. The
+  spool's 15-minute record sweep runs on the same 5-minute cadence rather than on every drain,
+  tracked by `spool/.last-sweep`. Both stamps are writer-private: they hold epoch seconds, carry no
+  session data, and readers ignore them. Every tuning knob the tee reads from the environment is
+  validated as a plain integer before it reaches bash arithmetic and falls back to its default
+  otherwise. The render path itself has been fork-free since the spool landed, which the suite
+  asserts directly by tracing a non-elected render (`statusline-tee.test.sh`, "the zero-fork render
+  path").
 - **Multi-account operation is a known gap, not a supported mode.** The snapshot carries no account
   identifier (none exists in the statusline schema today), so a machine switching accounts mid-drain
   feeds wrong windows to running lanes and the guard cannot detect it. The loop-lane convention §6

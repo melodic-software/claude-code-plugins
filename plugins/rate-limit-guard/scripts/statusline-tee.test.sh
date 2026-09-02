@@ -944,6 +944,164 @@ else
   fail "sweep: an expired stamp did not restore the sweep"
 fi
 
+# --- Case 32: a hostile tuning knob never reaches the arithmetic --------------
+# Bash evaluates the TEXT of an arithmetic operand, so `(( x < $KNOB ))` with an
+# unvalidated KNOB carrying a command substitution inside an array subscript
+# runs that command on every render. Every knob the tee reads from the
+# environment must fall back to its default on anything that is not a plain
+# integer, and run nothing. Three assertions per knob, because any one alone can
+# pass by accident: the file the hostile value would create must be absent, the
+# default behaviour must hold (a fix that merely broke the comparison would not
+# give that), and the wrapped statusline must still pass through (the tee runs
+# under `set -u`, so a shape that merely aborted the shell would leave every
+# file untouched and look like a pass). The shape used here subscripts an array
+# bash always sets, so it survives `set -u`, executes, and evaluates to 0, which
+# flips each default condition on an unpatched tee.
+# shellcheck disable=SC2016  # the $(...) must reach the tee LITERALLY; that is the attack
+hostile_knob() { printf 'BASH_VERSINFO[$(touch "%s/pwned-%s")0]*0' "$WORK" "$1"; }
+
+# RLG_TEE_NOCHANGE_FLOOR: an identical payload inside the default floor skips.
+HOME_HK1="$WORK/home-hostile-floor"
+mkdir -p "$HOME_HK1"
+HK1_SNAP="$HOME_HK1/$TEE_REL"
+HK1_SENTINEL="$WORK/hk1-sentinel"
+run "$HOME_HK1" "$(build_input)" cat >/dev/null
+touch -t 200001010000 "$HK1_SNAP"
+touch "$HK1_SENTINEL"
+HK1_OUT="$(printf '%s' "$(build_input)" | HOME="$HOME_HK1" RLG_TEE_NOCHANGE_FLOOR="$(hostile_knob floor)" \
+  bash "$TEE" jq -r '.model.display_name')"
+if [[ "$HK1_OUT" == "Opus" ]]; then
+  ok "hostile knob: RLG_TEE_NOCHANGE_FLOOR leaves the passthrough intact"
+else
+  fail "hostile knob: RLG_TEE_NOCHANGE_FLOOR broke the passthrough (out=$HK1_OUT)"
+fi
+if [[ ! -e "$WORK/pwned-floor" ]]; then
+  ok "hostile knob: RLG_TEE_NOCHANGE_FLOOR runs nothing"
+else
+  fail "hostile knob: RLG_TEE_NOCHANGE_FLOOR executed its value"
+fi
+if [[ "$HK1_SNAP" -ot "$HK1_SENTINEL" ]]; then
+  ok "hostile knob: RLG_TEE_NOCHANGE_FLOOR falls back to the default floor (skip still fires)"
+else
+  fail "hostile knob: RLG_TEE_NOCHANGE_FLOOR did not fall back, identical payload rewrote"
+fi
+
+# RLG_TEE_SWEEP_INTERVAL: a fresh .last-sweep suppresses the sweep by default.
+HOME_HK2="$WORK/home-hostile-sweep"
+HK2_SPOOL="$HOME_HK2/$SPOOL_REL"
+mkdir -p "$HK2_SPOOL"
+write_settings "$HK2_SPOOL/.last-sweep" "$(date +%s)"
+write_settings "$HK2_SPOOL/sess-dead.json" '{"e":1,"p":{"session_id":"sess-dead"}}'
+touch -t 200001010000 "$HK2_SPOOL/sess-dead.json"
+HK2_OUT="$(printf '%s' "$(build_input)" | HOME="$HOME_HK2" RLG_TEE_SWEEP_INTERVAL="$(hostile_knob sweep)" \
+  bash "$TEE" jq -r '.model.display_name')"
+if [[ "$HK2_OUT" == "Opus" ]]; then
+  ok "hostile knob: RLG_TEE_SWEEP_INTERVAL leaves the passthrough intact"
+else
+  fail "hostile knob: RLG_TEE_SWEEP_INTERVAL broke the passthrough (out=$HK2_OUT)"
+fi
+if [[ ! -e "$WORK/pwned-sweep" ]]; then
+  ok "hostile knob: RLG_TEE_SWEEP_INTERVAL runs nothing"
+else
+  fail "hostile knob: RLG_TEE_SWEEP_INTERVAL executed its value"
+fi
+if [[ -e "$HK2_SPOOL/sess-dead.json" ]]; then
+  ok "hostile knob: RLG_TEE_SWEEP_INTERVAL falls back to the default cadence (fresh stamp still suppresses)"
+else
+  fail "hostile knob: RLG_TEE_SWEEP_INTERVAL did not fall back, the sweep ran through a fresh stamp"
+fi
+
+# RLG_TEE_DISABLED_RECHECK: a fresh marker stops the render spooling by default.
+HOME_HK3="$WORK/home-hostile-recheck"
+HK3_DIR="$HOME_HK3/.claude/rate-limit-guard"
+mkdir -p "$HK3_DIR"
+write_settings "$HK3_DIR/.tee-disabled" "$(date +%s)"
+HK3_OUT="$(printf '%s' "$(build_input)" | HOME="$HOME_HK3" RLG_TEE_DISABLED_RECHECK="$(hostile_knob recheck)" \
+  bash "$TEE" jq -r '.model.display_name')"
+if [[ "$HK3_OUT" == "Opus" ]]; then
+  ok "hostile knob: RLG_TEE_DISABLED_RECHECK leaves the passthrough intact"
+else
+  fail "hostile knob: RLG_TEE_DISABLED_RECHECK broke the passthrough (out=$HK3_OUT)"
+fi
+if [[ ! -e "$WORK/pwned-recheck" ]]; then
+  ok "hostile knob: RLG_TEE_DISABLED_RECHECK runs nothing"
+else
+  fail "hostile knob: RLG_TEE_DISABLED_RECHECK executed its value"
+fi
+HK3_SPOOLED="$(find "$HK3_DIR/spool" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' \r')"
+if [[ "$HK3_SPOOLED" == "0" && ! -e "$HOME_HK3/$TEE_REL" ]]; then
+  ok "hostile knob: RLG_TEE_DISABLED_RECHECK falls back to the default interval (fresh marker still stops the render)"
+else
+  fail "hostile knob: RLG_TEE_DISABLED_RECHECK did not fall back (spooled=$HK3_SPOOLED snapshot=$([[ -e $HOME_HK3/$TEE_REL ]] && echo yes || echo no))"
+fi
+
+# --- Case 33: a CR on either side of the compare does not defeat the skip -----
+# A native jq on Windows ends every output line with CRLF. `read -r` splits on
+# LF only, so the payload keeps its CR and printf carries it into the file; what
+# the read-back side then holds depends on the bash build (MSYS bash drops a
+# trailing CRLF from `$(<file)`, a POSIX bash keeps the CR), and the snapshot on
+# disk may have been written under a different jq than the one producing this
+# payload. The compare strips a trailing CR from both sides, so a CR on one side
+# only must still read as no change. Driven by a PATH `jq` shim that re-emits
+# the real jq's output with CRLF line endings whatever endings the real jq uses,
+# so both directions are exercised on every platform.
+REAL_JQ="$(command -v jq)"
+CRLF_SHIM="$WORK/crlf-jq"
+mkdir -p "$CRLF_SHIM"
+cat >"$CRLF_SHIM/jq" <<EOF
+#!/usr/bin/env bash
+# Re-emit the real jq's output with CRLF line endings, as a native Windows jq does.
+"$REAL_JQ" "\$@" | while IFS= read -r l || [[ -n "\$l" ]]; do
+  l="\${l%\$'\\r'}"
+  printf '%s\\r\\n' "\$l"
+done
+exit "\${PIPESTATUS[0]}"
+EOF
+chmod +x "$CRLF_SHIM/jq"
+# `od -c`, not a grep for a CR: MSYS grep opens its input in text mode and
+# drops the CR before matching, so a grep would report none on the one
+# platform where the real jq emits them.
+if "$CRLF_SHIM/jq" -cn '{}' | od -c | grep -q '\\r'; then
+  ok "crlf: the jq shim emits CRLF line endings"
+else
+  fail "crlf: the jq shim emits no CR, so the cases below would be vacuous"
+fi
+
+# Payload side: a snapshot written under the real jq, then a CR-terminated payload.
+HOME_CR1="$WORK/home-crlf-payload"
+mkdir -p "$HOME_CR1"
+CR1_SNAP="$HOME_CR1/$TEE_REL"
+CR1_SENTINEL="$WORK/cr1-sentinel"
+run "$HOME_CR1" "$(build_input)" cat >/dev/null
+touch -t 200001010000 "$CR1_SNAP"
+touch "$CR1_SENTINEL"
+printf '%s' "$(build_input)" | HOME="$HOME_CR1" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+if [[ "$CR1_SNAP" -ot "$CR1_SENTINEL" ]]; then
+  ok "crlf: a CR-terminated payload against a snapshot without one still skips"
+else
+  fail "crlf: a CR on the payload side defeated the no-change skip"
+fi
+
+# Disk side: a snapshot written under the CRLF jq, then a payload from the real jq.
+HOME_CR2="$WORK/home-crlf-disk"
+mkdir -p "$HOME_CR2"
+CR2_SNAP="$HOME_CR2/$TEE_REL"
+CR2_SENTINEL="$WORK/cr2-sentinel"
+printf '%s' "$(build_input)" | HOME="$HOME_CR2" PATH="$CRLF_SHIM:$PATH" bash "$TEE" cat >/dev/null
+if [[ -f "$CR2_SNAP" ]] && od -c "$CR2_SNAP" | grep -q '\\r'; then
+  ok "crlf: the shim landed a CR-terminated snapshot"
+else
+  fail "crlf: no CR-terminated snapshot on disk, so the disk-side case would be vacuous"
+fi
+touch -t 200001010000 "$CR2_SNAP"
+touch "$CR2_SENTINEL"
+run "$HOME_CR2" "$(build_input)" cat >/dev/null
+if [[ "$CR2_SNAP" -ot "$CR2_SENTINEL" ]]; then
+  ok "crlf: a CR-terminated snapshot against a payload without one still skips"
+else
+  fail "crlf: a CR on the disk side defeated the no-change skip"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

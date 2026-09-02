@@ -19,9 +19,13 @@
 #                                          (model, context, both windows).
 #
 # Tee contract (../reference/reader-contract.md is the authoritative reader
-# side): every refresh writes ~/.claude/rate-limit-guard/rate-limits.json —
-# one JSON object with captured_at (ISO-8601 UTC) plus, when present on
-# stdin, rate_limits and every session-distinguishing top-level field
+# side): the snapshot is ~/.claude/rate-limit-guard/rate-limits.json, written
+# by one elected refresh per drain cadence, and left untouched by a refresh
+# whose body has not changed since the last real write, for at most the
+# no-change floor (RLG_TEE_NOCHANGE_FLOOR, 300 s by default, half the reader
+# contract's staleness budget). A changed payload is written on the next
+# drain. The file holds one JSON object with captured_at (ISO-8601 UTC) plus,
+# when present on stdin, rate_limits and every session-distinguishing top-level field
 # (session_id, session_name, and any key whose name contains "account", so a
 # future account-identifier field is adopted automatically only when it
 # arrives under a top-level key of that shape; every other shape needs a
@@ -276,12 +280,18 @@ _rlg_set_now() {
 # drain, and a jq or a sed here would cost more than the rename it exists to
 # avoid.
 #
-# A trailing CR is stripped first. A native jq on Windows terminates its output
-# lines with CRLF, so `read -r` in _rlg_absorb_jq_lines leaves the CR on the
-# payload and it reaches the file, while reading that file back drops it. The
-# two sides would then never compare equal on the one platform this skip exists
-# for. Normalizing here, rather than on the payload, keeps the bytes this writer
-# emits exactly what they were.
+# A trailing CR is stripped from BOTH operands first, so the compare is
+# insensitive to whether either side carries one. A native jq on Windows
+# terminates its output lines with CRLF; `read -r` in _rlg_absorb_jq_lines
+# splits on LF only, so the payload line keeps its CR, and printf carries it
+# into the file. What the read-back side then holds depends on the bash build:
+# MSYS bash drops a trailing CRLF from `$(<file)`, while a POSIX bash strips
+# trailing newlines only and keeps the CR. And the snapshot on disk may have
+# been written under a different jq than the one producing this payload. Any of
+# those leaves a CR on one side only, and the two sides would never compare
+# equal on the one platform this skip exists for. Normalizing the comparison
+# key, rather than the payload, keeps the bytes this writer emits exactly what
+# they were.
 _RLG_BODY_KEY=""
 _rlg_strip_captured_at() {
   local body="${1%$'\r'}"
@@ -366,13 +376,20 @@ tee_snapshot() {
   # An absent stamp reads as 0, so the first refresh after this ships always
   # writes; an unwritable or unparsable stamp costs a rename, never a stale
   # snapshot.
+  #
+  # The floor is validated before it reaches the arithmetic, like every other
+  # operand here that arrives from a file or the environment. Bash evaluates the
+  # TEXT of an arithmetic operand, so an unvalidated value shaped like
+  # `a[$(cmd)]` would run cmd on every render; a value that is not a plain
+  # integer falls back to the default instead.
   if [[ -f "$target" ]] && _rlg_set_now; then
-    local last_write=0 cur="" want=""
+    local last_write=0 cur="" want="" floor="${RLG_TEE_NOCHANGE_FLOOR:-300}"
+    [[ "$floor" =~ ^[0-9]+$ ]] || floor=300
     if [[ -f "$dir/.last-write" ]]; then
       IFS= read -r last_write <"$dir/.last-write" || last_write=0
     fi
     [[ "$last_write" =~ ^[0-9]+$ ]] || last_write=0
-    if ((_RLG_NOW - last_write < ${RLG_TEE_NOCHANGE_FLOOR:-300})); then
+    if ((_RLG_NOW - last_write < floor)); then
       # Bash reads the file itself for `$(<file)`, without forking.
       cur="$(<"$target")"
       if _rlg_strip_captured_at "$payload"; then
@@ -905,7 +922,12 @@ _rlg_drain() {
     IFS= read -r last_sweep <"$sweep_stamp" || last_sweep=0
   fi
   [[ "$last_sweep" =~ ^[0-9]+$ ]] || last_sweep=0
-  if ((now - last_sweep >= ${RLG_TEE_SWEEP_INTERVAL:-300})); then
+  # Validated before the arithmetic for the reason the no-change floor gives:
+  # bash evaluates operand text, and an environment value is not an integer
+  # until it has been checked.
+  local sweep_interval="${RLG_TEE_SWEEP_INTERVAL:-300}"
+  [[ "$sweep_interval" =~ ^[0-9]+$ ]] || sweep_interval=300
+  if ((now - last_sweep >= sweep_interval)); then
     find "$spool" -maxdepth 1 -type f -name '*.json' \
       -mmin +15 -exec rm -f {} + 2>/dev/null || true
     printf '%s\n' "$now" >"$sweep_stamp" 2>/dev/null || true
@@ -1004,11 +1026,15 @@ _rlg_spool_dispatch() {
   # Disabled: a drain wrote this marker after reading the real gate. Rechecking
   # costs a jq, so it happens on a cadence rather than per refresh; until then
   # this render does nothing at all.
-  local marker="$dir/.tee-disabled" m=0
+  local marker="$dir/.tee-disabled" m=0 recheck="${RLG_TEE_DISABLED_RECHECK:-300}"
+  # Validated before the arithmetic, like every stamp read here: bash
+  # evaluates operand text, and the regex test is a builtin, so the zero-fork
+  # claim below holds.
+  [[ "$recheck" =~ ^[0-9]+$ ]] || recheck=300
   if [[ -f "$marker" ]]; then
     IFS= read -r m <"$marker" || m=0
     [[ "$m" =~ ^[0-9]+$ ]] || m=0
-    ((now - m < ${RLG_TEE_DISABLED_RECHECK:-300})) && return 0
+    ((now - m < recheck)) && return 0
   fi
 
   # JSON strings cannot contain a raw CR or LF, so stripping them cannot change

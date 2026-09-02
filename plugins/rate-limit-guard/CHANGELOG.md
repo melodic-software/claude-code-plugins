@@ -32,17 +32,36 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   successful rename, caps the skip at half the staleness budget. The compare runs before the lock,
   since a compare under the lock would already have paid two of the three processes it avoids, and
   after the temp sweep, so a refresh that skips its write still reclaims a killed session's orphan.
-  A trailing CR is normalized out of the comparison key: a native `jq` on Windows ends its lines
-  with CRLF, so the payload carries a CR that reading the file back drops, and the two sides would
-  never have compared equal on the one platform the skip exists for. The bytes the writer emits are
-  unchanged. The atomic temp-plus-rename write, its `EACCES` retry, and both lock disciplines are
-  untouched, and the same payload fed to this tee and to the previous one writes snapshots identical
-  under `jq -S 'del(.captured_at)'`.
-- **Four new suite cases.** The skip fires on an identical payload inside the floor, does not
+  A trailing CR is stripped from both sides of the comparison: a native `jq` on Windows ends its
+  lines with CRLF, so the payload line keeps its CR under `read -r` and carries it into the file,
+  while what the read-back side holds depends on the bash build (MSYS bash drops a trailing CRLF
+  from `$(<file)`, a POSIX bash keeps the CR) and on which `jq` wrote the snapshot on disk. Any of
+  those leaves a CR on one side only, and the two sides would never have compared equal on the one
+  platform the skip exists for. The bytes the writer emits are unchanged. The atomic
+  temp-plus-rename write, its `EACCES` retry, and both lock disciplines are untouched, and the same
+  payload fed to this tee and to the previous one writes snapshots identical under
+  `jq -S 'del(.captured_at)'`.
+- **Every tuning knob is validated before it reaches bash arithmetic.** Bash evaluates the text of
+  an arithmetic operand, so `(( now - last < $KNOB ))` with an unvalidated environment value shaped
+  like `BASH_VERSINFO[$(cmd)0]` runs `cmd` on every render. `RLG_TEE_NOCHANGE_FLOOR`,
+  `RLG_TEE_SWEEP_INTERVAL` and `RLG_TEE_DISABLED_RECHECK` are now checked against `^[0-9]+$` and
+  fall back to their defaults otherwise, exactly as `RLG_TEE_DRAIN_INTERVAL` and every stamp read
+  from disk already were. The check is a builtin, so the traced zero-fork render path is unchanged.
+- **The reader contract and README describe the bounded skip.** Both had kept the earlier promise
+  that the snapshot trails the newest refresh by at most 30 seconds, and the script header still
+  said every refresh writes. They now say what holds: a changed payload reaches the snapshot within
+  the drain cadence, an unchanged one may leave the file and its `captured_at` untouched for up to
+  the 300-second floor, and the staleness rule itself is unchanged.
+- **Nine new suite cases.** The skip fires on an identical payload inside the floor, does not
   misfire on a changed one, expires with the floor so `captured_at` stays fresh, and the spool sweep
   honours its cadence while still reclaiming a dead session's aged record. Proven by mtime against a
   sentinel rather than by content, since the body a skipped refresh would have written is by
-  definition byte-identical to the one already there.
+  definition byte-identical to the one already there. Each of the three environment knobs is fed a
+  value that would create a file if it ever reached the arithmetic, and the suite asserts the file
+  is absent, the default behaviour holds, and the passthrough survives; the shape subscripts an
+  array bash always sets, because a shape that merely aborted the shell under `set -u` would leave
+  every file untouched and pass vacuously. And a PATH `jq` shim that re-emits CRLF line endings
+  proves the skip still fires with a CR on the payload side only and on the disk side only.
 
 ## [0.7.26]
 
