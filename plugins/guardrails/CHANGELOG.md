@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.1]
+
+### Fixed
+
+- **`block-windows-drive-tmp` matches a write utility invoked by absolute path.** The
+  command-lane verb anchor was `(^|[[:space:]])`, so `/usr/bin/mkdir -p /tmp/x` (and the
+  same spelling of `touch`, `tee`, `cp`) slipped through. An optional `[^[:space:]]*/`
+  prefix is accepted only in command position (start of the segment, or after
+  `sudo`), including a quoted executable (`"/usr/bin/mkdir" -p /tmp/x`). A
+  mention such as `echo /usr/bin/mkdir /tmp/x` or `cat /some/path/mkdir /tmp/x`
+  stays allowed. A verb-shaped substring such as `./bin/mkdirs` still is not.
+
 ## [0.30.0]
 
 ### Fixed
