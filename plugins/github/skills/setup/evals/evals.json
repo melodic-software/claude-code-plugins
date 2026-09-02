@@ -5,13 +5,13 @@
       "id": 1,
       "name": "check-happy-path",
       "prompt": "/github:setup check",
-      "expected_output": "A prerequisite and config report: gh present and authenticated (account/host named, credentials never echoed or stored), the credential-modality picture for the areas the consumer cares about resolved from live auth state plus freshly fetched docs, and a per-layer verdict for each config layer that exists.",
+      "expected_output": "A PASS/FAIL/INFO prerequisite and config report: gh present and authenticated (account/host named, credentials never echoed or stored), the credential-modality picture for the areas the consumer cares about resolved from live auth state plus freshly fetched docs, and a PASS/FAIL/INFO row per config layer.",
       "files": [],
       "expectations": [
         "gh presence and gh auth status are verified live, and no token or credential value is echoed, stored, or persisted anywhere",
         "The credential-modality picture is diagnosed from live gh auth state and freshly fetched official docs, not from a shipped scope table or training-data recall",
-        "Config layers get per-layer verdicts: team layer tracked-in-git check, local overlay gitignored check, and no git verdict is attempted for the user-global layer",
-        "All layers absent is reported as a valid state with propose-only routing, not as an error"
+        "Config layers get PASS/FAIL/INFO rows: team layer tracked-in-git check, local overlay gitignored check, and no git verdict is attempted for the user-global layer",
+        "All layers absent is INFO (propose-only routing), not FAIL"
       ]
     },
     {

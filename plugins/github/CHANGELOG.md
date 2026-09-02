@@ -3,6 +3,15 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.12]
+
+### Changed
+
+- **setup `check` reports PASS/FAIL/INFO.** The per-layer table used
+  exists/absent and "hard finding" instead of the setup-contract verdict
+  vocabulary. Rows are now PASS/FAIL/INFO; all-layers-absent is INFO, not
+  FAIL. `user-invocable: true` was already explicit in 0.3.10.
+
 ## [0.3.11]
 
 ### Changed

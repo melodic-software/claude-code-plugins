@@ -12,7 +12,9 @@ config). No action given: run `check`, then offer `apply` if anything is missing
 
 ## `check`, verify, report, change nothing
 
-1. **`gh` present?** If not: stop with a concise message naming the missing prerequisite and the
+Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing.
+
+1. **`gh` present?** If not: FAIL, stop with a concise message naming the missing prerequisite and the
    official install page (`https://cli.github.com`). Remediation is the user's to run.
 2. **`gh auth status`**. Confirm an authenticated session; name the account and host in the
    report. **Never store, echo, or persist credentials or token values.**
@@ -26,16 +28,16 @@ config). No action given: run `check`, then offer `apply` if anything is missing
 4. **Config layers**. Resolve both surfaces (`routing.yaml`,`conventions.md`) per
    `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md` and
    `${CLAUDE_PLUGIN_ROOT}/reference/conventions-file.md`, anchored at the repo root, and report a
-   **per-layer verdict**:
+   PASS/FAIL/INFO row per layer:
 
-   | Layer | Verdict to check |
+   | Layer | Verdict |
    |---|---|
-   | user-global | exists / absent. No git verdict applies outside the worktree |
-   | team | must be tracked in git, probed as the pair (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0); untracked team config is a hard finding |
-   | local overlay | must be gitignored and never staged |
+   | user-global | INFO exists or INFO absent. No git verdict applies outside the worktree |
+   | team | PASS when the pair (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0) holds; FAIL when present but ignored or untracked |
+   | local overlay | PASS when gitignored and never staged; FAIL when tracked or staged |
 
-   All three layers absent is a **valid state**, reported as "unconfigured: routing resolves to
-   propose-only", not as an error. A malformed layer is named and skipped, per the contract.
+   All three layers absent is INFO: "unconfigured: routing resolves to propose-only", not FAIL.
+   A malformed layer is named and skipped, per the contract.
 5. **Report** the effective routing per scope block with the layer that supplied each value
    (policy-floor provenance included), and the recursive overlay gitignore line
    (`.claude/**/*.local.*`) when it is missing from the consumer's `.gitignore`. Recommend it;
