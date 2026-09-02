@@ -1,5 +1,12 @@
 # Changelog — session-flow plugin
 
+## [0.34.21]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.34.20]
 
 ### Changed

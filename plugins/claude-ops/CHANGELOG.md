@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.6]
+## [0.41.7]
 
 ### Changed
 
@@ -20,6 +20,13 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `instructions_loaded_audit_log_session_start`, so a matcher excluding it would leave that option
   switched on but unable to log anything. Documentation only; no hook, script or registration
   changed.
+
+## [0.41.6]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.41.5]
 

@@ -72,13 +72,13 @@ Seed the inventory pass with these dimensions. For each, discovery determines pr
 
 ### macOS (scaffolded only)
 
-When `references/macos/NOT_IMPLEMENTED.md` is replaced, seed the inventory pass with:
+When `reference/macos/NOT_IMPLEMENTED.md` is replaced, seed the inventory pass with:
 
 - Homebrew (`brew outdated`, `brew doctor`), Mac App Store (`mas outdated`), System Preferences update pending, FileVault status, Keychain cert expiry, Xcode command-line tools version, Gatekeeper/SIP status, `softwareupdate --list`, pmset battery, smartctl/`system_profiler SPSerialATADataType` for disk health, `log show --predicate 'eventMessage contains "panic"'` for kernel panics, Docker Desktop disk usage, Homebrew cask version skew.
 
 ### Linux (scaffolded only)
 
-When `references/linux/NOT_IMPLEMENTED.md` is replaced, seed the inventory pass with:
+When `reference/linux/NOT_IMPLEMENTED.md` is replaced, seed the inventory pass with:
 
 - Package manager state (`apt list --upgradable`, `dnf check-update`, `pacman -Qu`), `unattended-upgrades` status, systemd unit failures (`systemctl --failed`), `journalctl -p 3 -xb` for boot-time errors, SMART via `smartctl`, `df` for filesystem usage, LUKS/dm-crypt status, `shadow` file age, kernel version vs distro current, `snap refresh --list` / `flatpak remote-ls --updates`, container engine disk usage (docker/podman), certificate expiry in `/etc/ssl/certs` + user trust store.
 

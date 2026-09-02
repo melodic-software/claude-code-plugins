@@ -45,5 +45,8 @@ lib/check-retirements.sh
 # Dedicated check: scripts/sync-legacy-statusline-detect.sh --check (CI: legacy-statusline-detect-sync)
 skills/setup/reference/legacy-statusline-detect.md
 
+# Dedicated check: scripts/sync-unwrap-before-compose.sh --check (CI: unwrap-before-compose-sync)
+skills/setup/reference/unwrap-before-compose.md
+
 # Dedicated check: scripts/sync-resolve-convention-home.sh --check (CI: resolve-convention-home-sync)
 lib/resolve-convention-home.sh

@@ -24,7 +24,7 @@ BeforeAll {
             category         = 'config'
             os               = @('windows')
             script           = 'scripts/windows/checks/Test-ChezmoiDrift.ps1'
-            severity_rules   = 'references/windows/check-catalog.md#custom'
+            severity_rules   = 'reference/windows/check-catalog.md#custom'
             needs_admin      = $false
             enabled          = $true
             deprecated       = $false

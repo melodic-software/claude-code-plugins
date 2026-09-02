@@ -1,6 +1,6 @@
 ---
 description: "Verify and configure the bugs plugin for this repository. check inspects both surfaces read-only, the rendered output_dir userConfig value, and the tracked .claude/bugs.md lane config across its cascade layers; apply writes or updates that tracked file and nothing else. Use when: 'set up bugs', 'configure bugs', 'bugs setup', 'where do bug reports land', you want --file reports committed alongside code, or '/bugs:scan' needs project lanes and a filing posture. Actions: check (read-only, default) | apply (creates or updates the tracked lane config; output_dir still routes through Claude Code's own configuration prompt)."
-argument-hint: "check|apply"
+argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
 ---
