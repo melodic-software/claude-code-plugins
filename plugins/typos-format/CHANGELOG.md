@@ -3,6 +3,33 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.35]
+
+### Changed
+
+- **A clean edit costs 28 percent less.** This hook matches every `Write`,
+  `Edit` and `NotebookEdit`, so the process count on the path where `typos`
+  finds nothing is the cost. Three of sixteen processes are gone: the hook's own
+  directory and the edited file's directory are parameter expansions rather than
+  `dirname` calls, and the jq that copies `notebook_path` onto `file_path` now
+  runs only for a payload that carries one, which no `Write` or `Edit` does.
+  Measured 36.3 to 26.0 spawn-equivalents on a Windows Git Bash host, twelve
+  interleaved trials against an interleaved `bash -c :` floor; forks fall 31 to
+  29 over the same run, and a command substitution costs about half a spawn
+  here, so they are counted beside the execs. The README's accounting section
+  carries the method and the residual.
+- The suite gains a traced case pinning the benign path's shape on a clean
+  in-repo Markdown file: no `dirname`, no `basename`, exactly two `jq`, and a
+  ceiling of one external process spawned by the hook's own code, allowlisted to
+  `typos`. The ceiling is portable because the trace attributes each command to
+  the function frame it ran in, so the shared `hook::` path resolver's
+  host-dependent `realpath` and `cygpath` calls sit outside the count.
+- The directory strip that replaced `dirname` answers `/` for a file directly
+  under the filesystem root, as `dirname` did. Without the guard the strip left
+  an empty string, which the repo-root resolver read as `.`, the hook process
+  CWD. The suite gains a white-box case that runs the hook's own directory
+  lines against a root-level path, because no CI host can create one.
+
 ## [0.6.34]
 
 ### Changed
