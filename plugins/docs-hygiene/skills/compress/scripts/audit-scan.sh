@@ -49,7 +49,10 @@ FLAVOR_RE='just|really|basically|actually|simply|perhaps|somewhat|very|quite|mig
 is_signal1_path() {
   local f="$1" base
   base="$(basename "$f")"
-  [[ "$f" == *'/.claude/rules/'* ]] && return 0
+  # Repo-relative `.claude/rules/...` has no leading slash; the old
+  # `*/.claude/rules/` glob only matched an absolute or nested path (#3441).
+  [[ "$f" == '.claude/rules' || "$f" == '.claude/rules/'* ||
+    "$f" == *'/.claude/rules' || "$f" == *'/.claude/rules/'* ]] && return 0
   [[ "$base" == 'AGENTS.md' || "$base" == 'CLAUDE.md' || "$base" == 'SKILL.md' ]] && return 0
   return 1
 }
@@ -88,8 +91,13 @@ classify_file() {
 
   tick_pairs=$(grep -o '`' "$file" 2>/dev/null | wc -l | tr -d ' ')
   tick_pairs=$((tick_pairs / 2))
-  path_hits=$(grep -Eoc '(@|[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml))' "$file" 2>/dev/null || echo 0)
-  path_hits=${path_hits//$'\n'/}
+  # Occurrence count, not line count: -c reports lines, so two refs on one
+  # line under-counted against the "/kw" density label and the path_dens > 8
+  # threshold (#3441). Same shape as flavor_hits below.
+  # Longer @-prefixed alternative first so `@docs/a.md` is one hit, not `@`
+  # plus `docs/a.md`.
+  path_hits=$(grep -Eo '(@[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml)|@[A-Za-z0-9._/-]+|[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml))' "$file" 2>/dev/null | wc -l | tr -d ' ')
+  path_hits=${path_hits:-0}
   flavor_hits=$(grep -oiwE "$FLAVOR_RE" "$file" 2>/dev/null | wc -l | tr -d ' ')
 
   local tick_dens path_dens flavor_dens

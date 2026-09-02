@@ -233,11 +233,10 @@ assert_eq "bare shell resolves consumer-local via git toplevel" "acme-local" "$(
 
 # --- gh version gate is scoped to the native sub-issue/dependency surface ---
 # gh >= 2.94 buys `--parent` / `--blocked-by` / `--add-blocked-by` and the
-# blockedBy / parent / subIssues --json fields, and nothing else. Verbs that
-# never read that surface must dispatch on an older gh: the lease trio (claim,
-# renew-lease, reclaim) and capabilities, which invokes no gh at all. A blanket
-# dispatcher gate cost an older-gh session race-safe claiming for a prerequisite
-# it never used.
+# blockedBy / parent / subIssues --json fields. Gate those flags and the verbs
+# that always use them, not every github verb: a blanket create-item / get-item
+# gate refused plain creates on cloud images that ship gh 2.45 (#3598). The
+# lease trio and capabilities stay ungated for the same reason as 0.39.18.
 #
 # Provider is "github" so the gate applies, while WIT_ADAPTERS_DIR points at
 # stub verb scripts — the gate keys on the bound provider, not on adapter
@@ -270,15 +269,23 @@ run_gh_verb() {
   printf '%s\n' "$?"
 }
 
-# Verbs that never touch the native surface dispatch on gh 2.45.
-for v in capabilities claim renew-lease reclaim; do
+# Verbs that never pass a native-surface flag dispatch on gh 2.45.
+for v in capabilities claim renew-lease reclaim get-item; do
   assert_eq "old gh: $v dispatches (not gated)" "0" "$(run_gh_verb "$v" "github:o/r#1")"
 done
+assert_eq "old gh: create-item without gated flags dispatches" \
+  "0" "$(run_gh_verb create-item --title t)"
+assert_eq "old gh: create-item --type still dispatches (adapter degrades)" \
+  "0" "$(run_gh_verb create-item --title t --type Task)"
 
-# Verbs that DO touch it still fail closed with the config exit and its message.
-for v in get-item create-item list-sub-items link-blocks add-sub-item; do
+# Verbs / flags that DO touch the native surface still fail closed (exit 3).
+for v in list-sub-items link-blocks add-sub-item; do
   assert_eq "old gh: $v still gated → exit 3" "3" "$(run_gh_verb "$v" "github:o/r#1")"
 done
+assert_eq "old gh: create-item --parent gated → exit 3" \
+  "3" "$(run_gh_verb create-item --title t --parent "github:o/r#1")"
+assert_eq "old gh: create-item --blocked-by gated → exit 3" \
+  "3" "$(run_gh_verb create-item --title t --blocked-by "github:o/r#1")"
 
 # list-frontier gates through whichever list verb it resolves to — including the
 # --parent form, which dispatches list-sub-items rather than carrying its own entry.
@@ -287,17 +294,30 @@ assert_eq "old gh: list-frontier --parent gated via list-sub-items" \
   "3" "$(run_gh_verb list-frontier --parent "github:o/r#9")"
 
 ERR="$(PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
-  WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" get-item "github:o/r#1" 2>&1 >/dev/null)"
-assert_contains "old gh: gate names the minimum" "$ERR" "2.94"
+  WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" create-item --title t --parent "github:o/r#1" 2>&1 >/dev/null)"
+assert_contains "old gh: gated --parent names the minimum" "$ERR" "2.94"
+assert_contains "old gh: gated --parent names the flag" "$ERR" "--parent"
 
-# A conforming gh lifts the gate for every verb.
+ERR="$(PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+  WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" create-item --title t --blocked-by "github:o/r#1" 2>&1 >/dev/null)"
+assert_contains "old gh: gated --blocked-by names the flag" "$ERR" "--blocked-by"
+
+ERR="$(PATH="$STUB_BIN:$PATH" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
+  WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" create-item --title t 2>&1 >/dev/null)"
+assert_not_contains "old gh: plain create-item does not quote the version floor" "$ERR" "2.94"
+
+# A conforming gh lifts the gate for every verb, including gated flags.
 cat >"$STUB_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 printf 'gh version 2.94.0 (2026-01-01)\n'
 EOF
-for v in get-item create-item add-sub-item; do
+for v in get-item add-sub-item; do
   assert_eq "gh 2.94: $v dispatches" "0" "$(run_gh_verb "$v" "github:o/r#1")"
 done
+assert_eq "gh 2.94: create-item --parent dispatches" \
+  "0" "$(run_gh_verb create-item --title t --parent "github:o/r#1")"
+assert_eq "gh 2.94: create-item --blocked-by dispatches" \
+  "0" "$(run_gh_verb create-item --title t --blocked-by "github:o/r#1")"
 
 # A non-github provider is never version-gated, whatever gh reports.
 cat >"$STUB_BIN/gh" <<'EOF'

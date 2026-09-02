@@ -860,6 +860,76 @@ else
     'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
 fi
 
+# --- Bare invocation (no paths) ---------------------------------------------------
+
+# The no-paths path lists the whole repository, so it carries the same two
+# hazards the dir-target cases above pin, reached through a different listing.
+# git-config core.quotePath: commands that output paths quote bytes above 0x80
+# unless it is false, so a tracked file whose name holds a non-ASCII byte
+# arrives as a C-quoted escape, fails the scan loop's existence test, and shows
+# up as neither a finding nor a declined row. A bare invocation is the sweep the
+# audit skill runs over a repository, so that drop is silently partial coverage.
+BAREREPO="$TEST_TMPDIR/barerepo"
+mkdir -p "$BAREREPO/unicode"
+git -C "$BAREREPO" init -q
+printf 'A tracked em dash %s here.\n' "$EM" >"$BAREREPO/unicode/notes${EM}name.md"
+printf 'A tracked em dash %s here too.\n' "$EM" >"$BAREREPO/ascii.md"
+printf 'An untracked em dash %s here.\n' "$EM" >"$BAREREPO/loose.md"
+git -C "$BAREREPO" add "unicode/notes${EM}name.md" ascii.md
+
+out="$(cd "$BAREREPO" && CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+assert_contains "bare invocation: tracked non-ASCII filename is scanned" "$out" "file=unicode/notes${EM}name.md"
+assert_not_contains "bare invocation: no C-quoted escape reaches the report" "$out" 'notes\342'
+assert_contains "bare invocation: both tracked files count" "$out" "2 files scanned"
+assert_not_contains "bare invocation: untracked markdown is not scanned" "$out" "loose.md"
+
+# Findings report repo-relative paths, so the case above would also pass if the
+# listing's relative paths were used unprefixed and resolved against the CWD.
+# Running from outside the checkout is what pins the REPO_ROOT prefix they are
+# joined onto: a wrong prefix leaves nothing for the scan loop to open.
+out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+assert_contains "bare invocation from outside the repo: the non-ASCII path is scanned" "$out" "file=unicode/notes${EM}name.md"
+assert_contains "bare invocation from outside the repo: both tracked files count" "$out" "2 files scanned"
+
+# A listing that fails must say so. Swallowed under 2>/dev/null it produces an
+# empty target list, which is indistinguishable from a repository holding no
+# tracked markdown, and both render as a clean audit. The stub fails only
+# ls-files so the branch under test is the listing itself, not work-tree
+# detection.
+BADLS_BIN="$TEST_TMPDIR/bin-badls"
+mkdir -p "$BADLS_BIN"
+REAL_GIT="$(command -v git)"
+cat >"$BADLS_BIN/git" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  if [[ "\$a" == "ls-files" ]]; then
+    echo "fatal: stubbed ls-files failure" >&2
+    exit 128
+  fi
+done
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$BADLS_BIN/git"
+
+out="$(cd "$BAREREPO" && PATH="$BADLS_BIN:$PATH" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+assert_contains "bare invocation, listing fails: reports the failure" "$out" "git ls-files failed in $BAREREPO"
+assert_contains "bare invocation, listing fails: names the exit status" "$out" "(exit 128)"
+assert_contains "bare invocation, listing fails: git's own stderr is not swallowed" "$out" "fatal: stubbed ls-files failure"
+assert_contains "bare invocation, listing fails: scans nothing" "$out" "0 files scanned"
+
+# Outside a checkout there is nothing tracked to list, which is a reportable
+# state rather than a clean audit of an empty set.
+BARENOREPO="$TEST_TMPDIR/barenorepo"
+mkdir -p "$BARENOREPO"
+printf 'An em dash %s here.\n' "$EM" >"$BARENOREPO/loose.md"
+out="$(cd "$BARENOREPO" && CLAUDE_PROJECT_DIR="$BARENOREPO" bash "$DETECT" 2>&1)"
+assert_contains "bare invocation outside a checkout: says so" "$out" "could not confirm a work tree at $BARENOREPO"
+assert_contains "bare invocation outside a checkout: scans nothing" "$out" "0 files scanned"
+
+out="$(cd "$BAREREPO" && PATH="$NOGIT_BIN" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+assert_contains "bare invocation, git absent: reports it" "$out" "git is not on PATH"
+assert_contains "bare invocation, git absent: scans nothing" "$out" "0 files scanned"
+
 # --- Excerpt truncation at the byte boundary --------------------------------------
 
 # 79 ASCII bytes then an em dash: a byte cut at 80 would keep only the first

@@ -240,6 +240,16 @@ alpha_preserved=$(jq -e '.enabledPlugins["alpha@market1"] == true' "$case_dir/se
 assert_eq "case-7: hostile-name entry removed literally" "yes" "$evil_absent"
 assert_eq "case-7: other entries untouched (no filter injection)" "yes" "$alpha_preserved"
 
+# --- Case 8: bare --input (no value) is a usage error, not a set -u crash ---------
+
+CASE_NUM=$((CASE_NUM + 1))
+
+exit_code=0
+out=$(bash "$SCRIPT" --input 2>&1) || exit_code=$?
+
+assert_exit "case-8: bare --input exits 2" 2 "$exit_code"
+assert_contains "case-8: usage error message" "$out" "Missing value for --input"
+
 # --- Final ------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

@@ -243,7 +243,7 @@ def main(argv=None) -> int:
     rows = check_inventory_shape(inventory)
 
     if nodes_by_id is None:
-        print(f"check_inventory: FAILED --{len(failures.items)} failure(s); "
+        print(f"check_inventory: FAILED -- {len(failures.items)} failure(s); "
               f"manifest did not verify, rows not checked.")
         return 1
 
@@ -282,7 +282,7 @@ def main(argv=None) -> int:
             f"(unrepresented content): {', '.join(sorted(unrepresented))}.")
 
     if failures.items:
-        print(f"check_inventory: FAILED --{len(failures.items)} failure(s) "
+        print(f"check_inventory: FAILED -- {len(failures.items)} failure(s) "
               f"across {len(rows)} row(s) / {len(nodes_by_id)} node(s).")
         return 1
 

@@ -65,6 +65,7 @@ assert_contains "dry-run lists upstream" "$out" "Upstream:"
 assert_contains "dry-run plans clean" "$out" "PlannedClean: git clean -fdx"
 assert_contains "dry-run preserves secrets by default" "$out" "PreserveSecrets: yes"
 assert_contains "dry-run preserves deps by default" "$out" "PreserveDeps: yes"
+assert_not_contains "dry-run PRESERVE_ARGS expansion does not unbound-variable abort" "$out" "unbound variable"
 
 # --- 3. default apply preserves secrets + deps, removes plain untracked ---
 echo ignored >"$R/.env"

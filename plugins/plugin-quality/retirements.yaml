@@ -1,0 +1,23 @@
+# Retired consumer-facing conventions for the plugin-quality plugin.
+# Append-only: records are never deleted and their detection fields are never
+# edited once published (demote with `status: report-only` instead). Schema and
+# helper contract: docs/conventions/retired-conventions/README.md in the
+# consuming marketplace; evaluated by lib/check-retirements.sh from setup.
+---
+id: plugin-quality-r001
+retired: 2026-09-01
+plugin_version: 0.7.6
+kind: file
+path: .claude/plugin-quality.md
+content_match: '^(#.*plugin-quality|sink:|markdown_dir:|zone_behavior:|repo_map:)'
+action: migrate
+successor: "the surface is now a convention doc: resolve the convention home from the root file's pointer line (lib/resolve-convention-home.sh), carry the sink / markdown_dir / zone_behavior / repo_map values into <home>/plugin-quality/README.md, have the operator confirm the migrated doc, then clean"
+note: "retired tracked config file; values move to the convention-home topic doc"
+---
+id: plugin-quality-r002
+retired: 2026-09-01
+plugin_version: 0.7.6
+kind: file
+path: .claude/plugin-quality.local.md
+action: delete
+note: "retired local overlay; a convention-doc surface has no overlay channel"

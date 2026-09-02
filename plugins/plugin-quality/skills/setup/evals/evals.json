@@ -5,12 +5,13 @@
       "id": 1,
       "name": "check-reports-acting-account-and-provenance",
       "prompt": "/plugin-quality:setup check",
-      "expected_output": "Reports gh presence with the ACTING account and host, the context-guard seam state with the resulting dispatch mode, every config layer found, and the effective value of each key with the layer that supplied it; edits nothing.",
+      "expected_output": "Reports gh presence with the ACTING account and host, the context-guard seam state with the resulting dispatch mode, the convention-home resolver outcome, and the effective value of each key with the source that supplied it (topic doc, dual-read retired file, or default); edits nothing.",
       "files": [],
       "expectations": [
         "Names the acting gh account explicitly, not just 'authenticated'",
         "Reports dispatch mode as zone-informed or conservative based on the snapshot probe",
-        "Effective sink is reported with per-layer provenance (which layer supplied it)",
+        "Runs lib/resolve-convention-home.sh rather than parsing AGENTS.md or CLAUDE.md by hand",
+        "Effective sink is reported with provenance (which source supplied it)",
         "Read-only: no file writes in check"
       ]
     },
@@ -29,14 +30,66 @@
     {
       "id": 3,
       "name": "apply-is-idempotent-and-scoped",
-      "prompt": "/plugin-quality:setup apply sink=markdown-dir markdown_dir=~/audit-items\n\nRun it twice.",
-      "expected_output": "First run writes/converges the tracked .claude/plugin-quality.md (only the named keys; other keys and prose preserved) and reports old->new; second run reports no diff. Recommends the recursive .claude/**/*.local.* gitignore line without touching .gitignore.",
+      "prompt": "/plugin-quality:setup apply sink=markdown-dir markdown_dir=~/audit-items\n\nThe convention home is already bound to docs/conventions. Run it twice.",
+      "expected_output": "First run converges the topic doc at docs/conventions/plugin-quality/README.md (only the named keys; other keys and prose preserved) and reports old->new; second run reports no diff. Writes nothing outside the pointer-line region and the topic doc: no .claude/plugin-quality.md, no overlay, no user-global file.",
       "files": [],
       "expectations": [
-        "Writes only the tracked .claude/plugin-quality.md",
+        "Writes only the topic doc at the convention home (the region is already bound and untouched)",
         "Second identical apply produces no content change and says so",
-        "Never writes the consumer's .gitignore; the overlay line is a surfaced recommendation",
-        "Never creates or edits the user-global or .local layers"
+        "Never writes any dedicated .claude/plugin-quality* file — the surface is retired",
+        "Never creates or edits the user-global or overlay layers"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "retirement-r001-detects-and-gates-the-migrate-clean",
+      "prompt": "/plugin-quality:setup check, then apply, in a repo whose .claude/plugin-quality.md (the retired tracked config, with sink and zone_behavior keys) still exists.",
+      "expected_output": "check runs check-retirements.sh and reports the plugin-quality-r001 TSV row as FAIL (action migrate — the dual-read window is live divergence, not clutter) with apply as the remediation. apply carries the file's values into the convention-home topic doc, gets the operator's confirmation of the migrated result, and only then runs --clean plugin-quality-r001 --i-migrated; a --clean without --i-migrated is refused (exit 2). A final re-run of detection reports the leftover gone.",
+      "files": [],
+      "expectations": [
+        "check reports plugin-quality-r001 as FAIL, not WARN or INFO",
+        "The old file's values are carried into the topic doc before any clean",
+        "--clean plugin-quality-r001 without --i-migrated refuses; the gated clean passes --i-migrated only after the operator confirms the migrated result",
+        "Detection is re-run last and the final state reported"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "retirement-r002-overlay-warns-never-silent",
+      "prompt": "/plugin-quality:setup check in a repo that still carries a pre-existing .claude/plugin-quality.local.md overlay from before the migration.",
+      "expected_output": "check reports the plugin-quality-r002 row as WARN — the overlay no longer has any effect and a convention-doc surface has no overlay channel — never silently ignoring the file, and never reading its values into the effective config. apply offers the gated --clean plugin-quality-r002 (action delete) and reports what was removed.",
+      "files": [],
+      "expectations": [
+        "The pre-existing overlay produces a visible WARN, not silence",
+        "The overlay's values do not appear in the effective config or its provenance",
+        "Cleanup is individually gated and uses --clean plugin-quality-r002, not an ad-hoc rm",
+        "Severity is WARN (delete leftovers are inert clutter), distinct from the r001 FAIL"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-appends-region-to-populated-agents-md",
+      "prompt": "/plugin-quality:setup apply in a repo with a populated AGENTS.md (real working-agreement prose, no convention-home region) and an existing docs/conventions/ directory. The operator confirms the inferred home.",
+      "expected_output": "Proposes docs/conventions as the inferred home from repo evidence, writes the pointer line inside a newly APPENDED marked convention-home region of AGENTS.md only after the operator confirms, and leaves every other byte of AGENTS.md untouched. Never writes the pointer without confirmation and never edits outside the marked region.",
+      "files": [],
+      "expectations": [
+        "The inferred home is proposed, and nothing is written before the operator confirms",
+        "The marked region is appended; AGENTS.md's pre-existing prose is byte-identical",
+        "AGENTS.md is chosen as canonical over CLAUDE.md",
+        "After the write, the resolver resolves the home (exit 0)"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "check-distinguishes-unconfigured-from-resolver-fail",
+      "prompt": "/plugin-quality:setup check twice: first in a repo with no convention-home region anywhere, then in a repo whose region contains two pointer lines.",
+      "expected_output": "No region (resolver exit 1) is INFO 'unconfigured' with apply as the remediation — never a FAIL and never an inferred home. Two pointer lines (resolver exit 3) is FAIL with the resolver's own distinct message surfaced verbatim and remediation through apply's interview; check never picks one of the two lines or guesses a home.",
+      "files": [],
+      "expectations": [
+        "Exit 1 reports INFO unconfigured, not FAIL, with apply as remediation",
+        "Exit 3 reports FAIL and surfaces the resolver's distinct cause message",
+        "Never infers or guesses a home in check for either outcome",
+        "The two outcomes are reported distinctly, never collapsed into one finding"
       ]
     }
   ]

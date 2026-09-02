@@ -40,8 +40,12 @@ fi
 echo "number	repo	tracked_status	current_state	state_reason	closed_at	transition" >"$OUT"
 
 n=0
-total=$(wc -l <"$SNAPSHOT" | tr -d '\r ')
-while IFS=$'\t' read -r number repo tracked; do
+# wc -l counts newlines, not rows: a final row without a trailing newline would
+# be undercounted here and then dropped by the read loop below without the
+# `|| [[ -n "$number" ]]` guard, which lets read's last (newline-less) partial
+# read still populate $number before the loop exits.
+total=$(grep -c '' "$SNAPSHOT" | tr -d '\r ')
+while IFS=$'\t' read -r number repo tracked || [[ -n "$number" ]]; do
   n=$((n + 1))
   printf '[%d/%d] %s#%s ' "$n" "$total" "$repo" "$number" >>"$LOG"
   result=$(gh issue view "$number" --repo "$repo" --json state,stateReason,closedAt 2>>"$LOG")

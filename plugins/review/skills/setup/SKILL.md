@@ -41,12 +41,18 @@ Plugin-side notes on top of the binding's procedure:
    its `standards-contract` frontmatter at the binding's version, and the setup-owned
    `<standards_dir>/.gitignore` containing `*.local.md` (the personal-overlay ignore). Write
    `.claude/standards.yaml` only when the user relocates the root from the documented default.
+   After a bootstrap write, run the tracked-file pair on each written team file:
+   `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
+   `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but
+   untracked: commit it to share with the team", never success).
 3. **Validate every index row path** on each run (external-row validation duty); surface broken
    rows with an offered fix.
 4. **Optional offers, never demands:** reorganizing mixed or spread standards content toward the
    SRP + index shape.
 5. **Migration is this skill re-run**. No separate action; direction and messaging per the
-   binding.
+   binding. It stays bespoke rather than becoming a retirement-manifest record: it is a
+   versioned-contract upgrade under `apply`, the sanctioned schema-evolution path, not a
+   retirement.
 
 ## Output
 

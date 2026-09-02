@@ -1,5 +1,28 @@
 # Changelog — session-flow plugin
 
+## [0.34.20]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.34.19]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
+## [0.34.18]
+
+### Fixed
+
+- **`running-retro`: `arm_observer.py` now forwards `--idle-confirm-seconds`.** The launcher
+  never declared the flag, so passing it raised an argparse error even though `observer.py`
+  already supports it (default 30s). The launcher now accepts the same default and puts the
+  flag and value on the detached observer argv.
+
 ## [0.34.17]
 
 ### Changed

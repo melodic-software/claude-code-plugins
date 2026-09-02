@@ -3,6 +3,26 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.2]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.21.1]
+
+### Changed
+
+- **Manual-handoff docs name the hook-issued `ask`, not a guaranteed human prompt.** The
+  PowerShell deletion lane returns `permissionDecision: "ask"`. Official PreToolUse docs say
+  that value prompts the user to confirm and, since v2.1.211, forces the prompt even in auto
+  mode, but an explicit `permissions.ask` rule is what those pages treat as forcing a prompt
+  in `auto` and `bypassPermissions` (`dontAsk` auto-denies instead). The engine-apply step
+  uses that same hook `ask`, so SKILL.md and README no longer call it a guaranteed final
+  prompt. The safety model and unsupported-platform handoff now say so.
+
 ## [0.21.0]
 
 ### Changed

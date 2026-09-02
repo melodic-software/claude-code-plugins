@@ -161,8 +161,8 @@ DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # One directory has SEVERAL SPELLINGS on Git Bash, and matching the wrong one
 # declines a real in-repo finding: this producer FAILS CLOSED, so a path it
 # cannot prove is under the root never reaches the relay. Measured on a Windows
-# host: `git rev-parse --show-toplevel` answers `C:/Users/.../Temp/t`, `cd` then
-# `pwd` answers `/c/Users/.../Temp/t`, and a caller reaching the same directory
+# host: `git rev-parse --show-toplevel` answers `<drive>:/Users/<user>/.../t`,
+# `cd` then `pwd` answers `/<drive>/Users/<user>/.../t`, and a caller reaching the same directory
 # as `/tmp/t` matches neither. Every finding was declined as outside the root and
 # the counts said so in a section nothing downstream reads.
 #

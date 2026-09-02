@@ -189,7 +189,7 @@ fi
 
 # I29 rows come from restatement-scan.py, a NATIVE Windows interpreter. MSYS
 # converts its argv on the way in and the scanner echoes what it received:
-# backslash separators, and 8.3 SHORT components (`C:\Users\LONGNA~1\...`) for
+# backslash separators, and 8.3 SHORT components (`<drive>:\Users\<SHORT~1>\...`) for
 # every directory that has one. None of the three anchors above is spelled that
 # way, so such a row was declined as outside the root -- fail closed, and on a
 # host whose checkout sits under a short-named path that silently dropped every

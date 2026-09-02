@@ -3,7 +3,7 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.2]
+## [0.15.3]
 
 ### Changed
 
@@ -19,6 +19,15 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   emits raw bytes with no C-quoting, so a name that survives to git matches exactly and one that
   does not, does not. A negative probe skips the fixture and prints a visible `SKIP (host: ...)`
   line counted apart from the pass total.
+
+## [0.15.2]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
 
 ## [0.15.1]
 

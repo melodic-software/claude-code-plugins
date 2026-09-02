@@ -39,10 +39,21 @@ MODE="${1:-}"
 shift || true
 ARG="${*:-}"
 
-usage() { sed -n '2,28p' "$0" >&2; }
+# Print the header block (shebang to first non-comment line). Derived rather
+# than a hardcoded sed range, which dropped the Examples lines as the header
+# grew (#3424).
+usage() {
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
+    "${BASH_SOURCE[0]}" >&2
+}
 
 # jq: emit each result as TSV (word, score, numSyllables, tags).
 emit_tsv() { jq -r '.[] | [.word, (.score // 0), (.numSyllables // 0), ((.tags // []) | join(","))] | @tsv'; }
+
+if [[ "$MODE" == "-h" || "$MODE" == "--help" ]]; then
+  usage
+  exit 0
+fi
 
 if [[ -z "$MODE" || -z "$ARG" ]]; then
   usage

@@ -3,6 +3,45 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.4]
+
+### Changed
+
+- setup's install-commit-msg flow carries a rationale line: hook provisioning, not retirement detection of a repo artifact (customization-consistency Phase 2c)
+
+## [0.30.3]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.30.2]
+
+### Fixed
+
+- **`block-windows-drive-tmp` treats a single-quoted path-qualified writer as a
+  command.** `"/usr/bin/mkdir"` was recognized; `'/usr/bin/mkdir' -p /tmp/x`
+  still missed because the quote class was `"` only. Both quote styles are
+  accepted at command position, matching `segment_destination_operand`. Quoted
+  and unquoted command-position patterns are separate (bash ERE has no
+  backrefs), so `echo 'run mkdir' /tmp/x` is not treated as a writer. The
+  patterns are plain string assignments, not `cat` heredocs, so the hot
+  path does not fork.
+
+## [0.30.1]
+
+### Fixed
+
+- **`block-windows-drive-tmp` matches a write utility invoked by absolute path.** The
+  command-lane verb anchor was `(^|[[:space:]])`, so `/usr/bin/mkdir -p /tmp/x` (and the
+  same spelling of `touch`, `tee`, `cp`) slipped through. An optional `[^[:space:]]*/`
+  prefix is accepted only in command position (start of the segment, or after
+  `sudo`), including a quoted executable (`"/usr/bin/mkdir" -p /tmp/x`). A
+  mention such as `echo /usr/bin/mkdir /tmp/x` or `cat /some/path/mkdir /tmp/x`
+  stays allowed. A verb-shaped substring such as `./bin/mkdirs` still is not.
+
 ## [0.30.0]
 
 ### Fixed

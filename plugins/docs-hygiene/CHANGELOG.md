@@ -1,15 +1,15 @@
 # Changelog — docs-hygiene plugin
 
-## [0.21.32]
+## [0.21.33]
 
 ### Fixed
 
 - **`audit-noise`: every finding was declined as outside the repository root on a Git Bash host.**
   `emit-findings.sh` relativized Location against one anchor, `git rev-parse --show-toplevel`,
-  which answers `C:/Users/.../t` while the caller reached the same directory as `/tmp/t`. The
-  producer fails closed, so each finding landed in the human-report-only column and the decline
-  count said so in a section nothing downstream reads. It now carries the three anchors the
-  `claude-config` sibling already had: the caller's own `pwd` spelling (derived by removing the
+  which answers `<drive>:/Users/<user>/.../t` while the caller reached the same directory as
+  `/tmp/t`. The producer fails closed, so each finding landed in the human-report-only column and
+  the decline count said so in a section nothing downstream reads. It now carries the three anchors
+  the `claude-config` sibling already had: the caller's own `pwd` spelling (derived by removing the
   sub-path git reports for it), git's toplevel, and `cd`-then-`pwd`.
 
 - **A drive-letter path was treated as relative and joined to the root a second time.** The
@@ -17,6 +17,21 @@
   and was declined. The producer now shares the sibling's substr-based `is_absolute`, which admits
   a POSIX path, a UNC or root-relative backslash path, and a drive-letter path, and is written
   without a bracket expression holding `/` and `\` because the runner awk is mawk.
+
+## [0.21.32]
+
+### Fixed
+
+- **`compress` `audit-scan.sh` counts path-reference occurrences, not lines.** `grep -Eoc`
+  made `path_hits` a line count while the `path_dens > 8` threshold and the "cross-ref
+  density %s/kw" label assume occurrences, so two refs on one line under-counted. It now
+  uses `grep -Eo | wc -l`, matching the flavor-token counter. An `@`-prefixed path
+  (`@docs/a.md`) is one hit: the longer `@…ext` alternative is tried before a bare `@`.
+- **Signal 1 accepts a repo-relative `.claude/rules/` path.** The matcher required a
+  literal `/` before `.claude/rules/`, so a target spelled from the repo root skipped
+  signal 1 and fell through to flavor density. The contract test invokes the scanner
+  from the fixture directory with `.claude/rules/example.md`, not an absolute
+  `mktemp` path that already matched the old glob.
 
 ## [0.21.31]
 
