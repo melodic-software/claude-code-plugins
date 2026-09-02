@@ -38,6 +38,17 @@ Claude Code settings surface, so settings edits prompt even in auto mode. It is 
 not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks` removes
 non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
 
+The registration carries no `if` filter, so the hook process spawns on every matched write and the
+script decides. An `if` gate was evaluated for this row on 2026-09-02 and rejected. On Windows,
+Claude Code's `if` file rules do not match an absolute path outside the working directory under any
+anchoring form tested, including the home-relative `~/`, the root-anchored `//`, the drive-letter
+spelling, and the root-anchored recursive glob. A probe session logged every candidate rule as
+skipped on a write to the user-global settings file and on a write to the managed-settings file,
+while the unconditioned row fired and returned `ask` for both. Only a settings file inside the
+working directory matched. Any gate on this row would therefore drop the user-global and
+managed-settings checks silently, which is the opposite of what the checkpoint exists to do. The row
+stays unconditioned until upstream matching reaches those paths.
+
 ## What makes the numbers trustworthy
 
 - **Nothing is shipped, everything is measured.** The skill contains no token figures, tool

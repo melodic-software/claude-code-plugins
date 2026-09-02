@@ -3,6 +3,24 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.7]
+
+### Changed
+
+- **The audit-hook table records why each row earns its spawn.** A new column states the reason
+  per row: event rarity for StopFailure, ConfigChange, PermissionDenied and PreCompact; matcher
+  scoping for the PostToolUse, UserPromptExpansion and PostToolUseFailure rows; and, for the Stop
+  row, that it is the only per-turn registration and the sole surface for a hook that failed to
+  launch while its guarded tool call proceeded.
+- **The InstructionsLoaded row records why it carries no matcher.** That event's matcher selects on
+  load reason, and `instructions-loaded-audit.sh` passes every reason through verbatim into its
+  subject, so scoping to the full documented set would skip nothing and would drop any reason a
+  later release adds. Scoping below that set is worse: the only reason worth excluding for cost is
+  `session_start`, which the script already drops at write time behind
+  `instructions_loaded_audit_log_session_start`, so a matcher excluding it would leave that option
+  switched on but unable to log anything. Documentation only; no hook, script or registration
+  changed.
+
 ## [0.41.6]
 
 ### Changed
