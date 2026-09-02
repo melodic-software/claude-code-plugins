@@ -2806,6 +2806,52 @@ else
   done
 fi
 
+# --- Root-level file: config discovery anchors its walk on `/` (white-box) ----
+# The same empty strip guards `start` inside markdownlint_config_discoverable,
+# which the FILE_DIR extraction above never matches. The whole function is
+# lifted from source and called on a root-level path with `cd` shadowed by a
+# function that logs each directory it is asked for: the walk's own `cd` runs
+# under `2>/dev/null`, so a marker file is the only channel that survives.
+# Guarded, the first directory is `/`; unguarded, it is the empty string, which
+# bash rejects as a null directory so the walk fails closed and a root config
+# can never opt the file in. The return code is not asserted for the root
+# call, because it depends on whether this host's `/` carries a config. The
+# control call on a file under a directory that does carry one proves the
+# lifted function and the shim work together.
+DISC_FN="$(awk '/^markdownlint_config_discoverable\(\) \{/ { p = 1 } p { print } p && /^}/ { exit }' "$HOOK")"
+if [[ -z "$DISC_FN" ]]; then
+  fail "root-level walk: markdownlint_config_discoverable not found in $(basename "$HOOK")"
+else
+  WALK_DIR="$WORK/root-walk"
+  mkdir -p "$WALK_DIR"
+  : >"$WALK_DIR/.markdownlint.json"
+  CD_LOG="$WORK/root-walk-cd.log"
+  # shellcheck disable=SC2329  # invoked indirectly: the lifted walk's `cd "$start"` hits this shadow
+  cd_logging_shim() {
+    cd() {
+      printf '%s\n' "$1" >>"$CD_LOG"
+      builtin cd "$@" || return
+    }
+  }
+  : >"$CD_LOG"
+  (cd "$UNRELATED" && eval "$DISC_FN" && cd_logging_shim && markdownlint_config_discoverable "$WALK_DIR/README.md" "$WALK_DIR")
+  RC_CTL=$?
+  CTL_FIRST="$(head -n 1 "$CD_LOG")"
+  if [[ "$RC_CTL" -eq 0 && "$CTL_FIRST" == "$WALK_DIR" ]]; then
+    ok "root-level walk: control anchors on the file's directory and finds its config"
+  else
+    fail "root-level walk: control rc=$RC_CTL first cd='$CTL_FIRST', want rc=0 and '$WALK_DIR'"
+  fi
+  : >"$CD_LOG"
+  (cd "$UNRELATED" && eval "$DISC_FN" && cd_logging_shim && markdownlint_config_discoverable /README.md "$WALK_DIR") || :
+  ROOT_FIRST="$(head -n 1 "$CD_LOG")"
+  if [[ "$ROOT_FIRST" == "/" ]]; then
+    ok "root-level walk: /README.md anchors the walk on /"
+  else
+    fail "root-level walk: /README.md anchored the walk on '$ROOT_FIRST', want '/'"
+  fi
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

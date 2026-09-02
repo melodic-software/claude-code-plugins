@@ -94,11 +94,12 @@ esac
 # root. $1 names an existing regular file, so it carries no trailing slash and
 # the strip is exact; a path with no separator at all leaves the strip a no-op,
 # which the `.` fallback covers, and a file directly under the filesystem root
-# leaves it empty, which the `/` fallback covers (`cd ""` is a silent no-op, so
-# an empty start would walk from the hook process CWD instead). In the walk, an
-# emptied strip means the parent is the filesystem root. The walk terminates at
-# the repo root two lines above the step in every reachable case, so the root
-# arm is defense, not a path anything here takes.
+# leaves it empty, which the `/` fallback covers (bash rejects `cd ""` as a
+# null directory, so an empty start would fail the walk closed and skip a
+# root-level file that a root config opts in). In the walk, an emptied strip
+# means the parent is the filesystem root. The walk terminates at the repo root
+# two lines above the step in every reachable case, so the root arm is defense,
+# not a path anything here takes.
 markdownlint_config_discoverable() {
   local dir root candidate parent start
   start="${1%/*}"

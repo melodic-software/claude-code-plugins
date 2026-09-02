@@ -27,10 +27,12 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 - The directory strips that replaced `dirname` answer `/` for a file directly
   under the filesystem root, as `dirname` did, both for the hook's own file
   directory and for the start of the config-discovery walk. Without the guard
-  the strip left an empty string, which the repo-root resolver read as `.` and
-  `cd` treated as a no-op, so both anchored on the hook process CWD. The suite
-  gains a white-box case that runs the hook's own directory lines against a
-  root-level path, because no CI host can create one.
+  the strip left an empty string: the repo-root resolver read it as `.`, the
+  hook process CWD, and the walk's `cd` rejected it as a null directory, so a
+  root config could not opt such a file in. The suite gains two white-box
+  cases, because no CI host can create a root-level file: one runs the hook's
+  own directory lines against such a path, and one calls the lifted walk on it
+  and asserts the walk anchors on `/`.
 
 ## [0.11.37]
 
