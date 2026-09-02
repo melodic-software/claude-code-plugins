@@ -513,7 +513,8 @@ action: remove-line
 note: one line
 YAML
 
-malformed_case "a separator with trailing whitespace is not a record break" 'not a "key: value" line' <<'YAML'
+{
+  cat <<'YAML'
 id: alpha-r001
 retired: 2026-08-01
 plugin_version: 1.4.0
@@ -521,7 +522,9 @@ kind: file
 path: .claude/alpha.json
 action: delete
 note: one line
---- 
+YAML
+  printf '%s \n' '---'
+  cat <<'YAML'
 id: alpha-r002
 retired: 2026-08-02
 plugin_version: 1.4.1
@@ -530,6 +533,7 @@ path: .claude/other.json
 action: delete
 note: one line
 YAML
+} | malformed_case "a separator with trailing whitespace is not a record break" 'not a "key: value" line'
 
 malformed_case "a double-quoted match keeps backslashes instead of unescaping them" 'is not a usable ERE' <<'YAML'
 id: alpha-r001
