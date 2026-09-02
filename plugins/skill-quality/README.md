@@ -5,9 +5,11 @@ skill directory, reports the shared listing-budget estimate across a set of skil
 skill's `evals.json` against a bundled schema plus a deterministic eval-quality lint. No model
 invocation anywhere. The same checks run identically in a session, a pre-commit hook, or CI.
 
-The one failure static analysis catches best is a rewrite silently dropping a `description` trigger
-phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the trigger phrases against
-`HEAD` and fails on a regression.
+The drift static analysis catches best is a rewrite silently dropping a `description` trigger
+phrase, which can degrade a skill's auto-invocation. Check 3 compares the trigger phrases against
+`HEAD` and warns on each dropped phrase. It is advisory and never fails the run: a drop is often a
+deliberate consolidation of near-synonym triggers into a named intent category, so the warning asks
+the reviewer to confirm the description still names that intent, or to restore the phrase.
 
 | Skill | What it does |
 |---|---|
@@ -26,7 +28,9 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
   (<https://code.claude.com/docs/en/skills#frontmatter-reference>,
   <https://code.claude.com/docs/en/settings>; verified 2026-08-31; recheck trigger: either default
   moving re-derives this line and the scripts' encoded constants).
-- Trigger-keyword preservation vs `HEAD` (skipped for a new, uncommitted skill).
+- Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
+  fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
+  uncommitted skill).
 - `SKILL.md` under 500 lines (hard) / 200 lines (soft, advisory).
 - Backtick- and link-cited skill-internal supporting files resolve. When a path that misses instead
   resolves under a sibling skill, the finding names that sibling and the

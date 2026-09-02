@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-five-check static contract gate (frontmatter, explicit invocation mode, description/verb-contract polarity, per-skill listing-entry cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, completion-criteria signal, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage warnings); `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-five-check static contract gate (frontmatter, explicit invocation mode, description/verb-contract polarity, per-skill listing-entry cap, advisory trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, completion-criteria signal, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage warnings); `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root"
 user-invocable: true
 disable-model-invocation: false
@@ -18,8 +18,11 @@ JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eva
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
 warnings) that goes beyond structure without ever running a model-graded eval. The `listing-budget` action runs `check-listing-budget.sh`, a separate, always-advisory
 report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
-limit from `check`'s per-skill entry cap). Catches the failure that static analysis catches best: a
-rewrite silently dropping a `description` trigger phrase, which degrades auto-invocation.
+limit from `check`'s per-skill entry cap). Check 3 surfaces the drift static analysis sees best, a
+rewrite dropping a `description` trigger phrase, as an advisory warning that names each dropped
+phrase. It never fails the run: a drop is often a deliberate consolidation of near-synonym triggers
+into a named intent category, so the reviewer confirms the description still names that intent, or
+restores the phrase.
 
 ## Skills-directory resolution
 
@@ -86,11 +89,13 @@ Parse `$ARGUMENTS`:
 3. Report per skill:
    - **PASS / FAIL** from the script's exit code (0 = pass, 1 = one or more `FAIL:` lines).
    - The `FAIL:` lines verbatim (each is an actionable defect).
-   - `WARN:` lines grouped after failures (advisory: soft line target, missing gotchas surface,
-     action-router without evals, orphan spokes, an injection with no `shell:` whose commands
-     only *look* portable, an injected command carrying no `|| <fallback>`, same-context
-     judgment language with no fresh-eyes declaration or a stale exemption directive, and a
-     description/verb-contract polarity mismatch).
+   - `WARN:` lines grouped after failures (advisory: a trigger phrase dropped or moved vs the
+     base ref, soft line target, missing gotchas surface, action-router without evals, orphan
+     spokes, an injection with no `shell:` whose commands only *look* portable, an injected
+     command carrying no `|| <fallback>`, same-context judgment language with no fresh-eyes
+     declaration or a stale exemption directive, and a description/verb-contract polarity
+     mismatch). A dropped-trigger warning is a review item: confirm the description still names
+     the intent each dropped phrase carried, or restore the phrase.
 4. For a multi-skill run, end with a one-line rollup: `N passed, M failed`.
 
 The `FAIL:` messages are self-describing. Do not re-derive their meaning; surface them and, when the
@@ -194,12 +199,16 @@ and review against the invariant.
   (no committed version) skips check 3. That is expected, not a silent pass. For a post-commit audit
   (where `HEAD` == the working tree hides an already-committed change), set `CHECK_SKILL_BASE_REF` to a
   ref before the change (e.g. `HEAD^` or a merge-base) and run on a clean tree; it reroutes checks 3/8/9.
-- Trigger-drop protection tracks single-quoted `'phrase'` triggers. An unquoted `Use when:` list is not
-  tracked by check 3; check 12 warns so those phrases get quoted and covered. A dropped phrase found
-  verbatim in a sibling skill's description/when_to_use under the same skills root, where the
-  sibling did NOT already carry it at the base ref, is a trigger MOVE: it WARNs instead of failing,
-  because the listing still routes the phrase. Phrases absent everywhere, and phrases the sibling
-  carried all along (coincidental overlap, not a move), still fail.
+- Check 3 (trigger-keyword preservation) is advisory: it warns on a dropped phrase and never fails
+  the run. It tracks single-quoted `'phrase'` triggers; an unquoted `Use when:` list is not tracked,
+  and check 12 warns so those phrases get quoted and covered. A dropped phrase found verbatim in a
+  sibling skill's description/when_to_use under the same skills root, where the sibling did NOT
+  already carry it at the base ref, is a trigger MOVE and warns naming the host, because the listing
+  still routes the phrase. A phrase absent everywhere, or one the sibling carried all along
+  (coincidental overlap, not a move), warns as dropped and asks the reviewer to confirm the
+  description still names the intent the phrase carried (a deliberate consolidation of near-synonym
+  triggers into an intent category) or to restore it. Treat that warning as a review item, not
+  noise.
 - Check 19 (injection shell-declaration) FAILs only when a `!` injection carries *detectable*
   bash-only syntax (`/dev/null`, `command -v`, a pipe into a Unix text tool) AND no `shell:` is
   declared; portable-looking commands downgrade to a WARN, since static analysis cannot prove

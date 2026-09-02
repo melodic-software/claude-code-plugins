@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Static skill-authoring quality gate for a single Claude Code skill.
 #
-# Runs static checks against one skill directory — NO model invocation. The
-# trigger-keyword preservation check (check 3) is the regression-critical net:
-# a rewrite that silently drops a `description` trigger phrase degrades
-# auto-invocation, and static analysis catches it deterministically.
+# Runs static checks against one skill directory with NO model invocation. The
+# trigger-keyword preservation check (check 3) is ADVISORY: a rewrite that
+# drops a `description` trigger phrase surfaces as a WARN naming each dropped
+# phrase, so the reviewer confirms the description still names the intent the
+# phrase carried (a deliberate consolidation of near-synonym triggers into
+# intent categories) or restores it. Check 3 never fails the run.
 #
 # Exit 0 = all checks pass; 1 = one or more check failures; 2 = usage/env error.
 #
@@ -50,10 +52,13 @@
 #      maximum — a separate limit at a separate layer from check 2's listing cap;
 #      WARN, since no local validator enforces it and the Skills API rejects it
 #      at upload; counted locale-independently via iconv, as check 22 does)
-#   3. Trigger-keyword preservation vs the base ref (skipped for new skills;
-#      a phrase moved verbatim to a sibling skill's listing text — one the
-#      sibling did not carry at the base ref — WARNs, since the marketplace
-#      listing still routes it; lost phrases and coincidental overlap FAIL)
+#   3. Trigger-keyword preservation vs the base ref (ADVISORY, never a FAIL;
+#      skipped for new skills). A phrase moved verbatim to a sibling skill's
+#      listing text, one the sibling did not carry at the base ref, WARNs as a
+#      move since the marketplace listing still routes it; a phrase dropped
+#      with no sibling host (including coincidental overlap with a sibling
+#      that carried it all along) WARNs asking the reviewer to confirm the
+#      description still names that intent, or to restore the phrase
 #   4. SKILL.md < 500 lines (hard cap)
 #   5. Backtick-cited skill-internal supporting files resolve (a path that misses
 #      here but resolves under a SIBLING skill also names that sibling and the
@@ -423,11 +428,11 @@ elif git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null
       # text (same skills root, working tree) — where the sibling's BASE_REF
       # frontmatter did NOT already carry it — is a deliberate trigger MOVE,
       # not a lost trigger: the marketplace listing still routes the phrase,
-      # which is the regression this check exists to catch. The base-ref
+      # which is the drift this check exists to surface. The base-ref
       # condition keeps the exception exactly as narrow as the rationale: a
       # phrase the sibling carried all along is coincidental overlap, not a
-      # move, and dropping it here still FAILs. Moves WARN (visible until
-      # merge, never blocking).
+      # move, and dropping it here reports as a dropped phrase (the advisory
+      # warning below), not as a move. Moves WARN naming the host.
       # Repo-relative parent of the skills root ("" when skills sit at the
       # repo root), so sibling base-ref lookups address the right tree entry.
       SKILLS_REL_PARENT=""
@@ -470,7 +475,14 @@ elif git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null
         fi
       done <<<"$MISSING"
       if [[ -n "$LOST" ]]; then
-        err "dropped trigger keyword(s) vs $BASE_REF (auto-invocation regression): $(printf '%s' "$LOST" | tr '\n' ' ')"
+        # Advisory, never a FAIL: a dropped phrase is often a deliberate
+        # consolidation of near-synonym triggers into a named intent category,
+        # which a hard failure would block. The warning names each phrase so
+        # the reviewer confirms the description still routes that intent, or
+        # restores the phrase.
+        LOST_LIST="$(printf '%s' "$LOST" | tr '\n' ' ')"
+        LOST_LIST="${LOST_LIST% }"
+        warn "dropped trigger keyword(s) vs $BASE_REF: $LOST_LIST. Confirm the description still names each intent these phrases carried (deliberate consolidation), or restore them"
       fi
     else
       note "all $(printf '%s\n' "$BASE_TRIG" | grep -c .) base-ref trigger phrase(s) preserved"

@@ -3,6 +3,21 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.10]
+
+### Changed
+
+- **Check 3 (trigger-keyword preservation vs the base ref) is advisory.** A dropped
+  single-quoted trigger phrase with no sibling host now WARNs, naming each phrase and asking the
+  reviewer to confirm the description still names the intent it carried or to restore it, instead
+  of FAILing the run. The bundled `/claude-api prompt-audit` guide's Group 2 "trigger-case
+  enumeration" fix replaces lists of near-synonym trigger phrases with named intent categories,
+  and a hard failure on every dropped phrase blocked that documented fix fleet-wide. The
+  sibling-move warning, the "all N base-ref trigger phrase(s) preserved" note, and every other
+  check are unchanged. `check-skill.test.sh` cases that asserted a FAIL on a dropped phrase now
+  assert a zero exit with the warning text; the sibling-move and coincidental-overlap cases still
+  prove their distinct verdicts.
+
 ## [0.20.9]
 
 ### Changed
