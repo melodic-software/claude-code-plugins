@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.44]
+
+### Fixed
+
+- **Conformance `run-conformance.sh` drops its own vacuous assertion.** The capabilities case
+  asserted that `"provider=$PROVIDER"` contains `"provider="`, which is true for every possible
+  value including an empty one, because the haystack is built from the needle. It now requires
+  `.provider` to be a JSON string of length greater than 0
+  (`jq -e '.provider | type == "string" and length > 0'`). Empty and JSON null fail. A provider
+  literally named `null` is a valid adapter name and is no longer rejected because `jq -r`
+  prints the text `null` for both JSON null and the string `"null"`. A real provider still
+  passes.
+
 ## [0.39.43]
 
 ### Changed
