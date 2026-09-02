@@ -160,6 +160,12 @@ invocation, or a call following a `cd`/`pushd` on the same command line, which
 moves the directory the gate file and any relative `--body-file` resolved
 against. Set `pr_body_linkage_gate_enabled` to `false` to turn it off.
 
+The registration carries an `if` filter, `Bash(gh *)`, so the hook process is spawned
+only for a command that runs `gh` (Claude Code checks each subcommand of a compound
+command, and runs the hook regardless when it cannot tell what a command expands to).
+That is a superset of the hook's own first check, so nothing it would have judged is
+skipped; a plain `git status` no longer pays for it.
+
 #### Telemetry (opt-in)
 
 The hook emits one structured
@@ -206,6 +212,13 @@ can read; it does not block concurrent writes (git-worktree(1)).
 `check-enter <path> --session-id <id>` surfaces a foreign live claim and
 stops. Set `worktree_add_claim_gate_enabled` to `false` to turn the hook
 off; the script remains the documented gate.
+
+This hook and its `PreToolUse` sibling `worktree-add-containment-gate` are registered
+with the `if` filter `Bash(*worktree*)`: the hook process is spawned only for a command
+whose text carries `worktree`, which is also each hook's own first check, so every
+`git worktree add` spelling they judged before (including `git -C <dir> worktree add`
+and wrapped forms) still reaches them, and every other Bash call no longer pays for
+two hook processes.
 
 ## Works in any repo
 

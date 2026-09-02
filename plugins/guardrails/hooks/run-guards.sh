@@ -187,9 +187,14 @@ elif ((${#OUTS[@]} > 1)); then
       systemMessage: (map(.systemMessage // empty) | join("\n\n")) }
     | if .systemMessage == "" then del(.systemMessage) else . end
     | if .hookSpecificOutput.additionalContext == "" then del(.hookSpecificOutput) else . end
-    | if . == {} then empty else . end' 2>/dev/null) && [[ -n "$merged" ]] &&
-    printf '%s\n' "$merged" ||
+    | if . == {} then empty else . end' 2>/dev/null)
+  # The Windows jq build writes CRLF; a raw CR never belongs in a JSON document.
+  merged="${merged//$'\r'/}"
+  if [[ -n "$merged" ]]; then
+    printf '%s\n' "$merged"
+  else
     printf '%s\n' "${OUTS[@]}"
+  fi
 fi
 
 exit "$RC"

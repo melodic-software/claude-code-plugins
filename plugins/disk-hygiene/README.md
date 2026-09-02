@@ -92,7 +92,9 @@ enforces nothing. The launcher resolves Python itself instead (#1504).
 
 The guard registers on two surfaces: a plugin-level **engine gate** (`hooks/hooks.json`) that acts
 only on commands referencing the engine, deferring everything else instantly, and enforces the kill
-switch and data-root authority; and the skill-scoped **belt** inside the `clean` skill's context,
+switch and data-root authority (since **0.21.1** the registration also carries the `if` filter
+`Bash(*hygiene.py*)`, a superset of the gate's own relevance check, so a command that does not
+name the engine no longer spawns the Python interpreter to be deferred); and the skill-scoped **belt** inside the `clean` skill's context,
 which adds the deny-by-default Bash and deletion-spelling PowerShell discipline during active
 cleanup work. Both surfaces resolve the kill switch by reading `disk_hygiene_enabled` from
 user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only

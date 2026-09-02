@@ -11,6 +11,9 @@ own and runs only when your repo has opted into Ruff.
 
 ## Behavior
 
+- **Spawned only for Python files.** The hook is registered with the `if` filters
+  `Edit(*.py)` and `Edit(*.pyi)`, so a Write/Edit of any other file never starts a
+  hook process for it; the extension check inside the script is unchanged.
 - **Opt-in on a Ruff config.** Ruff runs **only when a `.ruff.toml`,
   `ruff.toml`, or `pyproject.toml` with a `[tool.ruff]` section governs the
   edited file**, found by walking up from the file to the repository root, the

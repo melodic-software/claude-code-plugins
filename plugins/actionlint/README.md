@@ -16,7 +16,9 @@ your `PATH`.
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
   your hard gate.
 - **Scoped to workflows.** Only files matching `.github/workflows/*.yml` and
-  `.github/workflows/*.yaml` are linted. Other YAML is left alone.
+  `.github/workflows/*.yaml` are linted. Other YAML is left alone. The registration
+  carries the matching `if` filters (`Edit(**/.github/workflows/*.yml)` and the
+  `.yaml` twin), so a Write/Edit of any other file never starts a hook process for it.
 - **External run-block linters disabled (`-shellcheck= -pyflakes=`).**
   actionlint's embedded-bash ShellCheck and `shell: python` pyflakes
   integrations are turned off. Each spawns a subprocess per `run:` block.

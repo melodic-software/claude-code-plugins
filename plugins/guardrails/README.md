@@ -22,6 +22,21 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 
 ## The guards
 
+Since **0.31.0** the always-on guards are registered through one dispatcher per event,
+`hooks/run-guards.sh`, which reads the payload once, extracts its fields with one `jq`
+process, and sources each guard in turn inside that one bash process. The table below
+still names every guard, and every guard still ships as its own script with its own
+contract test, kill switch, and telemetry envelope, deciding exactly as it did as a
+standalone hook. `hooks/hooks.json` lists each guard by file name as an argument of the
+dispatcher line for its event, so the registration stays readable per guard. What the
+dispatcher owns: the spawn shape (one hook process per Bash/PowerShell call where there
+were eight, one per Write/Edit PreToolUse where there were three, one per Write/Edit
+PostToolUse where there were three), the exit code (2 if any guard blocks, and every
+guard still runs so a command that trips two guards shows both reasons), and the merge
+of several guards' `additionalContext` into the one JSON document a hook process may
+emit. The [hook budget accounting](#hook-budget-accounting) carries the measurement.
+`workflow-resilience-check` is not always-on and is registered on its own.
+
 | Guard | Event / matcher | Behavior | What it catches |
 |-------|-----------------|----------|-----------------|
 | **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. |
@@ -289,6 +304,21 @@ out of scope until such a signal exists.
   a whole stays bounded by `hook::buffer_stdin`, whose stall path fails closed.
 
 ### Hook budget accounting
+
+**0.31.0, the dispatcher.** Measured with the fleet's hook fan-out harness
+(`dotfiles/common/measure-claude-hook-fanout.sh`, one hook process per line, median of
+3 runs, benign `git status --short` payload, Windows 11 + Git Bash, 2026-09-02, host
+under concurrent agent load). Before: the eight per-Bash-call guards were eight hook
+processes summing to **≈ 2,450 ms** (412 / 403 / 362 / 350 / 336 / 311 / 198 / 78 ms).
+After: one hook process; `RUN_GUARDS_PROFILE=1` reports the per-guard slices inside it
+as ≈ 167 / 163 / 197 / 18 / 233 / 253 / 156 / 37 ms, **≈ 1,220 ms** in total, the
+remainder being fork cost, since each guard still runs in its own subshell so that its
+`exit` and `trap` behave as they do standalone. That is a halving of the per-Bash-call
+CPU cost and a drop from eight process spawns to one; it is still above the
+convention's ≤ 1 s typical ceiling on a loaded host, and the remaining remediation is
+the guards' own per-call work (the subshell fork itself, and the external programs a
+guard spawns on its hot path), not the dispatcher. The per-Write sets fell the same way:
+three PreToolUse processes to one, three PostToolUse processes to one.
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md)
 rule 1, widening an always-on hook's matcher states its measured share of the

@@ -11,6 +11,9 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
 
 ## Behavior
 
+- **Spawned only for PowerShell files.** The hook is registered with the `if` filters
+  `Edit(*.ps1)`, `Edit(*.psm1)` and `Edit(*.psd1)`, so a Write/Edit of any other file
+  never starts a hook process for it; the extension check inside the script is unchanged.
 - **Opt-in on a settings file.** PSScriptAnalyzer runs **only when a
   `PSScriptAnalyzerSettings.psd1` governs the edited file**, found by walking up
   from the file to the repository root and stopping at the closest one. Unlike

@@ -90,6 +90,7 @@ run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/ctx2
 assert_exit "merge run exits 0" 0 "$RC"
 assert_eq "merged output is exactly one JSON document" "1" "$(jq -s 'length' <<<"$OUT")"
 merged_ctx=$(jq -r '.hookSpecificOutput.additionalContext' <<<"$OUT")
+merged_ctx="${merged_ctx//$'\r'/}" # the Windows jq build writes CRLF
 assert_eq "merged additionalContext carries both guards, in order" $'ctx one\n\nctx two' "$merged_ctx"
 assert_eq "merged hookEventName kept" "PreToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$OUT")"
 assert_eq "merged systemMessage carries the one guard that set it" "sys two" "$(jq -r '.systemMessage' <<<"$OUT")"
