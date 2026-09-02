@@ -39,7 +39,7 @@ batch_normalize_input() {
 #      No input-content shape returns 1. For `-`, ordinary stdin EOF is success.
 batch_read_lines_into() {
   local -n _dest="$1"
-  local src="$2" line fd
+  local src="$2" line
   if [[ "$src" == "-" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
@@ -52,12 +52,14 @@ batch_read_lines_into() {
   # retained (a `while ... done <"$src"` that never enters the body would
   # otherwise look like success).
   [[ -f "$src" ]] || return 1
-  exec {fd}<"$src" || return 1
-  while IFS= read -r -u "$fd" line || [[ -n "$line" ]]; do
+  # Fixed fd 3: Bash `{fd}` only allocates from 10 upward, so `ulimit -n 10`
+  # makes that open fail even when the list file is readable.
+  exec 3<"$src" || return 1
+  while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     [[ -n "$line" ]] && _dest+=("$line")
   done
-  exec {fd}<&-
+  exec 3<&-
   # Explicit success: do not let the last `[[ -n "$line" ]]` (false on a
   # trailing blank, or on the EOF guard after a delimiter) become the result.
   return 0

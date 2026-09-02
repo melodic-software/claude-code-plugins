@@ -16,7 +16,8 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   last `[[ -n "$line" ]]` from becoming the function result. Both
   `clean-batch.sh` and `git-tree-reset-batch.sh` trust that contract, so a
   `--repos-from` / `--skip-from` file ending `a\n\n` is accepted and a missing
-  file still errors as file-not-found
+  file still errors as file-not-found. Named sources open on fixed fd 3 so a
+  `ulimit -n 10` runner can still read the list
   ([#3482](https://github.com/melodic-software/claude-code-plugins/issues/3482)).
 
 ## [0.10.19]
