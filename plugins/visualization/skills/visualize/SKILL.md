@@ -93,10 +93,25 @@ HTML file → published Artifact**. Selection layers, first hit wins:
 1. **Explicit argument**. A `terminal` / `file` / `artifact` argument forces the tier.
 2. **Configured preference**. `${user_config.medium}`. Claude Code text-substitutes
    the configured value into this line; if it still shows the literal
-   `${user_config.medium}` token or is empty, the option is unset. Use the default
-   `auto`. Recognized values are `auto`, `terminal`, `file`, and `artifact`; any
-   other value is reported and treated as `auto`.
-3. **Auto**. Decide by the form and its weight: terminal for small, static,
+   `${user_config.medium}` token or is empty, the option is unset and the next
+   rung resolves. Recognized values are `auto`, `terminal`, `file`, and
+   `artifact`; any other value is reported and treated as unset.
+3. **Cascade preference**. The `rendered-views` cascade surface, read only when
+   rungs 1-2 are unset: anchor at the repo root (`${CLAUDE_PROJECT_DIR}` when
+   set, else `git rev-parse --show-toplevel`), then read whichever of
+   `~/.claude/rendered-views.md`, `<root>/.claude/rendered-views.md`, and
+   `<root>/.claude/rendered-views.local.md` exist, in that order. The last
+   layer that states a `medium:` value wins (per-key override), with the same
+   recognized values as rung 2. Verify layer state before honoring a value,
+   per the cascade contract's per-layer verdicts: a team layer that is not
+   tracked is a hard stop (teammates would never receive it), an overlay that
+   is staged or not gitignored is a failure to report (a personal deviation
+   could reach history), and the user-global layer takes no git verdict at
+   all. Name the winning layer when reporting the
+   choice; on a malformed layer, say so and resolve as if that layer were
+   absent. All layers absent simply falls through (per
+   `docs/conventions/rendered-views/README.md` in the marketplace repository).
+4. **Auto**. Decide by the form and its weight: terminal for small, static,
    text-representable output (tables, ASCII, short code, a `mermaid` source fence);
    a rich page for a composite, interactive, large, or truly graphical result
    (rendered diagrams, real charts, dashboards).
@@ -109,6 +124,12 @@ self-contained local HTML file and open it; if neither page surface is available
 degrade **visibly** to the best terminal form with a one-line notice. Never assume
 the Artifact surface exists. The `file` preference deliberately stays on the
 machine (never published); `artifact` prefers publishing but degrades the same way.
+
+**Page chrome.** When authoring a rich page, take the palette, type stacks,
+radii, and accessibility floor (link/focus contrast tokens, color-scheme and
+reduced-motion behavior) from this plugin's bundled chrome reference,
+`${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather than inventing a
+look per page.
 
 **Local-file placement.** Write the local HTML file via the platform's temp
 primitive, never into the consumer's repository tree. On Unix/Linux/Git Bash,
