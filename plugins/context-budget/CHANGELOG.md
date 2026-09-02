@@ -5,6 +5,27 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.15]
+
+### Changed
+
+- **The settings checkpoint is now three `if`-gated rows instead of one unconditioned row.** Every
+  Write, Edit, MultiEdit and NotebookEdit spawned the node process, which then read the payload and
+  exited silently for the overwhelming majority that target no settings file. The rows now carry
+  `Edit(//**/.claude/settings.json)`, `Edit(//**/.claude/settings.local.json)` and
+  `Edit(//**/managed-settings.json)`, so an ordinary source or markdown write costs no process at
+  all. The matcher, type, command, args and timeout are unchanged, and `settings-write-ask.mjs` is
+  untouched.
+  The three rules mirror the two path patterns the script tests, `(^|/)\.claude/settings(\.local)?\.json$`
+  and `(^|/)managed-settings\.json$`, both of which match at any absolute path. Root-anchored
+  recursive globs were chosen over cwd-anchored and home-anchored rules for that reason: a
+  cwd-anchored rule would miss a settings file in a repository outside the working directory, which
+  a worktree session writing to its main checkout hits routinely, and a per-location managed-settings
+  rule would need one row per drive and per operating system. The script's own scope check stays as
+  defence in depth. Direct payload runs confirm the decisions are unchanged: project, user-global and
+  managed paths all return `ask`, a scratch markdown path exits 0 silently, and the gate evaluator
+  selects exactly those three cases.
+
 ## [0.6.14]
 
 ### Changed

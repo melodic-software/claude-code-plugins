@@ -38,6 +38,16 @@ Claude Code settings surface, so settings edits prompt even in auto mode. It is 
 not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks` removes
 non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
 
+The registration is three `if`-gated rows, `Edit(//**/.claude/settings.json)`,
+`Edit(//**/.claude/settings.local.json)` and `Edit(//**/managed-settings.json)`, so the hook process
+spawns only for a settings file at any absolute path (project, user-global or managed) and every
+other write skips it without a process. The three rules mirror the two path patterns the script
+itself tests, so the gate narrows nothing: the script's own scope check stays in place as defence in
+depth. The `//**/` spelling is verified by the fan-out harness's gate evaluator and by a live probe
+run against the installed plugin after delivery. If that probe shows Claude Code's own evaluator
+does not honor the spelling on this platform's path forms, the fallback is the single unconditioned
+row, which spawns on every matched write and decides in the script.
+
 ## What makes the numbers trustworthy
 
 - **Nothing is shipped, everything is measured.** The skill contains no token figures, tool

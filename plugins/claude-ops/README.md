@@ -96,6 +96,15 @@ tell the paths apart; both share the same telemetry `hook` id and second store.
 None captures a command body, absolute path, error message, or argument body, only category labels, privacy-safe subjects, and (for `instructions-loaded-audit`)
 the repo-relative path of the loaded rule file.
 
+The InstructionsLoaded row carries no matcher on purpose. That event's matcher selects on load
+reason, and `instructions-loaded-audit.sh` passes every reason through verbatim into its subject, so
+scoping to the full documented set would skip nothing and would silently drop any reason a later
+release adds. Scoping below that set is worse: the only reason worth excluding for cost is
+`session_start`, which the script already drops at write time, and it drops it behind the
+`instructions_loaded_audit_log_session_start` option. A matcher that excluded `session_start` would
+stop the hook from ever spawning on it, leaving that option switched on but unable to log anything.
+The row therefore stays unscoped until the option is retired.
+
 ### Per-hook kill switches
 
 Each audit hook is toggled by its own `userConfig` boolean (default **on**; set

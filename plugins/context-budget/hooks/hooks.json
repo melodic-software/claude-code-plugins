@@ -9,6 +9,23 @@
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/settings-write-ask.mjs"],
             "timeout": 30,
+            "if": "Edit(//**/.claude/settings.json)",
+            "statusMessage": "Checking whether this write targets a Claude Code settings surface..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/settings-write-ask.mjs"],
+            "timeout": 30,
+            "if": "Edit(//**/.claude/settings.local.json)",
+            "statusMessage": "Checking whether this write targets a Claude Code settings surface..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/settings-write-ask.mjs"],
+            "timeout": 30,
+            "if": "Edit(//**/managed-settings.json)",
             "statusMessage": "Checking whether this write targets a Claude Code settings surface..."
           }
         ]
