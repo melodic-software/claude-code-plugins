@@ -14,6 +14,6 @@
     "markdownlint-cli2": "0.23.2"
   },
   "allowScripts": {
-    "@anthropic-ai/claude-code@2.1.246": true
+    "@anthropic-ai/claude-code@2.1.251": true
   }
 }
