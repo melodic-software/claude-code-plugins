@@ -74,6 +74,7 @@
 .github/*
 .gitattributes
 .gitignore
+.gitleaksignore
 .editorconfig
 .shellcheckrc
 .node-version
