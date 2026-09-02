@@ -17,7 +17,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   matches the command name, so the narrower form never launched the gate for a wrapped
   call (`env GH_TOKEN=x gh pr create`, `sudo gh pr create`,
   `bash -c "cd x && gh pr create"`). The leading wildcard covers those, at the cost of
-  one bash start on a non-`gh` line that happens to contain `gh `, which the gate's own
+  one bash start on a non-`gh` line that happens to contain the text `gh` followed by a space, which the gate's own
   regex pre-filter dismisses. A `gh` produced by a substitution is still judged only
   because Claude Code runs the hook regardless when it cannot tell what a command
   expands to.
