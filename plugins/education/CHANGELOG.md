@@ -3,6 +3,23 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.10.2]
+
+### Changed
+
+- **`explain`: each core-move step now states an observable done-condition.** The
+  four-step plain-language first pass said what to do but not how to know a step
+  was finished, which is the premature-completion shape the completion-criteria
+  check warns on. Step 2 (ground the artifact this turn, do not recall it) is
+  the one that was invisible in the output when skipped.
+
 ## [0.10.1]
 
 ### Changed

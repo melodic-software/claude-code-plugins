@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Battery + power report. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#7-battery--power-report for rubric.
+See reference/windows/check-catalog.md#7-battery--power-report for rubric.
 
 .PARAMETER ReportPath
 Absolute path the battery HTML report should be written to. When omitted,

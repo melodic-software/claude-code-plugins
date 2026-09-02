@@ -2,7 +2,7 @@
 
 Growable stub. Note: custom commands have been **merged into skills** — a `.claude/commands/x.md`
 and a skill both produce `/x`. Commands still work, but skills are recommended (they support
-`references/`, supporting files, and auto-load). When auditing a command, one valid finding is
+`reference/`, supporting files, and auto-load). When auditing a command, one valid finding is
 "should this be a skill?" if it needs supporting files or auto-discovery.
 
 ## Read first

@@ -14,7 +14,7 @@ audit/
 ├── catalog/
 │   ├── checks.jsonc               # OS-tagged, versioned check registry (read-only at runtime)
 │   └── cisa-kev.json              # seed stub; live cache refreshes under %LOCALAPPDATA%
-├── references/
+├── reference/
 │   ├── shared/                    # OS-agnostic semantics (severity, schema, report, discovery, philosophy, overlay)
 │   ├── windows/                   # Windows-specific check catalog + remediation policy
 │   ├── macos/NOT_IMPLEMENTED.md   # porting stub
@@ -29,17 +29,17 @@ audit/
 
 ## Separation of semantics from implementation
 
-- `references/shared/` — *what* health means: severity levels, result schema, report template, discovery procedure, remediation philosophy, catalog-overlay semantics.
-- `references/<os>/` — *how* to detect it on that OS: cmdlets, registry paths, service models, thresholds.
+- `reference/shared/` — *what* health means: severity levels, result schema, report template, discovery procedure, remediation philosophy, catalog-overlay semantics.
+- `reference/<os>/` — *how* to detect it on that OS: cmdlets, registry paths, service models, thresholds.
 - `scripts/<os>/` — executable implementation emitting the shared schema.
 
-Adding a new OS should be "populate two folders," not "refactor the skill." If a change feels OS-agnostic but lives under `references/windows/`, it likely belongs in `references/shared/`.
+Adding a new OS should be "populate two folders," not "refactor the skill." If a change feels OS-agnostic but lives under `reference/windows/`, it likely belongs in `reference/shared/`.
 
 ## Dual-invocation scripts
 
 Every check script runs two ways:
 
-- **By Claude** — emits a single JSON object on stdout conforming to the check-result schema (`references/shared/output-schema.md`).
+- **By Claude** — emits a single JSON object on stdout conforming to the check-result schema (`reference/shared/output-schema.md`).
 - **By a human** — pass `-Human` for readable output. Use `Write-Host` in that mode so structured emitters still work over pipelines.
 
 Human-mode output is the on-ramp for debugging a misbehaving check; keep it readable.
@@ -70,16 +70,16 @@ environment variable is set). A single check can run in isolation:
 
 ## Extending the skill
 
-1. New Windows check (shipped): write `scripts/windows/checks/Test-<Thing>.ps1` emitting the shared schema, add an entry to `catalog/checks.jsonc` with `os: ["windows"]`, document thresholds in `references/windows/check-catalog.md`, and bump the plugin version.
-2. Machine-local custom check (consumer-side): see `references/shared/catalog-overlay.md` — script under the state base, entry in `checks.local.jsonc`, no plugin change.
-3. New remediation: write `scripts/windows/remediations/<Verb>-<Noun>.ps1`, add it to the authorization list in `references/windows/remediation-policy.md`, and wire dispatch in the orchestrator. Remediations always default to not approved.
-4. New OS: replace the matching `NOT_IMPLEMENTED.md` with a populated folder. Consult `references/shared/discovery-guide.md` for the porting checklist.
+1. New Windows check (shipped): write `scripts/windows/checks/Test-<Thing>.ps1` emitting the shared schema, add an entry to `catalog/checks.jsonc` with `os: ["windows"]`, document thresholds in `reference/windows/check-catalog.md`, and bump the plugin version.
+2. Machine-local custom check (consumer-side): see `reference/shared/catalog-overlay.md` — script under the state base, entry in `checks.local.jsonc`, no plugin change.
+3. New remediation: write `scripts/windows/remediations/<Verb>-<Noun>.ps1`, add it to the authorization list in `reference/windows/remediation-policy.md`, and wire dispatch in the orchestrator. Remediations always default to not approved.
+4. New OS: replace the matching `NOT_IMPLEMENTED.md` with a populated folder. Consult `reference/shared/discovery-guide.md` for the porting checklist.
 
-How the orchestrator applies cross-finding correlation rules after check dispatch: `references/shared/correlation-rules.md`.
+How the orchestrator applies cross-finding correlation rules after check dispatch: `reference/shared/correlation-rules.md`.
 
 ## Testing
 
-Pester test conventions (directory layout, fixtures, prerequisites): `references/shared/testing.md`.
+Pester test conventions (directory layout, fixtures, prerequisites): `reference/shared/testing.md`.
 
 ## Guardrails codified in the skill
 

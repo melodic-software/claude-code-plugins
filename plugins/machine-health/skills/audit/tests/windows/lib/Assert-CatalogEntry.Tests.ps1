@@ -24,7 +24,7 @@ BeforeAll {
             category         = 'storage'
             os               = @('windows')
             script           = 'scripts/windows/checks/Test-DiskHealth.ps1'
-            severity_rules   = 'references/windows/check-catalog.md#2'
+            severity_rules   = 'reference/windows/check-catalog.md#2'
             needs_admin      = $false
             enabled          = $true
             deprecated       = $false

@@ -3,11 +3,11 @@
 .SYNOPSIS
 Check: unexpected entries at fixed-volume roots. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#19-drive-root-litter for rubric.
+See reference/windows/check-catalog.md#19-drive-root-litter for rubric.
 
 .DESCRIPTION
 Lists each fixed-volume root non-recursively and diffs it against the
-expected-entry baseline in references/windows/drive-root-baseline.jsonc.
+expected-entry baseline in reference/windows/drive-root-baseline.jsonc.
 The system drive gets the full baseline diff; a non-system volume root
 legitimately holds arbitrary user content, so only known litter-name shapes
 are reported there. Read-only: the check never deletes, moves, or modifies
@@ -156,7 +156,7 @@ $commands = @(
 try {
     $skillRoot = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent | Split-Path -Parent
     if (-not $BaselinePath) {
-        $BaselinePath = Join-Path $skillRoot 'references\windows\drive-root-baseline.jsonc'
+        $BaselinePath = Join-Path $skillRoot 'reference\windows\drive-root-baseline.jsonc'
     }
     # No baseline means no way to tell residue from a legitimate entry, so the
     # check cannot answer -- UNKNOWN, never a guess.

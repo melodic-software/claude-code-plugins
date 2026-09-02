@@ -14,7 +14,7 @@
     },
     "remediations": {
       "type": "object",
-      "description": "Keyed by remediation id as declared in references/<os>/remediation-policy.md.",
+      "description": "Keyed by remediation id as declared in reference/<os>/remediation-policy.md.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,

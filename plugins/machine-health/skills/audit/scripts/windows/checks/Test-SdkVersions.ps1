@@ -66,7 +66,7 @@ function Add-SdkFinding {
 
 try {
     $skillRoot = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent | Split-Path -Parent
-    $eolPath = Join-Path $skillRoot 'references\shared\sdk-eol-table.json'
+    $eolPath = Join-Path $skillRoot 'reference\shared\sdk-eol-table.json'
     $eol = @{}
     if (Test-Path -LiteralPath $eolPath) {
         $raw = Get-Content -LiteralPath $eolPath -Raw | ConvertFrom-Json

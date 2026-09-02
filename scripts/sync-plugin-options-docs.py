@@ -41,6 +41,25 @@ def env_var(key: str) -> str:
     return f"CLAUDE_PLUGIN_OPTION_{key.upper()}"
 
 
+CONVENTION_PATH = "docs/conventions/plugin-reconfiguration/README.md"
+CONVENTION_URL = (
+    "https://github.com/melodic-software/claude-code-plugins/blob/main/" + CONVENTION_PATH
+)
+
+
+def convention_cite(plugin: str) -> str:
+    """Where the verified-version record lives, as inline markdown.
+
+    Installed plugins cannot read this tree, so most generated READMEs cite the
+    published URL. Two plugins forbid the publisher org name in shipped
+    markdown (github's agnosticism sweep; autonomy's binding-seam contract), so
+    those cite the in-repo path instead.
+    """
+    if plugin in {"github", "autonomy"}:
+        return f"this marketplace's plugin-reconfiguration convention (`{CONVENTION_PATH}`)"
+    return f"the [plugin-reconfiguration convention]({CONVENTION_URL})"
+
+
 def render(plugin: str, marketplace: str, options: dict) -> str:
     lines = [
         BEGIN,
@@ -84,11 +103,12 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
             )
         lines.append(f"| `{key}` | {typ} | {default} | `{env_var(key)}` | {desc} |")
 
-    # The 2.1.240 reconfiguration observation covers a NON-SENSITIVE option only. Emitting it
-    # for a plugin whose every option is `sensitive` would prescribe an unverified credential
-    # rotation — and contradict that plugin's own hand-written rotation section, which routes
-    # to `/plugin configure` precisely because it masks input. So `first` is drawn from the
-    # non-sensitive options when there are any, and the claim is withheld when there are none.
+    # The verified-version record lives only in the plugin-reconfiguration
+    # convention. Generated README copy cites that doc and does not restate
+    # 2.1.240. The claim covers a NON-SENSITIVE option only, so `first` is
+    # drawn from the non-sensitive options when there are any, and the
+    # already-installed-still-writes sentence is withheld when there are none.
+    cite = convention_cite(plugin)
     non_sensitive = [k for k, s in options.items() if not s.get("sensitive")]
     sensitive = [k for k, s in options.items() if s.get("sensitive")]
     first = non_sensitive[0] if non_sensitive else next(iter(options))
@@ -96,38 +116,39 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
     if non_sensitive:
         reconfigure = [
             "   The same command reconfigures a plugin that is **already installed**: it prints",
-            "   `already installed` and still writes the value — verified on Claude Code 2.1.240,",
-            "   for a non-sensitive option at `user` scope, by writing a non-default value to an",
-            "   installed plugin and restoring it. The short-circuit message is about the install,",
-            "   not the config write. That has not been verified for a `sensitive` option or for",
-            "   `project`/`local` scope. Do **not** `claude plugin uninstall` to",
+            "   `already installed` and still writes the value. The short-circuit message is",
+            "   about the install, not the config write. Do **not** `claude plugin uninstall` to",
             "   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,",
             "   resetting every option in the table above to its default. `-s` defaults to `user`,",
-            "   so pass the scope `claude plugin list` reports for this plugin.",
+            "   so pass the scope `claude plugin list` reports for this plugin. The verified-version",
+            f"   record lives in {cite}.",
             "",
             "   The value is stored immediately; the session you are in does not change. Hooks are",
             "   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh",
-            "   Claude Code session before expecting new behavior — a check run in the old session",
+            "   Claude Code session before expecting new behavior. A check run in the old session",
             "   still reports the old value, and that is not a failed write.",
         ]
         if sensitive:
+            # The convention records that the already-installed write was not
+            # verified for a sensitive value. It does not say the headless
+            # route is unavailable. Keep "observation" / "claim" as the subject.
             reconfigure += [
                 "",
-                "   That observation does **not** extend to this plugin's `sensitive` option(s)"
-                f" ({', '.join(f'`{k}`' for k in sensitive)}).",
-                "   Rotate those through route 1 instead: `/plugin configure` masks input, where a",
-                "   secret passed on the command line lands in shell history and the process table.",
+                "   The already-installed-still-writes observation does **not** cover this"
+                f" plugin's `sensitive` option(s) ({', '.join(f'`{k}`' for k in sensitive)}).",
+                "   Re-verify before relying on that claim for those values. Route 1 is the safer",
+                "   rotation path: `/plugin configure` masks input, where a secret passed on the",
+                "   command line lands in shell history and the process table.",
             ]
     else:
         # Sensitive-only plugin: `--config` still seeds a value, but nothing here may present a
         # post-install `--config` as a verified rotation path for a credential.
         reconfigure = [
             "   Route 1 is the rotation path for this plugin, not this one. Every option here is",
-            "   `sensitive`, and `/plugin configure` masks input — a secret passed on the command",
-            "   line lands in shell history and the process table. Whether `--config` writes a",
-            "   `sensitive` value on an already-installed plugin has not been verified (the",
-            "   Claude Code 2.1.240 observation behind that claim covered a non-sensitive option at",
-            "   `user` scope), so do not rely on this command to rotate a credential. Do **not**",
+            "   `sensitive`, and `/plugin configure` masks input. A secret passed on the command",
+            "   line lands in shell history and the process table. Do not rely on this command to",
+            f"   rotate a credential; the verified-version record lives in {cite}.",
+            "   Do **not**",
             "   `claude plugin uninstall` to reconfigure either: uninstalling drops this",
             "   plugin's whole stored `pluginConfigs` entry, resetting every option in the table",
             "   above to its default.",

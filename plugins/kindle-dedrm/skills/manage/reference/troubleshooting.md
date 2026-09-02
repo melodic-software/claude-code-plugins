@@ -250,6 +250,6 @@ icacls "$env:LOCALAPPDATA\Amazon\Kindle\updates" /remove:d "AzureAD\<user>"
    - Kindle_Key_Finder zip URL
    ```
 
-2. If the targeted facts are unchanged, accept the drift signal as cosmetic and update the page-hash baseline in `references/sources.md`.
+2. If the targeted facts are unchanged, accept the drift signal as cosmetic and update the page-hash baseline in `reference/sources.md`.
 
-3. If the targeted facts changed, propagate to `references/versions.md` and re-run `setup` portions affected.
+3. If the targeted facts changed, propagate to `reference/versions.md` and re-run `setup` portions affected.

@@ -147,7 +147,7 @@
       "id": 12,
       "name": "bare-builtin-renderer-gets-a-shell",
       "prompt": "/context-guard:setup check\n\nI have never run this skill. My statusLine command is: ulimit '-n' — I wrote it that way myself; the quotes are just habit. The plugin is installed.",
-      "expected_output": "Recognizes that the command word `ulimit` resolves as a shell builtin and not as an executable, so the plain wrapped form would reach `exec ulimit -n` and die with exit 127. Prints the shell-wrapped variant: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'ulimit '''-n''''.",
+      "expected_output": "Recognizes that the command word `ulimit` resolves as a shell builtin and not as an executable, so the plain wrapped form would reach `exec ulimit -n` and die with exit 127. Prints the shell-wrapped variant: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'ulimit '\\''-n'\\'''.",
       "files": [],
       "expectations": [
         "Emits the SHELL-WRAPPED variant, not the plain wrapped one — `exec` cannot run a builtin, so the plain form would exit 127 on every refresh",
