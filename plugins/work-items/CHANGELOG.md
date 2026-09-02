@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.47]
+
+### Fixed
+
+- **Gitea `create-item` label paging treats a non-array page as length 0.** The
+  no-`X-Total-Count` arm ran `$(($(jq 'length') < PAGE_SIZE))` with no `2>/dev/null`
+  fallback. A 200 object body made jq print nothing, bash reported an arithmetic syntax
+  error, and the walk continued to the next page. It now matches the sibling
+  `jq 'length' ... 2>/dev/null || 0` form so a malformed page ends the walk.
+
 ## [0.39.46]
 
 ### Fixed

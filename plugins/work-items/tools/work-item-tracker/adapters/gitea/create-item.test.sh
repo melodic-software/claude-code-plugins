@@ -193,4 +193,20 @@ rc="$(gitea_run "$S" --title "t" --labels "nonexistent")"
 assert_eq "a label in neither scope → exit 5" "5" "$rc"
 assert_contains "and it is named" "$(gitea_err)" "nonexistent"
 
+# A non-array 200 on the first labels page used to make `jq 'length'` empty
+# and `(( < PAGE_SIZE ))` an arithmetic error, so the walk continued to page 2
+# instead of treating the page as exhausted (#3484). No X-Total-Count, so the
+# page-length arm is the one that fires.
+gitea_reset_routes
+gitea_seed "/labels?page=1" 200 '{"message":"not a list"}'
+gitea_seed "/labels?page=2" 200 "$(jq -cn '[{id:3,name:"type: fix"}]')"
+gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'x')"
+rc="$(gitea_run "$S" --title "x" --labels "type: fix")"
+assert_eq "non-array labels page → no hang, non-zero" "5" "$rc"
+if [[ "$(gitea_requests)" == *"page=2"* ]]; then
+  fail "malformed labels page must not continue paging" "no page=2" "page=2 requested"
+else
+  pass "malformed labels page stops the walk"
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1
