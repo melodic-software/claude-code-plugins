@@ -1,0 +1,70 @@
+name: managed-files-guard
+
+# SYNC-MANAGED FILE — DO NOT EDIT IN THE CONSUMING REPOSITORY.
+# Source of truth: melodic-software/standards,
+# components/managed-files-guard/managed-files-guard.yml (the
+# `managed-files-guard-caller` component in distribution/sync-manifest.yml).
+# Downstream edits are overwritten by the next sync PR; change the component
+# upstream, or move the component to `locally-owned` in the manifest to
+# customize.
+#
+# Thin caller for the org's managed-files-guard composite action
+# (melodic-software/ci-workflows, ci-workflows#208). The action resolves this
+# repository's sync-manifest-managed destination paths from the standards ref
+# it is given and fails the pull request when the diff hand-edits one of them
+# (ADR-0007: a managed file is byte-exact with its standards source; the fix
+# path is a standards change, never a downstream edit). Pull requests opened
+# by the sync itself — labelled `standards-sync`, or authored by
+# `melodic-standards-sync[bot]` — are exempt inside the action.
+#
+# ADVISORY during soak (standards#496): this check is NOT aggregated into
+# `ci-status` and is not a required context. Promotion is a per-target
+# decision taken after a clean soak, recorded in the component README.
+#
+# Hosted-only shape: `runs-on` is the approved hosted label directly, with no
+# select-runner indirection, so the same bytes serve public and un-enrolled
+# private targets. A private target enrolled for local CI routing needs a
+# selector-routed sibling instead (see the component README) and is not a
+# consumer of this file.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# Canonical block from the standards `concurrency-policy` component: a newer
+# push to the same pull request cancels the in-flight guard run; the
+# `run_id` fallback keeps non-PR runs unique and never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  managed-files-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The guard diffs base...head; a shallow checkout has no base to
+          # diff against, and the action fails closed on a diff it cannot see.
+          fetch-depth: 0
+      - name: Guard managed files
+        # Pinned to the merged ci-workflows main commit that closes the
+        # guard's fail-open on an unreadable diff (ci-workflows#530). No
+        # release carries it yet, so the pin-comment takes the convention's
+        # fallback form; the claude-lanes-repin cascade advances it to the
+        # first release that does (components/managed-files-guard/README.md).
+        uses: melodic-software/ci-workflows/.github/actions/managed-files-guard@3b2f4eab5b4bb58a150e400613350ede37742ee8 # 3b2f4ea 2026-08-30
+        with:
+          # `main` for the soak, per the action's own input contract ("Pin to
+          # a full SHA in callers once soak completes"): the guard must read
+          # the manifest that is live for this repository, and a fixed
+          # standards SHA would stop tracking target roster and component
+          # changes the moment it landed. `standards-ref` is a workflow input
+          # naming a ref of a different repository, so the ci-workflows
+          # pin-comment convention does not apply to it.
+          standards-ref: main
