@@ -124,6 +124,9 @@ two in each of the others); a second `jq`, by reading both envelope fields in on
 `mkdir` and `rm` calls that the steady path had already made unnecessary, behind existence guards.
 `date -u` in the PostCompact marker became printf's `%()T` format under a `TZ=UTC` prefix, verified
 to produce the same string on a host whose local zone is not UTC, so the trailing `Z` stays honest.
+`%()T` arrived in bash 4.2, so on an older shell (stock macOS 3.2) that site and the resolver's
+clock fall back to the exact `date` invocation they replaced; the counts above are for 4.2 and
+later, where the fallback is never reached.
 No decision, no emitted text and no state file changed: an eleven-scenario capture covering
 both events, both crossing directions, hostile and absent session ids and an empty payload diffs
 byte-identical on stdout, exit code and every state file, and the contract tests assert the

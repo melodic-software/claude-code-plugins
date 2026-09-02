@@ -329,6 +329,53 @@ else
   fail "trace: $T_JQ2 jq processes with zones.json present, budget is 2"
 fi
 
+# --- The Bash 3.2 clock fallback, proven by trace ----------------------------
+# printf's %()T conversion arrived in bash 4.2; stock macOS ships 3.2, where the
+# builtin fails and binds nothing. Without a fallback every resolve there would
+# answer unknown and both hooks would be silently disabled. That shell is
+# emulated by an exported function that shadows the builtin for a %()T format
+# under -v and fails exactly as 3.2's printf does (nonzero status, variable
+# unbound); the child bash imports it from the environment. The shim lives in
+# a subshell so this suite's own printf calls are untouched. The assertion is
+# non-vacuous: `date` must appear EXACTLY once in the trace, so a host where
+# the shim fails to import (and the builtin quietly succeeds) fails here rather
+# than passing without ever exercising the fallback.
+# resolve_no_t <home> <sid> <xtrace-log> → stdout word, resolved under the shim
+resolve_no_t() {
+  local home="$1" sid="$2" log="$3"
+  (
+    # shellcheck disable=SC2329,SC2059 # imported by the child bash, not called here; forwards the caller's format verbatim
+    printf() {
+      if [[ "${1:-}" == "-v" && "${3:-}" == *'%('*')T'* ]]; then return 1; fi
+      builtin printf "$@"
+    }
+    export -f printf
+    HOME="$home" BASH_XTRACEFD=9 bash -x "$ZONE" "$sid" 2>/dev/null 9>"$log"
+  )
+}
+FB_H="$WORK/h-fallback"
+write_snapshot "$FB_H" sfb 40
+write_snapshot "$FB_H" sfbold 40 "$(old_ts 20)"
+FB_LOG="$WORK/zone-xtrace-fallback.log"
+FB_OUT=$(resolve_no_t "$FB_H" sfb "$FB_LOG")
+if [[ "$FB_OUT" == "smart" ]]; then
+  ok "fallback: a fresh snapshot still resolves when printf has no %()T"
+else
+  fail "fallback: want smart without %()T, got '$FB_OUT'"
+fi
+FB_DATE=$(grep -cE '^\++ date ' "$FB_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$FB_DATE" == "1" ]]; then
+  ok "fallback: the clock comes from exactly one date process there"
+else
+  fail "fallback: $FB_DATE date process(es) without %()T, want exactly 1 (shim not imported?)"
+fi
+FB_OLD=$(resolve_no_t "$FB_H" sfbold "$WORK/zone-xtrace-fallback-stale.log")
+if [[ "$FB_OLD" == "unknown" ]]; then
+  ok "fallback: the staleness window still holds on the date clock"
+else
+  fail "fallback: stale snapshot want unknown without %()T, got '$FB_OLD'"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

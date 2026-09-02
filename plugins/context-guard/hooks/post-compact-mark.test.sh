@@ -167,6 +167,38 @@ else
   fail "temp file stranded at blocked path: $(ls -A "$BLOCKED")"
 fi
 
+# 13. The Bash 3.2 clock fallback. printf's %()T conversion arrived in bash
+# 4.2; on stock macOS 3.2 the builtin fails and binds nothing, and the marker
+# would record an empty compacted_at. Same emulation as context-zone.test.sh:
+# an exported function shadows the builtin for a %()T format under -v and
+# fails as 3.2's printf does, scoped to a subshell so this suite's own printf
+# calls are untouched. The trace must show `date` exactly once, so the case
+# cannot pass on a host where the shim fails to import and the builtin
+# quietly succeeds.
+FB_LOG="$WORK/compact-xtrace-fallback.log"
+(
+  # shellcheck disable=SC2329,SC2059 # imported by the child bash, not called here; forwards the caller's format verbatim
+  printf() {
+    if [[ "${1:-}" == "-v" && "${3:-}" == *'%('*')T'* ]]; then return 1; fi
+    builtin printf "$@"
+  }
+  export -f printf
+  builtin printf '%s' '{"session_id":"sfb","hook_event_name":"PostCompact","trigger":"auto"}' |
+    HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" \
+      BASH_XTRACEFD=9 bash -x "$HOOK" >/dev/null 2>/dev/null 9>"$FB_LOG"
+)
+if grep -Eq '"compacted_at":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"' "$MARK/sfb.compacted" 2>/dev/null; then
+  ok "fallback: compacted_at is still strict ISO-8601 UTC when printf has no %()T"
+else
+  fail "fallback: compacted_at without %()T: $(cat "$MARK/sfb.compacted" 2>/dev/null)"
+fi
+FB_DATE=$(grep -cE '^\++ date ' "$FB_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$FB_DATE" == "1" ]]; then
+  ok "fallback: the timestamp comes from exactly one date process there"
+else
+  fail "fallback: $FB_DATE date process(es) without %()T, want exactly 1 (shim not imported?)"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

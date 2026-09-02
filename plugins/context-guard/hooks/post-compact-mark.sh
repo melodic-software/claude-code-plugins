@@ -80,10 +80,15 @@ umask 077
 
 # printf's %()T format instead of `date`, the same idiom hook-utils uses for
 # its telemetry timestamp: identical string, no process. TZ=UTC overrides the
-# local zone so the trailing Z is not a lie. printf is a builtin here, so the
-# `||` fallback covers only a shell too old for %()T (bash below 4.2).
+# local zone so the trailing Z is not a lie. The %()T conversion arrived in
+# bash 4.2, and stock macOS ships 3.2, which these hooks support: there printf
+# fails and binds nothing, so the timestamp falls back to the `date` this line
+# replaced rather than recording an empty compacted_at. On 4.2+ the fallback is
+# never reached and the marker still costs no clock process.
 ts=""
-TZ=UTC printf -v ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || ts=""
+if ! TZ=UTC printf -v ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || [[ -z "$ts" ]]; then
+  ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || ts=""
+fi
 
 marker='{"compacted_at":"'"$(hook::json_escape "$ts")"'","trigger":"'"$TRIGGER"'","hook_event_name":"PostCompact"}'
 target="$CTX_DIR/$SESSION.compacted"

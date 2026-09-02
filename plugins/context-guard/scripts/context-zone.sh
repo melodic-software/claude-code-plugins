@@ -187,7 +187,17 @@ fi
 
 # `now` from the printf builtin rather than `date -u +%s`: same integer, no
 # process. The snapshot's own epoch is computed inside the jq pass below.
-printf -v now_epoch '%(%s)T' -1 2>/dev/null || unknown
+# The %()T conversion arrived in bash 4.2, and stock macOS ships 3.2, which
+# these scripts support: there printf fails and binds nothing, so the clock
+# falls back to the `date` this line replaced rather than resolving every
+# snapshot to unknown and silently disabling both hooks. The pre-assignment is
+# deliberate: under `set -u` a printf that never bound the variable would
+# otherwise abort the -z test. On 4.2+ the fallback is never reached and the
+# per-resolve budget the test suite asserts by trace still holds.
+now_epoch=""
+if ! printf -v now_epoch '%(%s)T' -1 2>/dev/null || [[ -z "$now_epoch" ]]; then
+  now_epoch=$(date -u +%s 2>/dev/null) || unknown
+fi
 [[ "$now_epoch" =~ ^[0-9]+$ ]] || unknown
 
 # One pass over the snapshot, carrying every gate and both band comparisons.

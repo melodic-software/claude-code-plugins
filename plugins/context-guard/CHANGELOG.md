@@ -57,6 +57,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that `zone-gate.sh` and its test suite invoke as an executable, and it signals through `exit`.
   Making it sourceable would change a public interface to save one process, and it is the only
   structural cut left on this path.
+- **The `%()T` clock keeps `date` as its fallback on a shell without it.** printf's `%()T`
+  conversion arrived in bash 4.2, and stock macOS ships 3.2, which this plugin supports. There the
+  builtin fails and binds nothing, so without a fallback every resolve answered `unknown`, which
+  silently disabled both the zone-crossing notice and the blocking gate, and the PostCompact marker
+  recorded an empty `compacted_at`. Both sites now try the builtin first and run the exact `date`
+  invocation they replaced only when it fails. On 4.2 and later the fallback is never reached, so
+  the process budgets above stand; both suites emulate the 3.2 printf with an exported shim and
+  assert by trace that `date` runs exactly once there.
+- **The state-marker reads are silent again when the file vanishes between the `-r` test and the
+  read.** `$(<file)` had lost the `2>/dev/null` the `tr` pipeline carried, so bash's own "No such
+  file" reached the hook's stderr in that window. The redirect now sits on a brace group around the
+  read. It cannot sit inside the substitution: a second redirection there turns the fast-path read
+  into a null command, and the marker would read as empty on every fire.
 
 ### Added
 

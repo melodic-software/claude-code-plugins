@@ -199,15 +199,21 @@ ARMED_FILE="$STATE_DIR/$SESSION.armed"
 # sibling-file note below depends on that). The class stays [:lower:] rather
 # than a-z so it remains locale-independent, and the 16-character truncation is
 # byte-identical to `head -c 16` once the content is lowercase-only.
+# The stderr redirect sits on the group, NOT inside the substitution: a file
+# removed between the -r test and the read makes bash print its own "No such
+# file" on the hook's stderr, which the old `2>/dev/null` on the pipeline
+# swallowed. `$(<file 2>/dev/null)` cannot take its place, because a second
+# redirection turns the fast-path read back into a null command and the
+# marker reads as empty on every fire.
 last=""
 if [[ -r "$STATE_FILE" ]]; then
-  last=$(<"$STATE_FILE") || last=""
+  { last=$(<"$STATE_FILE"); } 2>/dev/null || last=""
   last=${last//[^[:lower:]]/}
   last=${last:0:16}
 fi
 armed=""
 if [[ -r "$ARMED_FILE" ]]; then
-  armed=$(<"$ARMED_FILE") || armed=""
+  { armed=$(<"$ARMED_FILE"); } 2>/dev/null || armed=""
   armed=${armed//[^[:lower:]]/}
   armed=${armed:0:16}
 fi
