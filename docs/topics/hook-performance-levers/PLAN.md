@@ -669,6 +669,34 @@ Repo: claude-code-plugins. One PR (docs only) plus the final transcript proof.
    with each moved, gated, async or consolidated hook's evidence run pasted.
 4. Update this PLAN's phase tags to `[DONE]` and fill "Outcome".
 
+#### Constraint 1 mapping table (drafted 2026-09-02 evening against `main` at `9f07fb5fc`)
+
+Every hook command registered at the pre-program `main` (`f43bd07f9`, 49 entries across the
+seventeen measured plugins, captured in `baselines/pre-program-hooks.tsv`) and where it runs on
+the delivered `main` (52 entries, `baselines/phase7-merged-main-stated-check.tsv`). "Evidence" names
+the DEVIATIONS.md entry or the PR whose run shows the same decision as the baseline hook.
+
+| Baseline command (event) | Now | Evidence |
+|---|---|---|
+| guardrails `block-no-verify`, `block-dangerous-git`, `block-hook-bypass`, `flag-commit-pr-skill-bypass`, `block-noncanonical-commit`, `block-convention-violation`, `block-windows-drive-tmp`, `block-exported-msys-pathconv` (PreToolUse `Bash\|PowerShell`, eight processes) | one `run-guards.sh --lib lib/powershell/ps-command.sh ...` dispatcher process sourcing all eight, same matcher, no `if` | PR #3621 (`run-guards.test.sh` 66 cases: every guard still runs, exit 2 wins, one JSON document); 4a acceptance `v4a-guards` |
+| guardrails `secret-pattern-detection`, `hardcoded-path-check`, `block-windows-drive-tmp` (PreToolUse `Write\|Edit\|MultiEdit\|NotebookEdit`, three processes) | one `run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh` dispatcher, matcher widened to the union of the three | PR #3621; 4a acceptance |
+| guardrails `cli-flag-verify`, `skill-reference-verify`, `stale-path-verify` (PostToolUse `Write\|Edit`, three processes) | one `run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh` dispatcher | PR #3621; 4a acceptance (11 files, decisions byte-identical) |
+| guardrails `workflow-resilience-check` (PreToolUse `Workflow`) | unchanged | not in the always-on set |
+| context-guard `zone-crossing-inject` (PostToolBatch, UserPromptSubmit), `zone-gate` (PreToolUse), `post-compact-mark` (PostCompact) | unchanged registrations, timeouts 60 kept (#3662 evaluated 15 and rejected); script hot paths cut | 4d acceptance `v4d-context-guard` (eleven-scenario capture byte-identical, 103-input resolver differential); #3671 review fixes (`printf %()T` with `date` fallback, silent marker reads) |
+| rate-limit-guard `record-rate-limit-stop` (StopFailure `rate_limit`) | unchanged; the statusline tee (not a hook) skips unchanged snapshots | 7 acceptance `v7-statusline` (112 then 125 cases, passthrough byte-identical) |
+| typos-format, eol-normalizer, markdown-format (PostToolUse `Write\|Edit...`) | unchanged registrations (markdown-format keeps its two `Edit(*.md)` and `Edit(*.mdc)` rows); benign paths cut | 4c acceptance `v4c-write-hooks` (21 decision comparisons identical on stdout, stderr, exit code, bytes); #3675 review fixes (`/` for a root-level file) |
+| instruction-placement `index-drift` (PostToolUse `Write\|Edit`) | same entry plus `if: Edit(**/.claude/rules/*.md)`, the hook's own first check | PR #3621 (3 acceptance `v3-if-gates`); phase 5 `index-drift.test.sh` 17 cases on a `C:/` path |
+| source-control `pr-body-linkage-gate` (PreToolUse `Bash`) | same entry plus `if: Bash(*gh *)` (widened from `Bash(gh *)` in review so `env`, `sudo` and `bash -c` wrappers still launch it) | PR #3621 thread fixes `87931d60b`; `pr-body-linkage-gate.test.sh` wrapper cases |
+| source-control `worktree-add-containment-gate` (PreToolUse `Bash`), `worktree-add-claim-gate` (PostToolUse `Bash`) | same entries plus `if: Bash(*worktree*)` | PR #3621; 3 acceptance |
+| source-control `pr-linkage-mcp-gate` (PreToolUse mcp matcher), `worktree-create-gate` (WorktreeCreate) | unchanged | not always-on |
+| disk-hygiene engine gate (PreToolUse `Bash\|PowerShell`, one entry) | two entries: `matcher: Bash` with `if: Bash(*hygiene.py*)`, `matcher: PowerShell` with no `if` (a PowerShell rule must match every subcommand, so a kill-switch cannot be gated that way) | PR #3621 thread fixes `27e37309e` (`test_hygiene.py` pins the per-tool shape); hooks doc Windows example |
+| disk-hygiene `guard_launch_monitor` (Stop) | unchanged | not changed |
+| context-budget `settings-write-ask.mjs` (PreToolUse `Write\|Edit\|MultiEdit\|NotebookEdit`) | unchanged; an `if` was probed and rejected because Windows `if` file rules never match an absolute path outside cwd | 3 acceptance; DEVIATIONS.md live probe (`hook-probe/logs`) |
+| claude-ops nine audit hooks | unchanged (timeouts recorded, matchers documented) | 3 acceptance |
+| actionlint, bash-format, biome-format, go-format, powershell-format, ruff-format (PostToolUse `Write\|Edit`, one entry each) | same command, one entry per extension with `if: Edit(*.ext)` (the permissions doc checks file rules against `Edit` and `Read` only, so `Edit(...)` covers `Write`) | PR #3621; 3 acceptance; harness rows show `SKIPPED(if=...)` on the `.md` sample and `RAN` on a matching extension |
+
+Async: no row anywhere (phase 2 closed "measured, not applied"). Moved events: none. Removed: none.
+
 **Sanity Check:**
 
 - `grep -c 'spawn-equivalent' docs/conventions/hook-budget/README.md` is at least 1 and the file
