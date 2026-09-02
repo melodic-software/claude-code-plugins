@@ -392,6 +392,12 @@
       "tags": ["verification", "outcome", "baseline", "measure", "verify", "skill"]
     },
     {
+      "name": "performance",
+      "source": "./plugins/performance",
+      "category": "verification",
+      "tags": ["performance", "benchmarking", "baseline", "measurement", "optimization", "noise-characterization", "drift-immune-counter", "interleaved-ab", "skill"]
+    },
+    {
       "name": "kindle-dedrm",
       "displayName": "Kindle DeDRM",
       "source": "./plugins/kindle-dedrm",

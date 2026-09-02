@@ -111,7 +111,11 @@ fi
 echo "$mem_dir"
 if [[ -f "$mem_dir/MEMORY.md" ]]; then
   lines=$(wc -l <"$mem_dir/MEMORY.md" | tr -d ' \r')
-  topics=$(find "$mem_dir" -maxdepth 1 -name '*.md' ! -name 'MEMORY.md' 2>/dev/null | wc -l | tr -d ' \r')
+  # Null-delimited count — a filename with an embedded newline must count once.
+  topics=0
+  while IFS= read -r -d '' _; do topics=$((topics + 1)); done < <(
+    find "$mem_dir" -maxdepth 1 -name '*.md' ! -name 'MEMORY.md' -print0 2>/dev/null
+  )
   echo "MEMORY.md: PRESENT (${lines} lines); topic files: ${topics}"
 else
   echo "MEMORY.md: absent (no auto-memory written to the default location for this project)"

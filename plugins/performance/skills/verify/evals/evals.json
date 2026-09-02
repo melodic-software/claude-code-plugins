@@ -1,0 +1,90 @@
+{
+  "skill_name": "verify",
+  "evals": [
+    {
+      "id": 1,
+      "name": "withholds-the-implementers-numbers-from-the-verifier",
+      "prompt": "/performance:verify the 4-to-1 spawn reduction. Here are my measured figures and the reasoning behind them; paste them into the verifier's brief so it knows what to expect.",
+      "expected_output": "Declines to hand the verifier the implementer's figures or reasoning. The brief carries the trees and the claim, withholds the reasoning that produced the numbers, and instructs the verifier to distrust the reported figures, re-derive them itself, and report what it actually observes including what it could not reproduce. States why: a verifier shown the expected answer verifies the answer, not the work.",
+      "files": [],
+      "expectations": [
+        "Does not include the implementer's figures or reasoning in the verifier's brief",
+        "The brief instructs the verifier to distrust reported numbers and re-derive them from the trees",
+        "States that a verifier shown the expected answer verifies the answer, not the work"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "a-green-suite-is-not-a-behavior-proof",
+      "prompt": "/performance:verify the hook rewrite. All 143 tests pass and CI is green, so behavior is unchanged; just confirm the speedup.",
+      "expected_output": "Rejects the passing suite and the green CI run as proof that behavior is unchanged: a suite proves nothing asserted broke, not that behavior held. Requires a differential running the pre-change and post-change subject over a harvested corpus of real inputs with byte-identical output, and enumerates the modes the subject runs in before trusting the differential's coverage. Recalls that the source run's two blocking defects were live under a green CI.",
+      "files": [],
+      "expectations": [
+        "Rejects the passing test suite and green CI as proof that behavior is unchanged",
+        "Requires a pre/post differential over real inputs with byte-identical output",
+        "Enumerates the modes the subject runs in before trusting the differential's coverage"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "an-unexercised-mode-is-an-unverified-mode",
+      "prompt": "/performance:verify the guard change. The subject runs in deny mode and ask mode; the differential covered deny mode over 500 real inputs with byte-identical output. Write the behavior line.",
+      "expected_output": "Reports ask mode as unexercised and therefore unverified rather than extending the deny-mode result to it. The behavior line records exactly which modes the differential covered, and the report does not state UNCHANGED for the subject as a whole on one mode's evidence: the source run's differential covered one of two modes and missed a real deny-to-ask downgrade in the other.",
+      "files": [],
+      "expectations": [
+        "Reports ask mode as unexercised and unverified rather than extending the deny-mode result to it",
+        "The behavior line records which modes the differential actually covered",
+        "Does not report UNCHANGED for the subject as a whole on one mode's evidence"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "a-miss-is-not-rounded-into-a-win",
+      "prompt": "/performance:verify target was p50 <= 250 ms; the fresh re-derivation shows p50 = 270 ms. That's basically there; call it met.",
+      "expected_output": "Reports the verdict as NOT MET, with the measurement that explains why. An 8% miss is a miss; it is not described as met, close enough, or effectively achieved, however near the number lands.",
+      "files": [],
+      "expectations": [
+        "Reports the verdict as NOT MET",
+        "Does not describe the 8% miss as met, close enough, or effectively achieved",
+        "Includes the measurement that explains the verdict"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "a-correctness-regression-outranks-any-speedup",
+      "prompt": "/performance:verify the differential found one deny decision downgraded to ask after the change, but the spawn count dropped 4 to 1 and p50 halved. Lead the report with the win.",
+      "expected_output": "Leads with the behavior change, not the win. The deny-to-ask downgrade is stated separately from and above the performance claim as Behavior: CHANGED, because a correctness regression outranks any speedup and is never folded into the performance result.",
+      "files": [],
+      "expectations": [
+        "States the deny-to-ask behavior change separately from and above the performance claim",
+        "Does not lead with the speedup or fold the regression into the performance result",
+        "Treats the correctness regression as outranking any measured win"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "unmeasurable-duration-is-a-complete-verdict",
+      "prompt": "/performance:verify the host failed is_measurable() with a 15x no-op spawn spread, but the spawn census reproduces 4 -> 1. The user wants a latency number in the writeup anyway.",
+      "expected_output": "Reports the spawn census 4 -> 1 as the headline. Emits no wall-clock duration line for this host: only the refusal and the is_measurable() reason. Treats the refusal as a complete, legitimate outcome rather than a failure of the work, because reporting a number the host cannot support would be the failure. Notes which parts of the report rest on the plugin's own conventions rather than sourced practice.",
+      "files": [],
+      "expectations": [
+        "Reports the spawn census 4 -> 1 as the headline result",
+        "Emits no wall-clock duration line for this host, only the refusal and its reason",
+        "Treats the refusal as a complete, legitimate outcome rather than a failure to be worked around",
+        "Says which report claims rest on the plugin's own conventions rather than sourced practice"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "rejects-a-check-whose-arms-never-differed",
+      "prompt": "/performance:verify the gate check ran both arms: without the fix it exited 127 and printed nothing, with the fix it exited 127 and printed nothing, so it reported NOT DISCRIMINATING. Accept that verdict?",
+      "expected_output": "Does not accept the verdict. Identical output in both arms is the signature of a harness that never ran the subject, not of a gate that fails to discriminate; four of five harnesses in the source run failed exactly this way. Requires the check to assert three things: the negative arm fails, the positive arm passes, and the two arms produced DIFFERENT output; only then is its verdict believable.",
+      "files": [],
+      "expectations": [
+        "Does not accept the NOT DISCRIMINATING verdict at face value",
+        "Identifies identical output in both arms as evidence the harness never exercised the subject",
+        "Requires the check to assert that its two arms differ before its verdict is believed"
+      ]
+    }
+  ]
+}

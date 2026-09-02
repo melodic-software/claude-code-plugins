@@ -117,8 +117,11 @@ chmod +x "$CB_STUB_DIR/curl"
   exit $rc
 ) >/dev/null 2>&1
 assert_eq "clean-at-start completes when the provider answers" "0" "$?"
-assert_eq "…and archives the issue it found" "1" \
-  "$(grep -c 'issueArchive' "$CB_LOG" 2>/dev/null || echo 0)"
+# grep -c prints 0 and exits 1 on no matches (POSIX: 1 = no lines selected),
+# so `|| echo 0` would append a second 0 and corrupt assert_eq's "got".
+# Capture the count first; default only when grep produced no stdout (missing file).
+archive_count="$(grep -c 'issueArchive' "$CB_LOG" 2>/dev/null || true)"
+assert_eq "…and archives the issue it found" "1" "${archive_count:-0}"
 # The scope is <workspace>/<TEAMKEY> but Linear's filter takes the TEAM KEY alone.
 # Sending the whole scope would silently match nothing and "clean" an empty set, which
 # looks exactly like a successful cleanup — so assert the split, not just its presence.

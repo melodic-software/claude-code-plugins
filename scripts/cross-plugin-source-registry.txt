@@ -35,3 +35,15 @@ lib/state-key.sh
 # single-plugin path fails as stale), so uncomment the line below when a
 # second plugin consumes it.
 # scripts/index-regen.sh
+
+# Dedicated check: scripts/sync-spawn-noise.sh --check (CI: spawn-noise-sync)
+lib/spawn_noise.py
+
+# Dedicated check: scripts/sync-check-retirements.sh --check (CI: check-retirements-sync)
+lib/check-retirements.sh
+
+# Dedicated check: scripts/sync-legacy-statusline-detect.sh --check (CI: legacy-statusline-detect-sync)
+skills/setup/reference/legacy-statusline-detect.md
+
+# Dedicated check: scripts/sync-resolve-convention-home.sh --check (CI: resolve-convention-home-sync)
+lib/resolve-convention-home.sh

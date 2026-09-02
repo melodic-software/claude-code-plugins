@@ -20,7 +20,7 @@
       "expected_output": "Routes the fix to Claude Code's own configuration surface — /plugin configure knowledge interactively, or headless a plain claude plugin install ... --config library_dir=<value> rerun at the scope claude plugin list reports — and rules out uninstalling to reconfigure; it never hand-edits pluginConfigs or Claude Code settings, and defers verification of the new value to a fresh session.",
       "expectations": [
         "Does not write library_dir into any settings or pluginConfigs file",
-        "Headless path is a plain `claude plugin install ... --config` rerun against the already-installed plugin, carrying the CLI version the claim was verified on — the literal 2.1.240 — and scoping it to a non-sensitive option at user scope",
+        "Headless path is a plain `claude plugin install ... --config` rerun against the already-installed plugin, citing the marketplace's plugin-reconfiguration convention as the owner of the verified-version record and stating the scope rule (`-s` defaults to `user`; pass the scope `claude plugin list` reports)",
         "Never prescribes `claude plugin uninstall` as the way to reconfigure, and gives the reason: uninstalling drops the whole stored pluginConfigs entry, resetting every option to its manifest default",
         "Recommends a portable value form (~ prefix or env-var reference) over a literal machine path",
         "Does not claim the changed value is in effect this session"

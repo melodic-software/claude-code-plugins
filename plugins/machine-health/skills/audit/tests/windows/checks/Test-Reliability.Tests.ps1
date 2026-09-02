@@ -80,4 +80,23 @@ Describe 'Test-Reliability -- severity rubric' -Tag 'check' {
         $result = Invoke-ReliabilityAsObject
         $result.severity | Should -Be 'CRIT'
     }
+
+    It 'renders n/a when the stability average is null and records exist' {
+        Mock Get-CimInstance {
+            if ($ClassName -eq 'Win32_ReliabilityStabilityMetrics') {
+                [pscustomobject]@{
+                    TimeGenerated        = (Get-Date).AddDays(-1)
+                    SystemStabilityIndex = $null
+                }
+            } else {
+                @(
+                    New-MockReliabilityRecord -SourceName 'Application Error' -ProductName 'MockApp'
+                )
+            }
+        }
+        $result = Invoke-ReliabilityAsObject
+        $result.severity | Should -Be 'INFO'
+        $result.summary | Should -Match 'stability avg n/a'
+        $result.summary | Should -Not -Match 'avg  /'
+    }
 }

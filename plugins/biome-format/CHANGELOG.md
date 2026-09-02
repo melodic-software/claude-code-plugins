@@ -3,7 +3,7 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.27]
+## [0.6.28]
 
 ### Changed
 
@@ -11,6 +11,14 @@ All notable changes to the `biome-format` plugin are documented here. Format fol
   `Edit(*.tsx)`, `Edit(*.js)`, `Edit(*.jsx)`, `Edit(*.mjs)`, `Edit(*.cjs)`, `Edit(*.mts)`,
   `Edit(*.cts)`, `Edit(*.json)`, `Edit(*.jsonc)`), so a Write/Edit of any other file no
   longer spawns it; behavior on those files is unchanged.
+
+## [0.6.27]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
 
 ## [0.6.26]
 

@@ -43,6 +43,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |
 | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) | `discovery` | Reconstruct why a thing was built this way, from evidence outside the code |
+| [`/performance:target`](../plugins/performance/skills/target/SKILL.md) | `performance` | Rank optimization candidates by evidence quality, not suspicion |
 
 ## 2. Research
 
@@ -63,6 +64,7 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 | [`/event-storming:methodology`](../plugins/event-storming/skills/methodology/SKILL.md) | `event-storming` | EventStorming facilitation reference across all three formats |
 | [`/event-storming:simulation`](../plugins/event-storming/skills/simulation/SKILL.md) | `event-storming` | Multi-persona agentic EventStorming workshop on Miro |
 | [`/naming:name-it-better`](../plugins/naming/skills/name-it-better/SKILL.md) | `naming` | Generate and evaluate name candidates from blind fresh-context lenses |
+| [`/performance:goal`](../plugins/performance/skills/goal/SKILL.md) | `performance` | Build a goal with realistic and ideal targets plus a computed floor |
 | [`/planning:design`](../plugins/planning/skills/design/SKILL.md) | `planning` | Resolve types, contracts, and module boundaries before planning |
 | [`/planning:design-handoff`](../plugins/planning/skills/design-handoff/SKILL.md) | `planning` | Gate a finished design and package it for planning |
 | [`/planning:devils-advocate`](../plugins/planning/skills/devils-advocate/SKILL.md) | `planning` | Stress-test a plan or the incumbent approach adversarially |
@@ -118,6 +120,8 @@ owned by [docs/CATALOG-TAXONOMY.md](CATALOG-TAXONOMY.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/performance:snapshot`](../plugins/performance/skills/snapshot/SKILL.md) | `performance` | Capture a snapshot only from a host proven measurable |
+| [`/performance:verify`](../plugins/performance/skills/verify/SKILL.md) | `performance` | Re-derive the result in fresh context and report it honestly |
 | [`/toolchain:check`](../plugins/toolchain/skills/check/SKILL.md) | `toolchain` | Build, test, and lint changed files across detected ecosystems |
 | [`/toolchain:lint`](../plugins/toolchain/skills/lint/SKILL.md) | `toolchain` | Polyglot lint and format checks without a full build |
 | [`/verification:confirm`](../plugins/verification/skills/confirm/SKILL.md) | `verification` | Prove the change achieved its intended outcome with evidence |

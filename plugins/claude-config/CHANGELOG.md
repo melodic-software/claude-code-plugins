@@ -3,6 +3,48 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.30]
+
+### Changed
+
+- Phase 2d pilot wiring. `lib/resolve-convention-home.sh` gains its sync cluster (`scripts/sync-resolve-convention-home.sh`, first carrier: plugin-quality) and its shared-source header note now cites the cross-plugin source registry instead of the pre-carrier placeholder wording.
+
+## [0.40.29]
+
+### Changed
+
+- **`lib/check-retirements.sh`:** optional `heading` field on `kind: line` restricts detection and `--clean` to the body of matching ATX sections (retired-conventions contract 1.1). A standalone line that matches `match` outside that heading is not a leftover.
+
+## [0.40.28]
+
+### Changed
+
+- New retired-conventions mechanism (customization-consistency Phase 2b): canonical `lib/check-retirements.sh` + tests (manifest-driven detection/cleanup of retired consumer conventions), `lib/resolve-convention-home.sh` + tests (AGENTS.md pointer-line resolver), and an audit-pass fleet-sweep lane over installed plugins' `retirements.yaml`. File and line `--clean` re-resolve the parent with `pwd -P` and refuse a target that lands outside `--root` (the dir branch already did). The contract validator matches the helper's separator, quote-stripping, path grammar, and complete retirement-id eval coverage.
+
+## [0.40.27]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
+## [0.40.26]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside `identity="local/$(hash12 ...)"`, which POSIX XCU 2.6.3 executes in a subshell, so only that substitution died. Under `set -uo pipefail` (no `-e`) the script continued and printed a malformed key (`local//...`) at exit 0. The tool check now sits in the main script body, before any hash assignment. Canonical source for the six-plugin cluster; copies updated via `scripts/sync-state-key.sh`.
+
+## [0.40.25]
+
+### Fixed
+
+- **`audit`: `fix-plugin-drift.sh` no longer crashes on a trailing bare `--input`.** Under
+  `set -u`, a missing option-argument dereferenced `$2` and exited 1 with an unbound-variable
+  error. A missing value now prints `Missing value for --input` to stderr and exits 2, matching
+  the script's other argument-validation errors.
+
 ## [0.40.24]
 
 ### Changed

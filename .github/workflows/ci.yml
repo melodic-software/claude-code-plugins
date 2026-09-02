@@ -609,6 +609,86 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-state-key.sh --check-bump "origin/$BASE_REF"
 
+  spawn-noise-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify spawn-noise cluster matches canonical
+        run: scripts/sync-spawn-noise.sh --check
+      - name: Run spawn-noise tests
+        run: bash plugins/claude-ops/lib/spawn_noise.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-spawn-noise.sh --check-bump "origin/$BASE_REF"
+
+  check-retirements-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify check-retirements cluster matches canonical
+        run: scripts/sync-check-retirements.sh --check
+      - name: Run check-retirements tests
+        run: bash plugins/claude-config/lib/check-retirements.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-check-retirements.sh --check-bump "origin/$BASE_REF"
+
+  legacy-statusline-detect-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify legacy-statusline-detect cluster matches canonical
+        run: scripts/sync-legacy-statusline-detect.sh --check
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-legacy-statusline-detect.sh --check-bump "origin/$BASE_REF"
+
+  resolve-convention-home-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify resolve-convention-home cluster matches canonical
+        run: scripts/sync-resolve-convention-home.sh --check
+      - name: Run resolve-convention-home tests
+        run: bash plugins/claude-config/lib/resolve-convention-home.test.sh
+      - name: Run the plugin-quality pilot consumer-repo sim
+        run: bash scripts/pilot-plugin-quality-sim.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-resolve-convention-home.sh --check-bump "origin/$BASE_REF"
+
   resolve-convention-pattern-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1384,6 +1464,13 @@ jobs:
         run: bash scripts/validate-plugin-contracts.test.sh
       - name: Validate plugin and catalog manifests
         if: needs.scope.outputs.run_full == 'true'
+        # validate-plugins.sh runs scripts/validate-plugin-contracts.mjs, whose
+        # retirements append-only check diffs each plugins/*/retirements.yaml
+        # against this ref and skips (with a notice) when it is unset. The
+        # checkout-with-base step above already deepens history and fetches
+        # origin/<base_ref> on pull_request, so the ref resolves here.
+        env:
+          VALIDATE_CONTRACTS_BASE_REF: origin/${{ github.base_ref || 'main' }}
         run: scripts/validate-plugins.sh
       - name: Report not applicable to a docs-only diff
         if: needs.scope.outputs.run_full == 'false'
@@ -1729,6 +1816,10 @@ jobs:
       - parse-concern-value-sync
       - managed-scope-sync
       - state-key-sync
+      - spawn-noise-sync
+      - check-retirements-sync
+      - legacy-statusline-detect-sync
+      - resolve-convention-home-sync
       - resolve-convention-pattern-sync
       - index-regen-sync
       - standards-contract-sync

@@ -90,6 +90,53 @@ describe("acquireYouTubeMedia", () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain("ladder exhausted");
   });
+
+  it("classifies a bare .en.vtt as platform-asr when the source declares that class", async () => {
+    const workDir = "/tmp/fake-work";
+    const videoId = "1001551417340022785";
+    const infoJson = JSON.stringify({
+      id: videoId,
+      title: "Platform ASR Video",
+      description: "desc",
+      chapters: [],
+      comments: [],
+    });
+
+    const result = await acquireYouTubeMedia(
+      `https://www.youtube.com/watch?v=${videoId}`,
+      {
+        workDir,
+        mode: "transcript",
+        videoId,
+        source: { captionClass: "platform-asr" },
+      },
+      {
+        ...NO_THROTTLE,
+        spawn: async () => ({
+          success: true,
+          code: 0,
+          signal: null,
+          stdout: "",
+          stderr: "",
+          timedOut: false,
+        }),
+        listFiles: async () => [
+          `${workDir}/${videoId}.en.vtt`,
+          `${workDir}/${videoId}.info.json`,
+        ],
+        readFile: async (filePath) => {
+          if (filePath.endsWith(".info.json")) return infoJson;
+          return "WEBVTT\n\n";
+        },
+      },
+    );
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data?.caption.rung).toBe("platform-asr-en");
+      expect(result.data?.caption.isAutoCaption).toBe(true);
+    }
+  });
 });
 
 describe("listWorkDirFiles", () => {

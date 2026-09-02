@@ -130,7 +130,7 @@ done
 checked=0
 failed=0
 
-for skill_dir in "${changed[@]}"; do
+for skill_dir in ${changed[@]+"${changed[@]}"}; do
   # A deletion/rename-away leaves no SKILL.md in the tree — not a regression to
   # gate (and the checker would FAIL "not found"). Skip those.
   [[ -f "$skill_dir/SKILL.md" ]] || continue
@@ -149,7 +149,7 @@ for skill_dir in "${changed[@]}"; do
   if ! CHECK_SKILL_SKILLS_ROOT="$PWD/$skills_root" \
     CHECK_SKILL_BASE_REF="$BASE" \
     CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
-    bash "$CHECKER" "${require_evals_args[@]}" "$skill_name"; then
+    bash "$CHECKER" ${require_evals_args[@]+"${require_evals_args[@]}"} "$skill_name"; then
     failed=$((failed + 1))
   fi
 done

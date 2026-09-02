@@ -31,7 +31,7 @@ config). No action given: run `check`, then offer `apply` if anything is missing
    | Layer | Verdict to check |
    |---|---|
    | user-global | exists / absent. No git verdict applies outside the worktree |
-   | team | must be tracked in git; untracked team config is a hard finding |
+   | team | must be tracked in git, probed as the pair (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0); untracked team config is a hard finding |
    | local overlay | must be gitignored and never staged |
 
    All three layers absent is a **valid state**, reported as "unconfigured: routing resolves to
@@ -73,6 +73,10 @@ config). No action given: run `check`, then offer `apply` if anything is missing
      never overwrite or append to a consumer's existing conventions.
 4. **Idempotency check**: when the merged answers equal the existing config, report "no changes
    needed" and write nothing. A second run with the same answers must produce zero file changes.
+   After a team-layer write, re-run the tracked-file pair on each written path
+   (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0); non-zero `ls-files`
+   right after a fresh write means "written but untracked: commit it to share with the team",
+   never success.
 5. **Recommend** the recursive gitignore line (`.claude/**/*.local.*`) if the consumer's
    `.gitignore` lacks it. The edit is theirs to make.
 

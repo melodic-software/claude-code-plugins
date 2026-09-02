@@ -41,7 +41,7 @@
 # Exit codes:
 #   0  success (zero or more comments emitted)
 #   1  invalid argument
-#   2  gh api call failed
+#   2  gh api call failed, or jq failed parsing a surface or merging
 #   5  prerequisite missing (gh, jq)
 
 set -uo pipefail # -e omitted: gh api failures explicitly guarded with || { exit N }
@@ -205,11 +205,17 @@ fetch_surface "pulls/$PR_NUMBER/comments" '
 INLINE="$SURFACE_JSON"
 
 # --- Merge and sort by created_at --------------------------------------------
-
+# Empty surfaces are a legitimate PR (no comments on that surface). `[[ -n ]] &&
+# printf` returns 1 when empty, and with `set -o pipefail` that fails the merge
+# pipeline even when jq succeeded. `if` returns 0 when no condition tested true
+# (bash(1) Compound Commands), so an empty source is not a pipeline failure.
+# jq merge failure is: map it to exit 2 rather than jq's native parse-error 5,
+# which this script already documents as "prerequisite missing (gh, jq)".
 {
-  [[ -n "$GENERAL" ]] && printf '%s\n' "$GENERAL"
-  [[ -n "$REVIEWS" ]] && printf '%s\n' "$REVIEWS"
-  [[ -n "$INLINE" ]] && printf '%s\n' "$INLINE"
-} | jq -s 'sort_by(.created_at)'
-
-exit 0
+  if [[ -n "$GENERAL" ]]; then printf '%s\n' "$GENERAL"; fi
+  if [[ -n "$REVIEWS" ]]; then printf '%s\n' "$REVIEWS"; fi
+  if [[ -n "$INLINE" ]]; then printf '%s\n' "$INLINE"; fi
+} | jq -s 'sort_by(.created_at)' || {
+  printf 'fetch-all-pr-comments: jq merge failed\n' >&2
+  exit 2
+}

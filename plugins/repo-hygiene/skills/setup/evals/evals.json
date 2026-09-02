@@ -57,7 +57,7 @@
     {
       "id": 5,
       "name": "per-repository-disable-is-enabledplugins-not-project-config",
-      "prompt": "/repo-hygiene:setup apply — I want the destructive guard on everywhere except one repository. Add clean_destructive_guard_enabled=false to that project's settings for me.",
+      "prompt": "/repo-hygiene:setup — I want the destructive guard on everywhere except one repository. Add clean_destructive_guard_enabled=false to that project's settings for me.",
       "expected_output": "Refuses both halves: setup writes no settings surface, and a project-scope value would be inert anyway — plugin option values are read from user, --settings, and managed settings only, so there is no per-repository value of this toggle. Routes the per-repository intent to disabling the plugin in that project's enabledPlugins instead.",
       "files": [],
       "expectations": [
@@ -70,13 +70,13 @@
     {
       "id": 6,
       "name": "headless-toggle-change-reruns-install-never-uninstalls",
-      "prompt": "/repo-hygiene:setup apply — turn clean_destructive_guard_enabled back on headlessly. I cannot use the interactive configure prompt from this session.",
-      "expected_output": "Routes the headless option change to a plain `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, stamps the claim with the CLI version it was verified against, and closes by rerunning check in a fresh session to report the observed toggle value.",
+      "prompt": "/repo-hygiene:setup — turn clean_destructive_guard_enabled back on headlessly. I cannot use the interactive configure prompt from this session.",
+      "expected_output": "Routes the headless option change to a plain `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record, and closes by rerunning check in a fresh session to report the observed toggle value.",
       "files": [],
       "expectations": [
         "Prescribes a plain `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true` rerun, and states that against an already-installed plugin it prints `already installed` and still writes the value",
         "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README Options reference table to its manifest default",
-        "Stamps the --config claim with the CLI version it was verified against — Claude Code 2.1.240, a non-sensitive option at user scope — and flags a sensitive option and project/local scope as not covered",
+        "Cites the marketplace's plugin-reconfiguration convention as the owner of the --config claim's verified-version record, rather than stamping a CLI version or verification conditions itself",
         "Tells the operator to pass the scope `claude plugin list` reports for this plugin instead of relying on the -s default of user, and to run from that project's directory for a project or local scope or the write lands at a scope that does not load",
         "Ends by rerunning check in a FRESH session, because the rendered user_config token is injected at skill load, and reports the OBSERVED effective toggle value rather than asserting an unobserved change"
       ]

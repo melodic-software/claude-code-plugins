@@ -324,8 +324,10 @@ After an affirmative answer in this interactive session, run only:
 ```
 
 Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call. The
-skill-frontmatter belt blocks those bypasses and forces one final permission prompt for the exact engine
-apply command; confirm it only when it matches the tier and paths just approved. If the plan, snapshot,
+skill-frontmatter belt blocks those bypasses and returns a hook-issued `ask`
+(`permissionDecision: "ask"`) for the exact engine apply command — the same mechanism as the
+PowerShell deletion lane below, including the `dontAsk` / `permissions.ask` caveats. Confirm that
+prompt only when it matches the tier and paths just approved. If the plan, snapshot,
 path identity, descendant set, VCS state, or handle state changed, re-scan and re-ask; never reuse a
 token.
 
@@ -375,9 +377,16 @@ and the residual fail-open → "Hook launch form".
   interpreter. Do supporting inspection with non-Bash read-only tools. Shell expansions, globs,
   splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
-  invocations, and turning known deletion spellings into a final human permission prompt. It is a
-  raised bar, not a fail-closed lane, its flagged set is enumerated, so an unflagged mutation
-  spelling passes it. The engine's own containment and the Bash lane remain the deletion authority.
+  invocations, and turning known deletion spellings into a hook-issued `ask`
+  (`permissionDecision: "ask"`). Official PreToolUse docs say that value prompts the user to
+  confirm and, since v2.1.211, forces the prompt even in auto mode (the classifier can still
+  deny, but cannot silently approve). An explicit `permissions.ask` rule for those deletion
+  spellings is what the same docs treat as forcing a prompt in `auto` and `bypassPermissions`;
+  in `dontAsk` that rule is denied with no prompt, so leave `dontAsk` first if the per-path
+  handoff confirm must appear. Add one if the manual handoff must not depend on hook-`ask`
+  surfacing. The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
+  unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
+  the deletion authority.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

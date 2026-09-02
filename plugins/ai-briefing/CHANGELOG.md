@@ -3,6 +3,31 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.20]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.7.19]
+
+### Fixed
+
+- **Stop advertising a phantom `*.local.*` overlay (#3580).** Setup no longer recommends
+  `.claude/ai-briefing/**/*.local.*` (and does not switch that recommendation to the
+  recursive `.claude/**/*.local.*` line). `sources.md`, `audience.md`, and `brand.json`
+  are team-tracked profile files. Named profile selection (`--profile` /
+  `active_profile` / `.claude/ai-briefing/<name>/`) is not a config-cascade overlay
+  layer. This surface is team-only; there is no local overlay to gitignore or resolve.
+
+## [0.7.18]
+
+### Changed
+
+- `setup` (and the README/reference docs) now recommend config-cascade's mandated recursive `.claude/**/*.local.*` gitignore line for personal overlays instead of a narrow or bespoke spelling (#3582, customization-consistency Phase 1a).
+
 ## [0.7.17]
 
 ### Changed

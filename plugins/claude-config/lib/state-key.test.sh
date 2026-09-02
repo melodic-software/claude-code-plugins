@@ -171,6 +171,30 @@ rc=0
 bash "$SCRIPT" --root >/dev/null 2>&1 || rc=$?
 assert_exit "case 12: --root with no value exits 2" 2 "$rc"
 
+# --- Case 13: neither sha256sum nor shasum exits 2 and prints no key ----------
+# git/tr/head stay on PATH so the local rung is reachable; the digest tools do
+# not. Before the probe sat in the main script, this printed `local//` at 0.
+real_bash=$(command -v bash)
+nohash="$TEST_TMPDIR/nohash-bin"
+mkdir -p "$nohash"
+for cmd in git tr head sed grep cut; do
+  src=$(command -v "$cmd") || continue
+  ln -s "$src" "$nohash/$cmd"
+done
+r="$(mkrepo no-hash-tools)"
+rc=0
+PATH="$nohash" "$real_bash" "$SCRIPT" --root "$r" \
+  >"$TEST_TMPDIR/nohash.out" 2>"$TEST_TMPDIR/nohash.err" || rc=$?
+err=$(cat "$TEST_TMPDIR/nohash.err")
+assert_exit "case 13: missing hash tool exits 2" 2 "$rc"
+if [[ ! -s "$TEST_TMPDIR/nohash.out" ]]; then
+  pass "case 13: prints no key"
+else
+  fail "case 13: prints no key" "stdout was [$(cat "$TEST_TMPDIR/nohash.out")]"
+fi
+assert_contains "case 13: documented error" "$err" \
+  "ERROR: no sha256sum or shasum on PATH"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

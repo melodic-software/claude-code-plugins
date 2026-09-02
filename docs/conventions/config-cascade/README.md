@@ -13,13 +13,15 @@ This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md
 
 ## Boundary — this contract owns the axis, never the keys
 
-It governs **layering and precedence only**. Which keys a config surface has, what they mean, and how
-they are validated belong to that concern's own owner doc under `docs/conventions/<concern>/`, or to
-the plugin's own bundled reference. The two compose: a per-concern doc declares its keys and points
-here for how its layers merge.
+It governs **layering, precedence, overlay naming, and (from contract 1.2) expression form**.
+Which keys a config surface has, what they mean, and how they are validated belong to that
+concern's own owner doc under `docs/conventions/<concern>/`, or to the plugin's own bundled
+reference. The two compose: a per-concern doc declares its keys and points here for how its
+layers merge and which expression form the surface uses.
 
 The distinction is what keeps this doc from colliding with the one-owner-doc-per-shared-concern rule.
-Layering is a genuinely cross-cutting axis every config surface shares; keys are not.
+Layering and expression form are genuinely cross-cutting axes every config surface shares; keys
+are not.
 
 ## The layers
 
@@ -110,15 +112,84 @@ surface is covered.
 ```
 
 That is the whole convention — **one line, recursive form, for every surface**. `.claude/**/` matches
-zero or more directories, so this single rule covers a flat `.claude/source-control.local.md`, a
-one-deep `.claude/ecosystems/python.local.yaml`, and a profiled
-`.claude/ai-briefing/<profile>/x.local.md` alike, while leaving team files tracked. The narrower
-`.claude/*.local.*` is what several surfaces currently recommend and it silently fails to ignore any
-folder-form overlay; recommend the recursive form instead, and never ask a consumer for two lines
-where one is exact.
+zero or more directories, so this single rule covers a flat `.claude/source-control.local.md` and a
+one-deep `.claude/ecosystems/python.local.yaml` alike, and would cover a deeper nested overlay if a
+surface grew one, while leaving team files tracked. The narrower
+`.claude/*.local.*` silently fails to ignore any folder-form overlay; recommend the recursive form
+only, and never ask a consumer for two lines where one is exact.
 
 **No plugin writes the consumer's `.gitignore`.** A setup skill recommends the line and leaves the
 edit to the consumer; their ignore file is their artifact.
+
+## Expression doctrine — which surfaces are files, and which are convention docs
+
+The layers above describe **where** a surface's values live relative to each other. This section
+describes **how** a surface is expressed at all, and it ratifies a second expression form
+alongside the dedicated file ([ADR 0018](../../adr/0018-express-team-shared-conventions-as-consumer-convention-docs.md),
+2026-09; the decision record cites the blind mechanism tournament under
+`docs/topics/customization-consistency/design/`).
+
+**The criterion.** A surface takes exactly one of two expressions, settled by what the content
+*is*, never by the author's preference:
+
+- **Team-shared prose configuration** — guidance the model reads (a repo map, audit-target prose,
+  a lane description) that every operator on the team is meant to share and that has no
+  per-operator axis — is expressed as a **natural-language convention doc at the consumer's
+  convention home** (for example `docs/conventions/<topic>/`), discovered or asked once at setup
+  and bound by the pointer line below. Such a surface has **no overlay channel**: it has one
+  layer, the team's. A migrated surface's setup `check` WARNs on any pre-existing `*.local.*`
+  overlay file it finds for that surface rather than silently ignoring it — the overlay no longer
+  has an effect, and silence would let a personal deviation look live.
+- **Everything else stays a dedicated file under the layers above**: per-operator-keyed surfaces
+  (a value keyed by operator identity or machine, or one an operator legitimately overrides
+  privately — `testing`'s e2e config is the fleet example), structured data where YAML/JSON is
+  the right tool (`topic-docs.yaml`, `routing.yaml`, `binding.json`), every policy-floor surface,
+  and all mutable state.
+
+The criterion is applied per surface, in that surface's own migration PR, and recorded in the
+Implementers table's row. Nothing in this contract retroactively re-expresses a surface.
+
+**The convention home is bound by one pointer line, and the line IS the binding.** The consumer's
+root instruction file carries a single standing index/pointer line naming the convention home
+(and, where the home holds several topics, pointing at its index). There is no separate binding
+file: a plugin resolves the home by reading that line. The line lives inside a **marked,
+machine-owned region** — the `instruction-placement` rules-index block is the precedent — so setup
+can rewrite it idempotently without touching the operator's prose around it, and a reviewer can see
+the region is generated. The consumer's root file otherwise carries only content needed in
+effectively every conversation; topic conventions live at the home, loaded on demand.
+
+Pointer-line rules a resolver honors (the small tested helper the program's mechanism phase ships
+owns the grammar; consumer prose it reads is **untrusted input**, never executed or interpolated):
+
+- **Which file owns the region.** A file without a marked region is not consulted, even if it
+  is named `AGENTS.md`. A `CLAUDE.md` whose whole content is the `@AGENTS.md` import is a pure
+  shim and is not consulted for a pointer. When exactly one of the two files carries the marked
+  region, that file is canonical. When both files carry a marked region, `AGENTS.md` wins and
+  `CLAUDE.md`'s copy is reported as a duplicate finding (remediation: remove it). Two pointer
+  lines inside one region is a FAIL, never first-wins.
+- **Ask, never silently rebind.** A pointer absent while a previously-known home still exists on
+  disk, or a pointer whose target directory is missing, is a FAIL that routes to `apply`'s
+  interview. Inference may *propose* a home from repo evidence; only the operator's confirmation
+  writes the line.
+- **Branch-scoped.** The pointer line is tracked content, so divergent branches may bind different
+  homes and a branch may legitimately re-ask. That is a property of tracked config, not a defect.
+
+**Root-file shape is the downstream repository's call.** Recommended guidance, never forced: an
+AGENTS.md-canonical root with a pure `@AGENTS.md` CLAUDE.md shim (the shape `instruction-placement`
+already installs) — but a repo that keeps `CLAUDE.md` canonical, or a symlink, is served identically
+once setup has discovered which file carries the region.
+
+**Dual-read deprecation window.** A migrated skill that finds the retired dedicated file present
+treats it as WARN **and** reads it as authority (at minimum as inference evidence) until the
+consumer cleans it through the retirement mechanism (`docs/MIGRATION-PLAYBOOK.md`
+§ Retired conventions). This covers a consumer who updated the plugin without re-running setup,
+and is the one sanctioned dual-read: declared per surface by its retirement record, WARN-visible on
+every run, never silent. The window closes for a consumer when that record's cleanup runs, and for
+the fleet when the record is demoted to report-only under the mechanism's demotion rule.
+
+**Scope.** This doctrine governs repository-scope surfaces only. Machine-scope files under
+`~/.claude/` (context-guard, rate-limit-guard, machine-health) are outside both the criterion and
+the retirement mechanism; ADR 0018 records that exclusion.
 
 ## Resolution algorithm
 
@@ -186,21 +257,27 @@ surface, or amend this contract) is a separate human-gated decision.
 - **`disk-hygiene`'s `--policy` replaces both standing layers.** Its standing layers merge additively
   (overlays may disable or add hints and add protected globs, never weaken a hard guard); the
   wholesale replacement is confined to an explicit per-invocation flag, not a file layer.
+- **`ai-briefing` is team-only, with no local overlay (#3580).** Tracked files live under
+  `.claude/ai-briefing/` (default profile) or `.claude/ai-briefing/<name>/` (a named profile).
+  Selecting a named profile is profile selection, not resolution of a `*.local.*` cascade layer.
+  `sources.md`, optional `audience.md`, and optional `brand.json` are profile files in that
+  team directory; no read path resolves a `.local.*` file, and setup does not recommend
+  gitignoring one. Claude Code documents local behavior only for surfaces it actually resolves
+  (`CLAUDE.local.md`, `settings.local.json`); a generic `*.local.*` filename has no
+  platform-defined meaning.
 
 **Undeclared** — divergence with no recorded rationale:
 
-- **`ai-briefing` advertises an overlay layer it does not implement.** Its setup recommends a
-  `.claude/ai-briefing/**/*.local.*` gitignore line, but no read path resolves a `.local.*` file and
-  no file defines what one would do. Its documented resolution covers profile *selection* only, never
-  layer precedence. This is the only surface telling consumers to gitignore a layer that has no
-  effect.
+- none currently.
 
 ## Implementers
 
 Conformance is tracked, not assumed. A surface is listed here whether or not it conforms — the gap is
 the point. Each row states the surface's conformance **as it exists on `main`**, never as a
 migration intends it to be; a row that ran ahead of the code would report a closed gap that is still
-open.
+open. Every row below is currently expressed as a **dedicated file**; a surface that migrates to a
+convention doc under the expression doctrine above rewrites its row in the same PR (path → the
+convention home, layers → `team, via pointer line`, conformance → the retirement record id).
 
 | Surface | Consumer config path | Layers | Conformance |
 |---|---|---|---|
@@ -212,7 +289,7 @@ open.
 | `autonomy` | `.claude/autonomy/binding.json` | all three, plus an org rung | declared deviation |
 | `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` still observed, not ratified |
 | `disk-hygiene` | `.claude/disk-hygiene.json` | user-global + team | declared deviation; no overlay layer |
-| `ai-briefing` | `.claude/ai-briefing/` | team only | undeclared: overlay recommended, never resolved |
+| `ai-briefing` | `.claude/ai-briefing/` | team only | declared deviation; team-only, no local overlay (#3580). Named profile selection (`--profile`, `active_profile`, or `.claude/ai-briefing/<name>/`) is profile selection, not a `*.local.*` cascade layer. `sources.md`, optional `audience.md`, and optional `brand.json` are tracked profile files in the selected directory, not personal overlays |
 | `code-tidying` | `.claude/tidy-lanes/<lane>.md` | team only | declared deviation; no user-global or `*.local.*` overlay (#723). Team layer over a bundled default. A project lane declaring `## Merge semantics` merges per-section with its bundled lane (`Scope` per-section override, watch-for patterns additive — `docs-prose` #701, `shell-tooling` #724). Residual deviation: a project lane that declares nothing still resolves project-only wholesale — the first-match fallback retained in #701 so unmigrated consumer lanes keep working, undeclared at the layer that takes it. Personal variation is limited to lane names the team does not track — an uncommitted `.claude/tidy-lanes/<lane>.md` never added to the index; gitignoring a path the team already tracks does not make it personal |
 | `topic-docs` | `.claude/topic-docs.yaml` | team only | single-layer |
 | `repo-fleet-hygiene` | `.claude/repo-fleet-hygiene.conf` | user-global + team | declared deviation; whole-file precedence (explicit `--config` > team > user-global fallback), no per-key merge, no overlay layer (#1099) |
@@ -220,7 +297,7 @@ open.
 | `ai-slop` | `.claude/ai-slop.json` | all three | conforms; per-key override, resolved by `/ai-slop:audit` (user-global, team, `.claude/ai-slop.local.json` overlay). Four list keys are additive-by-replacement rather than merged (`vocab_add` / `vocab_remove` tune the shipped word list, `phrase_add` / `phrase_remove` the shipped model-era phrase roster; the later layer's list wins per key). No policy-floor class: every key is a taste dial over prose style, and a personal overlay that silences a rule weakens nothing another surface depends on. Keys owned by `/ai-slop:setup`; `_comment` is an allowed free-text annotation, not drift |
 | `rendered-views` | `.claude/rendered-views.md` | all three | conforms; per-key override on `medium`, no policy-floor class (taste dial, the `ai-slop` precedent). Keys owned by [`rendered-views`](../rendered-views/README.md), which also partitions them from plugin `userConfig` dials (never keys in this surface; a layer declaring one is reported as an inert unknown key). Resolved by `visualization:visualize` (wave-1 exemplar) |
 | `testing` (`run-e2e`) | `.claude/testing/e2e.md` | all three | conforms; per-key override on `recording` / `browser_mode`, keys owned by `/testing:run-e2e` |
-| `plugin-quality` | `.claude/plugin-quality.md` | all three | conforms; per-key override (repo-map entries merge per plugin name), keys owned by the plugin's `reference/config.md` |
+| `plugin-quality` | convention doc at the consumer's convention home, `<home>/plugin-quality/README.md` (the pointer line binds `<home>`) | team, via pointer line | migrated (expression-doctrine pilot, ADR 0018): conformance is retirement record `plugin-quality-r001` (dual-read window while the retired `.claude/plugin-quality.md` persists — WARN-visible, the file reads as authority until cleaned); overlay layer retired by `plugin-quality-r002`, user-global layer retired prose-only (machine scope, outside the manifest); keys owned by the plugin's `reference/config.md` |
 | `claude-config` (`audit-pass`) | `.claude/audit-pass.md` | all three | conforms; per-key override (suppression entries merge per `finding_id`), plus policy-floor inversion — the team layer wins a direct conflict, since a personal overlay suppressing a finding the team never accepted is the weakening this class prevents. Keys owned by [`finding-suppression`](../finding-suppression/README.md) |
 | `overengineering` | `.claude/overengineering.md` | all three | conforms; per-key override, plus policy-floor inversion on two key groups — the protected-categories set and the suppression entries (which merge per `finding_id`). On both, the team layer wins a direct conflict, personal layers may extend or tighten only, and a personal contribution is named in the report: a gitignored overlay emptying the protected set would defeat the plugin's FLAG-FOR-HUMAN cap on security-class artifacts, and a personal-only suppression is the same weakening `audit-pass` prevents above. Narrowing or emptying the protected set stays available on the tracked layer, spelled one category at a time so the diff names each protection dropped. The threshold and observation-window keys take ordinary refinement. Keys owned by the plugin's `reference/consumer-config.md`; suppression-entry keys by [`finding-suppression`](../finding-suppression/README.md) |
 
@@ -229,11 +306,18 @@ sweep — and each migration updates its own row in the same change.
 
 ### Overlay spelling drift
 
-The fleet currently ships four spellings — `.claude/*.local.*`, `.claude/ecosystems/*.local.*`,
-`.claude/autonomy/**/*.local.*`, and a bare `*.local.md` inside a setup-owned
-`<standards_dir>/.gitignore`. Each is narrowly correct for its own surface, and collectively they
-defeat the one-line promise: a consumer running three plugins is asked for three lines, and the two
-non-recursive spellings would silently miss a nested overlay if their surface ever grew a folder.
-The recursive line above subsumes all four. Converging each surface's recommendation on it is a
-per-surface change tracked by the rows above, not a rule this contract can retroactively impose on
-config already written into consumer repositories.
+Every setup surface that owns a `*.local.*` overlay now recommends (or, for
+`source-control`, appends) the recursive line above. The narrow spellings the
+fleet used to ship — `.claude/*.local.*`, `.claude/ecosystems/*.local.*`,
+`.claude/autonomy/**/*.local.*` — were each narrowly correct for their own
+surface but collectively defeated the one-line promise: a consumer running
+three plugins was asked for three lines, and the non-recursive spellings
+would silently miss a nested overlay if their surface ever grew a folder.
+Three deliberate exceptions remain: the bare `*.local.md` inside the
+setup-owned `<standards_dir>/.gitignore` (a dedicated ignore file scoped to
+the standards root, not the consumer's `.gitignore`); `work-items`' repo-root
+`.work-item-tracker.local.json` line (ADR 0015; outside `.claude/` entirely);
+and `ai-briefing`, which is team-only and recommends no overlay line at all
+(#3580). This contract does not retroactively rewrite narrow lines already
+written into consumer repositories — the recursive line simply supersedes
+them where both exist.

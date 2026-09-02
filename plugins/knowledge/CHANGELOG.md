@@ -4,6 +4,51 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.36]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.13.35]
+
+### Fixed
+
+- **Shared yt-dlp driver threads `captionClass` into `selectCaptionFile`.**
+  `adapterSourceDeclarations` dropped the adapter's declared class, and both
+  driver call sites omitted the second argument, so every shared-driver acquire
+  walked the `manual-and-auto` ladder. A `platform-asr` source would have
+  classified a bare `.en.vtt` as `manual-en`. The declaration now carries
+  `captionClass`, and both selection sites pass it.
+
+## [0.13.34]
+
+### Fixed
+
+- **`build-yt-dlp-args` tests pass an empty `env` so host cookie settings cannot inject argv.** Six
+  cases omitted `env`, so `resolveYtDlpAuthArgs` fell through to `process.env`. A runner with
+  `VIDEO_DIGEST_YT_DLP_COOKIES_FILE` (or the legacy `YOUTUBE_` spelling) exported then failed the
+  positional and `not.toContain` assertions. They now match the adapter-argv conformance suite.
+
+## [0.13.33]
+
+### Fixed
+
+- **`analyze-harvested-repos.js` lets stdout drain before exit.** The CLI called
+  `process.exit(code)` immediately after an async `writeStdout`, which can truncate a
+  piped report (especially on Windows). It now sets `process.exitCode` and returns, matching
+  the other video-digest CLIs.
+
+## [0.13.32]
+
+### Fixed
+
+- **map-corpus: `check_inventory` FAILED banner spacing matches `check_linkmap`.** The checker
+  printed `FAILED --{n}` while the sibling prints `FAILED -- {n}` (space after the dashes). Both
+  `FAILED` print statements now carry the same space.
+
 ## [0.13.31]
 
 ### Changed

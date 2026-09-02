@@ -88,6 +88,7 @@ def main() -> int:
     p.add_argument("--bare", action="store_true")
     p.add_argument("--poll-seconds", default="5")
     p.add_argument("--idle-seconds", default="900")
+    p.add_argument("--idle-confirm-seconds", default="30")
     p.add_argument("--max-seconds", default="86400")
     p.add_argument("--analysis-timeout-seconds", default="600")
     args = p.parse_args()
@@ -151,6 +152,8 @@ def main() -> int:
         str(args.poll_seconds),
         "--idle-seconds",
         str(args.idle_seconds),
+        "--idle-confirm-seconds",
+        str(args.idle_confirm_seconds),
         "--max-seconds",
         str(args.max_seconds),
         "--analysis-timeout-seconds",

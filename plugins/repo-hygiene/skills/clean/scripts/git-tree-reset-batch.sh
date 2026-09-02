@@ -140,8 +140,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   --repos-from)
     [[ $# -ge 2 ]] || fail_usage "--repos-from requires a file or -"
-    [[ "$2" == "-" || -f "$2" ]] || fail_usage "file not found: $2"
-    batch_read_lines_into REPO_INPUTS "$2"
+    batch_read_lines_into REPO_INPUTS "$2" || fail_usage "file not found: $2"
     shift
     ;;
   --skip)
@@ -151,8 +150,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skip-from)
     [[ $# -ge 2 ]] || fail_usage "--skip-from requires a file"
-    [[ -f "$2" ]] || fail_usage "file not found: $2"
-    batch_read_lines_into SKIP_INPUTS "$2"
+    batch_read_lines_into SKIP_INPUTS "$2" || fail_usage "file not found: $2"
     shift
     ;;
   -h | --help)
@@ -176,11 +174,11 @@ INVALID_REASONS=()
 
 key_seen() {
   local k="$1" e
-  for e in "${REPO_KEYS[@]}"; do [[ "$e" == "$k" ]] && return 0; done
+  for e in ${REPO_KEYS[@]+"${REPO_KEYS[@]}"}; do [[ "$e" == "$k" ]] && return 0; done
   return 1
 }
 
-for input in "${REPO_INPUTS[@]}"; do
+for input in ${REPO_INPUTS[@]+"${REPO_INPUTS[@]}"}; do
   [[ -n "$input" ]] || continue
   if [[ ! -d "$input" ]]; then
     INVALID_INPUTS+=("$input")
@@ -273,7 +271,7 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
 
   # 3. Delegate to the unchanged single-repo tree reset.
   rc=0
-  out="$(cd "$top" && bash "$TREE_RESET" "$([[ "$DRY_RUN" -eq 1 ]] && echo --dry-run || echo --apply)" "${CHILD_PASS[@]}" 2>&1)" || rc=$?
+  out="$(cd "$top" && bash "$TREE_RESET" "$([[ "$DRY_RUN" -eq 1 ]] && echo --dry-run || echo --apply)" ${CHILD_PASS[@]+"${CHILD_PASS[@]}"} 2>&1)" || rc=$?
   case "$rc" in
   0)
     # The child exits 0 for a clean success AND for success-with-signal cases the

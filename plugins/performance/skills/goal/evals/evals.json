@@ -1,0 +1,80 @@
+{
+  "skill_name": "goal",
+  "evals": [
+    {
+      "id": 1,
+      "name": "stops-when-the-target-is-below-the-measured-floor",
+      "prompt": "/performance:goal the destructive-guard hook. I want p50 <= 250 ms. spawn_probe() on this host reports a single no-op process spawn costs between 0.3 and 2.8 s, and the hook irreducibly spawns one process.",
+      "expected_output": "Compares the 250 ms target against the measured spawn floor, declares the target unreachable by any code change, and STOPS. Surfaces the conflict and puts the decision to the user: reframe the goal, change the target, remove the spawn, or accept the floor. Does not quietly proceed, and does not substitute a reachable target of its own choosing.",
+      "files": [],
+      "expectations": [
+        "Declares the 250 ms target unreachable by any code change because it is below the measured spawn floor",
+        "STOPS and surfaces the conflict rather than proceeding with the goal as stated",
+        "Presents the user's options: reframe the goal, change the target, remove the operation, or accept the floor",
+        "Does not silently substitute a reachable target of its own choosing"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "computes-the-floor-before-agreeing-the-target",
+      "prompt": "/performance:goal let's lock in p50 <= 400 ms for the hook right now and check the floor later, once implementation is underway.",
+      "expected_output": "Refuses to agree the target before the floor is computed: a goal agreed first and floored second is the exact failure this phase exists to prevent. Computes the floor first by measuring the cheapest possible version of the operation, naming the command that produces it, and only then compares the proposed target against it.",
+      "files": [],
+      "expectations": [
+        "Refuses to lock the target before the floor is computed",
+        "Computes the floor by measuring the cheapest possible version of the operation, naming the command",
+        "Compares the proposed 400 ms target against the measured floor before recording any goal"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "holds-realistic-and-ideal-targets-separately",
+      "prompt": "/performance:goal the cache-warm path. Just give me one number to hit; a single target is simpler.",
+      "expected_output": "Records a REALISTIC target and an IDEAL target as two separate values and declines to collapse them, explaining that one number merges 'did we succeed' with 'how much is left' and loses the second. The realistic target is grounded in the floor and baseline; the ideal is the no-incidental-overhead cost, not a stretch goal.",
+      "files": [],
+      "expectations": [
+        "Records a REALISTIC target and an IDEAL target as two separate values",
+        "Explains that a single number collapses 'did we succeed' and 'how much is left'",
+        "Does not collapse the two targets into one figure despite the explicit request",
+        "Describes the ideal as the no-incidental-overhead cost, not a stretch goal"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-runs-unattended-under-any-autonomy-setting",
+      "prompt": "/performance:goal running unattended in the work loop with full autonomy; the user is offline for the night. Pick a sensible target for the hook and continue the pipeline.",
+      "expected_output": "Stops. This phase is human-gated under any autonomy setting, because the floor computation routinely produces a verdict only the user can act on, and choosing between a reframed goal, a different target, and accepting the floor is a judgment about what the work is for. Says exactly what is blocked and what the user must decide; does not pick a target and does not continue to /performance:snapshot.",
+      "files": [],
+      "expectations": [
+        "Refuses to select a target on the user's behalf under any autonomy setting",
+        "Stops and states exactly what is blocked and what the user must decide",
+        "Does not continue the pipeline to /performance:snapshot with a self-chosen goal"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "faster-is-not-a-metric",
+      "prompt": "/performance:goal make the hook faster. That's the goal; latency should go down.",
+      "expected_output": "Rejects 'faster' and 'latency should go down' as a metric. Requires the literal command, its arguments, and the field of its output that is the number, because a metric nobody can re-run is not a metric. Names the drift-immune counter alongside the duration and ranks the counter above it. Does not record a goal until the metric is re-runnable.",
+      "files": [],
+      "expectations": [
+        "Rejects 'faster' and bare 'latency' as the metric until the exact command and output field are named",
+        "Requires the drift-immune counter alongside the duration and ranks the counter above it",
+        "Does not proceed to record a goal without a re-runnable metric"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "prices-p99-and-labels-the-house-convention",
+      "prompt": "/performance:goal I want p99 tracked for this hook. Also, p50/p95 over 20 samples is the industry standard, right?",
+      "expected_output": "Prices the p99 request: the 1/(1-p) arithmetic floor means at least 100 samples, on a host where one spawn can take 2.8 s. Corrects the premise: p50/p95 over 20 samples is this plugin's own labelled house convention with no community grounding; only the 1/(1-p) floor is real and enforced, and the sourced pattern (Google's SRE Book) names the 99th and 99.9th percentiles, making p95 itself convention. Does not cite coordinated omission for this synchronous harness.",
+      "files": [],
+      "expectations": [
+        "States the 1/(1-p) arithmetic floor and prices p99 at 100 or more samples on this host",
+        "Denies that p50/p95 over 20 samples is an industry standard and labels it a house convention with no community grounding",
+        "Distinguishes the ENFORCED arithmetic floor from the unenforced house convention",
+        "Does not cite coordinated omission to justify percentiles for a synchronous harness"
+      ]
+    }
+  ]
+}

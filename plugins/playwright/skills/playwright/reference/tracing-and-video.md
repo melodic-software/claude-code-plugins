@@ -19,7 +19,7 @@ playwright-cli fill e2 "test"
 playwright-cli tracing-stop
 ```
 
-Creates `traces/` with:
+Creates `.playwright-cli/traces/` with:
 
 - `trace-<ts>.trace` — action log + DOM snapshots before/after + screenshots + timing + console
 - `trace-<ts>.network` — full HTTP requests/responses, headers, bodies, timing, failures
