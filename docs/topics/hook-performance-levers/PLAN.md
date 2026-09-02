@@ -363,7 +363,7 @@ Repo: claude-code-plugins. One PR.
 - Harness: PreToolUse:Write `fires=` on the `.md` sample is unchanged versus the phase 1 baseline (the context-budget gate was rejected by the live probe; see DEVIATIONS.md), and the context-guard timeout rows show 15.
 - `scripts/affected-tests.sh --run` exits 0; `gh pr checks` 0 failing.
 
-### Phase 4a: guard hot path inside the dispatcher [TODO]
+### Phase 4a: guard hot path inside the dispatcher [DONE]
 
 Repo: claude-code-plugins. One PR. Sub-topic promotion: **recommended for 4b, not 4a** (see Phase 4b).
 
