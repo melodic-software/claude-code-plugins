@@ -401,7 +401,15 @@ assert_contains "greedy --repo still enumerates both paths" "$out" "Repos: 2"
 assert_contains "greedy --repo stops at --skip (parsed as a flag, not a path)" "$out" "skip-list"
 assert_not_contains "--skip value 'keepme' was not swallowed as a repo path" "$out" "UnmatchedSkip: keepme"
 
-# --- 25. --repo with no path (immediately at a flag or end of args) is a usage error ---
+# --- 25. empty CHILD_PASS / first-seen REPO_KEYS under set -u must not abort ---
+# Default dry-run passes no --force-default-branch/--include-deps/--include-secrets/
+# --include-dirty, so CHILD_PASS stays (). key_seen also walks REPO_KEYS while it
+# is still empty on the first input. Bare "${arr[@]}" aborts on bash 4.0-4.3.
+out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" 2>&1)" || true
+assert_not_contains "empty CHILD_PASS and REPO_KEYS do not unbound-variable abort" "$out" "unbound variable"
+assert_contains "empty-pass-through dry-run still classifies the repo" "$out" "would-reset"
+
+# --- 26. --repo with no path (immediately at a flag or end of args) is a usage error ---
 # A bare --repo followed by another flag has no path to consume; it must fail loud
 # (exit 2), not silently absorb the following flag as a directory path (the pre-fix
 # single-arg arm did the latter, classifying e.g. `--skip` as a blocked non-directory).

@@ -3,6 +3,17 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.24]
+
+### Fixed
+
+- **`clean`: `git-tree-reset.sh` and `git-tree-reset-batch.sh` no longer expand
+  empty arrays under `set -u`.** `CHILD_PASS` stays empty on a default dry-run,
+  `REPO_KEYS` is empty on the first `key_seen` call, and `PRESERVE_ARGS` is
+  passed through to `git clean`. Bare `"${arr[@]}"` is an unbound-variable abort
+  on bash 4.0-4.3. Those sites now use the house `${arr[@]+"${arr[@]}"}` idiom
+  ([#3425](https://github.com/melodic-software/claude-code-plugins/issues/3425)).
+
 ## [0.10.23]
 
 ### Fixed

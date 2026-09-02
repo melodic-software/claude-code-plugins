@@ -191,7 +191,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   # Dry-run is inventory-only: never fetch (it would mutate .git remote-tracking
   # refs and can prompt/fail on credentials before the user confirms anything).
   echo "--- clean preview (git clean -fdxn, default-preserve applied) ---"
-  git clean -fdxn "${PRESERVE_ARGS[@]}" 2>/dev/null | head -200 || true
+  git clean -fdxn ${PRESERVE_ARGS[@]+"${PRESERVE_ARGS[@]}"} 2>/dev/null | head -200 || true
   exit 0
 fi
 
@@ -230,7 +230,7 @@ printf 'AppliedReset: git reset --hard %s\n' "$UPSTREAM"
 # fails to remove any path; the expected, non-fatal case is a locked / in-use file
 # (surfaced below as Unremovable). CLEAN_RC must be read on the very next line —
 # before any other command runs — or $? is clobbered.
-CLEAN_STDERR="$(git clean -fdx "${PRESERVE_ARGS[@]}" 2>&1 >/dev/null)"
+CLEAN_STDERR="$(git clean -fdx ${PRESERVE_ARGS[@]+"${PRESERVE_ARGS[@]}"} 2>&1 >/dev/null)"
 CLEAN_RC=$?
 UNREMOVABLE="$(printf '%s\n' "$CLEAN_STDERR" | grep -c 'failed to remove' || true)"
 CLEAN_NON_LOCKED_FAILURE=0
