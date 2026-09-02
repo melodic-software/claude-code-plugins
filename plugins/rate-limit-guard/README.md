@@ -9,10 +9,11 @@ resume on their own after the reset. Four parts:
   a plugin update never requires re-wiring and an uninstall degrades to your statusline running
   alone. Pure Bash builtins: it adds no measurable time to a refresh.
 - **Statusline tee** (`scripts/statusline-tee.sh`), a transparent wrapper around your statusline
-  command. Each refresh it atomically writes the session's `rate_limits` (both the 5-hour and
-  7-day windows), a `captured_at` timestamp, and the session-distinguishing fields to the fixed
-  machine-scope contract path `~/.claude/rate-limit-guard/rate-limits.json`, then passes your
-  statusline through byte-for-byte. With no statusline configured it doubles as a minimal
+  command. It atomically writes the session's `rate_limits` (both the 5-hour and 7-day windows),
+  a `captured_at` timestamp, and the session-distinguishing fields to the fixed machine-scope
+  contract path `~/.claude/rate-limit-guard/rate-limits.json`, once per drain cadence and only
+  when the payload changed or the no-change floor expired, then passes your statusline through
+  byte-for-byte. With no statusline configured it doubles as a minimal
   standalone statusline.
 - **StopFailure hook** (`hooks/record-rate-limit-stop.sh`), the reactive fallback. When a turn
   ends on a rate-limit API error, it appends a detection record to
@@ -243,7 +244,8 @@ carries it.
 
 The snapshot is a side effect: nothing the status line prints depends on it, and the
 [reader contract](reference/reader-contract.md) budgets ten minutes of staleness. Detaching skips
-no work. Every refresh still takes the lock and writes. Detaching only stops the render waiting.
+no work of its own. A refresh still takes the lock and writes unless the bounded no-change skip
+applies. Detaching only stops the render waiting.
 
 **Whether that helps depends on how many sessions you keep open, not on your refresh interval.**
 MSYS has no native `fork()`, so forking a bash subshell holding the payload costs 75–200 ms on

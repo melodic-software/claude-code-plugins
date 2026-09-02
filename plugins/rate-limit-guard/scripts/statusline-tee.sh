@@ -69,8 +69,9 @@
 # once per open session. The snapshot therefore runs in a DETACHED subshell and
 # the wrapper returns as soon as the wrapped command does.
 #
-# This skips no work: every refresh still takes the lock and writes a snapshot,
-# just without the render waiting on it. Detachment is threefold and each part is
+# Detaching skips no work of its own: a refresh still takes the lock and writes
+# a snapshot unless the bounded no-change skip in tee_snapshot applies, just
+# without the render waiting on it. Detachment is threefold and each part is
 # load-bearing: stdout and stderr go to /dev/null, or the background child would
 # hold the statusline pipe open and Claude Code would keep waiting for EOF long
 # after the render finished — cancelling out the entire point; stdin is closed so
