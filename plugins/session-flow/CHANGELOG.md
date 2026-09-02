@@ -1,5 +1,23 @@
 # Changelog — session-flow plugin
 
+## [0.34.17]
+
+### Changed
+
+- **`orchestrate`: the token-multiplier line reconciled against the upstream measurement it
+  contradicted.** Imperative 1 carried "3-10x the tokens" as a bare figure while Anthropic's
+  multi-agent research write-up measures agents at roughly 4x a chat interaction and multi-agent
+  systems at roughly 15x, with token usage alone explaining most of the performance variance it
+  regressed. A reader who checked the source found the skill quoting a lower number with no
+  citation. The range is now labelled as this plugin's own operating figure and as a floor rather
+  than a ceiling, with the upstream measurement cited beside it and the instruction to size
+  research-shaped fan-outs against the higher number.
+- **`orchestrate`: "compressed return" gained a magnitude.** The tiered-delegation section required
+  compressed verdicts without saying what compressed means, which is an unfalsifiable instruction.
+  It now carries the upstream shape — a sub-agent may explore across tens of thousands of tokens
+  and return roughly 1,000 to 2,000 — with its citation, and the explicit caveat that this is a
+  target shape and not a budget to spend up to.
+
 ## [0.34.16]
 
 ### Added

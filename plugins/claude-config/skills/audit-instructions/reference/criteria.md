@@ -212,6 +212,11 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Detect:** a line whose removal would not change behavior — restates a default, a truism, or
   something the model already does correctly.
 - **Remediate:** cut it, or (if it enforces something) convert per I5.
+- **Hold instead of delete** when the candidate matches a protected class in the
+  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md),
+  on I5's terms. This bar asks whether removal would change behavior *today*; a protected rail's
+  removal changes behavior only on the occasion it was written for, which this criterion cannot
+  observe.
 - **Source:** best-practices — "For each line, ask: *Would removing this cause Claude to make
   mistakes?* If not, cut it."
 
@@ -288,6 +293,12 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Detect:** content the model can derive from the code, standard language conventions it already
   knows, inlined API docs that should be a link, or self-evident practices.
 - **Remediate:** delete; link to the source of truth instead of inlining it.
+- **Hold instead of delete** when the candidate matches a protected class in the
+  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)
+  (the Gate 0 consequence classes, adopted there by reference for the deletion operation). Report
+  the hold and its class; propose compression in place instead. The register is non-exhaustive, so
+  a candidate absent from it is judged on this criterion's normal terms, never deleted *because* it
+  is absent.
 - **Source:** best-practices include/exclude table — exclude "Anything Claude can figure out by
   reading code" and "Standard language conventions Claude already knows."
 
@@ -299,6 +310,11 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   zero exceptions.
 - **Remediate:** delete the already-followed rule; convert the must-always rule to a hook, which is
   deterministic where an instruction is only advisory.
+- **Hold instead of delete** when the candidate matches a protected class in the
+  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md).
+  "The model already does this" is the weakest possible evidence against a rail whose absence is
+  unrecoverable, and the hook conversion stays available: converting a protected rule to a
+  deterministic mechanism is a remediation, deleting it is not.
 - **Source:** best-practices — "If Claude already does something correctly without the instruction,
   delete it or convert it to a hook."
 

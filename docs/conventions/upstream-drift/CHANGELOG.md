@@ -4,6 +4,27 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## 1.6.3 — 2026-09-01
+
+Recorded near-miss evidence ADJACENT to the content-hashing deferral; docs-only, the deferral's
+verdict does not change and its trigger has NOT fired.
+
+The context-engineering-integration corpus pass (signed off 2026-09-01; its decision contract is
+contract tier and was pruned before merge, surviving as the `<details>` paste in its pull request,
+with the durable evidence in
+[`docs/specs/context-engineering-corpus-knowledge.md`](../../specs/context-engineering-corpus-knowledge.md))
+found the live
+anthropic.com/research/building-effective-agents page silently revised after publication: the
+page still says "Published Dec 19, 2024" while its body now names models and products that
+post-date that date, so any citation of "the December 2024 post" at that URL quotes post-hoc
+edits. This is the failure class a stored content hash would flag — but the deferral's recheck
+trigger ("a stale stamp causes a real defect a stored hash would have flagged, or a fleet audit
+completes without re-fetching every stamped claim") has not fired: no committed stamp on that
+page exists, so no stale stamp caused a defect in a tracked record. Recorded here as adjacent
+evidence for the eventual designed issue the deferral itself prescribes ("a hash store becomes
+its own designed issue, not an inline addition here"); that issue is filed as a tracker item by
+the integration effort. The deferral stays as written.
+
 ## 1.6.2 — 2026-08-31
 
 Recorded firing of the no-adoption-gate decision's recheck trigger; docs-only under this contract's

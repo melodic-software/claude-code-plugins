@@ -163,9 +163,20 @@ rows after real work is a licensed permanent deletion.
    the restoring commit or an adjacent comment.
 3. For instructions being rewritten rather than restored verbatim, route the text-level judgment to
    `audit-instructions` (same plugin), which owns instruction-content-vs-doctrine analysis.
-4. Everything the ledger did not defend stays deleted. Close the experiment: final manifest update
-   (`phase: closed`, surfaces restored vs retired counts), and merge or fold the experiment branch
-   per the repo's normal PR flow.
+4. Everything the ledger did not defend stays deleted — **except a rule matching a protected class
+   in the [instruction exception
+   register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)**,
+   which is restored regardless of whether the ledger logged a stumble against it. The strip itself
+   is fine: it is reversible and branch-local, which is why the experiment may run over a protected
+   rail at all. What the register forbids is leaving one deleted on the evidence of silence. A rail
+   whose absence is unrecoverable will not usually announce itself inside one experiment window;
+   "no stumble was observed" is the weakest evidence available against it, and the register exists
+   because that inference is the one this phase would otherwise make. Restoring a protected rule
+   this way is not a failed deletion, so do not count it as a retained surface in the ledger's
+   defence tally; record it as a register hold with its class.
+5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
+   counts, register holds listed separately), and merge or fold the experiment branch per the
+   repo's normal PR flow.
 
 ## Cadence wiring (optional)
 

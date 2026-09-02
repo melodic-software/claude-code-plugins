@@ -2,11 +2,22 @@
 # policy names for intentional findings). One fingerprint per line:
 # commit:file:rule:startline
 #
-# False positive: generic-api-key matching the shell variable inits
-# `CLAUDE_TOKEN=""` / `CLAUDE_SHIM=0` in the AGENTS.md pointer-line resolver on
-# the retired-conventions feature branches ("token" is a parsing token, not a
-# credential; the flagged value is an empty string). The hygiene lane fetches
-# every branch and scans --all, so this finding turns every PR red until the
-# branch merges or rewrites; remove this line when that lands differently.
+# False positive: generic-api-key firing on the AGENTS.md pointer-line resolver
+# on the retired-conventions feature branches. TOKEN there is the parsing sense,
+# never a credential: the `AGENTS_TOKEN=""` / `CLAUDE_TOKEN=""` inits supply the
+# rule's keyword context, and the reported secret is the following line,
+# `CLAUDE_SHIM=0`, a flag set to zero.
+#
+# The hygiene lane fetches every branch and scans --all, so this finding turns
+# every PR red until the branch merges or rewrites. Verified against CI's pinned
+# gitleaks 8.30.1, so the next reader need not retry them: renaming the flag
+# still fires, and so does separating it from the TOKEN lines by a blank line.
+# An inline `gitleaks:allow` marker does clear the working file, and the
+# branches carry one, but it cannot clear a finding already recorded against an
+# earlier commit, because the scan walks history and that blob is immutable.
+# Hence fingerprints.
+#
+# Remove each line when the commit it names is no longer reachable (its branch
+# squash-merged or deleted); the entry is dead config from that point on.
 f7aec1549dec60407a24a7d8ea720696b7b099af:plugins/claude-config/lib/resolve-convention-home.sh:generic-api-key:248
 708739fb2ba1b0196e93f9c07d3293bddfeed2f0:plugins/plugin-quality/lib/resolve-convention-home.sh:generic-api-key:249
