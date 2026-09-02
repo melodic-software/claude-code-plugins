@@ -7,9 +7,9 @@
  * @returns {{ startSec: number, endSec: number|null }}
  */
 export function parseBoundaryLine(boundaryLine) {
-  const stamps = [...boundaryLine.matchAll(/\[(\d+):(\d+)\]/g)].map((m) => {
-    return Number(m[1]) * 60 + Number(m[2]);
-  });
+  const stamps = [...boundaryLine.matchAll(/\[(\d+):(\d+)\]/g)].map(
+    (m) => Number(m[1]) * 60 + Number(m[2]),
+  );
   return { startSec: stamps[0] ?? 0, endSec: stamps[1] ?? null };
 }
 
