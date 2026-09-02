@@ -38,6 +38,9 @@ source "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
 wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/binding.sh"
 # shellcheck source=../../lib/binding.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/binding.sh"
+wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/gh-version.sh"
+# shellcheck source=../../lib/gh-version.sh
+source "$WIT_GH_ADAPTER_DIR/../../lib/gh-version.sh"
 
 # wit_gh_resolve_bot_wrapper — echo the bot wrapper path using consumer-local-first
 # resolution (CONTRACT.md "Identity routing (GitHub adapter)"), mirroring the
@@ -220,13 +223,25 @@ readonly WIT_ITEM_JQ='{
   url: .url
 }'
 
+# wit_gh_issue_view_json_fields: --json field list `gh issue view` accepts on
+# this binary. 2.94+ adds issueType / blockedBy / parent; older gh (cloud images
+# ship 2.45) rejects those names, so get-item and create-item's emit path omit
+# them and WIT_ITEM_JQ fills type/parent_id with null and blocked_by_count with 0.
+wit_gh_issue_view_json_fields() {
+  if wit_gh_has_native_surface; then
+    printf '%s\n' "number,title,state,assignees,labels,issueType,blockedBy,parent,url"
+  else
+    printf '%s\n' "number,title,state,assignees,labels,url"
+  fi
+}
+
 # wit_emit_item <owner> <repo> <number> — fetch the issue and emit the normalized
 # item object (CONTRACT.md "JSON output contract"). blocked_by_count counts OPEN
 # blockers only (closed blockers stay in blockedBy.totalCount — Tier-0 verified).
 wit_emit_item() {
-  local owner="$1" repo="$2" number="$3"
-  wit_run_gh read issue view "$number" -R "$owner/$repo" \
-    --json number,title,state,assignees,labels,issueType,blockedBy,parent,url
+  local owner="$1" repo="$2" number="$3" fields
+  fields="$(wit_gh_issue_view_json_fields)"
+  wit_run_gh read issue view "$number" -R "$owner/$repo" --json "$fields"
   printf '%s\n' "$WIT_GH_OUT" | jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ"
 }
 
