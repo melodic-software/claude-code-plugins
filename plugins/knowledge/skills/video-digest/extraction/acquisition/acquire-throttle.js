@@ -2,6 +2,7 @@
  * Process-wide throttle for concurrent yt-dlp acquisition runs.
  */
 
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -101,7 +102,9 @@ async function isStaleSlot(slotPath) {
 
 /**
  * Exclusive create of `slotPath.reclaim`. A leftover lock older than the
- * slot TTL is stolen so a crashed reclaimer cannot wedge the slot forever.
+ * slot TTL is stolen by renaming it to a unique tombstone (only one racer
+ * can win that rename) so a crashed reclaimer cannot wedge the slot, and
+ * two stealers cannot both believe they hold the lock.
  *
  * @param {string} reclaimPath
  * @returns {Promise<boolean>}
@@ -113,7 +116,13 @@ async function tryAcquireReclaimLock(reclaimPath) {
   if (!(await isStaleSlot(reclaimPath))) {
     return false;
   }
-  await fs.rm(reclaimPath, { recursive: true, force: true });
+  const tombstone = `${reclaimPath}.${process.pid}.${randomUUID()}.dead`;
+  try {
+    await fs.rename(reclaimPath, tombstone);
+  } catch {
+    return false;
+  }
+  await fs.rm(tombstone, { recursive: true, force: true });
   return tryMkdirExclusive(reclaimPath);
 }
 

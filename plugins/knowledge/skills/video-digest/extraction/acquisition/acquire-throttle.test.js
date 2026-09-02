@@ -143,6 +143,34 @@ describe("reclaimStaleSlot", () => {
     expect(fsSync.existsSync(reclaim)).toBe(false);
   });
 
+  it("concurrent steal of a leftover reclaim lock does not evict a live holder", async () => {
+    const slot = path.join(baseDir, "slot-0");
+    await makeStale(slot);
+    const reclaim = `${slot}.reclaim`;
+    await fs.mkdir(reclaim);
+    const longAgo = new Date(Date.now() - 20 * 60 * 1000);
+    await fs.utimes(reclaim, longAgo, longAgo);
+
+    /** @type {boolean[]} */
+    const removed = [];
+    await Promise.all(
+      Array.from({ length: 8 }, () =>
+        (async () => {
+          const won = await reclaimStaleSlot(slot);
+          removed.push(won);
+          if (won) {
+            await fs.mkdir(slot);
+            await fs.writeFile(path.join(slot, "pid"), "live\n");
+          }
+        })(),
+      ),
+    );
+
+    expect(removed.filter(Boolean)).toHaveLength(1);
+    expect(await fs.readFile(path.join(slot, "pid"), "utf8")).toBe("live\n");
+    expect(await countOccupiedSlots(baseDir)).toBe(1);
+  });
+
   it("does not evict a live holder that appears after the first of two reclaimers wins", async () => {
     const slot = path.join(baseDir, "slot-0");
     await makeStale(slot);

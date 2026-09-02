@@ -13,8 +13,10 @@ only after that version increases.
   directory, a peer `mkdir` became a live holder, and the second `rm` evicted
   that holder so a third acquire exceeded `maxSlots`. Reclaim now takes
   `slot-N.reclaim` (mkdir, EEXIST skips), re-stats, and only then removes the
-  slot. Rename-then-rm is not used: the original holder still releases
-  `slot-N` in `finally` and would delete a relocated occupant.
+  slot. A leftover reclaim lock older than the slot TTL is stolen by renaming
+  it to a unique tombstone so only one racer can win. Rename-then-rm of the
+  live slot is not used: the original holder still releases `slot-N` in
+  `finally` and would delete a relocated occupant.
 
 ## [0.13.36]
 
