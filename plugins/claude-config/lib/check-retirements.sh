@@ -474,6 +474,7 @@ matching_line_nrs() {
   for n in $all; do
     case " $scoped " in
     *" $n "*) printf '%s ' "$n" ;;
+    *) ;;
     esac
   done
 }
