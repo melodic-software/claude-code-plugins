@@ -3,6 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.1]
+
+### Added
+
+- **`lib/spawn_noise.py` gains `is_measurable()` and `percentile_floor()`.** `is_measurable()` turns
+  a spawn-noise summary into a verdict on whether a WALL-CLOCK claim may be reported from this host,
+  reading the `findings` list rather than `spread_ratio` alone so the two-part bimodal predicate is
+  preserved. `percentile_floor()` returns `1/(1-p)`, the only sample-count constraint the
+  benchmarking literature actually grounds. `claude-ops` calls neither; both exist for the
+  `performance` plugin, which now carries this file as a registered cross-plugin cluster
+  (`scripts/sync-spawn-noise.sh`, CI lane `spawn-noise-sync`) so the bimodal threshold keeps exactly
+  one home. Adding them here rather than only in the consumer is what byte-identical cluster copies
+  require.
+- **Lib tests for both.** The measurability test asserts the quiet-host and contended-host arms
+  produce DIFFERENT verdicts as a first-class check, not merely that each produced its expected
+  value: a refusal that fires on every host refuses nothing.
+
 ## [0.41.0]
 
 ### Added

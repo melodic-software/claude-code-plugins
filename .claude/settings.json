@@ -69,6 +69,7 @@
     "mutation-testing@melodic-software": true,
     "naming@melodic-software": true,
     "overengineering@melodic-software": true,
+    "performance@melodic-software": true,
     "planning@melodic-software": true,
     "playbooks@melodic-software": true,
     "playgrounds@melodic-software": false,

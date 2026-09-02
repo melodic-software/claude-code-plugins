@@ -43,12 +43,13 @@
     {
       "id": 4,
       "name": "boundary-does-not-lower-altitude-for-explain-request",
-      "prompt": "explain this simply, ELI5 — I don't get what the previous message means",
-      "expected_output": "Recognizes this as an altitude request (plain-language / ELI5 comprehension gap), which is education:explain's lane, not a structure problem. Does not respond by lowering the reading level or substituting an analogy under the guise of clarifying; either routes to the plain-language explainer or, if it proceeds, holds altitude fixed and only restructures — never both.",
+      "prompt": "explain this simply, I don't get what the previous message means",
+      "expected_output": "Recognizes this as an altitude request (a plain-language comprehension gap), which is education:explain's lane, not a structure problem. Does not respond by lowering the reading level or substituting an analogy under the guise of clarifying; either routes to the plain-language explainer or, if it proceeds, holds altitude fixed and only restructures, never both.",
       "files": [],
       "expectations": [
-        "Does not treat an ELI5 / 'explain simply' request as a cue to lower the content's altitude",
+        "Does not treat an 'explain simply' request as a cue to lower the content's altitude",
         "Recognizes the altitude-vs-structure boundary and routes plain-language requests to education:explain",
+        "Routes to the prose lane rather than the visual one: the ask is for plainer words, not a diagram",
         "If it acts at all, it changes arrangement only and preserves precision and reading level"
       ]
     },
@@ -86,6 +87,18 @@
       "expectations": [
         "Does not invent or guess a target artifact",
         "Asks the user what to clarify"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "boundary-routes-picture-request-to-the-visual-lane",
+      "prompt": "ELI5 this, give me the picture version of what the previous message is saying",
+      "expected_output": "Recognizes this as a request to change the MEDIUM, a visual explainer that assumes zero prior knowledge, which is education:eli5's lane. It is neither a structure problem for this skill nor a prose altitude drop for education:explain, so routing it to the plain-language explainer is as wrong as handling it here. This skill does not render a diagram of its own under the guise of clarifying.",
+      "files": [],
+      "expectations": [
+        "Recognizes 'ELI5' plus 'the picture version' as a medium request and routes to education:eli5, not education:explain",
+        "Does not produce a diagram or visual explainer itself, and does not treat the request as a cue to restructure the message instead",
+        "Keeps the three lanes distinct: structure here, prose altitude at education:explain, visual medium at education:eli5"
       ]
     }
   ]

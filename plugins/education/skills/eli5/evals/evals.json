@@ -1,0 +1,56 @@
+{
+  "skill_name": "eli5",
+  "evals": [
+    {
+      "id": 1,
+      "name": "delegates-to-upstream-when-plugin-installed",
+      "prompt": "[The upstream eli5 plugin is installed in this session.] /education:eli5 how does the session-resume path work in this module",
+      "expected_output": "Runs the grounding pre-pass for a module object first — reading the actual code and its callers rather than working from the name — then invokes the upstream eli5 skill via the Skill tool at its eli5:eli5 address, passing the grounded topic rather than the user's raw phrasing. It checks the returned artifact against the output contract (a visual HTML explainer assuming zero prior knowledge, one idea per diagram, minimal text) before handing it back, and treats a result with no diagrams, or one leaning on unexplained identifiers, as an invocation that did not succeed.",
+      "files": [],
+      "expectations": [
+        "Grounds first by reading the actual module code and its callers, rather than drawing from the module's name or from memory",
+        "Delegates to the upstream eli5 skill via the Skill tool rather than reimplementing the explainer inline when the plugin is present",
+        "Passes the grounded topic to the upstream skill instead of forwarding the user's raw phrasing unchanged",
+        "Checks the returned output against the zero-prior-knowledge / one-idea-per-diagram contract before returning it, and falls through to the inline pass if it does not hold"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-assist-prints-commands-and-never-executes",
+      "prompt": "[The upstream eli5 plugin is NOT installed in this session.] /education:eli5 why did we pick optimistic locking here",
+      "expected_output": "Detects the upstream plugin is absent and PRINTS the install recipe — the marketplace-add and plugin-install commands — without executing either one, because installing a plugin is the operator's action under the setup contract. It states the scope guidance (project scope for repo-consistent behavior; cloud sessions never load user scope) and closes with the reload instruction. It then answers the actual question inline in the same turn rather than leaving the install recipe standing as the whole response.",
+      "files": [],
+      "expectations": [
+        "Prints the marketplace-add and install commands as text for the operator to run",
+        "Does NOT execute the install commands, or any shell command that would install the plugin, on the user's behalf",
+        "Carries the scope guidance (project scope for repo-consistent behavior; cloud sessions never load user scope) and the reload-then-re-invoke close",
+        "Still produces the explainer inline in the same turn — the recipe does not replace the answer to the question asked"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "inline-fallback-holds-the-output-contract",
+      "prompt": "[The upstream eli5 plugin is NOT installed and the user has already declined to install it.] /education:eli5 what caused the checkout outage last Thursday",
+      "expected_output": "Does not re-litigate the declined install; it performs the explainer itself and holds the same contract the upstream skill would. For an incident object that means reading the writeup and logs to reconstruct the sequence before drawing the causal chain, then producing inline-SVG diagrams at one idea each, with a one-line takeaway caption per diagram and real service and function names demoted into parentheses or monospace behind plain-words descriptions.",
+      "files": [],
+      "expectations": [
+        "Runs the incident grounding pre-pass (writeup and logs, sequence reconstructed) before drawing the causal chain",
+        "Produces diagrams at one idea each with a one-line takeaway caption, not a prose summary with a decorative picture",
+        "Demotes identifiers into parentheses or monospace behind plain-words descriptions rather than making unseen names the subject",
+        "Does not re-prompt for the declined install as a precondition for answering"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "boundary-prose-drop-request-does-not-produce-an-artifact",
+      "prompt": "explain this simply, I don't get what the previous message means",
+      "expected_output": "Recognizes this as a request for plainer WORDS at a lower altitude, which is education:explain's lane, not a request for a picture. It does not answer by building a visual HTML explainer: the medium change is this skill's whole contract, and applying it to a prose comprehension gap produces a diagram nobody asked for. It routes to education:explain instead.",
+      "files": [],
+      "expectations": [
+        "Does not produce a visual HTML explainer or diagram artifact for a plain-language prose request",
+        "Recognizes the medium boundary (picture versus prose altitude drop) and routes to education:explain",
+        "Does not treat 'explain simply' as sufficient to fire the visual lane on its own"
+      ]
+    }
+  ]
+}
