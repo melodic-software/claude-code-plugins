@@ -10,6 +10,8 @@
 #   4. gh api failure — exits 2
 #   5. Output schema — every object has required fields
 #   6. Empty PR (no comments) — exits 0 with empty array
+#   13. Final jq merge failure — exits 2 (not masked by a trailing exit 0)
+#   14. Successful merge of a subset (INLINE empty) — still exits 0
 
 set -uo pipefail
 
@@ -260,6 +262,56 @@ assert_contains "--help names the UnicodeDecodeError failure mode" "$help_out" "
 # cannot come back unnoticed.
 assert_contains "--help reaches the end of the header (Exit codes block)" \
   "$help_out" "prerequisite missing (gh, jq)"
+
+# Case 13 (#3483): a failed final jq merge must exit non-zero. The three surface
+# projections still run against real jq; only `jq -s` (the merge) is stubbed to
+# fail, so this cannot be satisfied by a surface-parse exit 2.
+REAL_JQ=$(command -v jq)
+JQ_MERGE_FAIL="$TEST_TMPDIR/bin-jq-merge-fail"
+mkdir -p "$JQ_MERGE_FAIL"
+cat >"$JQ_MERGE_FAIL/jq" <<STUB
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [[ "\$arg" == "-s" ]]; then
+    printf 'jq: merge stub failure\n' >&2
+    exit 5
+  fi
+done
+exec '$REAL_JQ' "\$@"
+STUB
+chmod +x "$JQ_MERGE_FAIL/jq"
+
+rc=$(
+  PATH="$JQ_MERGE_FAIL:$TEST_TMPDIR/bin:$PATH" bash "$SCRIPT" "$PR_NUM" >/dev/null 2>&1
+  echo $?
+)
+assert_eq "jq merge failure exits 2" "2" "$rc"
+err=$(PATH="$JQ_MERGE_FAIL:$TEST_TMPDIR/bin:$PATH" bash "$SCRIPT" "$PR_NUM" 2>&1 >/dev/null)
+assert_contains "jq merge failure names the merge" "$err" "jq merge failed"
+
+# Case 14 (#3483): INLINE (the last source) empty is a legitimate subset. The
+# old `[[ -n ]] && printf` arm returned 1 for that empty source; under pipefail
+# that would fail the pipeline even when jq succeeded. Must still exit 0.
+PARTIAL_STUB="$TEST_TMPDIR/bin-partial/gh"
+mkdir -p "$TEST_TMPDIR/bin-partial"
+cat >"$PARTIAL_STUB" <<STUB
+#!/usr/bin/env bash
+case "\$*" in
+  *"repo view"*owner*) printf 'testowner' ;;
+  *"repo view"*name*) printf 'testrepo' ;;
+  *issues/${PR_NUM}/comments*) cat "$FIXTURE_GENERAL" ;;
+  *) printf '[]' ;;
+esac
+STUB
+chmod +x "$PARTIAL_STUB"
+
+out=$(PATH="$TEST_TMPDIR/bin-partial:$PATH" bash "$SCRIPT" "$PR_NUM" 2>/dev/null)
+rc=$?
+assert_eq "subset merge (INLINE empty) exits 0" "0" "$rc"
+partial_count=$(printf '%s' "$out" | jq 'length')
+assert_eq "subset merge emits the general comment" "1" "$partial_count"
+partial_type=$(printf '%s' "$out" | jq -r '.[0].type')
+assert_eq "subset merge type is general" "general" "$partial_type"
 
 # ---- Summary ----------------------------------------------------------------
 

@@ -41,8 +41,9 @@ export function activeProfile() {
 }
 
 // Tracked per-profile config directory under the consumer's project — the home
-// of the profile's brand.json overlay + logo assets. The default profile lives at
-// the folder root; a named profile overlays it in a subfolder. Mirrors
+// of the profile's brand.json + logo assets. The default profile lives at
+// the folder root; a named profile is a subdirectory of that folder, selected
+// by name. That is profile selection, not a `*.local.*` cascade layer. Mirrors
 // scripts/lib/paths.js configDir() so the build resolves the same config seam.
 export function configDir(profile = activeProfile()) {
   const safeProfile = validateProfileName(profile);

@@ -348,6 +348,20 @@ wit_gitea_http() {
   rm -f "$hdrs"
 }
 
+# wit_gitea_require_array <context> — fail closed unless WIT_GITEA_BODY is a
+# JSON array. A 200 proxy error page or auth-redirect body would otherwise be
+# treated as iterable (jq `length` of an object is its key count), yielding an
+# empty or garbage label set instead of an error.
+wit_gitea_require_array() {
+  local ctx="$1"
+  local kind
+  kind="$(jq -r 'type' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || kind=""
+  if [[ "$kind" != "array" ]]; then
+    printf 'gitea: %s — expected a JSON array, got %s\n' "$ctx" "${kind:-non-JSON}" >&2
+    exit "$EX_INTERNAL"
+  fi
+}
+
 # wit_gitea_require_ok <context> — map WIT_GITEA_STATUS to a
 # contract exit code, printing the provider's error text to stderr on failure. 2xx
 # returns 0.

@@ -3,6 +3,36 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.5]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.41.4]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
+## [0.41.3]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside a command substitution, so a host without either digest tool continued and printed a malformed key at exit 0. Synced from the canonical `claude-config` copy via `scripts/sync-state-key.sh`.
+
+## [0.41.2]
+
+### Fixed
+
+- **`known-issues`: `check-all.sh` processes a final snapshot row without a trailing newline.**
+  The while-read loop over `registry-snapshot.tsv` dropped the last row when the file had no
+  trailing newline, because `read` returns non-zero on that final partial read. The loop now
+  uses `|| [[ -n "$number" ]]` so that row still runs, and the progress total uses `grep -c ''`
+  so `[n/total]` counts it too.
+
 ## [0.41.1]
 
 ### Added

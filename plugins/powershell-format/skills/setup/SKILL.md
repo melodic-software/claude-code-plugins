@@ -85,25 +85,21 @@ Run `check`, then for each finding point at the resolution. This skill installs 
   settings file at or below the project root opts the repo in, but this skill does not write
   it. The settings file is the executed-adjacent trust boundary above; the choice and the edit
   belong to the consumer.
-- toggle off: direct to `/plugin configure powershell-format` (interactive, any
-  time). Headless: rerun the install with the new value,
+- toggle off: reconfigure through Claude Code's native flow, per the marketplace's
+  plugin-reconfiguration convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  which owns the verified-version record): interactive `/plugin configure powershell-format@<marketplace>`
+  any time, or headless
   `claude plugin install powershell-format@<marketplace> -s <scope> --config powershell_format_enabled=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed` **and
-  still writes the value**, verified on Claude Code 2.1.240 (a non-sensitive option at `user`
-  scope: a non-default value written to an installed plugin, then restored). The short-circuit is
-  about the install, not the config write. Re-verify before relying on it outside those
-  conditions. A `sensitive` option, or `project`/`local` scope, were not covered. Do **not**
-  uninstall to reconfigure: uninstalling drops this plugin's entire stored `pluginConfigs` entry,
-  resetting every option in the README's Options reference table to its manifest default. `-s`
-  defaults to `user`, so pass the scope `claude plugin list` reports for this plugin, and run from
-  that project's directory for a `project`/`local` scope, or the write lands at a scope that does
-  not load. This skill never writes user settings or `pluginConfigs`.
-  Afterwards, keep the two claims apart. The write is issued and the stored value is what you
-  passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
-  skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-  session start, so a same-session `check` still reports the OLD value. Reporting that as a
-  failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
-  session**, and never claim an unobserved change.
+  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
+  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
+  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
+  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
+  does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  `check` in a **fresh session** — the rendered `${user_config.*}` and the hook's
+  `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still reports
+  the OLD value; report the observed effective value, never an unobserved change.
 
 After pointing at a remediation, re-run the relevant `check` probe and report its actual
 result. Never claim resolved on the reader's report that they installed something.

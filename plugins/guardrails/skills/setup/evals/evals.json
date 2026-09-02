@@ -22,8 +22,8 @@
       "expectations": [
         "Runs check before offering remediations",
         "Points at /plugin configure, or headless at a plain `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE` rerun, for toggle changes",
-        "Never tells the operator to `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, turning every disabled guard back on and discarding every *_allow / *_bins / *_prefixes list",
-        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Never tells the operator to `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README's Options reference to its manifest default",
+        "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record, states the scope rule (`-s` defaults to `user`; pass the scope `claude plugin list` reports), and defers observation of the new value to rerunning check in a fresh session",
         "Never installs system packages and never writes user settings or pluginConfigs"
       ]
     },

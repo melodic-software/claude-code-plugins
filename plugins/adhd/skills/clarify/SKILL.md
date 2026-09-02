@@ -26,13 +26,23 @@ worse than the wall of text, so the fidelity rules below are hard, not aspiratio
 1. **Identify the target.** With an argument, that is the thing. Empty
    argument → the **previous assistant response** (see [Empty
    argument](#empty-argument-anaphora-default)).
+   **Done when** you can name the target, or, on a cold start, have asked what
+   to clarify instead of inventing one.
 2. **Ground it, don't recall it.** Re-read the actual artifact this turn, the
    message just sent, in full. Working from your memory of it instead of its text
    is how operative terms drift.
+   **Done when** you have re-read the full target this turn and can quote an
+   operative term from its text.
 3. **Restructure faithfully**. Chunk, define jargon, surface decisions
    (below), under the fidelity rules.
+   **Done when** every decision from the target appears in the restructured
+   view and every omission is named. A paraphrase that drops or softens a
+   decision is not done.
 4. **Choose the medium**. Artifact, local file, or terminal, per
    [Rendering](#rendering-artifact-forward).
+   **Done when** the output is on the rendering ladder the table names for this
+   session and content size, and you have not claimed an artifact that was
+   not produced.
 
 ## Empty argument, anaphora default
 

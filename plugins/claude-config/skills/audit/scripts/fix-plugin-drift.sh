@@ -52,6 +52,10 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --input)
+    if [[ $# -lt 2 ]]; then
+      echo "Missing value for --input" >&2
+      exit 2
+    fi
     INPUT_JSON="$2"
     shift 2
     ;;

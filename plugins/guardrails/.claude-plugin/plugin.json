@@ -52,7 +52,7 @@
     "block_windows_drive_tmp_enabled": {
       "type": "boolean",
       "title": "block-windows-drive-tmp guard",
-      "description": "Block writes whose target is a Windows drive-root temp path (/tmp, C:\\tmp, \\tmp, /c/tmp) that resolves to <drive>:\\tmp instead of %TEMP% — both Bash/PowerShell commands and Write/Edit/MultiEdit/NotebookEdit file paths. One switch covers both lanes",
+      "description": "Block writes whose target is a Windows drive-root temp path (/tmp, C:\\tmp, \\tmp, /c/tmp) that resolves to <drive>:\\tmp instead of %TEMP% \u2014 both Bash/PowerShell commands and Write/Edit/MultiEdit/NotebookEdit file paths. One switch covers both lanes",
       "default": true
     },
     "block_exported_msys_pathconv_enabled": {
@@ -147,5 +147,5 @@
       "min": 1
     }
   },
-  "version": "0.30.0"
+  "version": "0.30.4"
 }

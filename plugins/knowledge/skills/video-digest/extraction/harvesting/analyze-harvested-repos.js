@@ -153,9 +153,11 @@ export async function runAnalyzeHarvestedReposCli(argv) {
 
 if (isMainModule(import.meta.url)) {
   runAnalyzeHarvestedReposCli(process.argv)
-    .then((code) => process.exit(code))
+    .then((code) => {
+      process.exitCode = code;
+    })
     .catch((err) => {
       writeStderr(err instanceof Error ? err.message : String(err));
-      process.exit(1);
+      process.exitCode = 1;
     });
 }

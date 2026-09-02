@@ -3,6 +3,34 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.14]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside a command substitution, so a host without either digest tool continued and printed a malformed key at exit 0. Synced from the canonical `claude-config` copy via `scripts/sync-state-key.sh`.
+
+## [0.11.13]
+
+### Changed
+
+- **`stateless/scripts/scope-report.test.sh` isolates ambient `CLAUDE_CONFIG_DIR`.** The suite
+  isolated `HOME` but left an ambient `CLAUDE_CONFIG_DIR` in place for every case except Case 6,
+  so Case 4 could write into a live config tree. Every main-case invocation now runs through
+  `iso_env`, Case 4 aborts if the resolved dir escapes the suite tmpdir, and a new Case 7
+  asserts an exported sentinel config dir is never written. The Case 4b newline-count fixture
+  from 0.11.12 is unchanged.
+
+## [0.11.12]
+
+### Fixed
+
+- **`stateless/scripts/scope-report.sh` topic-file count over-counted a filename with an
+  embedded newline.** The count piped `find` output through `wc -l`, which counts newlines
+  in the stream rather than files, so a single topic filename containing a literal newline
+  was reported twice. It now uses the null-delimited idiom already used by the sibling
+  `enumerate-all-projects.sh` (`find -print0` read with `IFS= read -r -d ''`), so each file
+  counts once regardless of its name.
+
 ## [0.11.11]
 
 ### Changed

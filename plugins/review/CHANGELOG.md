@@ -3,6 +3,21 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.15]
+
+### Changed
+
+- setup's migration bullet carries a rationale line: versioned-contract upgrade under apply, the sanctioned schema-evolution path, not a retirement (customization-consistency Phase 2c)
+
+## [0.26.14]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
 ## [0.26.13]
 
 ### Changed

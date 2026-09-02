@@ -182,7 +182,7 @@ The payload is a fixed vocabulary, never the sentinel token, marker path, cwd, o
 
 Setup writes tracked config to `.claude/autonomy/` in the consuming repo, named for the concern so
 the config outlives any plugin restructure. Personal overlays follow the marketplace overlay
-convention: `.claude/autonomy/**/*.local.*` stays gitignored; layers resolve per the
+convention: the recursive `.claude/**/*.local.*` line keeps them gitignored; layers resolve per the
 binding-seam ladder: user-global → org binding (when pointed) → project → local overlay, additively.
 
 <!-- ai-slop-ignore-start: generated options block; source is plugin.json + scripts/sync-plugin-options-docs.py -->

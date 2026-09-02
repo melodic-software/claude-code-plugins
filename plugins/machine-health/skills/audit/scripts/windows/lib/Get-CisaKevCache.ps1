@@ -53,6 +53,11 @@ function Get-CisaKevCache {
             $raw = Get-Content -LiteralPath $CachePath -Raw -ErrorAction Stop
             if (-not [string]::IsNullOrWhiteSpace($raw)) {
                 $cached = $raw | ConvertFrom-Json -ErrorAction Stop
+            } else {
+                # Empty or whitespace is the same class as a missing file: the
+                # cache cannot be reused and must refresh (#3436). Leaving
+                # needsRefresh false here skipped every other malformed path.
+                $needsRefresh = $true
             }
         } catch {
             Write-Warning "Get-CisaKevCache: cache parse failed, will refresh. $($_.Exception.Message)"

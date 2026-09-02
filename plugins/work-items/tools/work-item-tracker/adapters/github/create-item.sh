@@ -55,11 +55,26 @@ target_repo="$(wit_resolve_repo "$repo_override")" || exit "$?"
 
 args=(issue create -R "$target_repo" --title "$title" --body "$body")
 
-# Native GitHub Issue Type (org-defined Task/Bug/Feature). gh validates the name
-# against the org's types and silently drops it without push access — the
-# projection surfaces the resulting type so callers can confirm it took.
+# Native GitHub Issue Type (org-defined Task/Bug/Feature) is a gh 2.94 flag.
+# On older gh, forwarding `--type` dies with `unknown flag` (exit 1) and
+# `/work-items:track add` on an org repo files nothing. Degrade to the same
+# coarse `type:` label personal/non-org repos already use, and say so.
 if [[ -n "$type" ]]; then
-  args+=(--type "$type")
+  if wit_gh_has_native_surface; then
+    args+=(--type "$type")
+  else
+    type_lc="$(printf '%s' "$type" | tr '[:upper:]' '[:lower:]')"
+    case "$type_lc" in
+    bug | fix) type_label="type: bug" ;;
+    feature | feat) type_label="type: feature" ;;
+    *) type_label="type: task" ;;
+    esac
+    printf 'create-item.sh: --type requires gh >= 2.94; applying %s instead\n' \
+      "$type_label" >&2
+    if [[ ",${labels}," != *",${type_label},"* ]]; then
+      labels="${labels:+$labels,}$type_label"
+    fi
+  fi
 fi
 
 if [[ -n "$labels" ]]; then
