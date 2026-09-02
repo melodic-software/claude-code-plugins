@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.8]
+
+### Changed
+
+- **Skill-listing entries for `audit-performance`, `audit-skill-visibility`, and
+  `audit-native-overlap` tightened.** These three were the marketplace's first, second, and
+  seventh largest listing entries. Each description now drops mechanism narration (the suspect
+  labels, the verdict enumeration, the budget-drop explanation) while keeping every quoted trigger
+  phrase and every `Not for` disambiguation. Claude Code truncates the combined `description` and
+  `when_to_use` text at 1,536 characters in the skill listing, and the shared listing budget scales
+  at 1% of the model's context window, so every character an entry spends is a character another
+  skill's description cannot. Hook-performance program, phase 6 (skill listing budget).
+
 ## [0.41.7]
 
 ### Changed

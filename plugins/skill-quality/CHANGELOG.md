@@ -3,6 +3,19 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.11]
+
+### Changed
+
+- **`check` skill-listing entry tightened.** It was the marketplace's fifth largest listing entry.
+  The description now abbreviates the twenty-five-check enumeration and drops the eval-lint
+  sub-list (both live in the skill body) while keeping every quoted trigger phrase, the three
+  action names, and the `Not for` disambiguation. Claude Code truncates the combined
+  `description` and `when_to_use` text at 1,536 characters in the skill listing, and the shared
+  listing budget scales at 1% of the model's context window, so every character an entry spends
+  is a character another skill's description cannot. Hook-performance program, phase 6 (skill
+  listing budget).
+
 ## [0.20.10]
 
 ### Changed

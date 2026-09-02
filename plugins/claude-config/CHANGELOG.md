@@ -3,6 +3,18 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.32]
+
+### Changed
+
+- **`audit-prompting-postures` skill-listing entry tightened.** It was the marketplace's third
+  largest listing entry. The description now folds the component list into a parenthetical and
+  shortens the posture enumeration while keeping every quoted trigger phrase and the `Not for`
+  disambiguation. Claude Code truncates the combined `description` and `when_to_use` text at
+  1,536 characters in the skill listing, and the shared listing budget scales at 1% of the model's
+  context window, so every character an entry spends is a character another skill's description
+  cannot. Hook-performance program, phase 6 (skill listing budget).
+
 ## [0.40.31]
 
 ### Fixed

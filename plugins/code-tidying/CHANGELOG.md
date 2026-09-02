@@ -3,6 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.4]
+
+### Changed
+
+- **`dissolve-comments` skill-listing entry tightened.** It was among the marketplace's ten
+  largest listing entries. The description now folds the scope ladder into a parenthetical and
+  drops a redundant clause from the triage sentence while keeping every quoted trigger phrase and
+  the `Skip when` disambiguation. Claude Code truncates the combined `description` and
+  `when_to_use` text at 1,536 characters in the skill listing, and the shared listing budget scales
+  at 1% of the model's context window, so every character an entry spends is a character another
+  skill's description cannot. Hook-performance program, phase 6 (skill listing budget).
+
 ## [0.15.3]
 
 ### Changed
