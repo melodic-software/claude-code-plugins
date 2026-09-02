@@ -23,6 +23,7 @@ set -uo pipefail
 # what this suite proves. Every case supplies its settings through a scoped HOME.
 unset CLAUDE_CONFIG_DIR CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED
 unset RLG_TEE_ASYNC RLG_TEE_DISABLED_RECHECK
+unset RLG_TEE_NOCHANGE_FLOOR RLG_TEE_SWEEP_INTERVAL
 
 # The render path spools a per-session record with zero forks; ONE elected
 # render per cadence drains the batch into the contract file (see THE SPOOL in
@@ -816,6 +817,131 @@ if [[ ! -e "$TRACE_HOME/$TEE_REL" ]]; then
   ok "trace: the non-elected render wrote no snapshot, as elected"
 else
   fail "trace: the non-elected render drained anyway"
+fi
+
+# --- Case 28: the bounded no-change skip -------------------------------------
+# An unchanged payload must cost no rename. Proven by mtime rather than by
+# content: the body a skipped refresh would have written is byte-identical to
+# the one already there, so comparing content could not tell a skip from a
+# rewrite. The snapshot is backdated to 2000 and a sentinel is stamped at "now"
+# immediately before the second render, so `-ot` answers exactly one question:
+# did anything touch the file. `-ot` is strict, so a rewrite landing in the same
+# second as the sentinel still reads as "not older" and cannot pass by accident.
+HOME_NC="$WORK/home-nochange"
+mkdir -p "$HOME_NC"
+NC_SNAP="$HOME_NC/$TEE_REL"
+NC_SENTINEL="$WORK/nc-sentinel"
+run "$HOME_NC" "$(build_input)" cat >/dev/null
+if [[ -f "$NC_SNAP" ]]; then ok "no-change: the first render writes the snapshot"; else fail "no-change: first render wrote nothing"; fi
+if [[ -f "$HOME_NC/.claude/rate-limit-guard/.last-write" ]]; then
+  ok "no-change: a real write stamps .last-write"
+else
+  fail "no-change: .last-write missing after a real write"
+fi
+NC_CAP_BEFORE="$(jq -r '.captured_at' <"$NC_SNAP")"
+touch -t 200001010000 "$NC_SNAP"
+touch "$NC_SENTINEL"
+run "$HOME_NC" "$(build_input)" cat >/dev/null
+if [[ "$NC_SNAP" -ot "$NC_SENTINEL" ]]; then
+  ok "no-change: an identical payload inside the floor writes nothing"
+else
+  fail "no-change: identical payload rewrote the snapshot"
+fi
+if [[ "$(jq -r '.captured_at' <"$NC_SNAP")" == "$NC_CAP_BEFORE" ]]; then
+  ok "no-change: the skipped refresh left the snapshot byte-intact"
+else
+  fail "no-change: snapshot changed despite the skip"
+fi
+
+# --- Case 29: the skip does not misfire on a changed payload -----------------
+# The guard against a skip that always fires. Same HOME, same session, only the
+# window usage moves, which is the one thing a reader is watching.
+NC_CHANGED='{"session_id":"sess-42","model":{"id":"claude-opus-4-8","display_name":"Opus"},"context_window":{"used_percentage":8},"rate_limits":{"five_hour":{"used_percentage":77.5,"resets_at":1738425600},"seven_day":{"used_percentage":41.2,"resets_at":1738857600}}}'
+touch -t 200001010000 "$NC_SNAP"
+touch "$NC_SENTINEL"
+run "$HOME_NC" "$NC_CHANGED" cat >/dev/null
+if [[ ! "$NC_SNAP" -ot "$NC_SENTINEL" ]]; then
+  ok "no-change: a changed payload still rewrites the snapshot"
+else
+  fail "no-change: the skip swallowed a changed payload"
+fi
+if [[ "$(jq -r '.rate_limits.five_hour.used_percentage' <"$NC_SNAP")" == "77.5" ]]; then
+  ok "no-change: the changed window reached the snapshot"
+else
+  fail "no-change: snapshot window = $(jq -r '.rate_limits.five_hour.used_percentage' <"$NC_SNAP"), want 77.5"
+fi
+
+# --- Case 30: the floor expires, so captured_at never goes stale --------------
+# The bound the reader contract's staleness rule requires. An identical payload
+# past the floor MUST rewrite, or a live but idle session's snapshot would age
+# past the 10-minute budget and demote the whole guard to reactive-only. The
+# stamp is the seam: backdating it to 0 is exactly the state a machine reaches
+# after sitting on one unchanged payload for longer than the floor.
+HOME_FL="$WORK/home-floor"
+mkdir -p "$HOME_FL"
+FL_SNAP="$HOME_FL/$TEE_REL"
+FL_SENTINEL="$WORK/fl-sentinel"
+run "$HOME_FL" "$(build_input)" cat >/dev/null
+if [[ -f "$FL_SNAP" ]]; then ok "floor: the first render writes the snapshot"; else fail "floor: first render wrote nothing"; fi
+# Inside the floor the identical payload is skipped, which is what makes the
+# expiry assertion below meaningful rather than vacuous.
+touch -t 200001010000 "$FL_SNAP"
+touch "$FL_SENTINEL"
+run "$HOME_FL" "$(build_input)" cat >/dev/null
+if [[ "$FL_SNAP" -ot "$FL_SENTINEL" ]]; then
+  ok "floor: inside the floor the identical payload is skipped"
+else
+  fail "floor: identical payload was not skipped inside the floor"
+fi
+write_settings "$HOME_FL/.claude/rate-limit-guard/.last-write" "0"
+touch -t 200001010000 "$FL_SNAP"
+touch "$FL_SENTINEL"
+run "$HOME_FL" "$(build_input)" cat >/dev/null
+if [[ ! "$FL_SNAP" -ot "$FL_SENTINEL" ]]; then
+  ok "floor: past the floor the identical payload rewrites (captured_at stays fresh)"
+else
+  fail "floor: an expired floor still skipped the write — captured_at can go stale"
+fi
+if jq -r '.captured_at' <"$FL_SNAP" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'; then
+  ok "floor: the refreshed snapshot carries a well-formed captured_at"
+else
+  fail "floor: captured_at = $(jq -r '.captured_at' <"$FL_SNAP")"
+fi
+
+# --- Case 31: the spool sweep runs on its own cadence, not every drain --------
+# The `find` the sweep spends is a process on a path that drains twice a minute
+# to enforce a fifteen-minute floor. It must still reclaim a dead session's
+# record, and must not re-spend the process on the very next drain.
+HOME_SW="$WORK/home-sweep"
+SW_SPOOL="$HOME_SW/$SPOOL_REL"
+mkdir -p "$SW_SPOOL"
+write_settings "$SW_SPOOL/sess-dead.json" '{"e":1,"p":{"session_id":"sess-dead"}}'
+touch -t 200001010000 "$SW_SPOOL/sess-dead.json"
+run "$HOME_SW" "$(build_input)" cat >/dev/null
+if [[ ! -e "$SW_SPOOL/sess-dead.json" ]]; then
+  ok "sweep: a dead session's aged record is reclaimed"
+else
+  fail "sweep: aged spool record survived the first drain"
+fi
+if [[ -f "$SW_SPOOL/.last-sweep" ]]; then
+  ok "sweep: the drain stamps .last-sweep"
+else
+  fail "sweep: .last-sweep missing after a sweep"
+fi
+write_settings "$SW_SPOOL/sess-dead2.json" '{"e":1,"p":{"session_id":"sess-dead2"}}'
+touch -t 200001010000 "$SW_SPOOL/sess-dead2.json"
+run "$HOME_SW" "$(build_input)" cat >/dev/null
+if [[ -e "$SW_SPOOL/sess-dead2.json" ]]; then
+  ok "sweep: a fresh stamp suppresses the next drain's sweep"
+else
+  fail "sweep: the sweep ran again on the very next drain"
+fi
+write_settings "$SW_SPOOL/.last-sweep" "0"
+run "$HOME_SW" "$(build_input)" cat >/dev/null
+if [[ ! -e "$SW_SPOOL/sess-dead2.json" ]]; then
+  ok "sweep: an expired stamp lets the sweep run again"
+else
+  fail "sweep: an expired stamp did not restore the sweep"
 fi
 
 echo
