@@ -483,6 +483,18 @@ fi
 
 locked_hint="re-run after closing the file (on Windows a locked file makes the remove fail; nothing was changed)"
 
+# File and line cleanup share this: a syntactically clean repo-relative path can
+# still walk a symlink parent out of ROOT. Re-resolve at the moment of use.
+assert_target_inside_root() {
+  local real_root real_parent
+  real_root=$(cd "$ROOT" 2>/dev/null && pwd -P) || die "cannot resolve root: $ROOT"
+  real_parent=$(cd "$(dirname -- "$target")" 2>/dev/null && pwd -P) || die "cannot resolve $path"
+  case "$real_parent" in
+  "$real_root" | "$real_root"/*) ;;
+  *) die "refusing to remove $path — it resolves outside the repository root ($real_parent)" ;;
+  esac
+}
+
 if ! present "$idx"; then
   if [[ "$kind" == "file" && -f "$target" && -n "${REC_CONTENT_MATCH[$idx]}" ]]; then
     echo "check-retirements: $CLEAN_ID: $path exists but its content no longer matches the record — the path is in use by something else; nothing to clean." >&2
@@ -494,6 +506,7 @@ fi
 
 case "$kind" in
 file)
+  assert_target_inside_root
   if ! rm -f "$target"; then
     die "could not remove $path — $locked_hint"
   fi
@@ -518,6 +531,7 @@ dir)
   exit 0
   ;;
 line)
+  assert_target_inside_root
   match="${REC_MATCH[$idx]}"
   # Which input lines match, by number, decided once by grep -E (the same ERE
   # dialect detection used); awk then copies every other line through with

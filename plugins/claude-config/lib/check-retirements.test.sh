@@ -380,6 +380,23 @@ run --manifest "$m" --root "$r" --clean fx-r999
 assert_exit "case 12: clean of an unknown id exits 2" 2 "$RC"
 assert_contains "case 12: unknown id is named" "$ERR" "fx-r999"
 
+# --- Case 12b: --clean file refuses a symlink parent that leaves ROOT --------
+r="$(mkrepo clean-symlink-parent)"
+outside="$TEST_TMPDIR/outside-clean-symlink"
+mkdir -p "$outside"
+printf 'secret\n' >"$outside/old.json"
+ln -s "$outside" "$r/.claude"
+m="$TEST_TMPDIR/symlink-parent.yaml"
+good_record fx-r001 file .claude/old.json delete | manifest "$m"
+run --manifest "$m" --root "$r" --clean fx-r001
+assert_exit "case 12b: clean through a symlink parent exits 2" 2 "$RC"
+assert_contains "case 12b: the refusal names the outside resolve" "$ERR" "resolves outside the repository root"
+if [[ -f "$outside/old.json" ]]; then
+  pass "case 12b: the external file is left untouched"
+else
+  fail "case 12b: the external file is left untouched" "deleted"
+fi
+
 # --- Case 13: --clean respects content_match at clean time --------------------
 r="$(mkrepo clean-guard)"
 printf 'version: 2\n' >"$r/config.yaml"

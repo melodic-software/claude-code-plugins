@@ -580,14 +580,15 @@ const SEMVER =
 
 // The accepted grammar is a deliberately small subset of YAML, so the parser
 // is hand-written rather than a dependency. Records are separated by a line
-// that is exactly `---` (trailing whitespace tolerated); a record with no keys,
-// such as the one before a leading `---`, is skipped. Inside a record every
-// line is either blank, a comment (first non-blank character `#`), or
-// `key: value` with the key at column 0. Values are the rest of the line,
-// trimmed; a value wrapped in double quotes unescapes `\"` and `\\`, one in
-// single quotes unescapes `''`. There are no inline comments after a value, no
-// multi-line values, no nesting, and no lists. Anything else is a parse error
-// so an author never ships a record the helper reads differently.
+// that is exactly `---` (no trailing whitespace: the runtime helper is the
+// same); a record with no keys, such as the one before a leading `---`, is
+// skipped. Inside a record every line is either blank, a comment (first
+// non-blank character `#`), or `key: value` with the key at column 0. Values
+// are the rest of the line, trimmed; matching outer quotes are stripped and
+// nothing inside is escaped, matching the helper's `strip_quotes`. There are
+// no inline comments after a value, no multi-line values, no nesting, and no
+// lists. Anything else is a parse error so an author never ships a record the
+// helper reads differently.
 function parseRetirementsManifest(text) {
   const records = [];
   const errors = [];
@@ -599,7 +600,7 @@ function parseRetirementsManifest(text) {
   };
   text.split(/\r?\n/).forEach((raw, index) => {
     const lineNo = index + 1;
-    if (/^---\s*$/.test(raw)) {
+    if (raw === "---") {
       flush();
       return;
     }
@@ -628,19 +629,17 @@ function parseRetirementsManifest(text) {
       return;
     }
     if (value.startsWith('"')) {
-      const quoted = value.match(/^"((?:[^"\\]|\\.)*)"$/);
-      if (!quoted) {
+      if (value.length < 2 || !value.endsWith('"')) {
         errors.push(`line ${lineNo}: unterminated or malformed double-quoted value for "${key}"`);
         return;
       }
-      value = quoted[1].replace(/\\(["\\])/g, "$1");
+      value = value.slice(1, -1);
     } else if (value.startsWith("'")) {
-      const quoted = value.match(/^'((?:[^']|'')*)'$/);
-      if (!quoted) {
+      if (value.length < 2 || !value.endsWith("'")) {
         errors.push(`line ${lineNo}: unterminated or malformed single-quoted value for "${key}"`);
         return;
       }
-      value = quoted[1].replace(/''/g, "'");
+      value = value.slice(1, -1);
     }
     if (Object.hasOwn(current.fields, key)) {
       errors.push(`line ${lineNo}: duplicate key "${key}" in the record starting at line ${currentLine}`);
@@ -709,8 +708,20 @@ function badRepoRelativePath(value) {
     /^[A-Za-z]:/.test(value) ||
     value.startsWith("~") ||
     value.includes("\\") ||
-    value.split("/").includes("..")
+    value.includes("\t") ||
+    value.split("/").includes("..") ||
+    value === "." ||
+    value === "./" ||
+    value === "./." ||
+    value.endsWith("/.") ||
+    value.endsWith("/./") ||
+    value.includes("//")
   );
+}
+
+function textCoversRetirementId(text, id) {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^A-Za-z0-9-])${escaped}(?:[^A-Za-z0-9-]|$)`).test(text);
 }
 
 // Validates one manifest's records; returns the ids it found so the
@@ -753,7 +764,7 @@ function validateRetirementRecords(manifestPath, plugin, records) {
     }
     if (fields.path !== undefined && badRepoRelativePath(fields.path)) {
       recordFail(
-        `"path" must be repo-relative: no absolute paths, ".." segments, leading "~", or backslashes (got "${fields.path}")`,
+        `"path" must be repo-relative: no absolute paths, ".." segments, leading "~", backslashes, tabs, ".", "//", or a trailing "/." (got "${fields.path}")`,
       );
     }
     const kind = fields.kind;
@@ -917,7 +928,7 @@ for (const manifestPath of retirementManifests) {
           .join("\n"),
       );
       for (const id of ids) {
-        if (!haystacks.some((text) => text.includes(id))) {
+        if (!haystacks.some((text) => textCoversRetirementId(text, id))) {
           fail(evalsPath, `no eval covers retirement record "${id}"`);
         }
       }

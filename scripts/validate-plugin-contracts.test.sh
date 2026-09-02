@@ -440,7 +440,7 @@ retired: "2026-08-15"
 plugin_version: "1.5.0"
 kind: file
 path: .claude/alpha.json
-content_match: "\"schema\": *\"v1\""
+content_match: '"schema": *"v1"'
 action: migrate
 successor: "the v1 keys now live in .claude/alpha.md under the Settings heading"
 note: "config file replaced by a convention doc"
@@ -510,6 +510,75 @@ plugin_version: 1.4.0
 kind: line
 path: .gitignore
 action: remove-line
+note: one line
+YAML
+
+malformed_case "a separator with trailing whitespace is not a record break" 'not a "key: value" line' <<'YAML'
+id: alpha-r001
+retired: 2026-08-01
+plugin_version: 1.4.0
+kind: file
+path: .claude/alpha.json
+action: delete
+note: one line
+--- 
+id: alpha-r002
+retired: 2026-08-02
+plugin_version: 1.4.1
+kind: file
+path: .claude/other.json
+action: delete
+note: one line
+YAML
+
+malformed_case "a double-quoted match keeps backslashes instead of unescaping them" 'is not a usable ERE' <<'YAML'
+id: alpha-r001
+retired: 2026-08-01
+plugin_version: 1.4.0
+kind: line
+path: .gitignore
+match: "\\("
+action: remove-line
+note: one line
+YAML
+
+malformed_case "a path that is the repo root fails the manifest" "$R_BAD_PATH" <<'YAML'
+id: alpha-r001
+retired: 2026-08-01
+plugin_version: 1.4.0
+kind: dir
+path: .
+action: delete
+note: one line
+YAML
+
+malformed_case "a path with a trailing /. segment fails the manifest" "$R_BAD_PATH" <<'YAML'
+id: alpha-r001
+retired: 2026-08-01
+plugin_version: 1.4.0
+kind: dir
+path: foo/.
+action: delete
+note: one line
+YAML
+
+malformed_case "a path with a double slash fails the manifest" "$R_BAD_PATH" <<'YAML'
+id: alpha-r001
+retired: 2026-08-01
+plugin_version: 1.4.0
+kind: file
+path: foo//bar
+action: delete
+note: one line
+YAML
+
+malformed_case "a path with a tab fails the manifest" "$R_BAD_PATH" <<'YAML'
+id: alpha-r001
+retired: 2026-08-01
+plugin_version: 1.4.0
+kind: file
+path: foo	bar
+action: delete
 note: one line
 YAML
 
@@ -640,6 +709,15 @@ if has_fail_line "${R_EVAL_UNCOVERED}alpha-r002" && ! grep -q "${R_EVAL_UNCOVERE
   pass "an id no eval names fails by id, and a covered id does not"
 else
   fail "an uncovered record id should fail by name: $out"
+fi
+
+conforming_retirements_fixture
+write_evals alpha alpha-r0010
+out="$(run_fixture)"
+if has_fail_line "${R_EVAL_UNCOVERED}alpha-r001" && has_fail_line "${R_EVAL_UNCOVERED}alpha-r002"; then
+  pass "a longer id that only prefixes a shorter record does not cover it"
+else
+  fail "a prefixing eval id should not cover the shorter record: $out"
 fi
 
 conforming_retirements_fixture
