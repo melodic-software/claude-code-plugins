@@ -213,10 +213,8 @@ emit_rows() {
   done <<<"$out"
 }
 
-i=0
-while [[ $i -lt ${#SCOPES[@]} ]]; do
+for i in "${!SCOPES[@]}"; do
   emit_rows "settings:${SCOPE_LABELS[$i]}" "${SCOPES[$i]}"
-  i=$((i + 1))
 done
 
 # --- Suppression levers ------------------------------------------------------
@@ -227,22 +225,20 @@ done
 # settings must not read their absence as "not set".
 
 LEVERS=()
-i=0
-while [[ $i -lt ${#SCOPES[@]} ]]; do
+for i in "${!SCOPES[@]}"; do
   for key in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization; do
     # shellcheck disable=SC2016  # $k is a jq --arg binding, not a shell variable
     val="$(jqs -r --arg k "$key" 'if has($k) then (.[$k] | tostring) else empty end' "${SCOPES[$i]}")"
     [[ -n "$val" ]] && LEVERS+=("${SCOPE_LABELS[$i]}	$key	$val")
   done
-  i=$((i + 1))
 done
 
 # --- Enabled plugins (local > project > user) --------------------------------
 
 declare -A ENABLED_STATE=()
 merge_enabled_plugins() {
-  local label="$1" i=0
-  while [[ $i -lt ${#SCOPE_LABELS[@]} ]]; do
+  local label="$1" i
+  for i in "${!SCOPE_LABELS[@]}"; do
     if [[ "${SCOPE_LABELS[$i]}" == "$label" ]]; then
       while IFS=$'\t' read -r pk pv; do
         [[ -z "$pk" ]] && continue
@@ -250,7 +246,6 @@ merge_enabled_plugins() {
       done < <(jqs -r '(.enabledPlugins // {}) | to_entries[] | [.key, (.value | tostring)] | @tsv' "${SCOPES[$i]}")
       return 0
     fi
-    i=$((i + 1))
   done
 }
 for label in user project local; do
