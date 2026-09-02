@@ -38,9 +38,9 @@ tool that needs it, so long-running workflows can route heavy work away from a d
   (PostToolBatch and UserPromptSubmit) carry a 15-second timeout: they sit on the prompt path, where
   a stalled hook holds up the turn, and losing a late advisory nudge costs less than the wait. The
   timeout is a cap on a hook that is already running, not a defence against one blocked on stdin;
-  that case is handled by `hook::buffer_stdin` reading to EOF with its bounded stall path, which both
-  rows use. The PreToolUse `zone-gate.sh` row and the PostCompact row keep 60 seconds, because a
-  shortened timeout on a gate is fail-open.
+  that case is bounded separately by `cg::read_payload` in `hooks/payload.sh`, which reads to EOF
+  under a 5-second `read -t` and which both rows use. The PreToolUse `zone-gate.sh` row and the
+  PostCompact row keep 60 seconds, because a shortened timeout on a gate is fail-open.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
   the zones.json shape, session-id discovery via `${CLAUDE_SESSION_ID}`, and the

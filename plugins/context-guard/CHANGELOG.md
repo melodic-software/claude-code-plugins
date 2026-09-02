@@ -13,8 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `zone-crossing-inject.sh` registrations (PostToolBatch and UserPromptSubmit) sit on the prompt
   path, where a stalled hook holds up the turn, and both are advisory: they emit no decision, so the
   worst a cap costs is a late nudge. The timeout caps a hook that is already running; a hook blocked
-  on stdin is handled by `hook::buffer_stdin` reading to EOF with its bounded stall path, which both
-  rows already use. The gating PreToolUse `zone-gate.sh` row and the PostCompact row are unchanged at
+  on stdin is bounded separately by `cg::read_payload` in `hooks/payload.sh`, which reads to EOF
+  under a 5-second `read -t` and which both rows already use. The gating PreToolUse `zone-gate.sh`
+  row and the PostCompact row are unchanged at
   60 seconds, because shortening a gate's timeout is fail-open. No script changed.
 
 ## [0.7.29]
