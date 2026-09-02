@@ -10,7 +10,9 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 - **setup:** after a team-layer write, re-run the tracked-file pair
   (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
   Non-zero `ls-files` means written but untracked: commit it to share with
-  the team, never success.
+  the team, never success. When `--config` points at a file in another
+  worktree, both probes run with `git -C` in that worktree, not the current
+  project's index.
 
 ## [0.23.14]
 
