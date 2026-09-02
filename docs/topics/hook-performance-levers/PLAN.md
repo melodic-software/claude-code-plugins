@@ -467,7 +467,7 @@ type sketch in `design/design-resolution.md`.
 - `bash -c 'source lib/hook-utils.sh; declare -F hook::git_resolve_subcommand'` prints the name (stub present) and `bash -c 'source lib/hook-utils.sh; [[ -z ${HOOK_UTILS_GIT_ARGV_LOADED:-} ]]'` exits 0 (module not loaded by sourcing core).
 - `scripts/affected-tests.sh --run` exits 0; `gh pr checks` shows `hook-utils-sync` passed and 0 failing.
 
-### Phase 4c: per-Write hook hot path [TODO]
+### Phase 4c: per-Write hook hot path [DONE]
 
 Repo: claude-code-plugins. One PR. Owns the (B) `cpu_sum_ms` residual on the `.md` sample that no
 other phase touches: typos-format plus eol-normalizer plus markdown-format plus the guardrails
