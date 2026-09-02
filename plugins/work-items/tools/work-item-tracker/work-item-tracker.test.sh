@@ -275,6 +275,8 @@ for v in capabilities claim renew-lease reclaim get-item; do
 done
 assert_eq "old gh: create-item without gated flags dispatches" \
   "0" "$(run_gh_verb create-item --title t)"
+assert_eq "old gh: create-item --type still dispatches (adapter degrades)" \
+  "0" "$(run_gh_verb create-item --title t --type Task)"
 
 # Verbs / flags that DO touch the native surface still fail closed (exit 3).
 for v in list-sub-items link-blocks add-sub-item; do

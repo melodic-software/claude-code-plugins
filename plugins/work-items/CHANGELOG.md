@@ -15,7 +15,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   `list-items` (it still requests `--json blockedBy`, so frontier stays fail-closed),
   `list-frontier`, and `create-item` only when those gated flags are passed; the error
   names the flag. `get-item` and a plain `create-item` omit the 2.94 `--json` fields
-  (`parent_id` null, `blocked_by_count` 0, `type` null). (#3598)
+  (`parent_id` null, `blocked_by_count` 0, `type` null). `--type` is a 2.94 `gh
+  issue create` flag; on older gh the GitHub adapter omits it and applies the
+  coarse `type:` label instead, so `/work-items:track add` on an org repo still
+  files. (#3598)
 
 ## [0.39.45]
 

@@ -33,7 +33,7 @@ while [[ $# -gt 0 ]]; do
     create=1
     shift
     ;;
-  --parent | --blocked-by)
+  --parent | --blocked-by | --type)
     native_flag=1
     shift 2
     ;;
@@ -72,6 +72,17 @@ EOF
   assert_eq "create-item on gh 2.45 (no gated flags) → exit 0" "0" "$rc"
   assert_eq "create-item on gh 2.45 emits id" "github:o/r#42" "$(jq -r '.id' <<<"$OUT")"
   assert_eq "create-item on gh 2.45 parent_id is null" "null" "$(jq -r '.parent_id' <<<"$OUT")"
+
+  TYPED_ERR="$(mktemp)"
+  TYPED_OUT="$(CLAUDE_PROJECT_DIR="$PROJECT" GH_STUB_VERSION=2.45.0 PATH="$STUB:$PATH" \
+    bash "$S" --title t --type Task --repo o/r 2>"$TYPED_ERR")"
+  rc=$?
+  assert_eq "create-item --type on gh 2.45 degrades → exit 0" "0" "$rc"
+  assert_eq "create-item --type on gh 2.45 still emits id" "github:o/r#42" \
+    "$(jq -r '.id' <<<"$TYPED_OUT")"
+  assert_contains "create-item --type on gh 2.45 names the label fallback" \
+    "$(cat "$TYPED_ERR")" "type: task"
+  rm -f "$TYPED_ERR"
 
   rm -rf "$STUB" "$PROJECT"
 fi

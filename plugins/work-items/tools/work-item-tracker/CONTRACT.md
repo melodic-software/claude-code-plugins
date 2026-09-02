@@ -42,9 +42,10 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
   verb). That is `link-blocks`, `add-sub-item`, `list-sub-items`, `list-items` (which
   requests `--json blockedBy`), `list-frontier` (which gates through whichever list verb
   it resolves to), and `create-item` only when `--parent` or `--blocked-by` is passed.
-  A plain `create-item` (title, body, labels, repo) and `get-item` run on an older `gh`:
+  A plain `create-item` (title, body, labels, `--type`, repo) and `get-item` run on an older `gh`:
   `get-item` omits the native `--json` fields, so `parent_id` is `null`, `blocked_by_count`
-  is `0`, and `type` is `null`. The lease trio (`claim`, `renew-lease`, `reclaim`) reads
+  is `0`, and `type` is `null`. `--type` is not a dispatcher floor: the GitHub adapter
+  drops the 2.94 `gh issue create --type` flag and applies the coarse `type:` label. The lease trio (`claim`, `renew-lease`, `reclaim`) reads
   assignees and comments only. `capabilities` never shells out. The dispatcher gates
   before dispatch.
 - `curl` on PATH when the bound provider is `jira` (Cloud REST v3 over HTTPS). The jira
