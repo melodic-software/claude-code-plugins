@@ -310,7 +310,8 @@ Choose one authoritative owner for each value:
 |---|---|
 | Invocation-specific choice | Explicit skill argument |
 | Personal or administrator-provided scalar | Manifest `userConfig` |
-| Tracked repository convention or rich team policy | A documented file under the consumer project |
+| Tracked repository convention or rich team policy (structured, policy-floor, per-operator-keyed, or state) | A documented file under the consumer project |
+| Team-shared prose convention with no per-operator axis | A natural-language convention doc at the consumer's convention home, bound by the root instruction file's pointer line (config-cascade § Expression doctrine, ADR 0018) |
 | Personal project instruction | A documented, gitignored local overlay where the convention supports one |
 | Installed dependencies, cache, or generated machine state | `${CLAUDE_PLUGIN_DATA}` |
 | Bundled plugin code and assets | `${CLAUDE_PLUGIN_ROOT}` |
@@ -512,8 +513,19 @@ that versions its own config contract may carry a forward, directional, user-con
 recognized older version — still under `apply`, never a separate verb and never a silent write (the
 versioned standards index is the fleet example) — while a plugin that instead takes topic-docs'
 clean-break path relocates by hand with no compatibility tooling. What the clean-break stance rules
-out for either is silent backward-compatibility shims and dual-read windows that translate a changed
-shape behind the user's back. `reset` decomposes to teardown plus `apply`.
+out for either is *silent* backward-compatibility shims and dual-read windows that translate a
+changed shape behind the user's back. The one sanctioned dual-read is the declared, WARN-visible
+deprecation window config-cascade § Expression doctrine defines for a surface re-expressed as a
+convention doc: the retired file is read as authority while present, every run says so, and the
+window is bounded by that surface's retirement record. `reset` decomposes to teardown plus `apply`.
+
+**Retirement declaration is mandatory.** A plugin that retires a consumer-facing convention — a
+file it no longer reads, a gitignore line it no longer recommends, a directory it renamed — appends
+a record to its `retirements.yaml` in the same PR, so setup `check` detects the leftover in every
+consumer repo and `apply` offers the gated cleanup (owner:
+`docs/conventions/retired-conventions/README.md`; the seam is named in the migration playbook).
+Bespoke detection prose in a setup skill is the drift this replaces; a retirement without a record
+is a defect.
 
 Setup may inspect the repository and create or update the plugin's tracked project configuration. It
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
@@ -549,7 +561,10 @@ instead — `apply` bounded to that artifact, while every unwritable surface is 
 check-only way above. Which shape a plugin takes is settled by its surface, not by its author, and
 both are conforming when the surface is what selected them. Two plugins with the same unwritable
 settings surface can therefore differ legitimately: the one that also owns a documented machine-scope
-file must offer the narrow `apply`; the one that owns nothing writable must not invent one.
+file must offer the narrow `apply`; the one that owns nothing writable must not invent one. A
+no-op `apply` — one that runs `check` and routes guidance but writes nothing — is that invented
+verb and is non-conforming: the guidance belongs in `check`'s output (ratified 2026-09 when the
+five remaining holdouts converged; the fleet now has zero no-op `apply` actions).
 
 Bare `apply` converges to the configured state and never removes; genuine teardown — converging to
 the *absence* of the plugin's own tracked project config — is the one thing `apply` will not do
@@ -617,7 +632,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Lifecycle artifact protocol | [`docs/PLUGIN-ARTIFACT-PROTOCOL.md`](PLUGIN-ARTIFACT-PROTOCOL.md) |
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
-| Config cascade — consumer-config layering and precedence | [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md) |
+| Config cascade — consumer-config layering, precedence, overlay naming, and expression form | [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md) |
 | Commit-convention enforcement seam | [`docs/conventions/commit-convention/`](conventions/commit-convention/README.md) |
 | PR-body required-sections convention | [`docs/conventions/pr-body-convention/`](conventions/pr-body-convention/README.md) |
 | Ecosystem command resolution | [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md) |
