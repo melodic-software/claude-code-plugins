@@ -253,7 +253,7 @@ One PR.
 
 **Sanity Check:**
 
-- `diff <(git show origin/main:common/measure-claude-hook-fanout.sh | grep -n "printf 'PreToolUse%sBash\|printf 'PostToolUse%sBash\|printf 'PreToolUse%sWrite\|printf 'PostToolUse%sWrite\|printf 'PostToolBatch\|printf 'UserPromptSubmit\|printf 'Stop%s'" | cut -d: -f2-) <(grep "printf 'PreToolUse%sBash\|printf 'PostToolUse%sBash\|printf 'PreToolUse%sWrite\|printf 'PostToolUse%sWrite\|printf 'PostToolBatch\|printf 'UserPromptSubmit\|printf 'Stop%s'" common/measure-claude-hook-fanout.sh | head -7)` prints nothing.
+- `diff <(git show origin/main:common/measure-claude-hook-fanout.sh | grep -n "printf 'PreToolUse%sBash\|printf 'PostToolUse%sBash\|printf 'PreToolUse%sWrite\|printf 'PostToolUse%sWrite\|printf 'PostToolBatch\|printf 'UserPromptSubmit\|printf 'Stop%s" | cut -d: -f2-) <(grep "printf 'PreToolUse%sBash\|printf 'PostToolUse%sBash\|printf 'PreToolUse%sWrite\|printf 'PostToolUse%sWrite\|printf 'PostToolBatch\|printf 'UserPromptSubmit\|printf 'Stop%s" common/measure-claude-hook-fanout.sh | head -7)` prints nothing.
 - `bash common/measure-claude-hook-fanout.sh --runs 1 | grep -c '^baseline S='` returns 1;
   `grep -c 'date +%s%N' common/measure-claude-hook-fanout.sh` returns 0 and
   `grep -c 'EPOCHREALTIME' common/measure-claude-hook-fanout.sh` is at least 1.
