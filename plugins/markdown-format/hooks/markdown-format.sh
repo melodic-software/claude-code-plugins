@@ -93,14 +93,17 @@ esac
 # Edit, and the walk's exec count grows with the file's depth below the repo
 # root. $1 names an existing regular file, so it carries no trailing slash and
 # the strip is exact; a path with no separator at all leaves the strip a no-op,
-# which the `.` fallback covers. In the walk, an emptied strip means the parent
-# is the filesystem root. The walk terminates at the repo root two lines above
-# the step in every reachable case, so the root arm is defense, not a path
-# anything here takes.
+# which the `.` fallback covers, and a file directly under the filesystem root
+# leaves it empty, which the `/` fallback covers (`cd ""` is a silent no-op, so
+# an empty start would walk from the hook process CWD instead). In the walk, an
+# emptied strip means the parent is the filesystem root. The walk terminates at
+# the repo root two lines above the step in every reachable case, so the root
+# arm is defense, not a path anything here takes.
 markdownlint_config_discoverable() {
   local dir root candidate parent start
   start="${1%/*}"
   [[ "$start" == "$1" ]] && start=.
+  [[ -n "$start" ]] || start=/
   dir="$(cd "$start" 2>/dev/null && pwd -P)" || return 1
   # Fail CLOSED when the root cannot be resolved: an empty root would never
   # terminate the equality check below and the walk would run to the
@@ -321,10 +324,15 @@ physically_inside() {
 # for the reason given at the source line above, and it is resolved once for
 # every consumer below rather than per call site. FILE has cleared
 # hook::read_file_path's `-f` test, so it names an existing regular file with no
-# trailing slash; the fallback covers a bare relative filename with no
-# separator, where dirname answers `.`.
+# trailing slash; the fallbacks cover the two shapes where the strip and
+# dirname disagree: a bare relative filename with no separator, where dirname
+# answers `.`, and a file directly under the filesystem root, where the strip
+# leaves an empty string that hook::repo_root would read as `.` (the hook
+# process CWD) while dirname answers `/`. CONFIG_TARGET_DIR below derives from
+# FILE_DIR, so it inherits the same answer.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
 REPO_ROOT="$(resolve_repo_root "$FILE_DIR")"
 
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then

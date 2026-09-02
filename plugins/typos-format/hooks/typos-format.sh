@@ -174,10 +174,14 @@ fi
 # The directory hint is stripped with parameter expansion rather than `dirname`,
 # for the reason given at the source line above. FILE has already cleared
 # hook::read_file_path's `-f` test, so it names an existing regular file and
-# carries no trailing slash; the fallback covers a bare relative filename with
-# no separator, where dirname answers `.`.
+# carries no trailing slash; the fallbacks cover the two shapes where the strip
+# and dirname disagree: a bare relative filename with no separator, where
+# dirname answers `.`, and a file directly under the filesystem root, where the
+# strip leaves an empty string that hook::repo_root would read as `.` (the hook
+# process CWD) while dirname answers `/`.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
 REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 # Repo-relative path, serving two consumers: the schema-required data.file, and
 # the argument typos runs on from the repo root. A path the prefix strip could

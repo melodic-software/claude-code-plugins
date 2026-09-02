@@ -24,6 +24,13 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   trace attributes each command to the function frame it ran in, so the shared
   `hook::` path resolver's host-dependent `realpath` and `cygpath` calls sit
   outside the count.
+- The directory strips that replaced `dirname` answer `/` for a file directly
+  under the filesystem root, as `dirname` did, both for the hook's own file
+  directory and for the start of the config-discovery walk. Without the guard
+  the strip left an empty string, which the repo-root resolver read as `.` and
+  `cd` treated as a no-op, so both anchored on the hook process CWD. The suite
+  gains a white-box case that runs the hook's own directory lines against a
+  root-level path, because no CI host can create one.
 
 ## [0.11.37]
 
