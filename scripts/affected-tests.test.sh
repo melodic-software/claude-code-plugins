@@ -170,8 +170,7 @@ else
 fi
 
 # --- an empty derivation is a loud error, not an empty selection -----------
-sedless="$repo/scripts/sync-widget.sh"
-write_print_manifest "$sedless" "lib/widget.sh" \
+write_print_manifest "$repo/scripts/sync-widget.sh" "lib/widget.sh" \
   "plugins/*/hooks/nothing-matches-this.sh"
 out="$(cd "$repo" && bash scripts/affected-tests.sh lib/widget.sh 2>&1)"
 RC=$?
