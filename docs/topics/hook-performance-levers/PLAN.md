@@ -226,10 +226,12 @@ One PR.
    `$EPOCHREALTIME` arithmetic, so a sample costs no spawn of its own. Before each event's hook
    loop, run `bash -c :` `RUNS` times and take the median; print `baseline S=<median> ms` per event
    and one overall median at the top of the summary. A run is valid only when the overall S is at
-   most 160 ms (twice the 80 ms reference); otherwise the summary is headed `INVALID RUN (S=<n> ms
-   > 160)` and the script exits 3. The per-event line keeps `fires=`,`cpu_sum_ms=`,`max_ms=`, and
-   appends `async=<n>`, `cpu_x_s=<n>` and `max_x_s=<n>` (the sum and the max divided by the run's overall S, one decimal, so the (B) ratios read directly) while `max_ms` stays absolute, so the hook-budget
-   ceilings (1 s typical, 2 s worst per tool call, 500 ms per turn) can be read beside the ratio.
+   most 160 ms (twice the 80 ms reference); otherwise the summary is headed
+   `INVALID RUN (S=<n> ms > 160)` and the script exits 3. The per-event line keeps `fires=`,
+   `cpu_sum_ms=`, `max_ms=`, and appends `async=<n>`, `cpu_x_s=<n>` and `max_x_s=<n>` (the sum
+   and the max divided by the run's overall S, one decimal, so the (B) ratios read directly) while
+   `max_ms` stays absolute, so the hook-budget ceilings (1 s typical, 2 s worst per tool call,
+   500 ms per turn) can be read beside the ratio.
 4. **`if` semantics.** Non-tool events: a hook with `if` set gets status `NEVER_RUNS(if-on-non-tool-event)`
    (distinct from `SKIPPED`). Bash `if`: a pattern that is more than a bare command name
    (anything after the name) spawns when the command contains `$(`, a backtick, or `$` followed by
