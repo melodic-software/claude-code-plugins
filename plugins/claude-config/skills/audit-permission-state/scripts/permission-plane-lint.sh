@@ -156,7 +156,7 @@ END {
   # "Not read from shared project settings." That names .claude/settings.json
   # specifically, so a local-settings occurrence is NOT claimed dead here --
   # claiming it would be asserting a restriction the page does not state.
-  if ((("project") SUBSEP "useAutoModeDuringPlan") in conf)
+  if (("project" SUBSEP "useAutoModeDuringPlan") in conf)
     finding("error", "C2-planMode", "project", "useAutoModeDuringPlan is not read from shared project settings — move it to user settings, where it takes effect")
 
   # --- C5: disableAutoMode typed as a boolean --------------------------------
