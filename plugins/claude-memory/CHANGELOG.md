@@ -3,6 +3,17 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.13]
+
+### Changed
+
+- **`stateless/scripts/scope-report.test.sh` isolates ambient `CLAUDE_CONFIG_DIR`.** The suite
+  isolated `HOME` but left an ambient `CLAUDE_CONFIG_DIR` in place for every case except Case 6,
+  so Case 4 could write into a live config tree. Every main-case invocation now runs through
+  `iso_env`, Case 4 aborts if the resolved dir escapes the suite tmpdir, and a new Case 7
+  asserts an exported sentinel config dir is never written. The Case 4b newline-count fixture
+  from 0.11.12 is unchanged.
+
 ## [0.11.12]
 
 ### Fixed
