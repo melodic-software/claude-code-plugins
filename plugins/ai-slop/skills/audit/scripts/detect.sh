@@ -415,10 +415,55 @@ if [[ -n "$PATHS_FILE" ]]; then
   done <"$PATHS_FILE"
 fi
 
+# A bare invocation lists the repository's tracked markdown, and it carries the
+# same two hazards the directory expansion below already answers.
+#
+# `ls-files` quotes any pathname holding a byte above 0x80 unless
+# `core.quotePath=false` (git-config: "bytes higher than 0x80 are not
+# considered unusual any more"), so a tracked `café.md` arrived as the literal
+# escape `"caf\303\251.md"`, failed the scan loop's existence test, and
+# produced neither a finding nor a declined row. A bare invocation is the shape
+# the audit skill uses to sweep a whole repository, so that silent drop meant
+# every non-ASCII-named file was outside the audit while the report claimed
+# repository-wide coverage.
+#
+# A listing that fails says so on stderr instead of vanishing into
+# `2>/dev/null`. An empty target list from a failed `ls-files` is
+# indistinguishable from a repository with no tracked markdown, and both read
+# as a clean audit. `--is-inside-work-tree` picks the branch up front so a
+# missing git binary and a directory outside any checkout each get their own
+# message rather than one opaque nonzero exit.
+list_repo_markdown() {
+  local inside listing status
+
+  if ! command -v git >/dev/null 2>&1; then
+    echo "detect.sh: git is not on PATH; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
+    return 0
+  fi
+
+  inside="$(git -C "$REPO_ROOT" rev-parse --is-inside-work-tree 2>/dev/null)"
+  status=$?
+  if [[ "$status" -ne 0 || "$inside" != "true" ]]; then
+    echo "detect.sh: git could not confirm a work tree at $REPO_ROOT; a bare invocation has no tracked markdown to list (pass paths explicitly)" >&2
+    return 0
+  fi
+
+  listing="$(git -C "$REPO_ROOT" -c core.quotePath=false ls-files '*.md')"
+  status=$?
+  if [[ "$status" -ne 0 ]]; then
+    echo "detect.sh: git ls-files failed in $REPO_ROOT (exit $status); nothing was scanned" >&2
+    return 0
+  fi
+
+  [[ -n "$listing" ]] || return 0
+  printf '%s\n' "$listing"
+}
+
 if [[ "${#TARGETS[@]}" -eq 0 ]]; then
   while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
     TARGETS+=("$REPO_ROOT/$line")
-  done < <(git -C "$REPO_ROOT" ls-files '*.md' 2>/dev/null)
+  done < <(list_repo_markdown)
 fi
 
 # Directory targets expand to the markdown beneath them (tracked files when the
