@@ -1,6 +1,6 @@
 # Output schema
 
-This skill emits structured JSON at three levels. The schemas below are normative — every check script, every remediation script, and the orchestrator must produce output validating against them. Keeping the schema stable across OSes is the reason `references/shared/` exists.
+This skill emits structured JSON at three levels. The schemas below are normative — every check script, every remediation script, and the orchestrator must produce output validating against them. Keeping the schema stable across OSes is the reason `reference/shared/` exists.
 
 ## 1. Check result
 

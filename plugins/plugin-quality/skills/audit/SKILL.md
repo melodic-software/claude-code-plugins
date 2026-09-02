@@ -123,7 +123,7 @@ packets.
 Every resolved target gets one packet under
 `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`, written in step 1 and read by
 every later step. Read
-[`references/evidence-packet.md`](references/evidence-packet.md) before step 1 writes anything: it
+[`reference/evidence-packet.md`](reference/evidence-packet.md) before step 1 writes anything: it
 owns the directory layout and the file set, the `audit-notes.md` filename constraint and why
 `findings.md` is forbidden, and the write-once discipline that keeps a sibling `PostToolUse` hook
 from rewriting evidence underneath the run. Getting any of the three wrong silently corrupts the
@@ -311,7 +311,7 @@ produces no external effect.
 
 ## Recurring concerns. Apply every audit
 
-Walk `references/recurring-concerns.md` before finalizing findings, the accumulated
+Walk `reference/recurring-concerns.md` before finalizing findings, the accumulated
 design-failure checklist (silent bypass surfaces, enforcement scope/tiers, SSOT/drift, coupling,
 cross-platform, escape hatches, observability).
 
@@ -319,13 +319,13 @@ cross-platform, escape hatches, observability).
 
 | File | Load when |
 |------|-----------|
-| `references/evidence-packet.md` | Before step 1 writes the packet, and before any step reads it. |
-| `references/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
-| `references/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
-| `references/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
-| `references/component-types/agent.md` | Auditing an agent/subagent definition. |
-| `references/component-types/command.md` | Auditing a slash command (merged into skills). |
-| `references/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |
+| `reference/evidence-packet.md` | Before step 1 writes the packet, and before any step reads it. |
+| `reference/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
+| `reference/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
+| `reference/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
+| `reference/component-types/agent.md` | Auditing an agent/subagent definition. |
+| `reference/component-types/command.md` | Auditing a slash command (merged into skills). |
+| `reference/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |
 
 ## Extending this skill
 

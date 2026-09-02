@@ -55,7 +55,7 @@
         },
         "severity_rules": {
           "type": "string",
-          "description": "Pointer to the human-readable rubric section in references/."
+          "description": "Pointer to the human-readable rubric section in reference/."
         },
         "needs_admin": {
           "type": "boolean",

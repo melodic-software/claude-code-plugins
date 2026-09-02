@@ -38,7 +38,7 @@ rule, the ICACLS lock, run non-interactively.
 The status script
 (`${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh`) is the source of truth for current
 state. Run it and read its JSON before reporting. Add the prerequisite probes the pre-flight table in
-the workflow reference (`${CLAUDE_PLUGIN_ROOT}/skills/manage/references/workflow.md`)
+the workflow reference (`${CLAUDE_PLUGIN_ROOT}/skills/manage/reference/workflow.md`)
 requires. Report a PASS/FAIL/INFO table with one remediation per FAIL; modify
 nothing, download nothing, extract nothing.
 
@@ -51,7 +51,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh"
    These are true prerequisites, not opt-in state.
 2. **Kindle for PC version.** Installed and **not** `2.8.0.70980` is FAIL (the user must uninstall it
    first. The skill never auto-uninstalls; see
-   `${CLAUDE_PLUGIN_ROOT}/skills/manage/references/troubleshooting.md`). Absent is INFO (not
+   `${CLAUDE_PLUGIN_ROOT}/skills/manage/reference/troubleshooting.md`). Absent is INFO (not
    yet provisioned. `apply` installs it). Exactly `2.8.0.70980` is PASS.
 3. **Provisioning state.** Firewall rule, ICACLS deny, `~/Tools/Kindle_Key_Finder`, and the three
    `~/Downloads` artifacts. Before first setup these are legitimately absent → INFO ("not yet
@@ -68,14 +68,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh"
 
 Run `check`, then provision. `apply` walks the full first-time sequence; `apply download` runs only the
 gated download subaction. Every step's exact command, rationale, and verification live in
-[`${CLAUDE_PLUGIN_ROOT}/skills/manage/references/workflow.md`](${CLAUDE_PLUGIN_ROOT}/skills/manage/references/workflow.md).
+[`${CLAUDE_PLUGIN_ROOT}/skills/manage/reference/workflow.md`](${CLAUDE_PLUGIN_ROOT}/skills/manage/reference/workflow.md).
 **Follow it there; do not restate it here** (that keeps the download flow's pinned-tag fallback and the
 Key_Finder URL empty-match guard authoritative in one place). Pause at every CHECKPOINT for user
 confirmation.
 
 - **`apply download`.** Step 1 of the workflow reference: download the three artifacts to
   `~/Downloads` and SHA256-verify them against the versions reference
-  (`${CLAUDE_PLUGIN_ROOT}/skills/manage/references/versions.md`). The DeDRM_tools tag resolves
+  (`${CLAUDE_PLUGIN_ROOT}/skills/manage/reference/versions.md`). The DeDRM_tools tag resolves
   dynamically via the authenticated `gh` CLI and **falls back to the pinned tag in the versions
   reference** when `gh` is unavailable or returns nothing; the guard refuses to compose a URL with the
   placeholder still in place. The Key_Finder zip URL resolves from the tutorial article and **stops with

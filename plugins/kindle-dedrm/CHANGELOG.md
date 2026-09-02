@@ -3,6 +3,15 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.12]
+
+### Changed
+
+- **manage:** rename the spoke directory `references/` to `reference/` so it
+  matches the fleet majority (#3546). Scripts that load `versions.md` and
+  `sources.md` follow the new path. `check-drift.test.sh` pins those relative
+  paths and the `pin()` parser so a revert to `references/` fails the suite.
+
 ## [0.7.11]
 
 ### Fixed
