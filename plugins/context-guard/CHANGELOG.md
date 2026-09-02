@@ -5,6 +5,23 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.33]
+
+### Changed
+
+- **The two advisory zone-crossing rows stay at their 60-second timeout; the cap was evaluated
+  and kept.** A 15-second cap on both `zone-crossing-inject.sh` registrations (PostToolBatch and
+  UserPromptSubmit) was proposed on the grounds that they sit on the prompt path and are advisory.
+  It was rejected in review. The 0.4.8 measurement stands: on Windows 11 / Git Bash with Defender
+  real-time protection enabled, this script reached 22.0 s on a small UserPromptSubmit payload, and
+  nothing in this change re-measured it. A timeout only caps a hook that has already stalled and
+  saves nothing on a normal fire, so a lower cap buys no latency on the median path. On the
+  measured profile it would instead cancel the hook on essentially every fire, which drops the
+  advisory always rather than only when the hook is stuck. Both rows keep 60 until a re-measurement
+  on that profile shows headroom. A hook blocked on stdin is bounded separately by
+  `cg::read_payload` in `hooks/payload.sh`, which reads to EOF under a 5-second `read -t` and which
+  both rows already use. All four rows in `hooks/hooks.json` remain at 60. No script changed.
+
 ## [0.7.32]
 
 ### Changed
