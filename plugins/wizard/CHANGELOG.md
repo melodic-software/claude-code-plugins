@@ -3,6 +3,13 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.7]
+
+### Changed
+
+- **`generate`:** add `argument-hint: "<procedure to wizardize>"` so autocomplete
+  shows that the skill takes free-text procedure input (#3542).
+
 ## [0.2.6]
 
 ### Changed

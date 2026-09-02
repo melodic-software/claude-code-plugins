@@ -6,14 +6,14 @@ contract gate) when installed, and lean on its findings; absent, this file is th
 ## Read first
 
 - `SKILL.md` frontmatter (`description`, invocation-control fields) and body.
-- Any `references/` files and whether the hub points at them with "load when" guidance.
+- Any `reference/` files and whether the hub points at them with "load when" guidance.
 
 ## Check
 
 - **Triggering** — is the `description` the sole auto-discovery driver, front-loaded with real use
   cases and trigger phrases, within the listing budget? Under- vs over-triggering; negative
   boundaries stated for adjacent intents.
-- **Progressive disclosure** — hub thin; detail in `references/`; each reference linked with a
+- **Progressive disclosure** — hub thin; detail in `reference/`; each reference linked with a
   one-line load-when pointer. Does the hub stay thin as coverage grows?
 - **Composition** — if it orchestrates other skills, is each loaded inline or forked
   (`context: fork` runs the skill body in a subagent with no conversation history), and does that

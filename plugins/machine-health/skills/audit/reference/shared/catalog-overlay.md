@@ -57,7 +57,7 @@ the state base — the orchestrator resolves a check script against the plugin f
 against `<StateBase>`:
 
 1. Write the check to `<StateBase>/scripts/windows/checks/Test-MyThing.ps1`, emitting a
-   single JSON object per `references/shared/output-schema.md` (`-Human` mode included, per
+   single JSON object per `reference/shared/output-schema.md` (`-Human` mode included, per
    the dual-invocation convention).
 2. Register it in the overlay with a full catalog entry (`script` set to
    `scripts/windows/checks/Test-MyThing.ps1`).

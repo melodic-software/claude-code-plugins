@@ -15,7 +15,7 @@ remediation. Directories are never removed; empty directories remain.
 Files in Documents, Desktop, or OneDrive are not in temp paths and
 therefore never considered.
 
-Policy: references/windows/remediation-policy.md#2-clear-tempfiles
+Policy: reference/windows/remediation-policy.md#2-clear-tempfiles
 #>
 [CmdletBinding()]
 param(

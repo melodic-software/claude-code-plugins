@@ -28,7 +28,7 @@ Each section documents:
 - **Severity rubric:** per-level thresholds.
 - **Notes:** gotchas and degradation behavior.
 
-All checks emit the schema in `references/shared/output-schema.md`, use `scripts/windows/lib/Write-HealthResult.ps1`, and fall back to `UNKNOWN` with a reason rather than throw.
+All checks emit the schema in `reference/shared/output-schema.md`, use `scripts/windows/lib/Write-HealthResult.ps1`, and fall back to `UNKNOWN` with a reason rather than throw.
 
 ---
 
@@ -163,7 +163,7 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   - `WARN` — `AntivirusSignatureAge` in (3, 7] days.
   - `OK` — signatures ≤3 days old, RTP on, tamper protection on, no recent threats.
 
-- **Notes:** When a third-party AV is the active protection, Defender reports `AMRunningMode` as `Passive Mode` or `SxS Passive Mode`. Record that in `detail` and apply the passive re-bucketing: passive mode itself is `INFO`; a signature age over 3 days drops to `INFO` (the other product owns detection); real-time protection being off is not a finding at all. Tamper protection and any recorded detection keep their normal severity — but don't cry CRIT for a system intentionally running, say, CrowdStrike. This is a check-local rule, independent of the ±1 trend adjustment in `references/shared/severity-rubric.md`.
+- **Notes:** When a third-party AV is the active protection, Defender reports `AMRunningMode` as `Passive Mode` or `SxS Passive Mode`. Record that in `detail` and apply the passive re-bucketing: passive mode itself is `INFO`; a signature age over 3 days drops to `INFO` (the other product owns detection); real-time protection being off is not a finding at all. Tamper protection and any recorded detection keep their normal severity — but don't cry CRIT for a system intentionally running, say, CrowdStrike. This is a check-local rule, independent of the ±1 trend adjustment in `reference/shared/severity-rubric.md`.
 
 ---
 
@@ -276,7 +276,7 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
     undercounted `total_gb` from becoming a trend baseline that a later complete walk would exceed
     by the merely-recovered difference.
   - No `CRIT`. The tree is reclaimable cache with no data-loss or security consequence, and
-    `references/shared/severity-rubric.md` reserves `CRIT` for imminent-failure and security
+    `reference/shared/severity-rubric.md` reserves `CRIT` for imminent-failure and security
     conditions while directing ambiguity to the lower level. `container-disk-usage` — the other
     reclaimable-storage check — caps at `WARN` for the same reason. Sustained growth still reaches
     `CRIT`: the orchestrator's trend rule upgrades a `WARN` whose `total_gb` rose ≥5 GB since the
@@ -314,7 +314,7 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
 - **Needs admin:** no. `HKCU:\Environment` is readable un-elevated; `HKLM:\...\Environment`
   usually is too. If the machine key is unreadable the check keeps User-scope findings and
   notes the gap — it does not ask for elevation.
-- **Remediation:** none. `references/windows/remediation-policy.md` bars registry cleanup of
+- **Remediation:** none. `reference/windows/remediation-policy.md` bars registry cleanup of
   any kind. This check ships with no remediation entry; every fix is a human action.
 - **Commands:**
 
@@ -391,7 +391,7 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
   nothing below them).
 
 - **Baseline is data, not logic:** the expected-entry set lives in
-  `references/windows/drive-root-baseline.jsonc`. Admitting a newly legitimate entry is an
+  `reference/windows/drive-root-baseline.jsonc`. Admitting a newly legitimate entry is an
   edit to that file, never a script change. Names are `-like` patterns (case-insensitive,
   `*`/`?` wildcards) matched **type-aware** — a directory only matches the `directories`
   list, a file only the `files` list, so a stray file named `Recovery` cannot hide behind
@@ -417,7 +417,7 @@ All checks emit the schema in `references/shared/output-schema.md`, use `scripts
     partial residue still ships in `detail`). `ran_successfully = false` keeps such a run
     out of `checks_ran` so an undercounted `residue_count` never becomes a trend baseline.
   - No `CRIT`. Root litter is tidiness with no data-loss or security consequence, and
-    `references/shared/severity-rubric.md` reserves `CRIT` for imminent-failure and security
+    `reference/shared/severity-rubric.md` reserves `CRIT` for imminent-failure and security
     conditions while directing ambiguity to the lower level. `drive-root-litter` is mapped
     to `residue_count` for history but deliberately **excluded** from the trend engine's
     generic upward upgrade for the same reason.

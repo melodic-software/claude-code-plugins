@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Claude Code temp-root footprint. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#17-claude-code-temp-root for rubric.
+See reference/windows/check-catalog.md#17-claude-code-temp-root for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)
