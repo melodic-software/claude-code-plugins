@@ -30,22 +30,24 @@ should reach it without the user naming a command. Auto-trigger is best-effort;
 
 1. **Identify the object.** With an argument, that is the thing. Empty argument →
    the **previous assistant response** (see "Empty argument" below).
-   Done when you can name the object in one sentence, or, on a cold start with
-   no prior assistant message, have asked what to explain instead of guessing.
+   **Done when** you can name the object in one sentence, or, on a cold start
+   with no prior assistant message, have asked what to explain instead of
+   guessing.
 2. **Ground it, don't recall it.** Re-read the actual artifact this turn, the
    message just sent, the file, the error text, the code. For an external concept,
    fetch a primary source rather than leaning on parametric memory (plugin
    doctrine: knowledge is grounded, not remembered).
-   Done when this turn's explanation cites a specific passage, file, error text,
-   or fetched primary source you re-read here. A recalled paraphrase does not
-   count.
+   **Done when** this turn's explanation cites a specific passage, file, error
+   text, or fetched primary source you re-read here. A recalled paraphrase does
+   not count.
 3. **Drop to plain.** One concrete analogy from everyday life. No jargon, no term
    that itself needs prior knowledge. Short. If a technical word is unavoidable,
    define it inline in ordinary words the first time.
-   Done when a reader who does not know the jargon can say back the analogy and
-   the "what it's actually doing" line without asking what a leftover term means.
+   **Done when** the explanation contains one everyday analogy whose structure
+   maps to the object, a "what it's actually doing" line, and no leftover term
+   that is not defined inline in ordinary words.
 4. **Close with the handoff line** (see "Handoff").
-   Done when the response ends with the single standard `/education:teach`
+   **Done when** the response ends with the single standard `/education:teach`
    invitation line.
 
 Lead with the analogy and the "what it's actually doing," not with vocabulary.
