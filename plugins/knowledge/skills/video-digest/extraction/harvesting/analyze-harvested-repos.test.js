@@ -101,3 +101,14 @@ describe("analyzeHarvestedRepos clone target", () => {
     expect(clonedUrls).toEqual(["https://github.com/melodic-software/medley"]);
   });
 });
+
+describe("CLI exit handling", () => {
+  it("sets process.exitCode instead of calling process.exit after the stdout write", () => {
+    const src = fs.readFileSync(
+      new URL("./analyze-harvested-repos.js", import.meta.url),
+      "utf8",
+    );
+    expect(src).not.toMatch(/process\.exit\(/);
+    expect(src).toMatch(/process\.exitCode = code/);
+  });
+});

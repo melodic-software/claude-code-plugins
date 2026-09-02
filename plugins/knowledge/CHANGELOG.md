@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.33]
+
+### Fixed
+
+- **`analyze-harvested-repos.js` lets stdout drain before exit.** The CLI called
+  `process.exit(code)` immediately after an async `writeStdout`, which can truncate a
+  piped report (especially on Windows). It now sets `process.exitCode` and returns, matching
+  the other video-digest CLIs.
+
 ## [0.13.32]
 
 ### Fixed
