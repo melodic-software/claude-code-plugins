@@ -67,9 +67,9 @@ harness_require_posix_path() {
 #
 # Print the PHYSICAL path of <path> when it exists, and its POSIX spelling
 # otherwise. Resolving through the filesystem rather than comparing strings is
-# load-bearing on Windows: this host's TEMP is the 8.3 short form
-# `C:\Users\KYLESE~1\AppData\Local\Temp`, while the same directory reached
-# through `/tmp` reports `/c/Users/KyleSexton/AppData/Local/Temp`. A string
+# load-bearing on Windows: TEMP is often the 8.3 short form
+# `C:\Users\<SHORT~1>\AppData\Local\Temp`, while the same directory reached
+# through `/tmp` reports `/c/Users/<longname>/AppData/Local/Temp`. A string
 # prefix test between those two spellings finds nothing, and a temp-rooted shim
 # directory would sail straight through the check meant to catch it.
 harness_real_dir() {

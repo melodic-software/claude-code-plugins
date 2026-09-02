@@ -37,7 +37,6 @@ All notable changes to the `performance` plugin are documented here. Format foll
   `summarize.py` + `ratio.py` (interleaved A/B, order flipped per iteration, ratio suppressed under
   concurrency and floored at 20 pairs), `differential.py` (byte-identical pre/post behavior over an
   argv matrix), `discriminate.py` (consolidated does-this-check-actually-fail harness), plus
-  `harness-lib.sh` and `pathfix.py` for the shared preconditions. Each ships a co-located test suite;
-  200 assertions across the nine.
+  `harness-lib.sh` and `pathfix.py` for the shared preconditions. Each ships a co-located test suite.
 - **`lib/spawn_noise.py`**: a byte-identical copy of the canonical `claude-ops` lib, registered as a
   cross-plugin cluster with a dedicated sync gate so the bimodal threshold has exactly one home.
