@@ -151,7 +151,7 @@ grounding: `docs/conventions/hook-budget/README.md` (ceiling and measurement met
 `.claude/rules/vendor-docs-are-not-style.md` house style for every README line written.
 Provenance: team layer only.
 
-### Phase 0: baseline capture (precondition for every phase) [TODO]
+### Phase 0: baseline capture (precondition for every phase) [DONE]
 
 Runs once after phase 1 lands (the first code phase in the spine is 3) and again before each later
 phase, always against the installed cache at `main`. Not a PR.
