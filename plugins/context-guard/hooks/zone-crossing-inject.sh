@@ -101,16 +101,26 @@
 
 set -uo pipefail
 
+# SPAWN DISCIPLINE (PostToolBatch fires on every tool batch, so every process
+# here is paid on the critical path of every batch). The hook directory comes
+# from parameter expansion rather than `dirname`, which this file used three
+# times — two sources plus the resolver path — for three processes before a
+# single line of work. The `.` fallback reproduces dirname's own answer for a
+# bare, slash-free invocation; hooks.json always passes an absolute path.
+CG_DIR=${BASH_SOURCE[0]%/*}
+[[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$CG_DIR/hook-utils.sh"
 # shellcheck source=payload.sh
-source "$(dirname "${BASH_SOURCE[0]}")/payload.sh"
+source "$CG_DIR/payload.sh"
 
 hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
 START_EPOCH=${EPOCHREALTIME:-0}
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESOLVER="$SCRIPT_DIR/../scripts/context-zone.sh"
+# Not absolutized through `cd … && pwd`: this path is only ever handed to
+# `bash`, which resolves it against the same working directory the hook started
+# in, and the hook never changes directory. The `..` segment was already there.
+RESOLVER="$CG_DIR/../scripts/context-zone.sh"
 
 # silent-skip-ok: without a stdin payload there is no session_id to key the
 # snapshot seam — nothing this hook could resolve or say. Chunked reader:
@@ -118,10 +128,35 @@ RESOLVER="$SCRIPT_DIR/../scripts/context-zone.sh"
 # exceed what a single bounded read survives on Windows pipes.
 INPUT=$(cg::read_payload) || exit 0
 
-EVENT=$(hook::jq_field "$INPUT" '.hook_event_name') || EVENT="PostToolBatch"
+# ONE jq for the whole payload rather than one per field. hook::jq_field spawns
+# a jq per call, and this hook needed two; the payload is read once and both
+# fields come back as two lines in a FIXED ORDER (event, then session). An
+# absent field yields an empty line, which is what the per-field `// empty`
+# plus non-empty test produced before. `gsub("\r";"")` is carried over from
+# hook::jq_field for the Windows carriage-return case.
+#
+# Not regex-extracted: a PostToolBatch payload carries every serialized tool
+# result, so a pattern for these fields would be matching against tool output
+# rather than against the envelope. post-compact-mark.sh's regex path is safe
+# for its own payload shape; this one keeps jq as the parser.
+FIELDS=$(printf '%s' "$INPUT" | jq -r '(.hook_event_name // ""), (.session_id // "") | gsub("\r";"")' 2>/dev/null)
+# jq writes CRLF line endings on this host, and command substitution strips only
+# the TRAILING one — so with two lines the separator's carriage return survives
+# into the split and would ride along on the event name. The single-field helper
+# never saw this because its one and only line ending was the trailing one.
+# gsub above has already removed any CR belonging to a field's value, so nothing
+# left here is anything but jq's own terminators.
+FIELDS=${FIELDS//$'\r'/}
+EVENT=${FIELDS%%$'\n'*}
+SESSION=${FIELDS#*$'\n'}
+# No newline in FIELDS means jq emitted at most one line, so there is no
+# session field to take — the expansion above would otherwise hand back the
+# event name.
+[[ "$SESSION" != "$FIELDS" ]] || SESSION=""
+[[ -n "$EVENT" ]] || EVENT="PostToolBatch"
 hook::require_jq "$EVENT" "context-guard" "$INPUT"
 
-SESSION=$(hook::jq_field "$INPUT" '.session_id') || exit 0
+[[ -n "$SESSION" ]] || exit 0
 # Same character class the tee/resolver enforce — also path containment for
 # the state file below.
 [[ "$SESSION" =~ ^[A-Za-z0-9_-]+$ ]] || exit 0
@@ -157,10 +192,25 @@ else
 fi
 STATE_FILE="$STATE_DIR/$SESSION.zone"
 ARMED_FILE="$STATE_DIR/$SESSION.armed"
+# `$(<file)` plus parameter expansion instead of `tr -cd | head -c`, which cost
+# two processes per marker and four per fire. Same result on every input this
+# hook can see: `$(<f)` strips trailing newlines and keeps embedded ones, so a
+# corrupt two-line file still fuses exactly as the pipeline fused it (the
+# sibling-file note below depends on that). The class stays [:lower:] rather
+# than a-z so it remains locale-independent, and the 16-character truncation is
+# byte-identical to `head -c 16` once the content is lowercase-only.
 last=""
-[[ -r "$STATE_FILE" ]] && last=$(tr -cd '[:lower:]' <"$STATE_FILE" 2>/dev/null | head -c 16)
+if [[ -r "$STATE_FILE" ]]; then
+  last=$(<"$STATE_FILE") || last=""
+  last=${last//[^[:lower:]]/}
+  last=${last:0:16}
+fi
 armed=""
-[[ -r "$ARMED_FILE" ]] && armed=$(tr -cd '[:lower:]' <"$ARMED_FILE" 2>/dev/null | head -c 16)
+if [[ -r "$ARMED_FILE" ]]; then
+  armed=$(<"$ARMED_FILE") || armed=""
+  armed=${armed//[^[:lower:]]/}
+  armed=${armed:0:16}
+fi
 # A SIBLING file, not a second line in the existing one: `last` is read with
 # `tr -cd '[:lower:]'`, which strips the newline too, so a two-line state file
 # would fuse into "dumbacceptable" and rank as smart. Sessions already running
@@ -215,7 +265,10 @@ fi
 # either fails, the gate has not moved and the session is still owed its
 # injection, which the next observation issues.
 umask 077
-mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+# The state directory exists on every fire after the session's first, so the
+# guard pays the process once per session instead of once per tool batch.
+# `mkdir -p` on an existing directory already exited 0, so no outcome changes.
+[[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
 persist_failed=""
 if ! printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null; then
   persist_failed="zone"
