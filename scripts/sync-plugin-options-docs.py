@@ -41,6 +41,24 @@ def env_var(key: str) -> str:
     return f"CLAUDE_PLUGIN_OPTION_{key.upper()}"
 
 
+CONVENTION_PATH = "docs/conventions/plugin-reconfiguration/README.md"
+CONVENTION_URL = (
+    "https://github.com/melodic-software/claude-code-plugins/blob/main/" + CONVENTION_PATH
+)
+
+
+def convention_cite(plugin: str) -> str:
+    """Where the verified-version record lives, as inline markdown.
+
+    Installed plugins cannot read this tree, so most generated READMEs cite the
+    published URL. The github plugin's agnosticism sweep forbids the publisher
+    org name in any ``*.md``, so that plugin cites the in-repo path instead.
+    """
+    if plugin == "github":
+        return f"this marketplace's plugin-reconfiguration convention (`{CONVENTION_PATH}`)"
+    return f"the [plugin-reconfiguration convention]({CONVENTION_URL})"
+
+
 def render(plugin: str, marketplace: str, options: dict) -> str:
     lines = [
         BEGIN,
@@ -89,10 +107,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
     # 2.1.240. The claim covers a NON-SENSITIVE option only, so `first` is
     # drawn from the non-sensitive options when there are any, and the
     # already-installed-still-writes sentence is withheld when there are none.
-    convention = (
-        "https://github.com/melodic-software/claude-code-plugins/blob/main/"
-        "docs/conventions/plugin-reconfiguration/README.md"
-    )
+    cite = convention_cite(plugin)
     non_sensitive = [k for k, s in options.items() if not s.get("sensitive")]
     sensitive = [k for k, s in options.items() if s.get("sensitive")]
     first = non_sensitive[0] if non_sensitive else next(iter(options))
@@ -105,7 +120,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
             "   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,",
             "   resetting every option in the table above to its default. `-s` defaults to `user`,",
             "   so pass the scope `claude plugin list` reports for this plugin. The verified-version",
-            f"   record lives in the [plugin-reconfiguration convention]({convention}).",
+            f"   record lives in {cite}.",
             "",
             "   The value is stored immediately; the session you are in does not change. Hooks are",
             "   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh",
@@ -131,8 +146,8 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
             "   Route 1 is the rotation path for this plugin, not this one. Every option here is",
             "   `sensitive`, and `/plugin configure` masks input. A secret passed on the command",
             "   line lands in shell history and the process table. Do not rely on this command to",
-            "   rotate a credential; the verified-version record lives in the",
-            f"   [plugin-reconfiguration convention]({convention}). Do **not**",
+            f"   rotate a credential; the verified-version record lives in {cite}.",
+            "   Do **not**",
             "   `claude plugin uninstall` to reconfigure either: uninstalling drops this",
             "   plugin's whole stored `pluginConfigs` entry, resetting every option in the table",
             "   above to its default.",

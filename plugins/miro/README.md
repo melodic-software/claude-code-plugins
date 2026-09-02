@@ -120,8 +120,8 @@ Three supported routes, in the order most people want them:
    Route 1 is the rotation path for this plugin, not this one. Every option here is
    `sensitive`, and `/plugin configure` masks input. A secret passed on the command
    line lands in shell history and the process table. Do not rely on this command to
-   rotate a credential; the verified-version record lives in the
-   [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md). Do **not**
+   rotate a credential; the verified-version record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+   Do **not**
    `claude plugin uninstall` to reconfigure either: uninstalling drops this
    plugin's whole stored `pluginConfigs` entry, resetting every option in the table
    above to its default.

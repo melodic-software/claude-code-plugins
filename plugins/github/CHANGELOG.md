@@ -9,6 +9,8 @@ All notable changes to the `github` plugin are documented here. Format follows
 
 - **Options reference cites the plugin-reconfiguration convention.** The generated
   How-to-set-these block no longer restates the 2.1.240 verified-version record.
+  This plugin cites the in-repo path rather than the published URL, because the
+  agnosticism sweep forbids the publisher org name in shipped markdown.
 
 ## [0.3.12]
 
