@@ -73,7 +73,7 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
 - **a toggle is off**. Reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention, which owns the verified-version record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
-  interactive `/plugin configure desktop-notification` any time, or headless
+  interactive `/plugin configure desktop-notification@<marketplace>` any time, or headless
   `claude plugin install desktop-notification@<marketplace> -s <scope> --config <key>=true`
   (repeatable per key) — against an already-installed plugin it prints `already installed` **and
   still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's

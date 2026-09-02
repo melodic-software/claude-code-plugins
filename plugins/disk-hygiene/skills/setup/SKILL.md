@@ -165,7 +165,7 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
 - toggle off: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention, which owns the verified-version record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
-  interactive `/plugin configure disk-hygiene` any time, or headless
+  interactive `/plugin configure disk-hygiene@<marketplace>` any time, or headless
   `claude plugin install disk-hygiene@<marketplace> -s <scope> --config disk_hygiene_enabled=true`
   (repeatable per key) — against an already-installed plugin it prints `already installed` **and
   still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
