@@ -5,6 +5,22 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.32]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.7.31]
+
+### Changed
+
+- **setup: extract unwrap-before-compose to a synced spoke.** Peel rules and the
+  shell-syntax guard move to `reference/unwrap-before-compose.md`, canonical here
+  and synced into rate-limit-guard so the twins cannot drift on quoting-as-trigger
+  again.
+
 ## [0.7.30]
 
 ### Changed

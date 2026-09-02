@@ -25,6 +25,13 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   the function frame it ran in, so the shared `hook::` path resolver's
   host-dependent `realpath` and `cygpath` calls sit outside the count.
 
+## [0.6.34]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.6.33]
 
 ### Changed

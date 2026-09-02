@@ -7,6 +7,6 @@
 Policy sources of truth — read them there; this file only points:
 
 - **Approvals design, approvable remediation ids, defaults, and the enable/revoke flow** —
-  [`references/shared/approvals.md`](references/shared/approvals.md)
+  [`reference/shared/approvals.md`](reference/shared/approvals.md)
 - **What is authorized and what is explicitly disabled, with rationale** —
-  [`references/windows/remediation-policy.md`](references/windows/remediation-policy.md)
+  [`reference/windows/remediation-policy.md`](reference/windows/remediation-policy.md)

@@ -5,7 +5,7 @@ Scaffolding placeholder. When `machine-health` is invoked on a Linux host, the s
 ## What the skill should do on Linux today
 
 1. Detect OS: `$IsLinux -eq $true` (PowerShell 7+) or `uname -s` returns `Linux`.
-2. Load `references/shared/*.md` for semantics, schema, and discovery guidance.
+2. Load `reference/shared/*.md` for semantics, schema, and discovery guidance.
 3. Read this file; note `scripts/linux/NOT_IMPLEMENTED.md` is also present.
 4. Produce a single-check report:
    - `id: "os-support"`, `category: "reliability"`, `severity: "UNKNOWN"`.
@@ -15,15 +15,15 @@ Scaffolding placeholder. When `machine-health` is invoked on a Linux host, the s
 
 ## Porting checklist
 
-Goal is "populate two folders," not "refactor the skill." Everything under `references/shared/` stays the same; OS-agnostic by design.
+Goal is "populate two folders," not "refactor the skill." Everything under `reference/shared/` stays the same; OS-agnostic by design.
 
 1. **Read the shared references** in order:
-   - `references/shared/severity-rubric.md` — inherits the five levels and the trend rule.
-   - `references/shared/output-schema.md` — every Linux check must emit this exact schema.
-   - `references/shared/report-template.md` — report renderer is already OS-agnostic.
-   - `references/shared/discovery-guide.md` — **Linux** section lists candidate dimensions to probe (apt/dnf/pacman state, systemd unit failures, journalctl boot errors, smartctl, LUKS status, snap/flatpak, container engine disk usage, cert expiry).
-   - `references/shared/remediation-philosophy.md` — posture (fail-safe, one attempt, forbidden actions) is universal.
-2. **Populate `references/linux/`** with:
+   - `reference/shared/severity-rubric.md` — inherits the five levels and the trend rule.
+   - `reference/shared/output-schema.md` — every Linux check must emit this exact schema.
+   - `reference/shared/report-template.md` — report renderer is already OS-agnostic.
+   - `reference/shared/discovery-guide.md` — **Linux** section lists candidate dimensions to probe (apt/dnf/pacman state, systemd unit failures, journalctl boot errors, smartctl, LUKS status, snap/flatpak, container engine disk usage, cert expiry).
+   - `reference/shared/remediation-philosophy.md` — posture (fail-safe, one attempt, forbidden actions) is universal.
+2. **Populate `reference/linux/`** with:
    - `check-catalog.md` — Linux equivalent. Account for distro variance: orchestrator must detect distro family (`/etc/os-release`) and dispatch checks appropriately (apt on Debian/Ubuntu, dnf on Fedora/RHEL, pacman on Arch, etc.).
    - `remediation-policy.md` — explicit per-remediation authorization. Linux remediations are trickier because a single action can behave differently across distros; err heavily on surface-over-fix.
 3. **Populate `scripts/linux/`** with:
@@ -46,7 +46,7 @@ Many interesting Linux checks (SMART, full journalctl, LUKS state) require eleva
 
 Replace this stub only when all of these hold:
 
-- Every check seeded in `references/windows/check-catalog.md` has a Linux analog (or is explicitly marked "not applicable to Linux" in `references/linux/check-catalog.md` with rationale).
+- Every check seeded in `reference/windows/check-catalog.md` has a Linux analog (or is explicitly marked "not applicable to Linux" in `reference/linux/check-catalog.md` with rationale).
 - `scripts/linux/Invoke-MachineHealthCheck.ps1` passes the dry-run smoke test against `/tmp/machine-health-smoketest` with `-DryRun -RunMode first-run`.
 - Run produces a valid report and a valid `history.jsonl` line.
 

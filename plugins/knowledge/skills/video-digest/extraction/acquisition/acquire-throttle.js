@@ -2,6 +2,7 @@
  * Process-wide throttle for concurrent yt-dlp acquisition runs.
  */
 
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -39,20 +40,41 @@ function lockDirPath() {
 }
 
 /**
- * @param {string} slotPath
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isAlreadyExists(error) {
+  return Boolean(
+    error && typeof error === "object" && "code" in error && error.code === "EEXIST",
+  );
+}
+
+/**
+ * @param {string} dirPath
  * @returns {Promise<boolean>}
  */
-async function tryAcquireSlot(slotPath) {
+async function tryMkdirExclusive(dirPath) {
   try {
-    await fs.mkdir(slotPath);
-    await fs.writeFile(path.join(slotPath, "pid"), `${process.pid}\n`, "utf8");
+    await fs.mkdir(dirPath);
     return true;
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "EEXIST") {
+    if (isAlreadyExists(error)) {
       return false;
     }
     throw error;
   }
+}
+
+/**
+ * @param {string} slotPath
+ * @returns {Promise<boolean>}
+ */
+async function tryAcquireSlot(slotPath) {
+  if (!(await tryMkdirExclusive(slotPath))) {
+    return false;
+  }
+  await fs.writeFile(path.join(slotPath, "pid"), `${process.pid}\n`, "utf8");
+  return true;
 }
 
 /**
@@ -64,6 +86,8 @@ async function releaseSlot(slotPath) {
 }
 
 /**
+ * Missing paths count as stale so a vanished slot is treated as free.
+ *
  * @param {string} slotPath
  * @returns {Promise<boolean>}
  */
@@ -73,6 +97,71 @@ async function isStaleSlot(slotPath) {
     return Date.now() - stat.mtimeMs > LOCK_STALE_MS;
   } catch {
     return true;
+  }
+}
+
+/**
+ * Exclusive create of `slotPath.reclaim`. A leftover lock older than the
+ * slot TTL is stolen by renaming it to a unique tombstone (only one racer
+ * can win that rename) so a crashed reclaimer cannot wedge the slot, and
+ * two stealers cannot both believe they hold the lock.
+ *
+ * @param {string} reclaimPath
+ * @returns {Promise<boolean>}
+ */
+async function tryAcquireReclaimLock(reclaimPath) {
+  if (await tryMkdirExclusive(reclaimPath)) {
+    return true;
+  }
+  if (!(await isStaleSlot(reclaimPath))) {
+    return false;
+  }
+  const tombstone = `${reclaimPath}.${process.pid}.${randomUUID()}.dead`;
+  try {
+    await fs.rename(reclaimPath, tombstone);
+  } catch {
+    return false;
+  }
+  await fs.rm(tombstone, { recursive: true, force: true });
+  return tryMkdirExclusive(reclaimPath);
+}
+
+/**
+ * Remove a stale slot only after winning an exclusive reclaim lock and
+ * re-statting. A bare rm between `isStaleSlot` and `releaseSlot` lets two
+ * reclaimers both pass the stale check; the first rm frees the path, a peer
+ * `mkdir`s a live holder, and the second rm evicts that holder so a third
+ * acquire exceeds `maxSlots`.
+ *
+ * Rename-then-rm of the live path is unsafe: the original holder still
+ * `releaseSlot(slot-N)` in `finally` and would delete the new occupant.
+ *
+ * @param {string} slotPath
+ * @returns {Promise<boolean>} true when this caller removed the slot
+ */
+export async function reclaimStaleSlot(slotPath) {
+  if (!(await isStaleSlot(slotPath))) {
+    return false;
+  }
+
+  const reclaimPath = `${slotPath}.reclaim`;
+  if (!(await tryAcquireReclaimLock(reclaimPath))) {
+    return false;
+  }
+
+  try {
+    try {
+      const stat = await fs.stat(slotPath);
+      if (Date.now() - stat.mtimeMs <= LOCK_STALE_MS) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+    await fs.rm(slotPath, { recursive: true, force: true });
+    return true;
+  } finally {
+    await fs.rm(reclaimPath, { recursive: true, force: true });
   }
 }
 
@@ -146,23 +235,34 @@ export async function withAcquireThrottle(
     path.join(baseDir, `slot-${index}`),
   );
 
+  /**
+   * @param {string} slotPath
+   * @returns {Promise<T>}
+   */
+  const runHeld = async (slotPath) => {
+    const heartbeat = startSlotHeartbeat(slotPath, heartbeatMs);
+    try {
+      return await fn();
+    } finally {
+      heartbeat.stop();
+      await releaseSlot(slotPath);
+    }
+  };
+
   let waitedMs = 0;
 
   // biome-ignore lint/suspicious/noUnnecessaryConditions: intentional lock poll loop
   while (true) {
     for (const slotPath of slotPaths) {
       if (await tryAcquireSlot(slotPath)) {
-        const heartbeat = startSlotHeartbeat(slotPath, heartbeatMs);
-        try {
-          return await fn();
-        } finally {
-          heartbeat.stop();
-          await releaseSlot(slotPath);
-        }
+        return await runHeld(slotPath);
       }
 
       if (await isStaleSlot(slotPath)) {
-        await releaseSlot(slotPath);
+        await reclaimStaleSlot(slotPath);
+        if (await tryAcquireSlot(slotPath)) {
+          return await runHeld(slotPath);
+        }
       }
     }
 

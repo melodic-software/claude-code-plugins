@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.55.40]
+## [0.55.41]
 
 ### Changed
 
@@ -13,6 +13,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the gate's own first check (`gh` on the command line; `worktree` in the command), so
   no command the gate would have judged is skipped. A plain `git status` no longer
   costs three hook processes.
+
+## [0.55.40]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.55.39]
 

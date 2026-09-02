@@ -25,6 +25,13 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   `hook::` path resolver's host-dependent `realpath` and `cygpath` calls sit
   outside the count.
 
+## [0.11.37]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.11.36]
 
 ### Changed

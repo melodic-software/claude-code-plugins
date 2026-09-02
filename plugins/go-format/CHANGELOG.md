@@ -3,13 +3,20 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.31]
+## [0.3.32]
 
 ### Changed
 
 - **The hook carries an `if` filter, `Edit(*.go)`.** That is the one extension the hook
   formats, so a Write/Edit of any other file no longer spawns it; behavior on Go files
   is unchanged.
+
+## [0.3.31]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.3.30]
 

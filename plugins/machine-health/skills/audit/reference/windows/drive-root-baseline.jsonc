@@ -9,7 +9,7 @@
 // "directories" list and a file only the "files" list -- a stray FILE named
 // "Recovery" must not hide behind the directory of the same name.
 //
-// Rubric and rationale: references/windows/check-catalog.md#19-drive-root-litter
+// Rubric and rationale: reference/windows/check-catalog.md#19-drive-root-litter
 {
   // Expected at the root of ANY fixed volume. NTFS/ReFS housekeeping the OS
   // creates on every volume it touches.

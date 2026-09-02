@@ -162,10 +162,11 @@ zone bands, zones.json shape) are owned by
    settings. Those branches already forbade printing wiring the operator cannot make run. When
    this step does print, the wiring target is the SHIM's fixed path, never
    `${CLAUDE_PLUGIN_ROOT}`. Read
-   [`reference/statusline-edit.md`](reference/statusline-edit.md) now, before composing: it owns
-   the peel rules, the shell-syntax guard, both JSON edit blocks, and the Windows note, and
-   composing without it is what produced `context -> rate -> rate -> renderer` and the
-   compounding `sh -c` wrap.
+   [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md) for the peel
+   rules and the shell-syntax guard (shared with rate-limit-guard), then
+   [`reference/statusline-edit.md`](reference/statusline-edit.md) for this plugin's JSON
+   edit blocks and the Windows note. Composing without those is what produced
+   `context -> rate -> rate -> renderer` and the compounding `sh -c` wrap.
 8. **Dotfiles tracking proposal**, the printed edit changes a durable user-scope file the operator
    maintains. When the operator's home directory is managed by a dotfiles system (chezmoi, yadm, a
    bare-repo setup, ...), surface the reminder to capture the `settings.json` change through that
