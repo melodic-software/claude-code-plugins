@@ -82,7 +82,16 @@ run_ab --a 'read -r line; [[ "$line" == "payload" ]]' --b 'exit 0' \
   --iterations 4 --warmup 0 --stdin 'payload'
 assert_eq "a run with stdin exits 0" "0" "$RUN_RC"
 assert_contains "the reading arm reports its own exit code" "rc={0: 4}" "$RUN_OUT"
-assert_not_contains "an undrained stdin does not fabricate rc 141" "141" "$RUN_OUT"
+# Match the rc CENSUS, not a bare "141" anywhere in the output. A bare substring
+# search collides with timing data: a legitimate 141ms sample printed `min=141ms`
+# and failed this assertion for a reason unrelated to what it tests. An exit code
+# only ever appears as a dict KEY, so `141:` is the form that means what is meant.
+assert_not_contains "an undrained stdin does not fabricate exit code 141" "141:" "$RUN_OUT"
+if [[ "$(printf '%s' "$RUN_OUT" | grep -c 'rc={0: 4}')" == "2" ]]; then
+  pass "both arms report a clean exit-code census"
+else
+  fail "both arms report a clean exit-code census" "two rc={0: 4} lines" "$RUN_OUT"
+fi
 
 # --- 4. an arm that cannot run is refused before anything is timed ---
 run_ab --a "$NOOP" --b "/nonexistent/definitely-not-here" --iterations 2 --warmup 0
