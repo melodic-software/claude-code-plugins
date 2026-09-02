@@ -1,5 +1,13 @@
 # Changelog — session-flow plugin
 
+## [0.34.20]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
 ## [0.34.19]
 
 ### Changed
