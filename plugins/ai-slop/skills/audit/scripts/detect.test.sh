@@ -838,14 +838,14 @@ assert_contains "dir target, git absent: walk scans tracked and untracked markdo
 BAREREPO="$TEST_TMPDIR/barerepo"
 mkdir -p "$BAREREPO/unicode"
 git -C "$BAREREPO" init -q
-printf 'A tracked em dash %s here.\n' "$EM" >"$BAREREPO/unicode/caf${EM}name.md"
+printf 'A tracked em dash %s here.\n' "$EM" >"$BAREREPO/unicode/notes${EM}name.md"
 printf 'A tracked em dash %s here too.\n' "$EM" >"$BAREREPO/ascii.md"
 printf 'An untracked em dash %s here.\n' "$EM" >"$BAREREPO/loose.md"
-git -C "$BAREREPO" add "unicode/caf${EM}name.md" ascii.md
+git -C "$BAREREPO" add "unicode/notes${EM}name.md" ascii.md
 
 out="$(cd "$BAREREPO" && CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
-assert_contains "bare invocation: tracked non-ASCII filename is scanned" "$out" "file=unicode/caf${EM}name.md"
-assert_not_contains "bare invocation: no C-quoted escape reaches the report" "$out" 'caf\342'
+assert_contains "bare invocation: tracked non-ASCII filename is scanned" "$out" "file=unicode/notes${EM}name.md"
+assert_not_contains "bare invocation: no C-quoted escape reaches the report" "$out" 'notes\342'
 assert_contains "bare invocation: both tracked files count" "$out" "2 files scanned"
 assert_not_contains "bare invocation: untracked markdown is not scanned" "$out" "loose.md"
 
@@ -854,7 +854,7 @@ assert_not_contains "bare invocation: untracked markdown is not scanned" "$out" 
 # Running from outside the checkout is what pins the REPO_ROOT prefix they are
 # joined onto: a wrong prefix leaves nothing for the scan loop to open.
 out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
-assert_contains "bare invocation from outside the repo: the non-ASCII path is scanned" "$out" "file=unicode/caf${EM}name.md"
+assert_contains "bare invocation from outside the repo: the non-ASCII path is scanned" "$out" "file=unicode/notes${EM}name.md"
 assert_contains "bare invocation from outside the repo: both tracked files count" "$out" "2 files scanned"
 
 # A listing that fails must say so. Swallowed under 2>/dev/null it produces an

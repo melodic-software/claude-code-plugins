@@ -420,8 +420,8 @@ fi
 #
 # `ls-files` quotes any pathname holding a byte above 0x80 unless
 # `core.quotePath=false` (git-config: "bytes higher than 0x80 are not
-# considered unusual any more"), so a tracked `café.md` arrived as the literal
-# escape `"caf\303\251.md"`, failed the scan loop's existence test, and
+# considered unusual any more"), so a tracked `notes-é.md` arrived as the literal
+# escape `"notes-\303\251.md"`, failed the scan loop's existence test, and
 # produced neither a finding nor a declined row. A bare invocation is the shape
 # the audit skill uses to sweep a whole repository, so that silent drop meant
 # every non-ASCII-named file was outside the audit while the report claimed
@@ -477,7 +477,7 @@ fi
 # any host where those disagree no candidate survived the filter and the walk
 # below silently replaced the tracked-files listing it was meant to back up.
 # `ls-files` C-quotes any path holding a non-ASCII byte unless
-# `core.quotePath=false`, so a tracked `café.md` (or a filename that itself
+# `core.quotePath=false`, so a tracked `notes-é.md` (or a filename that itself
 # holds an em dash) would arrive as a literal quoted escape, fail the scan
 # loop's existence test, and produce neither a finding nor a declined row.
 #

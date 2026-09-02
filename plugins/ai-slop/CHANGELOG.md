@@ -8,8 +8,8 @@
   byte, and said nothing when the listing failed.** 0.3.9 fixed exactly this on the
   directory-expansion path and left the no-paths path on
   `git -C "$REPO_ROOT" ls-files '*.md' 2>/dev/null`. Per git-config, commands that output paths
-  quote bytes above 0x80 unless `core.quotePath` is false, so a tracked `café.md` arrived as the
-  literal escape `"caf\303\251.md"`, failed the scan loop's `[[ -f "$file" ]]` test, and produced
+  quote bytes above 0x80 unless `core.quotePath` is false, so a tracked `notes-é.md` arrived as the
+  literal escape `"notes-\303\251.md"`, failed the scan loop's `[[ -f "$file" ]]` test, and produced
   neither a finding nor a declined row. A bare invocation is the shape the audit skill uses to
   sweep a whole repository, so the coverage loss was silent and repository-wide: the report claimed
   every tracked markdown file and had never opened those.
