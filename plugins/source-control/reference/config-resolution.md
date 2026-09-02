@@ -322,7 +322,7 @@ normalization, and the resolver (`lib/resolve-convention-pattern.sh`) live in th
 The overlay convention needs one line in the consuming repo:
 
 ```gitignore
-.claude/*.local.*
+.claude/**/*.local.*
 ```
 
 No skill in this plugin writes the consumer's root `.gitignore` — `/source-control:setup` recommends

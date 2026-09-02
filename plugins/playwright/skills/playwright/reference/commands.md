@@ -1,6 +1,6 @@
 # Command reference
 
-Distilled from upstream `@playwright/cli@0.1.17` SKILL.md. For verbatim upstream, see `vendor/SKILL.md` beside this skill.
+Distilled from upstream `@playwright/cli@0.1.19` SKILL.md. For verbatim upstream, see `vendor/SKILL.md` beside this skill.
 
 ## Core interaction
 
@@ -150,6 +150,16 @@ playwright-cli click e4
 playwright-cli console          # list console messages
 playwright-cli network          # list network requests since load
 playwright-cli close
+```
+
+**Record a demonstrated flow**
+
+When the user performs the steps in the browser instead of describing them, capture the actions as Playwright code. Use the same `-s=<flow>` as the rest of the named-session flow (`reference/sessions.md`); omitting `-s` records the unnamed default browser.
+
+```bash
+playwright-cli -s=<flow> recording-start
+# user drives the browser
+playwright-cli -s=<flow> recording-stop
 ```
 
 ## Help

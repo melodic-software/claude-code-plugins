@@ -72,12 +72,12 @@
       "id": 6,
       "name": "headless-toggle-change-reruns-install-never-uninstalls",
       "prompt": "/actionlint:setup apply — re-enable the hook headlessly by setting actionlint_enabled=true. I cannot use the interactive configure prompt from this session.",
-      "expected_output": "Routes the headless option change to a plain `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, stamps the claim with the CLI version it was verified against, and closes by re-running the relevant check probe and reporting its actual result.",
+      "expected_output": "Routes the headless option change to a plain `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true` rerun against the already-installed plugin, refuses the uninstall-and-reinstall route, cites the plugin-reconfiguration convention as the owner of the verified-version record, and closes by re-running the relevant check probe in a fresh session and reporting its actual result.",
       "files": [],
       "expectations": [
         "Prescribes a plain `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true` rerun, and states that against an already-installed plugin it prints `already installed` and still writes the value",
         "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option in the README Options reference table to its manifest default",
-        "Stamps the --config claim with the CLI version it was verified against — Claude Code 2.1.240, a non-sensitive option at user scope — and says the official docs describe --config only as an install-time flag, so the post-install behavior rests on observation, with a sensitive option and project/local scope not covered",
+        "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record for the --config-against-an-installed-plugin claim, rather than stamping a CLI version itself, and directs the operator to rerun check in a fresh session — the rendered value is injected at skill load, so a same-session check still reports the old value",
         "Tells the operator to pass the scope `claude plugin list` reports for this plugin (user, project, or local) and to run from that project's directory for a project or local scope, or the write lands at a scope that does not load",
         "Ends by re-running the relevant check probe and reporting its OBSERVED result, never claiming resolved on the reader's report that they changed the value"
       ]

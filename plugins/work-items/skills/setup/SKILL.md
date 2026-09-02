@@ -96,7 +96,7 @@ when this pass must stop instead of guessing.
    merge: preserve any existing `config.role_labels` (owned by the role-label pass below) and any
    other keys. Write `schema_version: "1.0"`, the chosen `provider`, the `config`, and, unless one
    already exists, the self-describing `docs` pointer (CONTRACT.md "Setup (binding file)"). Confirm
-   the file is tracked, not ignored.
+   tracked-not-ignored via the pair: `git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0 (non-zero after a fresh write = "written but untracked: commit it").
 5. **Ensure the personal-overlay gitignore line.** The gitignored per-user overlay
    (`.work-item-tracker.local.json`, allowlisted keys only. CONTRACT.md "Setup (binding file)") sits
    at the repo root, outside the `.claude/**/*.local.*` convention line, so `apply` must confirm a
@@ -194,7 +194,8 @@ unambiguous; ask only where an item genuinely needs the user.
 5. **Backfill legacy frontier-tier body stamps.** Run the procedure in
    [reference/capability-tier-backfill.md](reference/capability-tier-backfill.md). This pass is
    load-bearing on upgrade (#1716): items already triaged with only a body prose frontier-tier stamp
-   will not be re-triaged, so setup applies the label here once the axis exists.
+   will not be re-triaged, so setup applies the label here once the axis exists. Stays bespoke: it
+   backfills forge labels on tracker items, not a repo-scope artifact the retirement schema detects.
 6. **Read the current schedule file first.** If `.github/recurring-schedule.json` exists, load it and
    present a short summary (item count, each item's `id` / `cadence` / `next_due`, and which are already
    overdue against today). The interview proposes changes against that baseline; nothing is dropped

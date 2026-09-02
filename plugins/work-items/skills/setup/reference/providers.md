@@ -13,8 +13,9 @@ claim/renew/reclaim lease protocol, native sub-items, and dependency edges. Need
 config beyond the lease TTL.
 
 **Verifying it at bind time.** Confirm `gh` is installed — the seam hard-errors at call time when
-the binary is absent, and again on any verb reading the native sub-item/dependency surface when it
-is older than 2.94 (CONTRACT.md "Prerequisites"; the claim/renew/reclaim lease trio is exempt) —
+the binary is absent, and again on any path that uses the native sub-item/dependency surface when it
+is older than 2.94 (CONTRACT.md "Prerequisites"; `get-item`, a `create-item` with no
+`--parent`/`--blocked-by`, and the claim/renew/reclaim lease trio are exempt) —
 then confirm the checkout itself resolves:
 
 ```sh

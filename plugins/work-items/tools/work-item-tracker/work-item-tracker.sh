@@ -14,6 +14,8 @@ source "$SCRIPT_DIR/lib/binding.sh"
 source "$SCRIPT_DIR/lib/json.sh"
 # shellcheck source=lib/frontier.sh
 source "$SCRIPT_DIR/lib/frontier.sh"
+# shellcheck source=lib/gh-version.sh
+source "$SCRIPT_DIR/lib/gh-version.sh"
 
 readonly EX_USAGE=2
 readonly EX_CONFIG=3
@@ -86,16 +88,16 @@ check_gh_present() {
     fail_config "prerequisite missing: gh (GitHub CLI) — see CONTRACT.md Prerequisites"
 }
 
+# check_gh_version [feature]: feature is the flag or verb that needs 2.94, so
+# the exit-3 message names it. Default copy covers verbs with no user-facing
+# flag (list-items' --json blockedBy, list-sub-items' subIssues).
 check_gh_version() {
   check_gh_present
-  local raw major minor
-  raw="$(gh --version 2>/dev/null | head -n1 | sed -E 's/^gh version ([0-9]+\.[0-9]+).*/\1/')"
-  major="${raw%%.*}"
-  minor="${raw#*.}"
-  if ! [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] ||
-    ((major < 2 || (major == 2 && minor < 94))); then
-    fail_config "gh >= 2.94 required for native sub-issue/dependency flags (found: ${raw:-unknown})"
-  fi
+  local feature="${1:-native sub-issue/dependency flags}"
+  wit_gh_has_native_surface && return 0
+  local raw
+  raw="$(wit_gh_version_raw)"
+  fail_config "gh >= ${WIT_GH_NATIVE_SURFACE_MAJOR}.${WIT_GH_NATIVE_SURFACE_MINOR} required for ${feature} (found: ${raw:-unknown})"
 }
 
 main() {
@@ -162,20 +164,45 @@ main() {
   *) fail_usage ;;
   esac
 
-  # gh >= 2.94 buys exactly one thing: the native sub-issue/dependency surface
-  # (`--parent`, `--blocked-by`, `--add-blocked-by`, and the `blockedBy` /
-  # `parent` / `subIssues` --json fields). Gate the verbs that touch it, not the
-  # whole dispatcher — a blanket gate also blocked the lease trio (claim,
-  # renew-lease, reclaim) and `capabilities`, none of which reads that surface,
-  # so an older gh lost race-safe claiming for a prerequisite it never used.
-  # `capabilities` is the sharpest case: it reads a JSON manifest and never
-  # invokes gh at all, yet could not answer what the provider supports without
-  # meeting a requirement the answer itself might have said was unnecessary.
-  # Keyed on adapter_verb (resolved above), so `list-frontier --parent` gates
-  # through its list-sub-items dispatch rather than needing its own entry.
+  # gh >= 2.94 buys the native sub-issue/dependency surface (`--parent`,
+  # `--blocked-by`, `--add-blocked-by`, and the `blockedBy` / `parent` /
+  # `subIssues` --json fields). Gate the paths that pass those flags or read
+  # those fields, not every github verb: a blanket create-item gate refused
+  # plain creates (no parent, no blocked-by) on cloud images that ship gh 2.45,
+  # so /work-items:track add could file nothing (#3598). get-item omits the
+  # native --json fields on older gh (parent_id null, blocked_by_count 0).
+  # list-items still requests --json blockedBy, so it stays gated: silent zeros
+  # would let list-frontier treat blocked items as unblocked. Keyed on
+  # adapter_verb, so list-frontier --parent gates through list-sub-items.
   if [[ "$WIT_PROVIDER" == "github" ]]; then
     case "$adapter_verb" in
-    create-item | get-item | list-items | list-sub-items | link-blocks | add-sub-item)
+    create-item)
+      local gated_flag="" a
+      for a in "$@"; do
+        case "$a" in
+        --parent | --blocked-by)
+          gated_flag="$a"
+          break
+          ;;
+        *) ;;
+        esac
+      done
+      if [[ -n "$gated_flag" ]]; then
+        check_gh_version "$gated_flag"
+      else
+        check_gh_present
+      fi
+      ;;
+    list-sub-items)
+      check_gh_version "list-sub-items"
+      ;;
+    link-blocks)
+      check_gh_version "--blocked-by"
+      ;;
+    add-sub-item)
+      check_gh_version "--parent"
+      ;;
+    list-items)
       check_gh_version
       ;;
     capabilities)

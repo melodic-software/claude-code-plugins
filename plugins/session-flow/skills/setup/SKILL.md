@@ -1,23 +1,23 @@
 ---
-description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', the SessionStart observer isn't arming, or the observer hook reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe; only the observer substrate has prerequisites, the other thirteen skills are zero-config."
-argument-hint: "check | apply"
+description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', the SessionStart observer isn't arming, or the observer hook reported a missing prerequisite. Check-only: verifies, reports, and offers each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe; only the observer substrate has prerequisites, the other thirteen skills are zero-config."
+argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
-"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
-`apply` resolves. Only the **detached observer** (see
+Check-only setup under the Check-only carve-out (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit
+and repeatable" in the marketplace repository): this plugin's configuration surface contains no
+writable artifact, so `check` inspects, reports, and offers each remediation, and no `apply` is
+offered because there is nothing it could conformingly write. Only the **detached observer** (see
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md)) has
-runtime prerequisites and configuration; the other skills are zero-config. The observer's tunables are
-all native `userConfig`, and its remaining prerequisites are system tools (Python 3.10+, `jq`), so
-`apply` is guidance-and-verify with **no write path**: it installs nothing and edits nothing (writing
-`pluginConfigs` is what the setup contract forbids).
+runtime prerequisites and configuration; the other skills are zero-config. The observer's tunables
+are all native `userConfig` (the carve-out's native-`userConfig` class), and its remaining
+prerequisites are system tools (Python 3.10+, `jq` — the external-prerequisites class), so setup
+installs nothing and edits nothing (writing `pluginConfigs` is what the setup contract forbids).
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then offers the
-resolution for each finding. Both are non-interactive, never prompt when the action is given.
+Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
 
 ## `check` (read-only)
 
@@ -55,39 +55,26 @@ and note that re-enabling restores the FAIL semantics.
 5. **Hook registration**. INFO: confirm the plugin is enabled for this project (`/plugin` → Installed)
    rather than parsing settings files. The SessionStart hook only auto-arms when `observer_enabled` is on.
 
-## `apply`
+## Remediation guidance (printed by `check`; the operator applies it)
 
-No write path. Run `check`, then for each FAIL offer the remediation: install the missing tool, or route
-observer reconfiguration through Claude Code's native flow.
+No write path. For each FAIL, `check` closes by offering the remediation: install the missing
+tool, or route observer reconfiguration through Claude Code's native flow.
 Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 
-Reconfiguring the observer's `userConfig` keys has exactly two routes, and both work on an already
-installed plugin:
-
-- **Interactive, any time:** `/plugin configure session-flow@<marketplace>`.
-- **Headless:** rerun the install with the new value. Run
-  `claude plugin install session-flow@<marketplace> -s <scope> --config <key>=<value>` (repeatable
-  per key). Against an already-installed plugin it prints `already installed` **and still writes the
-  value**, verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default
-  value written to an installed plugin, then restored). The short-circuit is about the install, not
-  the config write. Re-verify before relying on it outside those conditions. A `sensitive` option,
-  or `project`/`local` scope, were not covered.
-
-  `-s` defaults to `user`. Pass the scope the plugin is *actually* installed at,
-  `claude plugin list` reports it per plugin, and run from that project's directory when the scope
-  is `project` or `local`, or the write lands at a scope that does not load.
-
-  Do **not** uninstall to reconfigure. Uninstalling drops the stored `pluginConfigs` entry outright,
-  so every option in the README's Options reference table falls back to its manifest default.
-  A customized `observer_analysis_model`, `observer_idle_seconds`, `observer_analysis_bare`, or
-  `observer_max_seconds` is simply gone, with nothing left to read the old values from.
-
-Afterwards, keep the two claims apart. The write is issued and the stored value is what you
-passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
-skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-session start, so a same-session `check` still reports the OLD value. Reporting that as a failed
-write would be wrong. Verify the effective value by rerunning `check` in a **fresh session**, and
-never claim an unobserved change.
+Reconfigure the observer's `userConfig` keys through Claude Code's native flow, per the
+marketplace's plugin-reconfiguration convention
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+which owns the verified-version record): interactive `/plugin configure session-flow@<marketplace>`
+any time, or headless `claude plugin install session-flow@<marketplace> -s <scope> --config <key>=<value>`
+(repeatable per key) — against an already-installed plugin it prints `already installed` and still
+writes the value. Do **not** uninstall to reconfigure: that drops the stored `pluginConfigs` entry
+outright, resetting every option in the README's Options reference to its manifest default, with
+nothing left to read the old values from. `-s` defaults to `user`; pass the scope
+`claude plugin list` reports, and run from that project's directory for a `project`/`local` scope,
+or the write lands at a scope that does not load. Afterwards rerun `check` in a **fresh session** —
+the rendered `${user_config.*}` is injected at skill load and each hook's `CLAUDE_PLUGIN_OPTION_*`
+is fixed at session start, so a same-session `check` still reports the OLD value; report the
+observed effective value, never an unobserved change.
 
 ## Gotchas
 

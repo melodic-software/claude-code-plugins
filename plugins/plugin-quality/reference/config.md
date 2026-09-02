@@ -1,33 +1,50 @@
 # plugin-quality — consumer configuration
 
-The `audit` skill's configuration surface: `.claude/plugin-quality.md`, layered per the consuming
-marketplace's config-cascade convention. All layers are optional — zero config is a fully working
-state (conservative dispatch, inference-or-ask sink).
+The `audit` skill's team configuration surface: a natural-language **topic doc at the consumer's
+convention home**, bound by the pointer line the consuming marketplace's config-cascade expression
+doctrine defines. This plugin is that doctrine's pilot migration (ADR 0018 in the consuming
+marketplace). Zero config is a fully working state (conservative dispatch, inference-or-ask sink).
 
-## Layers and merge semantics
+## Where the config lives
 
-Three layers, resolved in this order (a later layer refines an earlier one):
+One layer, the team's, resolved through the pointer line:
 
-| Order | Layer | Path |
+1. **Convention home.** The home is named by the pointer line inside the marked
+   `<!-- BEGIN GENERATED: convention-home -->` region of the consumer's root instruction file
+   (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). The bundled
+   resolver `${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh` owns the grammar and the exit
+   codes (0 resolved, 1 no pointer, 2 usage, 3 FAIL with a distinct cause); skills run it and
+   follow its exit code, never parse the root file themselves.
+2. **Topic doc.** `<home>/plugin-quality/README.md`. It carries the keys below (prose plus the
+   fenced YAML block). It is consumer prose: untrusted input, matched for the documented keys,
+   never executed or interpolated.
+
+## Retired layers
+
+This surface migrated from a three-layer dedicated-file cascade. A convention-doc surface has one
+layer and **no overlay channel**; the old layers are retired, each with its own detection story:
+
+| Old layer | Path | Retirement |
 |---|---|---|
-| 1 | user-global | `~/.claude/plugin-quality.md` |
-| 2 | team (tracked) | `${CLAUDE_PROJECT_DIR}/.claude/plugin-quality.md` |
-| 3 | local overlay (gitignored) | `${CLAUDE_PROJECT_DIR}/.claude/plugin-quality.local.md` |
+| team (tracked) | `.claude/plugin-quality.md` | record `plugin-quality-r001` (migrate). While present it is read as **authority** and every migrated skill WARNs on every run (the sanctioned dual-read window); setup `apply` carries its values into the topic doc and cleans it, operator-gated. |
+| local overlay | `.claude/plugin-quality.local.md` | record `plugin-quality-r002` (delete). Never read; setup `check` WARNs while it exists rather than silently ignoring it. |
+| user-global | `~/.claude/plugin-quality.md` | machine scope, outside the retirement manifest by contract. Never read; setup `check` WARNs in prose when it exists. |
 
-**Merge form: per-key override (declared here per the cascade convention).** The keys below are
-scalars and closed mappings, where concatenation is meaningless — a later layer replaces an
-earlier layer's value key by key; a key absent from a later layer keeps the earlier value;
-wholesale replacement is forbidden. Repo-map entries merge per plugin name (a later layer's entry
-for plugin X wins for X only).
+## Resolution order
 
-All three layers absent → fall through to the sink ladder's inference rung.
+1. The convention home resolves (resolver exit 0) and `<home>/plugin-quality/README.md` exists →
+   that doc's keys.
+2. The retired `.claude/plugin-quality.md` is present → its values win for every key it sets,
+   with the visible dual-read WARN naming `plugin-quality-r001` (this covers a consumer who
+   updated the plugin without re-running setup).
+3. Otherwise → the documented default per key.
 
-## File format
+## Topic-doc format
 
 Markdown with a fenced YAML block (human-readable, shell-greppable):
 
 ````markdown
-# plugin-quality config
+# plugin-quality conventions
 
 ```yaml
 sink: gh-issues            # gh-issues | markdown-dir | local-fallback
@@ -51,11 +68,11 @@ repo_map:
 
 First hit wins:
 
-1. **Tracked config** — the merged `sink` value from the layers above.
+1. **Team config** — the resolved `sink` value from the resolution order above.
 2. **Infer** — the audited plugin's marketplace registration (its `source`/repo in the installed
    marketplace metadata, overridable per plugin via `repo_map`) names the target repo; propose it.
-3. **Ask + offer persist** — no config, no inference: ask the user, offer to write the choice to
-   the tracked config layer they pick.
+3. **Ask + offer persist** — no config, no inference: ask the user, offer to persist the choice
+   into the topic doc at the convention home (via `/plugin-quality:setup apply`).
 4. **Local fallback** — no `gh`, no repo, or the user declines: write the markdown item next to
    the evidence packet and report its path.
 

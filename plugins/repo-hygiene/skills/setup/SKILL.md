@@ -1,25 +1,23 @@
 ---
-description: "Verify repo-hygiene's external prerequisites on this machine — `git`, which the scan, git, stash, and tree tiers and the tracked-file guarantee all rest on, and the optional `ghq` the fleet batch actions enumerate repositories from — and report the effective destructive-guard toggle and the scope it actually applies at. Use when: 'set up repo-hygiene', 'configure repo-hygiene', 'is repo-hygiene working', 'is the destructive guard on', 'why did tree-batch find no repos', or before a first clean on a new machine. Actions: check (read-only verification, default) | apply (point at each remediation; installs nothing). Re-runnable and safe."
-argument-hint: "check | apply"
+description: "Verify repo-hygiene's external prerequisites on this machine — `git`, which the scan, git, stash, and tree tiers and the tracked-file guarantee all rest on, and the optional `ghq` the fleet batch actions enumerate repositories from — and report the effective destructive-guard toggle and the scope it actually applies at. Use when: 'set up repo-hygiene', 'configure repo-hygiene', 'is repo-hygiene working', 'is the destructive guard on', 'why did tree-batch find no repos', or before a first clean on a new machine. Check-only: verifies, reports, and points at each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe."
+argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Thin check-centric setup per the uniform setup contract (`docs/PLUGIN-PHILOSOPHY.md`
-"Setup is explicit and repeatable" in the marketplace repository): `check` inspects and reports,
-`apply` points at what it found. The warrant is criterion (b), external prerequisites. `git`,
-which every
-git-touching tier of `/repo-hygiene:clean` and the tracked-file safety guarantee depend on, and the
-optional `ghq` the fleet batch actions enumerate repositories from. Neither of which a native
-configuration prompt can see, and each of which setup can only verify. The
-`clean_destructive_guard_enabled` option is a native `userConfig` toggle whose only stored home is
-the `pluginConfigs` this contract forbids setup to write, so this setup is check-only: `apply`
-installs nothing, writes nothing, and is idempotent by construction.
+Check-only setup under the Check-only carve-out (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit
+and repeatable" in the marketplace repository): this plugin's configuration surface contains no
+writable artifact, so `check` inspects, reports, and points at each remediation, and no `apply` is
+offered because there is nothing it could conformingly write. The warrant is the carve-out's
+external-prerequisites class: `git`, which every git-touching tier of `/repo-hygiene:clean` and
+the tracked-file safety guarantee depend on, and the optional `ghq` the fleet batch actions
+enumerate repositories from — neither visible to a native configuration prompt, each verifiable
+only. The `clean_destructive_guard_enabled` option is a native `userConfig` toggle whose only
+stored home is the `pluginConfigs` this contract forbids setup to write.
 
-Action routing: no argument or `check` runs the check; `apply` runs the check first, then points at
-each remediation. Both are non-interactive, never prompt when the action is given.
+Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
 
 ## `check` (read-only)
 
@@ -63,36 +61,37 @@ Install nothing, and run no mutating tier.
      per-repository value of this toggle. To vary the behavior for one repository, enable or disable
      the plugin in that project's `enabledPlugins` instead.
 
-## `apply` (idempotent)
+## Remediation guidance (printed by `check`; the operator applies it)
 
-Run `check`, then point at each resolution. Both prerequisites are system tools and the one option
-lives in Claude Code's native configuration surface, so `apply` writes nothing and installs
-nothing. Re-running it after everything passes changes nothing and reports "already configured":
+Both prerequisites are system tools and the one option lives in Claude Code's native
+configuration surface (Check-only carve-out, external-prerequisites and native-`userConfig`
+classes), so `check` closes by pointing at each resolution rather than writing. Re-running it
+after everything passes changes nothing and reports "already configured":
 
 - **Missing `git`:** the platform's own install channel (<https://git-scm.com/downloads>). This
   plugin never downloads a tool.
 - **Missing `ghq` and fleet actions wanted:** install it (<https://github.com/x-motemen/ghq>), or
   keep using `--repo` / `--repos-from` and say so. This is a convenience, not a blocker.
 - **Missing Git Bash on Windows:** install Git for Windows; nothing in this plugin runs without it.
-- **Toggle off (or on):** direct to `/plugin configure repo-hygiene@<marketplace>` (interactive, any
-  time). Headless: rerun the install with the new value: `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true`
-  (repeatable per key). Against an already-installed plugin it
-  prints `already installed` **and still writes the value**. Verified on Claude Code 2.1.240 (a
-  non-sensitive option at `user` scope: a non-default value written to an installed plugin, then
-  restored). The short-circuit is about the install, not the config write. Re-verify before relying
-  on it outside those conditions. A `sensitive` option, or `project`/`local` scope, were not
-  covered. Do **not** uninstall to reconfigure: uninstalling drops this plugin's entire stored
-  `pluginConfigs` entry, resetting every option in the README's Options reference table to its
-  manifest default. `-s` defaults to `user`, so pass the scope `claude plugin list` reports for this
-  plugin, and run from that project's directory for a `project`/`local` scope, or the write lands at
-  a scope that does not load. This skill never writes user settings or `pluginConfigs`. Afterwards
-  rerun `check` **in a fresh session**, the rendered token is injected at skill load, and report
-  the observed effective toggle value; never claim an unobserved change.
+- **Toggle off (or on):** reconfigure through Claude Code's native flow, per the marketplace's
+  plugin-reconfiguration convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  which owns the verified-version record): interactive `/plugin configure repo-hygiene@<marketplace>`
+  any time, or headless `claude plugin install repo-hygiene@<marketplace> -s <scope> --config clean_destructive_guard_enabled=true`
+  (repeatable per key) — against an already-installed plugin it prints `already installed` and
+  still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
+  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
+  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
+  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
+  does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  `check` in a **fresh session** — the rendered token is injected at skill load, so a same-session
+  `check` still reports the OLD value; report the observed effective toggle value, never an
+  unobserved change.
 
 ## What this skill does NOT do
 
 - Scan, clean, prune, or reset anything. Those are `/repo-hygiene:clean`'s tiers, with their own
   dry-run-first and confirmation contract.
-- Install `git`, `ghq`, or any tool, during either `check` or `apply`. Guidance only.
+- Install `git`, `ghq`, or any tool. Guidance only.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor any other Claude Code
   settings surface.

@@ -267,10 +267,10 @@ missing_preserved_headings() {
   ((${#base_versions[@]} > 0)) || return 0
 
   mapfile -t head_versions < <(changelog_versions "$changelog")
-  for v in "${head_versions[@]}"; do head_seen["$v"]=1; done
+  for v in ${head_versions[@]+"${head_versions[@]}"}; do head_seen["$v"]=1; done
 
   missing=""
-  for v in "${base_versions[@]}"; do
+  for v in ${base_versions[@]+"${base_versions[@]}"}; do
     [[ -n "${head_seen[$v]:-}" ]] && continue
     missing+="${missing:+$'\n'}$v"
   done
@@ -285,13 +285,13 @@ if [[ "$mode" == "--check-order" ]]; then
   misordered=0
   duplicated=0
   checked=0
-  for changelog in "${changelogs[@]}"; do
+  for changelog in ${changelogs[@]+"${changelogs[@]}"}; do
     [[ -f "$changelog" ]] || continue
     checked=$((checked + 1))
     mapfile -t versions < <(changelog_versions "$changelog")
     ((${#versions[@]} > 1)) || continue
 
-    dupes="$(printf '%s\n' "${versions[@]}" | sort | uniq -d)"
+    dupes="$(printf '%s\n' ${versions[@]+"${versions[@]}"} | sort | uniq -d)"
     if [[ -n "$dupes" ]]; then
       echo "DUPLICATE CHANGELOG VERSION: $changelog lists $(printf '%s' "$dupes" | tr '\n' ' ') more than once. Two branches almost certainly staged the same version; renumber one." >&2
       duplicated=$((duplicated + 1))
@@ -303,7 +303,7 @@ if [[ "$mode" == "--check-order" ]]; then
     # still outranks 9.0.0.
     prev=""
     prev_key=""
-    for v in "${versions[@]}"; do
+    for v in ${versions[@]+"${versions[@]}"}; do
       key="$(version_sort_key "$v")"
       if [[ -n "$prev_key" && "$key" > "$prev_key" ]]; then
         echo "MISORDERED CHANGELOG: $changelog is not newest-first — $v (below $prev). A version that merged after a higher one already landed is a regression; renumber it above the entry it followed." >&2
@@ -327,7 +327,7 @@ if [[ "$mode" == "--check" ]]; then
   declare -A saw_debt
   missing=0
   ahead=0
-  for manifest in "${manifests[@]}"; do
+  for manifest in ${manifests[@]+"${manifests[@]}"}; do
     plugin_dir="${manifest%/.claude-plugin/plugin.json}"
     name="${plugin_dir##*/}"
     version="$(version_of "$manifest")"
@@ -505,7 +505,7 @@ if [[ "$mode" == "--check-preserved" ]]; then
   deleted=0
   compared=0
   declare -A head_seen
-  for changelog in "${touched_changelogs[@]}"; do
+  for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
     # Absent at the fork point => added by this change set; nothing to preserve.
     # `git ls-tree` is the probe that separates that from a git invocation which
     # genuinely FAILED: a path missing from the tree is exit 0 with EMPTY output,
@@ -541,10 +541,10 @@ if [[ "$mode" == "--check-preserved" ]]; then
 
     head_seen=()
     if ((${#head_versions[@]} > 0)); then
-      for v in "${head_versions[@]}"; do head_seen["$v"]=1; done
+      for v in ${head_versions[@]+"${head_versions[@]}"}; do head_seen["$v"]=1; done
     fi
     missing=""
-    for v in "${base_versions[@]}"; do
+    for v in ${base_versions[@]+"${base_versions[@]}"}; do
       [[ -n "${head_seen[$v]:-}" ]] && continue
       head_seen["$v"]=1 # a version repeated at base is reported once
       missing="${missing}${missing:+ }$v"
@@ -585,7 +585,7 @@ absorbed=0
 
 # touched_changelogs is already unique (the seen_changelog guard where it is
 # built), so each changelog is inspected exactly once.
-for changelog in "${touched_changelogs[@]}"; do
+for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
   [[ -f "$changelog" ]] || continue
   missing_headings="$(missing_preserved_headings "$merge_base" "$changelog")" ||
     exit 2
@@ -599,7 +599,7 @@ for changelog in "${touched_changelogs[@]}"; do
   fi
 done
 
-for manifest in "${manifests[@]}"; do
+for manifest in ${manifests[@]+"${manifests[@]}"}; do
   plugin_dir="${manifest%/.claude-plugin/plugin.json}"
   name="${plugin_dir##*/}"
   changelog="$plugin_dir/CHANGELOG.md"

@@ -3,6 +3,24 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.21]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
+## [1.4.20]
+
+### Fixed
+
+- **`datamuse.sh --help` prints the whole header, including the Examples block.** `usage()`
+  extracted `sed -n '2,28p'`, so the five example lines that landed on 29-33 never appeared.
+  It now derives the header the same way `babysit-readiness-gate.sh` does (awk to the first
+  non-comment line). `--help` / `-h` exit 0 with that block.
+
 ## [1.4.19]
 
 ### Changed

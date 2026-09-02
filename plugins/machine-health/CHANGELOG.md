@@ -3,6 +3,52 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.6]
+
+### Changed
+
+- setup's split-state-root detection carries a rationale line: machine-scope surface, outside the repo-scope retirement schema per ADR 0018 (customization-consistency Phase 2c)
+
+## [0.12.5]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.12.4]
+
+### Fixed
+
+- **`Test-SdkVersions` labels the oldest runtime by EOL date, not detection order.** The
+  INFO summary used `$findings[0]`, which is first-detected (dotnet, then node, then
+  python), not oldest. The contract test invokes the check script (global command
+  shadows plus a mocked EOL table with dates relative to `Get-Date`) so a
+  `$findings[0]` regression fails.
+  `Add-SdkFinding` now allows an empty accumulator (`AllowEmptyCollection`); Mandatory
+  on a `List` rejected the first insert and the inner catch reported zero SDKs.
+- **`Test-Reliability` renders a null stability average as `n/a`.** The OK and INFO
+  summaries interpolated `$stabilityAvg` directly, producing `Stability avg  / 10`.
+
+## [0.12.3]
+
+### Fixed
+
+- **`ConvertFrom-WingetTextOutput` length-guards every column `Substring`.** A row that
+  reached the Version column but stopped before Available threw, and the row-level catch
+  dropped the package. Short rows now parse with empty later columns. The Available
+  span also requires `$idxSource -gt $idxAvail`, matching the Version span, so a
+  malformed header cannot subtract a negative length.
+
+## [0.12.2]
+
+### Fixed
+
+- **`Get-CisaKevCache` refreshes an empty or whitespace cache file.** That path left
+  `needsRefresh` false and `$cached` null, so a truncated cache never self-healed. Empty
+  content now takes the same refresh path as a missing file.
+
 ## [0.12.1]
 
 ### Changed

@@ -59,14 +59,14 @@ require_gh() {
 
 label_exists_in_repo() {
   require_gh
-  gh label list "${repo_args[@]}" --limit 200 --json name \
+  gh label list ${repo_args[@]+"${repo_args[@]}"} --limit 200 --json name \
     | jq -e --arg want "$CAPABILITY_TIER_LABEL" '[.[] | .name] | index($want) != null' >/dev/null
 }
 
 list_open_items_without_label_json() {
   require_gh
   local items
-  items="$(gh issue list "${repo_args[@]}" --state open \
+  items="$(gh issue list ${repo_args[@]+"${repo_args[@]}"} --state open \
     --json number,title,body,labels \
     --limit 1000 | tr -d '\r')"
 
@@ -131,8 +131,8 @@ case "$MODE" in
         *) echo "Aborted." >&2; exit 2 ;;
       esac
     fi
-    for number in "${candidates[@]}"; do
-      gh issue edit "$number" "${repo_args[@]}" --add-label "$CAPABILITY_TIER_LABEL"
+    for number in ${candidates[@]+"${candidates[@]}"}; do
+      gh issue edit "$number" ${repo_args[@]+"${repo_args[@]}"} --add-label "$CAPABILITY_TIER_LABEL"
       echo "Applied $CAPABILITY_TIER_LABEL to #$number"
     done
     ;;

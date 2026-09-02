@@ -1,5 +1,25 @@
 # Changelog — discovery plugin
 
+## [0.19.2]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
+## [0.19.1]
+
+### Fixed
+
+- **Unreadable-ledger coverage tests simulate `PermissionError`.** The
+  Python twin patches `Path.read_text` to raise `PermissionError(EACCES)`
+  so the ungradeable-ledger contract is asserted on every platform,
+  including root and filesystems that do not enforce `chmod 000`. The
+  chmod path remains as a supplemental integration check that skips
+  visibly when the fixture stays readable. (#3375)
+
 ## [0.19.0]
 
 ### Added

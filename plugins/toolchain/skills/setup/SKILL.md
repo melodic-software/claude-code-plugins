@@ -44,8 +44,10 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
    report the ecosystem and its resolved command surface
    (`build-cmd`/`test-cmd`/`check-cmd`/`fix-cmd`/`code-fix-cmd`). Validate each against the contract's
    `ecosystem.schema.json`. **FAIL** a schema-invalid file (with the validation error in the
-   remediation line), or a tracked ecosystem file excluded by `.gitignore` (teammates would never
-   receive it. Report the matching rule). Otherwise PASS. If `$ARGUMENTS` names one ecosystem, scope
+   remediation line), an ecosystem file excluded by `.gitignore` (`git check-ignore -v` matches;
+   teammates would never receive it. Report the matching rule), or an un-ignored but untracked file
+   (`git ls-files --error-unmatch` exits non-zero; report "commit it to share with the team").
+   Otherwise PASS. If `$ARGUMENTS` names one ecosystem, scope
    the report to just that file.
 2. **Unconfigured ecosystems.** INFO: detect which ecosystems the repo has that are *not* yet
    configured (see the inference signals under `apply`), and note that `/toolchain:check` /
@@ -54,8 +56,11 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
 
 ## `apply` (idempotent)
 
-Run `check` first. Then write the accepted ecosystem files. After each write, confirm the file is
-tracked (not gitignored). Re-run the `check` probe for that path rather than trusting the write.
+Run `check` first. Then write the accepted ecosystem files. After each write, re-run the `check`
+probe pair for that path rather than trusting the write: `git check-ignore -v` reports no match,
+and `git ls-files --error-unmatch` distinguishes tracked from written-but-untracked (the
+guaranteed state right after a fresh write — report "written but untracked: commit it", never
+success).
 
 ### 1. Read existing config first
 
@@ -116,8 +121,8 @@ the contract schema catches typos the tolerant reader would otherwise ignore.
 
 Personal per-key overrides go in `.claude/ecosystems/<ecosystem>.local.yaml`; a user-global base at
 `~/.claude/ecosystems/<ecosystem>.yaml` is also honored. Layers resolve
-user-global → team → local overlay, additively per key. Recommend the consumer add
-`.claude/ecosystems/*.local.*` to `.gitignore` if not already covered.
+user-global → team → local overlay, additively per key. Recommend the consumer add the recursive
+`.claude/**/*.local.*` line to `.gitignore` if not already covered.
 
 ## Output
 

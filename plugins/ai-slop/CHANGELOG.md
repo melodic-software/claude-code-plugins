@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.5.7]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
+## [0.5.6]
+
+### Fixed
+
+- **`audit`: a bare `detect.sh` dropped every tracked markdown file whose name held a non-ASCII
+  byte, and said nothing when the listing failed.** 0.3.9 fixed exactly this on the
+  directory-expansion path and left the no-paths path on
+  `git -C "$REPO_ROOT" ls-files '*.md' 2>/dev/null`. Per git-config, commands that output paths
+  quote bytes above 0x80 unless `core.quotePath` is false, so a tracked `notes-é.md` arrived as the
+  literal escape `"notes-\303\251.md"`, failed the scan loop's `[[ -f "$file" ]]` test, and produced
+  neither a finding nor a declined row. A bare invocation is the shape the audit skill uses to
+  sweep a whole repository, so the coverage loss was silent and repository-wide: the report claimed
+  every tracked markdown file and had never opened those.
+
+  The listing now runs with `-c core.quotePath=false`, and its failures are reported instead of
+  being swallowed. An empty target list from a failed `ls-files` is indistinguishable from a
+  repository with no tracked markdown, and both render as a clean audit. `--is-inside-work-tree`
+  picks the branch up front, matching the directory path, so a missing git binary
+  (`git is not on PATH`), a `REPO_ROOT` outside any checkout (`could not confirm a work tree`), and
+  a listing that fails inside one (`git ls-files failed in <root> (exit N)`) each say which one
+  happened, with git's own stderr left visible.
+
+  Nine new detect cases cover the bare invocation: a tracked non-ASCII-named file is scanned and no
+  C-quoted escape reaches the report, untracked markdown stays out, the same file is still reached
+  when the detector runs from outside the checkout (which pins the `REPO_ROOT` prefix, since
+  findings themselves are repo-relative), and each of the three listing-failure states is asserted
+  by its message and a zero scan count. The failing-listing case uses a `git` stub that fails only
+  `ls-files`, so the branch under test is the listing and not work-tree detection.
+
 ## [0.5.5]
 
 ### Fixed

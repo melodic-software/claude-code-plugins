@@ -60,4 +60,4 @@ defaults.
 
 `/toolchain:setup` is the re-runnable writer for rungs 2 and 3 — it interviews, infers, and writes
 `.claude/ecosystems/*.yaml` into the consuming repo. Recommend the consumer add
-`.claude/ecosystems/*.local.*` to `.gitignore`.
+the recursive `.claude/**/*.local.*` line to `.gitignore`.

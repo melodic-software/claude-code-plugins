@@ -1,0 +1,14 @@
+# Retired consumer-facing conventions for the source-control plugin.
+# Contract: docs/conventions/retired-conventions/README.md (append-only; ids never reused).
+# Evaluated by lib/check-retirements.sh in setup `check`; cleanup is operator-gated in `apply`.
+---
+id: source-control-r001
+retired: 2026-07-23
+plugin_version: 0.25.0
+kind: line
+path: .claude/source-control.md
+heading: '## convention_source'
+match: '^[[:space:]]*docs/conventions/source-control/commit-convention\.yml[[:space:]]*$'
+action: migrate
+successor: 'since 0.25.0 the resolver probes the well-known default path with no pointer (rung 2, git-tracked only), so a `## convention_source` pointer naming that same path is retired; verify `docs/conventions/source-control/commit-convention.yml` is git-tracked (`git ls-files --error-unmatch` — if untracked, track it first or removal drops the repo to markdown-H2), then clean, and delete the emptied `## convention_source` heading in the same edit'
+note: "redundant convention_source pointer to the well-known default path; rung 2 resolves it pointer-free"

@@ -5,6 +5,26 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.17]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.6.16]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
+## [0.6.15]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside a command substitution, so a host without either digest tool continued and printed a malformed key at exit 0. Synced from the canonical `claude-config` copy via `scripts/sync-state-key.sh`.
+
 ## [0.6.14]
 
 ### Changed

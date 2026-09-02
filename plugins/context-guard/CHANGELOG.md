@@ -5,7 +5,7 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.30]
+## [0.7.31]
 
 ### Changed
 
@@ -15,8 +15,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   worst a cap costs is a late nudge. The timeout caps a hook that is already running; a hook blocked
   on stdin is bounded separately by `cg::read_payload` in `hooks/payload.sh`, which reads to EOF
   under a 5-second `read -t` and which both rows already use. The gating PreToolUse `zone-gate.sh`
-  row and the PostCompact row are unchanged at
-  60 seconds, because shortening a gate's timeout is fail-open. No script changed.
+  row and the PostCompact row are unchanged at 60 seconds, because shortening a gate's timeout is
+  fail-open. No script changed.
+
+## [0.7.30]
+
+### Changed
+
+- setup's legacy-statusline detection (shim-revision ladder, legacy version-pinned wiring) moves to the shared synced spoke reference/legacy-statusline-detect.md, canonical here, with a machine-scope bespoke rationale (customization-consistency Phase 2c)
 
 ## [0.7.29]
 

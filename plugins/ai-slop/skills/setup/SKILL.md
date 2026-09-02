@@ -48,4 +48,8 @@ Everything `check` does, then the confirmed write:
 2. Write ONLY the team layer (`.claude/ai-slop.json`), showing the diff and getting explicit
    confirmation before writing. Never write the user-global or overlay layers on the user's
    behalf; name them as options the user edits themselves.
-3. Re-run `--show-config` and report the new effective state.
+3. Re-run `--show-config` and report the new effective state. Then run the tracked-file pair on
+   the written team file: `git check-ignore -v .claude/ai-slop.json` reports no match (a match is
+   FAIL with the pattern) AND `git ls-files --error-unmatch .claude/ai-slop.json` exits 0
+   (non-zero right after a fresh write means "written but untracked: commit it to share with the
+   team", never success).

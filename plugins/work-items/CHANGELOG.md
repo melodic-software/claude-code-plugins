@@ -3,6 +3,90 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.51]
+
+### Changed
+
+- setup's legacy frontier-tier backfill carries a rationale line: forge-label backfill, not a repo artifact the retirement schema can detect (customization-consistency Phase 2c)
+
+## [0.39.50]
+
+### Changed
+
+- **setup `check`:** probe 5 now uses the tracked-file pair
+  (`git check-ignore -v` plus `git ls-files --error-unmatch`) so an
+  un-ignored but untracked schedule or binding is FAIL ("commit it"),
+  not a silent pass.
+
+## [0.39.49]
+
+### Fixed
+
+- **Gitea label walk fails closed on a non-array 200 body.** `create-item` treated any 200 as
+  iterable. A proxy error page or auth-redirect object has `jq length` equal to its key count, so
+  the walk accepted garbage instead of erroring. `wit_gitea_require_array` now type-checks each
+  label page (`jq 'type == "array"'`) after the HTTP-status gate.
+
+## [0.39.48]
+
+### Fixed
+
+- **`backfill-capability-tier-labels.sh` no longer expands an empty `repo_args` under
+  `set -u`.** When `--repo` is omitted the array stays `()`. Bare `"${repo_args[@]}"`
+  is an unbound-variable abort on bash 4.0-4.3. Those sites now use the house
+  `${arr[@]+"${arr[@]}"}` idiom so `check` and `apply` reach `gh` instead of dying
+  first ([#3425](https://github.com/melodic-software/claude-code-plugins/issues/3425)).
+
+## [0.39.47]
+
+### Fixed
+
+- **Gitea `create-item` label paging treats a non-array page as length 0.** The
+  no-`X-Total-Count` arm ran `$(($(jq 'length') < PAGE_SIZE))` with no `2>/dev/null`
+  fallback. A 200 object body made jq print nothing, bash reported an arithmetic syntax
+  error, and the walk continued to the next page. It now matches the sibling
+  `jq 'length' ... 2>/dev/null || 0` form so a malformed page ends the walk.
+
+## [0.39.46]
+
+### Fixed
+
+- **Seam: `create-item` without `--parent` / `--blocked-by` no longer requires `gh` 2.94.**
+  The 0.39.18 per-verb floor still gated every `create-item` and `get-item`, so a cloud
+  image shipping `gh` 2.45 (the observed Claude Code cloud CLI) refused a plain create
+  with exit `3` and never reached `gh issue create`. `/work-items:track add` could file
+  nothing. The floor now applies to `link-blocks`, `add-sub-item`, `list-sub-items`,
+  `list-items` (it still requests `--json blockedBy`, so frontier stays fail-closed),
+  `list-frontier`, and `create-item` only when those gated flags are passed; the error
+  names the flag. `get-item` and a plain `create-item` omit the 2.94 `--json` fields
+  (`parent_id` null, `blocked_by_count` 0, `type` null). `--type` is a 2.94 `gh
+  issue create` flag; on older gh the GitHub adapter omits it and applies the
+  coarse `type:` label instead, so `/work-items:track add` on an org repo still
+  files. (#3598)
+
+## [0.39.45]
+
+### Fixed
+
+- **Linear conformance captures `grep -c` before applying a zero fallback.**
+  `grep -c` prints `0` and exits 1 when nothing matches; `|| echo 0` then
+  appended a second `0` and corrupted `assert_eq`'s observed value. The count
+  is stored first; the `:-0` default applies only when stdout is empty
+  (missing file). (#3440)
+
+## [0.39.44]
+
+### Fixed
+
+- **Conformance `run-conformance.sh` drops its own vacuous assertion.** The capabilities case
+  asserted that `"provider=$PROVIDER"` contains `"provider="`, which is true for every possible
+  value including an empty one, because the haystack is built from the needle. It now requires
+  `.provider` to be a JSON string of length greater than 0
+  (`jq -e '.provider | type == "string" and length > 0'`). Empty and JSON null fail. A provider
+  literally named `null` is a valid adapter name and is no longer rejected because `jq -r`
+  prints the text `null` for both JSON null and the string `"null"`. A real provider still
+  passes.
+
 ## [0.39.43]
 
 ### Changed
