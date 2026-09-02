@@ -3,6 +3,15 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.25]
+
+### Fixed
+
+- **`audit`: `fix-plugin-drift.sh` no longer crashes on a trailing bare `--input`.** Under
+  `set -u`, a missing option-argument dereferenced `$2` and exited 1 with an unbound-variable
+  error. A missing value now prints `Missing value for --input` to stderr and exits 2, matching
+  the script's other argument-validation errors.
+
 ## [0.40.24]
 
 ### Changed
