@@ -13,7 +13,8 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   accepted at command position, matching `segment_destination_operand`. Quoted
   and unquoted command-position patterns are separate (bash ERE has no
   backrefs), so `echo 'run mkdir' /tmp/x` is not treated as a writer. The
-  patterns are compiled once per process, not via `cat` on every segment.
+  patterns are plain string assignments, not `cat` heredocs, so the hot
+  path does not fork.
 
 ## [0.30.1]
 

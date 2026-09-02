@@ -280,6 +280,8 @@ run_win "cat /path/mkdir /tmp/x (allowed — path argument, not command)" 'cat /
 run_win "/usr/bin/touch /tmp/x (blocked)" '/usr/bin/touch /tmp/x' 2
 run_win "/usr/bin/tee /tmp/x (blocked)" 'echo x | /usr/bin/tee /tmp/x' 2
 run_win "/usr/bin/cp to /tmp/x (blocked)" '/usr/bin/cp ./a /tmp/x' 2
+run_win "quoted /usr/bin/cp to /tmp/x (blocked)" '"/usr/bin/cp" ./a /tmp/x' 2
+run_win "single-quoted /usr/bin/cp to /tmp/x (blocked)" "'/usr/bin/cp' ./a /tmp/x" 2
 run_win "./bin/mkdirs /tmp/x (allowed — verb substring)" './bin/mkdirs /tmp/x' 0
 run_win "python open /tmp write (blocked)" "python3 -c \"open('/tmp/x','w').write('a')\"" 2
 

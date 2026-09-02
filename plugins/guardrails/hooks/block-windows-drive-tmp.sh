@@ -84,35 +84,17 @@ msys* | cygwin* | win32) ;;
 *) exit 0 ;;
 esac
 
-# Path-qualified / quoted writers, compiled once per process. Building them
-# inside segment_writes_drive_root_tmp spawned two `cat`s per segment on an
-# always-on hook. Bash ERE has no backrefs, so quoted and unquoted command
-# position are separate patterns (a trailing ["']? on the bare-word branch
-# also matched `echo 'run mkdir' /tmp/x`).
-_DRIVE_TMP_CREATOR_QUOTED=$(cat <<'RE'
-((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)["']([^[:space:]"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)["']([[:space:]]|$)
-RE
-)
-_DRIVE_TMP_CREATOR_UNQUOTED=$(cat <<'RE'
-((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|$)
-RE
-)
-_DRIVE_TMP_CREATOR_BARE=$(cat <<'RE'
-[[:space:]](tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|$)
-RE
-)
-_DRIVE_TMP_COPY_QUOTED=$(cat <<'RE'
-((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)["']([^[:space:]"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)["']([[:space:]]|$)
-RE
-)
-_DRIVE_TMP_COPY_UNQUOTED=$(cat <<'RE'
-((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|$)
-RE
-)
-_DRIVE_TMP_COPY_BARE=$(cat <<'RE'
-[[:space:]](cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|$)
-RE
-)
+# Path-qualified / quoted writers, assigned as literals (no cat/subshell).
+# Bash ERE has no backrefs, so quoted and unquoted command-position
+# patterns are separate. A trailing ["']? on the bare-word branch also
+# matched `echo 'run mkdir' /tmp/x`.
+# shellcheck disable=SC2089,SC2090  # quotes in the character class are literal
+_DRIVE_TMP_CREATOR_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)[\"']([[:space:]]|\$)"
+_DRIVE_TMP_CREATOR_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|\$)"
+_DRIVE_TMP_CREATOR_BARE="[[:space:]](tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|\$)"
+_DRIVE_TMP_COPY_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)[\"']([[:space:]]|\$)"
+_DRIVE_TMP_COPY_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
+_DRIVE_TMP_COPY_BARE="[[:space:]](cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
