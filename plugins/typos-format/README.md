@@ -193,6 +193,61 @@ hands a configured value to a hook process; the value comes from the routes abov
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
 
+## Hook cost accounting
+
+This plugin's PostToolUse hook matches every `Write`, `Edit` and `NotebookEdit`,
+so its cost is paid on every file the agent touches and it owes the
+marketplace's [hook budget](../../docs/conventions/hook-budget/README.md) an
+honest figure.
+
+**Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
+interleaved trials, each preceded by a `bash -c :` spawn-floor run so the
+reported ratio absorbs machine load. The payload is a `PostToolUse` `Write`
+naming a clean scratch file inside a repository, so `typos` finds nothing and
+the hook takes the path that runs on nearly every edit. Windows 11 + Git Bash,
+2026-09-02.
+
+**Counting.** Both process columns come from a `bash -x` trace of that same
+invocation. An exec is a command in command position whose word resolves to a
+file rather than a builtin, function, alias or keyword. A fork is an increase in
+the trace's subshell-nesting depth, one per command substitution or subshell; it
+undercounts, because pipeline elements fork without changing the depth. Forks
+are reported beside execs because they are not free on this host: a command
+substitution measures about half the cost of a spawn, so twenty-nine of them are
+a large share of the run rather than a rounding error.
+
+**Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
+before run and **77 ms** for the after run, against the convention's reference
+host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
+comparable; the spawn-equivalent ratio is the figure that holds.
+
+| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes | forks |
+| --- | --- | --- | --- | --- |
+| Before (0.6.33) | 36.3 | ≈ 2,904 ms | 16 | 31 |
+| After (0.6.35) | 26.0 | ≈ 2,080 ms | 13 | 29 |
+
+**A clean edit costs ≈ 26.0 spawn-equivalents, ≈ 2,080 ms of reference-host
+work, down 28 percent.** Two `dirname` calls became parameter expansions, and
+the jq that copies `notebook_path` onto `file_path` now runs only for a payload
+that carries one, which no `Write` or `Edit` does.
+
+**Residual, and why it stays.** The dominant single cost is the `typos` binary's
+own startup, which is the point of the hook. On the measuring host it resolves
+through a WinGet Links shim, an indirection this hook cannot remove. Of the
+remaining twelve processes, eight to ten belong to the shared
+`hooks/hook-utils.sh`: payload validation, the `file_path` read and its
+project-membership scoping, and the repository-root lookup. That file is a
+registered byte-identical cross-plugin cluster, so changing it is a nine-plugin
+change and not this plugin's to make. Two `cygpath` calls resolve the
+repository-relative argument `typos` runs on, which the tool needs to apply the
+repository's own exclude rules.
+
+**No extension gate is possible here, and that is deliberate.** `typos` is
+language-agnostic, so the scan has no allowlist to short-circuit on: gating it
+by the write-mode allowlist would stop reporting typos in `Dockerfile`,
+`Makefile`, `.gitignore` and every extensionless file. That is a behaviour
+change, not a saving.
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).

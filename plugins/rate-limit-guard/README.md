@@ -9,10 +9,11 @@ resume on their own after the reset. Four parts:
   a plugin update never requires re-wiring and an uninstall degrades to your statusline running
   alone. Pure Bash builtins: it adds no measurable time to a refresh.
 - **Statusline tee** (`scripts/statusline-tee.sh`), a transparent wrapper around your statusline
-  command. Each refresh it atomically writes the session's `rate_limits` (both the 5-hour and
-  7-day windows), a `captured_at` timestamp, and the session-distinguishing fields to the fixed
-  machine-scope contract path `~/.claude/rate-limit-guard/rate-limits.json`, then passes your
-  statusline through byte-for-byte. With no statusline configured it doubles as a minimal
+  command. It atomically writes the session's `rate_limits` (both the 5-hour and 7-day windows),
+  a `captured_at` timestamp, and the session-distinguishing fields to the fixed machine-scope
+  contract path `~/.claude/rate-limit-guard/rate-limits.json`, once per drain cadence and only
+  when the payload changed or the no-change floor expired, then passes your statusline through
+  byte-for-byte. With no statusline configured it doubles as a minimal
   standalone statusline.
 - **StopFailure hook** (`hooks/record-rate-limit-stop.sh`), the reactive fallback. When a turn
   ends on a rate-limit API error, it appends a detection record to
@@ -37,6 +38,20 @@ resume on their own after the reset. Four parts:
   classification, documented as the expected degraded mode in
   [`reference/reader-contract.md`](reference/reader-contract.md) ("Cloud / remote sessions"), with
   a documented residual that a live cloud producer is out of scope until one exists.
+- **An unchanged payload costs no rename.** When a refresh's snapshot body matches what is already
+  on disk, `captured_at` aside, it takes no lock, stages no temp file and performs no rename. So an
+  unchanged payload can leave the file, `captured_at` included, untouched for up to the skip floor:
+  300 seconds by default (`RLG_TEE_NOCHANGE_FLOOR`), measured from the last real write by a
+  `.last-write` stamp in the contract directory. That is half the reader contract's 10-minute
+  staleness budget, so a session whose windows sit still still refreshes `captured_at` well before a
+  reader could call it stale, and a changed payload is written on the next refresh regardless. The
+  spool's 15-minute record sweep runs on the same 5-minute cadence rather than on every drain,
+  tracked by `spool/.last-sweep`. Both stamps are writer-private: they hold epoch seconds, carry no
+  session data, and readers ignore them. Every tuning knob the tee reads from the environment is
+  validated as a plain integer before it reaches bash arithmetic and falls back to its default
+  otherwise. The render path itself has been fork-free since the spool landed, which the suite
+  asserts directly by tracing a non-elected render (`statusline-tee.test.sh`, "the zero-fork render
+  path").
 - **Multi-account operation is a known gap, not a supported mode.** The snapshot carries no account
   identifier (none exists in the statusline schema today), so a machine switching accounts mid-drain
   feeds wrong windows to running lanes and the guard cannot detect it. The loop-lane convention §6
@@ -196,6 +211,27 @@ Written for the loop-lane convention's three lanes (work-items `work-loop` and `
 source-control `babysit-loop`), which inline the reader contract's operable floor. Any session or
 tool on the machine may read the same files under the same contract.
 
+## Measured cost
+
+Measured 2026-09-02 on Windows/MSYS with Git Bash, both tees interleaved in one loop so each meets
+the same machine load. Two lanes matter and they cost very different amounts: the steady render,
+which every refresh pays, and the drain, which one elected refresh per cadence pays for the whole
+machine. The floor is one `bash -c :` spawn, 45 ms and 57 ms on the two runs below, and a
+spawn-equivalent is the tee's cost over the bare render divided by that floor.
+
+| Lane | Before | After |
+| --- | --- | --- |
+| Drain, external commands | 7 | 3 |
+| Drain, total process creations | 10 | 5 |
+| Drain, spawn-equivalents | 8 to 10 | 5 to 6 |
+| Steady render, spawn-equivalents | 1.2 to 1.3 | 1.1 to 1.5 |
+
+The drain loses the rename, the snapshot lock's `mkdir` and `rmdir`, and the sweep's `find`. The
+process-creation row counts the pure-bash forks the external-command row does not: the managed-scope
+probe's two, unchanged, and the atomic write's `umask` subshell, which disappears along with the
+write it wraps. The steady render is unchanged within measurement noise and sits well inside the
+2 spawn-equivalent bar, because the spool had already reduced it to zero external processes.
+
 ## Tuning: `RLG_TEE_ASYNC`
 
 Not a plugin option. A plain environment variable the statusline tee reads directly, so it sits
@@ -208,7 +244,8 @@ carries it.
 
 The snapshot is a side effect: nothing the status line prints depends on it, and the
 [reader contract](reference/reader-contract.md) budgets ten minutes of staleness. Detaching skips
-no work. Every refresh still takes the lock and writes. Detaching only stops the render waiting.
+no work of its own. A refresh still takes the lock and writes unless the bounded no-change skip
+applies. Detaching only stops the render waiting.
 
 **Whether that helps depends on how many sessions you keep open, not on your refresh interval.**
 MSYS has no native `fork()`, so forking a bash subshell holding the payload costs 75–200 ms on

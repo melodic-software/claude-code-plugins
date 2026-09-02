@@ -37,11 +37,14 @@ One JSON object, rewritten atomically on a **drain cadence** rather than on ever
 
 - rename — a reader never sees torn JSON; the file is **last-writer-wins** across all sessions on the
   machine). Each refresh records its observation to a private per-session spool file with no external
-  process at all, and one elected refresh per cadence flushes the batch into this file, so the snapshot
-  trails the newest refresh on the machine by **at most 30 seconds**. That is well inside the
-  10-minute staleness budget below, and the operable floor values are unchanged. `captured_at` is the
-  **observation time of the record the drain chose** — when those windows were seen — not the time the
-  file was written:
+  process at all, and one elected refresh per cadence flushes the batch into this file, so a
+  **changed** payload reaches the snapshot within the drain cadence (30 seconds by default). A
+  payload that has **not changed** since the last real write, `captured_at` aside, is skipped: the
+  file and its `captured_at` may stay untouched for up to the no-change floor, **300 seconds by
+  default** (`RLG_TEE_NOCHANGE_FLOOR`), after which an identical payload is written again. The floor
+  is half the 10-minute staleness budget below, so a fresh-but-unmoving snapshot never approaches
+  stale, and the operable floor values are unchanged. `captured_at` is the **observation time of the
+  record the drain chose** — when those windows were seen — not the time the file was written:
 
 ```json
 {
@@ -58,8 +61,10 @@ One JSON object, rewritten atomically on a **drain cadence** rather than on ever
 `captured_at` — and `1785142800` is 2026-07-27T09:00:00Z, within the seven-day window.)
 
 - `captured_at` — ISO-8601 UTC **observation** time of the chosen record; always present. Drives the
-  staleness rule. It can trail the file's mtime by up to the drain cadence (30 s), which is why the
-  rule is written against this field and never against the file's modification time.
+  staleness rule. It can trail the file's mtime by up to the drain cadence (30 s), and an unchanged
+  payload can leave it, and the file, untouched for up to the no-change floor (300 s by default),
+  which is why the rule is written against this field and never against the file's modification
+  time.
 - `rate_limits` — copied verbatim from the statusline stdin schema
   (<https://code.claude.com/docs/en/statusline>, verified 2026-08-10): `used_percentage` is 0–100,
   `resets_at` is Unix epoch seconds. The key is present **only** when the session observes
@@ -179,12 +184,16 @@ sweeping the directory expects them:
   `^[A-Za-z0-9._-]{1,64}$` without a leading dot — it is **never** trusted as a path. `spool/.last-drain`
   holds the epoch seconds of the last flush and is what elects the next draining refresh; a stale
   `spool/.drain.lock` directory can appear if a drain is killed and is stolen after two minutes.
-  Records older than 15 minutes are swept by the next drain. Readers consume none of this: the
-  contract file above is still the only proactive surface.
+  Records older than 15 minutes are swept, on a 5-minute cadence rather than on every drain.
+  Readers consume none of this: the contract file above is still the only proactive surface.
 - `.tee-disabled` — written by a drain that read `rate_limit_guard_enabled: false`, holding the epoch
   seconds at which it was written. While it is present and younger than the recheck interval the
   refreshes stop recording entirely; when it ages out the next drain re-reads the real setting and
   removes the marker, so re-enabling the plugin recovers without a restart.
+- `.last-write` and `spool/.last-sweep` are writer-private stamps holding epoch seconds, the first
+  for the last real snapshot write and the second for the last spool sweep. They bound how often the
+  writer repeats work that changed nothing. Readers must ignore both: neither carries session data,
+  and staleness is still decided by `captured_at` alone, never by a stamp or by a file's mtime.
 - `.rate-limits.json.tmp.<pid>.<random>` — the tee's atomic-write staging file. Normally it exists
   for well under a second between write and rename. It can outlive its writer: Claude Code
   [cancels an in-flight statusline script](https://code.claude.com/docs/en/statusline) when a new

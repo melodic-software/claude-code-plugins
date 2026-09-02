@@ -3,6 +3,24 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.31]
+
+### Fixed
+
+- **`audit-instructions`: every restatement finding was declined on a Windows checkout under a
+  short-named path.** The I29 rows come from `restatement-scan.py`, a native Windows interpreter,
+  so MSYS converts its argv on the way in and the scanner echoes what it received: backslash
+  separators, and 8.3 short components such as `<drive>:\Users\<SHORT~1>\...`. None of the anchors
+  is spelled that way, the out-of-repo fence fails closed, and the findings stayed in the
+  human-report-only column. `emit-findings.sh` now re-spells such a path through `cygpath -l -m`,
+  which answers the long forward-slash form the anchors use, cached per distinct path.
+
+  The expansion cannot come from the anchor side instead: `cygpath -m -s` also shortens components
+  MSYS left long, so the two spellings do not meet in the middle. The path reaches `cygpath`
+  through a file the script owns rather than through a command line, so no scanner-supplied text is
+  ever interpolated into a shell word. Where `cygpath` is absent, awk normalizes separators alone
+  and the anchors behave exactly as before.
+
 ## [0.40.30]
 
 ### Changed

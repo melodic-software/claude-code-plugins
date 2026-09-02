@@ -43,30 +43,35 @@
 #     `systemMessage`). One emitter passes through verbatim. Several are merged
 #     into one document (contexts joined by a blank line) because Claude Code
 #     reads exactly one JSON document per hook process; as separate hooks each
-#     document was delivered on its own.
+#     document was delivered on its own. When jq is absent, or the merge fails,
+#     the documents are never concatenated (two documents on stdout is invalid
+#     hook output): the one carrying a blocking decision (`"decision":"block"`,
+#     `"permissionDecision":"deny"`, then `"ask"`) is emitted, else the first,
+#     and every dropped document is echoed to stderr with a `run-guards:`
+#     prefix so it stays visible in debug output.
 #
 # The overrides are scoped to this process: a guard run directly (its tests,
 # `bash hooks/<guard>.sh`) uses the library functions untouched.
 
 set -uo pipefail
 
-# shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
-
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}"
-
-# Every guard opens with `source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"`.
-# `dirname` is an external program, and on Windows Git Bash one exec is ~80 ms,
-# paid once per guard. A shell function with the same answer for the one
-# argument shape the guards use (a path with a directory part) removes that
-# exec from every guard sourced below; the `source` it feeds returns at once on
-# the library's double-source guard anyway.
-# shellcheck disable=SC2329  # invoked by every guard sourced below
-dirname() {
+# `dirname` is an external program, and on Windows Git Bash one exec is ~80 ms.
+# This helper answers the one argument shape used at the two call sites below
+# (this file's own path) without the exec. It is deliberately NOT a function
+# named `dirname`: a function of that name would be inherited by every guard
+# sourced below and shadow the real command for the guard's own calls, with an
+# answer that diverges from GNU for `/foo` (empty, not `/`) and for `/a/b//`
+# (`/a/b`, not `/a`). Each guard's own `dirname` therefore stays the real one.
+run_guards::script_dir() {
   local p="${1%/}"
   if [[ "$p" == */* ]]; then printf '%s\n' "${p%/*}"; else printf '.\n'; fi
 }
+
+# shellcheck source=hook-utils.sh
+source "$(run_guards::script_dir "${BASH_SOURCE[0]}")/hook-utils.sh"
+
+HOOK_DIR="$(cd "$(run_guards::script_dir "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}"
 
 GUARDS=()
 while (($#)); do
@@ -178,23 +183,53 @@ for guard in "${GUARDS[@]}"; do
   fi
 done
 
+# Several documents and no way to merge them: a hook process may emit exactly
+# ONE JSON document, so pick one. A blocking decision must not be lost, so a
+# document carrying `"decision":"block"` or `"permissionDecision":"deny"` wins,
+# then one carrying `"permissionDecision":"ask"`, else the first document. The
+# rest go to stderr, prefixed, so the drop is visible in debug output.
+run_guards::emit_one() {
+  local why="$1" pick=-1 i doc
+  local re_block='"decision"[[:space:]]*:[[:space:]]*"block"'
+  local re_deny='"permissionDecision"[[:space:]]*:[[:space:]]*"deny"'
+  local re_ask='"permissionDecision"[[:space:]]*:[[:space:]]*"ask"'
+  for i in "${!OUTS[@]}"; do
+    doc="${OUTS[i]}"
+    if [[ "$doc" =~ $re_block || "$doc" =~ $re_deny ]]; then
+      pick=$i
+      break
+    fi
+    ((pick < 0)) && [[ "$doc" =~ $re_ask ]] && pick=$i
+  done
+  ((pick < 0)) && pick=0
+  printf '%s\n' "${OUTS[pick]}"
+  for i in "${!OUTS[@]}"; do
+    ((i == pick)) && continue
+    printf 'run-guards: dropped %s: %s\n' "$why" "${OUTS[i]}" >&2
+  done
+}
+
 if ((${#OUTS[@]} == 1)); then
   printf '%s\n' "${OUTS[0]}"
 elif ((${#OUTS[@]} > 1)); then
-  merged=$(printf '%s\n' "${OUTS[@]}" | jq -cs '
-    { hookSpecificOutput: {
-        hookEventName: (map(.hookSpecificOutput.hookEventName // empty) | .[0] // ""),
-        additionalContext: (map(.hookSpecificOutput.additionalContext // empty) | join("\n\n")) },
-      systemMessage: (map(.systemMessage // empty) | join("\n\n")) }
-    | if .systemMessage == "" then del(.systemMessage) else . end
-    | if .hookSpecificOutput.additionalContext == "" then del(.hookSpecificOutput) else . end
-    | if . == {} then empty else . end' 2>/dev/null)
-  # The Windows jq build writes CRLF; a raw CR never belongs in a JSON document.
-  merged="${merged//$'\r'/}"
-  if [[ -n "$merged" ]]; then
-    printf '%s\n' "$merged"
+  if ! command -v jq >/dev/null 2>&1; then
+    run_guards::emit_one "without jq"
   else
-    printf '%s\n' "${OUTS[@]}"
+    merged=$(printf '%s\n' "${OUTS[@]}" | jq -cs '
+      { hookSpecificOutput: {
+          hookEventName: (map(.hookSpecificOutput.hookEventName // empty) | .[0] // ""),
+          additionalContext: (map(.hookSpecificOutput.additionalContext // empty) | join("\n\n")) },
+        systemMessage: (map(.systemMessage // empty) | join("\n\n")) }
+      | if .systemMessage == "" then del(.systemMessage) else . end
+      | if .hookSpecificOutput.additionalContext == "" then del(.hookSpecificOutput) else . end
+      | if . == {} then empty else . end' 2>/dev/null)
+    # The Windows jq build writes CRLF; a raw CR never belongs in a JSON document.
+    merged="${merged//$'\r'/}"
+    if [[ -n "$merged" ]]; then
+      printf '%s\n' "$merged"
+    else
+      run_guards::emit_one "(merge failed)"
+    fi
   fi
 fi
 

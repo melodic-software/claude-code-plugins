@@ -3,6 +3,47 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.28]
+
+### Changed
+
+- **A benign edit costs about half what it did.** This hook matches every
+  `Write` and `Edit`, so the process count on the path where there is nothing to
+  rewrite is the cost. Sixteen of twenty-seven processes are gone: `eol` and
+  `text` resolve in one `git check-attr` instead of two, four `dirname` and one
+  `basename` are parameter expansions, two `tr` pipelines are a substitution,
+  the NUL sniff's `head`-`tr`-`wc` is one `read`, and an already-normalized file
+  no longer reaches the rewrite or the `mktemp`, `cp`, `cmp` and `rm` that
+  disclosed it. Measured 41.0 to 21.5 spawn-equivalents on a Windows Git Bash
+  host, twelve interleaved trials against an interleaved `bash -c :` floor;
+  forks fall 32 to 27 over the same run, and a command substitution costs about
+  half a spawn here, so they are counted beside the execs. The README's
+  accounting section carries the method and the residual.
+- **The library separates deciding from rewriting.** `normalize_eol_plan`
+  answers which arm applies and whether the file has work to do;
+  `normalize_eol_apply` performs it. `normalize_eol_file` still exists and still
+  behaves as before for any caller that wants both in one call. The action a
+  plan reports names the arm that applies to the file, not whether bytes moved,
+  so telemetry `data.action`, the `ok`/`skipped` status and the mutation
+  disclosure all read exactly as they did.
+- **A file with nothing to rewrite is no longer opened for writing**, so this
+  hook no longer touches its mtime. Recorded as a deliberate deviation: no
+  content and no reported message changes, and the suite pins stdout, exit code
+  and the resulting bytes as byte-identical.
+- The suite gains a traced case pinning the benign path's shape on an already-LF
+  Markdown file in a repository whose `.gitattributes` says `eol=lf`: no
+  `dirname`, `basename`, `mktemp`, `cp`, `cmp`, `perl`, `head` or `wc`, and a
+  ceiling of one external process spawned by the hook's own code, allowlisted to
+  the merged `git check-attr`. The ceiling is portable because the trace
+  attributes each command to the function frame it ran in, so the shared
+  `hook::` path resolver's host-dependent `realpath` and `cygpath` calls sit
+  outside the count.
+- The directory strip that replaced `dirname` answers `/` for a file directly
+  under the filesystem root, as `dirname` did. Without the guard the strip left
+  an empty string, which the repo-root resolver read as `.`, the hook process
+  CWD. The suite gains a white-box case that runs the hook's own directory
+  lines against a root-level path, because no CI host can create one.
+
 ## [0.6.27]
 
 ### Changed

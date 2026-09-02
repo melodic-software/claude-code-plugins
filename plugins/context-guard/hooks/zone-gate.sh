@@ -33,10 +33,17 @@
 
 set -uo pipefail
 
+# Hook directory by parameter expansion, never `dirname`. This hook matches
+# Write, Edit, NotebookEdit, Agent and Workflow, so in the default advisory
+# posture it starts, sources, and exits. The two source lines were its entire
+# cost, and both were processes. The `.` fallback reproduces dirname's own
+# answer for a bare, slash-free invocation.
+CG_DIR=${BASH_SOURCE[0]%/*}
+[[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$CG_DIR/hook-utils.sh"
 # shellcheck source=payload.sh
-source "$(dirname "${BASH_SOURCE[0]}")/payload.sh"
+source "$CG_DIR/payload.sh"
 
 hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
@@ -46,8 +53,10 @@ MODE="${CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE:-advisory}"
 [[ "$MODE" == "blocking" ]] || exit 0
 
 START_EPOCH=${EPOCHREALTIME:-0}
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESOLVER="$SCRIPT_DIR/../scripts/context-zone.sh"
+# Not absolutized through `cd … && pwd`: this path is only ever handed to
+# `bash`, which resolves it against the same working directory the hook started
+# in, and the hook never changes directory.
+RESOLVER="$CG_DIR/../scripts/context-zone.sh"
 
 # silent-skip-ok: no stdin payload → no session_id → fail-open (a gate that
 # cannot identify its session must never block). Chunked reader: a large
