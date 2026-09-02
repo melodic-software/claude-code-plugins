@@ -94,7 +94,9 @@ classify_file() {
   # Occurrence count, not line count: -c reports lines, so two refs on one
   # line under-counted against the "/kw" density label and the path_dens > 8
   # threshold (#3441). Same shape as flavor_hits below.
-  path_hits=$(grep -Eo '(@|[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml))' "$file" 2>/dev/null | wc -l | tr -d ' ')
+  # Longer @-prefixed alternative first so `@docs/a.md` is one hit, not `@`
+  # plus `docs/a.md`.
+  path_hits=$(grep -Eo '(@[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml)|@[A-Za-z0-9._/-]+|[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml))' "$file" 2>/dev/null | wc -l | tr -d ' ')
   path_hits=${path_hits:-0}
   flavor_hits=$(grep -oiwE "$FLAVOR_RE" "$file" 2>/dev/null | wc -l | tr -d ' ')
 

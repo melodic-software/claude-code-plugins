@@ -7,10 +7,13 @@
 - **`compress` `audit-scan.sh` counts path-reference occurrences, not lines.** `grep -Eoc`
   made `path_hits` a line count while the `path_dens > 8` threshold and the "cross-ref
   density %s/kw" label assume occurrences, so two refs on one line under-counted. It now
-  uses `grep -Eo | wc -l`, matching the flavor-token counter.
+  uses `grep -Eo | wc -l`, matching the flavor-token counter. An `@`-prefixed path
+  (`@docs/a.md`) is one hit: the longer `@…ext` alternative is tried before a bare `@`.
 - **Signal 1 accepts a repo-relative `.claude/rules/` path.** The matcher required a
   literal `/` before `.claude/rules/`, so a target spelled from the repo root skipped
-  signal 1 and fell through to flavor density.
+  signal 1 and fell through to flavor density. The contract test invokes the scanner
+  from the fixture directory with `.claude/rules/example.md`, not an absolute
+  `mktemp` path that already matched the old glob.
 
 ## [0.21.31]
 
