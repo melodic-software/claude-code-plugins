@@ -308,7 +308,7 @@ Work items:
 - Process-table peak during the three-file Write burst, before and after, pasted; the after value is not higher.
 - `scripts/affected-tests.sh --run` exits 0; `gh pr checks` 0 failing.
 
-### Phase 3: `if` gates, matcher scoping, explicit timeouts [TODO]
+### Phase 3: `if` gates, matcher scoping, explicit timeouts [DONE]
 
 Repo: claude-code-plugins. One PR.
 
