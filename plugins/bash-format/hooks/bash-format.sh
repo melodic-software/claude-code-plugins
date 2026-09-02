@@ -208,7 +208,6 @@ if shell_editorconfig_opt_in; then
     # hook::read_file_path guard can race a deleted scratch/worktree file, and
     # shfmt/ShellCheck then surface GHC's openBinaryFile error (#1817).
     if [[ -f "$TOOL_FILE" || -f "$FILE" ]]; then
-      probe_err=""
       _fmt_target="$TOOL_FILE"
       [[ -f "$_fmt_target" ]] || _fmt_target="$FILE"
       # Content-mutation disclosure (#1596): shfmt rewrites structural layout
@@ -281,15 +280,12 @@ fi
 CTX="${CTX%$'\n'}"
 SYSMSG="$HOOK_REWRITE_MESSAGE"
 if [[ -n "$NOTICE" ]]; then
-  AGENT_CTX="$CTX"
-  [[ -n "$AGENT_CTX" ]] && AGENT_CTX+=$'\n'
-  AGENT_CTX+="$NOTICE"
+  [[ -n "$CTX" ]] && CTX+=$'\n'
+  CTX+="$NOTICE"
   [[ -n "$SYSMSG" ]] && SYSMSG+=$'\n'
   SYSMSG+="$NOTICE"
-  hook::emit_channels PostToolUse "$AGENT_CTX" "$SYSMSG"
-else
-  hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 fi
+hook::emit_channels PostToolUse "$CTX" "$SYSMSG"
 
 status="ok"
 [[ $ran_any -eq 0 ]] && status="skipped"

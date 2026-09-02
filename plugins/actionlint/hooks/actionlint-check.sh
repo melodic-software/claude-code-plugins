@@ -101,7 +101,8 @@ FILE_REL="$(hook::repo_relative_path "$FILE" "$REPO_ROOT")" || FILE_REL_DEGRADED
 # object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
 # backslashes from a path and corrupt the envelope. The fallback is essentially
 # unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
-# hook::emit_telemetry drops the envelope anyway).
+# hook::emit_telemetry drops the envelope anyway), so losing the values here is
+# harmless and strictly safer than emitting malformed JSON.
 build_data_json() {
   jq -n \
     --arg tool "$TOOL" \
@@ -159,6 +160,7 @@ if [[ "$AL_STATUS" -ge 2 ]]; then
   exit 0
 fi
 
+FINDINGS_JSON='[]'
 if [[ -n "$AL_OUTPUT" ]]; then
   hook::ctx_reset
   hook::ctx_append "actionlint: $(basename "$FILE") has findings:"
@@ -170,13 +172,10 @@ if [[ -n "$AL_OUTPUT" ]]; then
   done <<<"$AL_OUTPUT"
   hook::ctx_flush PostToolUse
 
-  FINDINGS_JSON='[]'
   if [[ -n "$findings_raw" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
-  emit_tel "ok" "$FINDINGS_JSON"
-  exit 0
 fi
 
-emit_tel "ok" '[]'
+emit_tel "ok" "$FINDINGS_JSON"
 exit 0
