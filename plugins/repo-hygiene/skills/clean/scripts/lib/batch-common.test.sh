@@ -185,5 +185,36 @@ else
 fi
 chmod 644 "$UNREAD" 2>/dev/null || true
 
+# Fixed fd 3 (not Bash `{fd}`, which allocates from 10 up) so a named source
+# still opens when the runner's soft nofile ceiling is 10. Codex flagged the
+# missing case on #3641 after `{fd}` failed under that ulimit.
+printf 'keep\n' >"$TEST_TMPDIR/lowfd.txt"
+if (ulimit -n 10) >/dev/null 2>&1; then
+  LINES=()
+  rc=0
+  out="$(
+    bash -c '
+      ulimit -n 10 || exit 125
+      # shellcheck source=batch-common.sh
+      source "$1"
+      LINES=()
+      batch_read_lines_into LINES "$2" || exit $?
+      printf "%s\n" "${LINES[0]}"
+    ' bash "$SCRIPT_DIR/batch-common.sh" "$TEST_TMPDIR/lowfd.txt"
+  )" || rc=$?
+  if [[ $rc -eq 125 ]]; then
+    skip_case "ulimit -n 10 refused on this host"
+  else
+    assert_exit "named source opens under ulimit -n 10" 0 "$rc"
+    if [[ "$out" == "keep" ]]; then
+      pass "low-fd read yields the line"
+    else
+      fail "low-fd read yields the line" "keep" "$out"
+    fi
+  fi
+else
+  skip_case "cannot lower ulimit -n on this host"
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1
 echo "batch-common.test.sh: all passed"

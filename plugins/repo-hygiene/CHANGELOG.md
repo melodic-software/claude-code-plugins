@@ -3,6 +3,15 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.23]
+
+### Fixed
+
+- **`clean`: `batch_read_lines_into` now has a `ulimit -n 10` regression case.** The helper
+  opens named sources on fixed fd 3 so a low nofile ceiling still works. The prior
+  `{fd}` allocator started at 10 and failed that limit; the case was missing from the
+  test matrix on #3641.
+
 ## [0.10.20]
 
 ### Fixed
