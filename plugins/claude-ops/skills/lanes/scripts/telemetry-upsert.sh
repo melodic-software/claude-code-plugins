@@ -151,13 +151,20 @@ BODY_FILE=""
 BODY_DIR=""
 REPO=""
 DRY_RUN=0
+
+# Guard for a space-form option that consumes the next token: the flag must not
+# be the final argument. Deliberately an argc check, NOT a `-*` value rejection —
+# `-` is a real value here (`--body-file -` reads stdin).
+need_optarg() { # <argc> <flag>
+  (($1 >= 2)) && return 0
+  err "$2 requires a value"
+  exit 3
+}
+
 while (($#)); do
   case "$1" in
   --issue)
-    [[ $# -ge 2 ]] || {
-      err "--issue requires a value"
-      exit 3
-    }
+    need_optarg $# "$1"
     ISSUE="$2"
     shift 2
     ;;
@@ -166,10 +173,7 @@ while (($#)); do
     shift
     ;;
   --marker)
-    [[ $# -ge 2 ]] || {
-      err "--marker requires a value"
-      exit 3
-    }
+    need_optarg $# "$1"
     MARKER="$2"
     shift 2
     ;;
@@ -178,10 +182,7 @@ while (($#)); do
     shift
     ;;
   --body-file)
-    [[ $# -ge 2 ]] || {
-      err "--body-file requires a value"
-      exit 3
-    }
+    need_optarg $# "$1"
     BODY_FILE="$2"
     shift 2
     ;;
@@ -190,10 +191,7 @@ while (($#)); do
     shift
     ;;
   --body-dir)
-    [[ $# -ge 2 ]] || {
-      err "--body-dir requires a value"
-      exit 3
-    }
+    need_optarg $# "$1"
     BODY_DIR="$2"
     shift 2
     ;;
@@ -202,10 +200,7 @@ while (($#)); do
     shift
     ;;
   --repo)
-    [[ $# -ge 2 ]] || {
-      err "--repo requires a value"
-      exit 3
-    }
+    need_optarg $# "$1"
     REPO="$2"
     shift 2
     ;;

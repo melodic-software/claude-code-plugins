@@ -503,18 +503,13 @@ release_lock() {
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 
-lock_stamp() {
-  local stamp=""
-  stamp="$(tr -d '\r\n' <"$LOCK_DIR/acquired-at" 2>/dev/null)" || stamp=""
-  [[ "$stamp" =~ ^[0-9]+$ ]] || stamp=0
-  printf '%s' "$stamp"
-}
-
-lock_owner_pid() {
-  local pid=""
-  pid="$(tr -d '\r\n' <"$LOCK_DIR/owner-pid" 2>/dev/null)" || pid=""
-  [[ "$pid" =~ ^[0-9]+$ ]] || pid=0
-  printf '%s' "$pid"
+# Numeric lock-file field (the acquired-at stamp, the owner-pid); 0 when the
+# file is absent or its content is not a bare non-negative integer.
+lock_uint() { # <lock-file basename>
+  local v=""
+  v="$(tr -d '\r\n' <"$LOCK_DIR/$1" 2>/dev/null)" || v=""
+  [[ "$v" =~ ^[0-9]+$ ]] || v=0
+  printf '%s' "$v"
 }
 
 # An identity for THIS boot of the machine, recorded beside the owner PID.
@@ -594,8 +589,8 @@ acquire_lock() {
       err "cannot create the lock directory: $LOCK_DIR"
       return 2
     fi
-    stamp="$(lock_stamp)"
-    pid="$(lock_owner_pid)"
+    stamp="$(lock_uint acquired-at)"
+    pid="$(lock_uint owner-pid)"
     # A loser that finds NO stamp adopts one at `now` rather than reclaiming: the
     # holder may have won the mkdir microseconds ago and not written its stamp
     # yet, and stealing that lock is the very duplication this guards.
