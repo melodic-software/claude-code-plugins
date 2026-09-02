@@ -586,7 +586,7 @@ Repo: claude-code-plugins. One PR, human-gated list.
   count is 0 (goal D).
 - `scripts/affected-tests.sh --run` exits 0; `gh pr checks` 0 failing.
 
-### Phase 7: statusline cost [TODO]
+### Phase 7: statusline cost [DONE]
 
 Repo: claude-code-plugins (rate-limit-guard, and context-guard only if wired). One PR.
 
