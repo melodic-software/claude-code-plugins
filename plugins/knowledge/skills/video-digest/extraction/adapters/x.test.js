@@ -177,6 +177,7 @@ describe("x adapter declarations", () => {
     expect(declarations.writeComments).toBe(false);
     expect(declarations.allowBrowserCookieProfileFallback).toBe(false);
     expect(declarations.extractorArgs).toBeNull();
+    expect(declarations.captionClass).toBe("platform-asr");
   });
 
   it("declares mediaOptional: 0-media posts are well-formed for every yt-dlp consumer", () => {
