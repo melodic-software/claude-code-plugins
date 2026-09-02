@@ -10,7 +10,8 @@ All notable changes to the `machine-health` plugin are documented here. Format f
 - **`Test-SdkVersions` labels the oldest runtime by EOL date, not detection order.** The
   INFO summary used `$findings[0]`, which is first-detected (dotnet, then node, then
   python), not oldest. The contract test invokes the check script (global command
-  shadows plus a mocked EOL table) so a `$findings[0]` regression fails.
+  shadows plus a mocked EOL table with dates relative to `Get-Date`) so a
+  `$findings[0]` regression fails.
   `Add-SdkFinding` now allows an empty accumulator (`AllowEmptyCollection`); Mandatory
   on a `List` rejected the first insert and the inner catch reported zero SDKs.
 - **`Test-Reliability` renders a null stability average as `n/a`.** The OK and INFO

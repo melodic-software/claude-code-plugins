@@ -53,9 +53,14 @@ Describe 'Test-SdkVersions -- oldest label' -Tag 'check' {
             if ($Name -in @('python', 'python3')) { return $null }
             return (Microsoft.PowerShell.Core\Get-Command $Name -ErrorAction SilentlyContinue)
         }
-        Mock Get-Content {
-            '{"dotnet":{"eol":{"8.0":"2028-01-01"}},"node":{"eol":{"22":"2027-01-01"}},"python":{"eol":{}}}'
-        } -ParameterFilter { $LiteralPath -match 'sdk-eol-table\.json$' }
+        $nodeEol = (Get-Date).AddYears(5).ToString('yyyy-MM-dd')
+        $dotnetEol = (Get-Date).AddYears(8).ToString('yyyy-MM-dd')
+        $eolJson = (@{
+                dotnet = @{ eol = @{ '8.0' = $dotnetEol } }
+                node   = @{ eol = @{ '22' = $nodeEol } }
+                python = @{ eol = @{} }
+            } | ConvertTo-Json -Compress -Depth 5)
+        Mock Get-Content { $eolJson } -ParameterFilter { $LiteralPath -match 'sdk-eol-table\.json$' }
         $result = Invoke-SdkVersionsAsObject
         { Assert-CheckResult $result } | Should -Not -Throw
         $result.severity | Should -Be 'INFO'
