@@ -194,9 +194,8 @@ unambiguous; ask only where an item genuinely needs the user.
 5. **Backfill legacy frontier-tier body stamps.** Run the procedure in
    [reference/capability-tier-backfill.md](reference/capability-tier-backfill.md). This pass is
    load-bearing on upgrade (#1716): items already triaged with only a body prose frontier-tier stamp
-   will not be re-triaged, so setup applies the label here once the axis exists. It stays bespoke
-   rather than becoming a retirement-manifest record: it backfills forge labels on tracker items,
-   not a repo-scope artifact the retirement schema can detect.
+   will not be re-triaged, so setup applies the label here once the axis exists. Stays bespoke: it
+   backfills forge labels on tracker items, not a repo-scope artifact the retirement schema detects.
 6. **Read the current schedule file first.** If `.github/recurring-schedule.json` exists, load it and
    present a short summary (item count, each item's `id` / `cadence` / `next_due`, and which are already
    overdue against today). The interview proposes changes against that baseline; nothing is dropped
