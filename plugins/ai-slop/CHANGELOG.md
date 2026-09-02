@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.6]
+
+### Changed
+
+- **`audit`: the git-absent walk reports a host skip instead of failing where `ln -s` copies.** The
+  case builds a minimal git-less PATH out of links to the real binaries. Under MSYS without
+  `winsymlinks`, `ln -s` copies instead, and a copied `bash.exe` cannot find `msys-2.0.dll` beside
+  it, so the shell under test never starts and `detect.sh` emits nothing. Both assertions failed
+  about a detector that was never reached. The suite now probes the link round trip and prints a
+  visible `SKIP (host: ...)` line for each, counted apart from the pass total.
+
 ## [0.5.5]
 
 ### Fixed
