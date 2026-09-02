@@ -633,7 +633,7 @@ Repo: claude-code-plugins. One PR (docs only) plus the final transcript proof.
 | Per-Bash-call guard set before the dispatcher | 8 processes, about 2,450 ms summed medians | guardrails README 0.31.0 |
 | Per-Bash-call guard set after the dispatcher | 1 process, about 1,220 ms of guard slices | guardrails README 0.31.0 |
 | Harness `=== per event` at `main` with the extended harness | pending phase 1 | `baselines/phase1-harness-main.tsv` |
-| Harness sha256 at the dotfiles PR commit | pending phase 1 | dotfiles PR |
+| Harness sha256 at the dotfiles PR commit | `32295c08767a20c3c6b384f7b7e2df11c6ac13e82eae926d24fbf816c6fa01b8` (harness commit `c1b722b`, branch head `4b3286e`) | dotfiles branch `perf/hook-fanout-samples` |
 
 ## Alternatives considered
 
