@@ -262,8 +262,8 @@ for sid in s0 s75x snull nosuchsession storn; do
     fail "stdout not exactly one word for '$sid': '$OUT'"
   fi
   case "$OUT" in
-    smart | acceptable | dumb | unknown) ok "vocabulary word for '$sid'" ;;
-    *) fail "out-of-vocabulary output for '$sid': '$OUT'" ;;
+  smart | acceptable | dumb | unknown) ok "vocabulary word for '$sid'" ;;
+  *) fail "out-of-vocabulary output for '$sid': '$OUT'" ;;
   esac
 done
 
