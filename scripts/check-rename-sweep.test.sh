@@ -25,16 +25,21 @@ check() {
 bash scripts/check-rename-sweep.sh >/dev/null 2>&1
 check "clean tree passes (allowlisted CHANGELOG + trigger-phrase hits only)" 0 $?
 
-printf 'stale ref: youtube-digest\n' > "$seed"
+printf 'stale ref: youtube-digest\n' >"$seed"
 bash scripts/check-rename-sweep.sh >/dev/null 2>&1
 check "seeded vendor/ stale ref is caught" 1 $?
 
 out="$(bash scripts/check-rename-sweep.sh 2>&1 >/dev/null)" || true
 case "$out" in
-  *"$seed"*) echo "ok: violation output names the seeded file"; pass=$((pass + 1)) ;;
-  *) echo "FAIL: violation output does not name the seeded file" >&2; fail=$((fail + 1)) ;;
+*"$seed"*)
+  echo "ok: violation output names the seeded file"
+  pass=$((pass + 1))
+  ;;
+*)
+  echo "FAIL: violation output does not name the seeded file" >&2
+  fail=$((fail + 1))
+  ;;
 esac
-rm -f "$seed"
 
 echo "PASS=$pass FAIL=$fail"
 [[ "$fail" -eq 0 ]]
