@@ -228,7 +228,7 @@ One PR.
    and one overall median at the top of the summary. A run is valid only when the overall S is at
    most 160 ms (twice the 80 ms reference); otherwise the summary is headed `INVALID RUN (S=<n> ms
    > 160)` and the script exits 3. The per-event line keeps `fires=`,`cpu_sum_ms=`,`max_ms=`, and
-   appends`async=<n>` and `max_abs_ms=<n>` (the same max in absolute ms) so the hook-budget
+   appends `async=<n>`, `cpu_x_s=<n>` and `max_x_s=<n>` (the sum and the max divided by the run's overall S, one decimal, so the (B) ratios read directly) while `max_ms` stays absolute, so the hook-budget
    ceilings (1 s typical, 2 s worst per tool call, 500 ms per turn) can be read beside the ratio.
 4. **`if` semantics.** Non-tool events: a hook with `if` set gets status `NEVER_RUNS(if-on-non-tool-event)`
    (distinct from `SKIPPED`). Bash `if`: a pattern that is more than a bare command name
@@ -616,7 +616,7 @@ Repo: claude-code-plugins. One PR (docs only) plus the final transcript proof.
 - `grep -c 'spawn-equivalent' docs/conventions/hook-budget/README.md` is at least 1 and the file
   names the harness sha256.
 - `diff <(jq -S .enabledPlugins ~/.claude/settings.json) baselines/enabled-plugins-before.json` prints nothing.
-- The final `=== per event` block meets every (B) inequality, including `max_abs_ms` under 1,000 on
+- The final `=== per event` block meets every (B) inequality, including `max_ms` under 1,000 on
   every per-tool-call line; a script line per inequality with `awk` over the TSV prints `PASS` for
   each; the run header is not `INVALID RUN`.
 - `jq -r '.plugins | to_entries[] | select(.key | endswith("@melodic-software")) | "\(.key) \((.value | if type=="array" then .[0] else . end) | .version + " " + .gitCommitSha)"' ~/.claude/plugins/installed_plugins.json` pasted, every measured plugin's sha equal to its delivered HEAD.
@@ -887,7 +887,7 @@ Decisions made (gate-passed):
 | [EXEC-SHAPE] Each phase bumps its own plugins' versions; phase 8 is docs and accounting only | Removes version bumps from phase 8's scope | Constraint 6: `claude plugin update` keys on the plugin version, so a phase cannot be delivered to the cache without its bump |
 | [EXEC-SHAPE] Async status carried in the TSV status column (`RAN(async)`); sample identity in a ninth `sample` column appended after the legacy eight | Legacy columns 1 to 8 and the seven legacy rows are byte-identical; the header and every row gain one trailing field; TSV consumers are inventoried first (phase 1 item 1) | Brief's byte-compatibility requirement for the seven legacy samples; the existing awk summaries key on columns 1, 2 and 4 and ignore trailing fields |
 | [EXEC-SHAPE] Phase 4c added for the per-Write formatter hot path | A tenth PR; owns the (B) `cpu_sum_ms` residual on the `.md` sample | Devil's-advocate measurement: typos-format plus eol-normalizer plus markdown-format plus the verifier dispatcher is about 13.7 spawn-equivalents against the 12 times S cap, and async reduces no `cpu_sum` |
-| [EXEC-SHAPE] Harness validity gate at S at most 160 ms and `max_abs_ms` beside the ratio | Phase 1 item 3; phase 0 helper refuses under load; phase 8 final run must be valid | `now_ms()` spawns `date` and `cut` per sample today, inflating S and hook time alike, so ratio targets get easier under load; the updated goal condition names the 160 ms bound and the 1,000 ms absolute ceiling |
+| [EXEC-SHAPE] Harness validity gate at S at most 160 ms and `max_x_s=` (spawn-equivalents) beside the absolute `max_ms` | Phase 1 item 3; phase 0 helper refuses under load; phase 8 final run must be valid | `now_ms()` spawns `date` and `cut` per sample today, inflating S and hook time alike, so ratio targets get easier under load; the updated goal condition names the 160 ms bound and the 1,000 ms absolute ceiling |
 | [EXEC-SHAPE] Live `claude --debug-file` probe is a named test boundary for phases 2 and 3 | Adds a mandatory probe step and pasted log line to each | The harness feeds payloads directly and never exercises Claude Code's own `if` evaluation, exec-form spawning or async delivery (harness source read this session; ledger H4, H22, #90495, #79230) |
 | [EXEC-SHAPE] Waves A {3, 5} and B {4a, 7} parallel; everything else sequential | Elapsed-time saving only; each remains its own PR | File-overlap matrix above |
 | [EXEC-SHAPE] Measurements reported as spawn-equivalents with the same-trial `bash -c :` median | Every before and after claim in this plan | hook-budget README method and the 4,498 ms loaded-host baseline recorded in the guardrails README |
