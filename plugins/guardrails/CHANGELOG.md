@@ -10,7 +10,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **`block-windows-drive-tmp` treats a single-quoted path-qualified writer as a
   command.** `"/usr/bin/mkdir"` was recognized; `'/usr/bin/mkdir' -p /tmp/x`
   still missed because the quote class was `"` only. Both quote styles are
-  accepted at command position, matching `segment_destination_operand`.
+  accepted at command position, matching `segment_destination_operand`. Quoted
+  and unquoted command-position patterns are separate (bash ERE has no
+  backrefs), so `echo 'run mkdir' /tmp/x` is not treated as a writer. The
+  patterns are compiled once per process, not via `cat` on every segment.
 
 ## [0.30.1]
 

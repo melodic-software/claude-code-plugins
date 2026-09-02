@@ -275,6 +275,7 @@ run_win "sudo /usr/bin/mkdir /tmp/x (blocked)" 'sudo /usr/bin/mkdir -p /tmp/x' 2
 run_win "quoted /usr/bin/mkdir /tmp/x (blocked)" '"/usr/bin/mkdir" -p /tmp/x' 2
 run_win "single-quoted /usr/bin/mkdir /tmp/x (blocked)" "'/usr/bin/mkdir' -p /tmp/x" 2
 run_win "echo /usr/bin/mkdir /tmp/x (allowed — mention, not command)" 'echo /usr/bin/mkdir /tmp/x' 0
+run_win "echo 'run mkdir' /tmp/x (allowed — closing quote is not the command)" "echo 'run mkdir' /tmp/x" 0
 run_win "cat /path/mkdir /tmp/x (allowed — path argument, not command)" 'cat /some/path/mkdir /tmp/x' 0
 run_win "/usr/bin/touch /tmp/x (blocked)" '/usr/bin/touch /tmp/x' 2
 run_win "/usr/bin/tee /tmp/x (blocked)" 'echo x | /usr/bin/tee /tmp/x' 2
