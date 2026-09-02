@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.46]
+
+### Fixed
+
+- **Seam: `create-item` without `--parent` / `--blocked-by` no longer requires `gh` 2.94.**
+  The 0.39.18 per-verb floor still gated every `create-item` and `get-item`, so a cloud
+  image shipping `gh` 2.45 (the observed Claude Code cloud CLI) refused a plain create
+  with exit `3` and never reached `gh issue create`. `/work-items:track add` could file
+  nothing. The floor now applies to `link-blocks`, `add-sub-item`, `list-sub-items`,
+  `list-items` (it still requests `--json blockedBy`, so frontier stays fail-closed),
+  `list-frontier`, and `create-item` only when those gated flags are passed; the error
+  names the flag. `get-item` and a plain `create-item` omit the 2.94 `--json` fields
+  (`parent_id` null, `blocked_by_count` 0, `type` null). (#3598)
+
 ## [0.39.45]
 
 ### Fixed

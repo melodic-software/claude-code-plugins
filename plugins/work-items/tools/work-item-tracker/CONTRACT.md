@@ -36,15 +36,17 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 - `gh` on PATH when the bound provider is `github` and the verb shells out. Missing →
   exit `3`. `capabilities` is the one exception: it reads the adapter manifest and never
   invokes `gh`, so it answers without the binary.
-- `gh` ≥ **2.94** additionally for the verbs that read the native sub-issue/dependency
-  surface — the `--parent`, `--blocked-by`, `--add-blocked-by` flags and the `blockedBy`,
-  `parent`, `subIssues` `--json` fields. Too old → exit `3` naming the minimum. That is
-  `create-item`, `get-item`, `list-items`, `list-sub-items`, `link-blocks`, `add-sub-item`,
-  and `list-frontier` (which gates through whichever list verb it resolves to). The lease
-  trio — `claim`, `renew-lease`, `reclaim` — reads assignees and comments only, so it runs
-  on an older `gh`: a version floor applied to every verb would cost a session race-safe
-  claiming for a surface those verbs never touch. The dispatcher gates per verb, before
-  dispatch.
+- `gh` ≥ **2.94** additionally for the paths that use the native sub-issue/dependency
+  surface: the `--parent`, `--blocked-by`, `--add-blocked-by` flags and the `blockedBy`,
+  `parent`, `subIssues` `--json` fields. Too old → exit `3` naming the flag (or the
+  verb). That is `link-blocks`, `add-sub-item`, `list-sub-items`, `list-items` (which
+  requests `--json blockedBy`), `list-frontier` (which gates through whichever list verb
+  it resolves to), and `create-item` only when `--parent` or `--blocked-by` is passed.
+  A plain `create-item` (title, body, labels, repo) and `get-item` run on an older `gh`:
+  `get-item` omits the native `--json` fields, so `parent_id` is `null`, `blocked_by_count`
+  is `0`, and `type` is `null`. The lease trio (`claim`, `renew-lease`, `reclaim`) reads
+  assignees and comments only. `capabilities` never shells out. The dispatcher gates
+  before dispatch.
 - `curl` on PATH when the bound provider is `jira` (Cloud REST v3 over HTTPS). The jira
   adapter gates on it at call time (exit `3`), not the dispatcher — minimal shared-code
   blast radius.
@@ -63,9 +65,10 @@ this repository's own spec board (#2933) had to be published through MCP tools w
 blocking edges as body text, because the publishing session had no `gh`.
 
 **A too-old `gh` degrades differently from an absent one.** Where the binary is present but
-below 2.94, only the native-surface verbs above are refused; the lease trio still runs, so
-such a session can hold and renew a race-safe claim even though it cannot derive a frontier
-or read `blocked_by_count`. Selection has to come from elsewhere (an operator-named item,
+below 2.94, only the native-surface paths above are refused; the lease trio, `get-item`,
+and a `create-item` with no gated flags still run, so such a session can file a plain
+item and hold a race-safe claim even though it cannot attach sub-issue or dependency
+edges or derive a frontier. Selection has to come from elsewhere (an operator-named item,
 or a list taken through another GitHub surface), but the claim itself is not degraded, and
 an item worked this way is NOT the unclaimed-coordination case the backfill ritual below
 describes.
