@@ -287,12 +287,7 @@ fi
 # layer that re-enabled the rest of the roster would still look live
 # (rule-em-dash disabled=0, file counts balance) and would silently put the
 # backfill cost back.
-enabled_rules=0
-while IFS= read -r line; do
-  case "$line" in
-  *' disabled=0'*) enabled_rules=$((enabled_rules + 1)) ;;
-  esac
-done < <(grep '^Summary rule=' "$OUT")
+enabled_rules="$(grep -c '^Summary rule=.* disabled=0$' "$OUT" || true)"
 if ((enabled_rules != 1)); then
   echo "check-purged-em-dashes: expected only rule-em-dash enabled, found $enabled_rules enabled rule(s)" >&2
   exit 2
