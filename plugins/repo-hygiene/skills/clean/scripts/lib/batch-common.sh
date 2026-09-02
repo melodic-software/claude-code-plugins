@@ -28,21 +28,39 @@ batch_normalize_input() {
 # batch_read_lines_into <array-name> <file|-> — append non-empty CR-stripped
 # lines. Raw (unnormalized): repo paths are normalized at resolve time, skip
 # entries are normalized by clean_skip_matches, so neither is pre-mangled here.
+#
+# Exit status is a source-open verdict, not a record-read verdict. Bash `read`
+# returns nonzero at ordinary EOF (help read: "unless end-of-file is
+# encountered"); that is not evidence the containing file operation failed.
+#   0  the selected source was opened/accepted and consumed to ordinary EOF.
+#      Empty input, blank lines, a trailing blank line, and a final
+#      non-newline-terminated line are all success.
+#   1  a named source is missing, not a regular file, or cannot be opened/read.
+#      No input-content shape returns 1. For `-`, ordinary stdin EOF is success.
 batch_read_lines_into() {
   local -n _dest="$1"
-  local src="$2" line
+  local src="$2" line fd
   if [[ "$src" == "-" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
       [[ -n "$line" ]] && _dest+=("$line")
     done
-  else
-    [[ -f "$src" ]] || return 1
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      line="${line%$'\r'}"
-      [[ -n "$line" ]] && _dest+=("$line")
-    done <"$src"
+    return 0
   fi
+  # Named source: reject missing/non-regular before open so a directory never
+  # blocks on `read`. Then open explicitly so a permission/open failure is
+  # retained (a `while ... done <"$src"` that never enters the body would
+  # otherwise look like success).
+  [[ -f "$src" ]] || return 1
+  exec {fd}<"$src" || return 1
+  while IFS= read -r -u "$fd" line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ -n "$line" ]] && _dest+=("$line")
+  done
+  exec {fd}<&-
+  # Explicit success: do not let the last `[[ -n "$line" ]]` (false on a
+  # trailing blank, or on the EOF guard after a delimiter) become the result.
+  return 0
 }
 
 # Resolve-and-dedup accumulators, populated by batch_resolve_repos. Reset per call.

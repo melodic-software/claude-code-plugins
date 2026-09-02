@@ -98,15 +98,92 @@ else
   fail "distinct common dir" 2 "${#BATCH_GITDIR_KEYS[@]}"
 fi
 
-# --- 5. batch_read_lines_into: CR-stripped, non-empty ---
+# --- 5. batch_read_lines_into: CR-stripped, non-empty, rc 0 ---
 printf 'a\r\n\nb\n' >"$TEST_TMPDIR/lines.txt"
 LINES=()
-batch_read_lines_into LINES "$TEST_TMPDIR/lines.txt"
+rc=0
+batch_read_lines_into LINES "$TEST_TMPDIR/lines.txt" || rc=$?
+assert_exit "CR-stripped file is success (rc 0)" 0 "$rc"
 if [[ "${#LINES[@]}" -eq 2 && "${LINES[0]}" == a && "${LINES[1]}" == b ]]; then
   pass "read_lines_into strips CR and empties"
 else
   fail "read_lines_into strips CR and empties" "a,b" "${LINES[*]}"
 fi
+
+# --- 5b. empty file, trailing blank, missing final newline: all rc 0 ---
+: >"$TEST_TMPDIR/empty.txt"
+LINES=()
+rc=0
+batch_read_lines_into LINES "$TEST_TMPDIR/empty.txt" || rc=$?
+assert_exit "empty file is success (rc 0)" 0 "$rc"
+if [[ "${#LINES[@]}" -eq 0 ]]; then
+  pass "empty file appends nothing"
+else
+  fail "empty file appends nothing" 0 "${#LINES[@]}"
+fi
+
+printf 'a\n\n' >"$TEST_TMPDIR/trail.txt"
+LINES=()
+rc=0
+batch_read_lines_into LINES "$TEST_TMPDIR/trail.txt" || rc=$?
+assert_exit "trailing blank line is success (rc 0)" 0 "$rc"
+if [[ "${#LINES[@]}" -eq 1 && "${LINES[0]}" == a ]]; then
+  pass "trailing blank keeps the preceding entry"
+else
+  fail "trailing blank keeps the preceding entry" "a" "${LINES[*]}"
+fi
+
+printf 'a' >"$TEST_TMPDIR/noeol.txt"
+LINES=()
+rc=0
+batch_read_lines_into LINES "$TEST_TMPDIR/noeol.txt" || rc=$?
+assert_exit "unterminated final line is success (rc 0)" 0 "$rc"
+if [[ "${#LINES[@]}" -eq 1 && "${LINES[0]}" == a ]]; then
+  pass "unterminated final line is kept"
+else
+  fail "unterminated final line is kept" "a" "${LINES[*]}"
+fi
+
+# Stdin (`-`): ordinary EOF is success, including a trailing blank.
+LINES=()
+rc=0
+batch_read_lines_into LINES - < <(printf 'a\n\n') || rc=$?
+assert_exit "stdin trailing blank is success (rc 0)" 0 "$rc"
+if [[ "${#LINES[@]}" -eq 1 && "${LINES[0]}" == a ]]; then
+  pass "stdin trailing blank keeps the preceding entry"
+else
+  fail "stdin trailing blank keeps the preceding entry" "a" "${LINES[*]}"
+fi
+
+# --- 5c. missing / non-regular / unopenable named sources return 1 ---
+LINES=()
+rc=0
+batch_read_lines_into LINES "$TEST_TMPDIR/no-such-list.txt" || rc=$?
+assert_exit "missing named source returns 1" 1 "$rc"
+if [[ "${#LINES[@]}" -eq 0 ]]; then
+  pass "missing source appends nothing"
+else
+  fail "missing source appends nothing" 0 "${#LINES[@]}"
+fi
+
+mkdir -p "$TEST_TMPDIR/not-a-file"
+LINES=()
+rc=0
+batch_read_lines_into LINES "$TEST_TMPDIR/not-a-file" || rc=$?
+assert_exit "directory (non-regular) returns 1" 1 "$rc"
+
+UNREAD="$TEST_TMPDIR/unreadable.txt"
+printf 'a\n' >"$UNREAD"
+chmod 000 "$UNREAD" 2>/dev/null || true
+if [[ -r "$UNREAD" ]]; then
+  skip_case "unopenable regular file: chmod 000 not enforced on this filesystem (CAP_DAC_OVERRIDE); missing/non-regular cases already cover rc 1"
+else
+  LINES=()
+  rc=0
+  batch_read_lines_into LINES "$UNREAD" || rc=$?
+  assert_exit "unopenable regular file returns 1" 1 "$rc"
+fi
+chmod 644 "$UNREAD" 2>/dev/null || true
 
 [[ $FAILED -eq 0 ]] || exit 1
 echo "batch-common.test.sh: all passed"
