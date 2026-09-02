@@ -28,13 +28,13 @@ Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing
 4. **Config layers**. Resolve both surfaces (`routing.yaml`,`conventions.md`) per
    `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md` and
    `${CLAUDE_PLUGIN_ROOT}/reference/conventions-file.md`, anchored at the repo root, and report a
-   PASS/FAIL/INFO row per layer:
+   PASS/FAIL/INFO row per layer, with one remediation line per FAIL:
 
    | Layer | Verdict |
    |---|---|
    | user-global | INFO exists or INFO absent. No git verdict applies outside the worktree |
-   | team | PASS when the pair (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0) holds; FAIL when present but ignored or untracked |
-   | local overlay | PASS when gitignored and never staged; FAIL when tracked or staged |
+   | team | PASS when the pair (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0) holds. Present but ignored: FAIL, report the matching rule and say to unignore it. Present but untracked: FAIL, "commit it to share with the team" |
+   | local overlay | PASS when present, gitignored, and never staged. Tracked or staged: FAIL, remediation is `git rm --cached <path>` plus rotating any credential that was committed (adding a gitignore line does not untrack it). Present but unignored: FAIL, recommend `.claude/**/*.local.*` for the user to add themselves |
 
    All three layers absent is INFO: "unconfigured: routing resolves to propose-only", not FAIL.
    A malformed layer is named and skipped, per the contract.

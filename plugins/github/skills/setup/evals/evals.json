@@ -10,7 +10,7 @@
       "expectations": [
         "gh presence and gh auth status are verified live, and no token or credential value is echoed, stored, or persisted anywhere",
         "The credential-modality picture is diagnosed from live gh auth state and freshly fetched official docs, not from a shipped scope table or training-data recall",
-        "Config layers get PASS/FAIL/INFO rows: team layer tracked-in-git check, local overlay gitignored check, and no git verdict is attempted for the user-global layer",
+        "Config layers get PASS/FAIL/INFO rows: team layer tracked-in-git check with unignore or commit remediations, local overlay FAIL when tracked/staged (git rm --cached plus rotate) or present-but-unignored (recommend the gitignore line), and no git verdict is attempted for the user-global layer",
         "All layers absent is INFO (propose-only routing), not FAIL"
       ]
     },
