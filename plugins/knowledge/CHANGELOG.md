@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.32]
+
+### Fixed
+
+- **map-corpus: `check_inventory` FAILED banner spacing matches `check_linkmap`.** The checker
+  printed `FAILED --{n}` while the sibling prints `FAILED -- {n}` (space after the dashes). Both
+  `FAILED` print statements now carry the same space.
+
 ## [0.13.31]
 
 ### Changed
