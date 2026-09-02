@@ -34,13 +34,15 @@ tool that needs it, so long-running workflows can route heavy work away from a d
   compacted session's effective zone is dumb regardless of its post-compaction numbers. An
   optional **blocking** mode (`zone_hook_mode` userConfig) adds a PreToolUse gate that denies new
   Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past a grace budget, fail-open on `unknown`, with handoff-path writes, reads, Bash, and Skill invocations never
-  gated, so a durable handoff is always writable. The two advisory `zone-crossing-inject.sh` rows
-  (PostToolBatch and UserPromptSubmit) carry a 15-second timeout: they sit on the prompt path, where
-  a stalled hook holds up the turn, and losing a late advisory nudge costs less than the wait. The
-  timeout is a cap on a hook that is already running, not a defence against one blocked on stdin;
-  that case is bounded separately by `cg::read_payload` in `hooks/payload.sh`, which reads to EOF
-  under a 5-second `read -t` and which both rows use. The PreToolUse `zone-gate.sh` row and the
-  PostCompact row keep 60 seconds, because a shortened timeout on a gate is fail-open.
+  gated, so a durable handoff is always writable. All four hook rows, including the two advisory
+  `zone-crossing-inject.sh` rows (PostToolBatch and UserPromptSubmit), carry a 60-second timeout.
+  The 0.4.8 measurement sized that cap: on Windows 11 / Git Bash with Defender real-time protection
+  enabled, `zone-crossing-inject.sh` reached 22.0 s on a small payload. A timeout only caps a hook
+  that has already stalled and saves nothing on a normal fire, so a lower cap would not speed up
+  the prompt path; on that profile it would cancel the advisory on essentially every fire rather
+  than only on a stuck one. The rows stay at 60 until a re-measurement on that profile shows
+  headroom. A hook blocked on stdin is bounded separately by `cg::read_payload` in
+  `hooks/payload.sh`, which reads to EOF under a 5-second `read -t` and which both rows use.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
   the zones.json shape, session-id discovery via `${CLAUDE_SESSION_ID}`, and the

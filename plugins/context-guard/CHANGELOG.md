@@ -86,14 +86,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **The two advisory zone-crossing rows drop from a 60-second to a 15-second timeout.** Both
-  `zone-crossing-inject.sh` registrations (PostToolBatch and UserPromptSubmit) sit on the prompt
-  path, where a stalled hook holds up the turn, and both are advisory: they emit no decision, so the
-  worst a cap costs is a late nudge. The timeout caps a hook that is already running; a hook blocked
-  on stdin is bounded separately by `cg::read_payload` in `hooks/payload.sh`, which reads to EOF
-  under a 5-second `read -t` and which both rows already use. The gating PreToolUse `zone-gate.sh`
-  row and the PostCompact row are unchanged at 60 seconds, because shortening a gate's timeout is
-  fail-open. No script changed.
+- **The two advisory zone-crossing rows stay at their 60-second timeout; the cap was evaluated
+  and kept.** A 15-second cap on both `zone-crossing-inject.sh` registrations (PostToolBatch and
+  UserPromptSubmit) was proposed on the grounds that they sit on the prompt path and are advisory.
+  It was rejected in review. The 0.4.8 measurement stands: on Windows 11 / Git Bash with Defender
+  real-time protection enabled, this script reached 22.0 s on a small UserPromptSubmit payload, and
+  nothing in this change re-measured it. A timeout only caps a hook that has already stalled and
+  saves nothing on a normal fire, so a lower cap buys no latency on the median path. On the
+  measured profile it would instead cancel the hook on essentially every fire, which drops the
+  advisory always rather than only when the hook is stuck. Both rows keep 60 until a re-measurement
+  on that profile shows headroom. A hook blocked on stdin is bounded separately by
+  `cg::read_payload` in `hooks/payload.sh`, which reads to EOF under a 5-second `read -t` and which
+  both rows already use. All four rows in `hooks/hooks.json` remain at 60. No script changed.
 
 ## [0.7.32]
 
