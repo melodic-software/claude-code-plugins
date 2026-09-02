@@ -126,9 +126,11 @@ engine plan:
 
 ## The PowerShell guard lane
 
-The PowerShell guard lane turns deletion spellings into a final human permission prompt (the same
-bar as the engine apply prompt); confirm that prompt only when the command matches the exact
-approved list. Engine invocations from PowerShell stay hard-denied.
+The PowerShell guard lane turns deletion spellings into a hook-issued `ask` (the same
+bar as the engine apply prompt). Confirm that prompt only when the command matches the exact
+approved list. An explicit `permissions.ask` rule for those spellings is what the official
+hooks and settings pages treat as prompting in every mode; add one if the handoff must not
+depend on hook-`ask` surfacing. Engine invocations from PowerShell stay hard-denied.
 
 ## Hook registration outlives the cleanup
 

@@ -1467,10 +1467,11 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     engine invocation rather than denying unknown commands. Engine calls stay on
     the Bash lane's fail-closed deny-unknown guard. A flagged mutation spelling
     resolves against the ``disk_hygiene_enabled`` kill switch: when execution is
-    enabled it surfaces the final human permission prompt (``ask``), preserving
-    the unsupported-platform manual handoff; in audit-only mode (``enabled`` is
-    false) it is denied outright, so the kill switch blocks every deletion lane
-    and not only the Bash engine lane.
+    enabled it returns ``permissionDecision: "ask"`` (a hook-issued ask;
+    official PreToolUse docs say that value prompts the user to confirm),
+    preserving the unsupported-platform manual handoff; in audit-only mode
+    (``enabled`` is false) it is denied outright, so the kill switch blocks
+    every deletion lane and not only the Bash engine lane.
     """
     if _engine_gate_relevant(command, "PowerShell"):
         # Invocation-shaped engine references only — the same classifier the
