@@ -360,7 +360,7 @@ Repo: claude-code-plugins. One PR.
 - The `--debug-file` log lines for the three probe writes (user-scope Write, managed-settings Write, project-scope Edit), each naming the hook and `ask`, are pasted; the session was started after delivery and its `installed_plugins.json` `gitCommitSha` matches the delivered HEAD.
 - `for f in plugins/*/hooks/hooks.json; do jq -e '[.hooks[][] .hooks[] | select(.timeout == null)] | length == 0' "$f" >/dev/null || { echo "FAIL $f"; exit 1; }; done` exits 0.
 - `grep -c 'best-effort\|\$()' plugins/source-control/README.md plugins/disk-hygiene/README.md` is at least 1 per file.
-- Harness: PreToolUse:Write `fires=` on the `.md` sample drops by 1 versus the phase 1 baseline (every context-budget row is skipped for a scratch `.md` path).
+- Harness: PreToolUse:Write `fires=` on the `.md` sample is unchanged versus the phase 1 baseline (the context-budget gate was rejected by the live probe; see DEVIATIONS.md), and the context-guard timeout rows show 15.
 - `scripts/affected-tests.sh --run` exits 0; `gh pr checks` 0 failing.
 
 ### Phase 4a: guard hot path inside the dispatcher [TODO]
