@@ -91,8 +91,8 @@ the repo make the values unambiguous; ask only where a dimension's targets genui
    parse and name real paths, and `git check-ignore -v .claude/codebase-health.md` confirms it is
    tracked, not ignored (surface the matching pattern and offer to fix `.gitignore` before reporting
    success). Then **offer the overlay convention**: personal overrides go in
-   `.claude/codebase-health.local.md`; recommend the consumer add `.claude/*.local.*` to `.gitignore`
-   if not already covered. A user-global base at `~/.claude/codebase-health.md` is also honored. Layers
+   `.claude/codebase-health.local.md`; recommend the consumer add the recursive `.claude/**/*.local.*`
+   line to `.gitignore` if not already covered. A user-global base at `~/.claude/codebase-health.md` is also honored. Layers
    resolve user-global → team → local overlay, additively.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".

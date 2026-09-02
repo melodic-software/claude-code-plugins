@@ -29,11 +29,11 @@
       "id": 3,
       "name": "writes-tracked-config-not-plugin-dir",
       "prompt": "/codebase-health:setup apply\n\nJust write a sensible default config for this repo.",
-      "expected_output": "Materializes the config at the consumer's tracked .claude/codebase-health.md, confirms it is tracked (not gitignored), and offers the .claude/*.local.* overlay/gitignore convention. It never writes configuration into the plugin directory or a plugin data directory.",
+      "expected_output": "Materializes the config at the consumer's tracked .claude/codebase-health.md, confirms it is tracked (not gitignored), and offers the recursive .claude/**/*.local.* overlay/gitignore convention. It never writes configuration into the plugin directory or a plugin data directory.",
       "files": [],
       "expectations": [
         "Writes the config to the consumer's tracked .claude/codebase-health.md",
-        "Offers the .claude/*.local.* personal-overlay and gitignore convention",
+        "Offers the recursive .claude/**/*.local.* personal-overlay and gitignore convention",
         "Does not write configuration into the plugin directory or plugin data directory"
       ]
     }

@@ -113,9 +113,8 @@ That is the whole convention — **one line, recursive form, for every surface**
 zero or more directories, so this single rule covers a flat `.claude/source-control.local.md`, a
 one-deep `.claude/ecosystems/python.local.yaml`, and a profiled
 `.claude/ai-briefing/<profile>/x.local.md` alike, while leaving team files tracked. The narrower
-`.claude/*.local.*` is what several surfaces currently recommend and it silently fails to ignore any
-folder-form overlay; recommend the recursive form instead, and never ask a consumer for two lines
-where one is exact.
+`.claude/*.local.*` silently fails to ignore any folder-form overlay; recommend the recursive form
+only, and never ask a consumer for two lines where one is exact.
 
 **No plugin writes the consumer's `.gitignore`.** A setup skill recommends the line and leaves the
 edit to the consumer; their ignore file is their artifact.
@@ -189,8 +188,8 @@ surface, or amend this contract) is a separate human-gated decision.
 
 **Undeclared** — divergence with no recorded rationale:
 
-- **`ai-briefing` advertises an overlay layer it does not implement.** Its setup recommends a
-  `.claude/ai-briefing/**/*.local.*` gitignore line, but no read path resolves a `.local.*` file and
+- **`ai-briefing` advertises an overlay layer it does not implement.** Its setup recommends the
+  recursive `.claude/**/*.local.*` gitignore line, but no read path resolves a `.local.*` file and
   no file defines what one would do. Its documented resolution covers profile *selection* only, never
   layer precedence. This is the only surface telling consumers to gitignore a layer that has no
   effect.
@@ -229,11 +228,14 @@ sweep — and each migration updates its own row in the same change.
 
 ### Overlay spelling drift
 
-The fleet currently ships four spellings — `.claude/*.local.*`, `.claude/ecosystems/*.local.*`,
-`.claude/autonomy/**/*.local.*`, and a bare `*.local.md` inside a setup-owned
-`<standards_dir>/.gitignore`. Each is narrowly correct for its own surface, and collectively they
-defeat the one-line promise: a consumer running three plugins is asked for three lines, and the two
-non-recursive spellings would silently miss a nested overlay if their surface ever grew a folder.
-The recursive line above subsumes all four. Converging each surface's recommendation on it is a
-per-surface change tracked by the rows above, not a rule this contract can retroactively impose on
-config already written into consumer repositories.
+Every setup surface now recommends (or, for `source-control`, appends) the
+recursive line above. The narrow spellings the fleet used to ship — `.claude/*.local.*`,
+`.claude/ecosystems/*.local.*`, `.claude/autonomy/**/*.local.*` — were each narrowly correct for
+their own surface but collectively defeated the one-line promise: a consumer running three plugins
+was asked for three lines, and the non-recursive spellings would silently miss a nested overlay if
+their surface ever grew a folder. Two deliberate exceptions remain: the bare `*.local.md` inside
+the setup-owned `<standards_dir>/.gitignore` (a dedicated ignore file scoped to the standards
+root, not the consumer's `.gitignore`), and `work-items`' repo-root
+`.work-item-tracker.local.json` line (ADR 0015; outside `.claude/` entirely). This contract does
+not retroactively rewrite narrow lines already written into consumer repositories — the recursive
+line simply supersedes them where both exist.

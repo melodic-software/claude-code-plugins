@@ -62,7 +62,7 @@ hardcodes a repo's layout.
 /codebase-health:setup apply   # interview + write .claude/codebase-health.md (re-runnable)
 ```
 
-Add `.claude/*.local.*` to your `.gitignore` so personal overlays stay out of version control while
+Add the recursive `.claude/**/*.local.*` line to your `.gitignore` so personal overlays stay out of version control while
 team config stays tracked.
 
 ## Consumer conventions

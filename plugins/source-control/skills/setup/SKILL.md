@@ -73,14 +73,16 @@ Per-layer verdicts:
 - **Team** (`REPO_ROOT/.claude/source-control.md`): present → PASS. **FAIL** when excluded by
   `.gitignore`. Teammates would never receive the shared convention; report the matching rule.
   Absent → INFO, remediable by `apply`.
-- **Local overlay ignore rule** (`.claude/*.local.*`, covering
+- **Local overlay ignore rule** (the recursive `.claude/**/*.local.*`, covering
   `REPO_ROOT/.claude/source-control.local.md`): probe the ignore rule whether or
   not the overlay file exists. The rule's job is to be in place **before** the
   first overlay is written; conditioning the probe on the file already existing
   is the window that produces the exposure. Missing rule → FAIL, remediable by
   `apply` (which writes the line at team-layer bind, not only at `layer=local`).
-  Probe with `git check-ignore --no-index -v -- .claude/source-control.local.md`
-  (the path does not need to exist). A match counts only when `-v` names a
+  Probe with `git check-ignore --no-index -v -- .claude/nested/overlay.local.md`
+  (the path does not need to exist). The sentinel is nested so a leftover
+  `.claude/*.local.*` rule, which still matches the flat overlay path, is not
+  mistaken for the recursive rule. A match counts only when `-v` names a
   repository `.gitignore` as the source. `$GIT_DIR/info/exclude` and
   `core.excludesFile` are operator-local and do not protect a teammate.
 - **Local overlay file** (`REPO_ROOT/.claude/source-control.local.md`): when
@@ -334,7 +336,7 @@ Skill-behavior failure patterns hit in real runs. Add to this section when new o
 - Enforce the convention at commit time, a project's own `commit-msg` hook (when one exists) remains
   the authoritative gate; this config only tells the plugin's skills what shape to draft and
   pre-check against.
-- Write the consumer's `.gitignore`, except the one `.claude/*.local.*` line at
+- Write the consumer's `.gitignore`, except the one recursive `.claude/**/*.local.*` line at
   team-layer bind / `apply`. That line must exist before any overlay is written,
   so `apply` appends it when missing and announces the edit. Everything else in
   `.gitignore` stays the consumer's.

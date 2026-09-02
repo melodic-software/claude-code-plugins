@@ -93,14 +93,14 @@
       "id": 8,
       "name": "routes-personal-request-to-local-overlay-not-team-file",
       "prompt": "/source-control:setup apply\n\nI personally want ticket-prefixed subjects like WEB-123: fix the thing on this repo, but don't change what the team uses.",
-      "expected_output": "Writes .claude/source-control.local.md, not the tracked team .claude/source-control.md, and says which layer it picked before writing. Carries only the keys that differ from the layers below rather than restating the whole config. Verifies the overlay is gitignored — an ignore match is the success condition here, the inverse of the team file's check — never runs git add on it, and if it is not ignored, surfaces the .claude/*.local.* line for the consumer to add rather than editing their .gitignore. Closes by reporting the resulting effective merge, not only the keys written.",
+      "expected_output": "Writes .claude/source-control.local.md, not the tracked team .claude/source-control.md, and says which layer it picked before writing. Carries only the keys that differ from the layers below rather than restating the whole config. Verifies the overlay is gitignored — an ignore match is the success condition here, the inverse of the team file's check — never runs git add on it, and if it is not ignored, surfaces the recursive .claude/**/*.local.* line for the consumer to add rather than editing their .gitignore. Closes by reporting the resulting effective merge, not only the keys written.",
       "files": [".claude/source-control.md"],
       "expectations": [
         "Writes the personal overlay path, leaving the tracked team file unmodified",
         "States which layer it selected before writing",
         "Writes only the differing keys instead of restating every key from the team layer",
         "Treats a git check-ignore match on the overlay as success, and never stages the overlay with git add",
-        "When the overlay is not ignored, recommends the .claude/*.local.* gitignore line instead of editing the consumer's .gitignore",
+        "When the overlay is not ignored, recommends the recursive .claude/**/*.local.* gitignore line instead of editing the consumer's .gitignore",
         "Reports the resulting effective merge across layers rather than only the keys just written"
       ]
     },
@@ -236,14 +236,28 @@
     {
       "id": 19,
       "name": "check-reports-missing-overlay-ignore-without-overlay-file",
-      "prompt": "/source-control:setup check\n\nThe repo has a tracked team .claude/source-control.md and no .claude/source-control.local.md. .gitignore does not mention .claude/*.local.*.",
-      "expected_output": "Reports FAIL on the local-overlay ignore rule even though no overlay file exists: the rule must be in place before the first overlay is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes .claude/*.local.* at team-layer bind.",
+      "prompt": "/source-control:setup check\n\nThe repo has a tracked team .claude/source-control.md and no .claude/source-control.local.md. .gitignore does not mention .claude/**/*.local.*.",
+      "expected_output": "Reports FAIL on the local-overlay ignore rule even though no overlay file exists: the rule must be in place before the first overlay is written. Does not classify the missing rule as INFO/pass. Names apply as the remediation, which writes the recursive .claude/**/*.local.* line at team-layer bind. The presence probe is git check-ignore --no-index -v -- .claude/nested/overlay.local.md, not the flat overlay path.",
       "files": [],
       "expectations": [
         "Probes the ignore rule without requiring the overlay file to exist",
+        "Probes a nested sentinel (.claude/nested/overlay.local.md) rather than the flat overlay path",
         "Counts only a repository .gitignore match, not info/exclude or core.excludesFile",
-        "Missing .claude/*.local.* rule is FAIL, not INFO",
+        "Missing .claude/**/*.local.* rule is FAIL, not INFO",
         "Remediation is apply writing the ignore line at team-layer bind"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "check-does-not-accept-leftover-nonrecursive-ignore-as-the-recursive-rule",
+      "prompt": "/source-control:setup check\n\nThe repo has a tracked team .claude/source-control.md and no .claude/source-control.local.md. .gitignore contains .claude/*.local.* and does not contain .claude/**/*.local.*.",
+      "expected_output": "Reports FAIL on the local-overlay ignore rule. The leftover .claude/*.local.* line matches the flat overlay path, so probing .claude/source-control.local.md would have passed; the nested sentinel .claude/nested/overlay.local.md does not match that line, so check still FAILs and names apply as the remediation (append .claude/**/*.local.* at team-layer bind).",
+      "files": [],
+      "expectations": [
+        "A leftover .claude/*.local.* rule is not treated as the recursive overlay ignore rule",
+        "The presence probe uses .claude/nested/overlay.local.md",
+        "Missing .claude/**/*.local.* is FAIL even when .claude/*.local.* is present",
+        "Remediation is apply appending the recursive line at team-layer bind"
       ]
     }
   ]

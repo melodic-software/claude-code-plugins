@@ -116,8 +116,8 @@ the contract schema catches typos the tolerant reader would otherwise ignore.
 
 Personal per-key overrides go in `.claude/ecosystems/<ecosystem>.local.yaml`; a user-global base at
 `~/.claude/ecosystems/<ecosystem>.yaml` is also honored. Layers resolve
-user-global → team → local overlay, additively per key. Recommend the consumer add
-`.claude/ecosystems/*.local.*` to `.gitignore` if not already covered.
+user-global → team → local overlay, additively per key. Recommend the consumer add the recursive
+`.claude/**/*.local.*` line to `.gitignore` if not already covered.
 
 ## Output
 

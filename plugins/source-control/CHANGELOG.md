@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.36]
+
+### Changed
+
+- `setup` (and the README/reference docs) now recommend config-cascade's mandated recursive `.claude/**/*.local.*` gitignore line for personal overlays instead of a narrow or bespoke spelling (#3582, customization-consistency Phase 1a). The overlay-ignore presence probe (check, and team-layer apply before append) uses a nested sentinel (`.claude/nested/overlay.local.md`) so a leftover `.claude/*.local.*` line is not mistaken for the recursive rule.
+
 ## [0.55.35]
 
 ### Changed
