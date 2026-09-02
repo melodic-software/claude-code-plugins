@@ -5,6 +5,42 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.32]
+
+### Changed
+
+- **The zone-crossing hook's steady PostToolBatch path drops from 11 processes to 2.** PostToolBatch
+  fires once per tool batch, so every process `zone-crossing-inject.sh` started was paid on the
+  critical path of every batch. Removed: three `dirname` calls (two sources plus the resolver path),
+  replaced by `${BASH_SOURCE[0]%/*}` with dirname's own `.` answer for a slash-free invocation; a
+  second `jq`, by reading `hook_event_name` and `session_id` in one pass instead of one call each;
+  `tr -cd '[:lower:]' | head -c 16` on both state markers, replaced by `$(<file)` plus parameter
+  expansion that keeps the `[:lower:]` class so the result stays locale-independent; and the
+  per-batch `mkdir -p` on the state directory, behind a `-d` guard so it is paid once per session.
+  Measured on Windows 11 under Git Bash, 12 trials against a `bash -c :` floor: 18.9
+  spawn-equivalents to 10.8. The accounting table is in the plugin README.
+- **`zone-gate.sh` spawns nothing in the default advisory posture.** Its two `dirname` calls were
+  its entire cost there, since the gate exists only in blocking mode and otherwise starts, sources
+  and exits. 2.5 spawn-equivalents to 1.4.
+- **The PostCompact marker drops from 9 processes to 4.** Two `dirname` calls went the same way;
+  `date -u` became printf's `%()T` format, the idiom the shared telemetry helper already uses, for
+  an identical string and no process; and the `mkdir` and the blocking-mode counter `rm` are behind
+  existence guards, both no-ops on the steady path. The prune, the atomic rename and the permission
+  repair on the shared contract directory stay: PostCompact fires once per compaction, not per tool
+  batch.
+- **What did not change: any decision, any emitted text, any state file.** An eleven-scenario
+  capture covering both events, both crossing directions, hostile and absent session ids and an
+  empty payload diffs byte-identical on stdout, exit code and every state file. One process for
+  `scripts/context-zone.sh` stays by design, because it is the single band authority these hooks
+  must not re-implement, and it is now the whole remaining cost of a steady fire.
+
+### Added
+
+- **`zone-crossing-inject.test.sh` asserts the per-batch process budget by trace.** Reading the code
+  cannot prove it: `dirname`, `tr`, `head` and a per-field `jq` each look like one harmless call at
+  the call site and only add up in a trace. The new cases assert exact counts rather than absence,
+  so a regression back to a second `jq` fails a test instead of quietly slowing every tool batch.
+
 ## [0.7.31]
 
 ### Changed

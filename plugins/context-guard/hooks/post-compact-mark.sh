@@ -29,10 +29,15 @@
 
 set -uo pipefail
 
+# Hook directory by parameter expansion, never `dirname`: two sources meant two
+# processes before any work. The `.` fallback reproduces dirname's own answer
+# for a bare, slash-free invocation.
+CG_DIR=${BASH_SOURCE[0]%/*}
+[[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$CG_DIR/hook-utils.sh"
 # shellcheck source=payload.sh
-source "$(dirname "${BASH_SOURCE[0]}")/payload.sh"
+source "$CG_DIR/payload.sh"
 
 hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
@@ -64,11 +69,21 @@ fi
 # path.
 [[ -n "${HOME:-}" ]] || exit 0
 CTX_DIR="$HOME/.claude/context-guard/context"
-mkdir -p "$CTX_DIR" 2>/dev/null || exit 0
+# `mkdir -p` on an existing directory already exited 0, so the guard changes no
+# outcome and skips the process on every compaction after the first. The chmod
+# is NOT guarded: it repairs permissions on a shared contract directory this
+# hook does not own, and skipping it would make that repair depend on which
+# process created the directory.
+[[ -d "$CTX_DIR" ]] || mkdir -p "$CTX_DIR" 2>/dev/null || exit 0
 chmod 700 "$HOME/.claude/context-guard" "$CTX_DIR" 2>/dev/null || true
 umask 077
 
-ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || ts=""
+# printf's %()T format instead of `date`, the same idiom hook-utils uses for
+# its telemetry timestamp: identical string, no process. TZ=UTC overrides the
+# local zone so the trailing Z is not a lie. printf is a builtin here, so the
+# `||` fallback covers only a shell too old for %()T (bash below 4.2).
+ts=""
+TZ=UTC printf -v ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1 2>/dev/null || ts=""
 
 marker='{"compacted_at":"'"$(hook::json_escape "$ts")"'","trigger":"'"$TRIGGER"'","hook_event_name":"PostCompact"}'
 target="$CTX_DIR/$SESSION.compacted"
@@ -102,7 +117,12 @@ find "$CTX_DIR" -maxdepth 1 -name '*.compacted' -mmin +20160 -exec rm -f {} + 2>
 
 # Compaction opens a fresh window: re-arm the blocking gate's grace budget.
 STATE_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/context-guard}/state"
-rm -f "$STATE_DIR/$SESSION.gate-count" 2>/dev/null || true
+# The counter only exists in blocking mode, so on the default advisory posture
+# this `rm` was a process spawned to delete nothing. `rm -f` on an absent path
+# already succeeded, so the guard changes no outcome.
+if [[ -e "$STATE_DIR/$SESSION.gate-count" ]]; then
+  rm -f "$STATE_DIR/$SESSION.gate-count" 2>/dev/null || true
+fi
 
 # SIDE-EFFECT-ONLY contract still holds: PostCompact has no decision control,
 # so this always exits 0 regardless of marker_ok — only the telemetry status

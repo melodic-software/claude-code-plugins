@@ -104,7 +104,7 @@ set -uo pipefail
 # SPAWN DISCIPLINE (PostToolBatch fires on every tool batch, so every process
 # here is paid on the critical path of every batch). The hook directory comes
 # from parameter expansion rather than `dirname`, which this file used three
-# times — two sources plus the resolver path — for three processes before a
+# times (two sources plus the resolver path) for three processes before a
 # single line of work. The `.` fallback reproduces dirname's own answer for a
 # bare, slash-free invocation; hooks.json always passes an absolute path.
 CG_DIR=${BASH_SOURCE[0]%/*}
@@ -141,7 +141,7 @@ INPUT=$(cg::read_payload) || exit 0
 # for its own payload shape; this one keeps jq as the parser.
 FIELDS=$(printf '%s' "$INPUT" | jq -r '(.hook_event_name // ""), (.session_id // "") | gsub("\r";"")' 2>/dev/null)
 # jq writes CRLF line endings on this host, and command substitution strips only
-# the TRAILING one — so with two lines the separator's carriage return survives
+# the TRAILING one, so with two lines the separator's carriage return survives
 # into the split and would ride along on the event name. The single-field helper
 # never saw this because its one and only line ending was the trailing one.
 # gsub above has already removed any CR belonging to a field's value, so nothing
@@ -150,7 +150,7 @@ FIELDS=${FIELDS//$'\r'/}
 EVENT=${FIELDS%%$'\n'*}
 SESSION=${FIELDS#*$'\n'}
 # No newline in FIELDS means jq emitted at most one line, so there is no
-# session field to take — the expansion above would otherwise hand back the
+# session field to take, and the expansion above would otherwise hand back the
 # event name.
 [[ "$SESSION" != "$FIELDS" ]] || SESSION=""
 [[ -n "$EVENT" ]] || EVENT="PostToolBatch"

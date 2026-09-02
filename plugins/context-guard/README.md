@@ -78,6 +78,41 @@ tool that needs it, so long-running workflows can route heavy work away from a d
   snapshots. Zones are routing hints. Consumers must never attach security or egress decisions
   to a zone word. See the reader contract's untrusted-data section.
 
+### Hook cost accounting
+
+`zone-crossing-inject.sh` runs on PostToolBatch, which fires once per tool batch, so every process
+it starts is paid on the critical path of every batch. Measured 2026-09-02 on Windows 11 under Git
+Bash: 12 trials per row, each preceded by a `bash -c :` spawn floor so the floor and the hook see
+the same machine load, medians reported. Cost is given in spawn-equivalents (hook wall time divided
+by that run's floor) because the absolute figure moves with load. Process counts are of commands in
+command position in the hook process, so a shell builtin such as `command -v jq` is correctly not
+counted.
+
+| Path | Processes before | Processes after | Spawn-equivalents before | After |
+|---|---|---|---|---|
+| PostToolBatch, steady zone (the common case) | 11 | 2 | 18.9 | 10.8 |
+| PostToolBatch, no snapshot yet | 6 | 2 | 8.6 | 4.8 |
+| PostToolBatch, crossing into a worse zone | 11 | 2 | 16.5 | 11.8 |
+| UserPromptSubmit, steady zone | 11 | 2 | 18.4 | 11.8 |
+| PreToolUse gate, default advisory posture | 2 | 0 | 2.5 | 1.4 |
+| PostCompact marker | 9 | 4 | 9.4 | 5.7 |
+
+What went: three `dirname` calls per hook, replaced by parameter expansion; a second `jq`, by
+reading both envelope fields in one pass; `tr -cd | head -c` on each of the two state markers, by
+`$(<file)` plus parameter expansion; and `mkdir` and `rm` calls that the steady path had already
+made unnecessary, behind existence guards. `date` in the PostCompact marker became printf's `%()T`
+format. No decision, no emitted text and no state file changed: an eleven-scenario capture covering
+both events, both crossing directions, hostile and absent session ids and an empty payload diffs
+byte-identical on stdout, exit code and every state file, and the contract tests assert the
+remaining process budget by trace so a regression fails a test rather than slowing a session.
+
+What stays, and why: one `jq` pass, because a PostToolBatch payload carries every serialized tool
+result, so a regex for the envelope fields would be matching against tool output; and one process
+for `scripts/context-zone.sh`, which is the single band authority these hooks must not
+re-implement. That resolver is the floor. Measured alone it costs 199 ms at a 25 ms floor, about
+8 spawn-equivalents, in 4 processes of its own, which is now the whole remaining cost of a steady
+PostToolBatch fire. Cutting further means changing the resolver, not these hooks.
+
 ## Install
 
 ```shell

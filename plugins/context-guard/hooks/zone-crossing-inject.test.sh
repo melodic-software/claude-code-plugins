@@ -548,6 +548,72 @@ else
   fail "zone state leaked into the working directory"
 fi
 
+# --- The per-batch process budget, proven by trace -----------------------------
+# PostToolBatch fires once per tool batch, so every process this hook starts is
+# paid on the critical path of every batch. Reading the code cannot prove the
+# budget: `dirname`, `tr`, `head` and a per-field `jq` each look like one
+# harmless call at the call site and only add up in a trace. The assertion is on
+# EXACT COUNTS, not on absence, so a regression back to a second `jq` fails here
+# rather than showing up as a slow session.
+#
+# Budget on the steady non-crossing path, which is the common case:
+#   1 jq   : one pass over the payload for both envelope fields
+#   1 bash : scripts/context-zone.sh, the single band authority this hook must
+#            not re-implement; its own execs are in that process, not this trace
+# Anything else is a regression. The count is of commands in COMMAND POSITION
+# (anchored on the xtrace depth prefix), so `command -v jq` in hook::require_jq
+# is correctly not counted: it is a shell builtin and spawns nothing.
+#
+# HOOK_TELEMETRY_SINK is empty, as everywhere else in this file. With a sink
+# configured, hook::emit_telemetry adds mktemp, jq and rm inside hook-utils.sh,
+# which is a synced shared library and not this plugin's to change.
+TH="$WORK/home-trace"
+TD="$WORK/data-trace"
+mkdir -p "$TD"
+write_snapshot "$TH" strace 10
+# Prime: the first fire creates the state directory and the markers, so the
+# traced fire is the steady path a running session actually pays.
+printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
+  HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" bash "$HOOK" >/dev/null 2>&1
+TRACE_LOG="$WORK/inject-xtrace.log"
+printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
+  HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
+    BASH_XTRACEFD=9 bash -x "$HOOK" >/dev/null 2>/dev/null 9>"$TRACE_LOG"
+
+TRACE_PAT='^\++ (jq|git|date|mktemp|sed|grep|awk|cat|mkdir|mv|rm|tr|head|tail|cut|wc|uname|dirname|basename|readlink|sort|find|chmod|touch|sleep|expr|stat|cygpath|bash) '
+if [[ -s "$TRACE_LOG" ]]; then
+  ok "trace: the steady non-crossing path was traced"
+else
+  fail "trace: no usable xtrace captured"
+fi
+TRACE_SPAWNS=$(grep -cE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+TRACE_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
+if [[ "$TRACE_SPAWNS" == "2" ]]; then
+  ok "trace: the steady path spawns exactly 2 processes"
+else
+  fail "trace: steady path spawns $TRACE_SPAWNS processes, budget is 2: $TRACE_DETAIL"
+fi
+TRACE_JQ=$(grep -cE '^\++ jq ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE_JQ" == "1" ]]; then
+  ok "trace: exactly one jq pass over the payload"
+else
+  fail "trace: $TRACE_JQ jq processes on the steady path, budget is 1"
+fi
+TRACE_BASH=$(grep -cE '^\++ bash ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE_BASH" == "1" ]]; then
+  ok "trace: exactly one resolver process (the band authority)"
+else
+  fail "trace: $TRACE_BASH bash processes on the steady path, budget is 1"
+fi
+# The specific pipelines this budget replaced, named so a revert is legible in
+# the failure message rather than only in the total.
+TRACE_GONE=$(grep -cE '^\++ (dirname|tr|head) ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE_GONE" == "0" ]]; then
+  ok "trace: no dirname, tr or head on the steady path"
+else
+  fail "trace: $TRACE_GONE dirname/tr/head process(es) returned: $TRACE_DETAIL"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
