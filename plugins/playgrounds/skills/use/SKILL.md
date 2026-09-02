@@ -32,8 +32,11 @@ Determine whether the upstream plugin is installed by its identity, not its word
   entirely. Never conclude "absent" from wording alone when the name is present.
 - A local skill can shadow the upstream name. When the listed `playground` skill's
   description clearly describes something other than an interactive-explorer builder,
-  say a shadow is likely and continue to the install/guidance path rather than
-  invoking the shadowing skill.
+  say a shadow is likely, then let provenance decide: with the install record
+  confirming `playground@claude-plugins-official`, warn about the shadow and invoke
+  the namespaced `playground:playground` form (a bare-name shadow cannot intercept
+  it); with no install record confirming it, take the install/guidance path, and
+  never invoke the shadowing skill.
 
 ## Step 2: Present, so invoke
 

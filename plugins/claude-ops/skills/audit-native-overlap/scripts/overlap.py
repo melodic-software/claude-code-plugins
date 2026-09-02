@@ -996,6 +996,18 @@ def cmd_self_check(args: argparse.Namespace) -> int:
         # itself, so without the flag the comparison is honestly undecidable.
         if args.upstream_sha:
             current_sha = args.upstream_sha.strip().lower()
+            if not re.fullmatch(r"[0-9a-f]{8,40}", current_sha):
+                # A malformed value must not silently pass: an empty or short
+                # prefix would match every recorded SHA via startswith.
+                advisories.append(
+                    f"--upstream-sha {args.upstream_sha!r} is not an 8-40 character "
+                    "hex commit prefix; the recorded upstream commit(s) "
+                    f"{', '.join(recorded_shas)} were not checked"
+                )
+                current_sha = None
+        else:
+            current_sha = None
+        if current_sha:
             drifted = [
                 sha
                 for sha in recorded_shas
@@ -1007,7 +1019,7 @@ def cmd_self_check(args: argparse.Namespace) -> int:
                     f"--upstream-sha {current_sha}; rows sourced from them are "
                     "stale-but-honest until re-derived"
                 )
-        else:
+        elif not args.upstream_sha:
             advisories.append(
                 "upstream commit comparison not locally decidable (no --upstream-sha); "
                 f"the recorded upstream commit(s) {', '.join(recorded_shas)} were not "

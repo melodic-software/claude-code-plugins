@@ -24,7 +24,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`self-check --upstream-sha` advisory seam**, mirroring `--cli-version`:
   upstream-source rows' recorded commits are compared against the given SHA
   (prefix match in either direction), and without the flag the comparison is
-  reported as not locally decidable. Degraded, never broken.
+  reported as not locally decidable. A malformed value (anything but an 8-40
+  character hex prefix) is reported as unchecked rather than silently matching
+  everything. Degraded, never broken.
 
 ## [0.40.0]
 

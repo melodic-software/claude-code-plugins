@@ -5,10 +5,11 @@
       "id": 1,
       "name": "installed-routes-to-upstream-skill",
       "prompt": "/playgrounds:use help me balance the 'Inferno' hero's deck",
-      "expected_output": "Confirms the upstream playground plugin is installed by its claude-plugins-official install record, then invokes the bare `playground` skill via the Skill tool with the balancing brief, and does not generate any playground HTML itself.",
+      "expected_output": "Confirms the upstream playground plugin is installed by its claude-plugins-official install record, then invokes the upstream skill via the Skill tool using the namespaced `playground:playground` form with the balancing brief, and does not generate any playground HTML itself.",
       "files": [],
       "expectations": [
         "Presence is judged from the marketplace-qualified install record, not from description wording",
+        "The invocation uses the namespaced playground:playground form, not the ambiguity-dependent bare name",
         "The upstream skill is invoked with the user's brief; template choice is left to it",
         "No HTML is authored by this skill in any branch"
       ]
@@ -41,11 +42,12 @@
       "id": 4,
       "name": "shadowed-name-is-not-invoked",
       "prompt": "/playgrounds:use make a playground for my color palette (note: this project defines a local skill named playground that formats SQL)",
-      "expected_output": "Notices the listed playground skill does not describe an interactive-explorer builder, says a local shadow is likely, and takes the install/guidance path rather than invoking the shadowing skill.",
+      "expected_output": "Notices the listed playground skill does not describe an interactive-explorer builder and says a local shadow is likely; then, if the install record confirms playground@claude-plugins-official, warns about the shadow and invokes the namespaced playground:playground form, and only without that install record takes the install/guidance path. The shadowing skill itself is never invoked.",
       "files": [],
       "expectations": [
         "The description mismatch is treated as a shadow signal, not as proof upstream is absent",
-        "The shadowing skill is not invoked",
+        "With the install record present, the namespaced playground:playground form is invoked despite the shadow",
+        "The shadowing skill is not invoked in any branch",
         "The user is told what is shadowing what"
       ]
     }

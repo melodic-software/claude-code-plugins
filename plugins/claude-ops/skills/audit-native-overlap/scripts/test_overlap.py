@@ -611,6 +611,20 @@ class MarketplaceLaneTests(unittest.TestCase):
             3,
         )
 
+    def test_self_check_with_whitespace_upstream_sha_degrades_not_passes(self):
+        # A value that strips to "" would otherwise match every recorded SHA
+        # via startswith and silently suppress the drift advisory.
+        repo = TempRepo(rows=[BASE_ROW, MARKETPLACE_ROW])
+        self.addCleanup(repo.cleanup)
+        repo.generate()
+        self.assertEqual(repo.self_check(upstream_sha="   "), 3)
+
+    def test_self_check_with_short_malformed_upstream_sha_degrades(self):
+        repo = TempRepo(rows=[BASE_ROW, MARKETPLACE_ROW])
+        self.addCleanup(repo.cleanup)
+        repo.generate()
+        self.assertEqual(repo.self_check(upstream_sha=FIXTURE_UPSTREAM_SHA[:4]), 3)
+
 
 class DetectTests(unittest.TestCase):
     def setUp(self):
