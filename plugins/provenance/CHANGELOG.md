@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.2]
+
+### Changed
+
+- **`audit`: the two absolute-path cases report a host skip instead of failing on a third root
+  spelling.** `emit-findings.sh` relativizes Location against two spellings of the repository root,
+  git's toplevel and `cd`-then-`pwd` of it. On a Git Bash host `mktemp -d` answers a third, a mount
+  alias git never reports, so the fixture's finding path matches neither anchor and the row is
+  declined as outside the root. That is the producer working as designed on a path it was never
+  handed, not a defect the cases can prove anything about.
+
+  The suite now probes for that third spelling directly: where either anchor names the fixture
+  root, the case runs; where neither does, it prints a visible `SKIP (host: ...)` line counted
+  apart from the pass total. The producer is unchanged.
+
 ## [0.5.1]
 
 ### Fixed

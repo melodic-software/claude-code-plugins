@@ -3,6 +3,41 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.19]
+
+### Fixed
+
+- **`render-index.sh` read a drive-letter `--file` and `--root` as relative, so the index-drift
+  hook was a no-op on every Windows write.** `git rev-parse --show-toplevel` answers `C:/repo`
+  under Git Bash, and that is the spelling `hooks/index-drift.sh` hands the renderer. The absolute
+  test looked only for a leading `/`, so the target was joined to the calling directory, `check`
+  died on an unreadable file, and the hook swallowed the error and exited 0. Nothing about the
+  repository looked wrong and no stale-index notice ever appeared. `[A-Za-z]:[\/]` is now absolute.
+
+- **`reachable` and `write`'s reachability warning stripped a root prefix that could not match.**
+  Both strip `"$PWD"/` from the target after entering `--root`, and `$PWD` is the shell's own
+  spelling (`/c/repo`) while the target stayed in git's (`C:/repo`), so the strip silently left the
+  path absolute: `reachable` asked about a target it could not name, and `write` warned that a
+  reachable index was unreachable. The target is now re-spelled through `cd "$dir" && pwd`, the
+  same call that produced `$PWD`, for those two comparisons only. The path the caller wrote is
+  untouched, so every read, write and status line still names it.
+
+- **A backslash drive-letter `--file` or `--root` (`C:\repo\AGENTS.md`) is re-spelled with forward
+  slashes at intake.** GNU `dirname` and `basename` do not treat `\` as a separator, so the target
+  split to `.` plus the whole string, the re-spelled target became `$PWD/C:\repo\AGENTS.md`,
+  `reachable` asked about a path that does not exist, and `write` could warn that a reachable
+  index was unreachable. Only the drive-letter shape is touched; a POSIX path carrying a literal
+  backslash passes through unchanged. Status lines for a backslash input now print the
+  forward-slash form.
+
+### Changed
+
+- **`scripts/lib/discover.test.sh` reports a host skip instead of failing on a copied symlink.**
+  Under MSYS without `winsymlinks`, `ln -s` copies its target. Most cases survive that, but the one
+  asserting a `CLAUDE.md` symlinked to `AGENTS.md` is reachable has no subject at all. It now
+  probes the link round trip and prints a visible `SKIP (host: ...)` line counted apart from the
+  pass total.
+
 ## [0.11.18]
 
 ### Changed

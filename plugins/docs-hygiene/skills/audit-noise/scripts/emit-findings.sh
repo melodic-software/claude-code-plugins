@@ -157,10 +157,38 @@ DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # Repo root, for relativizing Location. The fix action fences each remediation
 # to its finding's Location, and an absolute path is not portable to the
 # checkout that applies the fix.
+#
+# One directory has SEVERAL SPELLINGS on Git Bash, and matching the wrong one
+# declines a real in-repo finding: this producer FAILS CLOSED, so a path it
+# cannot prove is under the root never reaches the relay. Measured on a Windows
+# host: `git rev-parse --show-toplevel` answers `<drive>:/Users/<user>/.../t`,
+# `cd` then `pwd` answers `/<drive>/Users/<user>/.../t`, and a caller reaching the same directory
+# as `/tmp/t` matches neither. Every finding was declined as outside the root and
+# the counts said so in a section nothing downstream reads.
+#
+# Three anchors, same shape as the claude-config sibling: the caller's own `pwd`
+# spelling (derived by removing the sub-path git reports for it), git's
+# toplevel, and `cd`-then-`pwd`.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+REPO_ROOT_ALT=""
+REPO_ROOT_PWD=""
+if [[ -n "$REPO_ROOT" ]]; then
+  REPO_ROOT_ALT="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || REPO_ROOT_ALT=""
+  [[ "$REPO_ROOT_ALT" == "$REPO_ROOT" ]] && REPO_ROOT_ALT=""
+  git_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
+  git_prefix="${git_prefix%/}"
+  cwd_now="$(pwd)"
+  if [[ -z "$git_prefix" ]]; then
+    REPO_ROOT_PWD="$cwd_now"
+  elif [[ "$cwd_now" == */"$git_prefix" ]]; then
+    REPO_ROOT_PWD="${cwd_now%/"$git_prefix"}"
+  fi
+  [[ "$REPO_ROOT_PWD" == "$REPO_ROOT" || "$REPO_ROOT_PWD" == "$REPO_ROOT_ALT" ]] && REPO_ROOT_PWD=""
+fi
 
 LC_ALL=C awk \
-  -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" -v carveout="$CARVEOUT" '
+  -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" \
+  -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" -v carveout="$CARVEOUT" '
   # Tier mirror of the severity crosswalk (see header comment). IMPORTANT on
   # severity.md stated-rule limb: docs-hygiene:write-for-agents "Prompt the
   # positive" is the stated rule the text violates.
@@ -176,6 +204,38 @@ LC_ALL=C awk \
   # This repo writes literal `\|` in its own tables, so the case is real rather
   # than theoretical. Already-escaped pipes are parked on a sentinel first, then
   # restored single-escaped. (Defect identified in #3180.)
+  # is_absolute(p): every absolute spelling that can reach an anchor. A POSIX
+  # `/`-rooted path, a UNC or root-relative backslash path, and a drive-letter
+  # path -- the last being exactly what `git rev-parse --show-toplevel` answers
+  # under Git Bash, so it is the form the anchors themselves are written in.
+  # Testing only the leading `/` read `D:/repo/doc.md` as relative and joined it
+  # to the root a second time, declining a row that relativizes correctly.
+  #
+  # Written with substr rather than a bracket expression holding `/` and `\`:
+  # the runner awk is mawk, and an unescaped delimiter inside a bracketed regex
+  # literal is where the dialects part.
+  function is_absolute(p,   c1) {
+    c1 = substr(p, 1, 1)
+    if (c1 == "/" || c1 == "\\") return 1
+    if (c1 !~ /^[A-Za-z]$/) return 0
+    if (substr(p, 2, 1) != ":") return 0
+    return (substr(p, 3, 1) == "/" || substr(p, 3, 1) == "\\")
+  }
+
+  # Prefer the caller pwd spelling, then git toplevel, then cd-then-pwd. An
+  # empty return means the path is under no known spelling of the root, which
+  # this producer treats as out of repo -- fail closed, the direction the fence
+  # exists to hold.
+  function strip_root(p) {
+    if (repo_root_pwd != "" && index(p, repo_root_pwd "/") == 1)
+      return substr(p, length(repo_root_pwd) + 2)
+    if (repo_root != "" && index(p, repo_root "/") == 1)
+      return substr(p, length(repo_root) + 2)
+    if (repo_root_alt != "" && index(p, repo_root_alt "/") == 1)
+      return substr(p, length(repo_root_alt) + 2)
+    return ""
+  }
+
   function esc(s) {
     gsub(/\\\|/, "\001", s)
     gsub(/\|/, "\\|", s)
@@ -319,10 +379,10 @@ LC_ALL=C awk \
     # resolves past this test, which needs a canonicalizing syscall awk has no
     # portable access to.
     abs = cur_file
-    if (substr(abs, 1, 1) != "/") abs = repo_root "/" cur_file
+    if (!is_absolute(abs)) abs = repo_root "/" cur_file
     if (abs ~ /(^|\/)\.\.(\/|$)/) { declined_outofrepo[cur_shape]++; reset(); next }
-    if (repo_root == "" || index(abs, repo_root "/") != 1) { declined_outofrepo[cur_shape]++; reset(); next }
-    loc = substr(abs, length(repo_root) + 2)
+    loc = strip_root(abs)
+    if (loc == "") { declined_outofrepo[cur_shape]++; reset(); next }
 
     rows[++nemit] = "| " rule_tier() " | high | " loc ":" cur_line " | docs-hygiene:audit-noise | " \
       esc("docs-hygiene/audit-noise/rule-negation-without-positive prohibition=\"" fired_marker(cur_marker, text) "\" with no positive alternative in the sentence -- " trim(cur_excerpt)) \

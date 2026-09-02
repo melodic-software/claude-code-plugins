@@ -34,10 +34,36 @@ mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
+}
+# A case whose subject this host cannot build is neither a pass nor a failure.
+# It prints its own visible line and carries its own counter, and never routes
+# through pass(), so a proof this host could not run can never be read off the
+# summary as one that did.
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
+}
+
+# Under MSYS without winsymlinks, `ln -s` COPIES the target instead of linking
+# it. The git-absent case builds a minimal PATH out of links to the real
+# binaries; a copied bash.exe cannot find msys-2.0.dll beside it, so the shell
+# under test never starts and detect.sh emits nothing. Probe the round trip
+# rather than the OS name.
+host_makes_symlinks() {
+  local d rc=1
+  d="$(mktemp -d)"
+  printf 'x\n' >"$d/target"
+  if ln -s target "$d/link" 2>/dev/null &&
+    [[ -L "$d/link" ]] && [[ "$(readlink "$d/link" 2>/dev/null)" == "target" ]]; then
+    rc=0
+  fi
+  rm -rf "$d"
+  return "$rc"
 }
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -816,15 +842,23 @@ assert_contains "dir target, non-ASCII filename: the file is not dropped" "$out"
 
 # git absent: tracked-files-only is not achievable, so the walk still runs,
 # but the fallback must be reported rather than silent.
-NOGIT_BIN="$TEST_TMPDIR/bin-nogit"
-mkdir -p "$NOGIT_BIN"
-for name in bash find sort awk sed cat printf mkdir uname env dirname basename head tail wc tr; do
-  src="$(command -v "$name" 2>/dev/null)" || continue
-  ln -s "$src" "$NOGIT_BIN/$name"
-done
-out="$(PATH="$NOGIT_BIN" bash "$DETECT" "$GITDIR/docs" 2>&1)"
-assert_contains "dir target, git absent: reports the walk" "$out" "git is not on PATH"
-assert_contains "dir target, git absent: walk scans tracked and untracked markdown" "$out" "2 files scanned"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_makes_symlinks; then
+  NOGIT_BIN="$TEST_TMPDIR/bin-nogit"
+  mkdir -p "$NOGIT_BIN"
+  for name in bash find sort awk sed cat printf mkdir uname env dirname basename head tail wc tr; do
+    src="$(command -v "$name" 2>/dev/null)" || continue
+    ln -s "$src" "$NOGIT_BIN/$name"
+  done
+  out="$(PATH="$NOGIT_BIN" bash "$DETECT" "$GITDIR/docs" 2>&1)"
+  assert_contains "dir target, git absent: reports the walk" "$out" "git is not on PATH"
+  assert_contains "dir target, git absent: walk scans tracked and untracked markdown" "$out" "2 files scanned"
+else
+  skip "dir target, git absent: reports the walk" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+  skip "dir target, git absent: walk scans tracked and untracked markdown" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+fi
 
 # --- Bare invocation (no paths) ---------------------------------------------------
 
@@ -892,9 +926,19 @@ out="$(cd "$BARENOREPO" && CLAUDE_PROJECT_DIR="$BARENOREPO" bash "$DETECT" 2>&1)
 assert_contains "bare invocation outside a checkout: says so" "$out" "could not confirm a work tree at $BARENOREPO"
 assert_contains "bare invocation outside a checkout: scans nothing" "$out" "0 files scanned"
 
-out="$(cd "$BAREREPO" && PATH="$NOGIT_BIN" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
-assert_contains "bare invocation, git absent: reports it" "$out" "git is not on PATH"
-assert_contains "bare invocation, git absent: scans nothing" "$out" "0 files scanned"
+# Same git-less PATH, so the same host constraint: where `ln -s` copies, the
+# shell under test never starts and there is nothing to assert about.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if [[ -n "${NOGIT_BIN:-}" ]]; then
+  out="$(cd "$BAREREPO" && PATH="$NOGIT_BIN" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+  assert_contains "bare invocation, git absent: reports it" "$out" "git is not on PATH"
+  assert_contains "bare invocation, git absent: scans nothing" "$out" "0 files scanned"
+else
+  skip "bare invocation, git absent: reports it" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+  skip "bare invocation, git absent: scans nothing" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+fi
 
 # --- Excerpt truncation at the byte boundary --------------------------------------
 
@@ -1201,9 +1245,9 @@ assert_contains "action: stacked-hedging names the one-hedge repair" \
 
 echo
 if [[ "$FAILED" -eq 0 ]]; then
-  echo "All $CASE_NUM cases passed"
+  echo "All $CASE_NUM cases passed, $SKIPPED host skip(s)"
   exit 0
 else
-  echo "$FAILED of $CASE_NUM cases FAILED"
+  echo "$FAILED of $CASE_NUM cases FAILED, $SKIPPED host skip(s)"
   exit 1
 fi

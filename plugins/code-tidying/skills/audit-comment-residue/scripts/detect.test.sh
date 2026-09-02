@@ -14,10 +14,19 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
+}
+# A case whose FIXTURE this filesystem cannot hold is neither a pass nor a
+# failure of the detector. It prints its own visible line and carries its own
+# counter, and never routes through pass(), so a proof this host could not run
+# can never be read off the summary as one that did.
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -38,6 +47,32 @@ assert_not_contains() {
   *"$3"*) fail "$1" "absent: $3" "present" ;;
   *) pass "$1" ;;
   esac
+}
+
+# Several cases below deliberately name a file with a byte git's v1 porcelain
+# escapes. Windows reserves `"`, `>` and a tab in a filename, and MSYS hides
+# that: it substitutes each reserved byte with the private-use code point at
+# U+F000 plus the byte, so the file exists to THIS shell under the name asked for
+# while every native tool sees the substitute. A backslash is not substituted at
+# all, it is a separator, and the create simply fails.
+#
+# Either way the fixture the case needs is absent, and the assertion would report
+# a detector defect that does not exist. Ask through git, the native tool the
+# case is really about: `--porcelain -z` emits the raw bytes with no C-quoting,
+# so a name that survives to git matches exactly and one that does not, does not.
+NAME_PROBE_REPO="$TEST_TMPDIR/nameprobe"
+mkdir -p "$NAME_PROBE_REPO"
+git -C "$NAME_PROBE_REPO" init -q
+host_can_name() {
+  local name="$1" rc=1
+  if : >"$NAME_PROBE_REPO/$name" 2>/dev/null && [[ -f "$NAME_PROBE_REPO/$name" ]]; then
+    if git -C "$NAME_PROBE_REPO" status --porcelain -z 2>/dev/null |
+      tr '\0' '\n' | grep -qxF "?? $name"; then
+      rc=0
+    fi
+  fi
+  rm -f -- "$NAME_PROBE_REPO/$name" 2>/dev/null
+  return "$rc"
 }
 
 # --- Fixtures (built inline; no shipped fixture files) ---------------------------
@@ -268,8 +303,10 @@ else
     REPO13="$TEST_TMPDIR/repo13"
     mkdir -p "$REPO13"
     git -C "$REPO13" init -q
-    : >"$REPO13/quote\".py"
-    : >"$REPO13/back\\-slash.py"
+    # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+    if host_can_name 'quote".py'; then : >"$REPO13/quote\".py"; fi
+    # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+    if host_can_name 'back\-slash.py'; then : >"$REPO13/back\\-slash.py"; fi
     : >"$REPO13/plain space.py"
     # A non-ASCII name is the case the v1 parse could not decode: the é arrives octal-escaped as
     # \303\251, which a quote-strip alone leaves naming no file. The ASCII fixtures above
@@ -286,8 +323,20 @@ else
 
     assert_contains "preview script reads a non-ASCII path undecoded" "$skill_out" 'café.py'
     assert_not_contains "preview script leaks no octal escape" "$skill_out" '\303'
-    assert_contains "preview script unescapes an embedded quote" "$skill_out" 'quote".py'
-    assert_contains "preview script unescapes an embedded backslash" "$skill_out" 'back\-slash.py'
+    # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+    if host_can_name 'quote".py'; then
+      assert_contains "preview script unescapes an embedded quote" "$skill_out" 'quote".py'
+    else
+      skip "preview script unescapes an embedded quote" \
+        'a double quote does not survive into a filename git can see here'
+    fi
+    # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+    if host_can_name 'back\-slash.py'; then
+      assert_contains "preview script unescapes an embedded backslash" "$skill_out" 'back\-slash.py'
+    else
+      skip "preview script unescapes an embedded backslash" \
+        'a backslash does not survive into a filename git can see here'
+    fi
     assert_contains "preview script unwraps a spaced path" "$skill_out" 'plain space.py'
     assert_contains "preview script takes the worktree-rename new path" "$skill_out" 'renamed-dst.py'
     assert_not_contains "preview script leaves no rename arrow" "$skill_out" ' -> '
@@ -352,21 +401,32 @@ fi
 REPO14="$TEST_TMPDIR/repo14"
 mkdir -p "$REPO14"
 git -C "$REPO14" init -q
-cp "$ALL_SHAPES" "$REPO14/left -> right.py"
+if host_can_name 'left -> right.py'; then cp "$ALL_SHAPES" "$REPO14/left -> right.py"; fi
 cp "$ALL_SHAPES" "$REPO14/café.py"
-cp "$ALL_SHAPES" "$REPO14/$(printf 'tab\there.py')"
+if host_can_name "$(printf 'tab\there.py')"; then
+  cp "$ALL_SHAPES" "$REPO14/$(printf 'tab\there.py')"
+fi
 escaped_out="$(cd "$REPO14" && bash "$DETECT")"
-assert_contains "arrow-in-filename audited, not split as a rename" "$escaped_out" "left -> right.py"
+if host_can_name 'left -> right.py'; then
+  assert_contains "arrow-in-filename audited, not split as a rename" "$escaped_out" "left -> right.py"
+else
+  skip "arrow-in-filename audited, not split as a rename" \
+    'a > does not survive into a filename git can see here'
+fi
 assert_contains "non-ASCII path audited without escape mangling" "$escaped_out" "café.py"
-assert_contains "tab-bearing path audited" "$escaped_out" "$(printf 'tab\there.py')"
+if host_can_name "$(printf 'tab\there.py')"; then
+  assert_contains "tab-bearing path audited" "$escaped_out" "$(printf 'tab\there.py')"
+else
+  skip "tab-bearing path audited" 'a tab does not survive into a filename git can see here'
+fi
 assert_not_contains "escaped paths are not reported as files=0" "$escaped_out" "files=0"
 assert_not_contains "no C-style octal escape leaks into a target path" "$escaped_out" '\303'
 
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
+  printf '\nAll %d checks passed, %d host skip(s).\n' "$CASE_NUM" "$SKIPPED"
   exit 0
 fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
+printf '\n%d/%d checks failed, %d host skip(s).\n' "$FAILED" "$CASE_NUM" "$SKIPPED" >&2
 exit 1
