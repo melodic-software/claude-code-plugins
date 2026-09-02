@@ -8,6 +8,12 @@ only after that version increases.
 
 ### Changed
 
+- **Course-digest extraction lib tidyings (second wave).** `players/hotmart.js` drops
+  two provably dead guards in `getTranscript` (the vendor manifest parser returns only
+  dense arrays of non-empty strings), a redundant boolean annotation, and hoists a
+  batch-size constant; `browser.js` and `auth-store.js` headers rewritten from history
+  narration to present-tense rationale. Vitest 41/41 and full package 91/91 before and
+  after.
 - **Video-digest extraction lib tidyings from the repo-wide sweep.**
   `synthesis-filename.js` removes a provably dead stub-token set in
   `isStubQualityAuditNote` (every token sat under the function's 20-character

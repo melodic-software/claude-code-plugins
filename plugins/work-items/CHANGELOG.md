@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.52]
+
+### Changed
+
+- **One tracker-suite comment recast (repo-wide tidy sweep).** `lib/frontier.test.sh`'s
+  history-narration fragment about the container-label default becomes a present-tense
+  invariant (explicit remap wins; the shipped default stops excluding). No code changes;
+  the dispatcher+lib layer needed nothing else after its recent simplify sweeps.
+
 ## [0.39.51]
 
 ### Changed

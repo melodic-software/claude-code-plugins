@@ -7,6 +7,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
+- **Permission-state suite fixture repair and cleanups (tidy sweep, second wave).**
+  `permission-plane-lint.test.sh`'s WINREAL fixture was built through a printf format
+  string that corrupted `\a` into a BEL byte and warned on `\U` every run; it is now a
+  quoted heredoc matching intent. printf newline formats normalized, long `env`
+  invocations rewrapped, and a redundant awk paren layer dropped in two lints.
+  `audit-pass/run-state.sh` reads the two heartbeat lease fields into locals like its
+  siblings, and `permission-rule-check.test.sh` renames case-12 fixtures that shadowed
+  case 8's. No behavior or contract changes.
 - **Audit script cleanups from the repo-wide tidy sweep.** `check-hook-coverage.sh`
   replaces three manual counter loops with the `for i in "${!ARR[@]}"` idiom;
   `check-plugin-drift.sh` collapses the two-stage pairs_obj jq build into the single

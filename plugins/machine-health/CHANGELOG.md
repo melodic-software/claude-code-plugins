@@ -5,7 +5,19 @@ All notable changes to the `machine-health` plugin are documented here. Format f
 
 ## [0.12.7]
 
+### Fixed
+
+- **The elevation banner's rerun command now uses a PowerShell backtick continuation.**
+  `Write-ElevationBanner.ps1` emitted a bash-only backslash line continuation in the
+  command it tells the user to paste into an elevated pwsh session; no environment
+  existed where that worked. Now matches the file's own docstring spec and
+  `references/windows/elevation-matrix.md`.
+
 ### Changed
+
+- **`Invoke-AllowlistedWeb.ps1`** drops the no-op `UseBasicParsing` splat entry and a
+  dead `$parsed` initialization, and its copy-not-reference test gains
+  mutation-verified assertions (a reference-returning regression now fails the suite).
 
 - **Audit lib tidyings from the repo-wide sweep.** `Get-CisaKevCache.ps1` drops the
   `UseBasicParsing` switch from its web-request splat (a documented no-op on the
