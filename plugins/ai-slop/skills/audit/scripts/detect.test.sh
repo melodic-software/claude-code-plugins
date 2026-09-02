@@ -926,9 +926,19 @@ out="$(cd "$BARENOREPO" && CLAUDE_PROJECT_DIR="$BARENOREPO" bash "$DETECT" 2>&1)
 assert_contains "bare invocation outside a checkout: says so" "$out" "could not confirm a work tree at $BARENOREPO"
 assert_contains "bare invocation outside a checkout: scans nothing" "$out" "0 files scanned"
 
-out="$(cd "$BAREREPO" && PATH="$NOGIT_BIN" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
-assert_contains "bare invocation, git absent: reports it" "$out" "git is not on PATH"
-assert_contains "bare invocation, git absent: scans nothing" "$out" "0 files scanned"
+# Same git-less PATH, so the same host constraint: where `ln -s` copies, the
+# shell under test never starts and there is nothing to assert about.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if [[ -n "${NOGIT_BIN:-}" ]]; then
+  out="$(cd "$BAREREPO" && PATH="$NOGIT_BIN" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+  assert_contains "bare invocation, git absent: reports it" "$out" "git is not on PATH"
+  assert_contains "bare invocation, git absent: scans nothing" "$out" "0 files scanned"
+else
+  skip "bare invocation, git absent: reports it" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+  skip "bare invocation, git absent: scans nothing" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+fi
 
 # --- Excerpt truncation at the byte boundary --------------------------------------
 
