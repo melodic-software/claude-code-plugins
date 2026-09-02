@@ -1,5 +1,16 @@
 # Changelog — discovery plugin
 
+## [0.19.1]
+
+### Fixed
+
+- **Unreadable-ledger coverage tests simulate `PermissionError`.** The
+  Python twin patches `Path.read_text` to raise `PermissionError(EACCES)`
+  so the ungradeable-ledger contract is asserted on every platform,
+  including root and filesystems that do not enforce `chmod 000`. The
+  chmod path remains as a supplemental integration check that skips
+  visibly when the fixture stays readable. (#3375)
+
 ## [0.19.0]
 
 ### Added
