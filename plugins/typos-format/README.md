@@ -209,15 +209,24 @@ naming a clean scratch file inside a repository, so `typos` finds nothing and
 the hook takes the path that runs on nearly every edit. Windows 11 + Git Bash,
 2026-09-02.
 
+**Counting.** Both process columns come from a `bash -x` trace of that same
+invocation. An exec is a command in command position whose word resolves to a
+file rather than a builtin, function, alias or keyword. A fork is an increase in
+the trace's subshell-nesting depth, one per command substitution or subshell; it
+undercounts, because pipeline elements fork without changing the depth. Forks
+are reported beside execs because they are not free on this host: a command
+substitution measures about half the cost of a spawn, so twenty-nine of them are
+a large share of the run rather than a rounding error.
+
 **Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
 before run and **77 ms** for the after run, against the convention's reference
 host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
 comparable; the spawn-equivalent ratio is the figure that holds.
 
-| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes |
-| --- | --- | --- | --- |
-| Before (0.6.33) | 36.3 | ≈ 2,904 ms | 16 |
-| After (0.6.35) | 26.0 | ≈ 2,080 ms | 13 |
+| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes | forks |
+| --- | --- | --- | --- | --- |
+| Before (0.6.33) | 36.3 | ≈ 2,904 ms | 16 | 31 |
+| After (0.6.35) | 26.0 | ≈ 2,080 ms | 13 | 29 |
 
 **A clean edit costs ≈ 26.0 spawn-equivalents, ≈ 2,080 ms of reference-host
 work, down 28 percent.** Two `dirname` calls became parameter expansions, and

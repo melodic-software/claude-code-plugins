@@ -15,8 +15,10 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
   the NUL sniff's `head`-`tr`-`wc` is one `read`, and an already-normalized file
   no longer reaches the rewrite or the `mktemp`, `cp`, `cmp` and `rm` that
   disclosed it. Measured 41.0 to 21.5 spawn-equivalents on a Windows Git Bash
-  host, twelve interleaved trials against an interleaved `bash -c :` floor; the
-  README's accounting section carries the method and the residual.
+  host, twelve interleaved trials against an interleaved `bash -c :` floor;
+  forks fall 32 to 27 over the same run, and a command substitution costs about
+  half a spawn here, so they are counted beside the execs. The README's
+  accounting section carries the method and the residual.
 - **The library separates deciding from rewriting.** `normalize_eol_plan`
   answers which arm applies and whether the file has work to do;
   `normalize_eol_apply` performs it. `normalize_eol_file` still exists and still

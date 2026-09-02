@@ -12,8 +12,10 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   expansions, including inside the config-discovery walk and the risky-config
   walk, whose exec count grew with the edited file's depth below the repository
   root. Measured 41.6 to 32.0 spawn-equivalents on a Windows Git Bash host,
-  twelve interleaved trials against an interleaved `bash -c :` floor; the
-  README's accounting section carries the method and the residual.
+  twelve interleaved trials against an interleaved `bash -c :` floor; forks fall
+  33 to 29 over the same run, and a command substitution costs about half a
+  spawn here, so they are counted beside the execs. The README's accounting
+  section carries the method and the residual.
 - The suite gains a traced case pinning the benign path's shape on a file two
   directories below the repository root, so a walk that shelled out again would
   fail it: no `dirname`, no `basename`.

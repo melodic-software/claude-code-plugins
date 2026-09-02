@@ -14,8 +14,10 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   `dirname` calls, and the jq that copies `notebook_path` onto `file_path` now
   runs only for a payload that carries one, which no `Write` or `Edit` does.
   Measured 36.3 to 26.0 spawn-equivalents on a Windows Git Bash host, twelve
-  interleaved trials against an interleaved `bash -c :` floor; the README's
-  accounting section carries the method and the residual.
+  interleaved trials against an interleaved `bash -c :` floor; forks fall 31 to
+  29 over the same run, and a command substitution costs about half a spawn
+  here, so they are counted beside the execs. The README's accounting section
+  carries the method and the residual.
 - The suite gains a traced case pinning the benign path's shape: no `dirname`,
   no `basename`, and exactly two `jq`.
 

@@ -162,15 +162,24 @@ naming a scratch file inside a repository whose `.gitattributes` says `eol=lf`,
 already LF, so the hook has nothing to rewrite. That benign path is the one that
 runs on nearly every edit. Windows 11 + Git Bash, 2026-09-02.
 
+**Counting.** Both process columns come from a `bash -x` trace of that same
+invocation. An exec is a command in command position whose word resolves to a
+file rather than a builtin, function, alias or keyword. A fork is an increase in
+the trace's subshell-nesting depth, one per command substitution or subshell; it
+undercounts, because pipeline elements fork without changing the depth. Forks
+are reported beside execs because they are not free on this host: a command
+substitution measures about half the cost of a spawn, so twenty-seven of them
+are a large share of the run rather than a rounding error.
+
 **Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
 before run and **77 ms** for the after run, against the convention's reference
 host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
 comparable; the spawn-equivalent ratio is the figure that holds.
 
-| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes |
-| --- | --- | --- | --- |
-| Before (0.6.26) | 41.0 | ≈ 3,280 ms | 27 |
-| After (0.6.28) | 21.5 | ≈ 1,720 ms | 11 |
+| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes | forks |
+| --- | --- | --- | --- | --- |
+| Before (0.6.26) | 41.0 | ≈ 3,280 ms | 27 | 32 |
+| After (0.6.28) | 21.5 | ≈ 1,720 ms | 11 | 27 |
 
 **A benign edit costs about half what it did: ≈ 21.5 spawn-equivalents,
 ≈ 1,720 ms of reference-host work.** The cut is process count, not algorithm.

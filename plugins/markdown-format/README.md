@@ -272,16 +272,25 @@ naming a clean scratch `.md` inside a repository that has a markdownlint config,
 so the lint finds nothing and the hook takes the path that runs on nearly every
 Markdown edit. Windows 11 + Git Bash, 2026-09-02.
 
+**Counting.** Both process columns come from a `bash -x` trace of that same
+invocation. An exec is a command in command position whose word resolves to a
+file rather than a builtin, function, alias or keyword. A fork is an increase in
+the trace's subshell-nesting depth, one per command substitution or subshell; it
+undercounts, because pipeline elements fork without changing the depth. Forks
+are reported beside execs because they are not free on this host: a command
+substitution measures about half the cost of a spawn, so twenty-nine of them are
+a large share of the run rather than a rounding error.
+
 **Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
 before run and **77 ms** for the after run, against the convention's reference
 host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
 comparable; the spawn-equivalent ratio is the figure that holds.
 
-| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes |
-| --- | --- | --- | --- |
-| Clean `.md`, before (0.11.36) | 41.6 | ≈ 3,328 ms | 21 |
-| Clean `.md`, after (0.11.38) | 32.0 | ≈ 2,560 ms | 14 |
-| Non-Markdown file, after | 4.4 | ≈ 352 ms | 1 |
+| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes | forks |
+| --- | --- | --- | --- | --- |
+| Clean `.md`, before (0.11.36) | 41.6 | ≈ 3,328 ms | 21 | 33 |
+| Clean `.md`, after (0.11.38) | 32.0 | ≈ 2,560 ms | 14 | 29 |
+| Non-Markdown file, after | 4.4 | ≈ 352 ms | 1 | 9 |
 
 **A clean Markdown edit costs ≈ 32.0 spawn-equivalents, ≈ 2,560 ms of
 reference-host work, down 23 percent.** Six `dirname` calls and one `basename`
