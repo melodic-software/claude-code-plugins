@@ -187,10 +187,35 @@ if [[ -n "$CARVEOUT" && ! "$CARVEOUT" =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
+# I29 rows come from restatement-scan.py, a NATIVE Windows interpreter. MSYS
+# converts its argv on the way in and the scanner echoes what it received:
+# backslash separators, and 8.3 SHORT components (`C:\Users\KYLESE~1\...`) for
+# every directory that has one. None of the three anchors above is spelled that
+# way, so such a row was declined as outside the root -- fail closed, and on a
+# host whose checkout sits under a short-named path that silently dropped every
+# restatement finding into the human-report-only column.
+#
+# `cygpath -l -m` answers the long, forward-slash spelling of such a path, which
+# is the toplevel form the anchors are written in. The expansion cannot be done
+# from the anchor side instead: `cygpath -m -s` also shortens components MSYS
+# left long, so the two spellings do not meet in the middle. The path travels to
+# cygpath through a file this script owns rather than through a command line, so
+# no scanner-supplied text is ever interpolated into a shell word.
+#
+# Where cygpath is absent -- Linux CI, where neither shape occurs -- awk falls
+# back to separator normalization alone and the anchors work as they always did.
+CYGPATH_BIN="$(command -v cygpath 2>/dev/null || true)"
+CYGPATH_IO=""
+if [[ -n "$CYGPATH_BIN" ]]; then
+  CYGPATH_IO="$(mktemp 2>/dev/null || true)"
+  [[ -n "$CYGPATH_IO" ]] || CYGPATH_BIN=""
+fi
+
 LC_ALL=C awk \
   -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" \
   -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" \
-  -v caller_pwd="$CALLER_PWD" -v carveout="$CARVEOUT" '
+  -v caller_pwd="$CALLER_PWD" -v carveout="$CARVEOUT" \
+  -v cygpath_bin="$CYGPATH_BIN" -v cygpath_io="$CYGPATH_IO" '
   function rule_id(id) {
     if (id == "I28-a") return "claude-config/audit-instructions/rule-coercive-emphasis"
     if (id == "I28-b") return "claude-config/audit-instructions/rule-blanket-tool-default"
@@ -301,7 +326,41 @@ LC_ALL=C awk \
     return 0
   }
 
+  # is_win_absolute(p): the drive-letter and UNC subset of is_absolute -- the
+  # only shapes whose separators are backslashes and whose components can be 8.3
+  # short names. A POSIX path is deliberately excluded: on Linux a backslash is
+  # an ordinary filename byte, and rewriting it there would corrupt a Location
+  # rather than repair one.
+  function is_win_absolute(p,   c1) {
+    c1 = substr(p, 1, 1)
+    if (c1 == "\\") return 1
+    if (c1 !~ /^[A-Za-z]$/) return 0
+    if (substr(p, 2, 1) != ":") return 0
+    return (substr(p, 3, 1) == "/" || substr(p, 3, 1) == "\\")
+  }
+
+  # Re-spell a Windows path in the long, forward-slash form the anchors use.
+  # Cached per distinct input: a row set names few files and each miss costs a
+  # process. Falls back to separator normalization when cygpath is unavailable
+  # or answers nothing, which leaves an already-long path correct and a short
+  # one exactly as declinable as it is today.
+  function win_long(p,   out, cmd) {
+    if (p in wincache) return wincache[p]
+    out = ""
+    if (cygpath_bin != "" && cygpath_io != "") {
+      printf "%s\n", p > cygpath_io
+      close(cygpath_io)
+      cmd = cygpath_bin " -l -m -f " "\047" cygpath_io "\047" " 2>/dev/null"
+      if ((cmd | getline out) <= 0) out = ""
+      close(cmd)
+    }
+    if (out == "") { out = p; gsub(/\\/, "/", out) }
+    wincache[p] = out
+    return out
+  }
+
   function relativize_in_repo(p) {
+    if (is_win_absolute(p)) p = win_long(p)
     if (!is_absolute(p)) {
       sub(/^\.\//, "", p)
       sub(/^\.\\/, "", p)
@@ -521,5 +580,9 @@ LC_ALL=C awk \
       printf "Declined candidates: I28 count=%s reason=criteria-carve-out (model lane; see reference/criteria.md I28)\n", carveout
   }
 ' "$FROM" >"$OUT"
+
+if [[ -n "$CYGPATH_IO" ]]; then
+  rm -f "$CYGPATH_IO"
+fi
 
 echo "emit-findings.sh: wrote $OUT"
