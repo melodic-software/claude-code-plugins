@@ -103,7 +103,7 @@ assert_contains "topic file count reported" "$OUT" "topic files: 1"
 
 printf '# topic\n' >"$MEM_DIR/oops"$'\n'"weird.md"
 
-OUT=$(cd "$REPO" && HOME="$ISO_HOME" bash "$SCRIPT")
+OUT=$(cd "$REPO" && iso_env bash "$SCRIPT")
 assert_contains "newline-named topic file counted once, not twice" "$OUT" "topic files: 2"
 
 rm -f "$MEM_DIR/oops"$'\n'"weird.md"
