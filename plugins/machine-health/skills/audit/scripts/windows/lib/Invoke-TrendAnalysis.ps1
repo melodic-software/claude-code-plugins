@@ -3,7 +3,7 @@
 <#
 .SYNOPSIS
 Trend-aware severity adjustment + last_run annotation per the rubric in
-references/shared/severity-rubric.md.
+reference/shared/severity-rubric.md.
 
 .DESCRIPTION
 For each current check result:

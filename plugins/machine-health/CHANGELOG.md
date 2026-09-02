@@ -3,6 +3,14 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.8]
+
+### Changed
+
+- **audit:** rename the spoke directory `references/` to `reference/` so it
+  matches the fleet majority (#3546). Orchestrator, checks, catalog pointers,
+  and contributor docs (`AGENTS.md`, `README.md`) follow the new path.
+
 ## [0.12.7]
 
 ### Changed

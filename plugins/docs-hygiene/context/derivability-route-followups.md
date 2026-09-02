@@ -35,8 +35,8 @@ scanner; remaining real cite relocated.
 | `docs/conventions/hook-observability/README.md` | clean |
 | `docs/conventions/hook-telemetry/README.md` | clean |
 | `docs/topics/context-engineering-claude-5/design/skill-inventory.md` | clean |
-| `plugins/ai-briefing/skills/generate/references/build-pipeline.md` | clean |
-| `plugins/ai-briefing/skills/generate/references/slide-generation.md` | clean |
+| `plugins/ai-briefing/skills/generate/reference/build-pipeline.md` | clean |
+| `plugins/ai-briefing/skills/generate/reference/slide-generation.md` | clean |
 | `plugins/architecture/CHANGELOG.md` | basename-exempt |
 | `plugins/claude-ops/skills/known-issues/context/registry-schema.md` | clean (pointer-converted in #2695 — re-verified present) |
 | `plugins/disk-hygiene/CHANGELOG.md` | basename-exempt |
@@ -51,8 +51,8 @@ scanner; remaining real cite relocated.
 | `plugins/knowledge/skills/video-digest/templates/sources.md` | clean |
 | `plugins/knowledge/vendor/repo-analysis/README.md` | clean |
 | `plugins/knowledge/vendor/video-digestion/TUNING.md` | clean |
-| `plugins/machine-health/skills/audit/references/windows/check-catalog.md` | clean |
-| `plugins/machine-health/skills/audit/references/windows/elevation-matrix.md` | clean |
+| `plugins/machine-health/skills/audit/reference/windows/check-catalog.md` | clean |
+| `plugins/machine-health/skills/audit/reference/windows/elevation-matrix.md` | clean |
 | `plugins/mcp-tools/skills/audit/reference/server-discovery.md` | clean |
 | `plugins/planning/reference/topic-docs.md` | clean |
 | `plugins/planning/skills/draft-goal-condition/SKILL.md` | clean |

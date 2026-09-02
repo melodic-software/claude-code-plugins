@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Driver inventory + signature health. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#8-driver-inventory for rubric.
+See reference/windows/check-catalog.md#8-driver-inventory for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)

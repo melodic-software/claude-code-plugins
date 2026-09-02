@@ -18,7 +18,7 @@ their repo mid-session.
   Read/Grep/Glob/WebFetch plus Bash. Named honestly: Bash is there for `claude plugin validate`,
   config-resolution probes, and the fetch ladder's rung-1 `curl` of the raw-markdown docs channel,
   not mutation.
-- **Reference corpus** (`skills/audit/references/`), the recurring-concerns checklist plus five
+- **Reference corpus** (`skills/audit/reference/`), the recurring-concerns checklist plus five
   component-type lenses (hook, skill, agent, command, config). Extending coverage = one file +
   one index row; the hub never grows.
 - **Config surface** (`reference/config.md`). A convention doc at the consumer's convention home

@@ -3,6 +3,13 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.22]
+
+### Changed
+
+- **generate:** rename the spoke directory `references/` to `reference/` so it
+  matches the fleet majority (#3546).
+
 ## [0.7.21]
 
 ### Changed

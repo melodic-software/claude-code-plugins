@@ -147,7 +147,7 @@ Keyfinder excludes the WindowsApps stub (App Execution Alias) and the Microsoft 
 When the `update` action surfaces drift:
 
 1. Update the affected row in this file (new tag, new SHA256, new URL).
-2. Update `references/sources.md` if the URL pattern itself changed.
+2. Update `reference/sources.md` if the URL pattern itself changed.
 3. Re-run `setup` (or just the affected portion) to pull the new artifact.
 4. Verify SHA256 matches the new pin before continuing.
 5. Run a single-book sync to confirm extraction still works.
