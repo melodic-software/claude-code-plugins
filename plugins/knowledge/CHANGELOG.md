@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.37]
+
+### Fixed
+
+- **`acquire-throttle` stale-slot reclaim is exclusive.** Two reclaimers could
+  both pass `isStaleSlot` and `rm` the same path. The first delete freed the
+  directory, a peer `mkdir` became a live holder, and the second `rm` evicted
+  that holder so a third acquire exceeded `maxSlots`. Reclaim now takes
+  `slot-N.reclaim` (mkdir, EEXIST skips), re-stats, and only then removes the
+  slot. A leftover reclaim lock older than the slot TTL is stolen by renaming
+  it to a unique tombstone so only one racer can win. Rename-then-rm of the
+  live slot is not used: the original holder still releases `slot-N` in
+  `finally` and would delete a relocated occupant.
+
 ## [0.13.36]
 
 ### Changed
