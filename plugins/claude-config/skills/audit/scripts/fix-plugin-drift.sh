@@ -125,30 +125,26 @@ fi
 
 # --- Build action plan -------------------------------------------------------
 
+# findings <jq-suffix> — sorted unique lines extracted from every status:"ok"
+# marketplace block. The suffix is always a static literal from this file, never
+# data (plugin names stay --argjson-bound below), so composing the filter here
+# cannot inject.
+findings() {
+  jq -r ".[] | select(.status == \"ok\") | $1" "$INPUT_JSON" | sort -u
+}
+
 # Auto-removable orphans: orphans where enabled == false. Output as
 # "<plugin>@<marketplace>" lines.
-auto_remove=$(jq -r '
-  .[] | select(.status == "ok") | .orphans[] | select(.enabled == false) |
-  "\(.name)@\(.marketplace)"
-' "$INPUT_JSON" | sort -u)
+auto_remove=$(findings '.orphans[] | select(.enabled == false) | "\(.name)@\(.marketplace)"')
 
 # Manual-review orphans: orphans where enabled == true.
-manual_orphans=$(jq -r '
-  .[] | select(.status == "ok") | .orphans[] | select(.enabled == true) |
-  "\(.name)@\(.marketplace)"
-' "$INPUT_JSON" | sort -u)
+manual_orphans=$(findings '.orphans[] | select(.enabled == true) | "\(.name)@\(.marketplace)"')
 
 # Auto-add: new upstream plugins.
-auto_add=$(jq -r '
-  .[] | select(.status == "ok") | .new_upstream[] |
-  "\(.name)@\(.marketplace)"
-' "$INPUT_JSON" | sort -u)
+auto_add=$(findings '.new_upstream[] | "\(.name)@\(.marketplace)"')
 
 # Rename candidates (informational).
-rename_candidates=$(jq -r '
-  .[] | select(.status == "ok") | .renames[] |
-  "\(.from) -> \(.to)  (\(.marketplace))"
-' "$INPUT_JSON" | sort -u)
+rename_candidates=$(findings '.renames[] | "\(.from) -> \(.to)  (\(.marketplace))"')
 
 remove_count=$(echo "$auto_remove" | grep -c . || true)
 add_count=$(echo "$auto_add" | grep -c . || true)
