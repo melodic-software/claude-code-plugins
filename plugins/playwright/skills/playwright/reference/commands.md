@@ -154,12 +154,12 @@ playwright-cli close
 
 **Record a demonstrated flow**
 
-When the user performs the steps in the browser instead of describing them, capture the actions as Playwright code:
+When the user performs the steps in the browser instead of describing them, capture the actions as Playwright code. Use the same `-s=<flow>` as the rest of the named-session flow (`reference/sessions.md`); omitting `-s` records the unnamed default browser.
 
 ```bash
-playwright-cli recording-start
+playwright-cli -s=<flow> recording-start
 # user drives the browser
-playwright-cli recording-stop
+playwright-cli -s=<flow> recording-stop
 ```
 
 ## Help
