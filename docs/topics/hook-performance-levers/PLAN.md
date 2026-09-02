@@ -694,6 +694,39 @@ statusline:-             fires= 1 skipped= 0 cpu_sum_ms=  229 max_ms=  229 async
 
 Parse and spawn floor on the same host, 12 interleaved trials, medians: `bash -c :` 22 ms; `bash -c "source hook-utils.sh"` (2,139 lines) 26 ms, so the library parse is about 4 ms (0.2 spawn-equivalents) and phase 4b's switch condition (one spawn-equivalent) is not met; `bash -c` plus one `jq` call 72 ms, so each external `jq` costs about 50 ms (2.3 spawn-equivalents). The per-hook cost is external spawns (`jq`, `git`, formatters), not the library parse.
 
+#### Mid-program run (2026-09-02, after phases 3, 4a, 4c, 4d, 7; harness at `157633f`, `--runs 3`, S=18 ms, valid)
+
+Cache measured (`baselines/phase4-installed-plugins.txt`): guardrails 0.31.1 at `baacee5d9` (4a), context-guard 0.7.32 at `a05503bd1` (4d), rate-limit-guard 0.7.26 at `111bfaf62` (7), typos-format 0.6.35, eol-normalizer 0.6.28, markdown-format 0.11.38 at `13b83cb97` (4c), the nine other PR #3621 plugins at `cd5aefbb6`; auto-update off. The Write and Edit samples now live inside the repo, so their rows are not comparable with the phase 0 block above (which measured a no-op); the in-repo pre-program figure is PostToolUse:Write `max_ms` 13,225 (harness A/B at `59946c3`).
+
+```text
+=== per event: hook processes that fire, CPU sum of medians, slowest hook ===
+(hooks run in parallel: wall per event ~= max; CPU per event ~= sum)
+ConfigChange:user_settings fires= 1 skipped= 0 cpu_sum_ms= 1200 max_ms= 1200 async= 0 cpu_x_s=  66.7 max_x_s=  66.7
+InstructionsLoaded:session_start fires= 1 skipped= 0 cpu_sum_ms=  221 max_ms=  221 async= 0 cpu_x_s=  12.3 max_x_s=  12.3
+Notification:permission_prompt fires= 1 skipped= 0 cpu_sum_ms= 1015 max_ms= 1015 async= 0 cpu_x_s=  56.4 max_x_s=  56.4
+PostCompact:-            fires= 1 skipped= 0 cpu_sum_ms=  461 max_ms=  461 async= 0 cpu_x_s=  25.6 max_x_s=  25.6
+PostToolBatch:Read       fires= 1 skipped= 0 cpu_sum_ms=  205 max_ms=  205 async= 0 cpu_x_s=  11.4 max_x_s=  11.4
+PostToolUse:Bash         fires= 0 skipped= 2 cpu_sum_ms=    0 max_ms=    0 async= 0 cpu_x_s=   0.0 max_x_s=   0.0
+PostToolUse:Edit         fires= 4 skipped=22 cpu_sum_ms= 9335 max_ms= 4466 async= 0 cpu_x_s= 518.6 max_x_s= 248.1
+PostToolUse:Write        fires= 4 skipped=22 cpu_sum_ms= 8006 max_ms= 3810 async= 0 cpu_x_s= 444.8 max_x_s= 211.7
+PostToolUseFailure:Bash  fires= 1 skipped= 1 cpu_sum_ms=  556 max_ms=  556 async= 0 cpu_x_s=  30.9 max_x_s=  30.9
+PreCompact:auto          fires= 1 skipped= 0 cpu_sum_ms=  629 max_ms=  629 async= 0 cpu_x_s=  34.9 max_x_s=  34.9
+PreToolUse:Bash          fires= 1 skipped= 3 cpu_sum_ms= 1977 max_ms= 1977 async= 0 cpu_x_s= 109.8 max_x_s= 109.8
+PreToolUse:Bash:subst    fires= 4 skipped= 0 cpu_sum_ms= 3865 max_ms= 3222 async= 0 cpu_x_s= 214.7 max_x_s= 179.0
+PreToolUse:Edit          fires= 3 skipped= 0 cpu_sum_ms= 2046 max_ms= 1914 async= 0 cpu_x_s= 113.7 max_x_s= 106.3
+PreToolUse:Write         fires= 3 skipped= 0 cpu_sum_ms= 1428 max_ms= 1305 async= 0 cpu_x_s=  79.3 max_x_s=  72.5
+SessionStart:compact     fires= 2 skipped= 0 cpu_sum_ms=  250 max_ms=  197 async= 0 cpu_x_s=  13.9 max_x_s=  10.9
+SessionStart:startup     fires= 2 skipped= 0 cpu_sum_ms=  147 max_ms=   93 async= 0 cpu_x_s=   8.2 max_x_s=   5.2
+Stop:-                   fires= 4 skipped= 0 cpu_sum_ms=  815 max_ms=  271 async= 0 cpu_x_s=  45.3 max_x_s=  15.1
+StopFailure:rate_limit   fires= 2 skipped= 0 cpu_sum_ms=  636 max_ms=  380 async= 0 cpu_x_s=  35.3 max_x_s=  21.1
+UserPromptExpansion:-    fires= 1 skipped= 0 cpu_sum_ms=  319 max_ms=  319 async= 0 cpu_x_s=  17.7 max_x_s=  17.7
+UserPromptSubmit:-       fires= 1 skipped= 0 cpu_sum_ms=  385 max_ms=  385 async= 0 cpu_x_s=  21.4 max_x_s=  21.4
+WorktreeCreate:-         fires= 1 skipped= 0 cpu_sum_ms=  460 max_ms=  460 async= 0 cpu_x_s=  25.6 max_x_s=  25.6
+statusline:-             fires= 1 skipped= 0 cpu_sum_ms=  269 max_ms=  269 async= 0 cpu_x_s=  14.9 max_x_s=  14.9
+```
+
+Against phase 0 (S=33 ms): PreToolUse:Bash 2,475 to 1,977 ms; PostToolBatch 1,254 to 205 ms; UserPromptSubmit 975 to 385 ms; PostToolUse:Write in-repo 13,225 to 3,810 ms; PostToolUse:Edit in-repo 17,192 to 4,466 ms. Every PreToolUse and PostToolUse row is still above 8 S and the Bash and Write rows above 1,000 ms absolute; the remaining cost is the guardrails dispatcher (8 guard subshells plus `hook::emit_telemetry` at about 1.4 s when a sink is set) and the library path resolver, which phase 4b owns. At S=18 ms the ratio targets are 144 ms per tool call, below the cost of one bash plus one jq on this host.
+
 ## Alternatives considered
 
 | Alternative | Why rejected | Switch condition |
