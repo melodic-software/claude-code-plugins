@@ -5,7 +5,31 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { refreshSlot, resolveMaxConcurrentAcquires, withAcquireThrottle } from "./acquire-throttle.js";
+import {
+  reclaimStaleSlot,
+  refreshSlot,
+  resolveMaxConcurrentAcquires,
+  withAcquireThrottle,
+} from "./acquire-throttle.js";
+
+/**
+ * @param {string} slotPath
+ * @returns {Promise<void>}
+ */
+async function makeStale(slotPath) {
+  await fs.mkdir(slotPath);
+  const longAgo = new Date(Date.now() - 20 * 60 * 1000);
+  await fs.utimes(slotPath, longAgo, longAgo);
+}
+
+/**
+ * @param {string} dir
+ * @returns {Promise<number>}
+ */
+async function countOccupiedSlots(dir) {
+  const names = await fs.readdir(dir);
+  return names.filter((name) => /^slot-\d+$/.test(name)).length;
+}
 
 /** @type {string} */
 let baseDir;
@@ -32,9 +56,7 @@ describe("withAcquireThrottle", () => {
 
   it("reclaims a stale slot and proceeds", async () => {
     const stale = path.join(baseDir, "slot-0");
-    await fs.mkdir(stale);
-    const longAgo = new Date(Date.now() - 20 * 60 * 1000); // older than the 15-min TTL
-    await fs.utimes(stale, longAgo, longAgo);
+    await makeStale(stale);
 
     const fn = vi.fn(async () => "reclaimed");
     const result = await withAcquireThrottle(fn, {
@@ -46,6 +68,40 @@ describe("withAcquireThrottle", () => {
 
     expect(fn).toHaveBeenCalledTimes(1);
     expect(result).toBe("reclaimed");
+  });
+
+  it("interleaved reclaim and acquire never exceed maxSlots", async () => {
+    await makeStale(path.join(baseDir, "slot-0"));
+    await makeStale(path.join(baseDir, "slot-1"));
+
+    let current = 0;
+    let peakFn = 0;
+    let peakSlots = 0;
+
+    const worker = () =>
+      withAcquireThrottle(
+        async () => {
+          current += 1;
+          peakFn = Math.max(peakFn, current);
+          peakSlots = Math.max(peakSlots, await countOccupiedSlots(baseDir));
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          current -= 1;
+        },
+        {
+          maxSlots: 2,
+          heartbeatMs: 0,
+          baseDir,
+          timeoutMs: 60_000,
+          sleep: () => new Promise((resolve) => setTimeout(resolve, 5)),
+        },
+      );
+
+    await Promise.all(Array.from({ length: 6 }, () => worker()));
+
+    expect(peakFn).toBeGreaterThan(0);
+    expect(peakFn).toBeLessThanOrEqual(2);
+    expect(peakSlots).toBeLessThanOrEqual(2);
+    expect(await countOccupiedSlots(baseDir)).toBe(0);
   });
 
   it("throws a descriptive timeout when a fresh slot stays held", async () => {
@@ -61,6 +117,82 @@ describe("withAcquireThrottle", () => {
         sleep: async () => {},
       }),
     ).rejects.toThrow(/timed out after \d+ms/);
+  });
+});
+
+describe("reclaimStaleSlot", () => {
+  it("leaves a live slot in place", async () => {
+    const slot = path.join(baseDir, "slot-0");
+    await fs.mkdir(slot);
+    await fs.writeFile(path.join(slot, "pid"), "live\n");
+
+    expect(await reclaimStaleSlot(slot)).toBe(false);
+    expect(await fs.readFile(path.join(slot, "pid"), "utf8")).toBe("live\n");
+  });
+
+  it("steals a stale leftover reclaim lock so a crashed reclaimer cannot wedge the slot", async () => {
+    const slot = path.join(baseDir, "slot-0");
+    await makeStale(slot);
+    const reclaim = `${slot}.reclaim`;
+    await fs.mkdir(reclaim);
+    const longAgo = new Date(Date.now() - 20 * 60 * 1000);
+    await fs.utimes(reclaim, longAgo, longAgo);
+
+    expect(await reclaimStaleSlot(slot)).toBe(true);
+    expect(fsSync.existsSync(slot)).toBe(false);
+    expect(fsSync.existsSync(reclaim)).toBe(false);
+  });
+
+  it("concurrent steal of a leftover reclaim lock does not evict a live holder", async () => {
+    const slot = path.join(baseDir, "slot-0");
+    await makeStale(slot);
+    const reclaim = `${slot}.reclaim`;
+    await fs.mkdir(reclaim);
+    const longAgo = new Date(Date.now() - 20 * 60 * 1000);
+    await fs.utimes(reclaim, longAgo, longAgo);
+
+    /** @type {boolean[]} */
+    const removed = [];
+    await Promise.all(
+      Array.from({ length: 8 }, () =>
+        (async () => {
+          const won = await reclaimStaleSlot(slot);
+          removed.push(won);
+          if (won) {
+            await fs.mkdir(slot);
+            await fs.writeFile(path.join(slot, "pid"), "live\n");
+          }
+        })(),
+      ),
+    );
+
+    expect(removed.filter(Boolean)).toHaveLength(1);
+    expect(await fs.readFile(path.join(slot, "pid"), "utf8")).toBe("live\n");
+    expect(await countOccupiedSlots(baseDir)).toBe(1);
+  });
+
+  it("does not evict a live holder that appears after the first of two reclaimers wins", async () => {
+    const slot = path.join(baseDir, "slot-0");
+    await makeStale(slot);
+
+    /** @type {boolean[]} */
+    const removed = [];
+    await Promise.all(
+      Array.from({ length: 8 }, () =>
+        (async () => {
+          const won = await reclaimStaleSlot(slot);
+          removed.push(won);
+          if (won) {
+            await fs.mkdir(slot);
+            await fs.writeFile(path.join(slot, "pid"), "live\n");
+          }
+        })(),
+      ),
+    );
+
+    expect(removed.filter(Boolean)).toHaveLength(1);
+    expect(await fs.readFile(path.join(slot, "pid"), "utf8")).toBe("live\n");
+    expect(await countOccupiedSlots(baseDir)).toBe(1);
   });
 });
 

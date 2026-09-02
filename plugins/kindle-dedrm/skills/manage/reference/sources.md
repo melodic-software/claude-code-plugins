@@ -12,9 +12,9 @@ Every URL this skill depends on, with purpose, drift signal, and last-fetched fi
 | Last-fetched | 2026-05-10 (at the prior URL) |
 | Last-fetched key claims | (a) Kindle for PC 2.8.0(70980) is the only working version; (b) DeDRM_tools v10.0.14+ pre-release required; (c) Kindle_Key_Finder 2026.04.28.JH zip is current; (d) KFX Input plugin from Calibre's "Get new plugins" catalog |
 
-Upstream moved 2026-07 (re-probed 2026-07-19): the prior URL `remove-drm-from-kindle-ebooks/` now returns HTTP 404. Its successor is inferred to be `drm-removal-from-kindle-ebook-purchases-old-method/` (the site relabeled the Kindle-for-PC + KFXKeyExtractor approach the "OLD Method" and returns HTTP 200 for that slug) — NOT read-confirmed as the same procedure, because the article is now subscriber-gated. The `update` action can therefore no longer walk the public body for the current Key_Finder zip URL; it HEAD-probes the pinned direct zip URL in `references/versions.md` instead. Propagate any new pin there. See the epubor secondary below and the MSIX-successor note when the OLD Method finally breaks.
+Upstream moved 2026-07 (re-probed 2026-07-19): the prior URL `remove-drm-from-kindle-ebooks/` now returns HTTP 404. Its successor is inferred to be `drm-removal-from-kindle-ebook-purchases-old-method/` (the site relabeled the Kindle-for-PC + KFXKeyExtractor approach the "OLD Method" and returns HTTP 200 for that slug) — NOT read-confirmed as the same procedure, because the article is now subscriber-gated. The `update` action can therefore no longer walk the public body for the current Key_Finder zip URL; it HEAD-probes the pinned direct zip URL in `reference/versions.md` instead. Propagate any new pin there. See the epubor secondary below and the MSIX-successor note when the OLD Method finally breaks.
 
-**The successor is now dead too (re-probed 2026-08-31): `drm-removal-from-kindle-ebook-purchases-old-method/` returns HTTP 404**, with and without the trailing slash, under a browser user-agent. The site root still returns 200, so this is a removed article rather than a dead domain, and the Wayback Machine holds no snapshot of it. This entry therefore has **no live basis**: the key claims recorded above are what was read on 2026-05-10 and nothing has re-derived them since. Treat them as unverified, not current. *Recheck trigger:* any of these becoming true — the site publishes a replacement article for the Kindle-for-PC + KFXKeyExtractor route, an archived snapshot appears, or the epubor secondary below contradicts a recorded claim. Until one of them fires, the secondary is the only walkable source and `references/versions.md`'s pinned zip probe is the only live drift signal.
+**The successor is now dead too (re-probed 2026-08-31): `drm-removal-from-kindle-ebook-purchases-old-method/` returns HTTP 404**, with and without the trailing slash, under a browser user-agent. The site root still returns 200, so this is a removed article rather than a dead domain, and the Wayback Machine holds no snapshot of it. This entry therefore has **no live basis**: the key claims recorded above are what was read on 2026-05-10 and nothing has re-derived them since. Treat them as unverified, not current. *Recheck trigger:* any of these becoming true — the site publishes a replacement article for the Kindle-for-PC + KFXKeyExtractor route, an archived snapshot appears, or the epubor secondary below contradicts a recorded claim. Until one of them fires, the secondary is the only walkable source and `reference/versions.md`'s pinned zip probe is the only live drift signal.
 
 ## Secondary tutorial (cross-check)
 
@@ -38,7 +38,7 @@ Reference material when techy-notes diverges. Lower priority for drift action.
 | Last-fetched | 2026-05-10 (HTTP 200, 285 MB) |
 | Auth | None — public S3 bucket |
 
-If Amazon revokes the URL, this skill is significantly compromised — alternate mirror required (web.archive.org is one option, but binary availability isn't guaranteed). Document any alternate mirror in `references/versions.md` with provenance notes.
+If Amazon revokes the URL, this skill is significantly compromised — alternate mirror required (web.archive.org is one option, but binary availability isn't guaranteed). Document any alternate mirror in `reference/versions.md` with provenance notes.
 
 ## DeDRM_tools (Satsuoni fork)
 
@@ -47,7 +47,7 @@ If Amazon revokes the URL, this skill is significantly compromised — alternate
 | Repo | `https://github.com/Satsuoni/DeDRM_tools` |
 | Releases API | `https://api.github.com/repos/Satsuoni/DeDRM_tools/releases` |
 | Purpose | DeDRM_plugin.zip + KFX extractors |
-| Drift signal | Latest pre-release tag differs from `references/versions.md` pin |
+| Drift signal | Latest pre-release tag differs from `reference/versions.md` pin |
 | Last-fetched | 2026-05-10 |
 | Last-fetched latest tag | `v10.0.20` (pre-release, asset `DeDRM_tools.zip`) |
 | Auth | None for public read |
@@ -74,7 +74,7 @@ Date in URL rolls forward when the author publishes a new build. The original `u
 | Purpose | E-book manager; host for plugins |
 | Drift signal | None tracked (Calibre updates frequently and is forward-compatible with the plugins) |
 
-Calibre version not pinned. User installs latest. If a future Calibre release breaks the plugin contract, document in `references/troubleshooting.md`.
+Calibre version not pinned. User installs latest. If a future Calibre release breaks the plugin contract, document in `reference/troubleshooting.md`.
 
 ## Python
 
@@ -109,5 +109,5 @@ When this skill grows to track a new upstream (e.g., a Frida-based extractor for
 
 1. Add a row to this file with URL + purpose + drift signal.
 2. Add a probe to `scripts/check-drift.sh` that returns `OK` / `STALE` / `UNREACHABLE`.
-3. If the source has a version, pin it in `references/versions.md`.
+3. If the source has a version, pin it in `reference/versions.md`.
 4. Reference it from the relevant action in `SKILL.md`.

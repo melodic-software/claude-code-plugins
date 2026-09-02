@@ -41,7 +41,7 @@ Action needed immediately. A pattern of ignored CRIT findings is a trust problem
 - `Get-PhysicalDisk` HealthStatus is anything other than `Healthy`.
 - Any BugCheck event or Kernel-Power 41 (unexpected shutdown) in the last 7 days.
 - Any `disk`-source Error or Critical event in the last 7 days.
-- Defender signature age >7 days, **or** real-time protection disabled, **or** tamper protection disabled, **or** any active threat in the last 30 days. The signature-age and real-time-protection arms do not apply when Defender runs in passive mode behind a third-party AV — see `references/windows/check-catalog.md` § 5.
+- Defender signature age >7 days, **or** real-time protection disabled, **or** tamper protection disabled, **or** any active threat in the last 30 days. The signature-age and real-time-protection arms do not apply when Defender runs in passive mode behind a third-party AV — see `reference/windows/check-catalog.md` § 5.
 - Any winget-visible app matching the CISA KEV list.
 - Pending security update older than 14 days.
 - Battery full-charge capacity <50% of design.

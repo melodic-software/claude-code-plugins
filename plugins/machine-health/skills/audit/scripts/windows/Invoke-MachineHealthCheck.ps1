@@ -17,7 +17,7 @@ Responsibilities (per SKILL.md High-level procedure):
  5. Adjust severities based on trend when a threshold was just crossed.
  6. On non-dry runs: dispatch authorized remediations (TODO.md approvals + user-load heuristic).
  7. Write state/latest.json; append one compact line to state/history.jsonl.
- 8. Render a markdown report from references/shared/report-template.md.
+ 8. Render a markdown report from reference/shared/report-template.md.
  9. Return the full run snapshot as JSON on stdout (unless -Human is set).
 
 .PARAMETER OutputBase
@@ -243,7 +243,7 @@ try {
 
 # Machine-local catalog overlay: disable/deprecate/demote shipped checks or
 # register custom ones without editing the plugin install (a plugin update
-# would overwrite it). See references/shared/catalog-overlay.md.
+# would overwrite it). See reference/shared/catalog-overlay.md.
 $overlayPath = Join-Path $StateBase 'catalog\checks.local.jsonc'
 if (Test-Path -LiteralPath $overlayPath) {
     try {
@@ -403,7 +403,7 @@ foreach ($entry in $windowsChecks) {
     $scriptPath = Join-Path $skillRoot $entry.script
     if (-not (Test-Path -LiteralPath $scriptPath)) {
         # Overlay-registered custom checks keep the same scripts/<os>/checks/
-        # shape but live under the state base (references/shared/catalog-overlay.md).
+        # shape but live under the state base (reference/shared/catalog-overlay.md).
         $stateScriptPath = Join-Path $StateBase $entry.script
         if (Test-Path -LiteralPath $stateScriptPath) { $scriptPath = $stateScriptPath }
     }
@@ -451,7 +451,7 @@ try {
 }
 
 # Cross-finding correlation: pair related findings + upgrade severity per
-# references/shared/correlation-rules.md. Additive; never downgrades.
+# reference/shared/correlation-rules.md. Additive; never downgrades.
 try {
     $checkResults = @(Invoke-FindingCorrelation -CheckResults $checkResults)
 } catch {
@@ -633,7 +633,7 @@ Write-MachineHealthLog "wrote_latest_json path=$latestPath"
 
 # Compact history line -- extract scalar detail properties per check into
 # top_metrics so subsequent runs can detect trend context. Keys use the
-# "{checkId}.{detailKey}" convention documented in references/shared/output-schema.md.
+# "{checkId}.{detailKey}" convention documented in reference/shared/output-schema.md.
 $topMetrics = ConvertTo-TopMetric -CheckResults $checkResults
 
 $historyLine = [ordered]@{
@@ -651,7 +651,7 @@ $historyJson = $historyLine | ConvertTo-Json -Depth 10 -Compress
 Add-Content -LiteralPath $historyPath -Value $historyJson -Encoding utf8
 Write-MachineHealthLog "appended_history path=$historyPath"
 
-$templatePath = Join-Path $skillRoot 'references\shared\report-template.md'
+$templatePath = Join-Path $skillRoot 'reference\shared\report-template.md'
 # Per-run (not per-day) filename: a same-day rerun must not overwrite the
 # earlier report, since each run also writes a distinct history entry.
 $reportPath = Join-Path $reportsDir "health-$runStamp.md"
