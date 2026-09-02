@@ -262,6 +262,9 @@ presence-gated with its fallback stated:
   no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:
   the pass reports both as **unchecked**, names that skill as their owner, and emits the one-line
   pointer to the official memory guidance, never a silent skip and never a re-implementation here.
+- **Retired-conventions fleet sweep**: the one script lane — **exactly one lane** running this
+  plugin's canonical `lib/check-retirements.sh` over every installed plugin's `retirements.yaml`. One finding per active TSV row keyed by record id; `report-only` = `info`; helper exit 2 = FAIL finding, never a skip.
+  Derived-tier, **read-only** (never `--clean`); rest: [reference/retired-conventions-sweep.md](reference/retired-conventions-sweep.md).
 
 Structural skill lint is deliberately **not** dispatched: it answers shape rather than content, and
 its fan-out over a large corpus would consume the dispatch budget reserved for instruction-content
@@ -446,7 +449,8 @@ splitting into imports does not defer or reduce context).
 
 - Never defines a check. Adding criteria here rather than to the owning plugin's catalog is the
   defect this skill's whole shape exists to avoid.
-- Never reads another plugin's files. Cross-plugin cooperation is invocation only.
+- Never reads another plugin's files — invocation-only cooperation, with one declared exception:
+  `retirements.yaml` is a published data seam, read by the sweep lane via this plugin's own helper.
 - Never edits managed policy or a user-scope file, in any mode.
 - Never scans what it wrote. Where its resolved report path is contained in the target, by
   `--report-to` or by `${CLAUDE_PLUGIN_DATA}` resolving under `~` for a target at or above it, the

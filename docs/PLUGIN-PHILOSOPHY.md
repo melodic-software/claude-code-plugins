@@ -664,6 +664,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Untrusted-content framing contract | [`docs/conventions/untrusted-content/`](conventions/untrusted-content/README.md) |
 | Reply affordance on decision-collecting artifacts | [`docs/FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md#reply-affordance-convention) |
 | Export button on interactive HTML artifacts | [`docs/FINDING-YOUR-UNKNOWNS.md`](FINDING-YOUR-UNKNOWNS.md#export-button-rule) |
+| Retired-convention detection and cleanup (manifest + shared helper) | [`docs/conventions/retired-conventions/`](conventions/retired-conventions/README.md) |
 
 ## Cross-platform contract
 

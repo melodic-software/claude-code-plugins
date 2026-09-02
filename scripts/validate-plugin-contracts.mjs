@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import process from "node:process";
@@ -522,6 +523,445 @@ if (existsSync(marketplacePath)) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Retired conventions: plugins/<plugin>/retirements.yaml
+// (docs/MIGRATION-PLAYBOOK.md § Retired conventions; owner doc
+// docs/conventions/retired-conventions/README.md).
+//
+// A manifest is the append-only record of consumer-facing artifacts a plugin
+// has retired; the shared helper lib/check-retirements.sh (canonical in
+// claude-config, synced byte-identical) evaluates it in setup `check`. The
+// gate covers four things: the manifest parses and every record is
+// well-formed; records are never deleted or rewritten once merged; the helper
+// and the setup skill are wired both ways; and every record has an eval.
+// ---------------------------------------------------------------------------
+
+const RETIREMENTS_FILE = "retirements.yaml";
+const RETIREMENTS_HELPER = "check-retirements.sh";
+const canonicalRetirementsHelper = join(
+  pluginRoot,
+  "claude-config",
+  "lib",
+  RETIREMENTS_HELPER,
+);
+const RETIREMENT_KEYS = Object.freeze([
+  "id",
+  "retired",
+  "plugin_version",
+  "kind",
+  "path",
+  "match",
+  "content_match",
+  "action",
+  "successor",
+  "note",
+  "status",
+]);
+const RETIREMENT_REQUIRED_KEYS = Object.freeze([
+  "id",
+  "retired",
+  "plugin_version",
+  "kind",
+  "path",
+  "action",
+  "note",
+]);
+const RETIREMENT_ENUMS = Object.freeze({
+  kind: ["file", "dir", "line"],
+  action: ["delete", "remove-line", "migrate"],
+  status: ["active", "report-only"],
+});
+// Fields an already-merged record may still change: a demotion, or a defect
+// fix to the prose. Everything else is frozen once the record ships.
+const RETIREMENT_MUTABLE_KEYS = Object.freeze(["status", "note", "successor"]);
+// semver.org's documented regex, without the leading anchors' `v` allowance.
+const SEMVER =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+
+// The accepted grammar is a deliberately small subset of YAML, so the parser
+// is hand-written rather than a dependency. Records are separated by a line
+// that is exactly `---` (no trailing whitespace: the runtime helper is the
+// same); a record with no keys, such as the one before a leading `---`, is
+// skipped. Inside a record every line is either blank, a comment (first
+// non-blank character `#`), or `key: value` with the key at column 0. Values
+// are the rest of the line, trimmed; matching outer quotes are stripped and
+// nothing inside is escaped, matching the helper's `strip_quotes`. There are
+// no inline comments after a value, no multi-line values, no nesting, and no
+// lists. Anything else is a parse error so an author never ships a record the
+// helper reads differently.
+function parseRetirementsManifest(text) {
+  const records = [];
+  const errors = [];
+  let current = null;
+  let currentLine = 0;
+  const flush = () => {
+    if (current && Object.keys(current.fields).length > 0) records.push(current);
+    current = null;
+  };
+  text.split(/\r?\n/).forEach((raw, index) => {
+    const lineNo = index + 1;
+    if (raw === "---") {
+      flush();
+      return;
+    }
+    if (/^\s*$/.test(raw) || /^\s*#/.test(raw)) return;
+    if (!current) {
+      current = { line: lineNo, fields: {} };
+      currentLine = lineNo;
+    }
+    if (/^\s/.test(raw)) {
+      errors.push(`line ${lineNo}: indented lines are not allowed (flat key: value records only)`);
+      return;
+    }
+    if (/^-\s/.test(raw) || raw === "-") {
+      errors.push(`line ${lineNo}: lists are not allowed (flat key: value records only)`);
+      return;
+    }
+    const match = raw.match(/^([A-Za-z_][A-Za-z0-9_]*):(?:\s+(.*))?$/);
+    if (!match) {
+      errors.push(`line ${lineNo}: not a "key: value" line`);
+      return;
+    }
+    const key = match[1];
+    let value = (match[2] ?? "").trim();
+    if (value === "") {
+      errors.push(`line ${lineNo}: empty value for "${key}"`);
+      return;
+    }
+    if (value.startsWith('"')) {
+      if (value.length < 2 || !value.endsWith('"')) {
+        errors.push(`line ${lineNo}: unterminated or malformed double-quoted value for "${key}"`);
+        return;
+      }
+      value = value.slice(1, -1);
+    } else if (value.startsWith("'")) {
+      if (value.length < 2 || !value.endsWith("'")) {
+        errors.push(`line ${lineNo}: unterminated or malformed single-quoted value for "${key}"`);
+        return;
+      }
+      value = value.slice(1, -1);
+    }
+    if (Object.hasOwn(current.fields, key)) {
+      errors.push(`line ${lineNo}: duplicate key "${key}" in the record starting at line ${currentLine}`);
+      return;
+    }
+    current.fields[key] = value;
+  });
+  flush();
+  return { records, errors };
+}
+
+// A conservative usability check, not an ERE validator: it rejects an empty
+// pattern, an unterminated bracket expression, and unbalanced parentheses
+// outside bracket expressions. It does NOT check interval syntax, character
+// classes, anchors, or anything else grep -E would still reject; the helper's
+// own test suite is where a pattern's behavior is proven.
+function ereProblem(pattern) {
+  if (pattern.length === 0) return "empty pattern";
+  let depth = 0;
+  for (let i = 0; i < pattern.length; i += 1) {
+    const ch = pattern[i];
+    if (ch === "\\") {
+      i += 1;
+      continue;
+    }
+    if (ch === "[") {
+      // `]` right after `[` or `[^` is a literal member, not the terminator.
+      let j = i + 1;
+      if (pattern[j] === "^") j += 1;
+      if (pattern[j] === "]") j += 1;
+      while (j < pattern.length && pattern[j] !== "]") {
+        // POSIX classes such as [:alpha:] carry their own `]`.
+        if (pattern[j] === "[" && /[:.=]/.test(pattern[j + 1] ?? "")) {
+          const close = pattern.indexOf(`${pattern[j + 1]}]`, j + 2);
+          if (close === -1) return "unterminated bracket expression";
+          j = close + 2;
+          continue;
+        }
+        j += 1;
+      }
+      if (j >= pattern.length) return "unterminated bracket expression";
+      i = j;
+      continue;
+    }
+    if (ch === "(") depth += 1;
+    if (ch === ")") {
+      depth -= 1;
+      if (depth < 0) return "unbalanced parentheses";
+    }
+  }
+  return depth === 0 ? null : "unbalanced parentheses";
+}
+
+function isRealDate(value) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const [, y, m, d] = match.map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+function badRepoRelativePath(value) {
+  return (
+    value.length === 0 ||
+    value.startsWith("/") ||
+    /^[A-Za-z]:/.test(value) ||
+    value.startsWith("~") ||
+    value.includes("\\") ||
+    value.includes("\t") ||
+    value.split("/").includes("..") ||
+    value === "." ||
+    value === "./" ||
+    value === "./." ||
+    value.endsWith("/.") ||
+    value.endsWith("/./") ||
+    value.includes("//")
+  );
+}
+
+function textCoversRetirementId(text, id) {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^A-Za-z0-9-])${escaped}(?:[^A-Za-z0-9-]|$)`).test(text);
+}
+
+// Validates one manifest's records; returns the ids it found so the
+// append-only and eval-coverage checks below can key on them.
+function validateRetirementRecords(manifestPath, plugin, records) {
+  const ids = [];
+  const seen = new Set();
+  const idPattern = new RegExp(`^${plugin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-r\\d{3,}$`);
+  records.forEach((record, index) => {
+    const { fields } = record;
+    const label = `record ${fields.id ? `"${fields.id}"` : `#${index + 1} (line ${record.line})`}`;
+    const recordFail = (message) => fail(manifestPath, `${label}: ${message}`);
+
+    for (const key of Object.keys(fields)) {
+      if (!RETIREMENT_KEYS.includes(key)) recordFail(`unknown key "${key}"`);
+    }
+    for (const key of RETIREMENT_REQUIRED_KEYS) {
+      if (!Object.hasOwn(fields, key)) recordFail(`missing required key "${key}"`);
+    }
+    for (const [key, allowed] of Object.entries(RETIREMENT_ENUMS)) {
+      if (Object.hasOwn(fields, key) && !allowed.includes(fields[key])) {
+        recordFail(`"${key}" must be one of ${allowed.join(", ")} (got "${fields[key]}")`);
+      }
+    }
+    if (fields.id !== undefined) {
+      if (!idPattern.test(fields.id)) {
+        recordFail(`"id" must match ^${plugin}-r\\d{3,}$`);
+      } else if (seen.has(fields.id)) {
+        recordFail(`duplicate id "${fields.id}"`);
+      } else {
+        seen.add(fields.id);
+        ids.push(fields.id);
+      }
+    }
+    if (fields.retired !== undefined && !isRealDate(fields.retired)) {
+      recordFail(`"retired" must be a real YYYY-MM-DD date (got "${fields.retired}")`);
+    }
+    if (fields.plugin_version !== undefined && !SEMVER.test(fields.plugin_version)) {
+      recordFail(`"plugin_version" must be semver (got "${fields.plugin_version}")`);
+    }
+    if (fields.path !== undefined && badRepoRelativePath(fields.path)) {
+      recordFail(
+        `"path" must be repo-relative: no absolute paths, ".." segments, leading "~", backslashes, tabs, ".", "//", or a trailing "/." (got "${fields.path}")`,
+      );
+    }
+    const kind = fields.kind;
+    if (kind === "line" && fields.match === undefined) {
+      recordFail(`"match" is required when kind is line`);
+    }
+    if (kind !== undefined && kind !== "line" && fields.match !== undefined) {
+      recordFail(`"match" is only allowed when kind is line`);
+    }
+    if (kind !== undefined && kind !== "file" && fields.content_match !== undefined) {
+      recordFail(`"content_match" is only allowed when kind is file`);
+    }
+    const action = fields.action;
+    if (action === "remove-line" && kind !== undefined && kind !== "line") {
+      recordFail(`action remove-line requires kind line`);
+    }
+    if (action === "delete" && kind === "line") {
+      recordFail(`action delete requires kind file or dir`);
+    }
+    if (action === "migrate" && fields.successor === undefined) {
+      recordFail(`action migrate requires "successor"`);
+    }
+    for (const key of ["match", "content_match"]) {
+      if (fields[key] === undefined) continue;
+      const problem = ereProblem(fields[key]);
+      if (problem) recordFail(`"${key}" is not a usable ERE: ${problem}`);
+    }
+  });
+  return ids;
+}
+
+function gitText(args) {
+  return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+}
+
+// Append-only enforcement compares against the PR base. CI passes the base
+// ref in VALIDATE_CONTRACTS_BASE_REF; a local run without it says so on
+// stdout rather than silently passing a deletion.
+const retirementsBaseRef = process.env.VALIDATE_CONTRACTS_BASE_REF?.trim() || null;
+let retirementsAtBase = null; // Map<repo-relative manifest path, records[]>
+if (retirementsBaseRef === null) {
+  console.log(
+    `validate-plugin-contracts: VALIDATE_CONTRACTS_BASE_REF unset; retirements append-only check skipped`,
+  );
+} else {
+  let resolved = true;
+  try {
+    gitText(["rev-parse", "--verify", "--quiet", `${retirementsBaseRef}^{commit}`]);
+  } catch {
+    resolved = false;
+    failures.push(
+      `VALIDATE_CONTRACTS_BASE_REF=${retirementsBaseRef} does not resolve to a commit; the retirements append-only check cannot run`,
+    );
+  }
+  if (resolved) {
+    retirementsAtBase = new Map();
+    let listing = "";
+    try {
+      listing = gitText(["ls-tree", "-r", "--name-only", retirementsBaseRef, "--", "plugins"]);
+    } catch {
+      listing = "";
+    }
+    for (const line of listing.split(/\r?\n/)) {
+      if (!/^plugins\/[^/]+\/retirements\.yaml$/.test(line)) continue;
+      const { records, errors } = parseRetirementsManifest(
+        gitText(["show", `${retirementsBaseRef}:${line}`]),
+      );
+      if (errors.length > 0) {
+        failures.push(
+          `${line}: the version at ${retirementsBaseRef} does not parse (${errors[0]}); the append-only check cannot compare against it`,
+        );
+        continue;
+      }
+      retirementsAtBase.set(line, records);
+    }
+  }
+}
+
+const retirementManifests = pluginFiles.filter((path) => {
+  const parts = relative(pluginRoot, path).split(sep);
+  return parts.length === 2 && parts[1] === RETIREMENTS_FILE;
+});
+const canonicalHelperContent = existsSync(canonicalRetirementsHelper)
+  ? read(canonicalRetirementsHelper)
+  : null;
+if (retirementManifests.length > 0 && canonicalHelperContent === null) {
+  fail(
+    canonicalRetirementsHelper,
+    "missing; it is the canonical helper every plugin shipping retirements.yaml syncs byte-identically",
+  );
+}
+
+const pluginsWithRetirements = new Set();
+for (const manifestPath of retirementManifests) {
+  const plugin = relative(pluginRoot, manifestPath).split(sep)[0];
+  pluginsWithRetirements.add(plugin);
+  const { records, errors } = parseRetirementsManifest(read(manifestPath));
+  for (const error of errors) fail(manifestPath, error);
+  const ids = validateRetirementRecords(manifestPath, plugin, records);
+
+  if (retirementsAtBase !== null) {
+    const manifestKey = relative(root, manifestPath).split(sep).join("/");
+    const baseRecords = retirementsAtBase.get(manifestKey) ?? [];
+    const current = new Map(records.filter((r) => r.fields.id).map((r) => [r.fields.id, r.fields]));
+    for (const base of baseRecords) {
+      const id = base.fields.id;
+      if (!id) continue;
+      const head = current.get(id);
+      if (!head) {
+        fail(
+          manifestPath,
+          `record "${id}" was present at ${retirementsBaseRef}: records are append-only; demote with \`status: report-only\` instead`,
+        );
+        continue;
+      }
+      for (const key of new Set([...Object.keys(base.fields), ...Object.keys(head)])) {
+        if (RETIREMENT_MUTABLE_KEYS.includes(key)) continue;
+        if (base.fields[key] !== head[key]) {
+          fail(
+            manifestPath,
+            `record "${id}": "${key}" changed since ${retirementsBaseRef}; records are append-only (only ${RETIREMENT_MUTABLE_KEYS.join(", ")} may change on an existing id)`,
+          );
+        }
+      }
+    }
+  }
+
+  // Wiring, forward direction: the synced helper and the setup skill that
+  // runs it must both be present.
+  const helperCopy = join(pluginRoot, plugin, "lib", RETIREMENTS_HELPER);
+  if (!existsSync(helperCopy)) {
+    fail(helperCopy, "missing; a plugin shipping retirements.yaml must carry the synced helper");
+  } else if (canonicalHelperContent !== null && read(helperCopy) !== canonicalHelperContent) {
+    fail(helperCopy, "must remain byte-identical to plugins/claude-config/lib/check-retirements.sh");
+  }
+  const setupSkill = join(pluginRoot, plugin, "skills", "setup", "SKILL.md");
+  if (!existsSync(setupSkill) || !read(setupSkill).includes(RETIREMENTS_HELPER)) {
+    fail(setupSkill, "must reference check-retirements.sh when the plugin ships retirements.yaml");
+  }
+
+  // Every record is a behavior the setup skill now has (detect-hit and clean
+  // path), so every id needs an eval naming it (mechanism-validation, hybrid
+  // item 1). The id may sit in the case's name, prompt, expected_output, or
+  // expectations.
+  const evalsPath = join(pluginRoot, plugin, "skills", "setup", "evals", "evals.json");
+  if (!existsSync(evalsPath)) {
+    if (ids.length > 0) {
+      fail(evalsPath, `missing; every retirement record needs an eval covering it (${ids.join(", ")})`);
+    }
+  } else {
+    let cases = null;
+    try {
+      cases = [JSON.parse(read(evalsPath)).evals ?? []].flat();
+    } catch {
+      fail(evalsPath, "is not valid JSON; retirement eval coverage cannot be checked");
+    }
+    if (cases !== null) {
+      const haystacks = cases.map((c) =>
+        [c?.name, c?.prompt, c?.expected_output, ...[c?.expectations ?? []].flat()]
+          .filter((v) => typeof v === "string")
+          .join("\n"),
+      );
+      for (const id of ids) {
+        if (!haystacks.some((text) => textCoversRetirementId(text, id))) {
+          fail(evalsPath, `no eval covers retirement record "${id}"`);
+        }
+      }
+    }
+  }
+}
+
+// A manifest deleted outright is every one of its records deleted.
+if (retirementsAtBase !== null) {
+  for (const manifestKey of retirementsAtBase.keys()) {
+    if (!existsSync(join(root, ...manifestKey.split("/")))) {
+      failures.push(
+        `${manifestKey}: was present at ${retirementsBaseRef}: records are append-only; demote with \`status: report-only\` instead`,
+      );
+    }
+  }
+}
+
+// Wiring, inverse direction: a helper copy or a setup reference with no
+// manifest behind it is dead surface. claude-config is the canonical home of
+// the helper, so its copy and its setup reference stand without a manifest.
+for (const path of pluginFiles) {
+  const parts = relative(pluginRoot, path).split(sep);
+  const plugin = parts[0];
+  if (plugin === "claude-config" || pluginsWithRetirements.has(plugin)) continue;
+  const rest = parts.slice(1).join("/");
+  if (rest === `lib/${RETIREMENTS_HELPER}`) {
+    fail(path, "lib/check-retirements.sh is carried but the plugin ships no retirements.yaml");
+  } else if (rest === "skills/setup/SKILL.md" && read(path).includes(RETIREMENTS_HELPER)) {
+    fail(path, "references check-retirements.sh but the plugin ships no retirements.yaml");
+  }
+}
+
 if (failures.length > 0) {
   console.error("Plugin contract validation failed:");
   for (const failure of failures) console.error(`- ${failure}`);
@@ -529,5 +969,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Plugin contracts validated: ${setupSkills.length} setup skills and ${pluginFiles.length} plugin files checked.`,
+  `Plugin contracts validated: ${setupSkills.length} setup skills, ${retirementManifests.length} retirement manifests, and ${pluginFiles.length} plugin files checked.`,
 );

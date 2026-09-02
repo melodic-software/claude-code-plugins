@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.28]
+
+### Changed
+
+- New retired-conventions mechanism (customization-consistency Phase 2b): canonical `lib/check-retirements.sh` + tests (manifest-driven detection/cleanup of retired consumer conventions), `lib/resolve-convention-home.sh` + tests (AGENTS.md pointer-line resolver), and an audit-pass fleet-sweep lane over installed plugins' `retirements.yaml`. File and line `--clean` re-resolve the parent with `pwd -P` and refuse a target that lands outside `--root` (the dir branch already did). The contract validator matches the helper's separator, quote-stripping, path grammar, and complete retirement-id eval coverage.
+
 ## [0.40.27]
 
 ### Changed
