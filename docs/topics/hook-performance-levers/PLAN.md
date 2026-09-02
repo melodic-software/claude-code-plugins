@@ -659,7 +659,7 @@ Repo: claude-code-plugins. One PR (docs only) plus the final transcript proof.
 | Per-Bash-call guard set before the dispatcher | 8 processes, about 2,450 ms summed medians | guardrails README 0.31.0 |
 | Per-Bash-call guard set after the dispatcher | 1 process, about 1,220 ms of guard slices | guardrails README 0.31.0 |
 | Harness `=== per event` at `main` with the extended harness | block below, S=33 ms, valid, `--runs 3`, 2026-09-02 (cache: `main` plus PR #3621 delivered, see DEVIATIONS.md) | `baselines/phase1-harness-main.tsv` (135 rows), `phase1-harness-main.out`, `phase1-installed-plugins.txt` |
-| Harness sha256 at the dotfiles PR commit | `39a1c7af765b3097d64ff8c3e6352ff7c2a24b56cf1474d1260a4a1e5ec3b1d7` (harness commit `59946c3`, in-repo Write sample; supersedes `32295c08...` at `c1b722b`) | dotfiles branch `perf/hook-fanout-samples` |
+| Harness sha256 at the dotfiles PR commit | `5a4dbb6348378c8434a53646508ef5d43987be8cdc237c53a9a9db3fbc40dc16` (branch head `d714f93`, main merged in with its `--plugin-root` addition; supersedes `39a1c7af...` at `59946c3`) | dotfiles branch `perf/hook-fanout-samples` |
 
 #### Phase 0 baseline run (2026-09-02, extended harness at `c1b722b`, `--runs 3`, S=33 ms, valid)
 
