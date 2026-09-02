@@ -268,7 +268,7 @@ One PR.
 - dotfiles `lefthook`/CI shell lint passes; `gh pr checks` shows 0 failing.
 - `sha256sum common/measure-claude-hook-fanout.sh` recorded in this PLAN under "Baseline values".
 
-### Phase 2: `async: true` on non-deciding, non-rewriting hooks [TODO]
+### Phase 2: `async: true` on non-deciding, non-rewriting hooks [DONE: measured, not applied]
 
 Repo: claude-code-plugins. One PR. Runs after phase 3 merges (both edit `claude-ops/hooks/hooks.json`
 and `disk-hygiene/hooks/hooks.json`).
@@ -481,6 +481,20 @@ and async (phase 2) reduces none of it.
 - Harness PostToolUse:Write on the `.md` sample: `cpu_sum_ms` after is below before, both pasted in spawn-equivalents; or the residual line in Baseline values names each hook's share and the sum.
 - Byte-identical output on a benign `.md` payload for each hook: `diff before.out after.out` prints nothing.
 - `scripts/affected-tests.sh --run` exits 0; `gh pr checks` 0 failing.
+
+### Phase 4d: context-guard hook hot path [TODO]
+
+Repo: claude-code-plugins. One PR, branch `perf/context-guard-hot-path` stacked on the phase 3 branch. Added
+when phase 2 closed without an async row (DEVIATIONS.md): the PostToolBatch nudge stays on the
+critical path at 1,254 ms (38 spawn-equivalents at S=33 ms) against a 3 S target, so its cost comes
+down by removing exec'd processes, the same discipline as 4a and 4c. Scope: `zone-crossing-inject.sh`
+(PostToolBatch and UserPromptSubmit, non-crossing path first), `zone-gate.sh`, `post-compact-mark.sh`;
+profile before and after (12 interleaved trials, exec count under `bash -x`); behaviour byte-identical
+on crossing and non-crossing payloads; an xtrace test pins the non-crossing spawn set; bump context-guard.
+
+**Sanity Check:** every `plugins/context-guard/hooks/*.test.sh` exits 0; before and after tables pasted;
+`diff` of outputs and state files empty per payload; PostToolBatch `max_ms` after is below before, both in
+spawn-equivalents; `gh pr checks` 0 failing.
 
 ### Phase 5: Windows path-form correctness [TODO]
 
