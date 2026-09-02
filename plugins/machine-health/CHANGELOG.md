@@ -3,6 +3,14 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2]
+
+### Fixed
+
+- **`Get-CisaKevCache` refreshes an empty or whitespace cache file.** That path left
+  `needsRefresh` false and `$cached` null, so a truncated cache never self-healed. Empty
+  content now takes the same refresh path as a missing file.
+
 ## [0.12.1]
 
 ### Changed
