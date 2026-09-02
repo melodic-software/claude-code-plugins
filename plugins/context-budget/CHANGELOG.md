@@ -5,6 +5,21 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.18]
+
+### Changed
+
+- **The settings checkpoint records why it carries no `if` gate.** An `if` gate was evaluated for
+  the PreToolUse row and rejected after a live probe: on Windows, Claude Code's `if` file rules do
+  not match an absolute path outside the working directory under any anchoring form tested,
+  including the home-relative, root-anchored, drive-letter and root-anchored recursive-glob
+  spellings. The probe logged every candidate rule as skipped on a write to the user-global settings
+  file and on a write to the managed-settings file, while the unconditioned row fired and returned
+  `ask` for both; only a settings file inside the working directory matched. A gate would therefore
+  drop the user-global and managed-settings checks silently, which is the opposite of what the
+  checkpoint exists to do, so the row stays unconditioned until upstream matching reaches those
+  paths. Documentation only; the registration and `settings-write-ask.mjs` are unchanged.
+
 ## [0.6.17]
 
 ### Changed
