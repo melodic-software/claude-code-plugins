@@ -6,7 +6,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
-            "timeout": 15,
+            "timeout": 60,
             "statusMessage": "Checking for a context-zone crossing..."
           }
         ]
@@ -18,7 +18,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
-            "timeout": 15,
+            "timeout": 60,
             "statusMessage": "Checking for a context-zone crossing..."
           }
         ]
