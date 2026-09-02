@@ -3,6 +3,17 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1]
+
+### Changed
+
+- **explore-directions routes the explorer shape out.** Its description now sends
+  requests for an interactive parameter explorer whose output returns as a prompt
+  to the first-party playground skill via `/playgrounds:use`, gated on the upstream
+  playground plugin being installed from its marketplace. The clause carries the
+  marketplace parity token, traced to its verdict row in the native-surfaces
+  registry.
+
 ## [0.10.0]
 
 ### Added

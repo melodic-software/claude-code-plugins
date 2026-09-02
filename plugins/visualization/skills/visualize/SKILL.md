@@ -202,6 +202,17 @@ honored and simply removes that axis from any question.
   (the 13 stable families are safe; the newest set is unverified. See the
   catalog). Prefer a stable family, or verify before relying on a new one.
 
+## Boundary
+
+An **interactive parameter explorer whose output returns as a prompt** (controls
+beside a live preview with a copy-out prompt, the "playground" shape) is not a form
+this skill renders. When the first-party `playground` plugin is installed, route the
+request to its `playground` skill, or to the `playgrounds` wrapper's `/playgrounds:use`
+when that wrapper is installed, which also owns the install uplift and cloud delivery
+guidance. When neither is installed, say the capability exists as an installable
+plugin and continue with this skill's closest static form (a rich page without the
+round-trip controls), never a hand-built imitation of the explorer.
+
 ## What this skill does NOT do
 
 - **Does not teach chart craft**. Palette, axes, marks route to a chart-craft/dataviz capability.

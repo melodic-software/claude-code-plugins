@@ -153,10 +153,20 @@ that user has no such command). Listed-but-refused → user invocation of
 
 > Verified 2026-08-18 against the shipped v2.1.234 client (registration and gating
 > extracted from the binary; independently re-verified by two fresh-context
-> validators) and <https://code.claude.com/docs/en/skills>. The skill is unnamed
-> in the Claude Code changelog and docs as of that date, so **no version floor is
-> statable**. Recheck when a release changelog or the commands reference first
-> names the design canvas skill, or when bundled-skill invocability changes.
+> validators) and <https://code.claude.com/docs/en/skills>; re-verified 2026-08-31
+> against the vendored v2.1.251 binary. As of v2.1.251 the `/design` skill
+> **dispatches subcommands** on the first word of its arguments, and the words
+> `consent` and `revoke` are reserved: the skill directs the user to run the
+> dedicated `design-consent` / `design-revoke` commands themselves (hidden,
+> first-party-login and policy gated, managing a durable agent-access grant to
+> Claude Design projects). A `design-sync` skill (user-invocable only,
+> model-invocation disabled), a `design-login` credential flow, and a DesignSync
+> tool are registered alongside; none of the family is documented in the docs or
+> changelog through v2.1.251, so **no version floor is statable**. The
+> design-sync family's registry disposition (defer, observed-only) lives in
+> `docs/native-surfaces/records.json`. Recheck when a release changelog or the
+> commands reference first names any design-family surface, or when
+> bundled-skill invocability changes.
 
 ## Third-party visualization plugins
 

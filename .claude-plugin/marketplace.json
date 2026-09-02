@@ -6,6 +6,7 @@
     "email": "info@melodicsoftware.com"
   },
   "description": "Reusable, repo-agnostic Claude Code plugins — skills, hooks, agents, and MCP servers.",
+  "allowCrossMarketplaceDependenciesOn": ["claude-plugins-official"],
   "plugins": [
     {
       "name": "markdown-format",
@@ -237,6 +238,12 @@
       "source": "./plugins/discovery",
       "category": "discovery",
       "tags": ["discovery", "explore", "research", "codebase", "investigation", "sources", "skill"]
+    },
+    {
+      "name": "playgrounds",
+      "source": "./plugins/playgrounds",
+      "category": "presentation",
+      "tags": ["playground", "interactive", "explorer", "html", "prompt-round-trip", "skill"]
     },
     {
       "name": "playwright",
