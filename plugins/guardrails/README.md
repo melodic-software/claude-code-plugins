@@ -342,6 +342,17 @@ the written content cited a skill at all. Guards this phase did not touch move b
 to 1 spawn-equivalent between the two passes, which is the resolution of every figure
 in the table.
 
+*The PreToolUse `Write` line is not a gain.* A second paired pass on a quieter host,
+12 trials per tree at a 42 to 47 ms spawn floor, put that delta at -0.9 with the sink
+unset, -3.2 with it set, and -1.9 with it set and `CLAUDE_PROJECT_DIR` unset: at or
+below zero every time. Two of the three guards on that path are untouched by this
+phase and moved by 1.1 and 0.9 in the pass above, which is the same drift. The one
+line this phase changed in `secret-pattern-detection` sits inside `emit_tel`, on the
+branch taken only when `CLAUDE_PROJECT_DIR` is empty, so a session that sets it never
+reaches the change. The other two rows do reproduce: the second pass put PostToolUse
+`Write` at 307.5 and 341.9 against the 289.1 above, and PreToolUse `Bash` at 10.1 and
+11.5 against 20.2, the pair in each case being the sink unset and the sink set.
+
 **What remains, and why it is not reachable inside this plugin.** PreToolUse `Bash`
 is still 52.6 spawn-equivalents against the fleet target of 8. Three things account
 for nearly all of it, and none is a guardrails guard:
@@ -350,8 +361,10 @@ for nearly all of it, and none is a guardrails guard:
   on this host, so every guard that reaches its `emit_tel` spends 2 `jq` plus a
   `mktemp` plus an `rm`. The emitter, the temp file and its removal all live in
   `hook-utils.sh`, a synced library. With the sink unset the same Bash path measured
-  roughly half its cost. This is the single largest remaining item and it is an
-  opt-in observability feature, not overhead a guard chose.
+  45.7 spawn-equivalents against 79.5, so telemetry is about two fifths of the wall
+  and 4.2 spawn-equivalents per guard across the eight. This is the single largest
+  remaining item and it is an opt-in observability feature, not overhead a guard
+  chose.
 - **One subshell fork per guard.** Each guard runs in a `$(source ...)` subshell so
   its `exit` and `trap` behave as they do standalone. A guard that does nothing at
   all measures 0.6 to 0.9 spawn-equivalents, which is that fork. Eight guards on the
