@@ -4,6 +4,17 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.35]
+
+### Fixed
+
+- **Shared yt-dlp driver threads `captionClass` into `selectCaptionFile`.**
+  `adapterSourceDeclarations` dropped the adapter's declared class, and both
+  driver call sites omitted the second argument, so every shared-driver acquire
+  walked the `manual-and-auto` ladder. A `platform-asr` source would have
+  classified a bare `.en.vtt` as `manual-en`. The declaration now carries
+  `captionClass`, and both selection sites pass it.
+
 ## [0.13.34]
 
 ### Fixed
