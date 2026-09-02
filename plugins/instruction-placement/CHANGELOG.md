@@ -22,6 +22,14 @@ All notable changes to the `instruction-placement` plugin are documented here. F
   same call that produced `$PWD`, for those two comparisons only. The path the caller wrote is
   untouched, so every read, write and status line still names it.
 
+- **A backslash drive-letter `--file` or `--root` (`C:\repo\AGENTS.md`) is re-spelled with forward
+  slashes at intake.** GNU `dirname` and `basename` do not treat `\` as a separator, so the target
+  split to `.` plus the whole string, the re-spelled target became `$PWD/C:\repo\AGENTS.md`,
+  `reachable` asked about a path that does not exist, and `write` could warn that a reachable
+  index was unreachable. Only the drive-letter shape is touched; a POSIX path carrying a literal
+  backslash passes through unchanged. Status lines for a backslash input now print the
+  forward-slash form.
+
 ### Changed
 
 - **`scripts/lib/discover.test.sh` reports a host skip instead of failing on a copied symlink.**

@@ -234,6 +234,22 @@ PREAMBLE
   printf '%s\n' "$END_MARKER"
 }
 
+# A drive-letter path may arrive with backslashes (`C:\repo\AGENTS.md`), the
+# spelling a PowerShell or cmd caller produces. GNU dirname and basename do not
+# treat `\` as a separator, so splitting that value yields `.` and the whole
+# string, TARGET_NORM becomes `$PWD/C:\repo\AGENTS.md`, `reachable` asks about
+# a path that does not exist, and `write` warns that a reachable index is
+# unreachable. Re-spell once at intake so every later use sees one form. Only
+# the drive-letter shape is touched: a POSIX path may legitimately carry a
+# literal backslash, and it is passed through untouched.
+normalize_drive_path() {
+  local p="$1"
+  if [[ "$p" =~ ^[A-Za-z]:[\\/] ]]; then
+    p="${p//\\//}"
+  fi
+  printf '%s' "$p"
+}
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -265,12 +281,12 @@ while [[ $# -gt 0 ]]; do
     ;;
   --root)
     [[ $# -lt 2 ]] && die "--root needs a path"
-    ROOT="$2"
+    ROOT="$(normalize_drive_path "$2")"
     shift 2
     ;;
   --file)
     [[ $# -lt 2 ]] && die "--file needs a path"
-    TARGET="$2"
+    TARGET="$(normalize_drive_path "$2")"
     shift 2
     ;;
   --max-rows)
@@ -314,9 +330,9 @@ cd "$ROOT" || die "cannot enter --root: $ROOT"
 #
 # TARGET_NORM re-spells the target in the shell's own form by asking the
 # directory itself (`cd "$dir" && pwd`), which is the same call that produced
-# `$PWD`. TARGET itself is left exactly as the caller wrote it: every read, every
-# write and every `WROTE`/`DRIFTED`/`IN-SYNC` line still names the path the
-# caller asked about.
+# `$PWD`. TARGET itself is left as the caller wrote it, after the backslash
+# re-spelling at intake: every read, every write and every
+# `WROTE`/`DRIFTED`/`IN-SYNC` line still names the path the caller asked about.
 #
 # Residual, recorded rather than implied: this unifies spellings of the SAME
 # directory family. A `--root C:/repo` paired with a `--file` reached through an
