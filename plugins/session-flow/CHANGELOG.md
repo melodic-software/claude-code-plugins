@@ -1,5 +1,34 @@
 # Changelog — session-flow plugin
 
+## [0.34.21]
+
+### Changed
+
+- **find-handoff:** stated the two directive path forms (absolute and repo-relative) as current
+  shapes instead of a before-and-after story, and removed the issue number and the deferral
+  narrative from the known-location rung.
+- **workflow:** removed the I23 reconciliation note; the audit catalog's own exemption carries it.
+  Also removed the issue numbers from the continuation router's no-pre-compute rule and dropped the
+  generic "No assumptions" section from the philosophy doc.
+- **orchestrate:** replaced the subagent-nesting version timeline, the eleven-worker fan-out, and
+  the 88-agent cloud run with the rules they motivated; the sources file keeps its dated
+  verification records and drops the superseded cap, the failed-probe narration, and the
+  resolved-drift play-by-play.
+- **handoff:** stated the stop rule and the output-order rule in plain prose with their reasons,
+  and dropped the "observed failure" narration from both.
+- **reconcile:** dropped the "cut from V1" story from the tool-state boundary; the boundary and
+  its recheck trigger stay.
+- **running-retro:** dropped the anecdotal window percentages from the instrument-grounding rule.
+- **show-options:** removed the earlier four-bucket design and its measurements from the buckets
+  doc, replaced the 60-line budget with the two-tier shape as the cap (eval case 3 updated to
+  match), and dropped the sibling-skill probe count.
+- **keep-going:** consolidated the description's near-synonym trigger phrases into named intents.
+- **setup:** dropped the hardcoded skill count from the description and the origin story from the
+  observer-only gotcha.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+(docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.34.20]
 
 ### Changed
