@@ -192,7 +192,7 @@ if grep -Eq '"compacted_at":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{
 else
   fail "fallback: compacted_at without %()T: $(cat "$MARK/sfb.compacted" 2>/dev/null)"
 fi
-FB_DATE=$(grep -cE '^\++ date ' "$FB_LOG" 2>/dev/null | tr -cd '0-9')
+FB_DATE=$(grep -cE '^\++ date ' "$FB_LOG" 2>/dev/null | tr -cd '0-9') # portability-ok: the word date is a grep pattern over an xtrace log, not a date call; -cd is tr's flag
 if [[ "$FB_DATE" == "1" ]]; then
   ok "fallback: the timestamp comes from exactly one date process there"
 else

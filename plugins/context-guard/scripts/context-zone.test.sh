@@ -363,7 +363,7 @@ if [[ "$FB_OUT" == "smart" ]]; then
 else
   fail "fallback: want smart without %()T, got '$FB_OUT'"
 fi
-FB_DATE=$(grep -cE '^\++ date ' "$FB_LOG" 2>/dev/null | tr -cd '0-9')
+FB_DATE=$(grep -cE '^\++ date ' "$FB_LOG" 2>/dev/null | tr -cd '0-9') # portability-ok: the word date is a grep pattern over an xtrace log, not a date call; -cd is tr's flag
 if [[ "$FB_DATE" == "1" ]]; then
   ok "fallback: the clock comes from exactly one date process there"
 else
