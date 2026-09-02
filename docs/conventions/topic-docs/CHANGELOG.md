@@ -1,5 +1,26 @@
 # Changelog — topic-docs convention
 
+## 3.1.0 — 2026-09-02
+
+Minor under the Versioning rule: no tier moves, no `topic-docs.yaml` key is renamed, the slug
+spec is untouched, and no visibility guarantee an implementer may rely on changes. The contract
+already forbade any skill, gate, or audit from assuming the `worktree.baseRef: "head"` override
+was in force, so withdrawing it changes the matrix's shape, not what a context may rely on
+seeing.
+
+- **The `worktree.baseRef: "head"` mechanism is withdrawn.** This repository no longer sets it
+  in `.claude/settings.json`, and the convention no longer asks consuming repositories to. A
+  worktree Claude Code creates branches from the repository's default branch on the remote,
+  which is Claude Code's default, `"fresh"`, per the official worktrees page fetched
+  2026-09-02. The native mechanisms are now three: `.worktreeinclude`, by-value worker returns,
+  and the tracker as the cross-lane index.
+- **Visibility matrix**: the "spawned from local HEAD" row is gone. The remaining worktree row
+  describes the default base, with the memory column still conditional on a `.worktreeinclude`,
+  and the consequences paragraph now says a contract document reaches a spawned worktree only
+  once merged to the default branch.
+- **Consumer adoption** materializes one file, `.worktreeinclude`. The committed-settings
+  snippet and its untracked-settings pull-collision rollout caveat are removed with it.
+
 ## 3.0.0 — 2026-09-01
 
 Major under the Versioning rule: the memory tier's slice shape, the reserved-name set, and the
