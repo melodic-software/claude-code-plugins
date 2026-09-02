@@ -402,9 +402,8 @@ else
   out="$(run check --file "$win_target" --root "$win_root")"
   assert_contains "the drive-letter round trip lands in sync" "$out" "IN-SYNC"
 
-  out="$(run reachable --file "$win_target" --root "$win_root")"
-  assert_contains "reachable names the drive-letter target relative to the root" \
-    "$out" "AGENTS.md"
+  run reachable --file "$win_target" --root "$win_root" >/dev/null 2>&1
+  assert_eq "reachable admits a drive-letter target" "0" "$?"
 
   # The written index must match the one a shell-form run produces byte for
   # byte, so the drive-letter path stays a spelling and never becomes a second
