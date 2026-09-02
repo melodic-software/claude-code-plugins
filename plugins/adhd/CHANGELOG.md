@@ -3,6 +3,18 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.5]
+
+### Changed
+
+- **`clarify`'s boundary splits three ways: structure, altitude, medium.** It previously named one
+  neighbour for everything it is not, routing both "explain this simply" and "ELI5 this" to
+  `education:explain`. Now a prose drop to plain words routes to `education:explain` and a picture
+  explainer routes to `education:eli5`, while `clarify` keeps structure. The description, the
+  Boundaries section, the altitude note, the not-a-simplifier line, and the README's routing
+  passage all state the same three-way split, and the eval that mixed both triggers in one prompt
+  is split so each case names one lane.
+
 ## [0.4.4]
 
 ### Changed

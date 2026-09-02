@@ -1,5 +1,5 @@
 ---
-description: "Faithfully clarify a dense, decision-heavy message so you can act on it. Chunk it into one-decision-at-a-time, define the session's own jargon, and surface exactly what you must decide, with operative terms quoted verbatim and no loss of precision. Decision-dense content gets an HTML decision table with numbered rows. Use when: 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here', 'this is a wall of text'. Empty argument targets the previous assistant response. This changes STRUCTURE, not altitude. A lossy plain-language / ELI5 drop is education:explain (if installed) instead. Sibling to adhd:shape, a standing session-wide posture; this is a one-shot reshape of one artifact."
+description: "Faithfully clarify a dense, decision-heavy message so you can act on it. Chunk it into one-decision-at-a-time, define the session's own jargon, and surface exactly what you must decide, with operative terms quoted verbatim and no loss of precision. Decision-dense content gets an HTML decision table with numbered rows. Use when: 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here', 'this is a wall of text'. Empty argument targets the previous assistant response. This changes STRUCTURE, not altitude and not medium. A lossy plain-language drop is education:explain (if installed) instead; a picture explainer (a diagram, ELI5) is education:eli5 (if installed). Sibling to adhd:shape, a standing session-wide posture; this is a one-shot reshape of one artifact."
 argument-hint: "[artifact to clarify] (empty = the previous assistant response)"
 user-invocable: true
 disable-model-invocation: false
@@ -17,8 +17,8 @@ at a time, jargon defined, and the actual choices pulled to the surface.
 
 The move is **clarify by restructuring, never by simplifying**. The content stays
 at full precision and full reading level; only its *arrangement* changes. Lowering
-the altitude is a different job (see
-[Boundaries](#boundaries)). That means plain words, an analogy, ELI5. A clarification that loses or softens a decision is
+the altitude is a different job, and turning the thing into a picture is a third
+one (see [Boundaries](#boundaries)). A clarification that loses or softens a decision is
 worse than the wall of text, so the fidelity rules below are hard, not aspirational.
 
 ## The core move
@@ -190,15 +190,24 @@ link (or the local file path); don't reprint the whole table twice.
 ## Boundaries
 
 **vs `education:explain`, structure, not altitude.** `explain` drops the
-*altitude*: plain words, a concrete analogy, ELI5. It trades precision for
+*altitude*: plain words, a concrete analogy. It trades precision for
 accessibility, and it climbs back up only on request. This skill holds altitude
 **fixed** and changes *arrangement*: same precision, same reading level, made
-clear by reorganizing. The routing rule: "I don't get it / explain simply / what
-does this mean" is a comprehension gap → `explain`; "make this clear / clarify
-this / what am I deciding" is a structure problem → this skill. When a reader
-genuinely needs the concept made simpler, hand off by invoking `/education:explain` via the Skill tool (if the
-`education` plugin is installed); otherwise a faithful restructure is this skill's
-job.
+clear by reorganizing.
+
+**vs `education:eli5`, structure, not medium.** `eli5` changes what the
+explanation *is*: a visual explainer that assumes zero prior knowledge, one idea
+per diagram, minimal text. Its floor does not climb the way `explain`'s does. This
+skill stays in the artifact's own medium and its own words.
+
+The three-way routing rule: "I don't get it / explain simply / what does this
+mean" is a comprehension gap → `explain`; "ELI5 / draw me this / show me a
+diagram" is a request for a picture → `eli5`; "make this clear / clarify this /
+what am I deciding" is a structure problem → this skill. For the first two, hand
+off by invoking `/education:explain` or `/education:eli5` via the Skill tool (if
+the `education` plugin is installed, which owns both altitude and medium as
+concerns); when it is not, say which of the two the ask actually wants and give a
+faithful restructure, which is this skill's own job either way.
 
 **vs `adhd:shape`, one-shot, not standing.** `shape` is a **standing** posture:
 invoke it once and every response for the rest of the session is shaped. This is
@@ -229,8 +238,10 @@ long, decision-heavy responses with no glossary, locators, or table).
 
 ## What this skill does NOT do
 
-- **Not a simplifier / ELI5.** Altitude stays fixed. Lowering it is
+- **Not a simplifier.** Altitude stays fixed. Lowering it is
   `education:explain`.
+- **Not a picture.** Medium stays fixed too. A diagram or an ELI5-style visual
+  explainer is `education:eli5`.
 - **Not a summarizer.** It keeps every decision; it does not compress the artifact
   to its gist.
 - **Not a standing output posture.** It reshapes one artifact once; the

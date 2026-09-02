@@ -14,8 +14,14 @@ invoke `/education:quiz-me` to be quizzed on what was done.
 
 ## What it does
 
-`teach` is the multi-session coach; `explain` is its one-shot sibling; `quiz-me`
-verifies you absorbed a completed change.
+`teach` is the multi-session coach; `explain` and `eli5` are its one-shot
+siblings; `quiz-me` verifies you absorbed a completed change.
+
+**Two one-shot lanes, split by medium.** `explain` is the adaptive prose lane: it
+starts plain and climbs to high-school then peer level on request. `eli5` is the
+fixed visual lane: one altitude (assumes zero prior knowledge), one medium (a
+diagram-led HTML artifact). Ask for a simpler wording and you want `explain`; ask
+for the picture version and you want `eli5`.
 
 - **`/education:teach topic <subject>`**. Learn a general subject from external
   high-trust sources (books, courses, docs, communities).
@@ -33,6 +39,14 @@ verifies you absorbed a completed change.
   explains the previous assistant response, so "I don't get it" needs no topic.
   It closes by offering `/education:teach` when you want ongoing coaching rather
   than a single explanation.
+- **`/education:eli5 [topic]`**. A picture explainer. It answers the question as
+  a diagram-led HTML artifact written for someone who knows nothing about the
+  topic: one idea per diagram, minimal text, real identifiers kept but demoted to
+  parentheses and monospace. It covers general knowledge and repository topics
+  alike, and grounds itself first (reads the module, finds the decision record,
+  reads the incident writeup) rather than explaining from memory. It wraps the
+  community `eli5` skill when that plugin is installed and produces the same
+  explainer itself when it is not.
 - **`/education:quiz-me`**. A post-work comprehension check. After a change is
   complete, it generates a self-contained HTML report of what was done (context,
   intuition, decisions) with a quiz at the bottom you answer, verifying that
@@ -79,6 +93,32 @@ refreshed before they're taught. See the skill body for the full pedagogy.
 /plugin marketplace add melodic-software/claude-code-plugins
 /plugin install education@<marketplace>
 ```
+
+### Optional: the upstream `eli5` plugin
+
+`/education:eli5` works on its own. When the community `eli5` plugin is
+installed it delegates to that skill instead of producing the explainer itself,
+so the two stay in step rather than drifting apart. To add it:
+
+```shell
+claude plugin marketplace add anthropics/claude-plugins-community --scope project
+claude plugin install eli5@claude-community --scope project
+```
+
+Those flags are what make it repository-wide: a bare `marketplace add` writes
+user settings instead. Drop both flags for a machine-wide install, bearing in
+mind that user scope covers only your own local sessions and remote sessions
+never load it. Run `/reload-plugins` or restart afterwards. Installing
+it manually also satisfies a dependency constraint, so nothing here requires a
+declared dependency.
+
+This plugin deliberately does not declare `eli5@claude-community` in
+`dependencies`: a hard dependency would install a second marketplace's plugin
+for everyone who wants `teach` or `quiz-me`, and an unresolved one disables the
+whole plugin. A downstream marketplace that republishes this plugin and *does*
+want the hard dependency adds `claude-community` to its own root
+`marketplace.json` under `allowCrossMarketplaceDependenciesOn`, which is a
+publisher-side allowlist rather than a consumer setting.
 
 ## Configuration
 

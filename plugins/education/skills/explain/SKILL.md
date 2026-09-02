@@ -1,5 +1,5 @@
 ---
-description: "One-shot plain-language explainer. Drops any concept, code, error, architecture, or the previous assistant response to genuinely plain words (concrete analogy, zero jargon), then layers altitude up only on request (high-school, then peer level). Use when: 'I don't understand this', 'I don't get it', 'what does this actually do', 'what does this mean', 'explain simply', 'ELI5', 'rephrase that'. Empty argument targets the previous assistant response (anaphora), so 'I don't get it' needs no topic named. This changes ALTITUDE. Trades precision for plain words; when the ask is instead to reorganize a dense message faithfully without losing precision (chunk it one-decision-at-a-time, define its jargon, surface the decisions), that is a STRUCTURE change, adhd:clarify (if installed), not an altitude drop. Sibling to education:teach. Hand off there for multi-session coaching; this is a single-shot comprehension check, not ongoing tutoring."
+description: "One-shot plain-language explainer. Drops any concept, code, error, architecture, or the previous assistant response to genuinely plain words (concrete analogy, zero jargon), then layers altitude up only on request (high-school, then peer level). Use when: 'I don't understand this', 'I don't get it', 'what does this actually do', 'what does this mean', 'explain simply', 'rephrase that'. Empty argument targets the previous assistant response (anaphora), so 'I don't get it' needs no topic named. This changes ALTITUDE, in PROSE. Trades precision for plain words; when the ask is instead to reorganize a dense message faithfully without losing precision, that is a STRUCTURE change, adhd:clarify (if installed), not an altitude drop. When the ask is for a picture (a diagram, a visual explainer, ELI5), that is a MEDIUM change, education:eli5. Sibling to education:teach. Hand off there for multi-session coaching; this is a single-shot check, not ongoing tutoring."
 argument-hint: "[thing to explain] (empty = the previous assistant response)"
 user-invocable: true
 disable-model-invocation: false
@@ -14,12 +14,11 @@ Explain one thing, once, in genuinely plain words. The object can be a concept, 
 piece of code, an error, an architecture, or the assistant's own previous output.
 The core move is an **altitude drop**: land the explanation at the lowest useful
 altitude first, a concrete analogy, zero jargon, then layer altitude back up
-**only when the user asks for it**. Michael Scott's "Why don't you explain this to
-me like I'm five" (*The Office* US, S5E9 "The Surplus") is the tone anchor; the
+**only when the user asks for it**. The
 [Feynman technique](https://fs.blog/feynman-technique/) is the method.
 
 **Use when:** the user signals they didn't follow something, `I don't get it`,
-`explain simply`, `ELI5`, `what does this actually mean`, `rephrase that`. **Skip
+`explain simply`, `what does this actually mean`, `rephrase that`. **Skip
 when:** the user wants ongoing, multi-session coaching with persistent state (hand
 off to `/education:teach`); a plain inline answer already lands (just answer).
 
@@ -61,12 +60,12 @@ actually know X"). Never front-load a higher rung.
 
 | Rung | Altitude | Move |
 |------|----------|------|
-| 1 (default) | **Plain / ELI5** | Concrete everyday analogy, zero jargon. The floor and the default landing. |
+| 1 (default) | **Plain** | Concrete everyday analogy, zero jargon. The floor and the default landing. |
 | 2 (on request) | **High-school** | Introduce one or two real terms of art as vocabulary-ladder entries: the term, its definition in ordinary words, and one modeled "you can now say: …" sentence showing the term doing work in the user's own next prompt. Keep the analogy as scaffolding. |
 | 3 (on request) | **Peer** | Full precision, jargon allowed, edge cases and tradeoffs, the explanation a colleague in the field would want. |
 
-Offer the next rung as a one-line invitation, not a wall of text: "That's the
-five-year-old version, want the high-school one?"
+Offer the next rung as a one-line invitation, not a wall of text: "That's the plain
+version, want the high-school one?"
 
 ## Feynman gap check
 
@@ -122,3 +121,8 @@ mission-driven coach when the user wants ongoing depth or practice.
   (`teach` sets `disable-model-invocation`).
 - **Not a rewording service.** If the jargon can't be shed, that's a gap to
   surface (Feynman gap check), not a synonym to swap in.
+- **Not a picture.** This skill changes altitude and stays in prose. When the user
+  wants a visual explainer instead, a diagram rather than a paragraph, that is the
+  sibling `/education:eli5`; invoke it via the Skill tool. Its floor is fixed at
+  zero prior knowledge and does not climb, which is the trade it makes for the
+  medium.

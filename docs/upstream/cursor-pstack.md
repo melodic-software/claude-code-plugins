@@ -286,8 +286,10 @@ routing, and an earlier draft of this paragraph overstated that.
 
 `wait-what` is in substance this fleet's `bro`, down to the naming shape: a user-typed interjection
 whose typed phrase IS the mechanism. That is why it holds an individually argued entry on the
-naming grammar's **closed** exception list. Shipping `bro` would require a second entry on that list
-carrying the same argument, against a rule that states "a name class is never blanket-sanctioned".
+naming grammar's **closed** exception list. Shipping `bro` would require a further entry on that
+list carrying the same argument, against a rule that states "a name class is never
+blanket-sanctioned". `education:eli5` later took an entry on that list, but not on that argument
+alone: it had to add a lane the fleet did not already have, which is the condition `bro` fails.
 
 Recorded at this length only so a later reader can see the file was read rather than skipped for
 being short. Nothing was absorbed, and nothing is lost.
