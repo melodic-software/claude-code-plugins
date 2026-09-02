@@ -56,6 +56,11 @@ stub miss.sh 'INPUT=$(hook::buffer_stdin) || exit 0
 hook::jq_fields "$INPUT" ".session_id" ".tool_name" || exit 0
 printf "%s\n" "${HOOK_JQ_FIELDS[@]}" >>"'"$SEEN"'"'
 stub lib.sh 'printf "ps=%s\n" "${_GUARDRAILS_PS_COMMAND_LOADED:-unset}" >>"'"$SEEN"'"'
+stub dirname.sh 'printf "%s %s\n" "$(type -t dirname)" "$(dirname /foo)" >>"'"$SEEN"'"'
+# Raw documents (no library call) so the no-jq merge fallback is exercised on
+# the shapes it has to recognise, not on what hook::emit_channels happens to build.
+stub deny.sh 'printf "%s\n" "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"stub deny\"}}"'
+stub ask.sh 'printf "%s\n" "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\": \"ask\"}}"'
 
 PAYLOAD=$(jq -n '{session_id:"s-1",tool_name:"Bash",cwd:"/x",tool_input:{command:"git status --short"}}')
 
@@ -123,6 +128,59 @@ assert_eq "cache miss serves the right values" $'s-1\nBash' "$(cat "$SEEN")"
 # --- --lib preloads a shared library once ------------------------------------
 run "$PAYLOAD" --lib lib/powershell/ps-command.sh "$TEST_TMPDIR/lib.sh"
 assert_eq "--lib library is loaded before the guards run" "ps=1" "$(cat "$SEEN")"
+
+# --- a dispatched guard sees the real dirname, not a dispatcher shadow -------
+run "$PAYLOAD" "$TEST_TMPDIR/dirname.sh"
+assert_eq "dirname inside a dispatched guard is the external command" "file /" "$(cat "$SEEN")"
+
+# --- no jq: several emitters yield ONE document, never a concatenation -------
+# Build a PATH with no jq on it. A directory that carries jq is replaced by a
+# shim directory re-exporting its other executables, so every other tool the
+# dispatcher and the stubs need stays reachable.
+NOJQ_PATH=""
+IFS=: read -r -a path_dirs <<<"$PATH"
+for d in "${path_dirs[@]}"; do
+  [[ -n "$d" ]] || continue
+  if [[ -x "$d/jq" || -x "$d/jq.exe" ]]; then
+    shim="$TEST_TMPDIR/nojq-$(printf '%s' "$d" | tr -c 'A-Za-z0-9' _)"
+    mkdir -p "$shim"
+    for f in "$d"/*; do
+      base="${f##*/}"
+      [[ "$base" == jq || "$base" == jq.exe ]] && continue
+      [[ -x "$f" ]] || continue
+      ln -s "$f" "$shim/$base" 2>/dev/null || true
+    done
+    NOJQ_PATH+="${NOJQ_PATH:+:}$shim"
+  else
+    NOJQ_PATH+="${NOJQ_PATH:+:}$d"
+  fi
+done
+if PATH="$NOJQ_PATH" command -v jq >/dev/null 2>&1 || ! PATH="$NOJQ_PATH" command -v sed >/dev/null 2>&1; then
+  bad "could not build a PATH without jq that still carries sed"
+else
+  run_nojq() { # run_nojq <stdin-string> <guard>... -> OUT, ERR, RC as run does
+    local input="$1"
+    shift
+    : >"$SEEN"
+    RC=0
+    OUT=$(PATH="$NOJQ_PATH" "$BASH" "$DISPATCH" "$@" <<<"$input" 2>"$TEST_TMPDIR/err") || RC=$?
+    ERR=$(cat "$TEST_TMPDIR/err")
+  }
+  run_nojq "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/ask.sh" "$TEST_TMPDIR/deny.sh" "$TEST_TMPDIR/ctx2.sh"
+  assert_exit "no jq: run exits 0" 0 "$RC"
+  assert_eq "no jq: exactly one JSON document on stdout" "1" "$(grep -c '^{' <<<"$OUT")"
+  assert_eq "no jq: stdout is a single line" "1" "$(wc -l <<<"$OUT" | tr -d ' ')"
+  assert_contains "no jq: the blocking document is the one emitted" "$OUT" '"permissionDecision":"deny"'
+  assert_contains "no jq: dropped documents are named on stderr" "$ERR" "run-guards: dropped without jq:"
+  assert_contains "no jq: the dropped context document is on stderr" "$ERR" "ctx one"
+  assert_contains "no jq: the dropped ask document is on stderr" "$ERR" '"ask"'
+  assert_absent "no jq: the emitted document is not also dropped" "$ERR" "stub deny"
+  run_nojq "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/ask.sh"
+  assert_contains "no jq: ask outranks a plain context document" "$OUT" '"ask"'
+  run_nojq "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/ctx2.sh"
+  assert_eq "no jq: with no blocking document the first one is emitted" "$standalone" "$OUT"
+  assert_contains "no jq: the second context document is dropped to stderr" "$ERR" "ctx two"
+fi
 
 # --- an unknown guard is reported, the rest still run ------------------------
 run "$PAYLOAD" "$TEST_TMPDIR/nope.sh" "$TEST_TMPDIR/allow.sh"
