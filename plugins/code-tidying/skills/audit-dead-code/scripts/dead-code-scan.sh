@@ -217,7 +217,6 @@ list_scope_files() {
   done
 }
 
-SCOPE=()
 TS_FILES=()
 PY_FILES=()
 GO_FILES=()
@@ -228,7 +227,6 @@ while IFS= read -r scope_line; do
   [[ -n "$scope_line" ]] || continue
   dc_is_excluded_path "$scope_line" && continue
   [[ -f "$scope_line" ]] || continue
-  SCOPE+=("$scope_line")
   case "$(dc_lang_of_path "$scope_line")" in
   ts) TS_FILES+=("$scope_line") ;;
   py) PY_FILES+=("$scope_line") ;;
