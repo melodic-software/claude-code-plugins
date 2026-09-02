@@ -34,15 +34,15 @@ assert_eq "raw version from 2.45 stub" "2.45" \
 assert_eq "raw version from 2.94 stub" "2.94" \
   "$(GH_STUB_VERSION=2.94.0 PATH="$STUB_BIN:$PATH" wit_gh_version_raw)"
 
-UNPARSEABLE="$STUB_BIN/unparseable"
-mkdir -p "$UNPARSEABLE"
-cat >"$UNPARSEABLE/gh" <<'EOF'
+UNPARSABLE="$STUB_BIN/unparsable"
+mkdir -p "$UNPARSABLE"
+cat >"$UNPARSABLE/gh" <<'EOF'
 #!/usr/bin/env bash
 printf 'not a version string\n'
 EOF
-chmod +x "$UNPARSEABLE/gh"
-PATH="$UNPARSEABLE:$PATH" wit_gh_has_native_surface
-assert_eq "unparseable gh --version fails closed" "1" "$?"
+chmod +x "$UNPARSABLE/gh"
+PATH="$UNPARSABLE:$PATH" wit_gh_has_native_surface
+assert_eq "unparsable gh --version fails closed" "1" "$?"
 
 NOGH="$(mktemp -d)"
 trap 'rm -rf "$STUB_BIN" "$NOGH"' EXIT
