@@ -202,9 +202,9 @@ def frontmatter_description(frontmatter: str) -> str:
             parts = _indented_block()
         elif remainder[:1] in ('"', "'"):
             quote = remainder[0]
-            body = remainder[1:]
-            if body.rstrip().endswith(quote) and body.rstrip() != "":
-                parts = [body.rstrip()[:-1]]
+            body = remainder[1:].rstrip()
+            if body.endswith(quote):
+                parts = [body[:-1]]
             else:
                 # A quoted scalar may span lines; consume until the closing quote.
                 parts = [body]
