@@ -114,7 +114,7 @@ that issue. PreToolUse hooks also fire inside subagents, so fanned-out workers r
 guards.
 
 **A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
-(`skills/clean/scripts/guard_launch_monitor.py`, a second hook entry in `hooks/hooks.json`,
+(`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
 independent of the engine-gate guard itself) scans the session transcript for
 `hook_non_blocking_error` records naming the engine gate's own command string and warns once per
 session with the failure count and the most recent failure's exit code, duration, and stderr, so a
