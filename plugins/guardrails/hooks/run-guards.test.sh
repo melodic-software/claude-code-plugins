@@ -5,6 +5,10 @@
 # once and re-served with the same rc, jq answered from one cache with a
 # byte-identical fallback, every guard run to completion, exit aggregation,
 # and the merge of several stdout documents into one.
+#
+# The stub guard bodies below are single-quoted on purpose: they are written
+# verbatim into stub scripts, so their `$` must not expand here.
+# shellcheck disable=SC2016
 set -uo pipefail
 
 TEST_TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/run-guards-test.XXXXXX")"
