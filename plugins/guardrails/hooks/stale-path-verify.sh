@@ -459,8 +459,8 @@ fi
 # Only when there is something to adjudicate. `git ls-files` lists the whole
 # index, and a write that cites no inline-code token at all, the common case for
 # this PostToolUse hook, has no candidate for the list to answer about. The warm
-# still happens in THIS shell and still precedes the loop, which is what #1446
-# requires; it is the unconditional spawn that goes.
+# still happens in THIS shell and still precedes the loop, which is what the
+# subshell-assignment fix requires; it is the unconditional spawn that goes.
 ((${#RAW_TOKENS[@]})) && ensure_tracked_files
 
 for raw in "${RAW_TOKENS[@]}"; do

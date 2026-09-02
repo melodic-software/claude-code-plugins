@@ -337,7 +337,7 @@ scratch file measures a no-op rather than the guards.
 
 All figures are spawn-equivalents. `skill-reference-verify` carried the whole
 PostToolUse cost: it built a plugin name-to-directory index from every plugin
-manifest, two `jq` processes each and 76 manifests here, before looking at whether
+manifest, two `jq` processes each and 74 manifests here, before looking at whether
 the written content cited a skill at all. Guards this phase did not touch move by up
 to 1 spawn-equivalent between the two passes, which is the resolution of every figure
 in the table.

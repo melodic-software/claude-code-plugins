@@ -184,7 +184,7 @@ shopt -u nullglob
 # not offer and this advisory stays quiet. Staying quiet is the failure this guard
 # is allowed to have; a false alarm is not.
 # BUILT ON DEMAND. Two jq processes per manifest, and this marketplace carries
-# 76 of them, so the index costs ~150 spawns, measured at 11.4 s (272
+# 74 of them, so the index costs ~150 spawns, measured at 11.4 s (272
 # spawn-equivalents) on Windows Git Bash, which was the whole PostToolUse:Write
 # cost of this plugin on a file that cites nothing. Nothing below the reference
 # scan reads the index, and the scan needs no plugin knowledge to find its

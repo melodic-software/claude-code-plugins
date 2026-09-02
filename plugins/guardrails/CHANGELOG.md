@@ -10,23 +10,25 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **Guards stop spending processes on work their own inputs rule out.** Four
   always-on guards did expensive setup before checking whether the payload could
   ever produce a finding. `skill-reference-verify` built a plugin name-to-directory
-  index from every plugin manifest (two `jq` processes each, 76 manifests in this
+  index from every plugin manifest (two `jq` processes each, 74 manifests in this
   marketplace) before looking at whether the written content cites a skill at all;
   the index is now built once, only when the reference scan has produced a
   candidate. `stale-path-verify` listed the whole git index on every write; it now
   does so only when the content carries an inline-code token to adjudicate.
   `cli-flag-verify` ran its fragment pipeline on content that cannot contain a flag;
-  a `-` is now required before any of it runs. Three guards resolved the repo root
+  a `-` is now required before any of it runs. Four guards resolved the repo root
   through a `$(dirname …)` subshell, which is a fork per call on Windows Git Bash,
   and now use parameter expansion. Every decision is unchanged: the guards' contract
   tests hold, and the exit code and JSON output are byte-identical on benign and
-  must-fire payloads alike. Measured on Windows Git Bash, PostToolUse of a short
-  in-repo markdown file fell from 339.8 to 21.6 spawn-equivalents.
+  must-fire payloads alike. Measured on Windows Git Bash against the same tree in a
+  paired run, PostToolUse of a short in-repo markdown file fell from 368.4 to 79.3
+  spawn-equivalents.
 - **The convention patterns are resolved once per convention change, not once per
   command.** `block-convention-violation` forked the convention resolver twice on
   every Bash and PowerShell tool call, because the resolver answers one key per
-  call. That cost 10.1 spawn-equivalents on every command the agent ran, to
-  re-derive an answer that changes only when the convention files change. The pair is
+  call. That cost 12.8 spawn-equivalents on every command the agent ran, to
+  re-derive an answer that changes only when the convention files change, and the
+  cached form measures 3.0 in the same paired run. The pair is
   now cached per repo root under the plugin data directory and invalidated by mtime
   against the team markdown, the well-known neutral YAML, and an explicit
   `convention_source` target when one is declared. The resolver itself is untouched
