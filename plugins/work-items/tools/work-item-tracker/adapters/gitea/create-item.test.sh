@@ -73,6 +73,21 @@ else
   pass "no issue is created when a label is unknown"
 fi
 
+# A non-array 200 (proxy error page, auth redirect body) must fail closed, not
+# be treated as an empty/garbage label set. jq length of an object is its key
+# count, which would otherwise look like a one-item page.
+gitea_reset_routes
+gitea_seed "/labels" 200 '{"message":"proxy error"}'
+gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'x')"
+rc="$(gitea_run "$S" --title "x" --labels "type: fix")"
+assert_eq "non-array label 200 → exit 1" "1" "$rc"
+assert_contains "names the type failure" "$(gitea_err)" "expected a JSON array"
+if [[ "$(gitea_requests)" == *"POST"* ]]; then
+  fail "no issue is created when the label list is not an array" "no POST" "POST issued"
+else
+  pass "no issue is created when the label list is not an array"
+fi
+
 # --- --type cannot be honored, and says so ---
 # Gitea has no issue-type registry, so the normalized `type` is structurally null.
 gitea_reset_routes
