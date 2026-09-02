@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.2]
+
+### Fixed
+
+- **`known-issues`: `check-all.sh` processes a final snapshot row without a trailing newline.**
+  The while-read loop over `registry-snapshot.tsv` dropped the last row when the file had no
+  trailing newline, because `read` returns non-zero on that final partial read. The loop now
+  uses `|| [[ -n "$number" ]]` so that row still runs, and the progress total uses `grep -c ''`
+  so `[n/total]` counts it too.
+
 ## [0.41.1]
 
 ### Added
