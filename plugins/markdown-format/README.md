@@ -280,7 +280,7 @@ comparable; the spawn-equivalent ratio is the figure that holds.
 | Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes |
 | --- | --- | --- | --- |
 | Clean `.md`, before (0.11.36) | 41.6 | ≈ 3,328 ms | 21 |
-| Clean `.md`, after (0.11.37) | 32.0 | ≈ 2,560 ms | 14 |
+| Clean `.md`, after (0.11.38) | 32.0 | ≈ 2,560 ms | 14 |
 | Non-Markdown file, after | 4.4 | ≈ 352 ms | 1 |
 
 **A clean Markdown edit costs ≈ 32.0 spawn-equivalents, ≈ 2,560 ms of

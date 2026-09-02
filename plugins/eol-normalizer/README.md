@@ -170,7 +170,7 @@ comparable; the spawn-equivalent ratio is the figure that holds.
 | Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes |
 | --- | --- | --- | --- |
 | Before (0.6.26) | 41.0 | ≈ 3,280 ms | 27 |
-| After (0.6.27) | 21.5 | ≈ 1,720 ms | 11 |
+| After (0.6.28) | 21.5 | ≈ 1,720 ms | 11 |
 
 **A benign edit costs about half what it did: ≈ 21.5 spawn-equivalents,
 ≈ 1,720 ms of reference-host work.** The cut is process count, not algorithm.

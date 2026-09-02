@@ -217,7 +217,7 @@ comparable; the spawn-equivalent ratio is the figure that holds.
 | Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes |
 | --- | --- | --- | --- |
 | Before (0.6.33) | 36.3 | ≈ 2,904 ms | 16 |
-| After (0.6.34) | 26.0 | ≈ 2,080 ms | 13 |
+| After (0.6.35) | 26.0 | ≈ 2,080 ms | 13 |
 
 **A clean edit costs ≈ 26.0 spawn-equivalents, ≈ 2,080 ms of reference-host
 work, down 28 percent.** Two `dirname` calls became parameter expansions, and
