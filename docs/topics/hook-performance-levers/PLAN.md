@@ -191,7 +191,7 @@ phase, always against the installed cache at `main`. Not a PR.
 - For each delivered plugin: `jq -r --arg p "<name>@melodic-software" '.plugins[$p] | if type=="array" then .[0] else . end | "\(.version) \(.gitCommitSha)"' ~/.claude/plugins/installed_plugins.json` equals `"$(jq -r .version plugins/<name>/.claude-plugin/plugin.json) $(git rev-parse HEAD)"` on the delivered branch.
 - `git check-ignore -q .work` exits 0 (baselines never tracked).
 
-### Phase 1: dotfiles harness extension [TODO]
+### Phase 1: dotfiles harness extension [DONE]
 
 Repo: `melodic-software/dotfiles`. Worktree `D:/worktrees/dotfiles-perf-hooks` created from
 `origin/main` (step 0, run from the dotfiles clone: `git fetch origin && git worktree add <worktrees-root>/dotfiles-perf-hooks -b perf/hook-fanout-samples origin/main`).
