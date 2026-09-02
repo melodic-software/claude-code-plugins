@@ -201,7 +201,8 @@ measurements below carry the conditions they were taken under.
 
 - **Code execution:** the plugin runs bundled, standard-library Python. The skill-scoped PreToolUse
   guard denies every unknown Bash command, permits only canonical bundled scan/preview calls, and
-  forces a final permission prompt for the canonical engine apply call. The guard rejects shell
+  returns a hook-issued `ask` for the canonical engine apply call (same `permissionDecision: "ask"`
+  as the PowerShell deletion lane; `dontAsk` auto-denies instead of prompting). The guard rejects shell
   expansion and operator syntax instead of validating only the post-split argument vector; script
   identity follows the host path rules and remains case-sensitive on POSIX. No `eval`, dynamic shell
   construction, or downloads are used. Paths cross the process boundary as JSON or individually

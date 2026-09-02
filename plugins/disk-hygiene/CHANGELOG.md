@@ -11,8 +11,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   PowerShell deletion lane returns `permissionDecision: "ask"`. Official PreToolUse docs say
   that value prompts the user to confirm and, since v2.1.211, forces the prompt even in auto
   mode, but an explicit `permissions.ask` rule is what those pages treat as forcing a prompt
-  in `auto` and `bypassPermissions` (`dontAsk` auto-denies instead). SKILL.md, the safety
-  model, and the unsupported-platform handoff now say so.
+  in `auto` and `bypassPermissions` (`dontAsk` auto-denies instead). The engine-apply step
+  uses that same hook `ask`, so SKILL.md and README no longer call it a guaranteed final
+  prompt. The safety model and unsupported-platform handoff now say so.
 
 ## [0.21.0]
 

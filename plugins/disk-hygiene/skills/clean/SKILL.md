@@ -324,8 +324,10 @@ After an affirmative answer in this interactive session, run only:
 ```
 
 Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call. The
-skill-frontmatter belt blocks those bypasses and forces one final permission prompt for the exact engine
-apply command; confirm it only when it matches the tier and paths just approved. If the plan, snapshot,
+skill-frontmatter belt blocks those bypasses and returns a hook-issued `ask`
+(`permissionDecision: "ask"`) for the exact engine apply command — the same mechanism as the
+PowerShell deletion lane below, including the `dontAsk` / `permissions.ask` caveats. Confirm that
+prompt only when it matches the tier and paths just approved. If the plan, snapshot,
 path identity, descendant set, VCS state, or handle state changed, re-scan and re-ask; never reuse a
 token.
 
