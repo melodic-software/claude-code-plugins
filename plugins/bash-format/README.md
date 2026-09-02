@@ -11,6 +11,9 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Behavior
 
+- **Spawned only for shell files.** The hook is registered with the `if` filters
+  `Edit(*.sh)` and `Edit(*.bash)`, so a Write/Edit of any other file never starts a
+  hook process for it; the extension check inside the script is unchanged.
 - **Lint on edit (always).** ShellCheck (`warning` severity and above) runs on
   every edit. It is non-mutating; it only reports.
 - **Format on edit (opt-in).** `shfmt` runs **only when an `.editorconfig`

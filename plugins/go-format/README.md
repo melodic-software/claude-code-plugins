@@ -17,6 +17,8 @@ surfaces the syntax error back to Claude as advisory context.
   unconfigured. Running it does not impose a style choice a repo hasn't
   made, the same reasoning that makes `gofmt` itself safe to run
   unconditionally.
+- **Spawned only for Go files.** The hook is registered with the `if` filter
+  `Edit(*.go)`, so a Write/Edit of any other file never starts a hook process for it.
 - **Extension-scoped.** Only `.go` files trigger the hook (like
   `ruff-format`'s `*.py`/`*.pyi` filter; unlike `typos-format`'s
   language-agnostic scope).

@@ -3,6 +3,40 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0]
+
+### Changed
+
+- **One hook process per event instead of one per guard.** The always-on guards are
+  now registered through `hooks/run-guards.sh`, a dispatcher that reads stdin once,
+  extracts the payload fields with one `jq` process, and sources each guard in turn
+  inside that one bash process. Per Bash/PowerShell call this is one hook process
+  where there were eight; per Write/Edit it is one where there were three on
+  PreToolUse and one where there were three on PostToolUse. Every guard still ships as
+  its own script with its own contract test, kill switch, and telemetry envelope, and
+  decides exactly as before; the dispatcher owns only the spawn shape, the exit-code
+  aggregation (2 wins, every guard still runs), and the merge of several guards'
+  `additionalContext` into the one JSON document a hook process may emit. Measured on
+  the reference Windows host with a benign `git status` payload the per-Bash-call set
+  fell from about 2,450 ms of summed hook time across eight processes to about
+  1,220 ms in one; that is still above the hook-budget convention's 1 s typical
+  ceiling, and the README's "Hook budget accounting" section carries the per-guard
+  figures and the remaining remediation.
+- **The dispatcher no longer shadows `dirname`.** Its spawn-saving `dirname` shell
+  function was inherited by every guard it sourced, and diverged from GNU `dirname`
+  for `/foo` (empty, not `/`) and `/a/b//` (`/a/b`, not `/a`). The helper is now
+  `run_guards::script_dir`, used only to locate the dispatcher's own directory, so a
+  dispatched guard's `dirname` is the real command again. Each guard's opening
+  `dirname` exec therefore returns (about 80 ms each on the reference Windows host);
+  the README's accounting was measured with the shadow in place and has not been
+  re-measured.
+- **Several guard documents without `jq` are never concatenated.** A hook process may
+  emit exactly one JSON document, so when two or more guards emit and `jq` is absent
+  (or the merge fails) the dispatcher emits the document carrying a blocking decision
+  (`"decision":"block"`, `"permissionDecision":"deny"`, then `"ask"`), else the first,
+  and prints each dropped document to stderr with a `run-guards: dropped without jq:`
+  prefix so the drop stays visible.
+
 ## [0.30.5]
 
 ### Changed

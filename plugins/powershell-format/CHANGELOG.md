@@ -3,6 +3,14 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.32]
+
+### Changed
+
+- **The hook carries `if` filters, `Edit(*.ps1)`, `Edit(*.psm1)` and `Edit(*.psd1)`.**
+  These are exactly the extensions the hook formats, so a Write/Edit of any other file no
+  longer spawns it; behavior on PowerShell files is unchanged.
+
 ## [0.7.31]
 
 ### Changed

@@ -3,6 +3,15 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.29]
+
+### Changed
+
+- **The hook carries `if` filters, `Edit(**/.github/workflows/*.yml)` and
+  `Edit(**/.github/workflows/*.yaml)`.** Those are the only paths the hook checks, so a
+  Write/Edit of any other file no longer spawns it; behavior on workflow files is
+  unchanged.
+
 ## [0.8.28]
 
 ### Changed

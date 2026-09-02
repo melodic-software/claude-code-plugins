@@ -12,6 +12,10 @@ runs only when your repo has opted into Biome.
 
 ## Behavior
 
+- **Spawned only for the files it formats.** The hook is registered with one `if`
+  filter per extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`,
+  `.json`, `.jsonc`), so a Write/Edit of any other file never starts a hook process
+  for it; the extension check inside the script is unchanged.
 - **Opt-in on `biome.json`.** Biome runs **only when a `biome.json` or
   `biome.jsonc` governs the edited file**, found by walking up from the file to
   the repository root. A repo without a Biome config is left untouched rather
