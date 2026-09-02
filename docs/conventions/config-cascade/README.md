@@ -112,9 +112,9 @@ surface is covered.
 ```
 
 That is the whole convention — **one line, recursive form, for every surface**. `.claude/**/` matches
-zero or more directories, so this single rule covers a flat `.claude/source-control.local.md`, a
-one-deep `.claude/ecosystems/python.local.yaml`, and a profiled
-`.claude/ai-briefing/<profile>/x.local.md` alike, while leaving team files tracked. The narrower
+zero or more directories, so this single rule covers a flat `.claude/source-control.local.md` and a
+one-deep `.claude/ecosystems/python.local.yaml` alike, and would cover a deeper nested overlay if a
+surface grew one, while leaving team files tracked. The narrower
 `.claude/*.local.*` silently fails to ignore any folder-form overlay; recommend the recursive form
 only, and never ask a consumer for two lines where one is exact.
 
@@ -257,14 +257,18 @@ surface, or amend this contract) is a separate human-gated decision.
 - **`disk-hygiene`'s `--policy` replaces both standing layers.** Its standing layers merge additively
   (overlays may disable or add hints and add protected globs, never weaken a hard guard); the
   wholesale replacement is confined to an explicit per-invocation flag, not a file layer.
+- **`ai-briefing` is team-only, with no local overlay (#3580).** Tracked files live under
+  `.claude/ai-briefing/` (default profile) or `.claude/ai-briefing/<name>/` (a named profile).
+  Selecting a named profile is profile selection, not resolution of a `*.local.*` cascade layer.
+  `sources.md`, optional `audience.md`, and optional `brand.json` are profile files in that
+  team directory; no read path resolves a `.local.*` file, and setup does not recommend
+  gitignoring one. Claude Code documents local behavior only for surfaces it actually resolves
+  (`CLAUDE.local.md`, `settings.local.json`); a generic `*.local.*` filename has no
+  platform-defined meaning.
 
 **Undeclared** — divergence with no recorded rationale:
 
-- **`ai-briefing` advertises an overlay layer it does not implement.** Its setup recommends the
-  recursive `.claude/**/*.local.*` gitignore line, but no read path resolves a `.local.*` file and
-  no file defines what one would do. Its documented resolution covers profile *selection* only, never
-  layer precedence. This is the only surface telling consumers to gitignore a layer that has no
-  effect.
+- none currently.
 
 ## Implementers
 
@@ -285,7 +289,7 @@ convention home, layers → `team, via pointer line`, conformance → the retire
 | `autonomy` | `.claude/autonomy/binding.json` | all three, plus an org rung | declared deviation |
 | `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` still observed, not ratified |
 | `disk-hygiene` | `.claude/disk-hygiene.json` | user-global + team | declared deviation; no overlay layer |
-| `ai-briefing` | `.claude/ai-briefing/` | team only | undeclared: overlay recommended, never resolved |
+| `ai-briefing` | `.claude/ai-briefing/` | team only | declared deviation; team-only, no local overlay (#3580). Named profile selection (`--profile`, `active_profile`, or `.claude/ai-briefing/<name>/`) is profile selection, not a `*.local.*` cascade layer. `sources.md`, optional `audience.md`, and optional `brand.json` are tracked profile files in the selected directory, not personal overlays |
 | `code-tidying` | `.claude/tidy-lanes/<lane>.md` | team only | declared deviation; no user-global or `*.local.*` overlay (#723). Team layer over a bundled default. A project lane declaring `## Merge semantics` merges per-section with its bundled lane (`Scope` per-section override, watch-for patterns additive — `docs-prose` #701, `shell-tooling` #724). Residual deviation: a project lane that declares nothing still resolves project-only wholesale — the first-match fallback retained in #701 so unmigrated consumer lanes keep working, undeclared at the layer that takes it. Personal variation is limited to lane names the team does not track — an uncommitted `.claude/tidy-lanes/<lane>.md` never added to the index; gitignoring a path the team already tracks does not make it personal |
 | `topic-docs` | `.claude/topic-docs.yaml` | team only | single-layer |
 | `repo-fleet-hygiene` | `.claude/repo-fleet-hygiene.conf` | user-global + team | declared deviation; whole-file precedence (explicit `--config` > team > user-global fallback), no per-key merge, no overlay layer (#1099) |
@@ -302,14 +306,18 @@ sweep — and each migration updates its own row in the same change.
 
 ### Overlay spelling drift
 
-Every setup surface now recommends (or, for `source-control`, appends) the
-recursive line above. The narrow spellings the fleet used to ship — `.claude/*.local.*`,
-`.claude/ecosystems/*.local.*`, `.claude/autonomy/**/*.local.*` — were each narrowly correct for
-their own surface but collectively defeated the one-line promise: a consumer running three plugins
-was asked for three lines, and the non-recursive spellings would silently miss a nested overlay if
-their surface ever grew a folder. Two deliberate exceptions remain: the bare `*.local.md` inside
-the setup-owned `<standards_dir>/.gitignore` (a dedicated ignore file scoped to the standards
-root, not the consumer's `.gitignore`), and `work-items`' repo-root
-`.work-item-tracker.local.json` line (ADR 0015; outside `.claude/` entirely). This contract does
-not retroactively rewrite narrow lines already written into consumer repositories — the recursive
-line simply supersedes them where both exist.
+Every setup surface that owns a `*.local.*` overlay now recommends (or, for
+`source-control`, appends) the recursive line above. The narrow spellings the
+fleet used to ship — `.claude/*.local.*`, `.claude/ecosystems/*.local.*`,
+`.claude/autonomy/**/*.local.*` — were each narrowly correct for their own
+surface but collectively defeated the one-line promise: a consumer running
+three plugins was asked for three lines, and the non-recursive spellings
+would silently miss a nested overlay if their surface ever grew a folder.
+Three deliberate exceptions remain: the bare `*.local.md` inside the
+setup-owned `<standards_dir>/.gitignore` (a dedicated ignore file scoped to
+the standards root, not the consumer's `.gitignore`); `work-items`' repo-root
+`.work-item-tracker.local.json` line (ADR 0015; outside `.claude/` entirely);
+and `ai-briefing`, which is team-only and recommends no overlay line at all
+(#3580). This contract does not retroactively rewrite narrow lines already
+written into consumer repositories — the recursive line simply supersedes
+them where both exist.
