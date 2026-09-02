@@ -1,8 +1,9 @@
 # Config Cascade Convention — Changelog
 
 Notable changes to the config-cascade contract. The contract is versioned by
-`contract_version` (SemVer) and governs the layering axis only — layer set, precedence, override
-semantics, and overlay naming. Per-concern keys and schema are versioned by their own owner docs and
+`contract_version` (SemVer) and governs the layering axis (layer set, precedence, override
+semantics, overlay naming) and, from 1.2, expression form (dedicated file vs convention doc bound
+by a pointer line). Per-concern keys and schema are versioned by their own owner docs and
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
@@ -13,11 +14,13 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   doc at the consumer's convention home, bound by a single pointer line in a marked machine-owned
   region of the root instruction file (the line is the binding; no binding file). Per-operator-
   keyed, structured, policy-floor, and state surfaces stay files. Defines pointer-line rules
-  (AGENTS.md canonical over a pure `@AGENTS.md` shim, duplicate and missing-target handling as
-  ask-don't-infer FAILs, branch-scoped binding), root-file shape as the downstream repo's call,
-  the WARN-visible dual-read deprecation window, the migrated-surface overlay WARN, and the
-  machine-scope exclusion. No layer, precedence, or overlay-naming rule changes. Ratified by ADR
-  0018; the Implementers table gains a per-row expression note that each migration PR fills.
+  (the file that owns the discovered marked region is canonical; AGENTS.md wins only when both
+  files carry a region; a pure `@AGENTS.md` CLAUDE.md shim is not consulted; duplicate and
+  missing-target handling as ask-don't-infer FAILs; branch-scoped binding), root-file shape as
+  the downstream repo's call, the WARN-visible dual-read deprecation window, the migrated-surface
+  overlay WARN, and the machine-scope exclusion. No layer, precedence, or overlay-naming rule
+  changes. Ratified by ADR 0018; the Implementers table gains a per-row expression note that each
+  migration PR fills.
 - **Overlay spelling drift closed.** Every setup recommends the recursive line; the section now
   records the convergence and the two deliberate exceptions.
 

@@ -13,13 +13,15 @@ This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md
 
 ## Boundary — this contract owns the axis, never the keys
 
-It governs **layering and precedence only**. Which keys a config surface has, what they mean, and how
-they are validated belong to that concern's own owner doc under `docs/conventions/<concern>/`, or to
-the plugin's own bundled reference. The two compose: a per-concern doc declares its keys and points
-here for how its layers merge.
+It governs **layering, precedence, overlay naming, and (from contract 1.2) expression form**.
+Which keys a config surface has, what they mean, and how they are validated belong to that
+concern's own owner doc under `docs/conventions/<concern>/`, or to the plugin's own bundled
+reference. The two compose: a per-concern doc declares its keys and points here for how its
+layers merge and which expression form the surface uses.
 
 The distinction is what keeps this doc from colliding with the one-owner-doc-per-shared-concern rule.
-Layering is a genuinely cross-cutting axis every config surface shares; keys are not.
+Layering and expression form are genuinely cross-cutting axes every config surface shares; keys
+are not.
 
 ## The layers
 
@@ -159,10 +161,12 @@ effectively every conversation; topic conventions live at the home, loaded on de
 Pointer-line rules a resolver honors (the small tested helper the program's mechanism phase ships
 owns the grammar; consumer prose it reads is **untrusted input**, never executed or interpolated):
 
-- **Both root files.** `AGENTS.md` is canonical when present; a `CLAUDE.md` whose whole content is
-  the `@AGENTS.md` import is a pure shim and is not consulted for a pointer. When both files carry
-  a marked region, `AGENTS.md` wins and `CLAUDE.md`'s copy is reported as a duplicate finding
-  (remediation: remove it). Two pointer lines inside one region is a FAIL, never first-wins.
+- **Which file owns the region.** A file without a marked region is not consulted, even if it
+  is named `AGENTS.md`. A `CLAUDE.md` whose whole content is the `@AGENTS.md` import is a pure
+  shim and is not consulted for a pointer. When exactly one of the two files carries the marked
+  region, that file is canonical. When both files carry a marked region, `AGENTS.md` wins and
+  `CLAUDE.md`'s copy is reported as a duplicate finding (remediation: remove it). Two pointer
+  lines inside one region is a FAIL, never first-wins.
 - **Ask, never silently rebind.** A pointer absent while a previously-known home still exists on
   disk, or a pointer whose target directory is missing, is a FAIL that routes to `apply`'s
   interview. Inference may *propose* a home from repo evidence; only the operator's confirmation

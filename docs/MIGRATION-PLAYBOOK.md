@@ -310,8 +310,10 @@ value, infers-and-records (gated), or asks — never guesses silently. Nothing h
 When a plugin retires a consumer-facing convention (a config file moves to a convention doc, a
 gitignore line is superseded, a directory is renamed), the old artifact left in consumer repos is
 detected and cleaned by one shared mechanism, never by bespoke prose per plugin: the plugin appends
-an append-only record to its `retirements.yaml` (shipped inside the plugin, never in consumer
-repos), and the shared deterministic helper `lib/check-retirements.sh` (canonical under
+a record to its `retirements.yaml` (shipped inside the plugin, never in consumer
+repos). Records are never deleted and identity/detection fields stay frozen; the `status`
+demotion field may flip `active` to `report-only` (and back). The shared deterministic helper
+`lib/check-retirements.sh` (canonical under
 `plugins/claude-config/lib/`, synced byte-identical via `scripts/cross-plugin-source-registry.txt`)
 evaluates every record against the consumer repo. Detection is one fixed step in setup `check`;
 cleanup is per-record and operator-gated in `apply`; judgment-bearing `migrate` content stays with
