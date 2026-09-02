@@ -4,6 +4,15 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.34]
+
+### Fixed
+
+- **`build-yt-dlp-args` tests pass an empty `env` so host cookie settings cannot inject argv.** Six
+  cases omitted `env`, so `resolveYtDlpAuthArgs` fell through to `process.env`. A runner with
+  `VIDEO_DIGEST_YT_DLP_COOKIES_FILE` (or the legacy `YOUTUBE_` spelling) exported then failed the
+  positional and `not.toContain` assertions. They now match the adapter-argv conformance suite.
+
 ## [0.13.33]
 
 ### Fixed
