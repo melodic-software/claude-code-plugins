@@ -34,7 +34,13 @@ tool that needs it, so long-running workflows can route heavy work away from a d
   compacted session's effective zone is dumb regardless of its post-compaction numbers. An
   optional **blocking** mode (`zone_hook_mode` userConfig) adds a PreToolUse gate that denies new
   Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past a grace budget, fail-open on `unknown`, with handoff-path writes, reads, Bash, and Skill invocations never
-  gated, so a durable handoff is always writable.
+  gated, so a durable handoff is always writable. The two advisory `zone-crossing-inject.sh` rows
+  (PostToolBatch and UserPromptSubmit) carry a 15-second timeout: they sit on the prompt path, where
+  a stalled hook holds up the turn, and losing a late advisory nudge costs less than the wait. The
+  timeout is a cap on a hook that is already running, not a defence against one blocked on stdin;
+  that case is handled by `hook::buffer_stdin` reading to EOF with its bounded stall path, which both
+  rows use. The PreToolUse `zone-gate.sh` row and the PostCompact row keep 60 seconds, because a
+  shortened timeout on a gate is fail-open.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
   the zones.json shape, session-id discovery via `${CLAUDE_SESSION_ID}`, and the

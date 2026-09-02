@@ -5,6 +5,18 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.30]
+
+### Changed
+
+- **The two advisory zone-crossing rows drop from a 60-second to a 15-second timeout.** Both
+  `zone-crossing-inject.sh` registrations (PostToolBatch and UserPromptSubmit) sit on the prompt
+  path, where a stalled hook holds up the turn, and both are advisory: they emit no decision, so the
+  worst a cap costs is a late nudge. The timeout caps a hook that is already running; a hook blocked
+  on stdin is handled by `hook::buffer_stdin` reading to EOF with its bounded stall path, which both
+  rows already use. The gating PreToolUse `zone-gate.sh` row and the PostCompact row are unchanged at
+  60 seconds, because shortening a gate's timeout is fail-open. No script changed.
+
 ## [0.7.29]
 
 ### Changed

@@ -81,17 +81,17 @@ user-typed slash command (`UserPromptExpansion`, which bypasses the `Skill`
 tool). Events carry a `source` field (`tool` vs `expansion`) so consumers can
 tell the paths apart; both share the same telemetry `hook` id and second store.
 
-| Hook | Event | Emits |
-|---|---|---|
-| `api-error-audit` | StopFailure | API turn-failure `error_type` (never the message body) |
-| `config-change-audit` | ConfigChange | the mutated `config_source` |
-| `instructions-loaded-audit` | InstructionsLoaded | `<repo-relative-file>:<load_reason>` (absolute prefix stripped; session_start filtered by default) |
-| `permission-denied-audit` | PermissionDenied | classifier denials, `Bash:<first-token>` subject |
-| `pre-compact-audit` | PreCompact | compaction `trigger` (`manual`/`auto`) |
-| `skill-usage-audit` (tool path) | PostToolUse (`Skill`) | model-invoked skill; `source: "tool"`; also writes the `skill-usage.jsonl` second store |
-| `skill-usage-audit` (expansion path) | UserPromptExpansion | user-typed `/command` (`slash_command`/`mcp_prompt`); `source: "expansion"` + `expansion_type`; same second store |
-| `tool-failure-audit` | PostToolUseFailure | Write/Edit/Bash failures, privacy-safe subject |
-| `hook-failure-audit` | Stop | unsurfaced `hook_non_blocking_error` attachments; envelope subjects are hook names only; also warns via `systemMessage` |
+| Hook | Event | Emits | Why it earns its spawn |
+|---|---|---|---|
+| `api-error-audit` | StopFailure | API turn-failure `error_type` (never the message body) | The event only fires when a turn fails at the API, so the hook costs nothing on a healthy session |
+| `config-change-audit` | ConfigChange | the mutated `config_source` | Matcher-scoped to the four sources that can change behavior, and a settings or skills change is rare |
+| `instructions-loaded-audit` | InstructionsLoaded | `<repo-relative-file>:<load_reason>` (absolute prefix stripped; session_start filtered by default) | The highest-volume row here, but the event runs asynchronously upstream, so it is spawn count only and never on the critical path |
+| `permission-denied-audit` | PermissionDenied | classifier denials, `Bash:<first-token>` subject | Fires only on an actual denial, and it is the only durable record of what the classifier refused |
+| `pre-compact-audit` | PreCompact | compaction `trigger` (`manual`/`auto`) | Once per compaction, which is the rarest event this plugin observes |
+| `skill-usage-audit` (tool path) | PostToolUse (`Skill`) | model-invoked skill; `source: "tool"`; also writes the `skill-usage.jsonl` second store | Matcher-scoped to `Skill`, so it is skipped on every other tool call rather than firing per PostToolUse |
+| `skill-usage-audit` (expansion path) | UserPromptExpansion | user-typed `/command` (`slash_command`/`mcp_prompt`); `source: "expansion"` + `expansion_type`; same second store | Fires per expanded slash command, not per prompt, and it is the only path that sees a user-typed invocation (the `Skill` tool never runs) |
+| `tool-failure-audit` | PostToolUseFailure | Write/Edit/Bash failures, privacy-safe subject | Matcher-scoped to the three tools whose failures are actionable, and the event fires only on failure |
+| `hook-failure-audit` | Stop | unsurfaced `hook_non_blocking_error` attachments; envelope subjects are hook names only; also warns via `systemMessage` | The only per-turn row, and it is the sole surface for a hook that failed to launch while its guarded tool call proceeded |
 
 None captures a command body, absolute path, error message, or argument body, only category labels, privacy-safe subjects, and (for `instructions-loaded-audit`)
 the repo-relative path of the loaded rule file.
