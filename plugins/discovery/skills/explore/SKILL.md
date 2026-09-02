@@ -9,11 +9,23 @@ metadata:
   summary: Explore code, history, tests, and config before changing anything
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
-Project root: !`git rev-parse --show-toplevel 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+- Project root, `git rev-parse --show-toplevel`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 These values orient this session only. The project root is an absolute machine path. Use it to resolve files while working, but never echo it into `EXPLORE.md`; the handoff artifact records relative paths (see the outcome gate below).
 
@@ -189,7 +201,7 @@ Before writing EXPLORE.md (or returning the summary), check the artifact against
 - **Every Output-format section populated with specifics**. Each of the 7 sections carries concrete findings, not placeholders or "TBD".
 - **Every load-bearing area covered OR listed as a numbered gap**. Nothing the task plausibly depends on is silently unexplored.
 - **Conclusion-driving claims are Read-verified, not inferred from a filename or grep hit**. Anything a downstream decision rests on came from reading the file or code.
-- **Paths are machine-agnostic**. No finding in the artifact echoes an absolute machine path (notably the pre-computed project root); every path it records is written relative to the repo root, or, when there is no repo root, to the current working directory, so the handoff stays portable across machines.
+- **Paths are machine-agnostic**. No finding in the artifact echoes an absolute machine path (notably the project root gathered above); every path it records is written relative to the repo root, or, when there is no repo root, to the current working directory, so the handoff stays portable across machines.
 - **Open questions handed off, never dropped**. Surfaced to the user inline, or carried in the payload's `open_questions` for the parent to surface under dispatch. Each with a recommended default.
 
 ## Final step: persist artifact for handoff

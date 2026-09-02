@@ -9,12 +9,24 @@ metadata:
   summary: Execute approved plans with TDD, incremental validation, and green commits
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
-Uncommitted changes: !`git diff --stat HEAD 2>/dev/null | tail -1 || echo "none"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+- Recent commits, `git log --oneline -5`
+- Uncommitted changes, `git diff --stat HEAD | tail -1`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -56,7 +68,7 @@ If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `config`), use t
 Before writing code, verify the knowledge base:
 
 - **Is there an approved plan?** If yes, use it as execution roadmap. If no plan exists and the task is non-trivial (3+ files, new project, cross-cutting change), suggest a planning pass first. `/planning:plan` when the planning plugin is installed, otherwise whatever plan skill the consuming setup provides (check what's actually available; never invent skill names). For trivial changes (single-file fix, small config edit), proceed without a formal plan
-- **Is the branch correct?** Check pre-computed branch. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one following the consuming project's branch-naming convention (check its `CLAUDE.md` / `AGENTS.md` / rules; `<type>/<description>` is a common default). `git checkout -b <branch>`, or `/source-control:worktree` when that plugin is installed
+- **Is the branch correct?** Check the branch gathered above. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one following the consuming project's branch-naming convention (check its `CLAUDE.md` / `AGENTS.md` / rules; `<type>/<description>` is a common default). `git checkout -b <branch>`, or `/source-control:worktree` when that plugin is installed
 - **Are there uncommitted changes?** If dirty working tree with unrelated changes, flag it, don't mix concerns in one commit
 
 ## Step 2: Execute with Incremental Validation

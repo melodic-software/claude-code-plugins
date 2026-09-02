@@ -3,6 +3,20 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6]
+
+### Fixed
+
+- **`audit`, `delta`, `realign`:** the git pre-compute lines moved out of `## Pre-computed context`
+  into a "Repository context. Gather first" body section of individual Bash calls, one command per
+  call, each `head` bound kept inside its command and a failure read as an unknown value. The
+  harness composes a skill's whole pre-compute block into one shell invocation, and a
+  worktree-isolated session refuses a git-bearing compound command, which blocked these skills from
+  loading inside a worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute
+  lines stay where they were. The branch call fails with no output on a detached checkout instead of
+  printing a sentinel string, so the steps that read the sentinel now read the exit status, and
+  delta no longer describes its block as deliberately one line.
+
 ## [0.3.5]
 
 ### Changed

@@ -9,9 +9,20 @@ metadata:
   summary: Judge whether a doc earns its existence or should become a pointer
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Uncommitted .md files (first 20; empty = none matched or the probe returned nothing): !`bash "${CLAUDE_SKILL_DIR}/scripts/uncommitted-md.sh" 20 2>/dev/null || echo "(status unavailable)"`
 
 ## Purpose

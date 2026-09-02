@@ -17,7 +17,7 @@ identity, and treating it as one breaks this lane twice over: every ref keys to 
 `<branch-slug>` home, and the branch-match check in step 2 compares `HEAD` to `HEAD`, passes, and
 accepts some other ref's spine as this ref's baseline, after which the lane reports the difference
 between two refs as a delta. Scheduled runners very commonly check out detached, so this is the
-ordinary case for the mode this lane was built for, which is why the precompute uses
+ordinary case for the mode this lane was built for, which is why the branch call uses
 `git symbolic-ref` and refuses to invent a name.
 
 When the branch identity does not resolve:

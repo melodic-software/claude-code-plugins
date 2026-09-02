@@ -31,10 +31,22 @@ metadata:
   summary: Clean caches, build artifacts, stale branches, and stashes per repo
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Uncommitted changes (empty = none): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -5`
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Uncommitted changes (empty = none), `git status --porcelain | head -5`
+- Current branch, `git branch --show-current`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 5 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 

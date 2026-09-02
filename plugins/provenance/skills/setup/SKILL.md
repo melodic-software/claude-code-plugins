@@ -7,10 +7,21 @@ allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/list-corpus.sh:
 shell: bash
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Repository root: !`git rev-parse --show-toplevel 2>/dev/null || echo "not a git repository"`
-Team config present: !`test -f "$(git rev-parse --show-toplevel 2>/dev/null)/.claude/provenance.json" && echo yes || echo no`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Repository root, `git rev-parse --show-toplevel`
+- Team config present (yes/no), `test -f "<root>/.claude/provenance.json" && echo yes || echo no`
+
+Substitute the literal root the previous call returned for `<root>`; when it failed, there is no
+team layer to look for.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Why this skill is human-invoked
 

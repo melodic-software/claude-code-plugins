@@ -9,12 +9,20 @@ metadata:
   summary: Prove the change achieved its intended outcome with evidence
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Working tree status (empty = clean): !`git status --porcelain 2>/dev/null || echo "(git status unavailable)"`
-Changed files (vs HEAD): !`git diff --name-only HEAD 2>/dev/null || echo ""`
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Working tree status (empty = clean), `git status --porcelain`
+- Changed files (vs HEAD), `git diff --name-only HEAD`
+- Current branch, `git branch --show-current`
+- Recent commits, `git log --oneline -5`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 

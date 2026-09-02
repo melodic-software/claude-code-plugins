@@ -9,11 +9,24 @@ metadata:
   summary: Sweep stale references after renames, including forms grep misses
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
-Rename pairs (git): !`{ git diff --name-status -M HEAD 2>/dev/null; git diff --cached --name-status -M 2>/dev/null; } | grep '^R' | head -15 || echo "none"`
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+- Rename pairs (git), unstaged, `git diff --name-status -M HEAD | grep '^R' | head -15`
+- Rename pairs (git), staged, `git diff --cached --name-status -M | grep '^R' | head -15`
+- Current branch, `git branch --show-current`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 

@@ -10,10 +10,22 @@ metadata:
   summary: Grade instruction files for split opportunities and hub/spoke disclosure defects
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Uncommitted .md files (sample, first 10; empty = none matched or the probe returned nothing): !`git status --porcelain >/dev/null 2>&1 && { git status --porcelain 2>/dev/null | grep -E '\.md"?$' | head -10; :; } || echo "(git status unavailable)"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Uncommitted .md files (sample, first 10; empty = none matched or the probe returned nothing), `git status --porcelain | grep -E '\.md"?$' | head -10`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -76,7 +88,7 @@ sibling divergences it owns.
    `CHANGELOG.md`; scan via one `detect.sh` pass per top-level root; report-first. Unattended,
    surface the offer as blocked and stop.
 2. Empty arg AND uncommitted `.md` files → batch audit over ALL of them. Re-derive the full
-   list in-session (`git status --porcelain`); the pre-computed sample above caps at 10 and is
+   list in-session (`git status --porcelain`); the sample gathered above caps at 10 and is
    orientation, never the corpus.
 3. Single file path → single-file audit.
 4. Directory path → recursive batch.

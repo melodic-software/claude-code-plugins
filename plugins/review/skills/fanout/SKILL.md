@@ -9,13 +9,28 @@ metadata:
   summary: Fan review out across every reviewer surface into one ranked report
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree status (empty = clean), `git status --porcelain | head -20`
+- Uncommitted diff size, `git diff --shortstat HEAD`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
 Open PRs (match headRefName to current branch above; baseRefName is the PR's real base): !`gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo "unknown"`
 Committed diff size vs default-base merge base (recompute against the PR's baseRefName when it differs): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/fanout/scripts/diff-vs-base.sh" 2>/dev/null || echo "unavailable"`
-Uncommitted diff size: !`git diff --shortstat HEAD 2>/dev/null || echo "unavailable"`
 
 ## Purpose
 

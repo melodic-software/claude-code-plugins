@@ -9,9 +9,20 @@ metadata:
   summary: Execute accepted audit findings down the rollback ladder behind a per-item human gate
 ---
 
+## Repository context. Gather first
+
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Branch, `git symbolic-ref --quiet --short HEAD`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
 ## Pre-computed context
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
 - Today (UTC): !`date -u +%Y-%m-%d 2>/dev/null || echo "unknown (no date command)"`
 
 ## Purpose
@@ -59,12 +70,10 @@ An acceptance given earlier is not an approval of the edit that later falls out 
 
 ## Before anything: load the artifact
 
-1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the sentinel `no branch ref (detached HEAD or no checkout)`. **The precompute is a convenience,
-   not the source of truth**. A worktree-isolated or dispatched executor may decline to inject it at
-   all, so where the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read
-   its exit status rather than assuming an identity. **`HEAD` is never accepted as a branch
-   identity**, and neither is the sentinel. Where the sentinel appears, prefer a logical ref
+1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
+   name or fails with no output (detached HEAD or no checkout). Read its exit status rather than
+   assuming an identity. **`HEAD` is never accepted as a branch identity**, and neither is a failed
+   call. Where the call fails, prefer a logical ref
    if the environment supplies one that names a branch, after the same normalize-then-validate
    steps `audit` uses (strip a leading `refs/heads/`, then `git check-ref-format --branch`,
    refuse `.` / `..` segments); name where it came from. **Otherwise stop**. See "An unresolved
@@ -233,12 +242,12 @@ the two identities it compares, and `git rev-parse --abbrev-ref HEAD` answers th
 `HEAD` on a detached checkout, which compares equal to itself, so a `HEAD`-to-`HEAD` comparison
 passes by construction and authorizes mutations from an artifact that may describe another ref
 entirely. Scheduled and dispatched runners commonly check out detached, so this is an ordinary
-condition, not an exotic one. The precompute therefore uses `git symbolic-ref`, which fails rather
+condition, not an exotic one. The branch call therefore uses `git symbolic-ref`, which fails rather
 than inventing a name, matching the `audit` and `delta` lanes.
 
 **Two distinct unresolved states both refuse, and neither may reach the comparison:**
 
-- **This checkout has no branch identity**. The precompute yielded the sentinel and no logical ref
+- **This checkout has no branch identity**. The branch call failed and no logical ref
   was supplied. Stop before reading the artifact. Say so plainly: *"Detached checkout, no logical ref
   supplied; no branch identity, so the artifact's branch cannot be verified and nothing will be
   executed."* Nothing is presented as a queue, no status transitions, nothing written anywhere.

@@ -9,14 +9,22 @@ metadata:
   summary: Re-run the enforcement-surface audit and report only what moved since the last run
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
 
-Deliberately one line. A precompute block carrying a git command **and** more than one injection line
-is refused outright in a worktree-isolated agent, which is exactly the dispatched context a scheduled
-run of this lane arrives in. The baseline's UTC stamps are read with an ordinary `date -u
-+%Y%m%dT%H%M%SZ` call at the moment they are written, where they are accurate anyway.
+- Branch, `git symbolic-ref --quiet --short HEAD`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
+
+The branch is deliberately a body call and not a pre-compute line: a worktree-isolated agent is
+exactly the dispatched context a scheduled run of this lane arrives in. The baseline's UTC stamps
+are read with an ordinary `date -u +%Y%m%dT%H%M%SZ` call at the moment they are written, where they
+are accurate anyway.
 
 **`symbolic-ref`, not `rev-parse --abbrev-ref`, and the difference is the whole guard.**
 `git rev-parse --abbrev-ref HEAD` returns the literal string `HEAD` on a detached checkout, a value
@@ -117,8 +125,8 @@ unchanged**:
 
 ## The run
 
-1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the `no branch ref` string. When it yields the string, the checkout is detached (or absent) and
+1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
+   name or fails with no output. When it fails, the checkout is detached (or absent) and
    **`HEAD` is never accepted as a branch identity**. See "A detached checkout has no branch
    identity" in [context/run-states.md](context/run-states.md) for what to do and what not to.
    Resolve the home by running the whole rung order in

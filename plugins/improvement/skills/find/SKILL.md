@@ -9,12 +9,24 @@ metadata:
   summary: Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Recent commits: !`git log --oneline -15 2>/dev/null || echo "no commits"`
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -10`
-Shallow repository: !`git rev-parse --is-shallow-repository 2>/dev/null || echo "unknown"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Recent commits, `git log --oneline -15`
+- Working tree status (empty = clean), `git status --porcelain | head -10`
+- Shallow repository, `git rev-parse --is-shallow-repository`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Variables
 
@@ -46,7 +58,7 @@ Parse `$ARGUMENTS` and the invoking prompt for four independent narrowings; each
   directory, resolve its root once (`git -C <repo-path> rev-parse --show-toplevel`) and anchor
   EVERY probe to it. `git -C <root>` for every git command here and in the `context/` recipes,
   and file reads under that root, so the evidence never silently comes from the invoking repo.
-  The precomputed branch/log lines above describe the session's cwd, not the target; re-run them
+  The branch/log calls above describe the session's cwd, not the target; re-run them
   with `-C <root>` in that case. Fleet-wide sweeps are out of scope. Compose with
   `repo-fleet-hygiene` externally, one invocation per repo.
 - **Mode.** Interactive is the default. Unattended is entered ONLY when the caller declares it (see

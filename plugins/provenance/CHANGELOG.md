@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.2]
+
+### Fixed
+
+- **`audit`, `setup`:** the git pre-compute lines moved out of `## Pre-computed context` into a
+  "Repository context. Gather first" body section of individual Bash calls, one command per call,
+  each `head` bound kept inside its command and a failure read as an unknown value. The harness
+  composes a skill's whole pre-compute block into one shell invocation, and a worktree-isolated
+  session refuses a git-bearing compound command, which blocked these skills from loading inside a
+  worktree. Same shape as the worktree skill's fix in #1619. Non-git pre-compute lines stay where
+  they were. setup tests for the team config under the literal root the previous call returned.
+
 ## [0.5.1]
 
 ### Fixed

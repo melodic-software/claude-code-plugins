@@ -9,10 +9,18 @@ metadata:
   summary: Audit the enforcement surface for mechanisms no longer earning their carry cost
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-- Branch: !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "no branch ref (detached HEAD or no checkout)"`
-- Shallow clone: !`git rev-parse --is-shallow-repository 2>/dev/null || echo "unknown (no checkout)"`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Branch, `git symbolic-ref --quiet --short HEAD`
+- Shallow clone, `git rev-parse --is-shallow-repository`
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
@@ -97,13 +105,11 @@ Parse `$ARGUMENTS`:
 
 ## Before the walk
 
-1. **Resolve the branch identity, then the artifact home.** The precompute above yields a branch name
-   or the sentinel `no branch ref (detached HEAD or no checkout)`. **The precompute is a convenience,
-   not the source of truth**. A worktree-isolated or dispatched executor may decline to inject it at
-   all, which is exactly the `unattended` context where a detached checkout is most likely, so where
-   the branch line is absent run `git symbolic-ref --quiet --short HEAD` here and read its exit status
-   rather than assuming an identity. **`HEAD` is never accepted as a branch identity**, and neither is
-   the sentinel. "A detached checkout has no branch identity" below governs what an unresolved
+1. **Resolve the branch identity, then the artifact home.** The branch call above yields a branch
+   name or fails with no output (detached HEAD or no checkout). Read its exit status rather than
+   assuming an identity; the `unattended` context is exactly where a detached checkout is most
+   likely. **`HEAD` is never accepted as a branch identity**, and neither is a failed call.
+   "A detached checkout has no branch identity" below governs what an unresolved
    identity declines, and it is decided here, before a home is composed. With an identity in hand,
    resolve the home by running the whole rung order in
    `${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`, resolve it, never assume the documented
@@ -213,7 +219,7 @@ identity, and writing it into the artifact breaks the seam in two places at once
 the same `<branch-slug>` home, so unrelated refs share one `findings.md`; and `realign`'s
 branch-match refusal compares `HEAD` to `HEAD`, passes, and executes another ref's findings against
 this one. Scheduled runners very commonly check out detached, so this is an ordinary case rather
-than an exotic one, which is why the precompute uses `git symbolic-ref` and refuses to invent a
+than an exotic one, which is why the branch call uses `git symbolic-ref` and refuses to invent a
 name. The sibling `delta` lane resolves identity the same way, on the same reasoning.
 
 When the branch identity does not resolve:
@@ -244,7 +250,7 @@ When the branch identity does not resolve:
   `realign` must refuse anyway, so writing it only moves the failure later and leaves a file behind
   that the next run merges into.
 
-**Detached-in-a-repo vs no checkout are different stops.** The precompute sentinel covers both,
+**Detached-in-a-repo vs no checkout are different stops.** A failed branch call covers both,
 but they are not the same case. **No checkout** (no project root, `git rev-parse --show-toplevel`
 fails) is the topic-docs "No project root" stop: there is no enforcement surface to audit, so
 the run does not walk an arbitrary working directory and report it as the repository. A

@@ -9,10 +9,22 @@ metadata:
   summary: Turn an informal bug description into a structured 5-field report, read-only
 ---
 
-## Pre-computed context
+## Repository context. Gather first
 
-Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Working tree (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -5`
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+- Working tree (empty = clean), `git status --porcelain | head -5`
+
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 5 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Variables
 
