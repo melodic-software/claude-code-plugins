@@ -16,9 +16,14 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   33 to 29 over the same run, and a command substitution costs about half a
   spawn here, so they are counted beside the execs. The README's accounting
   section carries the method and the residual.
-- The suite gains a traced case pinning the benign path's shape on a file two
-  directories below the repository root, so a walk that shelled out again would
-  fail it: no `dirname`, no `basename`.
+- The suite gains a traced case pinning the benign path's shape on a clean
+  Markdown file two directories below the repository root, so a walk that
+  shelled out again would fail it: no `dirname`, no `basename`, and a ceiling of
+  four external processes spawned by the hook's own code, allowlisted to
+  `markdownlint-cli2`, `git` and `grep`. The ceiling is portable because the
+  trace attributes each command to the function frame it ran in, so the shared
+  `hook::` path resolver's host-dependent `realpath` and `cygpath` calls sit
+  outside the count.
 
 ## [0.11.36]
 

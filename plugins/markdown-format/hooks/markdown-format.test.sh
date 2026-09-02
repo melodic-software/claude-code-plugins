@@ -2670,11 +2670,24 @@ fi
 
 # --- Benign path spawns no process it does not need (traced) -----------------
 # This hook fires on every Markdown Write and Edit, so the process count on the
-# path where the file is already clean IS the cost. The assertion is a set of
-# commands that must not appear, not a total: totals move with the host (how
-# many realpath and cygpath calls the shared path resolver makes differs between
-# Windows and Linux), while "this hook no longer shells out to strip a directory
-# name" is the same everywhere.
+# path where the file is already clean IS the cost. Three assertions guard it: a
+# set of commands that must not appear anywhere in the run, a CEILING on how
+# many external processes the hook's OWN code spawns, and an allowlist naming
+# which ones they may be.
+#
+# A total over the whole run would not be portable, because the shared path
+# resolver makes a different number of realpath and cygpath calls on Windows
+# than on Linux. A total over the hook's own code IS portable, and the trace
+# separates the two: the run is traced with a PS4 carrying ${FUNCNAME[0]}, and a
+# command substitution's subshell inherits FUNCNAME, so a `$(realpath ...)`
+# inside a shared library function is attributed to that function rather than to
+# its caller. Every function in hooks/hook-utils.sh is in the `hook::` namespace
+# and nothing in this plugin's own script is, so "the frame is not hook::" is
+# exactly "this hook's own code". Every host-dependent process lands on the
+# other side of that line.
+#
+# The ceiling is an upper bound rather than an equality so a later cut does not
+# fail it; the allowlist is what catches a swap that keeps the count.
 #
 # dirname and basename became parameter expansions, including inside the two
 # directory walks whose exec count grew with the file's depth below the repo
@@ -2685,15 +2698,39 @@ fi
 # always sets it and with it unset the shared path resolver takes a git-
 # membership branch that spawns a dirname of its own. The telemetry sink is
 # cleared so an inherited one does not make the envelope the thing being counted.
+trace_words() {
+  awk -v scope="$2" '
+    /^\++@/ {
+      line = $0
+      sub(/^\++@/, "", line)
+      fn = line
+      sub(/@.*/, "", fn)
+      rest = line
+      sub(/^[^@]*@ ?/, "", rest)
+      while (rest ~ /^[A-Za-z_][A-Za-z_0-9]*=/) { sub(/^[A-Za-z_][A-Za-z_0-9]*=[^ ]*[ ]*/, "", rest) }
+      split(rest, a, " ")
+      if (a[1] == "") next
+      if (scope == "own" && fn ~ /^hook::/) next
+      print a[1]
+    }' "$1"
+}
+
+# The command words the hook's own frames run as EXTERNAL processes, reported by
+# basename so a tool reached through an absolute path counts as itself. A word
+# invoked through a path is external by construction; otherwise `type -t`
+# decides, which rejects every builtin and keyword along with this plugin's own
+# shell functions, since those are not defined in this test's shell.
+own_externals() {
+  trace_words "$1" own | while read -r w; do
+    if [[ "$w" == */* || "$(type -t "$w" 2>/dev/null)" == file ]]; then
+      printf '%s\n' "${w##*/}"
+    fi
+  done | sort
+}
+
 trace_execs() {
-  awk -v c="$1" '
-    /^\+/ {
-      sub(/^\++ /, "")
-      while ($0 ~ /^[A-Za-z_][A-Za-z_0-9]*=/) { sub(/^[A-Za-z_][A-Za-z_0-9]*=[^ ]*[ ]*/, "") }
-      split($0, a, " ")
-      if (a[1] == c) n++
-    }
-    END { print n + 0 }' "$2"
+  trace_words "$2" all |
+    awk -v c="$1" '{ w = $0; sub(/.*\//, "", w); if (w == c) n++ } END { print n + 0 }'
 }
 
 mkdir -p "$REPO/nested/deeper"
@@ -2701,9 +2738,12 @@ printf '# Clean\n\nSome text.\n\n- item one\n- item two\n' >"$REPO/nested/deeper
 TRACE="$WORK/benign-trace.txt"
 (
   cd "$UNRELATED" || exit 1
+  # shellcheck disable=SC2016  # PS4 must reach the traced shell UNEXPANDED: it
+  # is that shell which expands ${FUNCNAME[0]}, once per trace line.
   printf '{"tool_input":{"file_path":"%s"}}' "$REPO/nested/deeper/clean.md" |
     env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$REPO" \
       CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
+      PS4='+@${FUNCNAME[0]:-MAIN}@ ' \
       bash -x "$HOOK" >/dev/null 2>"$TRACE"
 )
 for banned in dirname basename; do
@@ -2714,6 +2754,31 @@ for banned in dirname basename; do
     fail "traced benign: $banned spawned $N time(s) on a clean nested file"
   fi
 done
+
+# Four externals: markdownlint-cli2, which is the point of the hook; one git for
+# the gitignore verdict; and two greps scanning the applicable markdownlint
+# config for the keys that would let it load code. The greps are deliberate and
+# documented in the README's accounting section.
+OWN_LIST="$(own_externals "$TRACE" | tr '\n' ' ')"
+OWN_LIST="${OWN_LIST% }"
+OWN_N="$(own_externals "$TRACE" | grep -c .)"
+if [[ "$OWN_N" -le 4 ]]; then
+  ok "traced benign: the hook's own code spawns $OWN_N external(s), ceiling 4 [$OWN_LIST]"
+else
+  fail "traced benign: the hook's own code spawns $OWN_N externals, ceiling 4 [$OWN_LIST]"
+fi
+UNEXPECTED=""
+for w in $OWN_LIST; do
+  case "$w" in
+  git | grep | markdownlint-cli2 | markdownlint-cli2.cmd) ;;
+  *) UNEXPECTED="$UNEXPECTED $w" ;;
+  esac
+done
+if [[ -z "$UNEXPECTED" ]]; then
+  ok "traced benign: every external the hook's own code spawns is allowlisted (markdownlint-cli2, git, grep)"
+else
+  fail "traced benign: the hook's own code spawns unallowlisted external(s):$UNEXPECTED"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

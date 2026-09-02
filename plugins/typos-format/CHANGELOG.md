@@ -18,8 +18,12 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   29 over the same run, and a command substitution costs about half a spawn
   here, so they are counted beside the execs. The README's accounting section
   carries the method and the residual.
-- The suite gains a traced case pinning the benign path's shape: no `dirname`,
-  no `basename`, and exactly two `jq`.
+- The suite gains a traced case pinning the benign path's shape on a clean
+  in-repo Markdown file: no `dirname`, no `basename`, exactly two `jq`, and a
+  ceiling of one external process spawned by the hook's own code, allowlisted to
+  `typos`. The ceiling is portable because the trace attributes each command to
+  the function frame it ran in, so the shared `hook::` path resolver's
+  host-dependent `realpath` and `cygpath` calls sit outside the count.
 
 ## [0.6.33]
 

@@ -290,30 +290,64 @@ fi
 
 # --- Benign path spawns no process it does not need (traced) -----------------
 # This hook fires on every Write and Edit in the consuming repo, so the process
-# count on the path where there is nothing to do IS the cost. The assertion is a
-# set of commands that must not appear, not a total: totals move with the host
-# (how many realpath and cygpath calls the shared path resolver makes differs
-# between Windows and Linux), while "this hook no longer shells out to strip a
-# directory name" is the same everywhere.
+# count on the path where there is nothing to do IS the cost. Three assertions
+# guard it: a set of commands that must not appear anywhere in the run, a
+# CEILING on how many external processes the hook's OWN code spawns, and an
+# allowlist naming which ones they may be.
 #
-# Each name below was on the benign path before the plan/apply split and is the
-# direct evidence of one cut: dirname and basename became parameter expansions;
-# head and wc went with the subprocess NUL sniff; mktemp, cp and cmp went with
-# the disclosure snapshot, which is no longer armed for a file with nothing to
-# rewrite; and perl is the rewrite itself, which an already-LF file under
-# `eol=lf` does not need.
+# A total over the whole run would not be portable, because the shared path
+# resolver makes a different number of realpath and cygpath calls on Windows
+# than on Linux. A total over the hook's own code IS portable, and the trace
+# separates the two: the run is traced with a PS4 carrying ${FUNCNAME[0]}, and a
+# command substitution's subshell inherits FUNCNAME, so a `$(realpath ...)`
+# inside a shared library function is attributed to that function rather than to
+# its caller. Every function in hooks/hook-utils.sh and hooks/rewrite-guard.sh
+# is in the `hook::` namespace and nothing in this plugin's own scripts is, so
+# "the frame is not hook::" is exactly "this hook's own code". Every
+# host-dependent process lands on the other side of that line.
 #
-# Counting is by command word in the xtrace, which is exact here because the
-# hook invokes all of these by bare name.
+# The ceiling is an upper bound rather than an equality so a later cut does not
+# fail it; the allowlist is what catches a swap that keeps the count.
+#
+# The banned set stays because it names the cuts directly. Each was on the
+# benign path before the plan/apply split: dirname and basename became parameter
+# expansions; head and wc went with the subprocess NUL sniff; mktemp, cp and cmp
+# went with the disclosure snapshot, which is no longer armed for a file with
+# nothing to rewrite; and perl is the rewrite itself, which an already-LF file
+# under `eol=lf` does not need.
+trace_words() {
+  awk -v scope="$2" '
+    /^\++@/ {
+      line = $0
+      sub(/^\++@/, "", line)
+      fn = line
+      sub(/@.*/, "", fn)
+      rest = line
+      sub(/^[^@]*@ ?/, "", rest)
+      while (rest ~ /^[A-Za-z_][A-Za-z_0-9]*=/) { sub(/^[A-Za-z_][A-Za-z_0-9]*=[^ ]*[ ]*/, "", rest) }
+      split(rest, a, " ")
+      if (a[1] == "") next
+      if (scope == "own" && fn ~ /^hook::/) next
+      print a[1]
+    }' "$1"
+}
+
+# The command words the hook's own frames run as EXTERNAL processes, reported by
+# basename so a tool reached through an absolute path counts as itself. A word
+# invoked through a path is external by construction; otherwise `type -t`
+# decides, which rejects every builtin and keyword along with this plugin's own
+# shell functions, since those are not defined in this test's shell.
+own_externals() {
+  trace_words "$1" own | while read -r w; do
+    if [[ "$w" == */* || "$(type -t "$w" 2>/dev/null)" == file ]]; then
+      printf '%s\n' "${w##*/}"
+    fi
+  done | sort
+}
+
 trace_execs() {
-  awk -v c="$1" '
-    /^\+\++ / || /^\+ / {
-      sub(/^\++ /, "")
-      while ($0 ~ /^[A-Za-z_][A-Za-z_0-9]*=/) { sub(/^[A-Za-z_][A-Za-z_0-9]*=[^ ]*[ ]*/, "") }
-      split($0, a, " ")
-      if (a[1] == c) n++
-    }
-    END { print n + 0 }' "$2"
+  trace_words "$2" all |
+    awk -v c="$1" '{ w = $0; sub(/.*\//, "", w); if (w == c) n++ } END { print n + 0 }'
 }
 
 # Unlike the cases above, this one SETS CLAUDE_PROJECT_DIR and clears the
@@ -323,16 +357,26 @@ trace_execs() {
 # spawns a `dirname` of its own that has nothing to do with this hook. The sink
 # is cleared because an inherited one makes the telemetry envelope, not the
 # benign path, the thing being counted.
-printf 'echo already\necho lf\n' >"$REPO/benign.sh"
+#
+# The fixture is a Markdown file in a repository whose .gitattributes says
+# `eol=lf`, already LF, which is the payload the README's accounting section
+# measures and the shape nearly every edit in a consuming repo takes.
+TRACE_REPO="$WORK/trace-consumer"
+new_repo "$TRACE_REPO"
+printf '* text=auto eol=lf\n' >"$TRACE_REPO/.gitattributes"
+printf '# sample\n\nhello\n' >"$TRACE_REPO/benign.md"
 TRACE="$WORK/benign-trace.txt"
 (
   cd "$UNRELATED" || exit 1
-  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/benign.sh" |
-    env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$REPO" \
+  # shellcheck disable=SC2016  # PS4 must reach the traced shell UNEXPANDED: it
+  # is that shell which expands ${FUNCNAME[0]}, once per trace line.
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$TRACE_REPO/benign.md" |
+    env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$TRACE_REPO" \
       CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true \
+      PS4='+@${FUNCNAME[0]:-MAIN}@ ' \
       bash -x "$HOOK" >/dev/null 2>"$TRACE"
 )
-if [[ "$(cr_count "$REPO/benign.sh")" == "0" ]]; then
+if [[ "$(cr_count "$TRACE_REPO/benign.md")" == "0" ]]; then
   ok "traced benign: fixture is already LF, so the hook has nothing to rewrite"
 else
   fail "traced benign: fixture is not LF, the trace assertions below are meaningless"
@@ -345,6 +389,29 @@ for banned in dirname basename mktemp cp cmp perl head wc; do
     fail "traced benign: $banned spawned $N time(s) on a file with nothing to rewrite"
   fi
 done
+
+# One external, the merged `git check-attr eol text`. The rewrite arm and its
+# disclosure snapshot are not reached for a file already in the target shape.
+OWN_LIST="$(own_externals "$TRACE" | tr '\n' ' ')"
+OWN_LIST="${OWN_LIST% }"
+OWN_N="$(own_externals "$TRACE" | grep -c .)"
+if [[ "$OWN_N" -le 1 ]]; then
+  ok "traced benign: the hook's own code spawns $OWN_N external(s), ceiling 1 [$OWN_LIST]"
+else
+  fail "traced benign: the hook's own code spawns $OWN_N externals, ceiling 1 [$OWN_LIST]"
+fi
+UNEXPECTED=""
+for w in $OWN_LIST; do
+  case "$w" in
+  git) ;;
+  *) UNEXPECTED="$UNEXPECTED $w" ;;
+  esac
+done
+if [[ -z "$UNEXPECTED" ]]; then
+  ok "traced benign: every external the hook's own code spawns is allowlisted (git)"
+else
+  fail "traced benign: the hook's own code spawns unallowlisted external(s):$UNEXPECTED"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

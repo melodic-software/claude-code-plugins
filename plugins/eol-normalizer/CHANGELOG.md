@@ -30,6 +30,14 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
   hook no longer touches its mtime. Recorded as a deliberate deviation: no
   content and no reported message changes, and the suite pins stdout, exit code
   and the resulting bytes as byte-identical.
+- The suite gains a traced case pinning the benign path's shape on an already-LF
+  Markdown file in a repository whose `.gitattributes` says `eol=lf`: no
+  `dirname`, `basename`, `mktemp`, `cp`, `cmp`, `perl`, `head` or `wc`, and a
+  ceiling of one external process spawned by the hook's own code, allowlisted to
+  the merged `git check-attr`. The ceiling is portable because the trace
+  attributes each command to the function frame it ran in, so the shared
+  `hook::` path resolver's host-dependent `realpath` and `cygpath` calls sit
+  outside the count.
 
 ## [0.6.26]
 
