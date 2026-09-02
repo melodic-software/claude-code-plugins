@@ -92,19 +92,19 @@ mode="report"
 strict=0
 for arg in "$@"; do
   case "$arg" in
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    --check) mode="check" ;;
-    --findings) mode="findings" ;;
-    --count) mode="count" ;;
-    --strict) strict=1 ;;
-    *)
-      printf 'ERROR: unknown argument %s\n' "$arg" >&2
-      usage >&2
-      exit 2
-      ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --check) mode="check" ;;
+  --findings) mode="findings" ;;
+  --count) mode="count" ;;
+  --strict) strict=1 ;;
+  *)
+    printf 'ERROR: unknown argument %s\n' "$arg" >&2
+    usage >&2
+    exit 2
+    ;;
   esac
 done
 
@@ -195,7 +195,6 @@ n_cf1=0
 n_cf2=0
 n_cf3=0
 x_cf1=0
-x_cf2=0
 x_cf3=0
 
 scan_one() {
@@ -210,29 +209,32 @@ scan_one() {
   examined=$((examined + 1))
   while IFS=$'\t' read -r kind slug line detail; do
     case "$kind" in
-      B) blocks=$((blocks + slug)) ;;
-      F)
-        f_rule+=("$slug")
-        f_loc+=("$rel:$line")
-        f_detail+=("$detail")
-        case "$slug" in
-          zero-assertion) n_cf1=$((n_cf1 + 1)) ;;
-          recomputed-expectation) n_cf2=$((n_cf2 + 1)) ;;
-          mock-only-oracle) n_cf3=$((n_cf3 + 1)) ;;
-          *) printf 'engine drift: unknown finding rule %s\n' "$slug" >>"$WALK_ERR" ;;
-        esac
-        ;;
-      X)
-        exempted=$((exempted + 1))
-        case "$slug" in
-          zero-assertion) x_cf1=$((x_cf1 + 1)) ;;
-          recomputed-expectation) x_cf2=$((x_cf2 + 1)) ;;
-          mock-only-oracle) x_cf3=$((x_cf3 + 1)) ;;
-          *) printf 'engine drift: unknown exempt rule %s\n' "$slug" >>"$WALK_ERR" ;;
-        esac
-        ;;
-      E) printf 'engine: %s %s\n' "${slug:-}" "${line:-}" >>"$WALK_ERR" ;;
-      *) printf 'engine drift: unrecognized record kind %s\n' "$kind" >>"$WALK_ERR" ;;
+    B) blocks=$((blocks + slug)) ;;
+    F)
+      f_rule+=("$slug")
+      f_loc+=("$rel:$line")
+      f_detail+=("$detail")
+      case "$slug" in
+      zero-assertion) n_cf1=$((n_cf1 + 1)) ;;
+      recomputed-expectation) n_cf2=$((n_cf2 + 1)) ;;
+      mock-only-oracle) n_cf3=$((n_cf3 + 1)) ;;
+      *) printf 'engine drift: unknown finding rule %s\n' "$slug" >>"$WALK_ERR" ;;
+      esac
+      ;;
+    X)
+      exempted=$((exempted + 1))
+      case "$slug" in
+      zero-assertion) x_cf1=$((x_cf1 + 1)) ;;
+      # Recognized, no per-rule tally: nothing consumes an exempt count for the
+      # line-scoped rule — x_cf1/x_cf3 feed the block-rule fired/declined math
+      # below, and the aggregate `exempted` above already counted this record.
+      recomputed-expectation) ;;
+      mock-only-oracle) x_cf3=$((x_cf3 + 1)) ;;
+      *) printf 'engine drift: unknown exempt rule %s\n' "$slug" >>"$WALK_ERR" ;;
+      esac
+      ;;
+    E) printf 'engine: %s %s\n' "${slug:-}" "${line:-}" >>"$WALK_ERR" ;;
+    *) printf 'engine drift: unrecognized record kind %s\n' "$kind" >>"$WALK_ERR" ;;
     esac
   done < <(awk -v LANG_ID="$lang" -f "$AWK_PROG" "$file" 2>>"$WALK_ERR")
 }
@@ -257,26 +259,26 @@ rule_id() {
 
 threshold_of() {
   case "$1" in
-    zero-assertion) printf 'threshold: 0 assertion tokens' ;;
-    recomputed-expectation) printf 'threshold: >=1 self-identical equality assertion' ;;
-    mock-only-oracle) printf 'threshold: 100%% of assertions are mock-interaction' ;;
-    *) printf 'threshold: unknown rule' ;;
+  zero-assertion) printf 'threshold: 0 assertion tokens' ;;
+  recomputed-expectation) printf 'threshold: >=1 self-identical equality assertion' ;;
+  mock-only-oracle) printf 'threshold: 100%% of assertions are mock-interaction' ;;
+  *) printf 'threshold: unknown rule' ;;
   esac
 }
 
 action_of() {
   # Repair, not pruning — every Action proposes an assertion, never a deletion.
   case "$1" in
-    zero-assertion)
-      printf 'Repair, not pruning: add an assertion on the observable behavior this test exercises; today it passes vacuously and its coverage claim is false.'
-      ;;
-    recomputed-expectation)
-      printf 'State the expected value independently (a literal or precomputed constant) instead of recomputing it with the same expression, so the assertion can discriminate.'
-      ;;
-    mock-only-oracle)
-      printf "Review whether the mock-interaction contract is the intended oracle; if not, assert on a real collaborator's output or state. A deliberate interaction-style test records that with a cant-fail-ok: annotation."
-      ;;
-    *) printf 'unknown rule — report this as a detector defect' ;;
+  zero-assertion)
+    printf 'Repair, not pruning: add an assertion on the observable behavior this test exercises; today it passes vacuously and its coverage claim is false.'
+    ;;
+  recomputed-expectation)
+    printf 'State the expected value independently (a literal or precomputed constant) instead of recomputing it with the same expression, so the assertion can discriminate.'
+    ;;
+  mock-only-oracle)
+    printf "Review whether the mock-interaction contract is the intended oracle; if not, assert on a real collaborator's output or state. A deliberate interaction-style test records that with a cant-fail-ok: annotation."
+    ;;
+  *) printf 'unknown rule — report this as a detector defect' ;;
   esac
 }
 
@@ -286,9 +288,9 @@ confidence_of() {
   # its defect-hood is not (interaction-style tests are legitimate), so the
   # field is omitted per the contract's high-or-omitted rule — never 'low'.
   case "$1" in
-    zero-assertion | recomputed-expectation) printf 'high' ;;
-    mock-only-oracle) printf '' ;;
-    *) printf '' ;;
+  zero-assertion | recomputed-expectation) printf 'high' ;;
+  mock-only-oracle) printf '' ;;
+  *) printf '' ;;
   esac
 }
 
@@ -296,11 +298,11 @@ surfaces_line() {
   printf 'Ran: [testing:audit — %d test file(s) examined (js/ts %d, python %d, csharp %d), %d test block(s) parsed; findings: testing/audit/rule-zero-assertion %d, testing/audit/rule-recomputed-expectation %d, testing/audit/rule-mock-only-oracle %d; declined (examined, rule did not fire): rule-zero-assertion %d, rule-mock-only-oracle %d, rule-recomputed-expectation not tallied (line-scoped rule; v1 does not count candidate assertions); exempted via cant-fail-ok: %d]. Returned no result: [%s].\n' \
     "$examined" "$enum_js" "$enum_py" "$enum_cs" "$blocks" \
     "$n_cf1" "$n_cf2" "$n_cf3" "$declined_cf1" "$declined_cf3" "$exempted" \
-    "$( if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then
+    "$(if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then
       printf '%d unreadable test file(s), %d walk/read error line(s)' "$unreadable" "$walk_errors"
     else
       printf 'none — every discovered test file was examined'
-    fi )"
+    fi)"
 }
 
 coverage_block() {
@@ -347,25 +349,25 @@ yaml_scalar() {
   # /[ \t]$/.
   local s="$1" needs_quote=0
   case "${s:0:1}" in
-    '-' | '?' | ':' | ',' | '[' | ']' | '{' | '}' | '#' | '&' | '*' | '!' | '|' | '>' | '%' | '@' | '`' | '"' | "'")
-      needs_quote=1
-      ;;
-    *) ;;
+  '-' | '?' | ':' | ',' | '[' | ']' | '{' | '}' | '#' | '&' | '*' | '!' | '|' | '>' | '%' | '@' | '`' | '"' | "'")
+    needs_quote=1
+    ;;
+  *) ;;
   esac
   case "$s" in
-    *': '* | *' #'*) needs_quote=1 ;;
-    *) ;;
+  *': '* | *' #'*) needs_quote=1 ;;
+  *) ;;
   esac
   if [[ -z "$s" || "$s" == *[$' \t'] ]]; then needs_quote=1; fi
   case "$s" in
   true | True | TRUE | false | False | FALSE | yes | Yes | YES | no | No | NO | \
-  on | On | ON | off | Off | OFF | null | Null | NULL | '~')
+    on | On | ON | off | Off | OFF | null | Null | NULL | '~')
     needs_quote=1
     ;;
   *) ;;
   esac
   if [[ "$s" =~ ^[+-]?[0-9]+$ || "$s" =~ ^[+-]?[0-9]*\.[0-9]+([eE][+-]?[0-9]+)?$ ||
-        "$s" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} || "$s" =~ ^0[xXoObB][0-9a-fA-F_]+$ ]]; then
+    "$s" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} || "$s" =~ ^0[xXoObB][0-9a-fA-F_]+$ ]]; then
     needs_quote=1
   fi
   if ((needs_quote)); then
@@ -423,58 +425,58 @@ print_findings_lines() {
 }
 
 case "$mode" in
-  count)
-    printf '%d\n' "$total"
-    coverage_block >&2
-    if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
-    exit 0
-    ;;
-  findings)
-    emit_findings_file
-    coverage_block >&2
-    if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
-    exit 0
-    ;;
-  check)
-    if [[ "$total" -gt 0 ]]; then
-      print_findings_lines
-      if [[ "$strict" -eq 0 && "$n_cf3" -gt 0 ]]; then
-        printf 'note: %d mock-only-oracle finding(s) are advisory in --check (use --strict to gate them).\n' "$n_cf3"
-      fi
+count)
+  printf '%d\n' "$total"
+  coverage_block >&2
+  if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
+  exit 0
+  ;;
+findings)
+  emit_findings_file
+  coverage_block >&2
+  if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
+  exit 0
+  ;;
+check)
+  if [[ "$total" -gt 0 ]]; then
+    print_findings_lines
+    if [[ "$strict" -eq 0 && "$n_cf3" -gt 0 ]]; then
+      printf 'note: %d mock-only-oracle finding(s) are advisory in --check (use --strict to gate them).\n' "$n_cf3"
     fi
-    coverage_block
-    if [[ "$gating" -gt 0 ]]; then
-      printf '\nFAIL: %d gating finding(s).\n' "$gating"
-      exit 1
-    fi
-    if [[ "$examined" -eq 0 ]]; then
-      printf '\nFAIL (closed): 0 test files were examined — a scan of nothing is not a clean gate. A wrong or empty scan root and a healthy suite must not share an exit code; point the gate at a tree that contains test files.\n'
-      exit 2
-    fi
-    if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then
-      printf '\nFAIL (closed): 0 gating findings, but %d unreadable test file(s) and %d walk/read/engine error line(s) — an input the scan could not fully read is never a clean one.\n' \
-        "$unreadable" "$walk_errors"
-      exit 2
-    fi
-    printf '\nPASS: no gating findings; %d test file(s) fully read.\n' "$examined"
-    exit 0
-    ;;
-  report)
-    if [[ "$total" -eq 0 ]]; then
-      if [[ "$examined" -eq 0 ]]; then
-        echo "NOTHING TO AUDIT: 0 test files were examined under this root. That is a scan of nothing, not a clean bill — see the coverage block."
-      else
-        echo "No can't-fail tests found."
-      fi
-    else
-      print_findings_lines
-    fi
-    coverage_block
-    if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
-    exit 0
-    ;;
-  *)
-    printf 'ERROR: unhandled mode %s\n' "$mode" >&2
+  fi
+  coverage_block
+  if [[ "$gating" -gt 0 ]]; then
+    printf '\nFAIL: %d gating finding(s).\n' "$gating"
+    exit 1
+  fi
+  if [[ "$examined" -eq 0 ]]; then
+    printf '\nFAIL (closed): 0 test files were examined — a scan of nothing is not a clean gate. A wrong or empty scan root and a healthy suite must not share an exit code; point the gate at a tree that contains test files.\n'
     exit 2
-    ;;
+  fi
+  if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then
+    printf '\nFAIL (closed): 0 gating findings, but %d unreadable test file(s) and %d walk/read/engine error line(s) — an input the scan could not fully read is never a clean one.\n' \
+      "$unreadable" "$walk_errors"
+    exit 2
+  fi
+  printf '\nPASS: no gating findings; %d test file(s) fully read.\n' "$examined"
+  exit 0
+  ;;
+report)
+  if [[ "$total" -eq 0 ]]; then
+    if [[ "$examined" -eq 0 ]]; then
+      echo "NOTHING TO AUDIT: 0 test files were examined under this root. That is a scan of nothing, not a clean bill — see the coverage block."
+    else
+      echo "No can't-fail tests found."
+    fi
+  else
+    print_findings_lines
+  fi
+  coverage_block
+  if [[ "$unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
+  exit 0
+  ;;
+*)
+  printf 'ERROR: unhandled mode %s\n' "$mode" >&2
+  exit 2
+  ;;
 esac
