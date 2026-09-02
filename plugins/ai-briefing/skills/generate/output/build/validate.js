@@ -30,6 +30,7 @@ try {
 }
 const { meta, theme, slides, providerLogos } = slidesData;
 const HTML = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.html`);
+const HTML_URL = pathToFileURL(HTML).href;
 const PDF = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pdf`);
 const PPTX = path.join(meetingsDir(), `ai-meeting-${meta.meetingNumber}.pptx`);
 const SHOTS_DIR = shotsDir();
@@ -97,7 +98,7 @@ await page.route(/^https?:\/\//, (route) => {
   return route.abort("blockedbyclient");
 });
 
-await page.goto(pathToFileURL(HTML).href, { waitUntil: "load" });
+await page.goto(HTML_URL, { waitUntil: "load" });
 await page.waitForSelector("main#deck");
 await page.evaluate(settleRender);
 
@@ -266,7 +267,7 @@ try {
     const ctx2 = await browser2.newContext({ viewport: m.viewport, deviceScaleFactor: 1 });
     const p2 = await ctx2.newPage();
     await p2.route(/^https?:\/\//, (route) => route.abort("blockedbyclient"));
-    await p2.goto(pathToFileURL(HTML).href, { waitUntil: "load" });
+    await p2.goto(HTML_URL, { waitUntil: "load" });
     await p2.waitForSelector("main#deck");
     await p2.evaluate((z) => { document.documentElement.style.zoom = String(z); }, m.zoom);
     await p2.evaluate(settleRender);
