@@ -30,8 +30,7 @@ indent_size = 2
 
 # JavaScript / TypeScript — 2-space, matching the shared Biome formatter policy
 # (the single owner of JS/TS formatting). IndentSize is disabled in the checker,
-# so this is an
-# editor hint that keeps editors aligned with Biome.
+# so this is an editor hint that keeps editors aligned with Biome.
 [*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}]
 indent_size = 2
 
