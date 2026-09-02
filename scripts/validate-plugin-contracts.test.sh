@@ -356,6 +356,8 @@ fi
 R_UNKNOWN_KEY='unknown key "'
 R_BAD_ENUM='"kind" must be one of file, dir, line'
 R_LINE_NO_MATCH='"match" is required when kind is line'
+R_HEADING_KIND='"heading" is only allowed when kind is line'
+R_HEADING_ATX='"heading" must be an ATX heading'
 R_BAD_PATH='"path" must be repo-relative'
 R_DUP_ID='duplicate id "'
 R_MIGRATE_NO_SUCCESSOR='action migrate requires "successor"'
@@ -432,6 +434,7 @@ plugin_version: 1.4.0
 kind: line
 path: .gitignore
 match: '^\.claude/alpha-cache/?$'
+heading: '## leftover'
 action: remove-line
 note: the cache dir moved under the plugin data dir
 ---
@@ -611,6 +614,29 @@ plugin_version: 1.4.1
 kind: dir
 path: .claude/alpha
 action: delete
+note: one line
+YAML
+
+malformed_case "heading on a file record fails the manifest" "$R_HEADING_KIND" <<'YAML'
+id: alpha-r001
+retired: 2026-08-01
+plugin_version: 1.4.0
+kind: file
+path: .claude/alpha.json
+heading: "## leftover"
+action: delete
+note: one line
+YAML
+
+malformed_case "a heading that is not ATX fails the manifest" "$R_HEADING_ATX" <<'YAML'
+id: alpha-r001
+retired: 2026-08-01
+plugin_version: 1.4.0
+kind: line
+path: .gitignore
+match: '^x$'
+heading: convention_source
+action: remove-line
 note: one line
 YAML
 

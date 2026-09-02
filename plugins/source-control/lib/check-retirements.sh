@@ -24,6 +24,10 @@
 #   path           repo-relative; absolute, `..` segments, a leading `~`,
 #                  backslashes, `.` and tabs are rejected
 #   match          POSIX ERE — REQUIRED for kind line, forbidden otherwise
+#   heading        optional ATX heading (1-6 hashes, whitespace, title), kind
+#                  line only: the record only fires when a matching line sits
+#                  in that heading's section body, so a standalone occurrence
+#                  elsewhere in a markdown file is not a leftover
 #   content_match  optional POSIX ERE, kind file only: the record only fires
 #                  when the file's content matches, so a path the successor
 #                  reuses is not reported as a leftover
@@ -35,9 +39,13 @@
 #
 # DETECTION. Per kind: file = a regular file exists at path AND (no
 # content_match OR it matches); dir = a directory exists; line = the file
-# exists AND some line matches `match`. A trailing carriage return is stripped
-# from every line before matching, so a `$`-anchored pattern matches a
-# CRLF-authored file. One TSV row per leftover on stdout:
+# exists AND some line matches `match` (and, when `heading` is set, that line
+# sits in the body of a markdown section whose heading line equals `heading`).
+# A section runs from the line after that heading through the line before the
+# next ATX heading of the same or higher level, or EOF; every such section is
+# searched. A trailing carriage return is stripped from every line before
+# matching, so a `$`-anchored pattern matches a CRLF-authored file. One TSV
+# row per leftover on stdout:
 #
 #   id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
 #
@@ -49,9 +57,10 @@
 # directory (only after re-resolving that it is inside the root and is not the
 # root itself). remove-line rewrites the file keeping every non-matching line
 # byte-for-byte — each line's own ending survives, so a CRLF file stays CRLF —
-# via a temp file in the same directory and a rename. A migrate record refuses
-# to clean until `--i-migrated` states that the successor prose was followed;
-# it then removes the artifact the way its kind implies.
+# via a temp file in the same directory and a rename. When `heading` is set,
+# only matching lines inside that heading's section body are removed. A migrate
+# record refuses to clean until `--i-migrated` states that the successor prose
+# was followed; it then removes the artifact the way its kind implies.
 #
 # VALIDATION FAILS THE WHOLE RUN. An invalid record — bad kind, missing match,
 # absolute path, duplicate id, migrate without successor, an unknown key — is
@@ -178,6 +187,7 @@ REC_ID=()
 REC_KIND=()
 REC_PATH=()
 REC_MATCH=()
+REC_HEADING=()
 REC_CONTENT_MATCH=()
 REC_ACTION=()
 REC_SUCCESSOR=()
@@ -203,14 +213,14 @@ ere_valid() {
 # Current record's fields; reset at each `---`.
 r_start=0
 r_id="" r_retired="" r_plugin_version="" r_kind="" r_path="" r_match=""
-r_content_match="" r_action="" r_successor="" r_note="" r_status=""
+r_heading="" r_content_match="" r_action="" r_successor="" r_note="" r_status=""
 r_keys=" "
 r_nonempty=0
 
 reset_record() {
   r_start=$1
   r_id="" r_retired="" r_plugin_version="" r_kind="" r_path="" r_match=""
-  r_content_match="" r_action="" r_successor="" r_note="" r_status=""
+  r_heading="" r_content_match="" r_action="" r_successor="" r_note="" r_status=""
   r_keys=" "
   r_nonempty=0
 }
@@ -290,6 +300,12 @@ $r_id
     invalid match "is only allowed for kind line (kind is $r_kind)"
   fi
 
+  if [[ -n "$r_heading" ]]; then
+    [[ "$r_kind" == "line" ]] || invalid heading "is only allowed for kind line (kind is $r_kind)"
+    printf '%s' "$r_heading" | grep -Eq '^#{1,6}[[:space:]]+[^[:space:]]' ||
+      invalid heading "must be an ATX heading (1-6 hashes, whitespace, title): '$r_heading'"
+  fi
+
   if [[ -n "$r_content_match" ]]; then
     [[ "$r_kind" == "file" ]] || invalid content_match "is only allowed for kind file (kind is $r_kind)"
     ere_valid "$r_content_match" || invalid content_match "is not a valid POSIX ERE: '$r_content_match'"
@@ -325,6 +341,7 @@ $r_id
   REC_KIND[REC_COUNT]="$r_kind"
   REC_PATH[REC_COUNT]="$r_path"
   REC_MATCH[REC_COUNT]="$r_match"
+  REC_HEADING[REC_COUNT]="$r_heading"
   REC_CONTENT_MATCH[REC_COUNT]="$r_content_match"
   REC_ACTION[REC_COUNT]="$r_action"
   REC_SUCCESSOR[REC_COUNT]="$r_successor"
@@ -383,6 +400,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   kind) r_kind="$value" ;;
   path) r_path="$value" ;;
   match) r_match="$value" ;;
+  heading) r_heading="$value" ;;
   content_match) r_content_match="$value" ;;
   action) r_action="$value" ;;
   successor) r_successor="$value" ;;
@@ -407,9 +425,62 @@ content_hits() {
   awk '{ sub(/\r$/, ""); print }' "$1" | grep -E -e "$2" >/dev/null
 }
 
+# section_body_nrs <file> <heading> — one 1-based line number per line that
+# sits in the body of every markdown section whose heading line equals
+# <heading> (trailing whitespace ignored on both sides). The heading line
+# itself is excluded. A section ends at the next ATX heading of the same or
+# higher level, or EOF. POSIX awk only: no interval quantifiers.
+section_body_nrs() {
+  awk -v heading="$2" '
+    function rtrim(s) {
+      sub(/[ \t]+$/, "", s)
+      return s
+    }
+    function atx_level(s,   n) {
+      n = 0
+      while (substr(s, n + 1, 1) == "#") n++
+      if (n >= 1 && n <= 6 && substr(s, n + 1, 1) ~ /[ \t]/) return n
+      return 0
+    }
+    {
+      sub(/\r$/, "")
+      trimmed = rtrim($0)
+      if (in_section) {
+        lvl = atx_level(trimmed)
+        if (lvl > 0 && lvl <= start_level) in_section = 0
+      }
+      if (in_section == 0 && trimmed == heading) {
+        in_section = 1
+        start_level = atx_level(trimmed)
+        if (start_level == 0) start_level = 6
+        next
+      }
+      if (in_section) print NR
+    }
+  ' "$1"
+}
+
+# matching_line_nrs <file> <ere> [heading] — space-separated 1-based line
+# numbers whose text (CR stripped) matches <ere>. When <heading> is non-empty,
+# only lines inside that heading's section body.
+matching_line_nrs() {
+  local file="$1" ere="$2" heading="${3:-}" all scoped n
+  all=$(awk '{ sub(/\r$/, ""); print }' "$file" | grep -E -n -e "$ere" | cut -d: -f1 | tr '\n' ' ')
+  if [[ -z "$heading" ]]; then
+    printf '%s' "$all"
+    return
+  fi
+  scoped=$(section_body_nrs "$file" "$heading" | tr '\n' ' ')
+  for n in $all; do
+    case " $scoped " in
+    *" $n "*) printf '%s ' "$n" ;;
+    esac
+  done
+}
+
 # present <index> — 0 when record <index>'s artifact is present in ROOT.
 present() {
-  local i="$1" target
+  local i="$1" target nrs
   target="$ROOT/${REC_PATH[$i]}"
   case "${REC_KIND[$i]}" in
   file)
@@ -422,7 +493,8 @@ present() {
     ;;
   line)
     [[ -f "$target" ]] || return 1
-    content_hits "$target" "${REC_MATCH[$i]}"
+    nrs=$(matching_line_nrs "$target" "${REC_MATCH[$i]}" "${REC_HEADING[$i]}")
+    [[ -n "${nrs// /}" ]]
     ;;
   *) return 1 ;;
   esac
@@ -534,10 +606,11 @@ line)
   assert_target_inside_root
   match="${REC_MATCH[$idx]}"
   # Which input lines match, by number, decided once by grep -E (the same ERE
-  # dialect detection used); awk then copies every other line through with
-  # its own bytes, CR included. Only the matched lines' text is stripped of the
-  # CR, and only for the comparison.
-  matched_lines=$(awk '{ sub(/\r$/, ""); print }' "$target" | grep -E -n -e "$match" | cut -d: -f1 | tr '\n' ' ')
+  # dialect detection used); when heading is set, only section-body hits
+  # count. awk then copies every other line through with its own bytes, CR
+  # included. Only the matched lines' text is stripped of the CR, and only
+  # for the comparison.
+  matched_lines=$(matching_line_nrs "$target" "$match" "${REC_HEADING[$idx]}")
   [[ -n "$matched_lines" ]] || {
     echo "check-retirements: $CLEAN_ID: no line of $path matches; nothing to clean." >&2
     exit 1

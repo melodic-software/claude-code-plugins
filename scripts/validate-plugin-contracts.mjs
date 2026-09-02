@@ -551,6 +551,7 @@ const RETIREMENT_KEYS = Object.freeze([
   "kind",
   "path",
   "match",
+  "heading",
   "content_match",
   "action",
   "successor",
@@ -776,6 +777,16 @@ function validateRetirementRecords(manifestPath, plugin, records) {
     }
     if (kind !== undefined && kind !== "file" && fields.content_match !== undefined) {
       recordFail(`"content_match" is only allowed when kind is file`);
+    }
+    if (fields.heading !== undefined) {
+      if (kind !== undefined && kind !== "line") {
+        recordFail(`"heading" is only allowed when kind is line`);
+      }
+      if (!/^#{1,6}[ \t]+\S/.test(fields.heading)) {
+        recordFail(
+          `"heading" must be an ATX heading (1-6 hashes, whitespace, title) (got "${fields.heading}")`,
+        );
+      }
     }
     const action = fields.action;
     if (action === "remove-line" && kind !== undefined && kind !== "line") {

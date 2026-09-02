@@ -57,6 +57,7 @@ subset the flat-key parser already handles, while CI validates the same file wit
 | `kind` | yes | `file` \| `dir` \| `line`. What the leftover is. |
 | `path` | yes | Repo-relative path of the leftover. Absolute paths, `..` segments, a leading `~`, backslashes, and `.` are rejected. Emitted verbatim, never joined onto the root ([windows-path-emit](../windows-path-emit/README.md)). |
 | `match` | `line` only | POSIX ERE a line must match. Required for `kind: line`; forbidden otherwise. |
+| `heading` | optional, `line` only | Exact ATX heading (`#{1,6}` + whitespace + title). When set, `match` is evaluated only against the body of every markdown section whose heading line equals this value (trailing whitespace ignored). The section runs from the line after that heading through the line before the next ATX heading of the same or higher level, or EOF. A standalone matching line outside that section is not a leftover. Forbidden on `file` and `dir`. |
 | `content_match` | optional, `file` only | POSIX ERE the file's content must match for the record to fire. Guards against a consumer legitimately reusing the path for something else. |
 | `action` | yes | `delete` (file or dir) \| `remove-line` (line) \| `migrate` (any kind). What cleanup does. |
 | `successor` | `migrate` only | Prose the model follows to carry content forward: where the convention went and what to move. Required for `migrate`. |
@@ -65,8 +66,10 @@ subset the flat-key parser already handles, while CI validates the same file wit
 
 Detection semantics per kind: `file` is present when a regular file exists at `path` and (no
 `content_match`, or it matches); `dir` when a directory exists; `line` when the file exists and some
-line matches `match`. A trailing carriage return is stripped from every line before matching, so a
-`$`-anchored pattern matches a CRLF-authored consumer file.
+line matches `match` (and, when `heading` is set, that line sits in the named heading's section
+body). Unset `heading` preserves the whole-file 1.0 line rule. A trailing carriage return is
+stripped from every line before matching, so a `$`-anchored pattern matches a CRLF-authored
+consumer file.
 
 ### Example — two records, one demoted
 
@@ -103,11 +106,11 @@ set at plan approval (ADR 0018), and no record exists for it on `main`.
 ## Append-only, and the enumerated legal edits
 
 The manifest is the plugin's retirement history, and a history that can be rewritten is not one. A
-record is **never deleted**, and its `id`, `kind`, `path`, `match`, and `content_match` are never
-changed once published — a consumer who skips ten versions must still have every record evaluated
-against them, and a record whose detection changed under them would report a different leftover than
-the one they were told about. CI enforces this against the base ref: a PR that removes a record or
-alters a frozen field fails.
+record is **never deleted**, and its `id`, `kind`, `path`, `match`, `heading`, and `content_match`
+are never changed once published — a consumer who skips ten versions must still have every record
+evaluated against them, and a record whose detection changed under them would report a different
+leftover than the one they were told about. CI enforces this against the base ref: a PR that
+removes a record or alters a frozen field fails.
 
 Exactly three edits are legal after publication:
 
@@ -160,7 +163,7 @@ id<TAB>kind<TAB>path<TAB>action<TAB>status<TAB>note
 
 | Exit | Meaning |
 |---|---|
-| 0 | Cleaned. `delete` unlinks the file (only if `content_match`, when declared, still matches) or removes the directory (only after re-resolving that it is inside the root and is not the root itself); `remove-line` rewrites the file keeping every non-matching line byte-for-byte, via a temp file in the same directory and a rename, so a CRLF file stays CRLF. |
+| 0 | Cleaned. `delete` unlinks the file (only if `content_match`, when declared, still matches) or removes the directory (only after re-resolving that it is inside the root and is not the root itself); `remove-line` rewrites the file keeping every non-matching line byte-for-byte (and, when `heading` is set, only removing matches inside that heading's section body), via a temp file in the same directory and a rename, so a CRLF file stays CRLF. |
 | 1 | Nothing present to clean. |
 | 2 | Usage, invalid record, unknown id, a `migrate` record without `--i-migrated`, or a failed remove or rename. **On Windows a failed remove is usually a locked file**: nothing is left half-done; close the file and re-run. |
 
@@ -172,9 +175,10 @@ Invariants every caller may rely on:
   `..` segment, `~`, or a backslash is exit 2. The consumer repo cannot inject a path; only the
   manifest names one.
 - **Consumer content is only ever grep-matched, never executed.** `match` and `content_match` are
-  applied with `grep -E`; nothing read from a consumer file is evaluated, sourced, or interpolated
-  into a command. The `successor` prose is plugin-authored, but the convention doc the model reads
-  while following it is consumer prose and is treated as untrusted input.
+  applied with `grep -E`; `heading` is an exact line comparison after CR and trailing-whitespace
+  strip. Nothing read from a consumer file is evaluated, sourced, or interpolated into a command.
+  The `successor` prose is plugin-authored, but the convention doc the model reads while following
+  it is consumer prose and is treated as untrusted input.
 - **A `migrate` record refuses `--clean` without `--i-migrated`.** A cheap deterministic backstop;
   the real gate is the operator's confirmation in `apply`.
 - **Bash 3.2, no jq, no python.** The helper runs wherever the Bash tool runs, including Git Bash on
