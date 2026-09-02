@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.45]
+
+### Fixed
+
+- **Linear conformance captures `grep -c` before applying a zero fallback.**
+  `grep -c` prints `0` and exits 1 when nothing matches; `|| echo 0` then
+  appended a second `0` and corrupted `assert_eq`'s observed value. The count
+  is stored first; the `:-0` default applies only when stdout is empty
+  (missing file). (#3440)
+
 ## [0.39.44]
 
 ### Fixed
