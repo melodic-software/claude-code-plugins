@@ -397,15 +397,23 @@ segment_destination_operand() {
 # copy/move utilities bind only the destination operand.
 segment_writes_drive_root_tmp() {
   local subject="$1" dest
+  # Path-qualified verbs only in command position: start of the segment, or
+  # after `sudo`. After any other space the verb must be bare, or
+  # `echo /usr/bin/mkdir /tmp/x` / `cat /some/path/mkdir /tmp/x` are false
+  # positives (#3502). Optional quotes cover `"/usr/bin/mkdir" -p /tmp/x`.
+  # Assigned so the pattern can include literal `"` without breaking `=~`.
+  local creator_cmd_re copy_cmd_re
+  creator_cmd_re='((^|[[:space:]])sudo[[:space:]]+"?([^[:space:]"]*/)?|^[[:space:]]*"?([^[:space:]"]*/)?|[[:space:]])(tee|mktemp|mkdir|touch|dd|tee\.exe)"?([[:space:]]|$)'
+  copy_cmd_re='((^|[[:space:]])sudo[[:space:]]+"?([^[:space:]"]*/)?|^[[:space:]]*"?([^[:space:]"]*/)?|[[:space:]])(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)"?([[:space:]]|$)'
   # Creators / content writers: any drive-root tmp path in the segment is a write.
-  if [[ "$subject" =~ (^|[[:space:]])([^[:space:]]*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|$) ]] ||
+  if [[ "$subject" =~ $creator_cmd_re ]] ||
     [[ "$subject" =~ (^|[[:space:];|&]|/)(set-content|add-content|out-file|tee-object|new-item|export-clixml|export-csv)([[:space:]]|:|$) ]] ||
     [[ "$subject" =~ (^|[[:space:]])(ac|ni)([[:space:]]|$) ]]; then
     has_drive_root_tmp "$subject" && return 0
     return 1
   fi
   # Copy / move / install: destination operand only (avoids `cp /tmp/src ./dst`).
-  if [[ "$subject" =~ (^|[[:space:]])([^[:space:]]*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|$) ]]; then
+  if [[ "$subject" =~ $copy_cmd_re ]]; then
     dest=$(segment_destination_operand "$subject")
     [[ -n "$dest" ]] || return 1
     has_drive_root_tmp "$dest" && return 0
