@@ -37,6 +37,13 @@ resume on their own after the reset. Four parts:
   classification, documented as the expected degraded mode in
   [`reference/reader-contract.md`](reference/reader-contract.md) ("Cloud / remote sessions"), with
   a documented residual that a live cloud producer is out of scope until one exists.
+- **An unchanged payload costs no rename.** When a refresh's snapshot body matches what is already
+  on disk, `captured_at` aside, it takes no lock, stages no temp file and performs no rename. The
+  skip is bounded at 5 minutes since the last real write, half the staleness budget, so a session
+  whose windows sit still still refreshes `captured_at` well before a reader could call it stale.
+  The spool's 15-minute record sweep runs on the same 5-minute cadence rather than on every drain.
+  The render path itself has been fork-free since the spool landed, which the suite asserts directly
+  by tracing a non-elected render (`statusline-tee.test.sh`, "the zero-fork render path").
 - **Multi-account operation is a known gap, not a supported mode.** The snapshot carries no account
   identifier (none exists in the statusline schema today), so a machine switching accounts mid-drain
   feeds wrong windows to running lanes and the guard cannot detect it. The loop-lane convention §6

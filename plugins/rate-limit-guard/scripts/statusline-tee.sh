@@ -293,9 +293,13 @@ _rlg_strip_captured_at() {
     _RLG_BODY_KEY="{$body"
     return 0
     ;;
+  *)
+    # Not a body this writer produced: torn, foreign, or written by a future
+    # projection. Returning 1 makes it compare unequal, so the refresh writes.
+    _RLG_BODY_KEY=""
+    return 1
+    ;;
   esac
-  _RLG_BODY_KEY=""
-  return 1
 }
 
 # Write one contract snapshot. Every failure path returns 0: the tee must

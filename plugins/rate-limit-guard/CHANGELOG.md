@@ -3,6 +3,43 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.25]
+
+### Changed
+
+- **`statusline-tee.sh` skips the snapshot rename when nothing changed, and sweeps the spool on a
+  cadence.** Profiling the wired render path found nothing left to cut there: the spool has made
+  every non-elected refresh fork-free, which the suite already asserted by tracing one, so the whole
+  remaining cost sits in the drain that runs once per cadence. That drain spent ten process
+  creations every time regardless of whether the payload had moved. Two cuts. A refresh whose body
+  is byte-identical to the snapshot on disk, `captured_at` aside, now takes no lock, stages no temp
+  file and performs no rename. And the spool's 15-minute record sweep moved to a 5-minute cadence,
+  since it was spending a `find` twice a minute to enforce a fifteen-minute floor. Measured on
+  Windows/MSYS with both tees interleaved in one loop under identical load, spawn floor 57 ms: the
+  drain falls from 8.3 to 5.2 spawn-equivalents over the bare render, from seven external processes
+  to three. The steady render is unchanged at 1.5 spawn-equivalents against a bar of 2.
+- **The no-change skip is bounded, because the staleness rule is written against `captured_at`.**
+  `reference/reader-contract.md` makes a snapshot stale on a `captured_at` older than ten minutes
+  and says explicitly that the rule reads that field and never the file's mtime. An unbounded skip
+  would therefore starve `captured_at` on a machine whose windows are genuinely fresh but unmoving,
+  one idle session with `refreshInterval` still ticking, and silently demote the whole guard to
+  reactive-only: the same damage the windowless-writer preservation check exists to prevent,
+  arriving through a different door. A `.last-write` stamp, written with a builtin after a
+  successful rename, caps the skip at half the staleness budget. The compare runs before the lock,
+  since a compare under the lock would already have paid two of the three processes it avoids, and
+  after the temp sweep, so a refresh that skips its write still reclaims a killed session's orphan.
+  A trailing CR is normalized out of the comparison key: a native `jq` on Windows ends its lines
+  with CRLF, so the payload carries a CR that reading the file back drops, and the two sides would
+  never have compared equal on the one platform the skip exists for. The bytes the writer emits are
+  unchanged. The atomic temp-plus-rename write, its `EACCES` retry, and both lock disciplines are
+  untouched, and the same payload fed to this tee and to the previous one writes snapshots identical
+  under `jq -S 'del(.captured_at)'`.
+- **Four new suite cases.** The skip fires on an identical payload inside the floor, does not
+  misfire on a changed one, expires with the floor so `captured_at` stays fresh, and the spool sweep
+  honours its cadence while still reclaiming a dead session's aged record. Proven by mtime against a
+  sentinel rather than by content, since the body a skipped refresh would have written is by
+  definition byte-identical to the one already there.
+
 ## [0.7.24]
 
 ### Changed

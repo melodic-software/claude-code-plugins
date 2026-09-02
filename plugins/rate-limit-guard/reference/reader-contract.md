@@ -179,12 +179,16 @@ sweeping the directory expects them:
   `^[A-Za-z0-9._-]{1,64}$` without a leading dot — it is **never** trusted as a path. `spool/.last-drain`
   holds the epoch seconds of the last flush and is what elects the next draining refresh; a stale
   `spool/.drain.lock` directory can appear if a drain is killed and is stolen after two minutes.
-  Records older than 15 minutes are swept by the next drain. Readers consume none of this: the
-  contract file above is still the only proactive surface.
+  Records older than 15 minutes are swept, on a 5-minute cadence rather than on every drain.
+  Readers consume none of this: the contract file above is still the only proactive surface.
 - `.tee-disabled` — written by a drain that read `rate_limit_guard_enabled: false`, holding the epoch
   seconds at which it was written. While it is present and younger than the recheck interval the
   refreshes stop recording entirely; when it ages out the next drain re-reads the real setting and
   removes the marker, so re-enabling the plugin recovers without a restart.
+- `.last-write` and `spool/.last-sweep` — writer-private stamps holding epoch seconds, the first for
+  the last real snapshot write and the second for the last spool sweep. They bound how often the
+  writer repeats work that changed nothing. Readers must ignore both: neither carries session data,
+  and staleness is still decided by `captured_at` alone, never by a stamp or by a file's mtime.
 - `.rate-limits.json.tmp.<pid>.<random>` — the tee's atomic-write staging file. Normally it exists
   for well under a second between write and rename. It can outlive its writer: Claude Code
   [cancels an in-flight statusline script](https://code.claude.com/docs/en/statusline) when a new
