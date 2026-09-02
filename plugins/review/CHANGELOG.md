@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.16]
+
+### Changed
+
+- **`code-review` and `security-review`:** drop empty `argument-hint: ""`.
+  These skills take no user arguments; omit the key to match the other
+  no-arg skills (#3542).
+
 ## [0.26.15]
 
 ### Changed
