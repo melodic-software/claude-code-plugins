@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.48]
+
+### Fixed
+
+- **`backfill-capability-tier-labels.sh` no longer expands an empty `repo_args` under
+  `set -u`.** When `--repo` is omitted the array stays `()`. Bare `"${repo_args[@]}"`
+  is an unbound-variable abort on bash 4.0-4.3. Those sites now use the house
+  `${arr[@]+"${arr[@]}"}` idiom so `check` and `apply` reach `gh` instead of dying
+  first ([#3425](https://github.com/melodic-software/claude-code-plugins/issues/3425)).
+
 ## [0.39.47]
 
 ### Fixed

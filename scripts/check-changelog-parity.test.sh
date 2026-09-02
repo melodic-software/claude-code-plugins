@@ -501,7 +501,13 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf 'unrelated\n' >"$repo/README.md"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm noop
-if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "unchanged version with no plugin edits passes --check-bump"; else fail "repo-only edit wrongly failed --check-bump"; fi
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 && "$out" != *"unbound variable"* ]]; then ok "unchanged version with no plugin edits passes --check-bump"; else fail "repo-only edit wrongly failed --check-bump: rc=$rc out='$out'"; fi
+# Same empty touched_changelogs=() path --check-preserved walks first (#3425).
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 && "$out" != *"unbound variable"* ]]; then ok "repo-only edit expands empty touched_changelogs without aborting --check-preserved"; else fail "empty touched_changelogs aborted --check-preserved: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # new plugin absent at base -> --check-bump skips it (static --check owns it)
