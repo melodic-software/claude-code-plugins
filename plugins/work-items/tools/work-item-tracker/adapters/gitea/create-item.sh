@@ -121,7 +121,8 @@ if [[ -n "$LABELS" ]]; then
     if [[ -n "$LABEL_TOTAL" ]]; then
       ((LABEL_SEEN >= LABEL_TOTAL)) && break
     else
-      (($(jq 'length' <<<"$WIT_GITEA_BODY") < WIT_GITEA_PAGE_SIZE)) && break
+      PAGE_LEN="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || PAGE_LEN=0
+      ((PAGE_LEN < WIT_GITEA_PAGE_SIZE)) && break
     fi
     # Bounded like every other paginated loop in this adapter: a server that keeps answering
     # a full page would otherwise spin forever with ALL_LABELS growing without limit. Measured
