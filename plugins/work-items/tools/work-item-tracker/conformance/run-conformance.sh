@@ -128,8 +128,10 @@ if jq -e '.provider | type == "string" and length > 0' <<<"$WIT_OUT" >/dev/null;
   PROVIDER="$(jq -r '.provider' <<<"$WIT_OUT")"
   pass "capabilities names a provider"
 else
-  PROVIDER="$(jq -c '.provider' <<<"$WIT_OUT")"
-  fail "capabilities names a provider" "JSON string of length > 0" "$PROVIDER"
+  # Keep PROVIDER as raw text for later path/JSON reuse; compact JSON is
+  # only the diagnostic shown by fail (empty → `""`, null → `null`).
+  PROVIDER="$(jq -r '.provider' <<<"$WIT_OUT")"
+  fail "capabilities names a provider" "JSON string of length > 0" "$(jq -c '.provider' <<<"$WIT_OUT")"
 fi
 CAPS="$WIT_OUT"
 
