@@ -43,7 +43,9 @@ function Get-SdkState {
 
 function Add-SdkFinding {
     param(
-        [Parameter(Mandatory)] [System.Collections.Generic.List[pscustomobject]] $Findings,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[pscustomobject]] $Findings,
         [Parameter(Mandatory)] [string] $Runtime,
         [Parameter(Mandatory)] [string] $Version,
         [Parameter(Mandatory)] [datetime] $Now,

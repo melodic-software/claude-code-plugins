@@ -30,21 +30,36 @@ Describe 'Test-SdkVersions -- baseline' -Tag 'check' {
 }
 
 Describe 'Test-SdkVersions -- oldest label' -Tag 'check' {
-    It 'sorts by EOL date so the first-detected runtime is not automatically oldest' {
-        # Pin the sort the INFO summary uses: earliest eol_date wins, unknown last.
-        $findings = @(
-            [pscustomobject]@{ runtime = 'node'; version = '22'; eol_date = '2027-04-30'; state = 'active' }
-            [pscustomobject]@{ runtime = 'dotnet'; version = '6.0'; eol_date = '2024-11-12'; state = 'eol' }
-            [pscustomobject]@{ runtime = 'python'; version = '3.12'; eol_date = $null; state = 'unknown_eol' }
-        )
-        $oldest = @(
-            $findings | Sort-Object @{
-                Expression = {
-                    if ($_.eol_date) { [datetime]$_.eol_date } else { [datetime]::MaxValue }
-                }
-            }, runtime, version
-        )[0]
-        $oldest.runtime | Should -Be 'dotnet'
-        $oldest.version | Should -Be '6.0'
+    BeforeAll {
+        # `& $Path` runs the check in its own script scope, so a test-script
+        # function is invisible. Global shadows are what `& dotnet` resolves.
+        function global:dotnet { $args | Out-Null; '8.0.100 [C:\sdk]' }
+        function global:node { $args | Out-Null; 'v22.0.0' }
+    }
+    AfterAll {
+        Remove-Item function:global:dotnet -ErrorAction SilentlyContinue
+        Remove-Item function:global:node -ErrorAction SilentlyContinue
+    }
+
+    It 'labels oldest by EOL date, not detection order' {
+        # INFO is only reachable with no eol / eol_soon findings. First-detected
+        # is always dotnet, so the table gives node the earlier (still-active)
+        # EOL. A `$findings[0]` regression would name dotnet 8.0.
+        Mock Get-Command {
+            param($Name)
+            if ($Name -eq 'dotnet' -or $Name -eq 'node') {
+                return [pscustomobject]@{ Name = $Name; Source = $Name }
+            }
+            if ($Name -in @('python', 'python3')) { return $null }
+            return (Microsoft.PowerShell.Core\Get-Command $Name -ErrorAction SilentlyContinue)
+        }
+        Mock Get-Content {
+            '{"dotnet":{"eol":{"8.0":"2028-01-01"}},"node":{"eol":{"22":"2027-01-01"}},"python":{"eol":{}}}'
+        } -ParameterFilter { $LiteralPath -match 'sdk-eol-table\.json$' }
+        $result = Invoke-SdkVersionsAsObject
+        { Assert-CheckResult $result } | Should -Not -Throw
+        $result.severity | Should -Be 'INFO'
+        $result.summary | Should -Match 'oldest: node 22'
+        $result.summary | Should -Not -Match 'oldest: dotnet'
     }
 }
