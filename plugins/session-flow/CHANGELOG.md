@@ -1,5 +1,14 @@
 # Changelog — session-flow plugin
 
+## [0.34.18]
+
+### Fixed
+
+- **`running-retro`: `arm_observer.py` now forwards `--idle-confirm-seconds`.** The launcher
+  never declared the flag, so passing it raised an argparse error even though `observer.py`
+  already supports it (default 30s). The launcher now accepts the same default and puts the
+  flag and value on the detached observer argv.
+
 ## [0.34.17]
 
 ### Changed
