@@ -241,6 +241,10 @@ good_record fx-r001 file present.txt delete 'match: x' >"$m"
 bad_case "match on kind file" match fx-r001
 good_record fx-r001 dir present.txt delete 'content_match: x' >"$m"
 bad_case "content_match on kind dir" content_match fx-r001
+good_record fx-r001 file present.txt delete 'heading: "## leftover"' >"$m"
+bad_case "heading on kind file" heading fx-r001
+good_record fx-r001 line present.txt remove-line 'match: "^X$"' 'heading: convention_source' >"$m"
+bad_case "heading that is not ATX" heading fx-r001
 good_record fx-r001 file /etc/passwd delete >"$m"
 bad_case "absolute path" path fx-r001
 good_record fx-r001 file ../outside.txt delete >"$m"
@@ -544,6 +548,118 @@ assert_exit "case 21: mixed manifest exits 1" 1 "$RC"
 assert_eq "case 21: four rows" "4" "$(printf '%s\n' "$OUT" | grep -c .)"
 assert_eq "case 21: every row has 6 columns" "6" "$(printf '%s\n' "$OUT" | awk -F '\t' '{ print NF }' | sort -u | tr -d '\n')"
 assert_eq "case 21: rows are in manifest order" "fx-r001 fx-r002 fx-r003 fx-r004" "$(printf '%s\n' "$OUT" | cut -f1 | tr '\n' ' ' | sed 's/ $//')"
+
+# --- Case 22: heading scopes kind:line to one markdown section ----------------
+r="$(mkrepo heading-scope)"
+mkdir -p "$r/.claude"
+m="$TEST_TMPDIR/heading.yaml"
+good_record fx-r001 line .claude/doc.md remove-line \
+  'match: "^docs/conventions/source-control/commit-convention\.yml$"' \
+  'heading: "## convention_source"' | manifest "$m"
+
+cat >"$r/.claude/doc.md" <<'EOF'
+# title
+
+docs/conventions/source-control/commit-convention.yml
+
+## other
+
+docs/conventions/source-control/commit-convention.yml
+
+## convention_source
+
+docs/conventions/source-control/commit-convention.yml
+
+### nested
+
+docs/conventions/source-control/commit-convention.yml
+
+## later
+
+docs/conventions/source-control/commit-convention.yml
+EOF
+run --manifest "$m" --root "$r"
+assert_exit "case 22: heading-scoped leftover exits 1" 1 "$RC"
+assert_contains "case 22: heading-scoped leftover emits a row" "$OUT" "fx-r001"
+
+cat >"$r/.claude/doc.md" <<'EOF'
+# title
+
+docs/conventions/source-control/commit-convention.yml
+
+## other
+
+docs/conventions/source-control/commit-convention.yml
+EOF
+run --manifest "$m" --root "$r"
+assert_exit "case 22: decoy lines outside the heading are not a leftover" 0 "$RC"
+assert_eq "case 22: decoy-only file prints no row" "" "$OUT"
+
+cat >"$r/.claude/doc.md" <<'EOF'
+## convention_source
+
+something-else.yml
+EOF
+run --manifest "$m" --root "$r"
+assert_exit "case 22: heading present without a matching body line is not a leftover" 0 "$RC"
+
+cat >"$r/.claude/doc.md" <<'EOF'
+# title
+
+docs/conventions/source-control/commit-convention.yml
+
+## other
+
+docs/conventions/source-control/commit-convention.yml
+
+## convention_source
+
+docs/conventions/source-control/commit-convention.yml
+
+### nested
+
+docs/conventions/source-control/commit-convention.yml
+
+## later
+
+docs/conventions/source-control/commit-convention.yml
+EOF
+printf '%s\n' \
+  '# title' \
+  '' \
+  'docs/conventions/source-control/commit-convention.yml' \
+  '' \
+  '## other' \
+  '' \
+  'docs/conventions/source-control/commit-convention.yml' \
+  '' \
+  '## convention_source' \
+  '' \
+  '' \
+  '### nested' \
+  '' \
+  '' \
+  '## later' \
+  '' \
+  'docs/conventions/source-control/commit-convention.yml' \
+  >"$TEST_TMPDIR/heading-expected"
+run --manifest "$m" --root "$r" --clean fx-r001
+assert_exit "case 22: heading-scoped --clean exits 0" 0 "$RC"
+assert_file_eq "case 22: --clean removes only in-section matches and keeps decoys" \
+  "$TEST_TMPDIR/heading-expected" "$r/.claude/doc.md"
+assert_contains "case 22: --clean reports two in-section lines" "$ERR" "removed 2 line(s)"
+
+# Trailing whitespace on the heading line still identifies the section; a
+# second same-level heading with the same title is a second section.
+printf '## convention_source  \r\ndocs/conventions/source-control/commit-convention.yml\r\n## convention_source\r\ndocs/conventions/source-control/commit-convention.yml\r\n' \
+  >"$r/.claude/doc.md"
+run --manifest "$m" --root "$r"
+assert_exit "case 22: trailing-space / CRLF heading still detects" 1 "$RC"
+run --manifest "$m" --root "$r" --clean fx-r001
+assert_exit "case 22: CRLF heading-scoped --clean exits 0" 0 "$RC"
+printf '## convention_source  \r\n## convention_source\r\n' >"$TEST_TMPDIR/heading-crlf-expected"
+assert_file_eq "case 22: both heading-titled sections cleaned; heading lines kept" \
+  "$TEST_TMPDIR/heading-crlf-expected" "$r/.claude/doc.md"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

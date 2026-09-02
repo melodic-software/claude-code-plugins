@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.39]
+
+### Changed
+
+- setup ships the retirements.yaml manifest (record source-control-r001: redundant well-known-path convention_source pointer, scoped to the `## convention_source` heading), the synced check-retirements helper (retired-conventions contract 1.1 heading-scoped `kind: line`), the two fixed retired-conventions setup steps, and a per-record eval (customization-consistency Phase 2c)
+
 ## [0.55.38]
 
 ### Changed

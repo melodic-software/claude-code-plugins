@@ -8,6 +8,14 @@ field, removing a field, changing a kind's detection semantics, an exit code's m
 severity map is a major bump; adding an optional field, a `status` value, or a new `kind` with its
 own detection rule is a minor bump.
 
+## 1.1 — 2026-09-02
+
+Optional `heading` field on `kind: line`. When set, detection and `--clean` consider only matching
+lines in the body of every markdown section whose ATX heading line equals the field (trailing
+whitespace ignored). Unset `heading` keeps the 1.0 whole-file line rule. The field is frozen once
+published, alongside `match` and `content_match`. Helper, validator, and owner-doc field table
+updated together.
+
 ## 1.0 — 2026-09-01
 
 Initial published contract, landing with the mechanism PR that ADR 0018 named (helper, validator,

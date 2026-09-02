@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.29]
+
+### Changed
+
+- **`lib/check-retirements.sh`:** optional `heading` field on `kind: line` restricts detection and `--clean` to the body of matching ATX sections (retired-conventions contract 1.1). A standalone line that matches `match` outside that heading is not a leftover.
+
 ## [0.40.28]
 
 ### Changed

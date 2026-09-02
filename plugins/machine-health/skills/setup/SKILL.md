@@ -48,7 +48,9 @@ overlay directly and has no such rung.)
 legacy path and any `machine-health-*` sibling of the resolved `<StateBase>`, and for each that
 exists and is not `<StateBase>`, name it and list what it holds. Only `<StateBase>` is read.
 Consolidating is the operator's move. Moving or deleting the stray root is a decision about their
-data, and this skill neither relocates nor removes files.
+data, and this skill neither relocates nor removes files. This split-state detection stays bespoke
+rather than becoming a retirement-manifest record: the stray roots are machine-scope surfaces under
+the operator's state base, outside the repo-scope retirement schema (ADR 0018, decision 6).
 
 ## `check` (read-only)
 

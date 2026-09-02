@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.51]
+
+### Changed
+
+- setup's legacy frontier-tier backfill carries a rationale line: forge-label backfill, not a repo artifact the retirement schema can detect (customization-consistency Phase 2c)
+
 ## [0.39.50]
 
 ### Changed

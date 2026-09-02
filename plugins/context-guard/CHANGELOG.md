@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.30]
+
+### Changed
+
+- setup's legacy-statusline detection (shim-revision ladder, legacy version-pinned wiring) moves to the shared synced spoke reference/legacy-statusline-detect.md, canonical here, with a machine-scope bespoke rationale (customization-consistency Phase 2c)
+
 ## [0.7.29]
 
 ### Changed

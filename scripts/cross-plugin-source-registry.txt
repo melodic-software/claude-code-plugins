@@ -40,7 +40,7 @@ lib/state-key.sh
 lib/spawn_noise.py
 
 # Dedicated check: scripts/sync-check-retirements.sh --check (CI: check-retirements-sync)
-# Commented out until the first carrier lands: the file lives in claude-config
-# alone today, and --check's REGISTRY STALE rule fails a listed path present in
-# fewer than two plugins. Uncomment with the first synced copy.
-# lib/check-retirements.sh
+lib/check-retirements.sh
+
+# Dedicated check: scripts/sync-legacy-statusline-detect.sh --check (CI: legacy-statusline-detect-sync)
+skills/setup/reference/legacy-statusline-detect.md

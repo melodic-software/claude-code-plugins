@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.6]
+
+### Changed
+
+- setup's split-state-root detection carries a rationale line: machine-scope surface, outside the repo-scope retirement schema per ADR 0018 (customization-consistency Phase 2c)
+
 ## [0.12.5]
 
 ### Changed
