@@ -48,8 +48,9 @@ README.md
 # Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
 # skills glob is intentionally open: a NEW skill added to one of these plugins
 # is covered from the moment it lands, which is the cheapest possible time to
-# keep it clean. Plugins listed with README only still have em dashes in a
-# SKILL.md (almost always the description: frontmatter the later pass owns).
+# keep it clean. Plugins listed with README only still have an em dash in a
+# SKILL.md (frontmatter description:, or a body dash the detector's per-line
+# inline-code strip misses across a wrapped code span).
 plugins/actionlint/README.md
 plugins/adhd/README.md
 plugins/adhd/skills/*/SKILL.md
@@ -59,10 +60,8 @@ plugins/autonomy/README.md
 plugins/bash-format/README.md
 plugins/biome-format/README.md
 plugins/bugs/README.md
-plugins/bugs/skills/*/SKILL.md
 plugins/claude-config/README.md
 plugins/claude-memory/README.md
-plugins/claude-memory/skills/*/SKILL.md
 plugins/claude-ops/README.md
 plugins/code-tidying/README.md
 plugins/codebase-health/README.md
@@ -71,14 +70,12 @@ plugins/computer-use/README.md
 plugins/context-budget/README.md
 plugins/context-guard/README.md
 plugins/context7/README.md
-plugins/context7/skills/*/SKILL.md
 plugins/coupling/README.md
 plugins/debugging/README.md
 plugins/debugging/skills/*/SKILL.md
 plugins/desktop-notification/README.md
 plugins/discipline/README.md
 plugins/discovery/README.md
-plugins/discovery/skills/*/SKILL.md
 plugins/docs-hygiene/README.md
 plugins/domain-driven-design/README.md
 plugins/dometrain/README.md
@@ -129,7 +126,6 @@ plugins/songwriting/README.md
 plugins/source-control/README.md
 plugins/tdd/README.md
 plugins/testing/README.md
-plugins/testing/skills/*/SKILL.md
 plugins/toolchain/README.md
 plugins/typos-format/README.md
 plugins/verification/README.md
