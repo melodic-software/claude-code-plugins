@@ -179,9 +179,7 @@ errors=0
 bare_status="$(classify_bare_positional)"
 case "$bare_status" in
 accepted)
-  if argument_hint_has_bare; then
-    :
-  else
+  if ! argument_hint_has_bare; then
     echo "MISSING BARE POSITIONAL: parser accepts a bare <dir> but argument-hint does not document [<dir>]" >&2
     errors=$((errors + 1))
   fi
