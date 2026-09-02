@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.37]
+
+### Fixed
+
+- **`fetch-all-pr-comments.sh` no longer reports a failed final jq merge as success.** The
+  script ended with `exit 0` after `{ surfaces } | jq -s 'sort_by(.created_at)'`, so a parse
+  error, truncated payload, or other jq failure still looked like a complete fetch. Callers
+  (the babysit-PRs path included) read that status to decide whether they have the full
+  comment set. The merge pipeline's status now propagates, mapped to exit 2 to match the
+  per-surface jq failures and to avoid colliding with jq's native parse-error 5 (already
+  documented here as "prerequisite missing"). Empty surfaces stay success: the three
+  `[[ -n ]] && printf` arms would return 1 when empty, and with `set -o pipefail` that
+  would false-fail a legitimate subset, so they are now `if` statements (`if` returns 0
+  when no condition tested true).
+
 ## [0.55.36]
 
 ### Changed
