@@ -51,10 +51,11 @@ def convention_cite(plugin: str) -> str:
     """Where the verified-version record lives, as inline markdown.
 
     Installed plugins cannot read this tree, so most generated READMEs cite the
-    published URL. The github plugin's agnosticism sweep forbids the publisher
-    org name in any ``*.md``, so that plugin cites the in-repo path instead.
+    published URL. Two plugins forbid the publisher org name in shipped
+    markdown (github's agnosticism sweep; autonomy's binding-seam contract), so
+    those cite the in-repo path instead.
     """
-    if plugin == "github":
+    if plugin in {"github", "autonomy"}:
         return f"this marketplace's plugin-reconfiguration convention (`{CONVENTION_PATH}`)"
     return f"the [plugin-reconfiguration convention]({CONVENTION_URL})"
 
