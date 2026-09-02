@@ -3,6 +3,32 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.5]
+
+### Changed
+
+- **`interview`:** removed the context-pressure flush and the "context filling" handoff cue; a
+  handoff fires on a user or harness signal or on a ballooning frontier, never on the model's own
+  estimate of remaining context. Dropped the incident measurements from the gotchas and the
+  round-boundary rationale, scoped the "capture the answers" rule per mode at its definition site,
+  dated the unattended-detection claim against the CLI reference and env-vars pages, and dropped
+  the changelog-discipline aside from the free-text flag.
+- **`questionnaire`:** stated the Skill-invocation hand-off rule without the "now that" framing.
+- **`prd`:** the description routes engineering-internal work to `/planning:interview`; eval 2
+  asserts the same name.
+- **`draft-goal-condition`:** collapsed the trigger phrases into three intents; dated the
+  workflow-row and routines research-preview claims against the live docs.
+- **`wayfind`:** chart mode treats the caller's unattended declaration as the signal instead of
+  sniffing an environment variable, and eval 4 asserts the same; dated the `gh` flag and JSON-shape
+  verification.
+- **`setup`:** dropped the retirement-manifest justification from the migration bullet; the
+  deferred-backend check states why GitBook is non-writable instead of a pending decision.
+- **`plan`:** replaced the karpathy-guidelines priming with one plain sentence; removed the
+  unresolvable "asset rush lane 4" citation; the Step 3 gotcha carries only its one new instruction.
+- **`devils-advocate`:** collapsed the trigger phrases into two intents.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.35.4]
 
 ### Fixed

@@ -64,7 +64,7 @@ Parse `$ARGUMENTS` to determine the action:
 
 ### Step 1: Prerequisite Check
 
-Before the prerequisite checklist runs, apply a pre-planning discipline checklist. If the `andrej-karpathy-skills` plugin is installed, invoke `/andrej-karpathy-skills:karpathy-guidelines` via the Skill tool to prime four behavioral rules. Think-before-code, simplicity-first, surgical-changes, goal-driven-execution. If the plugin is absent, fall back gracefully: the consuming project's own rules plus this skill's Step 2 plan-formulation and Step 3 plan stress-test discipline cover the same ground. Proceed without prompting.
+Prefer the simplest plan that works and keep each step's changes surgical.
 
 Before planning, verify the knowledge base is ready:
 
@@ -266,7 +266,7 @@ The skill does not automatically enter plan mode. The user controls permission m
 
 Plan mode is also a natural moment for a **scoping confirm**. If you're entering plan mode for safe exploration during planning, treat it as a license to ask 1–4 questions that settle what this plan covers, as one numbered round before proposing it. The round renders via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the questions are independent. Inline prose otherwise.
 
-**Substantive rounds do not belong in plan mode.** A question that resolves *what we are building*, real tradeoffs, contested requirements, anything whose answer changes the plan's shape, routes to `/planning:interview` via the Skill tool, run with **plan mode off**, for two reasons. Mechanically, that skill's ask-time open-question register is a disk write, and plan mode's read-only enforcement blocks it, so questions get asked with nothing on disk holding them. Doctrinally, plan mode primes the run toward producing the plan, the asset rush lane 4 records, when the job is still reaching shared understanding. Plan mode's round confirms scope; it is not a substitute for the interview. **Getting there is the user's move, not yours**. Symmetric to entering plan mode above: you do not toggle permission modes, so when plan mode is active and a substantive round comes due, say why and ask the user to exit it (`shift+tab`), then invoke the interview once they have. Do not invoke it from inside plan mode on the assumption the register write will survive. It will not.
+**Substantive rounds do not belong in plan mode.** A question that resolves *what we are building*, real tradeoffs, contested requirements, anything whose answer changes the plan's shape, routes to `/planning:interview` via the Skill tool, run with **plan mode off**, for two reasons. Mechanically, that skill's ask-time open-question register is a disk write, and plan mode's read-only enforcement blocks it, so questions get asked with nothing on disk holding them. Doctrinally, plan mode primes the run toward producing the plan when the job is still reaching shared understanding. Plan mode's round confirms scope; it is not a substitute for the interview. **Getting there is the user's move, not yours**. Symmetric to entering plan mode above: you do not toggle permission modes, so when plan mode is active and a substantive round comes due, say why and ask the user to exit it (`shift+tab`), then invoke the interview once they have. Do not invoke it from inside plan mode on the assumption the register write will survive. It will not.
 
 ## Plan Review Mode
 
@@ -303,7 +303,7 @@ Write the plan even for small changes. Future you or a fresh-session agent will 
 
 ## Gotchas
 
-- **NEVER skip Step 3 plan stress-test.** Dispatch the fresh-context plan-reviewer sub-agent every time. The producing planner must not self-critique inline. If the user finds a gap in 5 seconds that the reviewer missed, tighten the reviewer brief. MANDATORY regardless of blast radius
+- **The Step 3 reviewer brief is the lever, not the step.** If the user finds a gap in 5 seconds that the fresh-context reviewer missed, tighten the reviewer brief rather than adding an inline self-critique
 - **Don't skip the prerequisite check.** Plans built without exploration miss existing patterns. Plans without research repeat mistakes others have solved. The prerequisite check is 30 seconds; the rework is 30 minutes
 - **Scale the plan to the task.** A 50-line plan for a typo fix is over-engineering. A 3-bullet plan for a cross-cutting refactor is under-engineering. Match depth to blast radius
 - **Don't confuse this skill with built-in plan mode.** Plan mode is a read-only permission mode. `/planning:plan` is a planning discipline. If a user types "plan this", they want the discipline, not the permission mode

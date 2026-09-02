@@ -473,7 +473,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "e627a2702a4ab924a8b681e9d6279d3d9f53e8039b4fbb30fdcf1f503fada711"
+  "17f65200af09042baf8b9d72fc7a1d705e15c67598bcb737347fa432bcf4156b"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -483,7 +483,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3 — Recognize the stop condition" \
-  "1507ecb169de8ff22e11e6fec211906069344d6afa4fcd05e283e456bd6926da"
+  "3142bad2d571e26e1e050f83a4dcb08221b7476d4d6ac6d38aed53125001bde6"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -508,7 +508,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "33ad717275095466a2a997ace8873086cc37e32d6089f4b2abda94582ac9b85a"
+  "73ea84765805d1fdbb1d617dc090d162e128084ed323e40e346e724886f58612"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -523,7 +523,7 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "c538805b63397c4c802ea17b357c27312504bb951b5188c3b9a24d4c4824c778"
+  "dc135ed1600df7fbc67d5fcd7476bcd03032032ea570048213ed1f251592321e"
 
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
