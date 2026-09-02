@@ -8,6 +8,7 @@
 #   - per-row gh JSON success → OPEN/CLOSED transition computed correctly
 #   - empty snapshot → header-only results, exit 0
 #   - missing snapshot → exit 1
+#   - snapshot without trailing newline → last row still processed
 #
 # Uses a per-case fake check-all-output tree and a PATH-stub `gh`.
 
@@ -121,6 +122,18 @@ mkdir -p "$CASE_F/check-all-output"
 (cd "$CASE_F" && CHECK_ALL_OUTPUT_DIR="$CASE_F/check-all-output" bash "$SCRIPT") >/dev/null 2>&1
 RC=$?
 assert_exit "missing snapshot → exit 1" 1 "$RC"
+
+# --- Case 7: snapshot missing trailing newline → last row still processed ---
+CASE_G="$TEST_TMPDIR/case-g"
+make_case "$CASE_G" $'5\texample-org/example-repo\topen\n42\texample-org/example-repo\tclosed' open
+(cd "$CASE_G" && CHECK_ALL_OUTPUT_DIR="$CASE_G/check-all-output" PATH="$CASE_G/path-stub:$PATH" bash "$SCRIPT") >/dev/null 2>&1
+RC=$?
+assert_exit "no trailing newline → exit 0" 0 "$RC"
+RESULTS_FILE="$CASE_G/check-all-output/check-all-results.tsv"
+DATA_ROWS=$(($(wc -l <"$RESULTS_FILE") - 1))
+assert_eq "no trailing newline → both rows processed" 2 "$DATA_ROWS"
+LAST_ROW=$(tail -n 1 "$RESULTS_FILE")
+assert_contains "last row (no trailing newline) has issue number 42" "$LAST_ROW" $'42\t'
 
 [[ $FAILED -eq 0 ]] || exit 1
 echo "All cases passed ($CASE_NUM)."
