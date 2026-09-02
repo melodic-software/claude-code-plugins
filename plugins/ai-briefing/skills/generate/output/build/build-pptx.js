@@ -31,7 +31,7 @@ const FONT_HEAD = theme.pptFontHead;
 const FONT_BODY = theme.pptFontBody;
 
 // Helper: solid bg + accent strip + footer
-function decorate(slide, { showFooter = true, eyebrow = null, showLogo = true } = {}) {
+function decorate(slide, { eyebrow = null } = {}) {
   slide.background = { color: theme.bg };
 
   // Top accent bar (brand red)
@@ -55,7 +55,7 @@ function decorate(slide, { showFooter = true, eyebrow = null, showLogo = true } 
   }
 
   // Top-right logo (white)
-  if (showLogo && logoWhiteData) {
+  if (logoWhiteData) {
     slide.addImage({
       data: logoWhiteData,
       x: W - 1.65, y: 0.2, w: 1.3, h: 0.36,
@@ -63,18 +63,16 @@ function decorate(slide, { showFooter = true, eyebrow = null, showLogo = true } 
     });
   }
 
-  if (showFooter) {
-    slide.addText([
-      { text: meta.org, options: { color: theme.textMuted, fontSize: 9 } },
-      { text: "  ·  ", options: { color: theme.divider, fontSize: 9 } },
-      { text: `AI Meeting #${meta.meetingNumber}`, options: { color: theme.textMuted, fontSize: 9 } },
-      { text: "  ·  ", options: { color: theme.divider, fontSize: 9 } },
-      { text: meta.date, options: { color: theme.textMuted, fontSize: 9 } },
-    ], {
-      x: 0.5, y: H - 0.4, w: W - 1, h: 0.3,
-      fontFace: FONT_BODY, align: "left",
-    });
-  }
+  slide.addText([
+    { text: meta.org, options: { color: theme.textMuted, fontSize: 9 } },
+    { text: "  ·  ", options: { color: theme.divider, fontSize: 9 } },
+    { text: `AI Meeting #${meta.meetingNumber}`, options: { color: theme.textMuted, fontSize: 9 } },
+    { text: "  ·  ", options: { color: theme.divider, fontSize: 9 } },
+    { text: meta.date, options: { color: theme.textMuted, fontSize: 9 } },
+  ], {
+    x: 0.5, y: H - 0.4, w: W - 1, h: 0.3,
+    fontFace: FONT_BODY, align: "left",
+  });
 }
 
 // Hyperlinked source URLs as one text run per URL, separated by a small blank line.
@@ -190,7 +188,7 @@ function buildAgenda(s, slide) {
       fill: { color: theme.bgAccent }, line: { color: theme.divider, width: 0.5 },
       rectRadius: 0.08,
     });
-    slide.addText(`${(i + 1).toString().padStart(2, "0")}`, {
+    slide.addText((i + 1).toString().padStart(2, "0"), {
       x: x + 0.15, y, w: 0.7, h: rowH,
       fontFace: FONT_HEAD, fontSize: 18, bold: true,
       color: theme.accent, valign: "middle",
