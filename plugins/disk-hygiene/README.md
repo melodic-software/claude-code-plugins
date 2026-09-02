@@ -92,11 +92,15 @@ enforces nothing. The launcher resolves Python itself instead (#1504).
 
 The guard registers on two surfaces: a plugin-level **engine gate** (`hooks/hooks.json`) that acts
 only on commands referencing the engine, deferring everything else instantly, and enforces the kill
-switch and data-root authority (since **0.21.1** the registration also carries the `if` filter
-`Bash(*hygiene.py*)`, a superset of the gate's own relevance check, so a command that does not
-name the engine no longer spawns the Python interpreter to be deferred, except that a command
-containing `$()`, a backtick or `$VAR` still spawns it, because the filter cannot see what the
-substitution expands to); and the skill-scoped **belt** inside the `clean` skill's context,
+switch and data-root authority (since **0.21.4** the gate is registered once per tool: the `Bash`
+entry carries the `if` filter `Bash(*hygiene.py*)`, a superset of the gate's own relevance check,
+so a Bash command that does not name the engine no longer spawns the Python interpreter to be
+deferred, except that a command containing `$()`, a backtick or `$VAR` still spawns it, because
+the filter cannot see what the substitution expands to; the `PowerShell` entry carries no `if`,
+because an `if` filter is scoped to the tool it names, so a Bash filter would leave every
+PowerShell call unguarded, and a PowerShell filter must match every subcommand of a compound
+command, which would skip this kill-switch guard silently on a mixed line, so every PowerShell
+call still pays the interpreter start); and the skill-scoped **belt** inside the `clean` skill's context,
 which adds the deny-by-default Bash and deletion-spelling PowerShell discipline during active
 cleanup work. Both surfaces resolve the kill switch by reading `disk_hygiene_enabled` from
 user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only

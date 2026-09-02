@@ -160,15 +160,22 @@ invocation, or a call following a `cd`/`pushd` on the same command line, which
 moves the directory the gate file and any relative `--body-file` resolved
 against. Set `pr_body_linkage_gate_enabled` to `false` to turn it off.
 
-The registration carries an `if` filter, `Bash(gh *)`, so the hook process is spawned
-only for a command that runs `gh` (Claude Code checks each subcommand of a compound
-command, and runs the hook regardless when it cannot tell what a command expands to).
-That is a superset of the hook's own first check, so nothing it would have judged is
-skipped; a plain `git status` no longer pays for it. The filter is best-effort on the
-Bash side: a pattern beyond a bare command name still spawns the process on any command
-containing `$()`, a backtick or `$VAR`, because Claude Code cannot tell what such a
-command expands to. The dotfiles fan-out harness reports those spawns as
-`RAN(best-effort)` on its `$()` sample.
+The registration carries an `if` filter, `Bash(*gh *)`, the same shape as the
+`Bash(*worktree*)` filter on the worktree gates, so the hook process is spawned only
+for a command line that carries `gh ` somewhere in its text (Claude Code checks each
+subcommand of a compound command, and runs the hook regardless when it cannot tell what
+a command expands to). The leading wildcard is deliberate: the `if` field matches the
+command name, so the narrower `Bash(gh *)` never launched the gate for a wrapped call
+such as `env GH_TOKEN=x gh pr create`, `sudo gh pr create` or
+`bash -c "cd x && gh pr create"`, whose first word is not `gh`. The wider filter is a
+superset of the hook's own first check (a `gh` word anywhere on the line), so nothing
+it would have judged is skipped; a plain `git status` still does not pay for it, and a
+non-`gh` line that happens to contain `gh ` (`echo high tide`) pays one bash start
+before the hook's own jq-free regex pre-filter dismisses it. What the filter still
+cannot see is a `gh` that only appears after a `$()`, a backtick or a `$VAR` expands;
+Claude Code spawns the hook regardless for such a command, so the gate still judges
+it, and the dotfiles fan-out harness reports those spawns as `RAN(best-effort)` on its
+`$()` sample.
 
 #### Telemetry (opt-in)
 

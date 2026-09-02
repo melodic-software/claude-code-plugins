@@ -8,11 +8,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - **The Bash gates carry `if` filters, so they spawn only for the commands they judge.**
-  `pr-body-linkage-gate` runs under `Bash(gh *)`, and `worktree-add-containment-gate`
+  `pr-body-linkage-gate` runs under `Bash(*gh *)`, and `worktree-add-containment-gate`
   and `worktree-add-claim-gate` under `Bash(*worktree*)`; each filter is a superset of
   the gate's own first check (`gh` on the command line; `worktree` in the command), so
   no command the gate would have judged is skipped. A plain `git status` no longer
   costs three hook processes.
+- **The linkage gate's filter is `Bash(*gh *)`, not `Bash(gh *)`.** The `if` field
+  matches the command name, so the narrower form never launched the gate for a wrapped
+  call (`env GH_TOKEN=x gh pr create`, `sudo gh pr create`,
+  `bash -c "cd x && gh pr create"`). The leading wildcard covers those, at the cost of
+  one bash start on a non-`gh` line that happens to contain `gh `, which the gate's own
+  regex pre-filter dismisses. A `gh` produced by a substitution is still judged only
+  because Claude Code runs the hook regardless when it cannot tell what a command
+  expands to.
 
 ## [0.55.40]
 
