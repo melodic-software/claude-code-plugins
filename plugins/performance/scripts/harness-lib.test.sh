@@ -76,8 +76,8 @@ assert_eq "a shim directory under the temporary root is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the mktemp defect" "temporary root" "$RUN_OUT"
 
 # The same physical directory reached by a DIFFERENT SPELLING must still be
-# refused. On this Windows host TEMP is the 8.3 short form
-# (C:\Users\KYLESE~1\...) while /tmp resolves to the long form, and a string
+# refused. On Windows, TEMP is often the 8.3 short form
+# (C:\Users\<SHORT~1>\...) while /tmp resolves to the long form, and a string
 # prefix test between the two finds nothing: the rejection would silently stop
 # working on exactly the platform the source failures came from.
 # discriminating-skip-required: the spelling-independence of the temp-root

@@ -4,7 +4,7 @@ user-invocable: true
 argument-hint: "[<path|component|'session'|'telemetry'>] (e.g. /performance:target plugins/disk-hygiene/hooks)"
 disable-model-invocation: false
 metadata:
-  workflow-stage: discovery
+  workflow-stage: explore
   summary: Rank optimization candidates by evidence quality, not suspicion
 ---
 
