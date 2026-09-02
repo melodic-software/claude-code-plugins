@@ -9,3 +9,4 @@
 # every branch and scans --all, so this finding turns every PR red until the
 # branch merges or rewrites; remove this line when that lands differently.
 f7aec1549dec60407a24a7d8ea720696b7b099af:plugins/claude-config/lib/resolve-convention-home.sh:generic-api-key:248
+708739fb2ba1b0196e93f9c07d3293bddfeed2f0:plugins/plugin-quality/lib/resolve-convention-home.sh:generic-api-key:249
