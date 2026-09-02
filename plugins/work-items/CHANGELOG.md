@@ -3,6 +3,17 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.44]
+
+### Fixed
+
+- **Conformance `run-conformance.sh` drops its own vacuous assertion.** The capabilities case
+  asserted that `"provider=$PROVIDER"` contains `"provider="`, which is true for every possible
+  value including an empty one, because the haystack is built from the needle. It now checks that
+  the provider read back from the real capabilities output is non-empty, the same pattern the
+  suite already uses for `claim`'s holder field a few cases later. An empty provider now fails
+  this case; a real provider still passes.
+
 ## [0.39.43]
 
 ### Changed

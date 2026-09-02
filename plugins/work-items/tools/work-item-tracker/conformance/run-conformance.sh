@@ -121,7 +121,11 @@ RUN_TAG="conf-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 wit_case "capabilities" 0 capabilities
 assert_schema_version "capabilities"
 PROVIDER="$(jq -r '.provider' <<<"$WIT_OUT")"
-assert_contains "capabilities names a provider" "provider=$PROVIDER" "provider="
+if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
+  pass "capabilities names a provider"
+else
+  fail "capabilities names a provider" "non-empty provider" "$PROVIDER"
+fi
 CAPS="$WIT_OUT"
 
 # --- usage / binding errors ---
