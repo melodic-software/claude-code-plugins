@@ -134,6 +134,8 @@ DATA_ROWS=$(($(wc -l <"$RESULTS_FILE") - 1))
 assert_eq "no trailing newline → both rows processed" 2 "$DATA_ROWS"
 LAST_ROW=$(tail -n 1 "$RESULTS_FILE")
 assert_contains "last row (no trailing newline) has issue number 42" "$LAST_ROW" $'42\t'
+LOG_G=$(cat "$CASE_G/check-all-output/check-all.log")
+assert_contains "no trailing newline → progress counts both rows" "$LOG_G" "[2/2]"
 
 [[ $FAILED -eq 0 ]] || exit 1
 echo "All cases passed ($CASE_NUM)."
