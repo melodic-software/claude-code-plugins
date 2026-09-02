@@ -491,13 +491,10 @@ LC_ALL=C awk \
     print ""
     ran = "Ran: [claude-config:audit-instructions (instruction-scan.sh --body-only)]."
     zero = ""
-    if (!("I28-a" in seen)) zero = "claude-config/audit-instructions/rule-coercive-emphasis"
-    if (!("I28-b" in seen))
-      zero = zero (zero == "" ? "" : ", ") "claude-config/audit-instructions/rule-blanket-tool-default"
-    if (!("I29-a" in seen))
-      zero = zero (zero == "" ? "" : ", ") "claude-config/audit-instructions/rule-description-restatement"
-    if (!("I29-b" in seen))
-      zero = zero (zero == "" ? "" : ", ") "claude-config/audit-instructions/rule-sibling-restatement"
+    nz = split("I28-a I28-b I29-a I29-b", zids, " ")
+    for (i = 1; i <= nz; i++)
+      if (!(zids[i] in seen))
+        zero = zero (zero == "" ? "" : ", ") rule_id(zids[i])
     if (zero != "") ran = ran " Returned no result: [" zero "]."
     print ran
     printf "Scan rows read: %d. Emitted: %d.\n", nrows, nemit
