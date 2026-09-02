@@ -494,7 +494,7 @@ and async (phase 2) reduces none of it.
 - Byte-identical output on a benign `.md` payload for each hook: `diff before.out after.out` prints nothing.
 - `scripts/affected-tests.sh --run` exits 0; `gh pr checks` 0 failing.
 
-### Phase 4d: context-guard hook hot path [TODO]
+### Phase 4d: context-guard hook hot path [DONE]
 
 Repo: claude-code-plugins. One PR, branch `perf/context-guard-hot-path` stacked on the phase 3 branch. Added
 when phase 2 closed without an async row (DEVIATIONS.md): the PostToolBatch nudge stays on the
