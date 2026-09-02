@@ -65,12 +65,19 @@ function ConvertFrom-WingetTextOutput {
             # The $line.Length -lt $idxVer rows are skipped above, so this
             # substring is always in range.
             $ident = $line.Substring($idxId, $idxVer - $idxId).Trim()
-            $ver = if ($line.Length -ge $idxAvail) {
+            $ver = if ($idxAvail -gt $idxVer -and $line.Length -ge $idxAvail) {
                 $line.Substring($idxVer, $idxAvail - $idxVer).Trim()
+            } elseif ($line.Length -gt $idxVer) {
+                $line.Substring($idxVer).Trim()
             } else { '' }
-            $avail = if ($idxSource -gt 0 -and $line.Length -ge $idxSource) {
+            # Length-guard every later column: a row past idxVer but short of
+            # idxAvail used to throw in Substring($idxAvail), and the
+            # row-level catch swallowed the package (#3437).
+            $avail = if ($idxSource -gt 0 -and $idxAvail -ge 0 -and $line.Length -ge $idxSource) {
                 $line.Substring($idxAvail, $idxSource - $idxAvail).Trim()
-            } else { $line.Substring($idxAvail).Trim() }
+            } elseif ($idxAvail -ge 0 -and $line.Length -gt $idxAvail) {
+                $line.Substring($idxAvail).Trim()
+            } else { '' }
             $src = if ($idxSource -gt 0 -and $line.Length -gt $idxSource) {
                 $line.Substring($idxSource).Trim()
             } else { '' }
