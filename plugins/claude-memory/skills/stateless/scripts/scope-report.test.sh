@@ -80,6 +80,16 @@ OUT=$(cd "$REPO" && HOME="$ISO_HOME" bash "$SCRIPT")
 assert_contains "MEMORY.md present is reported" "$OUT" "MEMORY.md: PRESENT"
 assert_contains "topic file count reported" "$OUT" "topic files: 1"
 
+# --- Case 4b: a topic filename with an embedded newline counts once ---
+# Regression for the wc -l over-count on newline-delimited find output.
+
+printf '# topic\n' >"$MEM_DIR/oops"$'\n'"weird.md"
+
+OUT=$(cd "$REPO" && HOME="$ISO_HOME" bash "$SCRIPT")
+assert_contains "newline-named topic file counted once, not twice" "$OUT" "topic files: 2"
+
+rm -f "$MEM_DIR/oops"$'\n'"weird.md"
+
 # --- Case 5: outside a git repo, the cwd is the project key (docs: "Outside a git
 # repo, the project root is used instead") — resolver and report both resolve, no bail-out ---
 

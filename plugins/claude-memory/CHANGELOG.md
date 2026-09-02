@@ -3,6 +3,17 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.12]
+
+### Fixed
+
+- **`stateless/scripts/scope-report.sh` topic-file count over-counted a filename with an
+  embedded newline.** The count piped `find` output through `wc -l`, which counts newlines
+  in the stream rather than files, so a single topic filename containing a literal newline
+  was reported twice. It now uses the null-delimited idiom already used by the sibling
+  `enumerate-all-projects.sh` (`find -print0` read with `IFS= read -r -d ''`), so each file
+  counts once regardless of its name.
+
 ## [0.11.11]
 
 ### Changed
