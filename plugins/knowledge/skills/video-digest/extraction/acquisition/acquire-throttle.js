@@ -226,23 +226,34 @@ export async function withAcquireThrottle(
     path.join(baseDir, `slot-${index}`),
   );
 
+  /**
+   * @param {string} slotPath
+   * @returns {Promise<T>}
+   */
+  const runHeld = async (slotPath) => {
+    const heartbeat = startSlotHeartbeat(slotPath, heartbeatMs);
+    try {
+      return await fn();
+    } finally {
+      heartbeat.stop();
+      await releaseSlot(slotPath);
+    }
+  };
+
   let waitedMs = 0;
 
   // biome-ignore lint/suspicious/noUnnecessaryConditions: intentional lock poll loop
   while (true) {
     for (const slotPath of slotPaths) {
       if (await tryAcquireSlot(slotPath)) {
-        const heartbeat = startSlotHeartbeat(slotPath, heartbeatMs);
-        try {
-          return await fn();
-        } finally {
-          heartbeat.stop();
-          await releaseSlot(slotPath);
-        }
+        return await runHeld(slotPath);
       }
 
       if (await isStaleSlot(slotPath)) {
         await reclaimStaleSlot(slotPath);
+        if (await tryAcquireSlot(slotPath)) {
+          return await runHeld(slotPath);
+        }
       }
     }
 

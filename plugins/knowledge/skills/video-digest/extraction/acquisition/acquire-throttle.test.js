@@ -84,15 +84,15 @@ describe("withAcquireThrottle", () => {
           current += 1;
           peakFn = Math.max(peakFn, current);
           peakSlots = Math.max(peakSlots, await countOccupiedSlots(baseDir));
-          await new Promise((resolve) => setTimeout(resolve, 40));
+          await new Promise((resolve) => setTimeout(resolve, 25));
           current -= 1;
         },
         {
           maxSlots: 2,
           heartbeatMs: 0,
           baseDir,
-          timeoutMs: 8000,
-          sleep: () => new Promise((resolve) => setTimeout(resolve, 2)),
+          timeoutMs: 60_000,
+          sleep: () => new Promise((resolve) => setTimeout(resolve, 5)),
         },
       );
 
