@@ -398,7 +398,17 @@ Repo: claude-code-plugins. One PR. Sub-topic promotion: **recommended for 4b, no
   pasted; the benign `git status --short` PreToolUse:Bash `max_ms` is at or below `8*S`.
 - `scripts/affected-tests.sh --run` exits 0; `gh pr checks` 0 failing.
 
-### Phase 4b: hook-utils.sh core plus lazy modules (sub-topic promotion candidate) [TODO]
+### Phase 4b: hook-utils.sh telemetry hot path (re-scoped; the core-plus-modules split is not needed, parse measured at 4 ms) [TODO]
+
+Re-scope (2026-09-02, see DEVIATIONS.md): the parse measured at about 4 ms, so the lazy-module split is
+closed as not needed. What remains in the library is `hook::emit_telemetry`, which on a host with
+`HOOK_TELEMETRY_SINK` set spends 2 `jq` + `mktemp` + `rm` per guard, about 1.2 s of the 2.5 s Bash
+dispatcher wall. This phase makes that path builtin-only (JSON assembled with `printf` and bash
+escaping, an append with `>>` under the existing lock discipline, no temp file), byte-identical JSONL
+rows proven by a diff of the sink output before and after on the same payloads, through
+`scripts/sync-hook-utils.sh` with every carrying plugin bumped and the `hook-utils-sync` CI lane green.
+It still runs last among the code phases (17-carrier bump). The original sketch below is kept for
+reference and is not executed.
 
 Repo: claude-code-plugins. Runs only if 4a's parse measurement clears a threshold the operator
 sets; the `[FALLBACK]` default below is one spawn-equivalent (about 80 ms on the reference host)
