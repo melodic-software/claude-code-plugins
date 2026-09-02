@@ -26,9 +26,9 @@ SUT="$TMP/scripts/check-skill-leaf-names.sh"
 REGISTRY="$TMP/scripts/skill-leaf-name-registry.txt"
 
 make_skill() {
-  # plugin, skill
-  mkdir -p "$TMP/plugins/$1/skills/$2"
-  printf -- '---\nname: %s\ndescription: "fixture"\n---\n' "$2" >"$TMP/plugins/$1/skills/$2/SKILL.md"
+  local plugin="$1" skill="$2"
+  mkdir -p "$TMP/plugins/$plugin/skills/$skill"
+  printf -- '---\nname: %s\ndescription: "fixture"\n---\n' "$skill" >"$TMP/plugins/$plugin/skills/$skill/SKILL.md"
 }
 
 run() { bash "$SUT" "$@" 2>&1; }

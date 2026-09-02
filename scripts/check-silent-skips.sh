@@ -41,9 +41,6 @@
 # to the debug log only, never the transcript, and Claude never sees it" — so
 # it reaches neither the user nor the agent on any path this gate inspects.
 # A `>&2`-only notice on such a path is invisible regardless of intent.
-# (Before 2026-08-10 this comment said such stderr was "discarded entirely";
-# the debug log is the one place it does survive, which changes nothing for
-# the gate — a debug-only sink is not a visibility surface.)
 #
 # This is a grep-level tripwire, not a semantic proof: it does not chase
 # helper-function bodies and does not flag a positive-form

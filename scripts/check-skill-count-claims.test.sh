@@ -34,13 +34,12 @@ EXEMPTIONS="$TMP/scripts/skill-count-claim-exemptions.txt"
 : >"$EXEMPTIONS"
 
 make_skill() {
-  # plugin, skill
-  mkdir -p "$TMP/plugins/$1/skills/$2"
-  printf -- '---\nname: %s\ndescription: "fixture"\n---\n' "$2" >"$TMP/plugins/$1/skills/$2/SKILL.md"
+  local plugin="$1" skill="$2"
+  mkdir -p "$TMP/plugins/$plugin/skills/$skill"
+  printf -- '---\nname: %s\ndescription: "fixture"\n---\n' "$skill" >"$TMP/plugins/$plugin/skills/$skill/SKILL.md"
 }
 
 readme() {
-  # plugin, body...
   local plugin="$1"
   shift
   printf '%s\n' "$@" >"$TMP/plugins/$plugin/README.md"
@@ -235,6 +234,13 @@ else
   fail "iota's claim should appear exactly once: $out"
 fi
 
+# 7f. A sentence matching two grammars across a wrap is still ONE claim.
+if [[ "$(grep -c 'kappa/README.md' <<<"$out")" -eq 1 ]]; then
+  pass "a claim satisfying two forms across a wrap is reported once"
+else
+  fail "kappa's claim should appear exactly once: $out"
+fi
+
 # 7g. The FAIL text for a zero-skill plugin on the minus-one basis must not
 #     contradict itself. `expected` is clamped at zero there, so reconstructing
 #     the real count as `expected + 1` reported "has one" directly above "should
@@ -245,13 +251,6 @@ if grep -q 'plugin zeta has zero' <<<"$out_check" &&
   pass "zero-skill minus-one FAIL text agrees with itself"
 else
   fail "zeta's minus-one FAIL should say 'has zero' and 'should be zero': $out_check"
-fi
-
-# 7f. A sentence matching two grammars across a wrap is still ONE claim.
-if [[ "$(grep -c 'kappa/README.md' <<<"$out")" -eq 1 ]]; then
-  pass "a claim satisfying two forms across a wrap is reported once"
-else
-  fail "kappa's claim should appear exactly once: $out"
 fi
 
 # 8. --check fails while any mismatch stands.
