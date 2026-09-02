@@ -1,0 +1,19 @@
+# gitleaks findings this repository has judged and accepted, by fingerprint.
+#
+# The mechanism .gitleaks.toml points at for intentional findings, alongside an
+# inline `gitleaks:allow` marker. A marker fixes the file; it cannot clear a
+# finding the scanner already recorded against an earlier commit, because the
+# CI scan walks git history and that blob is immutable. Entries here cover the
+# historical commits; the current files carry the marker.
+#
+# Each entry is <commit>:<path>:<rule>:<line>. Remove an entry once the commit
+# it names is no longer reachable (its branch merged by squash, or deleted).
+
+# `CLAUDE_SHIM=0`, a shell flag initialized to zero, reported as generic-api-key
+# because the `AGENTS_TOKEN=""` / `CLAUDE_TOKEN=""` lines above it supply the
+# rule's keyword context and it takes the following line as the value. TOKEN
+# there is the parser sense (the pointer line lifted out of a convention-home
+# region), never a credential. Verified: renaming the flag does not clear it,
+# and neither does separating the lines; only the marker or this entry does.
+f7aec1549dec60407a24a7d8ea720696b7b099af:plugins/claude-config/lib/resolve-convention-home.sh:generic-api-key:248
+708739fb2ba1b0196e93f9c07d3293bddfeed2f0:plugins/plugin-quality/lib/resolve-convention-home.sh:generic-api-key:249
