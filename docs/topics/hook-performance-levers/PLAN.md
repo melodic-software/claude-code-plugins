@@ -328,7 +328,7 @@ Repo: claude-code-plugins. One PR.
    show the hook matched and returned `ask` for each; on any miss that row stays ungated and the
    miss is recorded as the residual. The harness feeds payloads directly and never exercises Claude
    Code's own `if` evaluation, so this probe is the test boundary for the gate, not the harness.
-2. **claude-ops InstructionsLoaded**: it already runs asynchronously upstream (H32), so it is spawn
+2. **claude-ops InstructionsLoaded**: the event ignores the hook's exit code (hooks doc), so it is spawn
    count only, never critical path. Its JSONL row is documented under
    `docs/conventions/hook-telemetry`. Scope its matcher to the `load_reason` values
    `instructions-loaded-audit.sh` actually distinguishes in its JSONL row. Removing the row is not
