@@ -60,12 +60,13 @@ passed on the command line lands in shell history and the process table, exactly
 note above describes.
 
 The older claim that `--config` is ignored once the plugin is installed was never
-version-stamped, and on Claude Code 2.1.240 a plain `claude plugin install … --config` was
-observed to write the value of an already-installed plugin for a **non-sensitive** option at
-`user` scope. Whether that holds for a `sensitive` option such as `dometrain_api_key` has not
-been verified, so do not rely on it for a credential, and do not uninstall to rotate: that drops
-this plugin's entire stored `pluginConfigs` entry, resetting every option in the Options
-reference table below to its manifest default.
+version-stamped. Headless `--config` against an already-installed plugin writes a
+non-sensitive option; whether that holds for a `sensitive` option such as
+`dometrain_api_key` has not been verified, so do not rely on it for a credential, and
+do not uninstall to rotate: that drops this plugin's entire stored `pluginConfigs`
+entry, resetting every option in the Options reference table below to its manifest
+default. The verified-version record lives in the
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
 ## Tools
 
@@ -181,11 +182,10 @@ Three supported routes, in the order most people want them:
    ```
 
    Route 1 is the rotation path for this plugin, not this one. Every option here is
-   `sensitive`, and `/plugin configure` masks input — a secret passed on the command
-   line lands in shell history and the process table. Whether `--config` writes a
-   `sensitive` value on an already-installed plugin has not been verified (the
-   Claude Code 2.1.240 observation behind that claim covered a non-sensitive option at
-   `user` scope), so do not rely on this command to rotate a credential. Do **not**
+   `sensitive`, and `/plugin configure` masks input. A secret passed on the command
+   line lands in shell history and the process table. Do not rely on this command to
+   rotate a credential; the verified-version record lives in the
+   [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md). Do **not**
    `claude plugin uninstall` to reconfigure either: uninstalling drops this
    plugin's whole stored `pluginConfigs` entry, resetting every option in the table
    above to its default.
