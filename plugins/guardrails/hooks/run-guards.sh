@@ -62,6 +62,7 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$HOOK_DIR/.." && pwd)}"
 # argument shape the guards use (a path with a directory part) removes that
 # exec from every guard sourced below; the `source` it feeds returns at once on
 # the library's double-source guard anyway.
+# shellcheck disable=SC2329  # invoked by every guard sourced below
 dirname() {
   local p="${1%/}"
   if [[ "$p" == */* ]]; then printf '%s\n' "${p%/*}"; else printf '.\n'; fi

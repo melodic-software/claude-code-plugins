@@ -34,6 +34,9 @@ stub() {
   chmod +x "$TEST_TMPDIR/$name"
 }
 SEEN="$TEST_TMPDIR/seen"
+# The stub bodies are written verbatim into the stub scripts, so the `$` in them
+# must NOT expand here.
+# shellcheck disable=SC2016
 stub allow.sh 'INPUT=$(hook::buffer_stdin) || { rc=$?; ((rc == 2)) && exit 2; exit 0; }
 hook::jq_fields "$INPUT" ".tool_input.command" ".tool_name" || exit 0
 printf "%s\n" "${HOOK_JQ_FIELDS[@]}" >>"'"$SEEN"'"
@@ -139,7 +142,7 @@ for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dan
   cli-flag-verify skill-reference-verify stale-path-verify; do
   n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | .command | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOK_DIR/hooks.json")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
-  [[ -f "$HOOK_DIR/$g.sh" ]] && ok "$g.sh exists on disk" || bad "$g.sh missing on disk"
+  if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
 done
 
 report
