@@ -117,8 +117,8 @@ build_data_json() {
 #
 # The library's decision is taken FIRST, and the rewrite runs only when that
 # decision says the file has work to do. That ordering is what lets the
-# disclosure snapshot be skipped entirely on the overwhelmingly common path — an
-# already-LF file in a repository whose .gitattributes says `eol=lf` — where the
+# disclosure snapshot be skipped entirely on the overwhelmingly common path, an
+# already-LF file in a repository whose .gitattributes says `eol=lf`, where the
 # old code paid for a mktemp, a cp, a rewrite that changed no bytes, a cmp and an
 # rm to conclude nothing had happened. When no rewrite is attempted the guard is
 # never armed, so hook::rewrite_take_disclosure below finds no snapshot and

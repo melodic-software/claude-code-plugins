@@ -150,7 +150,7 @@ hook::require_jq PostToolUse typos-format "$INPUT"
 # admit a payload the filter will no-op on, but it can never reject one the
 # filter would have acted on. Every Write and Edit reaches this line and none of
 # them is a notebook, so on the hot path this is one fewer jq and one fewer
-# pipeline — worth about a spawn and a half on the Windows Git Bash host.
+# pipeline, worth about a spawn and a half on the Windows Git Bash host.
 if raw_notebook_path "$INPUT" >/dev/null; then
   NORMALIZED_INPUT=$(printf '%s' "$INPUT" | jq -c '
     if ((.tool_input.file_path // "") == "") and ((.tool_input.notebook_path // "") != "")

@@ -3,6 +3,32 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.27]
+
+### Changed
+
+- **A benign edit costs about half what it did.** This hook matches every
+  `Write` and `Edit`, so the process count on the path where there is nothing to
+  rewrite is the cost. Sixteen of twenty-seven processes are gone: `eol` and
+  `text` resolve in one `git check-attr` instead of two, four `dirname` and one
+  `basename` are parameter expansions, two `tr` pipelines are a substitution,
+  the NUL sniff's `head`-`tr`-`wc` is one `read`, and an already-normalized file
+  no longer reaches the rewrite or the `mktemp`, `cp`, `cmp` and `rm` that
+  disclosed it. Measured 41.0 to 21.5 spawn-equivalents on a Windows Git Bash
+  host, twelve interleaved trials against an interleaved `bash -c :` floor; the
+  README's accounting section carries the method and the residual.
+- **The library separates deciding from rewriting.** `normalize_eol_plan`
+  answers which arm applies and whether the file has work to do;
+  `normalize_eol_apply` performs it. `normalize_eol_file` still exists and still
+  behaves as before for any caller that wants both in one call. The action a
+  plan reports names the arm that applies to the file, not whether bytes moved,
+  so telemetry `data.action`, the `ok`/`skipped` status and the mutation
+  disclosure all read exactly as they did.
+- **A file with nothing to rewrite is no longer opened for writing**, so this
+  hook no longer touches its mtime. Recorded as a deliberate deviation: no
+  content and no reported message changes, and the suite pins stdout, exit code
+  and the resulting bytes as byte-identical.
+
 ## [0.6.26]
 
 ### Changed

@@ -2668,6 +2668,53 @@ else
   fail "scope: config-less repo touched a gitignored file: $OUT_NC"
 fi
 
+# --- Benign path spawns no process it does not need (traced) -----------------
+# This hook fires on every Markdown Write and Edit, so the process count on the
+# path where the file is already clean IS the cost. The assertion is a set of
+# commands that must not appear, not a total: totals move with the host (how
+# many realpath and cygpath calls the shared path resolver makes differs between
+# Windows and Linux), while "this hook no longer shells out to strip a directory
+# name" is the same everywhere.
+#
+# dirname and basename became parameter expansions, including inside the two
+# directory walks whose exec count grew with the file's depth below the repo
+# root, which is why the fixture below sits two levels down rather than at the
+# root: a walk that still shelled out would show it here.
+#
+# CLAUDE_PROJECT_DIR is SET here, unlike the cases above, because Claude Code
+# always sets it and with it unset the shared path resolver takes a git-
+# membership branch that spawns a dirname of its own. The telemetry sink is
+# cleared so an inherited one does not make the envelope the thing being counted.
+trace_execs() {
+  awk -v c="$1" '
+    /^\+/ {
+      sub(/^\++ /, "")
+      while ($0 ~ /^[A-Za-z_][A-Za-z_0-9]*=/) { sub(/^[A-Za-z_][A-Za-z_0-9]*=[^ ]*[ ]*/, "") }
+      split($0, a, " ")
+      if (a[1] == c) n++
+    }
+    END { print n + 0 }' "$2"
+}
+
+mkdir -p "$REPO/nested/deeper"
+printf '# Clean\n\nSome text.\n\n- item one\n- item two\n' >"$REPO/nested/deeper/clean.md"
+TRACE="$WORK/benign-trace.txt"
+(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"}}' "$REPO/nested/deeper/clean.md" |
+    env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$REPO" \
+      CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
+      bash -x "$HOOK" >/dev/null 2>"$TRACE"
+)
+for banned in dirname basename; do
+  N="$(trace_execs "$banned" "$TRACE")"
+  if [[ "$N" == "0" ]]; then
+    ok "traced benign: no $banned spawned"
+  else
+    fail "traced benign: $banned spawned $N time(s) on a clean nested file"
+  fi
+done
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

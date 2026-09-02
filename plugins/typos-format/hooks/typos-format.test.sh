@@ -1713,6 +1713,61 @@ else
   echo "SKIP: symlinks unavailable on this filesystem -- symlinked-root case skipped"
 fi
 
+# --- Benign path spawns no process it does not need (traced) -----------------
+# This hook fires on every Write, Edit and NotebookEdit, so the process count on
+# the path where the file is clean IS the cost. The assertion is a set of
+# commands that must not appear plus an exact jq count, not a total: totals move
+# with the host (how many realpath and cygpath calls the shared path resolver
+# makes differs between Windows and Linux), while "this hook no longer shells
+# out to strip a directory name" is the same everywhere.
+#
+# dirname and basename became parameter expansions. The jq count is 2 and not 3
+# because the notebook-normalizing filter now runs only for a payload that
+# actually carries a notebook_path; the two that remain are the shared payload
+# validation and the shared file_path read, both in hook-utils.sh.
+#
+# CLAUDE_PROJECT_DIR is SET here, unlike the cases above, because Claude Code
+# always sets it and with it unset the shared path resolver takes a git-
+# membership branch that spawns a dirname of its own. The telemetry sink is
+# cleared so an inherited one does not make the envelope the thing being counted.
+trace_execs() {
+  awk -v c="$1" '
+    /^\+/ {
+      sub(/^\++ /, "")
+      while ($0 ~ /^[A-Za-z_][A-Za-z_0-9]*=/) { sub(/^[A-Za-z_][A-Za-z_0-9]*=[^ ]*[ ]*/, "") }
+      split($0, a, " ")
+      if (a[1] == c) n++
+    }
+    END { print n + 0 }' "$2"
+}
+
+REPO_TRACE="$WORK/trace-consumer"
+new_typos_repo "$REPO_TRACE"
+printf 'this is a clean document\n' >"$REPO_TRACE/clean.txt"
+TRACE="$WORK/benign-trace.txt"
+(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_TRACE/clean.txt" |
+    env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$REPO_TRACE" \
+      CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
+      PATH="$(dirname "$REAL_TYPOS"):$PATH" \
+      bash -x "$HOOK" >/dev/null 2>"$TRACE"
+)
+for banned in dirname basename; do
+  N="$(trace_execs "$banned" "$TRACE")"
+  if [[ "$N" == "0" ]]; then
+    ok "traced benign: no $banned spawned"
+  else
+    fail "traced benign: $banned spawned $N time(s) on a clean file"
+  fi
+done
+N_JQ="$(trace_execs jq "$TRACE")"
+if [[ "$N_JQ" == "2" ]]; then
+  ok "traced benign: exactly 2 jq (payload validation and file_path read)"
+else
+  fail "traced benign: jq spawned $N_JQ time(s), expected 2"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

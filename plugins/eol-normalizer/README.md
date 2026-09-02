@@ -149,6 +149,52 @@ hands a configured value to a hook process; the value comes from the routes abov
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
 
+## Hook cost accounting
+
+This plugin's PostToolUse hook matches every `Write` and `Edit`, so its cost is
+paid on every file the agent touches and it owes the marketplace's
+[hook budget](../../docs/conventions/hook-budget/README.md) an honest figure.
+
+**Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
+interleaved trials, each preceded by a `bash -c :` spawn-floor run so the
+reported ratio absorbs machine load. The payload is a `PostToolUse` `Write`
+naming a scratch file inside a repository whose `.gitattributes` says `eol=lf`,
+already LF, so the hook has nothing to rewrite. That benign path is the one that
+runs on nearly every edit. Windows 11 + Git Bash, 2026-09-02.
+
+**Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
+before run and **77 ms** for the after run, against the convention's reference
+host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
+comparable; the spawn-equivalent ratio is the figure that holds.
+
+| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes |
+| --- | --- | --- | --- |
+| Before (0.6.26) | 41.0 | ≈ 3,280 ms | 27 |
+| After (0.6.27) | 21.5 | ≈ 1,720 ms | 11 |
+
+**A benign edit costs about half what it did: ≈ 21.5 spawn-equivalents,
+≈ 1,720 ms of reference-host work.** The cut is process count, not algorithm.
+Sixteen of the twenty-seven processes were doing work a shell builtin does: two
+`git check-attr` calls became one, four `dirname` and one `basename` became
+parameter expansions, two `tr` pipelines became a substitution, the NUL sniff's
+`head`-`tr`-`wc` became one `read`, and the rewrite itself plus the `mktemp`,
+`cp`, `cmp` and `rm` that disclosed it are no longer reached for a file that is
+already in the target shape.
+
+**Residual, and why it stays.** Eight to ten of the eleven remaining processes
+belong to the shared `hooks/hook-utils.sh`: payload validation, the `file_path`
+read and its project-membership scoping, and the repository-root lookup. That
+file is a registered byte-identical cross-plugin cluster, so changing it is a
+nine-plugin change and not this plugin's to make. Of what is left, one `git` is
+the repository root and one is the merged `check-attr`. A repository configured
+`eol=crlf` sees no cut on the files that arm touches: proving an LF-to-CRLF pass
+is unnecessary means finding a newline not preceded by a carriage return, which
+the chunked builtin probe cannot answer across chunk boundaries.
+
+**One deliberate deviation.** A file this hook finds nothing to rewrite in is no
+longer opened for writing, so the hook no longer touches its mtime. No content
+and no reported message changes.
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).

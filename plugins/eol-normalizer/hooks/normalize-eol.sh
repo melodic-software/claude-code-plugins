@@ -77,8 +77,8 @@ normalize_eol_is_binary() {
 # True when <file> contains a CR anywhere, which is the only way the LF arm can
 # have work to do (its rewrite maps CRLF to LF and leaves every other byte
 # alone). Pure builtin: the file is walked in 64 KiB chunks with `read -N`,
-# which — unlike `-n` — ignores delimiters and hands back the raw bytes,
-# newlines included.
+# which, unlike `-n`, ignores delimiters and hands back the raw bytes, newlines
+# included.
 #
 # Two properties make chunking safe here. The probe looks for a SINGLE byte, so
 # no match can straddle a chunk boundary. And it is deliberately BROADER than
