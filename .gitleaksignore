@@ -1,15 +1,12 @@
-# Repository-owned gitleaks false-positive ledger. Mechanism sanctioned by
-# .gitleaks.toml ("Intentional findings use a repository-owned .gitleaksignore
-# or inline `gitleaks:allow` comment"). One fingerprint per line:
-# <commit>:<file>:<rule-id>:<start-line>.
+# Repository-owned gitleaks ignore list (the mechanism .gitleaks.toml's header
+# policy names for intentional findings). One fingerprint per line:
+# commit:file:rule:startline
 #
-# Both entries below are the generic-api-key rule keying on the identifier in
-# `CLAUDE_TOKEN=""` (an empty parser-state variable) and capturing the integer
-# flag `CLAUDE_SHIM=0` on the next line as its "secret". Nothing is disclosed;
-# full diagnosis and reproduction live in issue #3599. The commits sit on other
-# in-flight branches, but CI's `scan-mode: git` walks every ref in the clone,
-# so they fail hygiene on every pull request until ignored here or until those
-# refs stop carrying the unannotated commits. Each entry goes stale (and can be
-# deleted) once its commit is no longer reachable from any ref.
+# False positive: generic-api-key matching the shell variable inits
+# `CLAUDE_TOKEN=""` / `CLAUDE_SHIM=0` in the AGENTS.md pointer-line resolver on
+# the retired-conventions feature branches ("token" is a parsing token, not a
+# credential; the flagged value is an empty string). The hygiene lane fetches
+# every branch and scans --all, so this finding turns every PR red until the
+# branch merges or rewrites; remove this line when that lands differently.
 f7aec1549dec60407a24a7d8ea720696b7b099af:plugins/claude-config/lib/resolve-convention-home.sh:generic-api-key:248
 708739fb2ba1b0196e93f9c07d3293bddfeed2f0:plugins/plugin-quality/lib/resolve-convention-home.sh:generic-api-key:249
