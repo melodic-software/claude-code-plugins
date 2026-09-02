@@ -1109,6 +1109,46 @@ class ArmLauncher(unittest.TestCase):
             ["--poll-seconds", "0.05"],
         )
 
+    def test_idle_confirm_seconds_reaches_observer_argv(self):
+        """`--idle-confirm-seconds` must be a declared launcher flag and must
+        be forwarded verbatim to the observer.py argv it spawns, not just
+        accepted and dropped. Monkeypatches `spawn_detached` to capture the
+        real `cmd` list `main()` builds, rather than asserting on observer
+        runtime behavior, so this test fails on the forwarding bug itself
+        (a dropped flag) as well as on the argparse error the bug also
+        causes (an undeclared flag)."""
+        arm = self._arm()
+        captured: dict = {}
+
+        def _capture(cmd, cwd):
+            captured["cmd"] = cmd
+            return 999999
+
+        arm.spawn_detached = _capture
+
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            transcript = tmp / "sess.jsonl"
+            transcript.write_text("", encoding="utf-8")
+            argv = [
+                "--transcript", str(transcript),
+                "--work-dir", str(tmp / "work"),
+                "--ledger-dir", str(tmp / "ledger"),
+                "--session-id", "idle-confirm-sid",
+                "--idle-seconds", "30",
+                "--idle-confirm-seconds", "7",
+                "--max-seconds", "15",
+            ]
+            rc, out = self._run_main(argv, arm=arm)
+            self.assertEqual(rc, 0)
+            self.assertNotIn("Traceback", out)
+
+        cmd = captured.get("cmd")
+        self.assertIsNotNone(cmd, "spawn_detached was never called")
+        self.assertIn("--idle-confirm-seconds", cmd)
+        flag_index = cmd.index("--idle-confirm-seconds")
+        self.assertEqual(cmd[flag_index + 1], "7")
+
     def test_non_oserror_at_spawn_degrades_gracefully(self):
         """A non-OSError exception at the spawn call (e.g. a resurfaced
         undefined-name regression) must degrade the same as any other spawn
