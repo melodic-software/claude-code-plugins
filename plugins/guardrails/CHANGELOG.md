@@ -3,6 +3,36 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1]
+
+### Changed
+
+- **Guards stop spending processes on work their own inputs rule out.** Four
+  always-on guards did expensive setup before checking whether the payload could
+  ever produce a finding. `skill-reference-verify` built a plugin name-to-directory
+  index from every plugin manifest (two `jq` processes each, 76 manifests in this
+  marketplace) before looking at whether the written content cites a skill at all;
+  the index is now built once, only when the reference scan has produced a
+  candidate. `stale-path-verify` listed the whole git index on every write; it now
+  does so only when the content carries an inline-code token to adjudicate.
+  `cli-flag-verify` ran its fragment pipeline on content that cannot contain a flag;
+  a `-` is now required before any of it runs. Three guards resolved the repo root
+  through a `$(dirname …)` subshell, which is a fork per call on Windows Git Bash,
+  and now use parameter expansion. Every decision is unchanged: the guards' contract
+  tests hold, and the exit code and JSON output are byte-identical on benign and
+  must-fire payloads alike. Measured on Windows Git Bash, PostToolUse of a short
+  in-repo markdown file fell from 339.8 to 21.6 spawn-equivalents.
+- **The convention patterns are resolved once per convention change, not once per
+  command.** `block-convention-violation` forked the convention resolver twice on
+  every Bash and PowerShell tool call, because the resolver answers one key per
+  call. That cost 10.1 spawn-equivalents on every command the agent ran, to
+  re-derive an answer that changes only when the convention files change. The pair is
+  now cached per repo root under the plugin data directory and invalidated by mtime
+  against the team markdown, the well-known neutral YAML, and an explicit
+  `convention_source` target when one is declared. The resolver itself is untouched
+  and remains the only authority for what a pattern is. With no plugin data
+  directory the gate does not cache and behaves exactly as before.
+
 ## [0.31.0]
 
 ### Changed

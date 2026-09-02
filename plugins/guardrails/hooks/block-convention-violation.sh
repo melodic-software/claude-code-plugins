@@ -103,7 +103,7 @@ RESOLVER="$HOOK_SELF_DIR/resolve-convention-pattern.sh"
 # every command the agent runs. So the resolved pair is cached per repo root and
 # invalidated by mtime against every file the resolver reads.
 #
-# The resolver is not edited and not re-implemented here — it stays the single
+# The resolver is not edited and not re-implemented here. It stays the single
 # authority for what a pattern IS. What is cached is only its answer.
 #
 # Freshness is `[[ cache -nt dep ]]` per dependency, a bash builtin rather than a

@@ -99,7 +99,12 @@ if [[ ! -x "$VERIFIER" ]]; then
 fi
 
 # Repo root for telemetry data.file + relative sink resolution (file-anchored).
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+# Parameter expansion, not a `$(dirname …)` subshell: this hook runs on every
+# Write and Edit, and a command substitution is a fork per call on Windows Git
+# Bash.
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 
 # Known binaries to check. Override via the cli_flag_verify_bins userConfig option.
 # `git`, `npx`, and `npm` are intentionally EXCLUDED — all three have unreliable
@@ -282,7 +287,17 @@ extract_candidates() {
   done < <(emit_fragments | split_segments)
 }
 
-extract_candidates
+# CHEAP PRE-GATE, ahead of every process this hook spends on scanning. A
+# candidate is a (bin, chain, flag) triple and a flag token always carries a
+# `-`, so content with no `-` anywhere cannot yield one, and the fragment
+# pipeline (grep plus sed, or awk) would run three processes to build an empty set. The
+# same holds for the Edit reconstruction below, whose anchor IS a flag token
+# from the hunk. What is skipped is the scan, never the report: telemetry and
+# the exit path below are reached exactly as before.
+HAS_FLAG_SHAPE=0
+[[ "$SCAN_CONTENT" == *-* ]] && HAS_FLAG_SHAPE=1
+
+((HAS_FLAG_SHAPE)) && extract_candidates
 
 # Partial-replacement context reconstruction (Edit only). When an Edit's hunk is
 # a bare flag fragment — a flag token swapped in with no binary/subcommand in the
@@ -331,7 +346,7 @@ reconstruct_partial_edit() {
   done
 }
 
-reconstruct_partial_edit
+((HAS_FLAG_SHAPE)) && reconstruct_partial_edit
 
 # Split a "bin|chain|flag" CANDIDATES/FAILURES key into its three parts. Globals
 # rather than an echo: this runs per candidate and per finding, and a command

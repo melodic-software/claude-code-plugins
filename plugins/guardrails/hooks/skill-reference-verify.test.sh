@@ -868,7 +868,7 @@ assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root 
 # =================== LAZY PLUGIN INDEX (spawn cost) =========================
 # The name -> directory index costs two jq processes per plugin manifest, and a
 # marketplace carries dozens. Nothing below the reference scan reads it, so it
-# must not be built for a write that cites no skill at all — which is almost
+# must not be built for a write that cites no skill at all, which is almost
 # every write this PostToolUse hook sees. Counted, not asserted from the source:
 # a `jq` shim ahead of the real one on PATH records every invocation that names a
 # manifest, then delegates so the hook still behaves exactly as it would.

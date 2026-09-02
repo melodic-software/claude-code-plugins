@@ -708,7 +708,17 @@ assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-sta
 
 # The repo root is resolved from the written file, never from the process CWD, so
 # the hook is correct in a linked worktree and in a bare-hub clone.
-assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$(dirname "$FILE")"'
+# The directory comes from parameter expansion, not a `$(dirname …)` subshell:
+# this hook runs on every Write and Edit, and a command substitution is a fork
+# per call on Windows Git Bash. The anchor is still the FILE's directory, which
+# is what this case exists to hold.
+assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root "$FILE_DIR"'
+assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DIR="${FILE%/*}"'
+assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
+
+# The whole-index `git ls-files` must not run for a write that cites nothing.
+assert_contains "tracked-file list is warmed only when a candidate exists" "$HOOK_SRC" \
+  '((${#RAW_TOKENS[@]})) && ensure_tracked_files'
 
 # The behavioral rename case above is the real proof, but pin the flags too: a
 # refactor that drops either one changes the guard's meaning silently.
