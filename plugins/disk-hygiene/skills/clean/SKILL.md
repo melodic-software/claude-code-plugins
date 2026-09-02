@@ -379,10 +379,12 @@ and the residual fail-open → "Hook launch form".
   (`permissionDecision: "ask"`). Official PreToolUse docs say that value prompts the user to
   confirm and, since v2.1.211, forces the prompt even in auto mode (the classifier can still
   deny, but cannot silently approve). An explicit `permissions.ask` rule for those deletion
-  spellings is what the same docs treat as prompting in every permission mode; add one if the
-  manual handoff must not depend on hook-`ask` surfacing. The lane is a raised bar, not
-  fail-closed; its flagged set is enumerated, so an unflagged mutation spelling passes it. The
-  engine's own containment and the Bash lane remain the deletion authority.
+  spellings is what the same docs treat as forcing a prompt in `auto` and `bypassPermissions`;
+  in `dontAsk` that rule is denied with no prompt, so leave `dontAsk` first if the per-path
+  handoff confirm must appear. Add one if the manual handoff must not depend on hook-`ask`
+  surfacing. The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
+  unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
+  the deletion authority.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

@@ -10,9 +10,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **Manual-handoff docs name the hook-issued `ask`, not a guaranteed human prompt.** The
   PowerShell deletion lane returns `permissionDecision: "ask"`. Official PreToolUse docs say
   that value prompts the user to confirm and, since v2.1.211, forces the prompt even in auto
-  mode, but an explicit `permissions.ask` rule is what those pages treat as prompting in
-  every permission mode. SKILL.md, the safety model, the unsupported-platform handoff, and
-  the guard docstring now say so.
+  mode, but an explicit `permissions.ask` rule is what those pages treat as forcing a prompt
+  in `auto` and `bypassPermissions` (`dontAsk` auto-denies instead). SKILL.md, the safety
+  model, and the unsupported-platform handoff now say so.
 
 ## [0.21.0]
 

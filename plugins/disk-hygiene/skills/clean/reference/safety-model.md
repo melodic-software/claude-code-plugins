@@ -132,7 +132,8 @@ machine-readable verdict per path. It deliberately does not apply platform execu
 it exists exactly where `execution-platform-unsupported` blocks the engine lane — and it has no
 deletion capability of any kind: the model deletes only verdict-`clear` paths in the manual lane,
 per item, under the hook-issued `ask` the PowerShell guard returns. Add a `permissions.ask`
-rule for the deletion spellings if that prompt must appear in every permission mode.
+rule for the deletion spellings if that prompt must appear in `auto` and `bypassPermissions`;
+leave `dontAsk` first, because that mode auto-denies an `ask` rule instead of prompting.
 
 ### Standalone Git checkout evidence
 
