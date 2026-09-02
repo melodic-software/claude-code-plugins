@@ -76,7 +76,9 @@ nested worktree the skill was invoked from, then report one row per layer. The s
 tracked/ignored question has opposite correct answers per layer, so verify each on its own terms:
 
 - **user-global** `~/.claude/audit-pass.md`: outside the worktree; no git command applies. INFO only.
-- **team** `.claude/audit-pass.md`: must be tracked. Untracked while present is a hard STOP:
+- **team** `.claude/audit-pass.md`: must be tracked, probed as the pair —
+  `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
+  `git ls-files --error-unmatch` exits 0. Untracked while present is a hard STOP:
   teammates never receive the shared suppressions.
 - **local overlay** `.claude/audit-pass.local.md`: must be gitignored and never staged. Staged or
   tracked is a FAIL: a personal deviation can reach team history.

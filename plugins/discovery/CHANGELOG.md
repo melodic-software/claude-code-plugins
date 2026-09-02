@@ -1,5 +1,14 @@
 # Changelog — discovery plugin
 
+## [0.19.2]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
 ## [0.19.1]
 
 ### Fixed

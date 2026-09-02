@@ -68,7 +68,10 @@ did not name.
   `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/` directory if absent, then copy each named
   bundled default verbatim to `<name>.md` as the starting point for the consumer to edit. If an override
   already exists, show the difference and do not overwrite it without explicit confirmation in this
-  conversation. Confirm the scaffolded files are tracked, not gitignored.
+  conversation. Confirm the scaffolded files are tracked, not gitignored, via the pair:
+  `git check-ignore -v` reports no match (a match is a finding with the pattern) AND
+  `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh scaffold means "written but
+  untracked: commit it to share with the team", never success).
 - **`apply remove <name>...`**. Delete the named override(s). Offer this for any override `check` found
   byte-identical to its bundled default; for a diverged override, show what would be lost and confirm
   first.

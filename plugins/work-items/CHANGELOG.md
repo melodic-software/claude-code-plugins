@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.50]
+
+### Changed
+
+- **setup `check`:** probe 5 now uses the tracked-file pair
+  (`git check-ignore -v` plus `git ls-files --error-unmatch`) so an
+  un-ignored but untracked schedule or binding is FAIL ("commit it"),
+  not a silent pass.
+
 ## [0.39.49]
 
 ### Fixed
