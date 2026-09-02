@@ -398,14 +398,14 @@ segment_destination_operand() {
 segment_writes_drive_root_tmp() {
   local subject="$1" dest
   # Creators / content writers: any drive-root tmp path in the segment is a write.
-  if [[ "$subject" =~ (^|[[:space:]])(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|$) ]] ||
+  if [[ "$subject" =~ (^|[[:space:]])([^[:space:]]*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|$) ]] ||
     [[ "$subject" =~ (^|[[:space:];|&]|/)(set-content|add-content|out-file|tee-object|new-item|export-clixml|export-csv)([[:space:]]|:|$) ]] ||
     [[ "$subject" =~ (^|[[:space:]])(ac|ni)([[:space:]]|$) ]]; then
     has_drive_root_tmp "$subject" && return 0
     return 1
   fi
   # Copy / move / install: destination operand only (avoids `cp /tmp/src ./dst`).
-  if [[ "$subject" =~ (^|[[:space:]])(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|$) ]]; then
+  if [[ "$subject" =~ (^|[[:space:]])([^[:space:]]*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|$) ]]; then
     dest=$(segment_destination_operand "$subject")
     [[ -n "$dest" ]] || return 1
     has_drive_root_tmp "$dest" && return 0
