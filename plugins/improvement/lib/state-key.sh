@@ -42,7 +42,8 @@
 #   --explain      write the rung taken and its inputs to stderr
 #
 # Exit: 0 always on a successful derivation — every input reaches some rung, so
-# there is no "cannot key" outcome. 2 on a bad argument or an unusable --root.
+# there is no "cannot key" outcome. 2 on a bad argument, an unusable --root, or
+# a PATH with neither sha256sum nor shasum.
 #
 # Shared source: this file is byte-identical across the plugins that carry it and
 # is registered in scripts/cross-plugin-source-registry.txt. Edit the canonical
@@ -64,7 +65,7 @@ Usage:
   --root <path>  derive for that directory instead of the current one
   --explain      write the rung taken and its inputs to stderr
 
-Exit: 0 on a derivation; 2 on a bad argument or an unusable --root.
+Exit: 0 on a derivation; 2 on a bad argument, an unusable --root, or no hash tool.
 EOF
 }
 
@@ -105,18 +106,19 @@ if [[ -n "$ROOT_ARG" ]]; then
 fi
 
 # sha256sum is absent on stock macOS; shasum -a 256 is the portable partner.
-# Neither is guaranteed, so a third rung keeps the key derivable rather than
-# letting the whole scheme fail on a minimal image.
-sha256() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256
-  else
-    echo "ERROR: no sha256sum or shasum on PATH — cannot derive a state key" >&2
-    exit 2
-  fi
-}
+# Probe here in the main script, not inside sha256(). hash12/hash8 run that
+# helper as a non-last pipeline stage inside a command substitution, and POSIX
+# XCU 2.6.3 plus Bash's pipeline rule both execute that in a subshell, so
+# `exit 2` there cannot terminate this process. Under `set -uo pipefail` (no
+# -e) the script would then print a malformed key at exit 0.
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256() { sha256sum; }
+elif command -v shasum >/dev/null 2>&1; then
+  sha256() { shasum -a 256; }
+else
+  echo "ERROR: no sha256sum or shasum on PATH — cannot derive a state key" >&2
+  exit 2
+fi
 
 hash12() { printf '%s' "$1" | sha256 | cut -c1-12; }
 hash8() { printf '%s' "$1" | sha256 | cut -c1-8; }

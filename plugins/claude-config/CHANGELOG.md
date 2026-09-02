@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.26]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside `identity="local/$(hash12 ...)"`, which POSIX XCU 2.6.3 executes in a subshell, so only that substitution died. Under `set -uo pipefail` (no `-e`) the script continued and printed a malformed key (`local//...`) at exit 0. The tool check now sits in the main script body, before any hash assignment. Canonical source for the six-plugin cluster; copies updated via `scripts/sync-state-key.sh`.
+
 ## [0.40.25]
 
 ### Fixed
