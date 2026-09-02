@@ -73,7 +73,7 @@ function ConvertFrom-WingetTextOutput {
             # Length-guard every later column: a row past idxVer but short of
             # idxAvail used to throw in Substring($idxAvail), and the
             # row-level catch swallowed the package (#3437).
-            $avail = if ($idxSource -gt 0 -and $idxAvail -ge 0 -and $line.Length -ge $idxSource) {
+            $avail = if ($idxSource -gt $idxAvail -and $idxAvail -ge 0 -and $line.Length -ge $idxSource) {
                 $line.Substring($idxAvail, $idxSource - $idxAvail).Trim()
             } elseif ($idxAvail -ge 0 -and $line.Length -gt $idxAvail) {
                 $line.Substring($idxAvail).Trim()
