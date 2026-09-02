@@ -14,10 +14,14 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   creations every time regardless of whether the payload had moved. Two cuts. A refresh whose body
   is byte-identical to the snapshot on disk, `captured_at` aside, now takes no lock, stages no temp
   file and performs no rename. And the spool's 15-minute record sweep moved to a 5-minute cadence,
-  since it was spending a `find` twice a minute to enforce a fifteen-minute floor. Measured on
-  Windows/MSYS with both tees interleaved in one loop under identical load, spawn floor 57 ms: the
-  drain falls from 8.3 to 5.2 spawn-equivalents over the bare render, from seven external processes
-  to three. The steady render is unchanged at 1.5 spawn-equivalents against a bar of 2.
+  since it was spending a `find` twice a minute to enforce a fifteen-minute floor. The deterministic
+  result is the process count: a drain on an unchanged payload runs three external commands where it
+  ran seven, losing the rename, the snapshot lock's `mkdir` and `rmdir`, and the sweep's `find`.
+  Timed on Windows/MSYS with both tees interleaved in one loop so they meet the same load, the drain
+  falls from 8 to 10 spawn-equivalents over the bare render down to 5 to 6, across two runs of 12
+  trials whose spawn floors were 57 ms and 45 ms. The steady render is unchanged, 1.2 against 1.1
+  spawn-equivalents on the same runs, well inside a bar of 2, because the spool already left it
+  nothing to cut.
 - **The no-change skip is bounded, because the staleness rule is written against `captured_at`.**
   `reference/reader-contract.md` makes a snapshot stale on a `captured_at` older than ten minutes
   and says explicitly that the rule reads that field and never the file's mtime. An unbounded skip
