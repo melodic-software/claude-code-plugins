@@ -96,7 +96,7 @@ when this pass must stop instead of guessing.
    merge: preserve any existing `config.role_labels` (owned by the role-label pass below) and any
    other keys. Write `schema_version: "1.0"`, the chosen `provider`, the `config`, and, unless one
    already exists, the self-describing `docs` pointer (CONTRACT.md "Setup (binding file)"). Confirm
-   the file is tracked, not ignored.
+   tracked-not-ignored via the pair: `git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0 (non-zero after a fresh write = "written but untracked: commit it").
 5. **Ensure the personal-overlay gitignore line.** The gitignored per-user overlay
    (`.work-item-tracker.local.json`, allowlisted keys only. CONTRACT.md "Setup (binding file)") sits
    at the repo root, outside the `.claude/**/*.local.*` convention line, so `apply` must confirm a
