@@ -3,6 +3,15 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.6]
+
+### Changed
+
+- **`clarify`: each core-move step now states an observable done-condition.** The
+  four-step restructure said what to do but not how to know a step was finished.
+  The SKILL.md length warning (soft target 200) is unchanged and still a
+  progressive-disclosure candidate, not a defect of this change.
+
 ## [0.4.5]
 
 ### Changed
