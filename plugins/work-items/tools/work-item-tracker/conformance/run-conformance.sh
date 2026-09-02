@@ -120,11 +120,16 @@ RUN_TAG="conf-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
 wit_case "capabilities" 0 capabilities
 assert_schema_version "capabilities"
-PROVIDER="$(jq -r '.provider' <<<"$WIT_OUT")"
-if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
+# jq -r prints the text `null` for both JSON null and the string `"null"`. A
+# provider literally named `null` is a valid adapter name
+# (`^[a-z][a-z0-9-]{0,31}$`), so reject on JSON type instead: require a string
+# of length > 0. Empty and JSON null still fail; `"null"` is accepted as a name.
+if jq -e '.provider | type == "string" and length > 0' <<<"$WIT_OUT" >/dev/null; then
+  PROVIDER="$(jq -r '.provider' <<<"$WIT_OUT")"
   pass "capabilities names a provider"
 else
-  fail "capabilities names a provider" "non-empty provider" "$PROVIDER"
+  PROVIDER="$(jq -c '.provider' <<<"$WIT_OUT")"
+  fail "capabilities names a provider" "JSON string of length > 0" "$PROVIDER"
 fi
 CAPS="$WIT_OUT"
 
