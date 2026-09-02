@@ -75,14 +75,21 @@ not support a rule, the skill says so rather than dressing a house choice as con
 
 ## Relationship to neighbouring plugins
 
+Every plugin named here is **presence-gated**: this plugin prefers to reuse them, and degrades with a
+stated fallback when one is absent. None is a hard install requirement, and none is declared as a
+manifest dependency, because a measurement workflow that refuses to run when a sibling plugin is
+missing fails worse than the duplication it was avoiding.
+
 - **`/verification:measure`** owns two-phase baseline/compare and machine-bound baseline storage.
-  This plugin **depends on it** rather than reimplementing it, and adds what it does not cover:
-  interleaved A/B, drift-immune counters, host-unmeasurability refusal, precondition-asserting
-  probes, and goal tiers.
+  When the `verification` plugin is installed this plugin reuses it rather than reimplementing it,
+  and adds what it does not cover: interleaved A/B, drift-immune counters, host-unmeasurability
+  refusal, precondition-asserting probes, and goal tiers. When it is absent, baselines are captured
+  into the same memory-tier path directly and the report says the capture was unassisted.
 - **`/claude-ops:audit-performance`** diagnoses a slow *Claude Code installation*. This plugin
   optimizes an *arbitrary target*. They share the noise characterization through
-  `lib/spawn_noise.py`, carried as a registered cross-plugin cluster so the bimodal threshold has
-  exactly one home.
+  `lib/spawn_noise.py`, which each plugin **carries its own byte-identical copy of** as a registered
+  cross-plugin cluster. Neither imports the other at runtime, since plugins install independently;
+  the sync gate is what keeps the bimodal threshold at exactly one home.
 - **`/implementation:implement`** owns the change. This plugin does not.
 
 ## Baselines

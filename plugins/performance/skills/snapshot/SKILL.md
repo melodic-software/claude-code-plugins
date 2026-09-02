@@ -20,11 +20,27 @@ answers, and four of the five were checks written specifically to avoid being fo
 
 ### 1. Qualify the host, before measuring anything
 
+The lib is plugin-bundled, not installed, so it needs its directory on `sys.path` before the
+import. Anchor to the plugin root rather than the working directory; a bare
+`from spawn_noise import ...` raises `ModuleNotFoundError` unless the caller happens to already be
+in `lib/`.
+
 ```python
-from spawn_noise import spawn_probe, is_measurable
+import sys
+from pathlib import Path
+
+lib = Path(__file__).resolve().parents[3] / "lib"   # <plugin-root>/lib
+if str(lib) not in sys.path:
+    sys.path.insert(0, str(lib))
+
+from spawn_noise import spawn_probe, is_measurable  # noqa: E402
+
 summary = spawn_probe()
 measurable, why = is_measurable(summary)
 ```
+
+`parents[3]` is correct from `<plugin-root>/skills/<skill>/scripts/x.py`. Count the levels for
+wherever the caller actually sits rather than copying the index.
 
 `is_measurable()` returns a verdict and its basis. A `False` is a **hard refusal to report a
 wall-clock number**, subject only to the recorded override below.
@@ -114,8 +130,15 @@ top, not in a footnote.
 ## Storage
 
 Baselines live in the memory tier, `.work/<topic-slug>/baselines/`, machine-bound, **never
-committed**, matching `/verification:measure`, which owns baseline capture and storage mechanics.
-This skill depends on it rather than reimplementing it.
+committed**.
+
+That layout matches `/verification:measure`, which owns baseline capture and storage mechanics.
+Invoke it via the Skill tool **when the `verification` plugin is installed**, so the two never keep
+two different baseline stores. When it is absent, capture into the same path directly and say in the
+report that the capture was unassisted. The dependency is a preference for reuse, not a hard
+requirement: this skill's own gates (host qualification, interleaving, the counter, the refusal)
+work either way, and refusing to measure because a sibling plugin is missing would be a worse
+failure than the duplication it avoids.
 
 A committed baseline is a number that outlives the conditions that made it true. No source states
 "a stored baseline is invalid on another machine" outright, but four independent Tier 1/2 strands

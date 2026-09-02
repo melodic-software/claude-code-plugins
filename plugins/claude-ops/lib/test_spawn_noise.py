@@ -115,6 +115,21 @@ class TestMeasurabilityVerdict(unittest.TestCase):
         self.assertIn("180.0", why)
         self.assertIn("1400.0", why)
 
+    def test_a_timeout_outranks_the_bimodal_reason(self):
+        # A timed-out sample is recorded at the timeout ceiling, so max_ms is
+        # censored. If bimodality were reported first, the reader would get a
+        # spread computed from that ceiling described as an observed slow mode,
+        # which reads as a finite measurement of an unbounded tail.
+        # discriminating-skip-required: this is the only case where both findings
+        # co-occur, so without it the precedence can silently invert.
+        summary = spawn_noise.summarize_spawn_samples([180.0, 1400.0, 20000.0], 1, 900)
+        self.assertIn("spawn-probe-timed-out", summary["findings"])
+        self.assertIn("bimodal-spawn-latency", summary["findings"])
+        ok, why = spawn_noise.is_measurable(summary)
+        self.assertFalse(ok)
+        self.assertIn("timeout", why)
+        self.assertNotIn("bimodal contention signature", why)
+
     def test_an_uncharacterized_host_is_refused_rather_than_assumed_fine(self):
         ok, why = spawn_noise.is_measurable(spawn_noise.summarize_spawn_samples([], 0, None))
         self.assertFalse(ok)

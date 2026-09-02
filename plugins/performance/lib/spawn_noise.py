@@ -146,14 +146,24 @@ def is_measurable(summary: dict) -> tuple[bool, str]:
     findings = summary.get("findings", [])
     if "no-spawn-samples-captured" in findings:
         return False, "no spawn samples were captured, so the host was never characterized"
+    # A timeout outranks the bimodal signature, and the order is load-bearing.
+    # A timed-out sample is recorded as the timeout ceiling, not as a measurement,
+    # so `max_ms` is a censored value. Reporting the bimodal reason first would
+    # hand the reader a spread computed from that ceiling and explain it as an
+    # observed slow mode, which reads as a finite measurement of a tail that is
+    # actually unbounded.
+    if "spawn-probe-timed-out" in findings:
+        return False, (
+            f"{summary.get('timeouts')} of {summary.get('samples')} no-op spawns hit the probe "
+            f"timeout, so the tail is unbounded and max_ms is a censored ceiling rather than a "
+            f"measurement"
+        )
     if "bimodal-spawn-latency" in findings:
         return False, (
             f"spawn cost spread {summary.get('spread_ratio')}x across identical no-op spawns "
             f"(min {summary.get('min_ms')} ms, max {summary.get('max_ms')} ms), with the slow mode "
             f"above the {SLOW_SPAWN_FLOOR_MS} ms floor: the bimodal contention signature"
         )
-    if "spawn-probe-timed-out" in findings:
-        return False, "at least one no-op spawn hit the probe timeout, so the tail is unbounded"
     if "slow-spawn-floor" in findings:
         return False, (
             f"even the fastest no-op spawn cost {summary.get('min_ms')} ms, above the "
