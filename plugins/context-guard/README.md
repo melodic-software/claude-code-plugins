@@ -84,9 +84,10 @@ tool that needs it, so long-running workflows can route heavy work away from a d
 it starts is paid on the critical path of every batch. Measured 2026-09-02 on Windows 11 under Git
 Bash: 12 trials per row, each preceded by a `bash -c :` spawn floor so the floor and the hook see
 the same machine load, medians reported. Cost is given in spawn-equivalents (hook wall time divided
-by that run's floor) because the absolute figure moves with load. Process counts are of commands in
-command position in the hook process, so a shell builtin such as `command -v jq` is correctly not
-counted.
+by that run's floor) because the absolute figure moves with load: the measured floor ranged 36 to
+94 ms across the before rows and 46 to 56 ms across the after rows, against a 33 ms program
+baseline. Process counts are of commands in command position in the hook process, so a shell
+builtin such as `command -v jq` is correctly not counted.
 
 | Path | Processes before | Processes after | Spawn-equivalents before | After |
 |---|---|---|---|---|
@@ -97,11 +98,13 @@ counted.
 | PreToolUse gate, default advisory posture | 2 | 0 | 2.5 | 1.4 |
 | PostCompact marker | 9 | 4 | 9.4 | 5.7 |
 
-What went: three `dirname` calls per hook, replaced by parameter expansion; a second `jq`, by
-reading both envelope fields in one pass; `tr -cd | head -c` on each of the two state markers, by
-`$(<file)` plus parameter expansion; and `mkdir` and `rm` calls that the steady path had already
-made unnecessary, behind existence guards. `date` in the PostCompact marker became printf's `%()T`
-format. No decision, no emitted text and no state file changed: an eleven-scenario capture covering
+What went: every `dirname` call, replaced by parameter expansion (three in the zone-crossing hook,
+two in each of the others); a second `jq`, by reading both envelope fields in one pass;
+`tr -cd | head -c` on each of the two state markers, by `$(<file)` plus parameter expansion; and
+`mkdir` and `rm` calls that the steady path had already made unnecessary, behind existence guards.
+`date -u` in the PostCompact marker became printf's `%()T` format under a `TZ=UTC` prefix, verified
+to produce the same string on a host whose local zone is not UTC, so the trailing `Z` stays honest.
+No decision, no emitted text and no state file changed: an eleven-scenario capture covering
 both events, both crossing directions, hostile and absent session ids and an empty payload diffs
 byte-identical on stdout, exit code and every state file, and the contract tests assert the
 remaining process budget by trace so a regression fails a test rather than slowing a session.
