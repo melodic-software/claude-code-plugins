@@ -68,10 +68,7 @@ export async function launchBrowser({
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  let cookieCount = 0;
-  if (storageStatePath) {
-    cookieCount = await injectSavedCookies(context, storageStatePath);
-  }
+  const cookieCount = storageStatePath ? await injectSavedCookies(context, storageStatePath) : 0;
 
   return { browser, context, page, authDir, cookieCount };
 }
