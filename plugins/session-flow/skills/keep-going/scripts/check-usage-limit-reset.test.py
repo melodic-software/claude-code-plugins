@@ -31,15 +31,12 @@ class CheckUsageLimitResetTests(unittest.TestCase):
         *extra: str,
         env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        run_env = os.environ.copy()
-        if env:
-            run_env.update(env)
         return subprocess.run(
             [sys.executable, str(SCRIPT), *extra],
             capture_output=True,
             text=True,
             check=False,
-            env=run_env,
+            env={**os.environ, **(env or {})},
         )
 
     def test_lifted_after_reset_same_day(self) -> None:

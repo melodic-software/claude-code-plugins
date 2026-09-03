@@ -135,7 +135,7 @@ try:
 except ImportError:
     pass
 
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError  # noqa: E402 -- grouped with the bootstrap
 
 
 class TimezoneUnavailableError(RuntimeError):
