@@ -721,7 +721,6 @@ format_probed_path() {
   fi
 }
 
-MDLINT=()
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
   MDLINT=(markdownlint-cli2)
 elif REPO_MDLINT="$(resolve_repo_markdownlint)"; then
@@ -1309,7 +1308,6 @@ if ((FINDING_COUNT > 0)); then
   # entirely would recreate, on this plugin, exactly the invisible-hook problem
   # the disclosure above exists to fix.
   SAME_AS_LAST=0
-  DIGEST_FILE=""
   if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] && command -v git >/dev/null 2>&1; then
     session_key=$(printf '%s' "$INPUT" | jq -r '.session_id // "no-session"' 2>/dev/null) || session_key="no-session"
     session_key="${session_key//[^A-Za-z0-9_-]/-}"
@@ -1336,7 +1334,7 @@ if ((FINDING_COUNT > 0)); then
           # reaching into a sibling's state.
           find "$digest_dir" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null
         fi
-        printf '%s' "$digest_now" >"$DIGEST_FILE" 2>/dev/null || DIGEST_FILE=""
+        printf '%s' "$digest_now" >"$DIGEST_FILE" 2>/dev/null
       fi
     fi
   fi

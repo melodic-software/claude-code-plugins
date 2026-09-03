@@ -104,7 +104,10 @@ fi
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
 # object — NOT an interpolation of TOOL/FILE_REL, which could inject quotes or
-# backslashes from a path and corrupt the envelope.
+# backslashes from a path and corrupt the envelope. The fallback is essentially
+# unreachable in practice (it fires only if `jq -n` fails, and when jq is absent
+# hook::emit_telemetry drops the envelope anyway), so losing the values here is
+# harmless and strictly safer than emitting malformed JSON.
 build_data_json() {
   jq -n \
     --arg tool "$TOOL" \
@@ -167,8 +170,8 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
   if [[ "$_line" == //* ]]; then
     if [[ "$_line" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]]; then
       GENERATED=1
+      break
     fi
-    [[ $GENERATED -eq 1 ]] && break
     continue # a different // comment line: still within the leading block
   fi
   if [[ "$_trimmed" == //* ]]; then
