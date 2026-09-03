@@ -206,8 +206,9 @@ interleaved `bash -c :` floor, old and new interleaved in one loop (2026-09-02):
 | Event | Fires | Spawn-equivalents | What changed |
 | --- | --- | --- | --- |
 | PostToolBatch, steady zone (`zone-crossing-inject.sh`) | 1 | 18.9 before, 10.8 after (0.7.34) | 11 processes to 2: one `jq` reading both payload fields, `dirname` and `tr` pipelines replaced by expansions, `mkdir -p` behind a `-d` guard |
+| UserPromptSubmit, steady zone (the same `zone-crossing-inject.sh`) | 1 | 18.4 before, 11.8 after (0.7.34) | same script, same cuts; measured separately because the payload differs |
 | PreToolUse `Write`/`Edit`, advisory mode (`zone-gate.sh`) | 1 | 2.5 before, 1.4 after (0.7.34) | no process spawned in the default posture |
-| PostCompact (`post-compact-mark.sh`) | 1 | 9 processes to 4 (0.7.34) | `date` replaced by printf's clock with a `date` fallback; `mkdir` and `rm` behind existence guards |
+| PostCompact (`post-compact-mark.sh`) | 1 | 9.4 before, 5.7 after (0.7.34) | 9 processes to 4: `date` replaced by printf's clock with a `date` fallback; `mkdir` and `rm` behind existence guards |
 | Zone resolver (`scripts/context-zone.sh`, called by the rows above) | per resolve | 9.5 before, 2.3 after (0.7.34) | six processes to one `jq`; a whole steady PostToolBatch fire is 3 processes, down from 15 |
 
 The two advisory rows keep their 60-second timeout: the 0.4.8 measurement put this script at
