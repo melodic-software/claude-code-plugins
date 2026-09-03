@@ -150,9 +150,9 @@ Describe 'firewall.ps1' {
         # converts the RIGHT operand to [bool], and every non-empty string
         # converts to $true -- so 'True', 'False', and any other literal behave
         # identically here, and the guard collapses to the truthiness test this
-        # PR removed. The case therefore proves only that the fix did not BREAK
-        # a boolean-valued property; it cannot discriminate the fix from the
-        # defect, because a plain boolean never had the enum's True = 1 /
+        # suite rules out. The case therefore proves only that the fix did not
+        # BREAK a boolean-valued property; it cannot discriminate the fix from
+        # the defect, because a plain boolean never had the enum's True = 1 /
         # False = 2 aliasing the defect depended on.
         It 'does not break when Enabled arrives as a plain boolean' {
             $enable = Get-EnabledGuard -Path $script:ScriptPath -Action 'enable'

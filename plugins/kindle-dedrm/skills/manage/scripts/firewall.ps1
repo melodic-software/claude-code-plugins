@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Manage the Windows Firewall outbound block on Kindle.exe — kindle-dedrm skill.
+  Manage the Windows Firewall outbound block on Kindle.exe -- kindle-dedrm skill.
 
 .DESCRIPTION
   Idempotent enable / disable / check / remove of the firewall rule that prevents
@@ -13,10 +13,10 @@
   Profile: Any
 
 .PARAMETER Action
-  enable  — create rule if absent, set Enabled=True (DEFAULT for safe state)
-  disable — set Enabled=False (does NOT delete; sync action uses this)
-  check   — print current state, exit 0 if rule exists and matches expected shape
-  remove  — delete the rule entirely (cleanup action only)
+  enable  -- create rule if absent, set Enabled=True (DEFAULT for safe state)
+  disable -- set Enabled=False (does NOT delete; sync action uses this)
+  check   -- print current state, exit 0 if rule exists and matches expected shape
+  remove  -- delete the rule entirely (cleanup action only)
 
 .NOTES
   enable/disable/remove require elevation. check works without elevation.
@@ -71,9 +71,10 @@ switch ($Action) {
         if ($rule) {
             # Compared against 'True', never tested for truthiness. Get-NetFirewallRule's
             # Enabled is a NetSecurity enum whose members are True = 1 and False = 2, so
-            # BOTH are non-zero and both coerce to boolean $true. `-not $rule.Enabled` was
-            # therefore always false and a disabled rule was never re-enabled. The string
-            # comparison also holds when the property arrives already stringified.
+            # BOTH are non-zero and both coerce to boolean $true. `-not $rule.Enabled` is
+            # therefore always false, so a truthiness guard never re-enables a disabled
+            # rule. The string comparison also holds when the property arrives already
+            # stringified.
             if ($rule.Enabled -ne 'True') {
                 Enable-NetFirewallRule -DisplayName $RuleName | Out-Null
                 Write-Output '[firewall] re-enabled existing rule'
@@ -102,8 +103,8 @@ switch ($Action) {
             Write-Output '[firewall] not present — nothing to disable'
             exit 0
         }
-        # Same enum hazard as the enable branch above: a bare truthiness test took the
-        # disable path even for a rule that was already disabled.
+        # Same enum hazard as the enable branch above: a bare truthiness test takes the
+        # disable path even for a rule that is already disabled.
         if ($rule.Enabled -eq 'True') {
             Disable-NetFirewallRule -DisplayName $RuleName | Out-Null
             Write-Output '[firewall] disabled (rule retained — re-enable when sync is done)'
