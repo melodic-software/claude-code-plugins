@@ -16,7 +16,9 @@ your `PATH`.
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
   your hard gate.
 - **Scoped to workflows.** Only files matching `.github/workflows/*.yml` and
-  `.github/workflows/*.yaml` are linted. Other YAML is left alone.
+  `.github/workflows/*.yaml` are linted. Other YAML is left alone. The registration
+  carries the matching `if` filters (`Edit(**/.github/workflows/*.yml)` and the
+  `.yaml` twin), so a Write/Edit of any other file never starts a hook process for it.
 - **External run-block linters disabled (`-shellcheck= -pyflakes=`).**
   actionlint's embedded-bash ShellCheck and `shell: python` pyflakes
   integrations are turned off. Each spawns a subprocess per `run:` block.
@@ -102,18 +104,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**

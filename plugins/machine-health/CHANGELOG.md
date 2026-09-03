@@ -3,7 +3,7 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.7]
+## [0.12.10]
 
 ### Fixed
 
@@ -24,6 +24,34 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   PowerShell 7.4 floor the file requires); `Get-GpuDriverInfo.Tests.ps1` normalizes
   two comment em dashes to the tree's double-hyphen form. Linux-runnable Pester
   suites green before and after under the pinned Pester 5.
+- **Checks tidyings (third wave).** `Test-EnvironmentHealth.ps1` removes a dead
+  `$others` list (built, never read; suite 14/14); eight history-narration comment
+  blocks across four checks and four suites rewritten to present-tense rationale;
+  two detail-hashtable realignments; one stale It description corrected to match its
+  assertion. Before/after Pester result sets byte-identical on this host.
+
+## [0.12.9]
+
+### Changed
+
+- **audit:** add `argument-hint: "[weekly|on-demand|first-run] [--dry-run]"` so
+  autocomplete shows the RunMode and dry-run arguments the skill already
+  accepts (#3542).
+
+## [0.12.8]
+
+### Changed
+
+- **audit:** rename the spoke directory `references/` to `reference/` so it
+  matches the fleet majority (#3546). Orchestrator, checks, catalog pointers,
+  and contributor docs (`AGENTS.md`, `README.md`) follow the new path.
+
+## [0.12.7]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.12.6]
 

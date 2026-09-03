@@ -73,8 +73,18 @@ set -uo pipefail
 # resolve (ENOENT -> silent no-op). stdin is read ONCE here and fed to both
 # hook::read_file_path (file_path) and the tool_name parse below; reading fd0
 # twice would drain the pipe on the second call.
+#
+# The hook's own directory is derived with parameter expansion rather than
+# `dirname`. On the Windows Git Bash host this hook is tuned for, an exec costs
+# about a spawn and a command substitution costs half of one, and this line is
+# on every Write, Edit and NotebookEdit. `${BASH_SOURCE[0]%/*}` equals
+# `dirname` for every shape BASH_SOURCE takes; the fallback covers the one
+# shape it does not, a bare filename with no separator, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 # shellcheck source=hook-utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 
 hook::check_enabled "TYPOS_FORMAT"
 
@@ -132,10 +142,21 @@ hook::require_jq PostToolUse typos-format "$INPUT"
 # Copy notebook_path onto file_path when only the former is present. An
 # explicit file_path always wins, so a payload carrying both is untouched; a
 # jq failure leaves $INPUT exactly as it arrived rather than emptying it.
-NORMALIZED_INPUT=$(printf '%s' "$INPUT" | jq -c '
-  if ((.tool_input.file_path // "") == "") and ((.tool_input.notebook_path // "") != "")
-  then .tool_input.file_path = .tool_input.notebook_path
-  else . end' 2>/dev/null) && [[ -n "$NORMALIZED_INPUT" ]] && INPUT="$NORMALIZED_INPUT"
+#
+# The jq runs only when the raw payload carries a non-empty notebook_path,
+# because without one the filter's own condition is false and it hands back the
+# payload unchanged. The textual pre-check is deliberately BROADER than the
+# filter's `.tool_input.notebook_path`: it matches the key anywhere, so it can
+# admit a payload the filter will no-op on, but it can never reject one the
+# filter would have acted on. Every Write and Edit reaches this line and none of
+# them is a notebook, so on the hot path this is one fewer jq and one fewer
+# pipeline, worth about a spawn and a half on the Windows Git Bash host.
+if raw_notebook_path "$INPUT" >/dev/null; then
+  NORMALIZED_INPUT=$(printf '%s' "$INPUT" | jq -c '
+    if ((.tool_input.file_path // "") == "") and ((.tool_input.notebook_path // "") != "")
+    then .tool_input.file_path = .tool_input.notebook_path
+    else . end' 2>/dev/null) && [[ -n "$NORMALIZED_INPUT" ]] && INPUT="$NORMALIZED_INPUT"
+fi
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 
@@ -149,7 +170,19 @@ fi
 
 # Resolve repo root early — used as the CWD typos runs in and to compute
 # the schema-required repo-relative path in data.file.
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+#
+# The directory hint is stripped with parameter expansion rather than `dirname`,
+# for the reason given at the source line above. FILE has already cleared
+# hook::read_file_path's `-f` test, so it names an existing regular file and
+# carries no trailing slash; the fallbacks cover the two shapes where the strip
+# and dirname disagree: a bare relative filename with no separator, where
+# dirname answers `.`, and a file directly under the filesystem root, where the
+# strip leaves an empty string that hook::repo_root would read as `.` (the hook
+# process CWD) while dirname answers `/`.
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 # Repo-relative path, serving two consumers: the schema-required data.file, and
 # the argument typos runs on from the repo root. A path the prefix strip could
 # not make relative degrades to its basename, which is right for telemetry but

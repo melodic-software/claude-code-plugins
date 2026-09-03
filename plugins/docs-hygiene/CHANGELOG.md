@@ -1,5 +1,23 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.33]
+
+### Fixed
+
+- **`audit-noise`: every finding was declined as outside the repository root on a Git Bash host.**
+  `emit-findings.sh` relativized Location against one anchor, `git rev-parse --show-toplevel`,
+  which answers `<drive>:/Users/<user>/.../t` while the caller reached the same directory as
+  `/tmp/t`. The producer fails closed, so each finding landed in the human-report-only column and
+  the decline count said so in a section nothing downstream reads. It now carries the three anchors
+  the `claude-config` sibling already had: the caller's own `pwd` spelling (derived by removing the
+  sub-path git reports for it), git's toplevel, and `cd`-then-`pwd`.
+
+- **A drive-letter path was treated as relative and joined to the root a second time.** The
+  absolute test was `substr(abs, 1, 1) != "/"`, so `D:/repo/doc.md` became `<root>/D:/repo/doc.md`
+  and was declined. The producer now shares the sibling's substr-based `is_absolute`, which admits
+  a POSIX path, a UNC or root-relative backslash path, and a drive-letter path, and is written
+  without a bracket expression holding `/` and `\` because the runner awk is mawk.
+
 ## [0.21.32]
 
 ### Fixed

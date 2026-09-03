@@ -241,6 +241,41 @@ df=$(telemetry_file "$PATHREPO_TL/src/config.env")
 assert_contains "in-repo/no-project: data.file is repo-relative" "$df" "src/config.env"
 assert_absent "in-repo/no-project: data.file is not absolute" "$df" "$PATHREPO_TL"
 
+# --- Root-level file_path with no project dir --------------------------------
+# The file's directory comes from parameter expansion. For `/secrets.env` the
+# shortest `/*` suffix is the whole string, so a bare `${FILE%/*}` is EMPTY, and
+# hook::repo_root's `${1:-.}` would then anchor on the process CWD instead of
+# `/` as `dirname` did. The anchor is proven through a `git` shim ahead of the
+# real one on PATH that records every `-C` argument: the hook must ask git
+# about `/`, and the envelope must still redact to the basename.
+GIT_SHIM_DIR="$TEST_TMPDIR/git-shim"
+mkdir -p "$GIT_SHIM_DIR"
+GIT_C_LOG="$TEST_TMPDIR/git-c-args"
+REAL_GIT="$(command -v git)"
+{
+  printf '#!/usr/bin/env bash\n'
+  # shellcheck disable=SC2016  # the shim's own expansions are literal source text
+  printf 'if [[ "${1:-}" == "-C" ]]; then printf "%%s\\n" "${2:-}" >>"%s"; fi\n' "$GIT_C_LOG"
+  printf 'exec "%s" "$@"\n' "$REAL_GIT"
+} >"$GIT_SHIM_DIR/git"
+chmod +x "$GIT_SHIM_DIR/git"
+: >"$GIT_C_LOG"
+ROOT_TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+ROOT_SINK="$(make_sink "cat >\"$ROOT_TEL\"")"
+env PATH="$GIT_SHIM_DIR:$PATH" HOOK_TELEMETRY_SINK="$ROOT_SINK" bash "$HOOK" \
+  <<<"$(write_json "/secrets.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1
+assert_exit "root-level/no-project: still blocks" 2 "$?"
+if wait_for_sink "$ROOT_TEL"; then
+  assert_eq "root-level/no-project: data.file is exactly the basename" \
+    "secrets.env" "$(jq -r '.data.file' "$ROOT_TEL")"
+else
+  bad "root-level/no-project: no envelope written"
+fi
+# Exactly one `git -C` and its argument is `/`: neither `.` nor the empty
+# string the bare expansion produced.
+assert_eq "root-level/no-project: repo root is anchored on / (dirname semantics)" \
+  "/" "$(cat "$GIT_C_LOG")"
+
 # --- Symlinked checkout ------------------------------------------------------
 # A real repo plus a symlink to it. Reached through the symlink, `git rev-parse
 # --show-toplevel` answers with the PHYSICAL path, so a file_path arriving in

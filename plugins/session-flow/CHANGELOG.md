@@ -1,5 +1,23 @@
 # Changelog — session-flow plugin
 
+## [0.34.22]
+
+### Changed
+
+- **The running-retro observer growth case sets its own idle confirmation.** The
+  case inherited the production 30-second idle confirmation from the test
+  harness, so it could only ever end at the lifetime deadline rather than when
+  the tail actually went idle. It now sets a one-second confirmation and a
+  ten-second deadline, which is what the case was always asserting. Test-side
+  only; the observer's own defaults are unchanged.
+
+## [0.34.21]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.34.20]
 
 ### Changed

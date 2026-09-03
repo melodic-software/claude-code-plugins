@@ -4,10 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## [0.13.37]
+## [0.13.39]
 
 ### Changed
 
+- **Course-digest pipeline and adapter tidyings (third wave).**
+  `extract-course-run.js` collapses a double-negative boolean pair via De Morgan;
+  `utils.js` drops a dead export; `extract-course.js` documents the existing
+  `--show-browser` flag; six non-interpolated template literals become plain strings;
+  `adapters/dometrain.js` chains its landing-URL replacements and both adapters merge
+  double-JSDoc blocks. Full extraction package 91/91 and tsc clean before and after.
 - **Course-digest extraction lib tidyings (second wave).** `players/hotmart.js` drops
   two provably dead guards in `getTranscript` (the vendor manifest parser returns only
   dense arrays of non-empty strings), a redundant boolean annotation, and hoists a
@@ -21,6 +27,27 @@ only after that version increases.
   present tense; `watch-slice-sessions.js` reduces a block-bodied map callback to a
   concise arrow; one restating comment dropped from `run-args.test.js`. Vitest lib
   suites 50/50 and the whole extraction package 501/501 before and after.
+
+## [0.13.38]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.13.37]
+
+### Fixed
+
+- **`acquire-throttle` stale-slot reclaim is exclusive.** Two reclaimers could
+  both pass `isStaleSlot` and `rm` the same path. The first delete freed the
+  directory, a peer `mkdir` became a live holder, and the second `rm` evicted
+  that holder so a third acquire exceeded `maxSlots`. Reclaim now takes
+  `slot-N.reclaim` (mkdir, EEXIST skips), re-stats, and only then removes the
+  slot. A leftover reclaim lock older than the slot TTL is stolen by renaming
+  it to a unique tombstone so only one racer can win. Rename-then-rm of the
+  live slot is not used: the original holder still releases `slot-N` in
+  `finally` and would delete a relocated occupant.
 
 ## [0.13.36]
 

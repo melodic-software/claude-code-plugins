@@ -3,6 +3,60 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.9]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.41.8]
+
+### Changed
+
+- **Skill-listing entries for `audit-performance`, `audit-skill-visibility`, and
+  `audit-native-overlap` tightened.** These three were the marketplace's first, second, and
+  seventh largest listing entries. Each description now drops mechanism narration (the suspect
+  labels, the verdict enumeration, the budget-drop explanation) while keeping every quoted trigger
+  phrase and every `Not for` disambiguation. Claude Code truncates the combined `description` and
+  `when_to_use` text at 1,536 characters in the skill listing, and the shared listing budget scales
+  at 1% of the model's context window, so every character an entry spends is a character another
+  skill's description cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.41.7]
+
+### Changed
+
+- **The audit-hook table records why each row earns its spawn.** A new column states the reason
+  per row: event rarity for StopFailure, ConfigChange, PermissionDenied and PreCompact; matcher
+  scoping for the PostToolUse, UserPromptExpansion and PostToolUseFailure rows; and, for the Stop
+  row, that it is the only per-turn registration and the sole surface for a hook that failed to
+  launch while its guarded tool call proceeded.
+- **The InstructionsLoaded row records why it carries no matcher.** That event's matcher selects on
+  load reason, and `instructions-loaded-audit.sh` passes every reason through verbatim into its
+  subject, so scoping to the full documented set would skip nothing and would drop any reason a
+  later release adds. Scoping below that set is worse: the only reason worth excluding for cost is
+  `session_start`, which the script already drops at write time behind
+  `instructions_loaded_audit_log_session_start`, so a matcher excluding it would leave that option
+  switched on but unable to log anything. Documentation only; no hook, script or registration
+  changed.
+
+## [0.41.6]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.41.5]
 
 ### Changed

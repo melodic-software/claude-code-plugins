@@ -3,6 +3,113 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.2]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.31.1]
+
+### Changed
+
+- **Guards stop spending processes on work their own inputs rule out.** Four
+  always-on guards did expensive setup before checking whether the payload could
+  ever produce a finding. `skill-reference-verify` built a plugin name-to-directory
+  index from every plugin manifest (two `jq` processes each, 74 manifests in this
+  marketplace) before looking at whether the written content cites a skill at all;
+  the index is now built once, only when the reference scan has produced a
+  candidate. `stale-path-verify` listed the whole git index on every write; it now
+  does so only when the content carries an inline-code token to adjudicate.
+  `cli-flag-verify` ran its fragment pipeline on content that cannot contain a flag;
+  a `-` is now required before any of it runs. Four guards resolved the repo root
+  through a `$(dirname …)` subshell, which is a fork per call on Windows Git Bash,
+  and now use parameter expansion. Every decision is unchanged: the guards' contract
+  tests hold, and the exit code and JSON output are byte-identical on benign and
+  must-fire payloads alike. Measured on Windows Git Bash against the same tree in a
+  paired run, PostToolUse of a short in-repo markdown file fell from 368.4 to 79.3
+  spawn-equivalents.
+- **The convention patterns are resolved once per convention change, not once per
+  command.** `block-convention-violation` forked the convention resolver twice on
+  every Bash and PowerShell tool call, because the resolver answers one key per
+  call. That cost 12.8 spawn-equivalents on every command the agent ran, to
+  re-derive an answer that changes only when the convention files change, and the
+  cached form measures 3.0 in the same paired run. The pair is
+  now cached per repo root under the plugin data directory and invalidated by mtime
+  against the team markdown, the well-known neutral YAML, and an explicit
+  `convention_source` target when one is declared. The resolver itself is untouched
+  and remains the only authority for what a pattern is. With no plugin data
+  directory the gate does not cache and behaves exactly as before.
+- **The convention cache also notices a convention file that disappears or
+  appears.** An mtime comparison against a file that no longer exists reads as
+  fresh, so a cache warmed while the team markdown, the well-known YAML, or an
+  explicit `convention_source` target existed would have kept enforcing a policy
+  the team had since deleted, where the resolver answers no enforcement. The cache
+  entry now records each dependency with its existence at warm time, and a
+  recorded-as-present file that is now missing, or a recorded-as-absent file that
+  now exists (even with an older mtime, as a restore from an archive produces),
+  re-resolves. The warm path still forks the resolver zero times.
+- **The four guards that anchor the repo root on the written file's directory
+  answer as `dirname` did for a root-level path.** The parameter expansion that
+  replaced the `dirname` fork produced an empty string for `/file.md`, which the
+  root helper read as the process working directory. It now yields `/`, so the
+  anchor for every path shape is the one the fork gave.
+- **`cli-flag-verify`'s flag-shape pre-gate is covered by its contract test.**
+  Content with no `-` character is proven to spawn no scan process, and content
+  carrying a `--flag` is proven to report the identical finding it reported before
+  the gate existed.
+
+## [0.31.0]
+
+### Changed
+
+- **One hook process per event instead of one per guard.** The always-on guards are
+  now registered through `hooks/run-guards.sh`, a dispatcher that reads stdin once,
+  extracts the payload fields with one `jq` process, and sources each guard in turn
+  inside that one bash process. Per Bash/PowerShell call this is one hook process
+  where there were eight; per Write/Edit it is one where there were three on
+  PreToolUse and one where there were three on PostToolUse. Every guard still ships as
+  its own script with its own contract test, kill switch, and telemetry envelope, and
+  decides exactly as before; the dispatcher owns only the spawn shape, the exit-code
+  aggregation (2 wins, every guard still runs), and the merge of several guards'
+  `additionalContext` into the one JSON document a hook process may emit. Measured on
+  the reference Windows host with a benign `git status` payload the per-Bash-call set
+  fell from about 2,450 ms of summed hook time across eight processes to about
+  1,220 ms in one; that is still above the hook-budget convention's 1 s typical
+  ceiling, and the README's "Hook budget accounting" section carries the per-guard
+  figures and the remaining remediation.
+- **The dispatcher no longer shadows `dirname`.** Its spawn-saving `dirname` shell
+  function was inherited by every guard it sourced, and diverged from GNU `dirname`
+  for `/foo` (empty, not `/`) and `/a/b//` (`/a/b`, not `/a`). The helper is now
+  `run_guards::script_dir`, used only to locate the dispatcher's own directory, so a
+  dispatched guard's `dirname` is the real command again. Each guard's opening
+  `dirname` exec therefore returns (about 80 ms each on the reference Windows host);
+  the README's accounting was measured with the shadow in place and has not been
+  re-measured.
+- **Several guard documents without `jq` are never concatenated.** A hook process may
+  emit exactly one JSON document, so when two or more guards emit and `jq` is absent
+  (or the merge fails) the dispatcher emits the document carrying a blocking decision
+  (`"decision":"block"`, `"permissionDecision":"deny"`, then `"ask"`), else the first,
+  and prints each dropped document to stderr with a `run-guards: dropped without jq:`
+  prefix so the drop stays visible.
+
+## [0.30.5]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.30.4]
 
 ### Changed

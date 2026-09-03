@@ -4,7 +4,7 @@
 Check: persisted environment-variable and PATH health. Emits a CheckResult JSON
 on stdout.
 
-See references/windows/check-catalog.md#18-environment-and-path-health for rubric.
+See reference/windows/check-catalog.md#18-environment-and-path-health for rubric.
 
 .DESCRIPTION
 Detect-only. Reads HKCU:\Environment and (when readable)

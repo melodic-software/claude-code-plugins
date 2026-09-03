@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Event Log critical errors + BSODs. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#3-event-log-critical-errors--bsods for rubric.
+See reference/windows/check-catalog.md#3-event-log-critical-errors--bsods for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)

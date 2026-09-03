@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Windows Update + pending reboot. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#1-windows-update--pending-reboot for rubric.
+See reference/windows/check-catalog.md#1-windows-update--pending-reboot for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)

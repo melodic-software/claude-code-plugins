@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.40.31]
+## [0.40.33]
 
 ### Changed
 
@@ -23,6 +23,36 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   drops a GNU-only `sed \?` quantifier from `--help` rendering (BSD-sed
   compatibility, output byte-identical); three test files pick up shfmt case-label
   normalization. No behavior or contract changes.
+
+## [0.40.32]
+
+### Changed
+
+- **`audit-prompting-postures` skill-listing entry tightened.** It was the marketplace's third
+  largest listing entry. The description now folds the component list into a parenthetical and
+  shortens the posture enumeration while keeping every quoted trigger phrase and the `Not for`
+  disambiguation. Claude Code truncates the combined `description` and `when_to_use` text at
+  1,536 characters in the skill listing, and the shared listing budget scales at 1% of the model's
+  context window, so every character an entry spends is a character another skill's description
+  cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.40.31]
+
+### Fixed
+
+- **`audit-instructions`: every restatement finding was declined on a Windows checkout under a
+  short-named path.** The I29 rows come from `restatement-scan.py`, a native Windows interpreter,
+  so MSYS converts its argv on the way in and the scanner echoes what it received: backslash
+  separators, and 8.3 short components such as `<drive>:\Users\<SHORT~1>\...`. None of the anchors
+  is spelled that way, the out-of-repo fence fails closed, and the findings stayed in the
+  human-report-only column. `emit-findings.sh` now re-spells such a path through `cygpath -l -m`,
+  which answers the long forward-slash form the anchors use, cached per distinct path.
+
+  The expansion cannot come from the anchor side instead: `cygpath -m -s` also shortens components
+  MSYS left long, so the two spellings do not meet in the middle. The path reaches `cygpath`
+  through a file the script owns rather than through a command line, so no scanner-supplied text is
+  ever interpolated into a shell word. Where `cygpath` is absent, awk normalizes separators alone
+  and the anchors behave exactly as before.
 
 ## [0.40.30]
 

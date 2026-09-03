@@ -807,8 +807,13 @@ class LedgerAndRetention(unittest.TestCase):
         # grows in batches and assert exactly one observation per record.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
+            # Growth ends about 1.8 s in; the 2 s idle window then opens and
+            # the 1 s idle confirmation closes the tail near 5 s. The idle
+            # confirmation is set explicitly because the harness default is
+            # the production 30 s, under which this case could only ever end
+            # at the lifetime deadline (a 30 s wait, measured in CI).
             ob = make_observer(tmp, analysis=False, idle_seconds=2.0, poll_seconds=0.15,
-                               max_seconds=30.0)
+                               idle_confirm_seconds=1.0, max_seconds=10.0)
             rec = '{"type":"user","message":{"content":"x"}}\n'
             total = 9
 
@@ -820,7 +825,7 @@ class LedgerAndRetention(unittest.TestCase):
                     for _ in range(3):
                         f.write(rec)
                 time.sleep(0.5)
-            tailer.join(30)
+            tailer.join(10)
             lines = [ln for ln in ob.obs_path.read_text(encoding="utf-8").splitlines() if ln]
             self.assertEqual(len(lines), total,
                              f"expected {total} distilled events, got {len(lines)} (dupes/underread?)")

@@ -6352,8 +6352,37 @@ class GuardTests(unittest.TestCase):
             for hook in entry.get("hooks", [])
             if any("destructive_guard.py" in token for token in cls._hook_argv(hook))
         ]
-        assert len(commands) == 1, commands
-        return cls._guard_argv_from_hook(commands[0], "destructive_guard.py")
+        # One registration per tool (``Bash`` with an ``if`` filter, ``PowerShell``
+        # without one), both carrying the same guard argv.
+        assert len(commands) == 2, commands
+        argvs = {
+            tuple(cls._guard_argv_from_hook(hook, "destructive_guard.py"))
+            for hook in commands
+        }
+        assert len(argvs) == 1, argvs
+        return list(argvs.pop())
+
+    def test_engine_gate_is_registered_once_per_tool(self) -> None:
+        """Lock the per-tool registration shape of the plugin-level engine gate.
+
+        An ``if`` filter is scoped to the tool it names: under a single
+        ``Bash|PowerShell`` matcher, ``Bash(...)`` filtered every PowerShell call
+        out of this kill-switch guard. The ``Bash`` entry keeps the filter; the
+        ``PowerShell`` entry carries none, because a PowerShell filter must match
+        every subcommand of a compound command and would skip the guard silently
+        on a mixed line.
+        """
+        hooks_path = SCRIPT_DIR.parents[2] / "hooks" / "hooks.json"
+        config = json.loads(hooks_path.read_text(encoding="utf-8"))
+        by_matcher = {
+            entry.get("matcher"): hook
+            for entry in config["hooks"]["PreToolUse"]
+            for hook in entry.get("hooks", [])
+            if any("destructive_guard.py" in token for token in self._hook_argv(hook))
+        }
+        self.assertEqual({"Bash", "PowerShell"}, set(by_matcher))
+        self.assertTrue(by_matcher["Bash"].get("if", "").startswith("Bash("))
+        self.assertNotIn("if", by_matcher["PowerShell"])
 
     def test_engine_gate_hook_resolves_kill_switch_from_plugin_root_not_user_config(
         self,
@@ -7149,7 +7178,9 @@ class GuardTests(unittest.TestCase):
             for hook in entry.get("hooks", [])
             if any("destructive_guard.py" in token for token in self._hook_argv(hook))
         ]
-        self.assertEqual([guard._DECLARED_HOOK_TIMEOUT_SECONDS], declared)
+        # One registration per tool, both declaring the same timeout.
+        self.assertEqual(2, len(declared), declared)
+        self.assertEqual({guard._DECLARED_HOOK_TIMEOUT_SECONDS}, set(declared))
 
         skill_text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
         timeout_lines = [

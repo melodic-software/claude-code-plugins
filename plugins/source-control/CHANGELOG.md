@@ -3,6 +3,48 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.42]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.55.41]
+
+### Changed
+
+- **The Bash gates carry `if` filters, so they spawn only for the commands they judge.**
+  `pr-body-linkage-gate` runs under `Bash(*gh *)`, and `worktree-add-containment-gate`
+  and `worktree-add-claim-gate` under `Bash(*worktree*)`; each filter is a superset of
+  the gate's own first check (`gh` on the command line; `worktree` in the command), so
+  no command the gate would have judged is skipped. A plain `git status` no longer
+  costs three hook processes.
+- **The linkage gate's filter is `Bash(*gh *)`, not `Bash(gh *)`.** The `if` field
+  matches the command name, so the narrower form never launched the gate for a wrapped
+  call (`env GH_TOKEN=x gh pr create`, `sudo gh pr create`,
+  `bash -c "cd x && gh pr create"`). The leading wildcard covers those, at the cost of
+  one bash start on a non-`gh` line that happens to contain the text `gh` followed by a space, which the gate's own
+  regex pre-filter dismisses. A `gh` produced by a substitution is still judged only
+  because Claude Code runs the hook regardless when it cannot tell what a command
+  expands to.
+
+## [0.55.40]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
 ## [0.55.39]
 
 ### Changed

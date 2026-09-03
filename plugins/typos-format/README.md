@@ -89,6 +89,21 @@ The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while typo
 fixing still runs.
 
+### Hook budget accounting
+
+Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+this hook is always-on for every `Write`, `Edit` and `NotebookEdit`, so its cost on the path
+where `typos` finds nothing is the figure that counts. Measured on Windows 11 under Git Bash,
+twelve interleaved trials against an interleaved `bash -c :` floor (2026-09-02):
+
+| Event | Fires | Spawn-equivalents | What changed |
+| --- | --- | --- | --- |
+| PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
+
+The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.36 by the
+vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope), and the `typos` binary
+itself.
+
 ## Install
 
 ```shell
@@ -147,18 +162,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
@@ -194,6 +207,61 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Hook cost accounting
+
+This plugin's PostToolUse hook matches every `Write`, `Edit` and `NotebookEdit`,
+so its cost is paid on every file the agent touches and it owes the
+marketplace's [hook budget](../../docs/conventions/hook-budget/README.md) an
+honest figure.
+
+**Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
+interleaved trials, each preceded by a `bash -c :` spawn-floor run so the
+reported ratio absorbs machine load. The payload is a `PostToolUse` `Write`
+naming a clean scratch file inside a repository, so `typos` finds nothing and
+the hook takes the path that runs on nearly every edit. Windows 11 + Git Bash,
+2026-09-02.
+
+**Counting.** Both process columns come from a `bash -x` trace of that same
+invocation. An exec is a command in command position whose word resolves to a
+file rather than a builtin, function, alias or keyword. A fork is an increase in
+the trace's subshell-nesting depth, one per command substitution or subshell; it
+undercounts, because pipeline elements fork without changing the depth. Forks
+are reported beside execs because they are not free on this host: a command
+substitution measures about half the cost of a spawn, so twenty-nine of them are
+a large share of the run rather than a rounding error.
+
+**Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
+before run and **77 ms** for the after run, against the convention's reference
+host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
+comparable; the spawn-equivalent ratio is the figure that holds.
+
+| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes | forks |
+| --- | --- | --- | --- | --- |
+| Before (0.6.33) | 36.3 | ≈ 2,904 ms | 16 | 31 |
+| After (0.6.35) | 26.0 | ≈ 2,080 ms | 13 | 29 |
+
+**A clean edit costs ≈ 26.0 spawn-equivalents, ≈ 2,080 ms of reference-host
+work, down 28 percent.** Two `dirname` calls became parameter expansions, and
+the jq that copies `notebook_path` onto `file_path` now runs only for a payload
+that carries one, which no `Write` or `Edit` does.
+
+**Residual, and why it stays.** The dominant single cost is the `typos` binary's
+own startup, which is the point of the hook. On the measuring host it resolves
+through a WinGet Links shim, an indirection this hook cannot remove. Of the
+remaining twelve processes, eight to ten belong to the shared
+`hooks/hook-utils.sh`: payload validation, the `file_path` read and its
+project-membership scoping, and the repository-root lookup. That file is a
+registered byte-identical cross-plugin cluster, so changing it is a nine-plugin
+change and not this plugin's to make. Two `cygpath` calls resolve the
+repository-relative argument `typos` runs on, which the tool needs to apply the
+repository's own exclude rules.
+
+**No extension gate is possible here, and that is deliberate.** `typos` is
+language-agnostic, so the scan has no allowlist to short-circuit on: gating it
+by the write-mode allowlist would stop reporting typos in `Dockerfile`,
+`Makefile`, `.gitignore` and every extensionless file. That is a behaviour
+change, not a saving.
 
 ## License
 

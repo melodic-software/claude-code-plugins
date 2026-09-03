@@ -3,6 +3,14 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.3]
+
+### Changed
+
+- **`diagnose`:** drop the em dash from `argument-hint`. The hint is the
+  closed enum `[screenshots|failures|quirks]`; omit-for-guide stays in
+  the Arguments body (#3542).
+
 ## [0.1.2]
 
 ### Changed

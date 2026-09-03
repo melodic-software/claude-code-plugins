@@ -376,16 +376,21 @@ if [[ -f "$CTXDIR17/sess-42.json" ]]; then ok "prune pass still wrote the live s
 # Claude Code "cancels the in-flight script" when a new update arrives while
 # this one is still running, so a kill between the write and the rename is
 # routine rather than exceptional. Driven by an `mv` shim that parks, so the
-# signal lands inside the window deterministically.
+# signal lands inside the window deterministically. The shim announces that it
+# has parked by touching a marker, and the kill waits for that marker instead of
+# a fixed sleep; the park itself is short because bash defers a trap until the
+# foreground `mv` returns, so the shim's sleep is the floor on how long the
+# reclaim takes to run.
 HOME18="$WORK/home18"
 mkdir -p "$HOME18"
 SHIM18="$WORK/shim18"
 mkdir -p "$SHIM18"
-printf '#!/usr/bin/env bash\nsleep 10\n' >"$SHIM18/mv"
+printf '#!/usr/bin/env bash\n: >"%s/parked"\nsleep 2\n' "$SHIM18" >"$SHIM18/mv"
 chmod +x "$SHIM18/mv"
 printf '%s' "$(build_input)" | HOME="$HOME18" PATH="$SHIM18:$PATH" bash "$TEE" >/dev/null 2>&1 &
 TEE_PID=$!
-sleep 2
+tries=250
+while ((tries-- > 0)) && [[ ! -e "$SHIM18/parked" ]]; do sleep 0.02; done
 kill -TERM "$TEE_PID" 2>/dev/null
 wait "$TEE_PID" 2>/dev/null
 sleep 0.5

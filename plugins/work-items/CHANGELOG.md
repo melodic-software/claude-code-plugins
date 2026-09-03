@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.52]
+## [0.39.54]
 
 ### Changed
 
@@ -11,6 +11,25 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   history-narration fragment about the container-label default becomes a present-tense
   invariant (explicit remap wins; the shipped default stops excluding). No code changes;
   the dispatcher+lib layer needed nothing else after its recent simplify sweeps.
+
+## [0.39.53]
+
+### Changed
+
+- **`decompose` skill-listing entry tightened.** It was the marketplace's fourth largest listing
+  entry. The description now reads the source list as prose and drops repeated wording in the
+  re-decompose sentence while keeping every quoted trigger phrase and the sibling-skill
+  disambiguation. Claude Code truncates the combined `description` and `when_to_use` text at
+  1,536 characters in the skill listing, and the shared listing budget scales at 1% of the model's
+  context window, so every character an entry spends is a character another skill's description
+  cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.39.52]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
 
 ## [0.39.51]
 

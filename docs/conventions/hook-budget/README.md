@@ -36,6 +36,55 @@ three guardrails verifiers) ≈ 1.9 s. #1809's single-writer change removes per-
 repos without a markdownlint config; in an opted-in repo the per-Write set is unchanged (typos-format
 still scans in report-only mode), so these figures remain the binding accounting until re-measured.
 
+## Reference figures (2026-09-02, after the hook-performance program)
+
+The fleet's binding measurement is now the dotfiles fan-out harness
+(`common/measure-claude-hook-fanout.sh`, sha256
+`5a254b50a67a9e1b158ce9ff7bd3c7c53f7eade80e55a1b2f8c5075026067178`), which samples 22 events
+against the installed plugin cache, times each hook process in-process with `EPOCHREALTIME`, and
+interleaves a `bash -c :` spawn floor S with every sample. A run is valid at S at or below 160 ms;
+figures below are spawn-equivalents (hook wall divided by the same-run S), which is the number that
+survives a change of host, with the reference-host conversion at S = 80 ms beside it. Every hook
+stays `type: command` in its plugin's `hooks/hooks.json`; the program removed no check, added no
+`async` row, and narrowed no matcher. The eight guardrails per-Bash-call guards and the three
+per-Write verifier guards run through one dispatcher process per event; the six formatter plugins
+carry one `if: Edit(*.ext)` row per extension so a Write to any other file spawns nothing.
+
+| Surface (benign payload) | Before (`main` 2026-09-02 morning, S = 33 ms) | After (`main` at `5e3d749cb`, 2026-09-03, S = 18 ms, quiet host) | After at S = 80 ms |
+| --- | --- | --- | --- |
+| PreToolUse `Bash` (`git status --short`), slowest hook | 75.0 | 88.8 (1,599 ms) | about 7.1 s |
+| PreToolUse `Write` (in-repo `.md`), slowest hook | 23.4 | 75.6 (1,360 ms) | about 6.0 s |
+| PostToolUse `Write` (in-repo `.md`), slowest hook | 36.7 (out-of-repo sample; the in-repo pre-program figure is 13,225 ms, about 400 S) | 108.3 (1,949 ms) | about 8.7 s |
+| PreToolUse `Edit` (in-repo `.md`), slowest hook | 34.8 | 114.6 (2,062 ms) | about 9.2 s |
+| PostToolUse `Edit` (in-repo `.md`), slowest hook | 41.6 (out-of-repo sample; the in-repo pre-program figure is 17,192 ms, about 520 S) | 169.3 (3,048 ms) | about 13.5 s |
+| PostToolBatch (per turn) | 38.0 | 15.7 (282 ms) | about 1.3 s |
+| UserPromptSubmit (per turn) | 29.5 | 16.5 (297 ms) | about 1.3 s |
+| Stop, slowest of four (per turn) | 11.4 | 22.8 (410 ms) | about 1.8 s |
+| SessionStart `startup`, slowest | 2.7 | 3.3 (60 ms) | about 0.26 s |
+
+The budget table above sums PreToolUse and PostToolUse for one tool call and says the Windows
+reference-host figures are binding, so the reading is: **no per-tool-call surface meets the
+budget, and on the reference host no per-turn surface does either.** On the measuring host at
+S = 18 ms an in-repo Markdown Write costs 1,360 plus 1,949 = 3,309 ms and an in-repo Edit 2,062
+plus 3,048 = 5,110 ms, both above the 2 s worst case; a benign Bash call costs 1,599 ms (no
+PostToolUse hook fires), above the 1 s typical ceiling and inside the worst case. Scaled to the
+80 ms reference host those pairs are about 14.7 s and 22.7 s, and the per-turn rows land at 1.3 to
+1.8 s against 500 ms. What the program changed is the size of the overage: in the pre-program shape
+the in-repo Write pair was 773 plus 13,225 = 14.0 s and the Edit pair 1,147 plus 17,192 = 18.3 s
+on the same host, and PostToolBatch and UserPromptSubmit were 1,254 and 975 ms per turn. The
+"after" spawn-equivalents read higher than "before" on the Write and Edit rows because the before
+run's samples lived outside the repository, so every Write and verifier guard early-exited and
+measured a no-op; the harness now writes its samples under the measured cwd. The remaining
+per-tool-call cost is the guardrails dispatcher, 1,360 to 3,048 ms per fire on this host across
+the Write, Edit and Bash rows (eight guards per Bash call and three per Write or Edit, each still
+sourcing the library and building its telemetry data), followed by markdown-format's
+`markdownlint-cli2` Node process; rule 2 stands, and that overage is the guardrails plugin's
+remediation work, named in its README. Per-plugin READMEs carry
+the paired before-and-after figures for each change (guardrails, context-guard,
+rate-limit-guard, typos-format, eol-normalizer, markdown-format). The run's transcript, the
+installed versions and shas, the per-file cache compare and every `hooks.json` entry measured are
+recorded in the hook-performance program's DEVIATIONS log.
+
 ## Rules
 
 1. **A plugin adding or widening an always-on hook states its measured share** (method above) in
