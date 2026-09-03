@@ -3,6 +3,27 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.10]
+
+### Changed
+
+- **`hook-failure-audit.sh` reads its three class flags from one `jq` process
+  instead of three.** `HAS_LAUNCH`, `HAS_AMBIGUOUS` and `HAS_COMPLETED` came from
+  three separate invocations over the same document; they now arrive as one
+  TSV line through a single `read`. A `jq` spawn costs roughly 140 ms of `fork()`
+  emulation on Windows Git Bash and this is an always-on Stop hook, so the two
+  saved spawns are on a hot path. Measured with `strace`: three clone/execve
+  pairs before, one after. Verified equivalent over 23 payloads including zeros,
+  missing keys, nulls, very large and non-integer values, string-typed counts,
+  strings containing tab, newline, CR and backslash, and four malformed-document
+  shapes; all agree, including every error path.
+- **Three audit hooks trade history narration for present-tense rationale.**
+  `tool-failure-audit.sh`, `permission-denied-audit.sh` and
+  `instructions-loaded-audit.sh` each described how their current single-`jq`
+  read differs from a two-`jq` shape that no longer exists. The rewrite also
+  corrects a factual error: the old text claimed an unparsable payload yields
+  rc 1, where the helper actually returns rc 2.
+
 ## [0.41.9]
 
 ### Changed

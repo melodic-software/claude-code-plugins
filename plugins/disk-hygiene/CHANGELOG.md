@@ -3,6 +3,27 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.5]
+
+### Changed
+
+- **Test-harness tidyings from the repo-wide sweep.** The launcher's contract
+  suite drops a fake-interpreter stub that was written and made executable but
+  referenced nowhere, and folds its two remaining stub writes into the loop form
+  the same file already uses; its engine-read contract block trades history
+  narration for present-tense rationale, keeping both halves. The guard's
+  `main()` loses a comment paragraph that narrated the comment's own two earlier
+  revisions, with every mechanism fact it carried still stated in the paragraphs
+  either side of it. One test flattens a dict lookup fed by a nested conditional
+  key into a plain `if`/`elif`/`else`.
+  No allow/deny list, scope check, dry-run gate, delete-safety predicate,
+  symlink handling or kill-switch path was touched, and the cleanup engine and
+  hook shim are not in the diff at all. The guard change is proven inert at the
+  compiler level: identical AST and all 91 code objects equal across bytecode,
+  constants, names and flags. The platform rewrite was checked over 211,111
+  inputs with zero mismatches. Suites: 338, 3, 23 and 166 Python tests plus the
+  three shell suites, all green.
+
 ## [0.21.4]
 
 ### Changed
