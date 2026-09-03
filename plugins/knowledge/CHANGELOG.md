@@ -6,6 +6,17 @@ only after that version increases.
 
 ## [0.13.40]
 
+### Fixed
+
+- **`fetch-deck-attachments.js` no longer emits doubled newlines.** Three calls
+  passed an explicit `\n` to the shared stderr/stdout helpers, which already
+  append one, so the usage message, the result JSON and the error line each ended
+  with a stray blank line. Exactly one trailing byte is removed per emission;
+  the JSON payload is byte-identical and output still ends in a single newline.
+  All three sites are terminal (each is immediately followed by process exit or
+  the end of the promise chain), so nothing runs together, and no consumer of
+  either CLI exists in the repo.
+
 ### Changed
 
 - **Video-digest acquisition, adapter, transcript and watch tidyings from the
