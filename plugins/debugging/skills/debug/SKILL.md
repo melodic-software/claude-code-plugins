@@ -1,9 +1,8 @@
 ---
-description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesise → instrument → fix + regression test → cleanup. Use when: 'diagnose this', 'debug this', 'why is X broken', 'X is throwing', 'something is wrong with', 'investigate this bug', 'performance regression', 'this is slow', 'intermittent failure', broken behavior in UI / logs / production / screenshot, flaky test traced to root cause. Any OBSERVED FAILURE without a pre-existing reproduction. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
+description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesise → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('diagnose this', 'debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
 argument-hint: "[bug description or observation] (e.g., /debugging:debug checkout times out for orders over $1k)"
 user-invocable: true
 disable-model-invocation: false
-shell: bash
 metadata:
   workflow-stage: implement
   summary: Diagnose broken behavior. Reproduce, hypothesise, instrument, fix with regression test
@@ -53,16 +52,9 @@ For any diagnostic run (Phases 1-6), track phase completion. A ready-to-fill che
 
 ## Phase 1: Build a tight feedback loop
 
-Before loop construction begins, run a short pre-investigation discipline pass. If a behavioral-guidelines capability is available (e.g. the `andrej-karpathy-skills:karpathy-guidelines` skill from the `karpathy-skills` marketplace), invoke it. It primes four rules (think-before-code, simplicity-first, surgical-changes, goal-driven-execution) ahead of hypothesis formation. If it is not installed, degrade gracefully and apply the same discipline directly:
+Before you build the loop, state what you are taking for granted about the failure, so the assumptions are on record before Phase 3 ranks hypotheses against them.
 
-- **Surface assumptions before you rank**. State what you are taking for granted about the failure before Phase 3.
-- **Simplest explanation first**. Do not reach for an exotic cause while a mundane one is untested.
-- **Keep changes surgical**. Instrument and fix at the narrowest seam that reaches the bug.
-- **Frame the goal as a verifiable signal**. Phase 1's success criterion is literally "a fast, deterministic, agent-runnable pass/fail signal exists."
-
-**This is the skill.** Everything else is mechanical. The **tight loop**, a fast, deterministic, agent-runnable pass/fail signal, is the load-bearing artifact. If that signal exists, the cause will be found. Without one, no amount of staring at code will save you.
-
-Spend disproportionate effort here. Be aggressive. Be creative. Refuse to give up.
+Put the effort of this skill here rather than in the later phases. Once a fast, deterministic, agent-runnable pass/fail signal exists, the cause follows.
 
 ### Construction strategies: try in roughly this order
 
@@ -97,7 +89,7 @@ The goal is not a clean repro but a **higher reproduction rate**. Loop the trigg
 
 ### When you genuinely cannot build a loop
 
-Stop and say so explicitly. List what was tried. Ask the user for: (a) access to whatever environment reproduces it, (b) a redacted captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation. Do **not** proceed to hypothesise without a loop.
+Stop and say so explicitly. List what was tried. Ask the user for: (a) access to whatever environment reproduces it, (b) a redacted captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation.
 
 **Do not proceed to Phase 2 until you have a loop you believe in.**
 
@@ -123,7 +115,7 @@ Each hypothesis must be **falsifiable**. State the prediction it makes:
 
 If you cannot state the prediction, the hypothesis is a vibe. Discard or sharpen it.
 
-Ground the ranking in real repo state (survey the landscape before you rank): recent commits in the affected area, open issues, architecture decision records, banned-symbol entries, known-issue / quirks notes. A hypothesis that contradicts a documented constraint should rank low; one that matches a recent change should rank high. Anchor hypotheses against the **nearest** context files. Walk up from the affected file to the repository root and read the closest `CLAUDE.md` / `AGENTS.md` / ubiquitous-language / ADRs in that module, so hypotheses reference real constraints rather than blind speculation.
+Ground the ranking in real repo state before you rank: recent commits in the affected area, open issues, architecture decision records, banned-symbol entries, known-issue or quirks notes, and the project instruction files and ADRs nearest the affected file. A hypothesis that contradicts a documented constraint ranks low; one that matches a recent change ranks high.
 
 **Show the ranked list to the user before testing.** They often have domain knowledge that re-ranks instantly ("we just deployed a change that touches #3"), or know hypotheses they have already ruled out. Cheap checkpoint, big time saver. Do not block on it. Proceed with your ranking if the user is AFK.
 
@@ -145,8 +137,6 @@ Per-ecosystem logging API (idiomatic structured-logger choice for ad-hoc debug i
 
 **Cold-vs-warm + contention.** A single timing datapoint taken right after filesystem churn (freshly-created fixtures, a just-cloned repo) or while the box is under load (leaked process trees, a parallel build, antivirus scanning) is cold-cache- and contention-inflated, often by multiples. Before calling a perf number reproducible: re-measure warm, on a quiet box, best-of-N (or worst-of-N for a regression ceiling). A number that drops several-fold on the second clean run was measuring contention, not the code path. Never trust one datapoint after churn.
 
-**Discovery / glob cost.** When the slow path is *discovery* itself, meaning a tree walk, `glob`/dotglob expansion, or recursive find, check whether it descends into large vendored or build-output subtrees (dependency caches, VCS internals, compiled output) before excluding them. That is O(tree size), not O(matches). Prefer index-based enumeration (e.g. the VCS's own tracked-file listing) or prune-first traversal that never enters the excluded subtrees. A discovery step walking a multi-GB tree to find a handful of files is the regression.
-
 ## Phase 5: Fix + regression test
 
 Write the regression test **before the fix**, but only if there is a **correct seam** for it.
@@ -166,7 +156,7 @@ If a correct seam exists:
 4. Watch the test pass
 5. Re-run the **Phase 1 feedback loop** against the original (un-minimised) scenario. The test passing is necessary but not sufficient
 
-Resist refactoring during the fix. The Boy Scout Rule applies to files touched, but keep behavioural changes focused. If the fix reveals a design problem, note it for a separate refactor commit (or the Phase 6 architectural recommendation).
+Keep the fix diff focused on the root cause. Leave surrounding cleanup out of this change, even in files you touched. If the fix reveals a design problem, note it for a separate refactor commit or the Phase 6 architectural recommendation.
 
 ## Phase 6: Cleanup + post-mortem
 
