@@ -3,6 +3,33 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.10]
+
+### Fixed
+
+- **The elevation banner's rerun command now uses a PowerShell backtick continuation.**
+  `Write-ElevationBanner.ps1` emitted a bash-only backslash line continuation in the
+  command it tells the user to paste into an elevated pwsh session; no environment
+  existed where that worked. Now matches the file's own docstring spec and
+  `references/windows/elevation-matrix.md`.
+
+### Changed
+
+- **`Invoke-AllowlistedWeb.ps1`** drops the no-op `UseBasicParsing` splat entry and a
+  dead `$parsed` initialization, and its copy-not-reference test gains
+  mutation-verified assertions (a reference-returning regression now fails the suite).
+
+- **Audit lib tidyings from the repo-wide sweep.** `Get-CisaKevCache.ps1` drops the
+  `UseBasicParsing` switch from its web-request splat (a documented no-op on the
+  PowerShell 7.4 floor the file requires); `Get-GpuDriverInfo.Tests.ps1` normalizes
+  two comment em dashes to the tree's double-hyphen form. Linux-runnable Pester
+  suites green before and after under the pinned Pester 5.
+- **Checks tidyings (third wave).** `Test-EnvironmentHealth.ps1` removes a dead
+  `$others` list (built, never read; suite 14/14); eight history-narration comment
+  blocks across four checks and four suites rewritten to present-tense rationale;
+  two detail-hashtable realignments; one stale It description corrected to match its
+  assertion. Before/after Pester result sets byte-identical on this host.
+
 ## [0.12.9]
 
 ### Changed

@@ -146,8 +146,7 @@ Describe 'Test-Drivers -- IsSigned=false is no longer a WARN trigger' -Tag 'chec
 
     It 'does not flag WMI IsSigned=false as a finding' {
         $result = Invoke-DriversAsObject
-        # Previous rubric: this was WARN because IsSigned=false count > 0.
-        # New rubric: IsSigned is noise -- SignerName from pnputil is the
+        # WMI IsSigned is noise -- SignerName from pnputil is the
         # authoritative signal.
         $result.severity | Should -Be 'OK'
     }

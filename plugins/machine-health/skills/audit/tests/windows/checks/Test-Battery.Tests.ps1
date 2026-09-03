@@ -157,7 +157,7 @@ Describe 'Test-Battery -- locale robustness' -Tag 'check' {
 }
 
 Describe 'Test-Battery -- failure modes' -Tag 'check' {
-    It 'reports INFO with note when ReportPath is missing' {
+    It 'reports OK with note when ReportPath is missing' {
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Battery' } -MockWith {
             @(New-MockBattery)
         }

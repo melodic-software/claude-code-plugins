@@ -324,7 +324,6 @@ fi
 
 # --- 8. Present and structured, but the table names nothing. ----------------
 reset_fixture
-write_registry
 # Drop the one unrelated row's section so the Implementers table is genuinely
 # empty rather than merely narrow.
 mkdir -p "$TMP/docs/conventions/config-cascade"

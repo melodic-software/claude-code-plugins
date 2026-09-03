@@ -60,7 +60,8 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
+    # Two expressions, not GNU's `\?`: BSD sed has no optional-quantifier escape.
+    sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed -e 's/^# //' -e 's/^#//'
     exit 0
     ;;
   *)

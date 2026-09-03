@@ -196,11 +196,11 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "",
         "### Upstream documentation",
         "",
-        # Anchors re-verified 2026-08-22. Two of the four previously pointed at bare
-        # backward-compatibility `<span id=…>` stubs on the settings page: `#plugin-settings`
-        # and `#configuration-scopes` both still exist as ids, so lychee's fragment check
-        # passed them, but a reader following either landed on blank space — the content had
-        # moved to the headings below. A link CI accepts is not the same as a link that works.
+        # The settings page keeps bare backward-compatibility `<span id=…>` stubs
+        # (`#plugin-settings`, `#configuration-scopes`): lychee's fragment check passes a
+        # link to a stub id, but a reader following it lands on blank space, so these
+        # anchors must target the live headings. A link CI accepts is not the same as a
+        # link that works.
         "- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) — the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export",
         "- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install) — the `--config` flag's reference entry",
         "- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills) — `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`",

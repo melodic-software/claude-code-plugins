@@ -93,7 +93,7 @@ plugin_root_of() {
 consumed() {
   local fixture="$1"
   local fixtures_dir evals_dir skill_dir evals_json rel base plugin plugin_rel files_values
-  local esc_base base_re
+  local esc_base base_re test_file
 
   fixtures_dir="${fixture%/*}"
   # walk up to the nearest 'fixtures' segment (fixtures may nest a subdir)

@@ -142,19 +142,7 @@ export function deriveSemanticNameFromGapNote(gapNote, reserved = new Set()) {
  * @returns {boolean}
  */
 export function isStubQualityAuditNote(note) {
-  const trimmed = note.trim().toLowerCase();
-  if (trimmed.length < 20) {
-    return true;
-  }
-  const stubTokens = new Set([
-    "audit",
-    "ok",
-    "pass",
-    "yes",
-    "good",
-    "reviewed",
-    "fine",
-    "looks good",
-  ]);
-  return stubTokens.has(trimmed);
+  // Every known stub token ("ok", "pass", "reviewed", "looks good", ...) is
+  // shorter than 20 chars, so the length floor subsumes a token check.
+  return note.trim().toLowerCase().length < 20;
 }

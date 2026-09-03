@@ -176,9 +176,8 @@ Describe 'Test-Services -- delayed auto-start' -Tag 'check' {
         Mock Test-ServiceTriggerStart { $false }
 
         $result = Invoke-ServicesAsObject
-        # Previous design collapsed the whole severity to INFO when uptime
-        # was low and any DelayedAutoStart was present; the plain-Auto
-        # Spooler should still WARN.
+        # The low-uptime DelayedAutoStart downgrade must not collapse the
+        # whole severity to INFO; the plain-Auto Spooler still WARNs.
         $result.severity | Should -Be 'WARN'
     }
 }
@@ -198,11 +197,10 @@ Describe 'Test-Services -- failure modes' -Tag 'check' {
     }
 
     It 'emits UNKNOWN when Get-Service returns zero entries (catastrophic SCM/RPC failure)' {
-        # Pins the contract added in fix(machine-health): surface
-        # catastrophic Get-Service failure as UNKNOWN. A healthy SCM
-        # always exposes hundreds of services; a zero-result return
-        # is itself an UNKNOWN signal. If someone later reverts the
-        # count-zero check to bare SilentlyContinue, this test fires.
+        # A healthy SCM always exposes hundreds of services; a
+        # zero-result return is itself an UNKNOWN signal. If the
+        # count-zero check reverts to bare SilentlyContinue, this
+        # test fires.
         Set-UptimeMock -Minutes 120
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith { @() }
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }

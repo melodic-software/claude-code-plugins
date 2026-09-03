@@ -176,7 +176,7 @@ async function main() {
   const uniquePdfs = [...new Map(allPdfs.map((p) => [p.href, p])).values()];
   const uniqueArticles = [...new Map(allArticles.map((a) => [a.href, a])).values()];
 
-  log.info(`\nResources found:`);
+  log.info("\nResources found:");
   log.info(`  Downloads: ${uniqueDownloads.length} unique files`);
   log.info(`  PDFs: ${uniquePdfs.length} unique files`);
   log.info(`  Articles: ${uniqueArticles.length} unique links (saved as references)`);
@@ -215,12 +215,12 @@ async function main() {
   writeFileSync(articlesPath, JSON.stringify(uniqueArticles, null, 2), "utf-8");
 
   const mb = (totalBytes / 1024 / 1024).toFixed(1);
-  log.info(`\n========================================`);
+  log.info("\n========================================");
   log.info(`Downloaded: ${success} files (${mb} MB)`);
   log.info(`Skipped (exist): ${skipped}`);
   log.info(`Failed: ${failed}`);
   log.info(`Articles saved: ${uniqueArticles.length} references`);
-  log.info(`\nOutput:`);
+  log.info("\nOutput:");
   log.info(`  ${downloadsDir}`);
   log.info(`  ${slidesDir}`);
   log.info(`  ${resourcesDir}`);

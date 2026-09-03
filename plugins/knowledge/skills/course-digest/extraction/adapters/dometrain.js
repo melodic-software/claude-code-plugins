@@ -198,10 +198,10 @@ export function deriveLandingUrl(courseUrl, platformCfg) {
   if (!landingPattern.includes(" -> ")) return courseUrl;
 
   const [from, to] = landingPattern.split(" -> ");
-  let url = courseUrl.replace(from, to);
-  url = url.replace(TRAILING_LESSON_SLUG, "/");
-  url = url.replace(TRAILING_COURSE_ID_SUFFIX, "/");
-  return url;
+  return courseUrl
+    .replace(from, to)
+    .replace(TRAILING_LESSON_SLUG, "/")
+    .replace(TRAILING_COURSE_ID_SUFFIX, "/");
 }
 
 /**
@@ -321,8 +321,8 @@ export async function extractMetadata(page, courseUrl, platformCfg) {
 
 /**
  * Authenticate with Dometrain via Clerk login flow.
+ * @param {import('./auth-session.js').AuthSessionInput} input
  */
-/** @param {import('./auth-session.js').AuthSessionInput} input */
 export async function authenticate({ context, page, course, storageStatePath, platformCfg }) {
   const baseUrl = courseBaseUrl(course.url);
   const firstLesson = course.modules[0].lessons[0];

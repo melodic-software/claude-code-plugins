@@ -71,7 +71,6 @@ function Invoke-AllowlistedWeb {
         [hashtable] $Headers
     )
 
-    $parsed = $null
     try {
         $parsed = [System.Uri]$Uri
     } catch {
@@ -89,10 +88,9 @@ function Invoke-AllowlistedWeb {
     Write-EgressLogLine -LogPath $LogPath -Kind 'GET' -Uri $Uri
 
     $webParams = @{
-        Uri             = $Uri
-        UseBasicParsing = $true
-        TimeoutSec      = $TimeoutSec
-        ErrorAction     = 'Stop'
+        Uri         = $Uri
+        TimeoutSec  = $TimeoutSec
+        ErrorAction = 'Stop'
     }
     if ($OutFile) { $webParams['OutFile'] = $OutFile }
     if ($Headers) { $webParams['Headers'] = $Headers }

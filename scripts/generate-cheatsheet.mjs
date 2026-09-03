@@ -309,5 +309,7 @@ if (existing === block) {
   console.log("Cheat sheet already in sync; output unchanged.");
   process.exit(0);
 }
-writeFileSync(OUTPUT_PATH, sheet.replace(existing, block));
+// Function replacer: a string replacement would reinterpret `$`-sequences
+// (`$&`, `$'`, ...) inside the generated block.
+writeFileSync(OUTPUT_PATH, sheet.replace(existing, () => block));
 console.log(`Cheat sheet regenerated (${mapped.length} skills).`);

@@ -30,10 +30,10 @@ $commands = @(
     'winget upgrade --include-unknown --accept-source-agreements  # fallback'
 )
 
-# KEV correlation is ID-based, not display-name-based. The previous substring
-# match on display names produced 170 false positives ("Windows Subsystem for
-# Linux" / id Microsoft.WSL was flagged against every Microsoft/Windows CVE
-# because the name contained "Windows"). The winget Id is already a structured
+# KEV correlation is ID-based, not display-name-based. A substring match on
+# display names floods the result with false positives ("Windows Subsystem
+# for Linux" / id Microsoft.WSL matches every Microsoft/Windows CVE because
+# the name contains "Windows"). The winget Id is already a structured
 # "<vendor>.<product>" token assigned by the package manifest author, so
 # matching on Id is both precise and cheap.
 

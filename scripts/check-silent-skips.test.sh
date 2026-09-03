@@ -21,14 +21,12 @@ new_fixture() {
   printf '%s' "$dir"
 }
 
-# hook_file <fixture> <plugin> <basename> <content>
 hook_file() {
   local fixture="$1" plugin="$2" name="$3" content="$4"
   mkdir -p "$fixture/plugins/$plugin/hooks"
   printf '%s\n' "$content" >"$fixture/plugins/$plugin/hooks/$name"
 }
 
-# script_test_file <fixture> <basename> <content>
 script_test_file() {
   local fixture="$1" name="$2" content="$3"
   mkdir -p "$fixture/scripts"

@@ -51,6 +51,7 @@ if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; t
 else
   fail "single git precompute should exit 0: $out"
 fi
+rm -rf "$f"
 
 # --- two precompute lines without git passes ---------------------------------
 f="$(new_fixture)"
@@ -64,6 +65,7 @@ if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; t
 else
   fail "two non-git lines should exit 0: $out"
 fi
+rm -rf "$f"
 
 # --- two precompute lines with git warns by default --------------------------
 f="$(new_fixture)"
@@ -77,6 +79,7 @@ if out="$(run_check "$f" --paths "plugins/demo/skills/sample/SKILL.md" 2>&1)"; t
 else
   fail "default mode should exit 0 on violation: $out"
 fi
+rm -rf "$f"
 
 # --- strict mode fails -------------------------------------------------------
 f="$(new_fixture)"
@@ -90,6 +93,7 @@ else
     fail "strict mode message missing: $out"
   fi
 fi
+rm -rf "$f"
 
 # --- no precompute section passes --------------------------------------------
 f="$(new_fixture)"

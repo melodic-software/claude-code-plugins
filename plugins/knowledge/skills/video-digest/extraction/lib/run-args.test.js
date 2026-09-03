@@ -49,7 +49,6 @@ describe("parseRunArgs", () => {
   });
 
   it("only honors flags in the leading position", () => {
-    // A flag after the script is a script argument, not a launcher flag.
     const parsed = parseRunArgs(["watch/queue-claim.js", "--work-root", "list"]);
     expect(parsed.workRoot).toBeUndefined();
     expect(parsed.script).toBe("watch/queue-claim.js");

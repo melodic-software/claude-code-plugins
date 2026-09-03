@@ -59,8 +59,8 @@ Describe 'Test-WindowsUpdate -- PFRO value-array regression' -Tag 'check' {
         Mock Get-HotFix { @() }
         Mock Test-Path { $false }
         # The key scenario: the registry property exists (so $null -ne $pfro),
-        # but its value-array is empty. The previous code flagged this as
-        # reboot_pending=true, which fired on most healthy machines.
+        # but its value-array is empty. A presence-only test flags this as
+        # reboot_pending=true on most healthy machines.
         Mock Get-ItemProperty -ParameterFilter { $Name -eq 'PendingFileRenameOperations' } -MockWith {
             [pscustomobject]@{ PendingFileRenameOperations = @() }
         }

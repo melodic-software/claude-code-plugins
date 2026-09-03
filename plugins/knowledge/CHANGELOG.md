@@ -4,6 +4,30 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.39]
+
+### Changed
+
+- **Course-digest pipeline and adapter tidyings (third wave).**
+  `extract-course-run.js` collapses a double-negative boolean pair via De Morgan;
+  `utils.js` drops a dead export; `extract-course.js` documents the existing
+  `--show-browser` flag; six non-interpolated template literals become plain strings;
+  `adapters/dometrain.js` chains its landing-URL replacements and both adapters merge
+  double-JSDoc blocks. Full extraction package 91/91 and tsc clean before and after.
+- **Course-digest extraction lib tidyings (second wave).** `players/hotmart.js` drops
+  two provably dead guards in `getTranscript` (the vendor manifest parser returns only
+  dense arrays of non-empty strings), a redundant boolean annotation, and hoists a
+  batch-size constant; `browser.js` and `auth-store.js` headers rewritten from history
+  narration to present-tense rationale. Vitest 41/41 and full package 91/91 before and
+  after.
+- **Video-digest extraction lib tidyings from the repo-wide sweep.**
+  `synthesis-filename.js` removes a provably dead stub-token set in
+  `isStubQualityAuditNote` (every token sat under the function's 20-character
+  early-return floor); `work-root.js` rewrites a history-narration JSDoc line to
+  present tense; `watch-slice-sessions.js` reduces a block-bodied map callback to a
+  concise arrow; one restating comment dropped from `run-args.test.js`. Vitest lib
+  suites 50/50 and the whole extraction package 501/501 before and after.
+
 ## [0.13.38]
 
 ### Changed

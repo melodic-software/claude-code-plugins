@@ -22,6 +22,7 @@ import {
 
 const VIDEO_ID_PREFIX = /^(\w+)-\d+-/;
 const PNG_DATA_URL_PREFIX = /^data:image\/png;base64,/;
+const SUBTITLE_BATCH_SIZE = 15;
 const HLS_FIELDS = [
   "masterUrl",
   "masterUrlFull",
@@ -38,7 +39,6 @@ const HLS_FIELDS = [
 /** @type {Map<string, { hlsMasterUrl: string|null, subtitleManifestBody: string|null }>} */
 const capturedData = new Map();
 
-/** @type {boolean} */
 let interceptorsInstalled = false;
 
 function getOrCreateEntry(pageUrl) {
@@ -52,8 +52,6 @@ function getOrCreateEntry(pageUrl) {
 function findHotmartFrame(page) {
   return page.frames().find((f) => f.url().includes("player.hotmart.com"));
 }
-
-const SUBTITLE_BATCH_SIZE = 15;
 
 async function fetchSubtitleBatch(hotmartFrame, batch) {
   return hotmartFrame.evaluate(async (urls) => {
@@ -447,7 +445,7 @@ export async function getTranscript(page) {
     throw new Error("Subtitle manifest contained no WebVTT segment URLs.");
   }
 
-  const firstSeg = segmentUrls[0] ?? "";
+  const firstSeg = segmentUrls[0];
   const segmentsAreAbsolute = firstSeg.startsWith("http");
 
   let hlsBase = null;
@@ -476,9 +474,7 @@ export async function getTranscript(page) {
   writeStdout(
     `    Segments: ${segmentUrls.length}, absolute: ${segmentsAreAbsolute}, hlsBase: ${hlsBase ? "derived" : "none"}`,
   );
-  if (absoluteUrls.length > 0) {
-    writeStdout(`    First URL (truncated): ${absoluteUrls[0].substring(0, 100)}...`);
-  }
+  writeStdout(`    First URL (truncated): ${absoluteUrls[0].substring(0, 100)}...`);
 
   const { segmentBodies, fetchFailed } = await fetchSubtitleSegmentBatches(
     hotmartFrame,

@@ -238,7 +238,7 @@ audit_marketplace() {
   # Build a {name: bool} lookup of local enabledPlugins values keyed by plugin
   # name (without @marketplace suffix) so orphan records carry their setting.
   local pairs_obj
-  pairs_obj=$(jq -R 'split(" ") | {(.[0]): (.[1] == "true")}' <<<"$local_pairs" | jq -s 'add // {}')
+  pairs_obj=$(jq -nR '[inputs | select(. != "") | split(" ") | {(.[0]): (.[1] == "true")}] | add // {}' <<<"$local_pairs")
 
   orphans_json=$(jq -nR --arg k "$market_key" --argjson pairs "$pairs_obj" \
     '[inputs | select(. != "")] | map({name: ., marketplace: $k, enabled: ($pairs[.] // false)})' \
