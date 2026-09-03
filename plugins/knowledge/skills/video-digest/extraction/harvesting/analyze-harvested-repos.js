@@ -89,9 +89,7 @@ export async function analyzeHarvestedRepos(
 
   /** @type {HarvestedRepoAnalysis[]} */
   const analyses = [];
-  const tempRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), "youtube-repo-analysis-"),
-  );
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "video-repo-analysis-"));
 
   try {
     for (const url of githubUrls) {
@@ -120,17 +118,9 @@ export async function analyzeHarvestedRepos(
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 
-  const outputPath = lanePath(
-    sliceDir,
-    LANES.source,
-    "harvested-repo-analysis.json",
-  );
+  const outputPath = lanePath(sliceDir, LANES.source, "harvested-repo-analysis.json");
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(
-    outputPath,
-    `${JSON.stringify(analyses, null, 2)}\n`,
-    "utf8",
-  );
+  await fs.writeFile(outputPath, `${JSON.stringify(analyses, null, 2)}\n`, "utf8");
 
   return analyses;
 }
