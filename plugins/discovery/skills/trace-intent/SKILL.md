@@ -115,10 +115,10 @@ ladder. Only the tier decides which section a claim lands in.
 implementation tells you what was built, almost never why. Code-shape inference does not get a low
 tier. It leaves the scale entirely and is recorded as a gap.
 
-This is a deliberate departure from the upstream skill this one is reauthored from, which permits
-labelled code-shape inference at `Inferred`. The reason is operational rather than epistemic: code
-is always present and costs nothing to consult, so a weak-but-admissible rung for it gets filled
-exactly when the real record is thin, which is exactly when a reader most needs to be told so.
+Code-shape inference is excluded from the scale rather than admitted at a low tier, and the reason
+is operational rather than epistemic: code is always present and costs nothing to consult, so a
+weak-but-admissible rung for it gets filled exactly when the real record is thin, which is exactly
+when a reader most needs to be told so.
 
 **Version-control behaviour is not code shape.** Change coupling, churn and hotspot data are evidence
 the code alone cannot give you, and they are admissible, but they locate rather than explain: they

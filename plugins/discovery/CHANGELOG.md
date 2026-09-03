@@ -1,5 +1,33 @@
 # Changelog — discovery plugin
 
+## [0.19.4]
+
+### Changed
+
+- **research:** the disciplines heading, the phase headings and the outcome gate state each rule at
+  normal volume instead of in capitals; the Purpose drops the thoroughness booster; the duplicate
+  "no shortcuts for small tasks" principle and the `allowed-tools` maintainer note are gone. The
+  discipline and gotchas spokes lose their "Mandate:" restatements and the model-trait sentences.
+- **explore:** the Purpose states what the six dimensions and the outcome gate already define rather
+  than pushing for more reading; the ecosystem reference reads the covered set off the resolved seam
+  instead of naming another plugin's ecosystems; the dispatch reference states the payload failure it
+  catches in the present tense and drops the timing anecdote and the `allowed-tools` note.
+- **research-deep:** tier selection reads off the tier table rather than defaulting to the heaviest
+  tier, and the nesting-default history becomes the session's nesting allowance.
+- **trace-intent:** the code-shape exclusion states its own reason without the upstream comparison,
+  and the artifact-shape and evidence-category files drop the maintainer decision records. The
+  removed note said an unwired extension seam should be deleted by the next audit that finds it
+  unused; that expectation is recorded here rather than in the skill body.
+- **setup:** the maintainer HTML comment is gone, the spawn-depth windows lose the history
+  narration, the deferred GitBook backend is stated once with a pointer instead of twice, and both
+  artifact-landing lists name `/discovery:trace-intent`.
+- **agents (explorer, researcher, intent-tracer):** the inherited tool pool is described rather than
+  enumerated, the nesting-default history and the sibling-configuration paragraphs are gone, the
+  refused-`Write` rule carries its own reason instead of an observation, and the explorer's return
+  summary takes qualitative length guidance instead of a sentence count.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.19.3]
 
 ### Fixed

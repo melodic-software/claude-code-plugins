@@ -14,9 +14,9 @@ This file does not restate it.
 
 ## Why the gate reads the slice path, not the payload
 
-The failure this gate was built from is a real one: a dispatched `explorer` returned
-`status: complete` carrying a mid-stream narration line as its whole payload — no `preload_token`,
-no summary, no artifact path — and the parent proceeded as though exploration had finished.
+A dispatched `explorer` can return `status: complete` with a mid-stream narration line as its whole
+payload: no `preload_token`, no summary, no artifact path. A parent that believes the status field
+proceeds as though exploration had finished.
 
 A check that resolves its input from `artifact:` cannot see that failure, because the payload it
 would read the path from is the thing that is broken. The parent already holds the answer: it
@@ -102,8 +102,8 @@ helps: a resume asks a worker
 to redo the one thing it just proved it cannot do, and a re-dispatch pays for the whole exploration
 again to reproduce the same refusal at full cost.
 
-So the parent does the writing, which it can — this is the checkout-not-process boundary
-`reference/topic-docs.md` already draws, finally reachable from the failure that needs it:
+So the parent does the writing, which it can: this is the checkout-not-process boundary
+`reference/topic-docs.md` draws:
 
 1. **Check every filename before writing anything.** The payload carries the index and every sidecar
    as verbatim bodies, each introduced by a filename — and this is the only place in the contract
@@ -154,9 +154,7 @@ once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
 ("Resume first, then decide about the slice").
 
-**Bound the wait either way.** The consuming session whose report produced this gate spent roughly
-eight minutes discovering the resume path by trial. That cost is why the ladder is written down.
-`status: truncated` is not a special case — it takes the same ladder.
+**Bound the wait either way.** `status: truncated` is not a special case: it takes the same ladder.
 
 **Why exit 1 alone is not enough to pick a rung.** The script emits the same exit 1 and the same
 message whether the agent never launched or finished perfectly and could not write — correctly, as
