@@ -810,6 +810,9 @@ compact_refuses "trailing comma" '{"a":1,}'
 compact_refuses "bad literal" '{"a":tru}'
 compact_refuses "split literal" '{"a":tr ue}'
 compact_refuses "unterminated string" '{"a":"x}'
+compact_refuses "invalid escape" '{"a":"x\qy"}'
+compact_refuses "trailing backslash escape" '{"a":"x\\\"}'
+compact_refuses "bad \\u hex digits" '{"a":"\uZZZZ"}'
 
 # --- Test 3b: builtin envelope is jq's compact rendering, byte for byte -------
 # The sink receives exactly one line, and re-rendering it with jq -c yields the
@@ -911,6 +914,16 @@ fast_is_jq "non-string value" '{"tool_input":{"file_path":123}}'
 fast_is_jq "non-ASCII unicode escape" '{"tool_input":{"file_path":"\u00e9.md"}}'
 fast_is_jq "truncated payload" '{"tool_input":{"file_path":"in.md"},"tool_response":{"filePath'
 fast_is_jq "array root" '[{"tool_input":{"file_path":"arr.md"}}]'
+fast_is_jq "invalid escape in an unrelated string" '{"tool_input":{"file_path":"in.md"},"z":"a\qb"}'
+fast_is_jq "bad \\u hex in an unrelated string" '{"tool_input":{"file_path":"in.md"},"z":"\uZZZZ"}'
+# The two cases above must not be PROVEN present: jq rejects the whole text.
+rc12g=0
+hook::_fast_file_path_to got12g '{"tool_input":{"file_path":"in.md"},"z":"a\qb"}' || rc12g=$?
+if [[ "$rc12g" -eq 2 ]]; then
+  ok "fast file_path: an invalid escape anywhere in the payload falls back to jq"
+else
+  fail "fast file_path: invalid escape elsewhere rc=$rc12g got=[${got12g:-}] (want 2)"
+fi
 # The top-level key must never be taken: the case above proves parity with jq
 # (absent); this pins the verdict itself.
 rc12g=0

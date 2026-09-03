@@ -730,7 +730,7 @@ hook::_json_split() {
   __hu_q=${__hu_t//\"/}
   __hu_n=$((${#__hu_t} - ${#__hu_q}))
   ((__hu_n % 2 == 0)) || return 1
-  ((__hu_n <= 800)) || return 1
+  ((__hu_n <= 2000)) || return 1
   local __hu_glob=0
   [[ $- == *f* ]] || __hu_glob=1
   set -f
@@ -750,11 +750,12 @@ hook::_json_split() {
 # per-token work on it is cheap. Returns 1 unless the text is exactly one JSON
 # value by the JSON grammar (well-formed tokens, whitespace only between them,
 # objects as key:value lists, arrays as value lists, brackets nested and
-# closed once) whose strings carry no raw control byte, which jq rejects.
+# closed once) whose strings carry only escapes jq accepts and no raw control
+# byte, which jq rejects.
 _HOOK_JSON_SK=""
 _HOOK_JSON_OFF=()
 hook::_json_skeleton() {
-  local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_rest __hu_tok __hu_stack="" __hu_expect=value __hu_top
+  local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_rest __hu_tok __hu_stack="" __hu_expect=value __hu_top __hu_esc __hu_c
   hook::_json_split "$__hu_s" || return 1
   __hu_n=${#_HOOK_JSON_PARTS[@]}
   _HOOK_JSON_OFF=()
@@ -765,6 +766,20 @@ hook::_json_skeleton() {
     else
       _HOOK_JSON_OFF[__hu_i]=$__hu_off
       [[ "$__hu_part" == *[[:cntrl:]]* ]] && return 1
+      # Every escape must be one jq accepts, or jq rejects the whole text. In
+      # the neutralized part `\\` and `\"` are already `@@`, so a surviving
+      # backslash starts one of the other escapes: `\/ \b \f \n \r \t` or
+      # `\uXXXX`. Delete every well-formed one (literal glob substitution, C
+      # speed); a backslash that survives is an invalid escape.
+      if [[ "$__hu_part" == *\\* ]]; then
+        __hu_esc=${__hu_part//'\u'[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]/}
+        # Six literal two-byte replacements: a quoted backslash before a
+        # bracket expression does not survive bash's pattern quoting.
+        for __hu_c in / b f n r t; do
+          __hu_esc=${__hu_esc//"\\$__hu_c"/}
+        done
+        [[ "$__hu_esc" == *\\* ]] && return 1
+      fi
       __hu_sk+="\"#$__hu_i\""
     fi
     __hu_off=$((__hu_off + ${#__hu_part} + 1))
