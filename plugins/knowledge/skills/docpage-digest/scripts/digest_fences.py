@@ -91,11 +91,11 @@ def iter_h2_sections(text: str) -> Iterator[Tuple[str, str, int]]:
     in_fence = False
     open_ticks = 0
     for idx, line in enumerate(lines):
-        is_open, _indented, ticks = _is_fence_opener(line)
         if in_fence:
             if _is_fence_closer(line, open_ticks):
                 in_fence = False
             continue
+        is_open, _indented, ticks = _is_fence_opener(line)
         if is_open:
             in_fence = True
             open_ticks = ticks
@@ -123,11 +123,7 @@ def _is_fence_opener(line: str) -> Tuple[bool, bool, int]:
     stripped = line.lstrip(" \t")
     if not stripped.startswith("```"):
         return False, False, 0
-    ticks = 0
-    for char in stripped:
-        if char != "`":
-            break
-        ticks += 1
+    ticks = len(stripped) - len(stripped.lstrip("`"))
     return True, (len(line) != len(stripped)), ticks
 
 
@@ -136,11 +132,7 @@ def _is_fence_closer(line: str, min_ticks: int) -> bool:
     stripped = line.lstrip(" \t")
     if not stripped.startswith("`"):
         return False
-    ticks = 0
-    for char in stripped:
-        if char != "`":
-            break
-        ticks += 1
+    ticks = len(stripped) - len(stripped.lstrip("`"))
     rest = stripped[ticks:].strip(" \t")
     return rest == "" and ticks >= min_ticks
 
@@ -175,10 +167,7 @@ def extract_fences(text: str, *, start_line: int = 1) -> List[Fence]:
 def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
     """Parse ``**CN.**`` labels and the fence that must follow each one."""
     lines = split_lines(section_body)
-    label_idxs: List[int] = []
-    for i, line in enumerate(lines):
-        if CLAIM_LABEL.match(line):
-            label_idxs.append(i)
+    label_idxs = [i for i, line in enumerate(lines) if CLAIM_LABEL.match(line)]
     claims: List[Claim] = []
     for n, idx in enumerate(label_idxs):
         match = CLAIM_LABEL.match(lines[idx])
@@ -242,7 +231,7 @@ def payload_in_source(payload: str, source: str) -> bool:
         lost_trailing = (
             bool(rest_of_line)
             and rest_of_line.strip(" \t") == ""
-            and not (payload.endswith(" ") or payload.endswith("\t"))
+            and not payload.endswith((" ", "\t"))
         )
         if not lost_trailing:
             return True
