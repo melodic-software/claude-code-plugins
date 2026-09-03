@@ -414,7 +414,12 @@ Repo: claude-code-plugins. One PR. Sub-topic promotion: **recommended for 4b, no
   pasted; the benign `git status --short` PreToolUse:Bash `max_ms` is at or below `8*S`.
 - `scripts/affected-tests.sh --run` exits 0; `gh pr checks` 0 failing.
 
-### Phase 4b: hook-utils.sh telemetry hot path (re-scoped; the core-plus-modules split is not needed, parse measured at 4 ms) [TODO]
+### Phase 4b: hook-utils.sh telemetry hot path (re-scoped; the core-plus-modules split is not needed, parse measured at 4 ms) [DONE pending merge: PR #3678 on auto-merge]
+
+Outcome: builtin envelope (28-case differential, 0 diffs) and builtin `file_path` extraction with a
+jq fallback (40 cases, 39 identical, 1 intended); typos-format PostToolUse Write execs 24 to 17,
+wall 1,130 to 861 ms with the sink wired; `read_file_path` alone 507 to 118 ms; lib suite 278/0;
+17 carriers synced and bumped.
 
 Re-scope (2026-09-02, see DEVIATIONS.md): the parse measured at about 4 ms, so the lazy-module split is
 closed as not needed. What remains in the library is `hook::emit_telemetry`, which on a host with
