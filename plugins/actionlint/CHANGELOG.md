@@ -3,6 +3,22 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.30]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
 ## [0.8.29]
 
 ### Changed

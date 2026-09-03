@@ -342,9 +342,9 @@ out=$(env OSTYPE=msys HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" \
 wait_for_sink "$TEL" || true
 if [[ -s "$TEL" ]]; then
   tel_body=$(cat "$TEL")
-  assert_contains "telemetry hook id" "$tel_body" '"hook": "block-windows-drive-tmp"'
-  assert_contains "telemetry blocked" "$tel_body" '"status": "blocked"'
-  assert_contains "telemetry form" "$tel_body" '"form": "redirect"'
+  assert_contains "telemetry hook id" "$(jq -r .hook <<<"$tel_body")" 'block-windows-drive-tmp'
+  assert_contains "telemetry blocked" "$(jq -r .status <<<"$tel_body")" 'blocked'
+  assert_contains "telemetry form" "$(jq -r .data.form <<<"$tel_body")" 'redirect'
 else
   # Telemetry is best-effort; an empty sink on a slow box is not a contract fail
   # when the block itself already asserted. Record as an explicit skip-visible.
@@ -367,11 +367,11 @@ out=$(env OSTYPE=msys HOOK_TELEMETRY_SINK="$SINK_FP" bash "$HOOK" \
 wait_for_sink "$TEL_FP" || true
 if [[ -s "$TEL_FP" ]]; then
   tel_fp_body=$(cat "$TEL_FP")
-  assert_contains "file-path telemetry hook id" "$tel_fp_body" '"hook": "block-windows-drive-tmp"'
-  assert_contains "file-path telemetry blocked" "$tel_fp_body" '"status": "blocked"'
-  assert_contains "file-path telemetry form" "$tel_fp_body" '"form": "file-path"'
-  assert_contains "file-path telemetry tool" "$tel_fp_body" '"tool": "Write"'
-  assert_contains "file-path telemetry subject" "$tel_fp_body" '"subject": "Write"'
+  assert_contains "file-path telemetry hook id" "$(jq -r .hook <<<"$tel_fp_body")" 'block-windows-drive-tmp'
+  assert_contains "file-path telemetry blocked" "$(jq -r .status <<<"$tel_fp_body")" 'blocked'
+  assert_contains "file-path telemetry form" "$(jq -r .data.form <<<"$tel_fp_body")" 'file-path'
+  assert_contains "file-path telemetry tool" "$(jq -r .data.tool <<<"$tel_fp_body")" 'Write'
+  assert_contains "file-path telemetry subject" "$(jq -r .data.subject <<<"$tel_fp_body")" 'Write'
   assert_absent "file-path telemetry carries no path" "$tel_fp_body" "rSFIkHm5DO"
 else
   ok "file-path telemetry sink empty (best-effort; block path already covered)"
