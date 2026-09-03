@@ -214,16 +214,22 @@ PREAMBLE
     # "these exist, go read them" contract at a bounded cost. What was collapsed
     # is stated rather than silently dropped: a truncated index that reads as
     # complete is the failure mode here.
+    # One ordering, reused by all three uses below. The listed head and the
+    # grouped tail are two halves of the SAME sort, so they read it from one
+    # place; sorting once also drops two spawns from a path the index-drift
+    # hook reaches on every rules-file write.
+    local sorted
+    sorted="$(printf '%s\n' "${rows[@]}" | LC_ALL=C sort)"
     if ((${#rows[@]} <= MAX_ROWS)); then
-      printf '%s\n' "${rows[@]}" | LC_ALL=C sort
+      printf '%s\n' "$sorted"
       printf '\n'
     else
-      printf '%s\n' "${rows[@]}" | LC_ALL=C sort | head -n "$MAX_ROWS"
+      printf '%s\n' "$sorted" | head -n "$MAX_ROWS"
       printf '\n'
       printf 'Plus %d further surface(s), grouped by location:\n\n' \
         $((${#rows[@]} - MAX_ROWS))
       # shellcheck disable=SC2016 # strips the markdown code span, not an expansion
-      printf '%s\n' "${rows[@]}" | LC_ALL=C sort | tail -n +$((MAX_ROWS + 1)) |
+      printf '%s\n' "$sorted" | tail -n +$((MAX_ROWS + 1)) |
         sed 's/^| `//; s/`.*$//; s|/[^/]*$||' |
         LC_ALL=C sort | uniq -c |
         awk '{ printf "- `%s/` — %d surface(s)\n", $2, $1 }'
@@ -258,7 +264,6 @@ normalize_drive_path() {
   exit 2
 }
 
-SUBCOMMAND=""
 case "${1:-}" in
 -h | --help)
   usage
@@ -375,7 +380,7 @@ check)
       "$TARGET" "$begin_count"
     exit 3
   fi
-  if ! grep -qF "$BEGIN_MARKER" "$TARGET"; then
+  if [[ "$begin_count" -eq 0 ]]; then
     printf 'NO-BLOCK\t%s\n' "$TARGET"
     exit 3
   fi
@@ -406,7 +411,7 @@ write)
       "$TARGET" "$begin_count" >&2
     exit 1
   fi
-  if grep -qF "$BEGIN_MARKER" "$TARGET"; then
+  if [[ "$begin_count" -gt 0 ]]; then
     if ! grep -qF "$END_MARKER" "$TARGET"; then
       rm -f "$tmp"
       printf 'ERROR: %s has a begin marker with no end marker; refusing to guess its extent\n' \

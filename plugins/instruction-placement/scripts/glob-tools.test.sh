@@ -64,6 +64,14 @@ row_field() {
     '$1=="PATTERN" && $3==ENVIRON["IP_ROW_PAT"] {print $f}' <<<"$1"
 }
 
+# How many PATTERN rows in a run carry the over-budget status. The budget cases
+# below assert on the COUNT rather than on a named pattern, because which of a
+# rule's globs trips a shared budget is not part of the contract; that the rule
+# trips it at all, and that a separate rule does not, is.
+over_budget_rows() {
+  printf '%s\n' "$1" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true
+}
+
 # --------------------------------------------------------------------------
 # Usage and argument handling
 # --------------------------------------------------------------------------
@@ -291,7 +299,7 @@ git -C "$budget_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
 git -C "$budget_repo" -c user.email=t@t -c user.name=t commit -qm budget >/dev/null 2>&1
 
 out="$(run rules --root "$budget_repo")"
-over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
+over="$(over_budget_rows "$out")"
 if ((over >= 1)); then
   pass "512+512 expansions in one rule trips the shared budget"
 else
@@ -306,7 +314,7 @@ printf -- '---\npaths:\n  - "%s/y.ts"\n---\n\n# Two\n' "$nine" >"$split_repo/.cl
 git -C "$split_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
 git -C "$split_repo" -c user.email=t@t -c user.name=t commit -qm split >/dev/null 2>&1
 out="$(run rules --root "$split_repo")"
-over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
+over="$(over_budget_rows "$out")"
 assert_eq "the budget does not leak across separate rules" "0" "$over"
 
 # The same separation for `validate`. Tagging every CLI --glob with the same
@@ -314,7 +322,7 @@ assert_eq "the budget does not leak across separate rules" "0" "$over"
 # two independently-legal globs in one invocation would report the first
 # over-budget. A --glob is nobody's `paths:` list; each is its own unit of one.
 out="$(run validate --root "$split_repo" --glob "$nine/x.ts" --glob "$nine/y.ts")"
-over="$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true)"
+over="$(over_budget_rows "$out")"
 assert_eq "the budget does not leak across separate --glob flags" "0" "$over"
 
 # ...and the real ceiling still fires, so the fix above cannot be a way of

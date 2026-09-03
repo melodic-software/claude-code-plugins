@@ -304,7 +304,6 @@ glob_to_ere() {
   exit 2
 }
 
-SUBCOMMAND=""
 case "${1:-}" in
 -h | --help)
   usage
