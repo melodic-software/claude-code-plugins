@@ -137,6 +137,22 @@ key), the gate fails closed and the lint run stays skipped. Declarative
 rule-only JSONC/YAML configuration is unaffected and lints immediately.
 Prefer it when executable configuration is unnecessary.
 
+### Hook budget accounting
+
+Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+this hook is always-on for every `Write` and `Edit` of a `.md` or `.mdc` file (the two `if`
+rows in `hooks/hooks.json` keep every other extension from spawning it), so its cost on a clean
+Markdown edit is the figure that counts. Measured on Windows 11 under Git Bash, twelve interleaved
+trials against an interleaved `bash -c :` floor (2026-09-02):
+
+| Event | Fires | Spawn-equivalents | What changed |
+| --- | --- | --- | --- |
+| PostToolUse `Write`, clean `.md` in a repo with a markdownlint config | 1 | 41.6 before, 32.0 after (0.11.38) | seven of twenty-one processes gone: six `dirname` calls and one `basename` are parameter expansions, including inside the config-discovery and risky-config walks |
+| PostToolUse `Write`, non-Markdown file | 0 | skipped by the `if` rows | one entry per extension since 0.11.35 |
+
+The residual is `markdownlint-cli2` itself (one Node process per fire) plus the shared library's
+payload reader and telemetry emitter, cut in 0.11.39 by the vendored `hook-utils.sh`.
+
 ## Install
 
 ```shell

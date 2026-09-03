@@ -47,6 +47,20 @@ The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while normalization
 still runs.
 
+### Hook budget accounting
+
+Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+this hook is always-on for every `Write` and `Edit`, so its cost on the path where there is
+nothing to rewrite is the figure that counts. Measured on Windows 11 under Git Bash, twelve
+interleaved trials against an interleaved `bash -c :` floor (2026-09-02):
+
+| Event | Fires | Spawn-equivalents | What changed |
+| --- | --- | --- | --- |
+| PostToolUse `Write`, already-normalized `.md` | 1 | 41.0 before, 21.5 after (0.6.28) | sixteen of twenty-seven processes gone: one `git check-attr` for both attributes, `dirname` and `basename` as parameter expansions, the NUL sniff as one `read`, and no temp file, `cp`, `cmp` or `rm` for a file that needs no rewrite |
+
+The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.29 by the
+vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope).
+
 ## Install
 
 ```shell

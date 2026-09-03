@@ -3,6 +3,14 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.30]
+
+### Changed
+
+- **README carries the hook budget accounting row.** The measured 41.0 to 21.5 spawn-equivalents
+  of 0.6.28 and the residual now sit under Requirements, per the hook-budget convention's rule 1.
+  Documentation only.
+
 ## [0.6.29]
 
 ### Changed
