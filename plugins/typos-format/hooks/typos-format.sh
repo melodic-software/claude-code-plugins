@@ -258,7 +258,7 @@ fi
 # that basename is a redaction for telemetry, and resolving it against the repo
 # root would scan a different file or none at all.
 TYPOS_ARG="$FILE"
-RUN_DIR="${root:-$(dirname "$FILE")}"
+RUN_DIR="${root:-$FILE_DIR}"
 if [[ -n "$root" && "$FILE_REL_DEGRADED" -eq 0 && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
   TYPOS_ARG="$FILE_REL"
 fi
