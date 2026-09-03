@@ -55,3 +55,19 @@ plugins/typos-format/hooks/typos-format.test.sh
 
 # The listing-budget reporter times its own whole-marketplace pass.
 plugins/skill-quality/scripts/check-listing-budget.test.sh
+
+# Deadline-based cases: a suite that fails when a bounded operation overruns is
+# measuring the box once other suites are competing for it.
+# 2,000 ms spawnSync deadline on the ReDoS-shaped title case (measure.test.sh:471-478).
+plugins/context-budget/skills/audit/scripts/measure.test.sh
+# Two-second watchdog asserted to finish inside four seconds (audit-fleet.test.sh:1928-1936).
+plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh
+
+# The two entries below are NOT wall-clock cases. Both fail under --jobs 4 on a
+# hosted runner (run 33787030286), pass serially in the same job on main, and
+# pass locally; no hypothesis so far explains either. They are listed to fail
+# toward running the suite rather than toward a red lane nobody can diagnose,
+# and the debt is tracked so the listing does not become permanent by default.
+# Root cause tracked in #3694; both come off this list when it is found.
+plugins/discovery/agents/tool-honesty.test.sh
+plugins/work-items/tools/work-item-tracker/conformance/bindings/jira.test.sh

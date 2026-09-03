@@ -63,15 +63,26 @@ usage() {
   exit 2
 }
 
-# --worker <suite>: internal. Runs ONE suite with its output captured under
-# $PLUGIN_TEST_LOG_DIR, records its exit status beside the capture, then prints
-# the whole block under the print lock. Reached only from the dispatch below;
-# it exits 0 regardless of the suite's result so xargs never stops early, and
-# the summary reads the recorded status instead.
+# --worker <NNNNNN:suite>: internal. Runs ONE suite with its output captured
+# under $PLUGIN_TEST_LOG_DIR, records its exit status beside the capture, then
+# prints the whole block under the print lock. Reached only from the dispatch
+# below; it exits 0 regardless of the suite's result so xargs never stops
+# early, and the summary reads the recorded status instead.
+#
+# The capture is keyed on the suite's INDEX, not on its path. A path-derived
+# key (slashes rewritten to a separator) collides whenever a path segment
+# already contains that separator: plugins/foo__bar/baz.test.sh and
+# plugins/foo/bar__baz.test.sh flatten to the same name, and two suites in one
+# parallel batch would then overwrite each other's capture and exit status.
+# The index is unique by construction, so no path shape can collide. It is
+# fixed-width and colon-terminated, which also keeps a path containing a colon
+# from being mis-split.
 if [[ "${1:-}" == "--worker" ]]; then
-  suite="${2:?--worker needs a suite path}"
+  keyed="${2:?--worker needs an indexed suite path}"
+  key="${keyed%%:*}"
+  suite="${keyed#*:}"
   log_dir="${PLUGIN_TEST_LOG_DIR:?--worker needs PLUGIN_TEST_LOG_DIR}"
-  log="$log_dir/${suite//\//__}"
+  log="$log_dir/$key"
   rc=0
   bash "$suite" >"$log.out" 2>&1 || rc=$?
   printf '%s\n' "$rc" >"$log.rc"
@@ -156,11 +167,16 @@ for s in ${serial_entries[@]+"${serial_entries[@]}"}; do
 done
 serial_suites=()
 parallel_suites=()
-for t in "${tests[@]}"; do
+suite_keys=()
+for i in "${!tests[@]}"; do
+  t="${tests[$i]}"
+  # One key per suite, in discovery order, reused by the dispatch below and by
+  # the summary loop so both address the same capture.
+  suite_keys+=("$(printf '%06d' "$i")")
   if [[ -n "${is_serial[$t]+x}" ]]; then
-    serial_suites+=("$t")
+    serial_suites+=("${suite_keys[$i]}:$t")
   else
-    parallel_suites+=("$t")
+    parallel_suites+=("${suite_keys[$i]}:$t")
   fi
 done
 
@@ -179,7 +195,7 @@ for t in ${serial_suites[@]+"${serial_suites[@]}"}; do
   bash "$runner" --worker "$t"
 done
 if [[ ${#parallel_suites[@]} -gt 0 ]]; then
-  # xargs appends one suite path after `--worker` per invocation.
+  # xargs appends one indexed suite path after `--worker` per invocation.
   printf '%s\0' "${parallel_suites[@]}" | xargs -0 -n 1 -P "$jobs" bash "$runner" --worker
 fi
 
@@ -188,8 +204,9 @@ total_optional_skips=0
 total_discriminating_skips=0
 skipped_suites=()
 
-for t in "${tests[@]}"; do
-  log="$log_dir/${t//\//__}"
+for i in "${!tests[@]}"; do
+  t="${tests[$i]}"
+  log="$log_dir/${suite_keys[$i]}"
   if [[ ! -f "$log.rc" ]]; then
     echo "FAIL: $t (no result recorded; the worker never reported)" >&2
     failed=1

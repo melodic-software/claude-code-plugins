@@ -3,6 +3,18 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.29]
+
+### Changed
+
+- **The statusline-tee cancellation cases park their `mv` shim for two seconds
+  instead of ten.** Bash defers the TERM trap until the foreground `mv`
+  returns, so the shim's own sleep was the floor for both cancellation cases
+  and the suite spent most of its wall time waiting on a delay that proved
+  nothing. Two seconds exercises the same cancellation window behind the same
+  readiness marker. Test-side only; no hook, script or shipped behaviour
+  changes.
+
 ## [0.7.28]
 
 ### Changed

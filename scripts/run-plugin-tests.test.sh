@@ -203,6 +203,40 @@ PLUGIN_TEST_SERIAL_LIST="$stale_list" run_runner 2 "an allowlist entry naming no
 assert_output_has "the stale entry is named" "names 'plugins/gone/gone.test.sh', which matches no discovered suite"
 assert_output_lacks "nothing ran before the stale guard fired" "=== plugins/"
 
+# --- capture keys survive colliding path shapes -------------------------------
+#
+# The capture used to be keyed on the suite path with slashes rewritten to a
+# double underscore, which collides the moment a path segment already contains
+# one: plugins/a__b/c.test.sh and plugins/a/b__c.test.sh flatten to the same
+# name. Two colliding suites in one parallel batch then overwrite each other's
+# output and exit status, so one real failure can be reported as a pass. Both
+# suites here fail, with distinct output, and both must be reported.
+r="$(make_root collide)"
+write_suite "$r" "plugins/a__b/c.test.sh" 'echo "marker from a__b/c"; exit 1'
+write_suite "$r" "plugins/a/b__c.test.sh" 'echo "marker from a/b__c"; exit 1'
+write_suite "$r" "plugins/plain/plain.test.sh" 'echo ok'
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "colliding path shapes both run in parallel" --root "$r" --jobs 3
+assert_output_has "the first colliding suite reports its own failure" "FAIL: plugins/a__b/c.test.sh"
+assert_output_has "the second colliding suite reports its own failure" "FAIL: plugins/a/b__c.test.sh"
+assert_output_has "the first colliding suite keeps its own output" "marker from a__b/c"
+assert_output_has "the second colliding suite keeps its own output" "marker from a/b__c"
+assert_output_lacks "neither collides into a missing result" "no result recorded"
+
+# The same pair under --jobs 1: a serial run writes the captures one after the
+# other, so a colliding key would silently overwrite rather than race. Keeping
+# the case pins the key's uniqueness rather than the scheduling that exposed it.
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "colliding path shapes stay distinct under --jobs 1" --root "$r"
+assert_output_has "serial: the first colliding suite still reports" "FAIL: plugins/a__b/c.test.sh"
+assert_output_has "serial: the second colliding suite still reports" "FAIL: plugins/a/b__c.test.sh"
+
+# A path containing a colon must not be mis-split by the index-keyed argument
+# the worker receives.
+r="$(make_root colon)"
+write_suite "$r" "plugins/od:d/name.test.sh" 'echo "marker from the colon path"'
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a path containing a colon runs" --root "$r"
+assert_output_has "the colon path is reported whole" "PASS: plugins/od:d/name.test.sh"
+assert_output_has "the colon path keeps its output" "marker from the colon path"
+
 # --- the shipped allowlist against the shipped corpus --------------------------
 #
 # Every entry in scripts/run-plugin-tests-serial.txt must name a suite that
