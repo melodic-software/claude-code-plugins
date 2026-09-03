@@ -91,10 +91,10 @@ Read [`context/relentless-mode.md`](context/relentless-mode.md) before the first
 **Ask each round inline as one numbered set.** Per-question shape within the round:
 
 ```text
-Q<N>: <one question>
+❓ Q<N>: <one question>
 [<one line of context — ONLY when the round-header restate doesn't reach this question, or the first round after a session gap>]
 
-My recommendation: **<answer>** — <2-3 sentences; grounded in codebase/convention; why it beats the alternatives>.
+➡️ My recommendation: **<answer>** — <2-3 sentences; grounded in codebase/convention; why it beats the alternatives>.
 
 Alternatives to consider:
 - (a) <option> — <one-line tradeoff>
@@ -106,7 +106,7 @@ Alternatives to consider:
 
 **One verdict marker, at most one context line.** The `My recommendation:` line is the *single* verdict marker for the question. Never stack a second one: no standalone `**(RECOMMENDED)**` badge line above it, and no `(recommended)` tag repeated in the Alternatives list; the recommended answer is named once, on that line. Per-question context is at most ONE line and usually absent. The round-header restate carries shared context, so add a line only when it doesn't reach this question or the session just resumed after a gap.
 
-**Emoji anchors (opt-in).** When `${user_config.use_emoji_question_markers}` is enabled (default off), prefix the `Q<N>:` line with `❓` and the `My recommendation:` line with `➡️`. Decoration of the existing single verdict marker, never a second one. Conversational rendering only: the ledger, register, and Brief stay plain, and `Q<N>` remains the answer handle.
+**Emoji anchors (default on).** The shape above is the default: prefix the `Q<N>:` line with `❓` and the `My recommendation:` line with `➡️`. Decoration of the existing single verdict marker, never a second one. Conversational rendering only: the ledger, register, and Brief stay plain, and `Q<N>` remains the answer handle. When `${user_config.use_emoji_question_markers}` is false, drop both emoji prefixes; the rest of the shape is unchanged.
 
 **Define session shorthand once, then park it.** When a round introduces session-local shorthand, a coined label, an abbreviation, or cross-repo jargon the user may not share ("lanes", "gate vacuity"), define it in one clause at first use and record it in the ledger's shorthand glossary, then use the term freely. This is ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`), and never touches a project glossary. Ledger shape: [`context/loop.md`](context/loop.md) "Session-shorthand glossary".
 
