@@ -1738,7 +1738,18 @@ bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
 # returns 1 regardless. Same spawn, opposite verdict.
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_reads_on='hook::json_complete() { printf "%s" "$1" | jq -e . >/dev/null 2>&1; return 1; }'
-if bs_samples 6 bs_time_late_eof "" "$bs_reads_on"; then
+# HOOK_UTILS_TIMING gates the two interleaved-pair CLOCK comparisons in this
+# suite (this late-EOF one and the stall-overshoot one in Test 18g). Each is
+# six pairs of two arms waiting out real bounds, about 80 s of wall time on a
+# hosted runner, and both are advisory by their own terms: the load-independent
+# probes beside them (the chunk-boundary engagement check and the stall
+# read-count check) are the regression guards (#2105). Unset, which is every
+# ordinary run, the comparison is reported as deferred and the probes carry the
+# coverage; the weekly `hook-utils-timing` workflow sets HOOK_UTILS_TIMING=1
+# and runs the comparisons on both operating systems.
+if [[ -z "${HOOK_UTILS_TIMING:-}" ]]; then
+  ok "buffer_stdin: late-EOF clock comparison deferred (HOOK_UTILS_TIMING unset; the weekly hook-utils-timing lane runs it, and the chunk-boundary engagement probe is the regression guard)"
+elif bs_samples 6 bs_time_late_eof "" "$bs_reads_on"; then
   bs_paired_verdict "buffer_stdin: late-EOF stops at the payload, not the bound" \
     400 fast slow
 elif [[ -n "${EPOCHREALTIME:-}" ]]; then
@@ -2390,7 +2401,10 @@ rm -f "$bs_stall_read_file"
 # Stall overshoot is load-sensitive when asserted as an absolute wall-clock gap
 # (#2105, #2080). The idle-slice probe above is the load-independent guard; this
 # relative check is advisory — fail only when every timed pair contradicts slicing.
-if bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
+# Gated on HOOK_UTILS_TIMING like the late-EOF comparison (see Test 18b).
+if [[ -z "${HOOK_UTILS_TIMING:-}" ]]; then
+  ok "buffer_stdin: stall overshoot clock comparison deferred (HOOK_UTILS_TIMING unset; the weekly hook-utils-timing lane runs it, and the read-count probe above is the regression guard, #2105)"
+elif bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
   bs_rel_ok=1
   bs_rel_detail="deltas ${bs_deltas_a_first[*]} | ${bs_deltas_b_first[*]}"
   bs_rel_neg=0
