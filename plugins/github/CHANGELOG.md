@@ -3,6 +3,35 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.13]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+  This plugin cites the in-repo path rather than the published URL, because the
+  agnosticism sweep forbids the publisher org name in shipped markdown.
+
+## [0.3.12]
+
+### Changed
+
+- **setup `check` reports PASS/FAIL/INFO.** The per-layer table used
+  exists/absent and "hard finding" instead of the setup-contract verdict
+  vocabulary. Rows are now PASS/FAIL/INFO with a remediation line per FAIL
+  (team: unignore or commit; overlay: `git rm --cached` plus rotate, or
+  recommend the gitignore line when present but unignored). All-layers-absent
+  is INFO, not FAIL. `user-invocable: true` was already explicit in 0.3.10.
+
+## [0.3.11]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
 ## [0.3.10]
 
 ### Changed

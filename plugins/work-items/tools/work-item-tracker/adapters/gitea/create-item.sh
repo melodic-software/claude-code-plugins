@@ -105,6 +105,7 @@ LABEL_IDS='[]'
 if [[ -n "$LABELS" ]]; then
   wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/labels?page=1&limit=$WIT_GITEA_PAGE_SIZE"
   wit_gitea_require_ok "listing labels in $REPO"
+  wit_gitea_require_array "listing labels in $REPO"
   ALL_LABELS="$WIT_GITEA_BODY"
   PAGE=2
   LABELS_TRUNCATED=0
@@ -121,7 +122,8 @@ if [[ -n "$LABELS" ]]; then
     if [[ -n "$LABEL_TOTAL" ]]; then
       ((LABEL_SEEN >= LABEL_TOTAL)) && break
     else
-      (($(jq 'length' <<<"$WIT_GITEA_BODY") < WIT_GITEA_PAGE_SIZE)) && break
+      PAGE_LEN="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || PAGE_LEN=0
+      ((PAGE_LEN < WIT_GITEA_PAGE_SIZE)) && break
     fi
     # Bounded like every other paginated loop in this adapter: a server that keeps answering
     # a full page would otherwise spin forever with ALL_LABELS growing without limit. Measured
@@ -135,6 +137,7 @@ if [[ -n "$LABELS" ]]; then
     fi
     wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/labels?page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
     wit_gitea_require_ok "listing labels in $REPO (page $PAGE)"
+    wit_gitea_require_array "listing labels in $REPO (page $PAGE)"
     # Accumulator on stdin, page in argv: the reverse puts an unboundedly growing array on
     # jq's command line, and past ARG_MAX the exec fails outright — leaving ALL_LABELS empty,
     # which here means every requested label reads as nonexistent and is refused.
@@ -160,6 +163,7 @@ if [[ -n "$LABELS" ]]; then
   wit_gitea_http GET "/orgs/$WIT_GITEA_OWNER/labels?page=1&limit=$WIT_GITEA_PAGE_SIZE"
   if [[ "$WIT_GITEA_STATUS" != "404" ]]; then
     wit_gitea_require_ok "listing organization labels for $WIT_GITEA_OWNER"
+    wit_gitea_require_array "listing organization labels for $WIT_GITEA_OWNER"
     # Same walk as the repo labels above, and deliberately the SAME SHAPE: this endpoint sets
     # X-Total-Count too, so the header decides. A largest-page-seen heuristic would be wrong
     # twice over — it always spends one extra request (the page that establishes the baseline
@@ -190,6 +194,7 @@ if [[ -n "$LABELS" ]]; then
       fi
       wit_gitea_http GET "/orgs/$WIT_GITEA_OWNER/labels?page=$ORG_PAGE_NUM&limit=$WIT_GITEA_PAGE_SIZE"
       wit_gitea_require_ok "listing organization labels for $WIT_GITEA_OWNER (page $ORG_PAGE_NUM)"
+      wit_gitea_require_array "listing organization labels for $WIT_GITEA_OWNER (page $ORG_PAGE_NUM)"
       ORG_PAGE="$WIT_GITEA_BODY"
       ORG_PAGE_NUM=$((ORG_PAGE_NUM + 1))
     done

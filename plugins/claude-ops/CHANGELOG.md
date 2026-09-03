@@ -3,6 +3,90 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.9]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.41.8]
+
+### Changed
+
+- **Skill-listing entries for `audit-performance`, `audit-skill-visibility`, and
+  `audit-native-overlap` tightened.** These three were the marketplace's first, second, and
+  seventh largest listing entries. Each description now drops mechanism narration (the suspect
+  labels, the verdict enumeration, the budget-drop explanation) while keeping every quoted trigger
+  phrase and every `Not for` disambiguation. Claude Code truncates the combined `description` and
+  `when_to_use` text at 1,536 characters in the skill listing, and the shared listing budget scales
+  at 1% of the model's context window, so every character an entry spends is a character another
+  skill's description cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.41.7]
+
+### Changed
+
+- **The audit-hook table records why each row earns its spawn.** A new column states the reason
+  per row: event rarity for StopFailure, ConfigChange, PermissionDenied and PreCompact; matcher
+  scoping for the PostToolUse, UserPromptExpansion and PostToolUseFailure rows; and, for the Stop
+  row, that it is the only per-turn registration and the sole surface for a hook that failed to
+  launch while its guarded tool call proceeded.
+- **The InstructionsLoaded row records why it carries no matcher.** That event's matcher selects on
+  load reason, and `instructions-loaded-audit.sh` passes every reason through verbatim into its
+  subject, so scoping to the full documented set would skip nothing and would drop any reason a
+  later release adds. Scoping below that set is worse: the only reason worth excluding for cost is
+  `session_start`, which the script already drops at write time behind
+  `instructions_loaded_audit_log_session_start`, so a matcher excluding it would leave that option
+  switched on but unable to log anything. Documentation only; no hook, script or registration
+  changed.
+
+## [0.41.6]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.41.5]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.41.4]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
+## [0.41.3]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside a command substitution, so a host without either digest tool continued and printed a malformed key at exit 0. Synced from the canonical `claude-config` copy via `scripts/sync-state-key.sh`.
+
+## [0.41.2]
+
+### Fixed
+
+- **`known-issues`: `check-all.sh` processes a final snapshot row without a trailing newline.**
+  The while-read loop over `registry-snapshot.tsv` dropped the last row when the file had no
+  trailing newline, because `read` returns non-zero on that final partial read. The loop now
+  uses `|| [[ -n "$number" ]]` so that row still runs, and the progress total uses `grep -c ''`
+  so `[n/total]` counts it too.
+
 ## [0.41.1]
 
 ### Added

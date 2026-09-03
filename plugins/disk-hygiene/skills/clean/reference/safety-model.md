@@ -131,7 +131,9 @@ identity/reparse/protection/descendant/VCS/handle checks against live state and 
 machine-readable verdict per path. It deliberately does not apply platform execution blockers —
 it exists exactly where `execution-platform-unsupported` blocks the engine lane — and it has no
 deletion capability of any kind: the model deletes only verdict-`clear` paths in the manual lane,
-per item, under the final human permission prompt the PowerShell guard raises.
+per item, under the hook-issued `ask` the PowerShell guard returns. Add a `permissions.ask`
+rule for the deletion spellings if that prompt must appear in `auto` and `bypassPermissions`;
+leave `dontAsk` first, because that mode auto-denies an `ask` rule instead of prompting.
 
 ### Standalone Git checkout evidence
 
@@ -166,7 +168,7 @@ categorical reasons.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
 link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
-deletion remains a per-path manual handoff under the existing final permission prompt, and the
+deletion remains a per-path manual handoff under the existing hook-issued `ask`, and the
 verdict still expires immediately.
 
 | Verdict | Meaning | Manual-lane action |
@@ -224,7 +226,7 @@ a real marketplace install.
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
 known deletion spellings and .NET Delete calls resolve against the `disk_hygiene_enabled` kill
-switch. When the guard sees execution enabled they are downgraded to a final human permission prompt;
+switch. When the guard sees execution enabled they are downgraded to a hook-issued `ask`;
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 

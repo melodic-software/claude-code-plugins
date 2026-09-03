@@ -28,14 +28,16 @@ import { parseVideoMetadata } from "./video-metadata.js";
  * classification. Closed by default — omitted fields declare the behavior off.
  *
  * @typedef {import('./build-yt-dlp-args.js').YtDlpSourceOptions &
- *   import('./spawn-yt-dlp-with-auth-fallback.js').SourceSpawnClassification} SourceAcquisitionDeclarations
+ *   import('./spawn-yt-dlp-with-auth-fallback.js').SourceSpawnClassification & {
+ *     captionClass?: import('./select-caption.js').CaptionClass
+ *   }} SourceAcquisitionDeclarations
  */
 
 /**
  * Map a source adapter's declared attributes onto the option bundle the shared
- * yt-dlp machinery consumes (arg flags + spawn classification). The adapter
- * declarations are the single source of truth; production never re-states them
- * in a side object.
+ * yt-dlp machinery consumes (arg flags + spawn classification + caption class).
+ * The adapter declarations are the single source of truth; production never
+ * re-states them in a side object.
  *
  * @param {import('../adapters/adapter-contract.js').SourceAdapter} adapter
  * @returns {SourceAcquisitionDeclarations}
@@ -48,6 +50,7 @@ export function adapterSourceDeclarations(adapter) {
     ignoreNoFormatsError: adapter.capabilities.mediaOptional === true,
     errorPatterns: adapter.errorPatterns,
     allowBrowserCookieProfileFallback: adapter.capabilities.browserCookieFallback === true,
+    captionClass: adapter.captionClass,
   };
 }
 
@@ -322,7 +325,7 @@ export async function acquireYouTubeMedia(
     artifacts = resolveMediaArtifacts(files, videoId);
   }
 
-  let captionResult = selectCaptionFile(artifacts.captionPaths);
+  let captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
 
   if (!captionResult.success && mode === "full" && artifacts.videoPath) {
     const captionRetry = await throttle(() =>
@@ -335,7 +338,7 @@ export async function acquireYouTubeMedia(
     if (captionRetry.spawnResult.success) {
       files = await mergedDeps.listFiles(workDir);
       artifacts = resolveMediaArtifacts(files, videoId);
-      captionResult = selectCaptionFile(artifacts.captionPaths);
+      captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
     }
   }
 

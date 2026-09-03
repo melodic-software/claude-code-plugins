@@ -16,9 +16,9 @@
     },
     {
       "id": 2,
-      "name": "apply-has-no-write-path-routes-to-native-configure",
-      "prompt": "/session-flow:setup apply",
-      "expected_output": "Runs the check first, then for each finding offers only guidance (install the missing tool, or reconfigure via Claude Code's native /plugin configure session-flow@<marketplace>). It never writes pluginConfigs, mutates user settings, or edits the installed plugin cache.",
+      "name": "check-has-no-write-path-routes-to-native-configure",
+      "prompt": "/session-flow:setup — after the check, how do I apply these findings?",
+      "expected_output": "Runs the check, then for each finding offers only guidance (install the missing tool, or reconfigure via Claude Code's native /plugin configure session-flow@<marketplace>). It never writes pluginConfigs, mutates user settings, or edits the installed plugin cache.",
       "files": [],
       "expectations": [
         "Runs the check before offering any resolution",

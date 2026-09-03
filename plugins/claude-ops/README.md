@@ -43,7 +43,7 @@ Claude Code's native OTEL cannot see.
 | `/claude-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json`. Previews and confirms per plugin first). |
 | `/claude-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`priority: needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
 | `/claude-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane>`) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer. It reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes/lanes.json`, with a temporary default-only fallback to the pre-move `<repo>/.work/lanes.json` under a deprecation warning); config and prompts live in the reserved `lanes/` concern home under a hardcoded `.work` root, which is a sanctioned placement but still session-local, so a durable cross-machine home stays #480's job. |
-| `/claude-ops:setup` | `check` (default) reports the effective known-issues-registry and skill-usage-log destinations, their defaults, and path containment; `apply` routes personal option changes through Claude Code's plugin configuration prompt. |
+| `/claude-ops:setup` | Check-only: reports the effective known-issues-registry and skill-usage-log destinations, their defaults, and path containment, and prints the guidance for routing personal option changes through Claude Code's plugin configuration prompt. |
 
 ## The audit hooks
 
@@ -81,20 +81,29 @@ user-typed slash command (`UserPromptExpansion`, which bypasses the `Skill`
 tool). Events carry a `source` field (`tool` vs `expansion`) so consumers can
 tell the paths apart; both share the same telemetry `hook` id and second store.
 
-| Hook | Event | Emits |
-|---|---|---|
-| `api-error-audit` | StopFailure | API turn-failure `error_type` (never the message body) |
-| `config-change-audit` | ConfigChange | the mutated `config_source` |
-| `instructions-loaded-audit` | InstructionsLoaded | `<repo-relative-file>:<load_reason>` (absolute prefix stripped; session_start filtered by default) |
-| `permission-denied-audit` | PermissionDenied | classifier denials, `Bash:<first-token>` subject |
-| `pre-compact-audit` | PreCompact | compaction `trigger` (`manual`/`auto`) |
-| `skill-usage-audit` (tool path) | PostToolUse (`Skill`) | model-invoked skill; `source: "tool"`; also writes the `skill-usage.jsonl` second store |
-| `skill-usage-audit` (expansion path) | UserPromptExpansion | user-typed `/command` (`slash_command`/`mcp_prompt`); `source: "expansion"` + `expansion_type`; same second store |
-| `tool-failure-audit` | PostToolUseFailure | Write/Edit/Bash failures, privacy-safe subject |
-| `hook-failure-audit` | Stop | unsurfaced `hook_non_blocking_error` attachments; envelope subjects are hook names only; also warns via `systemMessage` |
+| Hook | Event | Emits | Why it earns its spawn |
+|---|---|---|---|
+| `api-error-audit` | StopFailure | API turn-failure `error_type` (never the message body) | The event only fires when a turn fails at the API, so the hook costs nothing on a healthy session |
+| `config-change-audit` | ConfigChange | the mutated `config_source` | Matcher-scoped to the four sources that can change behavior, and a settings or skills change is rare |
+| `instructions-loaded-audit` | InstructionsLoaded | `<repo-relative-file>:<load_reason>` (absolute prefix stripped; session_start filtered by default) | The highest-volume row here, and the only one whose cost is worth watching. It is advisory: InstructionsLoaded ignores the exit code, so the hook never gates a load, and the session_start write-time filter keeps the noisiest reason out of the store by default |
+| `permission-denied-audit` | PermissionDenied | classifier denials, `Bash:<first-token>` subject | Fires only on an actual denial, and it is the only durable record of what the classifier refused |
+| `pre-compact-audit` | PreCompact | compaction `trigger` (`manual`/`auto`) | Once per compaction, which is the rarest event this plugin observes |
+| `skill-usage-audit` (tool path) | PostToolUse (`Skill`) | model-invoked skill; `source: "tool"`; also writes the `skill-usage.jsonl` second store | Matcher-scoped to `Skill`, so it is skipped on every other tool call rather than firing per PostToolUse |
+| `skill-usage-audit` (expansion path) | UserPromptExpansion | user-typed `/command` (`slash_command`/`mcp_prompt`); `source: "expansion"` + `expansion_type`; same second store | Fires per expanded slash command, not per prompt, and it is the only path that sees a user-typed invocation (the `Skill` tool never runs) |
+| `tool-failure-audit` | PostToolUseFailure | Write/Edit/Bash failures, privacy-safe subject | Matcher-scoped to the three tools whose failures are actionable, and the event fires only on failure |
+| `hook-failure-audit` | Stop | unsurfaced `hook_non_blocking_error` attachments; envelope subjects are hook names only; also warns via `systemMessage` | The only per-turn row, and it is the sole surface for a hook that failed to launch while its guarded tool call proceeded |
 
 None captures a command body, absolute path, error message, or argument body, only category labels, privacy-safe subjects, and (for `instructions-loaded-audit`)
 the repo-relative path of the loaded rule file.
+
+The InstructionsLoaded row carries no matcher on purpose. That event's matcher selects on load
+reason, and `instructions-loaded-audit.sh` passes every reason through verbatim into its subject, so
+scoping to the full documented set would skip nothing and would silently drop any reason a later
+release adds. Scoping below that set is worse: the only reason worth excluding for cost is
+`session_start`, which the script already drops at write time, and it drops it behind the
+`instructions_loaded_audit_log_session_start` option. A matcher that excluded `session_start` would
+stop the hook from ever spawning on it, leaving that option switched on but unable to log anything.
+The row therefore stays unscoped until the option is retired.
 
 ### Per-hook kill switches
 
@@ -320,18 +329,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**

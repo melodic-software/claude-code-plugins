@@ -52,6 +52,17 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
             Should -Invoke Invoke-WebRequest -Times 1
         }
 
+        It 'fetches when the cache file is empty or whitespace' {
+            Set-Content -LiteralPath $script:cachePath -Value "   `r`n`t  " -Encoding utf8
+
+            Set-KevFetchMock -CveId 'CVE-2024-EMPTY'
+
+            $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath
+            $result.vulnerabilities.Count | Should -Be 1
+            $result.vulnerabilities[0].cveID | Should -Be 'CVE-2024-EMPTY'
+            Should -Invoke Invoke-WebRequest -Times 1
+        }
+
         It 'fetches when the cache is the checked-in seed stub (empty vulnerabilities)' {
             $stub = '{"_comment":"placeholder","vulnerabilities":[]}'
             Set-Content -LiteralPath $script:cachePath -Value $stub -Encoding utf8

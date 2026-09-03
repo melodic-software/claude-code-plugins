@@ -43,7 +43,9 @@ function Get-SdkState {
 
 function Add-SdkFinding {
     param(
-        [Parameter(Mandatory)] [System.Collections.Generic.List[pscustomobject]] $Findings,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[pscustomobject]] $Findings,
         [Parameter(Mandatory)] [string] $Runtime,
         [Parameter(Mandatory)] [string] $Version,
         [Parameter(Mandatory)] [datetime] $Now,
@@ -64,7 +66,7 @@ function Add-SdkFinding {
 
 try {
     $skillRoot = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent | Split-Path -Parent
-    $eolPath = Join-Path $skillRoot 'references\shared\sdk-eol-table.json'
+    $eolPath = Join-Path $skillRoot 'reference\shared\sdk-eol-table.json'
     $eol = @{}
     if (Test-Path -LiteralPath $eolPath) {
         $raw = Get-Content -LiteralPath $eolPath -Raw | ConvertFrom-Json
@@ -129,7 +131,16 @@ try {
         $summary = "$($warn.Count) SDK(s) reach EOL within 90 days."
     } elseif ($findings.Count -gt 0) {
         $severity = 'INFO'
-        $summary = "$($findings.Count) SDK(s) detected; oldest: $($findings[0].runtime) $($findings[0].version)."
+        # Detection order is not age. Sort by EOL date (unknown last) so
+        # "oldest" names the runtime whose support window ends first (#3435).
+        $oldest = @(
+            $findings | Sort-Object @{
+                Expression = {
+                    if ($_.eol_date) { [datetime]$_.eol_date } else { [datetime]::MaxValue }
+                }
+            }, runtime, version
+        )[0]
+        $summary = "$($findings.Count) SDK(s) detected; oldest: $($oldest.runtime) $($oldest.version)."
     }
 
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `

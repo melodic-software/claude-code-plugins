@@ -237,8 +237,12 @@ STRUCTURAL_BASENAMES="README.md SKILL.md AGENTS.md CLAUDE.md CHANGELOG.md
 plugin.json marketplace.json settings.json hooks.json package.json
 package-lock.json index.md LICENSE"
 
+# Print the header block (everything after the shebang up to the first
+# non-comment line) with its comment markers stripped. Derived rather than a
+# hardcoded line range, which silently truncated as the header grew.
 usage() {
-  sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
+    "${BASH_SOURCE[0]}"
 }
 
 base_ref=""
@@ -394,6 +398,15 @@ build_sync_map() {
       echo "error: $script --print-manifest declared copies but no src= — the shared-lib derivation cannot read it." >&2
       echo "       Teach scripts/affected-tests.sh the new manifest shape; do not hardcode a copy list." >&2
       exit 2
+    fi
+    # A src with NO copy key at all is a canonical-only cluster: the lib has
+    # landed and no plugin carries it yet. That is not the rot the zero-yield
+    # guard below catches (copy patterns declared, none matching anything), so
+    # it registers with an empty copy set and R5/R6 resolve to the src alone.
+    if ((has_copy_key == 0)); then
+      SYNC_SCRIPT_SRC["$script"]="$src"
+      SYNC_SRC_COPIES["$src"]=""
+      continue
     fi
     expanded=()
     for pattern in ${patterns[@]+"${patterns[@]}"}; do
@@ -823,7 +836,8 @@ changed_from_diff() {
 if [[ -n "$print_fanout" ]]; then
   build_sync_map
   print_fanout="${print_fanout#./}"
-  if [[ -z "${SYNC_SRC_COPIES[$print_fanout]:-}" ]]; then
+  # Presence, not non-emptiness: a canonical-only src has an empty copy set.
+  if [[ -z "${SYNC_SRC_COPIES[$print_fanout]+set}" ]]; then
     echo "error: $print_fanout is not the src of any scripts/sync-*.sh manifest." >&2
     exit 2
   fi

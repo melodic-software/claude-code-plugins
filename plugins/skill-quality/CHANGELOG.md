@@ -3,6 +3,40 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.11]
+
+### Changed
+
+- **`check` skill-listing entry tightened.** It was the marketplace's fifth largest listing entry.
+  The description now abbreviates the twenty-five-check enumeration and drops the eval-lint
+  sub-list (both live in the skill body) while keeping every quoted trigger phrase, the three
+  action names, and the `Not for` disambiguation. Claude Code truncates the combined
+  `description` and `when_to_use` text at 1,536 characters in the skill listing, and the shared
+  listing budget scales at 1% of the model's context window, so every character an entry spends
+  is a character another skill's description cannot. Hook-performance program, phase 6 (skill
+  listing budget).
+
+## [0.20.10]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.20.9]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.20.8]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
 ## [0.20.7]
 
 ### Changed

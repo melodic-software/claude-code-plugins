@@ -3,6 +3,124 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.29]
+
+### Changed
+
+- **The statusline-tee cancellation cases park their `mv` shim for two seconds
+  instead of ten.** Bash defers the TERM trap until the foreground `mv`
+  returns, so the shim's own sleep was the floor for both cancellation cases
+  and the suite spent most of its wall time waiting on a delay that proved
+  nothing. Two seconds exercises the same cancellation window behind the same
+  readiness marker. Test-side only; no hook, script or shipped behaviour
+  changes.
+
+## [0.7.28]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.7.27]
+
+### Changed
+
+- **`statusline-tee.sh` skips the snapshot rename when nothing changed, and sweeps the spool on a
+  cadence.** Profiling the wired render path found nothing left to cut there: the spool has made
+  every non-elected refresh fork-free, which the suite already asserted by tracing one, so the whole
+  remaining cost sits in the drain that runs once per cadence. That drain spent ten process
+  creations every time regardless of whether the payload had moved. Two cuts. A refresh whose body
+  is byte-identical to the snapshot on disk, `captured_at` aside, now takes no lock, stages no temp
+  file and performs no rename. And the spool's 15-minute record sweep moved to a 5-minute cadence,
+  since it was spending a `find` twice a minute to enforce a fifteen-minute floor. The deterministic
+  result is the process count: a drain on an unchanged payload runs three external commands where it
+  ran seven, losing the rename, the snapshot lock's `mkdir` and `rmdir`, and the sweep's `find`.
+  Timed on Windows/MSYS with both tees interleaved in one loop so they meet the same load, the drain
+  falls from 8 to 10 spawn-equivalents over the bare render down to 5 to 6, across two runs of 12
+  trials whose spawn floors were 57 ms and 45 ms. The steady render is unchanged, 1.2 against 1.1
+  spawn-equivalents on the same runs, well inside a bar of 2, because the spool already left it
+  nothing to cut.
+- **The no-change skip is bounded, because the staleness rule is written against `captured_at`.**
+  `reference/reader-contract.md` makes a snapshot stale on a `captured_at` older than ten minutes
+  and says explicitly that the rule reads that field and never the file's mtime. An unbounded skip
+  would therefore starve `captured_at` on a machine whose windows are genuinely fresh but unmoving,
+  one idle session with `refreshInterval` still ticking, and silently demote the whole guard to
+  reactive-only: the same damage the windowless-writer preservation check exists to prevent,
+  arriving through a different door. A `.last-write` stamp, written with a builtin after a
+  successful rename, caps the skip at half the staleness budget. The compare runs before the lock,
+  since a compare under the lock would already have paid two of the three processes it avoids, and
+  after the temp sweep, so a refresh that skips its write still reclaims a killed session's orphan.
+  A trailing CR is stripped from both sides of the comparison: a native `jq` on Windows ends its
+  lines with CRLF, so the payload line keeps its CR under `read -r` and carries it into the file,
+  while what the read-back side holds depends on the bash build (MSYS bash drops a trailing CRLF
+  from `$(<file)`, a POSIX bash keeps the CR) and on which `jq` wrote the snapshot on disk. Any of
+  those leaves a CR on one side only, and the two sides would never have compared equal on the one
+  platform the skip exists for. The bytes the writer emits are unchanged. The atomic
+  temp-plus-rename write, its `EACCES` retry, and both lock disciplines are untouched, and the same
+  payload fed to this tee and to the previous one writes snapshots identical under
+  `jq -S 'del(.captured_at)'`.
+- **Every tuning knob is validated before it reaches bash arithmetic.** Bash evaluates the text of
+  an arithmetic operand, so `(( now - last < $KNOB ))` with an unvalidated environment value shaped
+  like `BASH_VERSINFO[$(cmd)0]` runs `cmd` on every render. `RLG_TEE_NOCHANGE_FLOOR`,
+  `RLG_TEE_SWEEP_INTERVAL` and `RLG_TEE_DISABLED_RECHECK` are now checked against `^[0-9]+$` and
+  fall back to their defaults otherwise, exactly as `RLG_TEE_DRAIN_INTERVAL` and every stamp read
+  from disk already were. The check is a builtin, so the traced zero-fork render path is unchanged.
+- **The reader contract and README describe the bounded skip.** Both had kept the earlier promise
+  that the snapshot trails the newest refresh by at most 30 seconds, and the script header still
+  said every refresh writes. They now say what holds: a changed payload reaches the snapshot within
+  the drain cadence, an unchanged one may leave the file and its `captured_at` untouched for up to
+  the 300-second floor, and the staleness rule itself is unchanged.
+- **Nine new suite cases.** The skip fires on an identical payload inside the floor, does not
+  misfire on a changed one, expires with the floor so `captured_at` stays fresh, and the spool sweep
+  honours its cadence while still reclaiming a dead session's aged record. Proven by mtime against a
+  sentinel rather than by content, since the body a skipped refresh would have written is by
+  definition byte-identical to the one already there. Each of the three environment knobs is fed a
+  value that would create a file if it ever reached the arithmetic, and the suite asserts the file
+  is absent, the default behaviour holds, and the passthrough survives; the shape subscripts an
+  array bash always sets, because a shape that merely aborted the shell under `set -u` would leave
+  every file untouched and pass vacuously. And a PATH `jq` shim that re-emits CRLF line endings
+  proves the skip still fires with a CR on the payload side only and on the disk side only.
+
+## [0.7.26]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.7.25]
+
+### Changed
+
+- **setup: unwrap-before-compose matches context-guard, then shares the spoke.** The inline
+  shell-syntax guard treated bare quoting as a wrap trigger, the bug context-guard already
+  fixed with `type -P` / `type -t`. Peel and wrap rules now live in
+  `reference/unwrap-before-compose.md`, synced byte-identical from context-guard.
+
+## [0.7.24]
+
+### Changed
+
+- setup's legacy-statusline detection (shim-revision ladder, legacy version-pinned wiring) moves to the shared synced spoke reference/legacy-statusline-detect.md, synced from context-guard, with a machine-scope bespoke rationale (customization-consistency Phase 2c)
+
+## [0.7.23]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
 ## [0.7.22]
 
 ### Changed

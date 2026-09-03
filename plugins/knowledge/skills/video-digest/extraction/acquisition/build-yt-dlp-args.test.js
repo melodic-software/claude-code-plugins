@@ -22,6 +22,7 @@ describe("buildYtDlpArgs", () => {
       mode: "full",
       outputTemplate: OUTPUT,
       workDir: WORK_DIR,
+      env: {},
       source: adapterSourceDeclarations(youtubeAdapter),
     });
 
@@ -52,6 +53,7 @@ describe("buildYtDlpArgs", () => {
       mode: "full",
       outputTemplate: OUTPUT,
       workDir: WORK_DIR,
+      env: {},
     });
 
     expect(args).toContain("--write-info-json");
@@ -64,6 +66,7 @@ describe("buildYtDlpArgs", () => {
       mode: "full",
       outputTemplate: OUTPUT,
       workDir: WORK_DIR,
+      env: {},
     });
     expect(args).toContain("--no-playlist");
   });
@@ -73,6 +76,7 @@ describe("buildYtDlpArgs", () => {
       mode: "video-only",
       outputTemplate: OUTPUT,
       workDir: WORK_DIR,
+      env: {},
     });
 
     expect(args).not.toContain("--write-subs");
@@ -87,6 +91,7 @@ describe("buildYtDlpArgs", () => {
       mode: "transcript",
       outputTemplate: OUTPUT,
       workDir: WORK_DIR,
+      env: {},
     });
 
     expect(args).toContain("--skip-download");
@@ -99,10 +104,32 @@ describe("buildYtDlpArgs", () => {
       mode: "transcript",
       outputTemplate: OUTPUT,
       workDir: WORK_DIR,
+      env: {},
     });
 
     expect(args).toContain("--paths");
     expect(args[args.indexOf("--paths") + 1]).toBe(`temp:${WORK_DIR}`);
+  });
+
+  it("does not leak process.env cookie settings into isolated argv", () => {
+    const previous = process.env.VIDEO_DIGEST_YT_DLP_COOKIES_FILE;
+    process.env.VIDEO_DIGEST_YT_DLP_COOKIES_FILE = "/tmp/should-not-appear.txt";
+    try {
+      const args = buildYtDlpArgs(URL, {
+        mode: "full",
+        outputTemplate: OUTPUT,
+        workDir: WORK_DIR,
+        env: {},
+      });
+      expect(args).not.toContain("--cookies");
+      expect(args).not.toContain("/tmp/should-not-appear.txt");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.VIDEO_DIGEST_YT_DLP_COOKIES_FILE;
+      } else {
+        process.env.VIDEO_DIGEST_YT_DLP_COOKIES_FILE = previous;
+      }
+    }
   });
 
   it("appends default js runtime before the URL", () => {

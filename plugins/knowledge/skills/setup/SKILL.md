@@ -60,22 +60,19 @@ Run `check`, then resolve each finding. Re-running after everything passes chang
 reports "already configured".
 
 1. **`library_dir` mismatch. Guidance only.** `library_dir` is a personal `userConfig` scalar;
-   never hand-edit `pluginConfigs` or write Claude Code settings. Direct the user to
-   `/plugin configure knowledge` (interactive, any time). Headless: rerun the install with the new
-   value. `claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>`.
-   Against an already-installed plugin it prints `already installed` **and still writes the value**,
-   verified on Claude Code 2.1.240 (a non-sensitive option at `user` scope: a non-default value
-   written to an installed plugin, then restored). The short-circuit is about the install, not the
-   config write. Re-verify before relying on it outside those conditions. A `sensitive` option, or
-   `project`/`local` scope, were not covered. Do **not** uninstall to reconfigure: uninstalling
-   drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
-   Options reference table to its manifest default, which can break extraction on a machine that
-   needed non-default acquisition or `yt-dlp` values. `-s` defaults to `user`, so pass the scope
-   `claude plugin list` reports for this plugin, and run from that project's directory for a
-   `project`/`local` scope, or the write lands at a scope that does not load.
-   The rendered value is injected at skill load,
-   so a change takes effect in a fresh session. Report the observed value and defer verification
-   to that fresh session; do not claim a change this session.
+   never hand-edit `pluginConfigs` or write Claude Code settings. Reconfigure through Claude
+   Code's native flow, per the marketplace's plugin-reconfiguration convention
+   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+   which owns the verified-version record): interactive `/plugin configure knowledge@<marketplace>`
+   any time, or headless `claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>`
+   (repeatable per key) — against an already-installed plugin it prints `already installed` and
+   still writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire
+   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
+   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
+   from that project's directory for a `project`/`local` scope, or the write lands at a scope that
+   does not load. Afterwards rerun `check` in a **fresh session** — the rendered
+   `${user_config.*}` is injected at skill load, so a same-session check still reports the OLD
+   value; report the observed effective value, never an unobserved change.
    For a root outside the project and home directories, recommend the portable value forms from the
    README's option table (`~` prefix or `${NAME}` / `%NAME%` env-var reference) instead of a literal
    machine path, which guardrail hardcoded-path checks rightly block.

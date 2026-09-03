@@ -1,0 +1,52 @@
+name: hook-utils-timing
+
+# Weekly wall-clock comparisons for lib/hook-utils.sh's bounded stdin read.
+# lib/hook-utils.test.sh carries two interleaved-pair clock comparisons (the
+# late-EOF window count and the stall overshoot) that each wait out real read
+# bounds: about 80 s per run on a hosted runner and identical on both operating
+# systems, while the suite's own comments call them advisory next to the
+# load-independent probes that guard the same regressions (#2105). Every
+# ordinary run of the suite therefore reports them as deferred, and this lane
+# is where they actually run: HOOK_UTILS_TIMING=1 enables them, once a week on
+# each platform, off the required merge gate. Advisory by construction: nothing
+# aggregates this workflow into ci-status, and a flake here blocks no merge.
+#
+# Two literal jobs rather than a matrix so the runner policy reads pinned
+# labels (never `*-latest`), the same rule ci.yml's lanes follow.
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run the shared lib suite with the clock comparisons enabled
+        env:
+          HOOK_UTILS_TIMING: "1"
+        run: bash lib/hook-utils.test.sh
+
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run the shared lib suite with the clock comparisons enabled on Windows
+        env:
+          HOOK_UTILS_TIMING: "1"
+        run: bash lib/hook-utils.test.sh

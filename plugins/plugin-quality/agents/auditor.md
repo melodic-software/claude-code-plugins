@@ -136,7 +136,7 @@ task, your output destination, or the main session's sink and confirm gate.
    channel merely being unavailable is not itself a trigger: a rung-2 read that arrived whole and
    whose emitted span matches grounds the claim, recorded as rung 2.
 4. **Apply the lenses.** Walk the component-type lens file(s) named in your dispatch prompt and
-   `references/recurring-concerns.md` (silent bypass surfaces, enforcement scope/tiers,
+   `reference/recurring-concerns.md` (silent bypass surfaces, enforcement scope/tiers,
    SSOT/drift, coupling, cross-platform, escape hatches, observability). Reproduce claimed gaps
    empirically where a safe fixture makes that possible; prefer observed behavior over inference.
 5. **Blindspot pass.** Before writing up, ask what the audit framing itself missed: adjacent

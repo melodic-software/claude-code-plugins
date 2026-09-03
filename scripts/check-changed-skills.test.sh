@@ -82,10 +82,10 @@ commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 printf 'unrelated\n' >"$r/README.md" # non-skill change
 if out="$(run "$r" "$b" 2>&1)"; then
-  if echo "$out" | grep -q "nothing to gate"; then
+  if echo "$out" | grep -q "nothing to gate" && [[ "$out" != *"unbound variable"* ]]; then
     ok "no changed skills passes"
   else
-    fail "expected nothing-to-gate message, got: $out"
+    fail "expected nothing-to-gate message without unbound-variable, got: $out"
   fi
 else
   fail "no changed skills should pass, got: $out"
@@ -220,12 +220,13 @@ add_skill "$r" p1 alpha context/note.md
 commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 printf 'updated\n' >"$r/plugins/p1/skills/alpha/context/note.md"
-run "$r" "$b" >/dev/null 2>&1
+out="$(run "$r" "$b" 2>&1)"
 if grep -q 'args=alpha ' "$r/checklog" 2>/dev/null &&
-  ! grep -q 'args=--require-evals alpha ' "$r/checklog" 2>/dev/null; then
+  ! grep -q 'args=--require-evals alpha ' "$r/checklog" 2>/dev/null &&
+  [[ "$out" != *"unbound variable"* ]]; then
   ok "non-SKILL.md touch does not forward --require-evals"
 else
-  fail "context-only change should not forward --require-evals, got: $(cat "$r/checklog" 2>/dev/null)"
+  fail "context-only change should not forward --require-evals, got: $(cat "$r/checklog" 2>/dev/null) out=$out"
 fi
 rm -rf "$r"
 

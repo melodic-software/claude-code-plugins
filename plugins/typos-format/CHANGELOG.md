@@ -3,6 +3,72 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.37]
+
+### Changed
+
+- **README carries the hook budget accounting row.** The measured 36.3 to 26.0 spawn-equivalents
+  of 0.6.35 and the residual now sit under Requirements, per the hook-budget convention's rule 1.
+  Documentation only.
+
+## [0.6.36]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.6.35]
+
+### Changed
+
+- **A clean edit costs 28 percent less.** This hook matches every `Write`,
+  `Edit` and `NotebookEdit`, so the process count on the path where `typos`
+  finds nothing is the cost. Three of sixteen processes are gone: the hook's own
+  directory and the edited file's directory are parameter expansions rather than
+  `dirname` calls, and the jq that copies `notebook_path` onto `file_path` now
+  runs only for a payload that carries one, which no `Write` or `Edit` does.
+  Measured 36.3 to 26.0 spawn-equivalents on a Windows Git Bash host, twelve
+  interleaved trials against an interleaved `bash -c :` floor; forks fall 31 to
+  29 over the same run, and a command substitution costs about half a spawn
+  here, so they are counted beside the execs. The README's accounting section
+  carries the method and the residual.
+- The suite gains a traced case pinning the benign path's shape on a clean
+  in-repo Markdown file: no `dirname`, no `basename`, exactly two `jq`, and a
+  ceiling of one external process spawned by the hook's own code, allowlisted to
+  `typos`. The ceiling is portable because the trace attributes each command to
+  the function frame it ran in, so the shared `hook::` path resolver's
+  host-dependent `realpath` and `cygpath` calls sit outside the count.
+- The directory strip that replaced `dirname` answers `/` for a file directly
+  under the filesystem root, as `dirname` did. Without the guard the strip left
+  an empty string, which the repo-root resolver read as `.`, the hook process
+  CWD. The suite gains a white-box case that runs the hook's own directory
+  lines against a root-level path, because no CI host can create one.
+
+## [0.6.34]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.6.33]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
 ## [0.6.32]
 
 ### Fixed

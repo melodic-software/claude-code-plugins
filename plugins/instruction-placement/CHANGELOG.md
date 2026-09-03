@@ -3,6 +3,78 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.21]
+
+### Changed
+
+- **Vendored `hook-utils.sh` builds the telemetry envelope and reads `file_path`
+  with shell builtins.** `hook::emit_telemetry` no longer spawns two jq
+  processes, a mktemp and an rm per run: the envelope is assembled in the shell
+  as one compact line (the same document jq produced, now `jq -c` shaped), with
+  jq kept only as the fallback for a data object the builtin compactor cannot
+  prove. `hook::read_file_path` takes `.tool_input.file_path` without jq on the
+  well-formed payload shape and resolves the file, project root and temp roots
+  with one batched `realpath` instead of one process each. Same verdicts, same
+  emitted path, same sink record; phase 4b of the hook-performance program
+  (#3623). The copy is bumped because `scripts/sync-hook-utils.sh` keeps every
+  carrying plugin byte-identical.
+
+## [0.11.20]
+
+### Changed
+
+- **`index-drift` carries an `if` filter, `Edit(**/.claude/rules/*.md)`.** The hook only
+  ever acts on a rule file under `.claude/rules/`, which is also its own first check, so
+  every other Write/Edit no longer spawns it.
+
+## [0.11.19]
+
+### Fixed
+
+- **`render-index.sh` read a drive-letter `--file` and `--root` as relative, so the index-drift
+  hook was a no-op on every Windows write.** `git rev-parse --show-toplevel` answers `C:/repo`
+  under Git Bash, and that is the spelling `hooks/index-drift.sh` hands the renderer. The absolute
+  test looked only for a leading `/`, so the target was joined to the calling directory, `check`
+  died on an unreadable file, and the hook swallowed the error and exited 0. Nothing about the
+  repository looked wrong and no stale-index notice ever appeared. `[A-Za-z]:[\/]` is now absolute.
+
+- **`reachable` and `write`'s reachability warning stripped a root prefix that could not match.**
+  Both strip `"$PWD"/` from the target after entering `--root`, and `$PWD` is the shell's own
+  spelling (`/c/repo`) while the target stayed in git's (`C:/repo`), so the strip silently left the
+  path absolute: `reachable` asked about a target it could not name, and `write` warned that a
+  reachable index was unreachable. The target is now re-spelled through `cd "$dir" && pwd`, the
+  same call that produced `$PWD`, for those two comparisons only. The path the caller wrote is
+  untouched, so every read, write and status line still names it.
+
+- **A backslash drive-letter `--file` or `--root` (`C:\repo\AGENTS.md`) is re-spelled with forward
+  slashes at intake.** GNU `dirname` and `basename` do not treat `\` as a separator, so the target
+  split to `.` plus the whole string, the re-spelled target became `$PWD/C:\repo\AGENTS.md`,
+  `reachable` asked about a path that does not exist, and `write` could warn that a reachable
+  index was unreachable. Only the drive-letter shape is touched; a POSIX path carrying a literal
+  backslash passes through unchanged. Status lines for a backslash input now print the
+  forward-slash form.
+
+### Changed
+
+- **`scripts/lib/discover.test.sh` reports a host skip instead of failing on a copied symlink.**
+  Under MSYS without `winsymlinks`, `ln -s` copies its target. Most cases survive that, but the one
+  asserting a `CLAUDE.md` symlinked to `AGENTS.md` is reachable has no subject at all. It now
+  probes the link round trip and prints a visible `SKIP (host: ...)` line counted apart from the
+  pass total.
+
+## [0.11.18]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.11.17]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside a command substitution, so a host without either digest tool continued and printed a malformed key at exit 0. Synced from the canonical `claude-config` copy via `scripts/sync-state-key.sh`.
+
 ## [0.11.16]
 
 ### Changed

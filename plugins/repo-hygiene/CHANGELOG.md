@@ -3,6 +3,64 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.27]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.10.26]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.10.25]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
+## [0.10.24]
+
+### Fixed
+
+- **`clean`: `git-tree-reset.sh` and `git-tree-reset-batch.sh` no longer expand
+  empty arrays under `set -u`.** `CHILD_PASS` stays empty on a default dry-run,
+  `REPO_KEYS` is empty on the first `key_seen` call, and `PRESERVE_ARGS` is
+  passed through to `git clean`. Bare `"${arr[@]}"` is an unbound-variable abort
+  on bash 4.0-4.3. Those sites now use the house `${arr[@]+"${arr[@]}"}` idiom
+  ([#3425](https://github.com/melodic-software/claude-code-plugins/issues/3425)).
+
+## [0.10.23]
+
+### Fixed
+
+- **`clean`: `batch_read_lines_into` now has a `ulimit -n 10` regression case.** The helper
+  opens named sources on fixed fd 3 so a low nofile ceiling still works. The prior
+  `{fd}` allocator started at 10 and failed that limit; the case was missing from the
+  test matrix on #3641.
+
+## [0.10.20]
+
+### Fixed
+
+- **`clean`: `batch_read_lines_into` no longer treats a trailing blank line as
+  "file not found".** The helper's exit status is now a source-open verdict: 0
+  once the selected source was opened and consumed to ordinary EOF (empty
+  input, blank lines, a trailing blank line, and a final non-newline-terminated
+  line are all success), and 1 only when a named source is missing, not a
+  regular file, or cannot be opened. An explicit `return 0` after EOF stops the
+  last `[[ -n "$line" ]]` from becoming the function result. Both
+  `clean-batch.sh` and `git-tree-reset-batch.sh` trust that contract, so a
+  `--repos-from` / `--skip-from` file ending `a\n\n` is accepted and a missing
+  file still errors as file-not-found. Named sources open on fixed fd 3 so a
+  `ulimit -n 10` runner can still read the list
+  ([#3482](https://github.com/melodic-software/claude-code-plugins/issues/3482)).
+
 ## [0.10.19]
 
 ### Changed

@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Reliability Monitor stability index + recent records. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#9-reliability-monitor for rubric.
+See reference/windows/check-catalog.md#9-reliability-monitor for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)
@@ -95,8 +95,9 @@ try {
                 Group-Object -Property ProductName |
                 Where-Object { $_.Count -ge 5 }).Count
 
+        $avgText = if ($null -eq $stabilityAvg) { 'n/a' } else { "$stabilityAvg" }
         $severity = 'OK'
-        $summary = "Stability avg $stabilityAvg / 10, $($records.Count) event(s) in 7d."
+        $summary = "Stability avg $avgText / 10, $($records.Count) event(s) in 7d."
         if ($null -ne $stabilityMin -and $stabilityMin -lt 3) {
             $severity = 'CRIT'
             $summary = "Stability dropped below 3 (min $stabilityMin) in last 7d."
@@ -111,7 +112,7 @@ try {
             $summary = "$repeatCrashCount application(s) crashed >=5 times in last 7d."
         } elseif ($records.Count -gt 0) {
             $severity = 'INFO'
-            $summary = "$($records.Count) event(s) in last 7d, stability avg $stabilityAvg."
+            $summary = "$($records.Count) event(s) in last 7d, stability avg $avgText."
         }
 
         $detail = @{

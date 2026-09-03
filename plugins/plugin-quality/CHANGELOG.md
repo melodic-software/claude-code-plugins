@@ -5,6 +5,19 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.7]
+
+### Changed
+
+- **audit:** rename the spoke directory `references/` to `reference/` so it
+  matches the fleet majority (#3546).
+
+## [0.7.6]
+
+### Changed
+
+- Convention-doc migration pilot (Phase 2d, ADR 0018). The team config surface moves from the dedicated `.claude/plugin-quality.md` cascade to a topic doc at the consumer's convention home (`<home>/plugin-quality/README.md`), bound by the config-cascade pointer line and resolved via the bundled `lib/resolve-convention-home.sh`. Ships `retirements.yaml` (`plugin-quality-r001` migrate for the tracked file, `plugin-quality-r002` delete for the overlay) with the synced `lib/check-retirements.sh`; setup `check` reports the resolver outcomes distinctly and the retirement findings, `apply` converges the pointer-line region and the topic doc with per-record gated cleanup. The retired user-global and overlay layers are no longer read anywhere, and their presence WARNs rather than being silently ignored; the dual-read window (old tracked file present) reads the file as authority with a visible WARN until cleaned.
+
 ## [0.7.5]
 
 ### Changed

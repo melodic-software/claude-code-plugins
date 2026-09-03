@@ -58,8 +58,9 @@ Actions:
 ## Profile resolution
 
 Files at `.claude/ai-briefing/` form the default profile. Each
-`.claude/ai-briefing/<name>/` directory is a named profile overlay. Resolve the active
-profile in this order:
+`.claude/ai-briefing/<name>/` directory is a named profile. Selecting a named
+profile is profile selection, not resolution of a `*.local.*` cascade layer.
+Resolve the active profile in this order:
 
 1. `--profile <name>` for this invocation.
 2. The rendered `${user_config.active_profile}` value when it is non-empty.
@@ -77,13 +78,14 @@ AI_BRIEFING_PROFILE="$PROFILE" node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"
 
 Never ask the consumer to export the variable globally.
 
-A profile may contain:
+A profile may contain these team-tracked files. They are not a `*.local.*`
+cascade overlay:
 
 | Artifact | Purpose |
 |---|---|
 | `sources.md` | Approved RSS/Atom feeds, official release pages, GitHub repositories, and user-supplied URLs. |
 | `audience.md` | Optional stack/audience lens for impact annotations. |
-| `brand.json` | Optional declarative deck brand overlay. |
+| `brand.json` | Optional declarative deck brand file. |
 
 ## Default run
 
@@ -148,6 +150,6 @@ under `.claude/ai-briefing/[<profile>/]` in the consumer repository.
 
 | File | Load when |
 |---|---|
-| `references/audience-defaults.md` | Step 6 ranking, when no profile `audience.md` supplies the lens or a profile only partly overrides it. |
-| `references/build-pipeline.md` | Step 8, running the build: commands, the `slides-data.js` schema, and its prerequisite checks. |
-| `references/slide-generation.md` | Step 8 for `--format slides`, deciding slide order, split rules, and brand tokens. |
+| `reference/audience-defaults.md` | Step 6 ranking, when no profile `audience.md` supplies the lens or a profile only partly overrides it. |
+| `reference/build-pipeline.md` | Step 8, running the build: commands, the `slides-data.js` schema, and its prerequisite checks. |
+| `reference/slide-generation.md` | Step 8 for `--format slides`, deciding slide order, split rules, and brand tokens. |

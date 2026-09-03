@@ -163,7 +163,14 @@ emit_tel() {
   # rather than skipping), and an unanchored path can only degrade to a bare
   # basename, so resolve the file's own checkout for that case.
   local file_rel root="${CLAUDE_PROJECT_DIR:-}"
-  [[ -n "$root" ]] || root="$(hook::repo_root "$(dirname "$FILE")")"
+  # Parameter expansion, not a `$(dirname …)` subshell: a command substitution
+  # is a fork per call on Windows Git Bash and this guard runs on every write.
+  # Same answers as `dirname`: no slash -> `.`, and a root-level `/x` -> `/`
+  # rather than the empty string, which hook::repo_root would read as `.`.
+  local file_dir="${FILE%/*}"
+  [[ "$file_dir" == "$FILE" ]] && file_dir="."
+  [[ -n "$file_dir" ]] || file_dir=/
+  [[ -n "$root" ]] || root="$(hook::repo_root "$file_dir")"
   # The helper strips "$root/", so a root that already ends in a separator
   # makes the prefix "/repo//" and matches nothing: every in-project file
   # would collapse to its basename. CLAUDE_PROJECT_DIR is caller-supplied and

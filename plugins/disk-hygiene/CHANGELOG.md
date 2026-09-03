@@ -3,6 +3,49 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.4]
+
+### Changed
+
+- **The engine gate carries an `if` filter, `Bash(*hygiene.py*)`.** The gate only ever
+  judges a command that carries the engine's file name (`_engine_gate_relevant`), so the
+  filter is a superset of its own relevance check; every other Bash call no longer pays
+  a Python interpreter start to be told it is irrelevant.
+- **The engine gate is registered once per tool.** An `if` filter is scoped to the tool
+  it names, so the single `Bash|PowerShell` entry carrying a `Bash(...)` filter never
+  launched the gate for a PowerShell call. The `Bash` entry keeps the filter; a separate
+  `PowerShell` entry carries none, because PowerShell filtering must match every
+  subcommand of a compound command and would skip this kill-switch guard silently on a
+  mixed line. Every PowerShell call therefore still pays the interpreter start, as it
+  did before 0.21.4.
+
+## [0.21.3]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.21.2]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.21.1]
+
+### Changed
+
+- **Manual-handoff docs name the hook-issued `ask`, not a guaranteed human prompt.** The
+  PowerShell deletion lane returns `permissionDecision: "ask"`. Official PreToolUse docs say
+  that value prompts the user to confirm and, since v2.1.211, forces the prompt even in auto
+  mode, but an explicit `permissions.ask` rule is what those pages treat as forcing a prompt
+  in `auto` and `bypassPermissions` (`dontAsk` auto-denies instead). The engine-apply step
+  uses that same hook `ask`, so SKILL.md and README no longer call it a guaranteed final
+  prompt. The safety model and unsupported-platform handoff now say so.
+
 ## [0.21.0]
 
 ### Changed

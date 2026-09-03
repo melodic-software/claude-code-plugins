@@ -3,6 +3,78 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.32]
+
+### Changed
+
+- **`audit-prompting-postures` skill-listing entry tightened.** It was the marketplace's third
+  largest listing entry. The description now folds the component list into a parenthetical and
+  shortens the posture enumeration while keeping every quoted trigger phrase and the `Not for`
+  disambiguation. Claude Code truncates the combined `description` and `when_to_use` text at
+  1,536 characters in the skill listing, and the shared listing budget scales at 1% of the model's
+  context window, so every character an entry spends is a character another skill's description
+  cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.40.31]
+
+### Fixed
+
+- **`audit-instructions`: every restatement finding was declined on a Windows checkout under a
+  short-named path.** The I29 rows come from `restatement-scan.py`, a native Windows interpreter,
+  so MSYS converts its argv on the way in and the scanner echoes what it received: backslash
+  separators, and 8.3 short components such as `<drive>:\Users\<SHORT~1>\...`. None of the anchors
+  is spelled that way, the out-of-repo fence fails closed, and the findings stayed in the
+  human-report-only column. `emit-findings.sh` now re-spells such a path through `cygpath -l -m`,
+  which answers the long forward-slash form the anchors use, cached per distinct path.
+
+  The expansion cannot come from the anchor side instead: `cygpath -m -s` also shortens components
+  MSYS left long, so the two spellings do not meet in the middle. The path reaches `cygpath`
+  through a file the script owns rather than through a command line, so no scanner-supplied text is
+  ever interpolated into a shell word. Where `cygpath` is absent, awk normalizes separators alone
+  and the anchors behave exactly as before.
+
+## [0.40.30]
+
+### Changed
+
+- Phase 2d pilot wiring. `lib/resolve-convention-home.sh` gains its sync cluster (`scripts/sync-resolve-convention-home.sh`, first carrier: plugin-quality) and its shared-source header note now cites the cross-plugin source registry instead of the pre-carrier placeholder wording.
+
+## [0.40.29]
+
+### Changed
+
+- **`lib/check-retirements.sh`:** optional `heading` field on `kind: line` restricts detection and `--clean` to the body of matching ATX sections (retired-conventions contract 1.1). A standalone line that matches `match` outside that heading is not a leftover.
+
+## [0.40.28]
+
+### Changed
+
+- New retired-conventions mechanism (customization-consistency Phase 2b): canonical `lib/check-retirements.sh` + tests (manifest-driven detection/cleanup of retired consumer conventions), `lib/resolve-convention-home.sh` + tests (AGENTS.md pointer-line resolver), and an audit-pass fleet-sweep lane over installed plugins' `retirements.yaml`. File and line `--clean` re-resolve the parent with `pwd -P` and refuse a target that lands outside `--root` (the dir branch already did). The contract validator matches the helper's separator, quote-stripping, path grammar, and complete retirement-id eval coverage.
+
+## [0.40.27]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
+## [0.40.26]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside `identity="local/$(hash12 ...)"`, which POSIX XCU 2.6.3 executes in a subshell, so only that substitution died. Under `set -uo pipefail` (no `-e`) the script continued and printed a malformed key (`local//...`) at exit 0. The tool check now sits in the main script body, before any hash assignment. Canonical source for the six-plugin cluster; copies updated via `scripts/sync-state-key.sh`.
+
+## [0.40.25]
+
+### Fixed
+
+- **`audit`: `fix-plugin-drift.sh` no longer crashes on a trailing bare `--input`.** Under
+  `set -u`, a missing option-argument dereferenced `$2` and exited 1 with an unbound-variable
+  error. A missing value now prints `Missing value for --input` to stderr and exits 2, matching
+  the script's other argument-validation errors.
+
 ## [0.40.24]
 
 ### Changed

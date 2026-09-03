@@ -3,6 +3,44 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.4]
+
+### Changed
+
+- **`dissolve-comments` skill-listing entry tightened.** It was among the marketplace's ten
+  largest listing entries. The description now folds the scope ladder into a parenthetical and
+  drops a redundant clause from the triage sentence while keeping every quoted trigger phrase and
+  the `Skip when` disambiguation. Claude Code truncates the combined `description` and
+  `when_to_use` text at 1,536 characters in the skill listing, and the shared listing budget scales
+  at 1% of the model's context window, so every character an entry spends is a character another
+  skill's description cannot. Hook-performance program, phase 6 (skill listing budget).
+
+## [0.15.3]
+
+### Changed
+
+- **`audit-comment-residue`: four escaped-path cases report a host skip instead of failing on
+  Windows.** The cases name a file with a byte git's v1 porcelain escapes: a double quote, a
+  backslash, a `>` and a tab. Windows reserves all four, and MSYS hides that by substituting each
+  reserved byte with the private-use code point at U+F000 plus the byte, so the file exists to the
+  shell under the name asked for while git sees the substitute. A backslash is not substituted at
+  all, it is a separator, and the create simply fails. Either way the fixture is absent and the
+  assertion reported a detector defect that does not exist.
+
+  The suite now asks through git itself, the tool the cases are really about: `--porcelain -z`
+  emits raw bytes with no C-quoting, so a name that survives to git matches exactly and one that
+  does not, does not. A negative probe skips the fixture and prints a visible `SKIP (host: ...)`
+  line counted apart from the pass total.
+
+## [0.15.2]
+
+### Changed
+
+- **setup:** after a team-layer write, re-run the tracked-file pair
+  (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0).
+  Non-zero `ls-files` means written but untracked: commit it to share with
+  the team, never success.
+
 ## [0.15.1]
 
 ### Fixed

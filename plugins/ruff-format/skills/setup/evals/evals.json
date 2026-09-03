@@ -72,12 +72,12 @@
       "id": 6,
       "name": "headless-toggle-off-reruns-install-never-uninstalls",
       "prompt": "/ruff-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
-      "expected_output": "Routes the headless change to a plain `claude plugin install ruff-format@<marketplace> -s <scope> --config ruff_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "expected_output": "Routes the headless change to a plain `claude plugin install ruff-format@<marketplace> -s <scope> --config ruff_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (citing the plugin-reconfiguration convention as the owner of the verified-version record), rules out uninstalling to reconfigure, and ends by rerunning check in a fresh session and reporting the observed effective value.",
       "files": [],
       "expectations": [
         "Prescribes a plain `claude plugin install … --config ruff_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
         "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
-        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope, noting a sensitive option and project/local scope were not covered",
+        "Cites the marketplace's plugin-reconfiguration convention as the owner of the --config-against-an-installed-plugin claim's verified-version record rather than stamping a CLI version or verification conditions itself, and requires the check rerun to happen in a FRESH session because the rendered user_config token is injected at skill load",
         "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
         "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
       ]

@@ -339,5 +339,67 @@ else
   fail "all tier plan REPO+GITDIR" "both" "$(cat "$APLAN")"
 fi
 
+# --- 9. --repos-from / --skip-from source-open contract (#3482) ---
+# A trailing blank is ordinary EOF success; only a missing/unopenable named
+# source is "file not found". Empty input is success at the helper and surfaces
+# as "no repos given", never as a missing file.
+RF="$(mkrepo rf)"
+printf '%s\n\n' "$RF" >"$TEST_TMPDIR/repos-trail.txt"
+rc=0
+out="$(bash "$BATCH" --tier caches --repos-from "$TEST_TMPDIR/repos-trail.txt" 2>&1)" || rc=$?
+assert_exit "trailing-blank --repos-from is accepted (exit 0)" 0 "$rc"
+assert_not_contains "trailing blank is not reported as file-not-found" "$out" "file not found"
+assert_contains "trailing-blank list enumerates the repo" "$out" "Repos: 1"
+
+: >"$TEST_TMPDIR/repos-empty.txt"
+rc=0
+out="$(bash "$BATCH" --tier caches --repos-from "$TEST_TMPDIR/repos-empty.txt" 2>&1)" || rc=$?
+assert_exit "empty --repos-from is a usage error (exit 2)" 2 "$rc"
+assert_not_contains "empty file is not reported missing" "$out" "file not found"
+assert_contains "empty file reaches no-repos usage" "$out" "no repos given"
+
+printf '%s' "$RF" >"$TEST_TMPDIR/repos-noeol.txt"
+rc=0
+out="$(bash "$BATCH" --tier caches --repos-from "$TEST_TMPDIR/repos-noeol.txt" 2>&1)" || rc=$?
+assert_exit "unterminated --repos-from is accepted (exit 0)" 0 "$rc"
+assert_contains "unterminated list enumerates the repo" "$out" "Repos: 1"
+
+printf '%s\r\n' "$RF" >"$TEST_TMPDIR/repos-cr.txt"
+rc=0
+out="$(bash "$BATCH" --tier caches --repos-from "$TEST_TMPDIR/repos-cr.txt" 2>&1)" || rc=$?
+assert_exit "CR-terminated --repos-from is accepted (exit 0)" 0 "$rc"
+assert_contains "CR-stripped list enumerates the repo" "$out" "Repos: 1"
+
+rc=0
+out="$(bash "$BATCH" --tier caches --repos-from "$TEST_TMPDIR/no-such-repos.txt" 2>&1)" || rc=$?
+assert_exit "missing --repos-from exits 2" 2 "$rc"
+assert_contains "missing file reported not found" "$out" "file not found:"
+
+SKIP_TRAIL="$TEST_TMPDIR/skips-trail.txt"
+printf 'rf\n\n' >"$SKIP_TRAIL"
+rc=0
+out="$(bash "$BATCH" --tier caches --repo "$RF" --skip-from "$SKIP_TRAIL" 2>&1)" || rc=$?
+assert_exit "trailing-blank --skip-from is accepted (exit 0)" 0 "$rc"
+assert_not_contains "trailing-blank skip-from is not file-not-found" "$out" "file not found"
+assert_contains "trailing-blank skip-from still skips" "$out" "skip-list"
+
+rc=0
+out="$(bash "$BATCH" --tier caches --repo "$RF" --skip-from "$TEST_TMPDIR/no-such-skips.txt" 2>&1)" || rc=$?
+assert_exit "missing --skip-from exits 2" 2 "$rc"
+assert_contains "missing skip-from reported not found" "$out" "file not found:"
+
+UNREAD_LIST="$TEST_TMPDIR/unreadable-repos.txt"
+printf '%s\n' "$RF" >"$UNREAD_LIST"
+chmod 000 "$UNREAD_LIST" 2>/dev/null || true
+if [[ -r "$UNREAD_LIST" ]]; then
+  skip_case "unopenable --repos-from: chmod 000 not enforced on this filesystem (CAP_DAC_OVERRIDE)"
+else
+  rc=0
+  out="$(bash "$BATCH" --tier caches --repos-from "$UNREAD_LIST" 2>&1)" || rc=$?
+  assert_exit "unopenable --repos-from exits 2" 2 "$rc"
+  assert_contains "unopenable file reported not found" "$out" "file not found:"
+fi
+chmod 644 "$UNREAD_LIST" 2>/dev/null || true
+
 [[ $FAILED -eq 0 ]] || exit 1
 echo "clean-batch.test.sh: all passed"

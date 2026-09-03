@@ -91,7 +91,10 @@ writes. Every bootstrap write is user-accepted.
    the user chose. Absent keys mean the documented defaults, so an all-defaults answer may
    yield a file with `contract_tier: branch` alone or the schema-valid empty mapping `{}`
    (optionally followed by comments), never a comment-only document, which YAML parses as null.
-   Preserve every schema key an existing file carries.
+   Preserve every schema key an existing file carries. After the write, run the tracked-file pair
+   on it: `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
+   `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but
+   untracked: commit it to share with the team", never success).
 
 ### Second concern. Standards bootstrap
 
@@ -111,33 +114,35 @@ implement it by reference, do not restate it. Plugin-side notes only:
   its `standards-contract` frontmatter at the binding's version, and the setup-owned
   `<standards_dir>/.gitignore` containing `*.local.md` (the personal-overlay ignore). Write
   `.claude/standards.yaml` only when the user relocates the root from the documented default.
+  After a bootstrap write, run the tracked-file pair on each written team file:
+  `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
+  `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but
+  untracked: commit it to share with the team", never success).
 - **Optional offers, never demands:** pointer-rule generation for indexed ecosystem surfaces
   (interactive only), and reorganizing mixed or spread standards content toward the SRP + index
   shape.
 - **Migration is this skill re-run**. No separate action; direction and messaging per the
-  binding.
+  binding. It stays bespoke rather than becoming a retirement-manifest record: it is a
+  versioned-contract upgrade under `apply`, the sanctioned schema-evolution path, not a retirement.
 
 ### Interview-rendering toggle
 
 `use_ask_user_question` is a native `userConfig` boolean (default `false`) governing whether the
 pipeline skills' question rounds render through `AskUserQuestion` or as inline prose. It is not a
-consumer-project file this skill writes. To change it, direct the user to `/plugin configure planning@<marketplace>`
-(interactive, any time). Headless: rerun the install with the new value using
-`claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`. Against
-an already-installed plugin it prints `already installed` and still writes the value, verified on
-Claude Code 2.1.240 for a non-sensitive option at `user` scope; a `sensitive` option, and
-`project`/`local` scope, were not covered, so re-verify before relying on it there. Do **not**
-uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs` entry, resetting every
-option in the README's Options reference table to its manifest default. `-s` defaults to `user`, so
-pass the scope `claude plugin list` reports for this plugin, and run from that project's directory for
-a `project`/`local` scope, or the write lands at a scope that does not load. This skill never writes
-Claude Code user settings or `pluginConfigs`.
-Afterwards, keep the two claims apart. The write is issued and the stored value is what you
-passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
-skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-session start, so a same-session `check` still reports the OLD value. Reporting that as a failed
-write would be wrong. Verify the effective value by rerunning `check` in a **fresh session**, and
-never claim an unobserved change.
+consumer-project file this skill writes. Reconfigure through Claude Code's native flow, per the
+marketplace's plugin-reconfiguration convention
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+which owns the verified-version record): interactive `/plugin configure planning@<marketplace>` any
+time, or headless `claude plugin install planning@<marketplace> -s <scope> --config use_ask_user_question=true`
+(repeatable per key) — against an already-installed plugin it prints `already installed` and still
+writes the value. Do **not** uninstall to reconfigure: that drops the plugin's entire stored
+`pluginConfigs` entry, resetting every option in the README's Options reference to its manifest
+default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run from that
+project's directory for a `project`/`local` scope, or the write lands at a scope that does not load.
+This skill never writes Claude Code user settings or `pluginConfigs`. Afterwards rerun `check` in a
+**fresh session** — the rendered `${user_config.*}` and each hook's `CLAUDE_PLUGIN_OPTION_*` are
+fixed at session start, so a same-session `check` still reports the OLD value; report the observed
+effective value, never an unobserved change.
 
 ### Verify after remediation
 

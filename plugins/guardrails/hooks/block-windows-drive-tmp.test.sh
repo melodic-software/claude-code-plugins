@@ -235,6 +235,7 @@ reg_cmd=$(jq -r --arg h "block-windows-drive-tmp.sh" '
   [ .hooks.PreToolUse[].hooks[].command | select(contains($h)) ] | first // ""' \
   "$HOOKS_JSON" 2>/dev/null)
 reg_rel="${reg_cmd##*\"/}"
+reg_rel="${reg_rel%% *}" # the dispatcher form carries the guard as an argument
 assert_eq "the registered command resolves to a file on disk" "yes" \
   "$([[ -n "$reg_rel" && -f "$HOOK_DIR/../$reg_rel" ]] && echo yes || echo no)"
 
@@ -270,6 +271,19 @@ run_win "touch /tmp/x (blocked)" 'touch /tmp/x' 2
 run_win "tee /tmp/x (blocked)" 'echo x | tee /tmp/x' 2
 run_win "cp to /tmp/x (blocked)" 'cp ./a /tmp/x' 2
 run_win "mv to /tmp/x (blocked)" 'mv ./a /tmp/x' 2
+run_win "/usr/bin/mkdir /tmp/x (blocked)" '/usr/bin/mkdir -p /tmp/x' 2
+run_win "sudo /usr/bin/mkdir /tmp/x (blocked)" 'sudo /usr/bin/mkdir -p /tmp/x' 2
+run_win "quoted /usr/bin/mkdir /tmp/x (blocked)" '"/usr/bin/mkdir" -p /tmp/x' 2
+run_win "single-quoted /usr/bin/mkdir /tmp/x (blocked)" "'/usr/bin/mkdir' -p /tmp/x" 2
+run_win "echo /usr/bin/mkdir /tmp/x (allowed — mention, not command)" 'echo /usr/bin/mkdir /tmp/x' 0
+run_win "echo 'run mkdir' /tmp/x (allowed — closing quote is not the command)" "echo 'run mkdir' /tmp/x" 0
+run_win "cat /path/mkdir /tmp/x (allowed — path argument, not command)" 'cat /some/path/mkdir /tmp/x' 0
+run_win "/usr/bin/touch /tmp/x (blocked)" '/usr/bin/touch /tmp/x' 2
+run_win "/usr/bin/tee /tmp/x (blocked)" 'echo x | /usr/bin/tee /tmp/x' 2
+run_win "/usr/bin/cp to /tmp/x (blocked)" '/usr/bin/cp ./a /tmp/x' 2
+run_win "quoted /usr/bin/cp to /tmp/x (blocked)" '"/usr/bin/cp" ./a /tmp/x' 2
+run_win "single-quoted /usr/bin/cp to /tmp/x (blocked)" "'/usr/bin/cp' ./a /tmp/x" 2
+run_win "./bin/mkdirs /tmp/x (allowed — verb substring)" './bin/mkdirs /tmp/x' 0
 run_win "python open /tmp write (blocked)" "python3 -c \"open('/tmp/x','w').write('a')\"" 2
 
 # --- PowerShell writers (blocked) --------------------------------------------
@@ -328,9 +342,9 @@ out=$(env OSTYPE=msys HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" \
 wait_for_sink "$TEL" || true
 if [[ -s "$TEL" ]]; then
   tel_body=$(cat "$TEL")
-  assert_contains "telemetry hook id" "$tel_body" '"hook": "block-windows-drive-tmp"'
-  assert_contains "telemetry blocked" "$tel_body" '"status": "blocked"'
-  assert_contains "telemetry form" "$tel_body" '"form": "redirect"'
+  assert_contains "telemetry hook id" "$(jq -r .hook <<<"$tel_body")" 'block-windows-drive-tmp'
+  assert_contains "telemetry blocked" "$(jq -r .status <<<"$tel_body")" 'blocked'
+  assert_contains "telemetry form" "$(jq -r .data.form <<<"$tel_body")" 'redirect'
 else
   # Telemetry is best-effort; an empty sink on a slow box is not a contract fail
   # when the block itself already asserted. Record as an explicit skip-visible.
@@ -353,11 +367,11 @@ out=$(env OSTYPE=msys HOOK_TELEMETRY_SINK="$SINK_FP" bash "$HOOK" \
 wait_for_sink "$TEL_FP" || true
 if [[ -s "$TEL_FP" ]]; then
   tel_fp_body=$(cat "$TEL_FP")
-  assert_contains "file-path telemetry hook id" "$tel_fp_body" '"hook": "block-windows-drive-tmp"'
-  assert_contains "file-path telemetry blocked" "$tel_fp_body" '"status": "blocked"'
-  assert_contains "file-path telemetry form" "$tel_fp_body" '"form": "file-path"'
-  assert_contains "file-path telemetry tool" "$tel_fp_body" '"tool": "Write"'
-  assert_contains "file-path telemetry subject" "$tel_fp_body" '"subject": "Write"'
+  assert_contains "file-path telemetry hook id" "$(jq -r .hook <<<"$tel_fp_body")" 'block-windows-drive-tmp'
+  assert_contains "file-path telemetry blocked" "$(jq -r .status <<<"$tel_fp_body")" 'blocked'
+  assert_contains "file-path telemetry form" "$(jq -r .data.form <<<"$tel_fp_body")" 'file-path'
+  assert_contains "file-path telemetry tool" "$(jq -r .data.tool <<<"$tel_fp_body")" 'Write'
+  assert_contains "file-path telemetry subject" "$(jq -r .data.subject <<<"$tel_fp_body")" 'Write'
   assert_absent "file-path telemetry carries no path" "$tel_fp_body" "rSFIkHm5DO"
 else
   ok "file-path telemetry sink empty (best-effort; block path already covered)"

@@ -2,30 +2,13 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/secret-pattern-detection.sh",
-            "timeout": 60,
-            "statusMessage": "Checking for secrets..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/hardcoded-path-check.sh",
-            "timeout": 60,
-            "statusMessage": "Checking for hardcoded paths..."
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-windows-drive-tmp.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh",
             "timeout": 60,
-            "statusMessage": "Checking for Windows drive-root /tmp writes..."
+            "statusMessage": "Checking for secrets, hardcoded paths, and Windows drive-root /tmp writes..."
           }
         ]
       },
@@ -34,51 +17,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-no-verify.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh block-convention-violation.sh block-windows-drive-tmp.sh block-exported-msys-pathconv.sh",
             "timeout": 60,
-            "statusMessage": "Checking for --no-verify bypass..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-dangerous-git.sh",
-            "timeout": 60,
-            "statusMessage": "Checking for dangerous git commands..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-hook-bypass.sh",
-            "timeout": 60,
-            "statusMessage": "Checking for hook-bypass attempts..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/flag-commit-pr-skill-bypass.sh",
-            "timeout": 60,
-            "statusMessage": "Checking commit/PR skill usage..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-noncanonical-commit.sh",
-            "timeout": 60,
-            "statusMessage": "Checking commit-message convention..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-convention-violation.sh",
-            "timeout": 60,
-            "statusMessage": "Checking commit subject / PR title against the team convention..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-windows-drive-tmp.sh",
-            "timeout": 60,
-            "statusMessage": "Checking for Windows drive-root /tmp writes..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-exported-msys-pathconv.sh",
-            "timeout": 60,
-            "statusMessage": "Checking for an exported MSYS path-conversion suppressor..."
+            "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, and Windows path guards..."
           }
         ]
       },
@@ -100,21 +41,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/cli-flag-verify.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
             "timeout": 30,
-            "statusMessage": "Verifying CLI flags..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-reference-verify.sh",
-            "timeout": 30,
-            "statusMessage": "Verifying skill references..."
-          },
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/stale-path-verify.sh",
-            "timeout": 30,
-            "statusMessage": "Verifying cited paths..."
+            "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
           }
         ]
       }

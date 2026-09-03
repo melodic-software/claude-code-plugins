@@ -5,6 +5,48 @@ All notable changes to the `context-budget` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.19]
+
+### Changed
+
+- **The settings checkpoint records why it carries no `if` gate.** An `if` gate was evaluated for
+  the PreToolUse row and rejected after a live probe: on Windows, Claude Code's `if` file rules do
+  not match an absolute path outside the working directory under any anchoring form tested,
+  including the home-relative, root-anchored, drive-letter and root-anchored recursive-glob
+  spellings. The probe logged every candidate rule as skipped on a write to the user-global settings
+  file and on a write to the managed-settings file, while the unconditioned row fired and returned
+  `ask` for both; only a settings file inside the working directory matched. A gate would therefore
+  drop the user-global and managed-settings checks silently, which is the opposite of what the
+  checkpoint exists to do, so the row stays unconditioned until upstream matching reaches those
+  paths. Documentation only; the registration and `settings-write-ask.mjs` are unchanged.
+
+## [0.6.18]
+
+### Changed
+
+- **Options reference cites the plugin-reconfiguration convention.** The generated
+  How-to-set-these block no longer restates the 2.1.240 verified-version record.
+
+## [0.6.17]
+
+### Changed
+
+- **setup:** cite the plugin-reconfiguration convention for the native
+  `/plugin configure` / headless `--config` path instead of restating the
+  verified-version record inline.
+
+## [0.6.16]
+
+### Changed
+
+- `setup` is check-only: the no-op `apply` action is dropped per PLUGIN-PHILOSOPHY's Check-only carve-out, and its reconfiguration guidance is now printed by `check` (#3583, customization-consistency Phase 1b).
+
+## [0.6.15]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside a command substitution, so a host without either digest tool continued and printed a malformed key at exit 0. Synced from the canonical `claude-config` copy via `scripts/sync-state-key.sh`.
+
 ## [0.6.14]
 
 ### Changed

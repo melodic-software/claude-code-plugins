@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: winget app updates vs CISA KEV. Emits a CheckResult JSON on stdout.
 
-See references/windows/check-catalog.md#6-winget-app-updates for rubric.
+See reference/windows/check-catalog.md#6-winget-app-updates for rubric.
 
 .PARAMETER LogPath
 Run log the KEV cache fetch appends its egress line to. The orchestrator passes

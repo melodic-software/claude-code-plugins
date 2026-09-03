@@ -3,6 +3,24 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.7]
+
+### Changed
+
+- **`find` skill-listing entry tightened.** It was the marketplace's sixth largest listing entry.
+  The description now states the interactive default and the no-edit posture in two short
+  sentences while keeping every quoted trigger phrase and the `Skip when` disambiguation. Claude
+  Code truncates the combined `description` and `when_to_use` text at 1,536 characters in the
+  skill listing, and the shared listing budget scales at 1% of the model's context window, so
+  every character an entry spends is a character another skill's description cannot.
+  Hook-performance program, phase 6 (skill listing budget).
+
+## [0.1.6]
+
+### Fixed
+
+- **`lib/state-key.sh` now exits 2 when neither `sha256sum` nor `shasum` is on PATH, and prints no key.** The helper's `exit 2` ran inside a command substitution, so a host without either digest tool continued and printed a malformed key at exit 0. Synced from the canonical `claude-config` copy via `scripts/sync-state-key.sh`.
+
 ## [0.1.5]
 
 ### Changed

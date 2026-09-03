@@ -217,6 +217,7 @@ jobs:
             .github/workflows/claude-security-review.yml
             .github/workflows/dependabot-miro-bundle.yml
             .github/workflows/do-not-merge.yml
+            .github/workflows/hook-utils-timing.yml
             .github/workflows/link-check.yml
             .github/workflows/pr-issue-linkage.yml
             .github/workflows/pr-title.yml
@@ -628,6 +629,84 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-spawn-noise.sh --check-bump "origin/$BASE_REF"
+
+  check-retirements-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify check-retirements cluster matches canonical
+        run: scripts/sync-check-retirements.sh --check
+      - name: Run check-retirements tests
+        run: bash plugins/claude-config/lib/check-retirements.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-check-retirements.sh --check-bump "origin/$BASE_REF"
+
+  legacy-statusline-detect-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify legacy-statusline-detect cluster matches canonical
+        run: scripts/sync-legacy-statusline-detect.sh --check
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-legacy-statusline-detect.sh --check-bump "origin/$BASE_REF"
+
+  unwrap-before-compose-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify unwrap-before-compose cluster matches canonical
+        run: scripts/sync-unwrap-before-compose.sh --check
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-unwrap-before-compose.sh --check-bump "origin/$BASE_REF"
+
+  resolve-convention-home-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base
+      - name: Verify resolve-convention-home cluster matches canonical
+        run: scripts/sync-resolve-convention-home.sh --check
+      - name: Run resolve-convention-home tests
+        run: bash plugins/claude-config/lib/resolve-convention-home.test.sh
+      - name: Run the plugin-quality pilot consumer-repo sim
+        run: bash scripts/pilot-plugin-quality-sim.test.sh
+      - name: Verify carrying plugins bumped when canonical changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-resolve-convention-home.sh --check-bump "origin/$BASE_REF"
 
   resolve-convention-pattern-sync:
     runs-on: ubuntu-24.04
@@ -1339,9 +1418,19 @@ jobs:
             --requirement .github/requirements-ci.txt
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # Three suites at a time, not four. The runner has 4 vCPUs and the suites
+      # are spawn-bound, so four looked like the shape that pays, but at four
+      # three separate suites failed across two runs by producing EMPTY output
+      # from an external command on a path with no clock in it: an awk read of
+      # an agent file, a jq read of a local-markdown fixture, and a conformance
+      # run. Serialising each one in turn only moves the symptom to the next
+      # suite, so the job count is the lever rather than the allowlist. The
+      # default stays 1 for Windows dev boxes (see the runner's header); the
+      # suites that assert wall-clock ceilings run one at a time regardless,
+      # from scripts/run-plugin-tests-serial.txt.
       - name: Run plugin contract tests
         if: needs.scope.outputs.run_full == 'true'
-        run: scripts/run-plugin-tests.sh
+        run: scripts/run-plugin-tests.sh --jobs 3
       # Explicit step: run-plugin-tests.sh discovers only plugins/**/*.test.sh,
       # so the cheat-sheet generator suite under scripts/ never runs without it.
       - name: Run cheat-sheet generator tests
@@ -1404,6 +1493,13 @@ jobs:
         run: bash scripts/validate-plugin-contracts.test.sh
       - name: Validate plugin and catalog manifests
         if: needs.scope.outputs.run_full == 'true'
+        # validate-plugins.sh runs scripts/validate-plugin-contracts.mjs, whose
+        # retirements append-only check diffs each plugins/*/retirements.yaml
+        # against this ref and skips (with a notice) when it is unset. The
+        # checkout-with-base step above already deepens history and fetches
+        # origin/<base_ref> on pull_request, so the ref resolves here.
+        env:
+          VALIDATE_CONTRACTS_BASE_REF: origin/${{ github.base_ref || 'main' }}
         run: scripts/validate-plugins.sh
       - name: Report not applicable to a docs-only diff
         if: needs.scope.outputs.run_full == 'false'
@@ -1750,6 +1846,10 @@ jobs:
       - managed-scope-sync
       - state-key-sync
       - spawn-noise-sync
+      - check-retirements-sync
+      - legacy-statusline-detect-sync
+      - unwrap-before-compose-sync
+      - resolve-convention-home-sync
       - resolve-convention-pattern-sync
       - index-regen-sync
       - standards-contract-sync

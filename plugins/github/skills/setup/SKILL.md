@@ -12,7 +12,9 @@ config). No action given: run `check`, then offer `apply` if anything is missing
 
 ## `check`, verify, report, change nothing
 
-1. **`gh` present?** If not: stop with a concise message naming the missing prerequisite and the
+Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing.
+
+1. **`gh` present?** If not: FAIL, stop with a concise message naming the missing prerequisite and the
    official install page (`https://cli.github.com`). Remediation is the user's to run.
 2. **`gh auth status`**. Confirm an authenticated session; name the account and host in the
    report. **Never store, echo, or persist credentials or token values.**
@@ -26,16 +28,16 @@ config). No action given: run `check`, then offer `apply` if anything is missing
 4. **Config layers**. Resolve both surfaces (`routing.yaml`,`conventions.md`) per
    `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md` and
    `${CLAUDE_PLUGIN_ROOT}/reference/conventions-file.md`, anchored at the repo root, and report a
-   **per-layer verdict**:
+   PASS/FAIL/INFO row per layer, with one remediation line per FAIL:
 
-   | Layer | Verdict to check |
+   | Layer | Verdict |
    |---|---|
-   | user-global | exists / absent. No git verdict applies outside the worktree |
-   | team | must be tracked in git; untracked team config is a hard finding |
-   | local overlay | must be gitignored and never staged |
+   | user-global | INFO exists or INFO absent. No git verdict applies outside the worktree |
+   | team | PASS when the pair (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0) holds. Present but ignored: FAIL, report the matching rule and say to unignore it. Present but untracked: FAIL, "commit it to share with the team" |
+   | local overlay | PASS when present, gitignored, and never staged. Tracked or staged: FAIL, remediation is `git rm --cached <path>` plus rotating any credential that was committed (adding a gitignore line does not untrack it). Present but unignored: FAIL, recommend `.claude/**/*.local.*` for the user to add themselves. Tracked outranks unignored: when both hold, name the tracked finding |
 
-   All three layers absent is a **valid state**, reported as "unconfigured: routing resolves to
-   propose-only", not as an error. A malformed layer is named and skipped, per the contract.
+   All three layers absent is INFO: "unconfigured: routing resolves to propose-only", not FAIL.
+   A malformed layer is named and skipped, per the contract.
 5. **Report** the effective routing per scope block with the layer that supplied each value
    (policy-floor provenance included), and the recursive overlay gitignore line
    (`.claude/**/*.local.*`) when it is missing from the consumer's `.gitignore`. Recommend it;
@@ -73,6 +75,10 @@ config). No action given: run `check`, then offer `apply` if anything is missing
      never overwrite or append to a consumer's existing conventions.
 4. **Idempotency check**: when the merged answers equal the existing config, report "no changes
    needed" and write nothing. A second run with the same answers must produce zero file changes.
+   After a team-layer write, re-run the tracked-file pair on each written path
+   (`git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0); non-zero `ls-files`
+   right after a fresh write means "written but untracked: commit it to share with the team",
+   never success.
 5. **Recommend** the recursive gitignore line (`.claude/**/*.local.*`) if the consumer's
    `.gitignore` lacks it. The edit is theirs to make.
 

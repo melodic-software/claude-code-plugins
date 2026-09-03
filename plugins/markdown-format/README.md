@@ -137,6 +137,22 @@ key), the gate fails closed and the lint run stays skipped. Declarative
 rule-only JSONC/YAML configuration is unaffected and lints immediately.
 Prefer it when executable configuration is unnecessary.
 
+### Hook budget accounting
+
+Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+this hook is always-on for every `Write` and `Edit` of a `.md` or `.mdc` file (the two `if`
+rows in `hooks/hooks.json` keep every other extension from spawning it), so its cost on a clean
+Markdown edit is the figure that counts. Measured on Windows 11 under Git Bash, twelve interleaved
+trials against an interleaved `bash -c :` floor (2026-09-02):
+
+| Event | Fires | Spawn-equivalents | What changed |
+| --- | --- | --- | --- |
+| PostToolUse `Write`, clean `.md` in a repo with a markdownlint config | 1 | 41.6 before, 32.0 after (0.11.38) | seven of twenty-one processes gone: six `dirname` calls and one `basename` are parameter expansions, including inside the config-discovery and risky-config walks |
+| PostToolUse `Write`, non-Markdown file | 0 | skipped by the `if` rows | one entry per extension since 0.11.35 |
+
+The residual is `markdownlint-cli2` itself (one Node process per fire) plus the shared library's
+payload reader and telemetry emitter, cut in 0.11.39 by the vendored `hook-utils.sh`.
+
 ## Install
 
 ```shell
@@ -210,18 +226,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
@@ -257,6 +271,63 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 <!-- END GENERATED: plugin options -->
 <!-- ai-slop-ignore-end -->
+
+## Hook cost accounting
+
+This plugin's PostToolUse hook is filtered to `*.md` and `*.mdc` by an `if`
+condition on its two `Write|Edit` rows, so it costs nothing on any other file.
+On a Markdown edit it owes the marketplace's
+[hook budget](../../docs/conventions/hook-budget/README.md) an honest figure.
+
+**Method.** `EPOCHREALTIME` wall-clock around a direct hook invocation, 12
+interleaved trials, each preceded by a `bash -c :` spawn-floor run so the
+reported ratio absorbs machine load. The payload is a `PostToolUse` `Write`
+naming a clean scratch `.md` inside a repository that has a markdownlint config,
+so the lint finds nothing and the hook takes the path that runs on nearly every
+Markdown edit. Windows 11 + Git Bash, 2026-09-02.
+
+**Counting.** Both process columns come from a `bash -x` trace of that same
+invocation. An exec is a command in command position whose word resolves to a
+file rather than a builtin, function, alias or keyword. A fork is an increase in
+the trace's subshell-nesting depth, one per command substitution or subshell; it
+undercounts, because pipeline elements fork without changing the depth. Forks
+are reported beside execs because they are not free on this host: a command
+substitution measures about half the cost of a spawn, so twenty-nine of them are
+a large share of the run rather than a rounding error.
+
+**Host condition.** The measuring host's `bash -c :` floor was **82 ms** for the
+before run and **77 ms** for the after run, against the convention's reference
+host of **≈ 80 ms**. Absolute milliseconds from a loaded host are not
+comparable; the spawn-equivalent ratio is the figure that holds.
+
+| Benign `Write`, n=12 interleaved | spawn-equivalents | @ 80 ms reference host | exec'd processes | forks |
+| --- | --- | --- | --- | --- |
+| Clean `.md`, before (0.11.36) | 41.6 | ≈ 3,328 ms | 21 | 33 |
+| Clean `.md`, after (0.11.38) | 32.0 | ≈ 2,560 ms | 14 | 29 |
+| Non-Markdown file, after | 4.4 | ≈ 352 ms | 1 | 9 |
+
+**A clean Markdown edit costs ≈ 32.0 spawn-equivalents, ≈ 2,560 ms of
+reference-host work, down 23 percent.** Six `dirname` calls and one `basename`
+became parameter expansions, including inside the two directory walks whose
+exec count grew with the file's depth below the repository root.
+
+The non-Markdown row measures the in-script extension guard on its own. In a
+live session the `if` condition rejects that payload before this hook is
+spawned at all, so the row exists to show the guard is independently correct,
+not to describe a cost anyone pays.
+
+**Residual, and why it stays.** The dominant single cost is `markdownlint-cli2`,
+a Node process, which is the point of the hook. Of the remaining thirteen
+processes, eight to ten belong to the shared `hooks/hook-utils.sh`: payload
+validation, the `file_path` read and its project-membership scoping, and the
+repository-root lookup. That file is a registered byte-identical cross-plugin
+cluster, so changing it is a nine-plugin change and not this plugin's to make.
+Two `git` calls resolve the repository root and the gitignore verdict. Two
+`grep` calls scan the applicable markdownlint config for the keys that would let
+it load code; those were left alone deliberately, because they run different
+line-anchored patterns with different outcomes and a whole-file match in bash
+would change `$` from end-of-line to end-of-string. They are worth about 1.4
+spawn-equivalents, which does not buy that semantic risk.
 
 ## License
 

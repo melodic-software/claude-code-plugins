@@ -111,7 +111,15 @@ Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
 
-REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
+# Parameter expansion, not a `$(dirname …)` subshell: this hook runs on every
+# Write and Edit, and a command substitution is a fork per call on Windows Git
+# Bash. The anchor is still the FILE's own directory, with `dirname`'s answers:
+# no slash -> `.`, and a root-level `/x` -> `/` rather than the empty string,
+# which hook::repo_root would read as `.`.
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT="$(hook::repo_root "$FILE_DIR")"
 [[ -d "$REPO_ROOT" ]] || exit 0
 
 # Inline-code spans, backticks stripped. Prose is deliberately NOT scanned: an
@@ -440,10 +448,6 @@ ls_tag=""
 
 RAW_TOKENS=()
 mapfile -t RAW_TOKENS < <(emit_tokens)
-# Warm the tracked-file cache in this shell before any `cand=$(normalize_candidate
-# ...)` subshell: assignments inside normalize_candidate would otherwise be
-# discarded and every root-basename probe would re-list the repo (#1446).
-ensure_tracked_files
 # Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
 # hunk can both carry a complete code span and change a substring inside another,
 # so gating on an empty scan would miss the partial half. Duplicates are harmless
@@ -451,6 +455,16 @@ ensure_tracked_files
 if [[ "$TOOL" == "Edit" ]]; then
   mapfile -t -O "${#RAW_TOKENS[@]}" RAW_TOKENS < <(reconstruct_partial_edit)
 fi
+# Warm the tracked-file cache in this shell before any `cand=$(normalize_candidate
+# ...)` subshell: assignments inside normalize_candidate would otherwise be
+# discarded and every root-basename probe would re-list the repo (#1446).
+#
+# Only when there is something to adjudicate. `git ls-files` lists the whole
+# index, and a write that cites no inline-code token at all, the common case for
+# this PostToolUse hook, has no candidate for the list to answer about. The warm
+# still happens in THIS shell and still precedes the loop, which is what the
+# subshell-assignment fix requires; it is the unconditional spawn that goes.
+((${#RAW_TOKENS[@]})) && ensure_tracked_files
 
 for raw in "${RAW_TOKENS[@]}"; do
   [[ -n "$raw" ]] || continue

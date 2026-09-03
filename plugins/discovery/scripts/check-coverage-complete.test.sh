@@ -250,15 +250,84 @@ bad_utf8="$WORK/bad-utf8.md"
 run_one "$PY_SUT" 2 "non-UTF-8 ledger fails closed as ungradeable" "$bad_utf8"
 
 # Permission denied after is_file() is likewise ungradeable for the Python twin.
+#
+# Owner decision for #3375 (simulate, not chmod-as-contract and not
+# runuser/sudo): chmod 000 is not a reliable fault injector for a privileged
+# process. Linux CAP_DAC_OVERRIDE lets root bypass mode bits, so a mode-000
+# fixture still grades as complete in root containers (a common CI shape) and
+# the fail-closed branch is never entered. The contract case therefore imports
+# the Python twin, patches pathlib.Path.read_text with unittest.mock.patch.object
+# to raise PermissionError(errno.EACCES) for an otherwise regular fully-marked
+# fixture, calls grade(), and asserts exit 2 plus the "ledger unreadable"
+# diagnostic. That path runs as every user, including root.
+#
+# chmod 000 stays only as a supplemental integration check: it asserts exit 2
+# when the host actually denies the read, and prints a visible SKIP when the
+# file stays readable. A skip there is acceptable because the simulated case
+# has already exercised the exception-to-exit-2 contract on every host.
 unreadable="$WORK/unreadable.md"
 {
   printf '| # | Corpus item | Depth criterion | Done |\n'
   printf '|---|-------------|-----------------|------|\n'
   printf '| 1 | alpha | criterion | [x] |\n'
 } >"$unreadable"
+
+sim_out="$(
+  PY_TWIN="$SCRIPT_DIR/check-coverage-complete.py" \
+  LEDGER="$unreadable" \
+  python3 - <<'PY' 2>&1
+import contextlib
+import errno
+import importlib.util
+import io
+import os
+import pathlib
+import sys
+from unittest.mock import patch
+
+twin = os.environ["PY_TWIN"]
+ledger = os.environ["LEDGER"]
+spec = importlib.util.spec_from_file_location("check_coverage_complete", twin)
+if spec is None or spec.loader is None:
+    print("could not load Python twin", file=sys.stderr)
+    sys.exit(1)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+target = pathlib.Path(ledger)
+with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    baseline = mod.grade(target)
+if baseline != 0:
+    print(
+        f"fixture is not an otherwise regular complete ledger: grade() returned {baseline}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+err = io.StringIO()
+denied = PermissionError(errno.EACCES, os.strerror(errno.EACCES), str(target))
+with patch.object(pathlib.Path, "read_text", side_effect=denied):
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+        rc = mod.grade(target)
+diag = err.getvalue()
+if rc != 2:
+    print(f"expected grade() to return 2, got {rc}; stderr={diag!r}", file=sys.stderr)
+    sys.exit(1)
+if "ledger unreadable" not in diag:
+    print(f"expected 'ledger unreadable' in stderr, got {diag!r}", file=sys.stderr)
+    sys.exit(1)
+PY
+)"
+sim_rc=$?
+if [[ "$sim_rc" -eq 0 ]]; then
+  pass "simulated PermissionError on read_text fails closed as ungradeable [python]"
+else
+  fail "simulated PermissionError on read_text fails closed as ungradeable [python] - ${sim_out}"
+fi
+
 chmod 000 "$unreadable" 2>/dev/null
 if [[ -r "$unreadable" ]]; then
-  echo "SKIP: unreadable-ledger case — this platform/user does not enforce chmod 000 on the fixture" >&2
+  echo "SKIP: chmod-000 unreadable-ledger integration check - this platform/user does not enforce chmod 000 on the fixture (simulated PermissionError case above already covered the contract)" >&2
 else
   run_one "$PY_SUT" 2 "unreadable ledger fails closed as ungradeable" "$unreadable"
 fi

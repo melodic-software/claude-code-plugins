@@ -12,25 +12,21 @@ conformingly write:
 
 - **A system tool** (`jq`). `check` probes it; installing it is the operator's.
 - **One native `userConfig` toggle** (`rate_limit_guard_enabled`), whose only stored home is the
-  `pluginConfigs` setup must never write. Reconfiguration routes through Claude Code's native flow:
-  `/plugin configure rate-limit-guard@<marketplace>` interactively, any time. Headless, rerun the
-  install with the new value. `claude plugin install rate-limit-guard@<marketplace> -s <scope>
-  --config rate_limit_guard_enabled=<value>`. Against an already-installed plugin it prints
-  `already installed` **and still writes the value**, verified on Claude Code 2.1.240 (a
-  non-sensitive option at `user` scope: a non-default value written to an installed plugin, then
-  restored). The short-circuit is about the install, not the config write. Re-verify before relying
-  on it outside those conditions. A `sensitive` option, or `project`/`local` scope, were not
-  covered. Do **not** uninstall to reconfigure: uninstalling drops this plugin's entire stored
-  `pluginConfigs` entry, resetting every option in the README's Options reference table to its
-  manifest default. `-s` defaults to `user`, so pass the scope the plugin is *actually* installed
-  at. `claude plugin list` reports it per plugin. Run from that project's directory when the
-  scope is `project` or `local`, or the write lands at a scope that does not load.
-  Afterwards, keep the two claims apart. The write is issued and the stored value is what you
-  passed; the RUNNING session's behavior is not. The rendered `${user_config.*}` is injected at
-  skill load and each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at
-  session start, so a same-session `check` still reports the OLD value. Reporting that as a
-  failed write would be wrong. Verify the effective value by rerunning `check` in a **fresh
-  session**, and never claim an unobserved change.
+  `pluginConfigs` setup must never write. Reconfigure through Claude Code's native flow, per the
+  marketplace's plugin-reconfiguration convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  which owns the verified-version record): interactive `/plugin configure
+  rate-limit-guard@<marketplace>` any time, or headless `claude plugin install
+  rate-limit-guard@<marketplace> -s <scope> --config rate_limit_guard_enabled=<value>` (repeatable
+  per key) — against an already-installed plugin it prints `already installed` and still writes
+  the value. Do **not** uninstall to reconfigure: that drops this plugin's entire stored
+  `pluginConfigs` entry, resetting every option in the README's Options reference to its manifest
+  default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run from that
+  project's directory for a `project`/`local` scope, or the write lands at a scope that does not
+  load. Afterwards rerun `check` in a **fresh session** — the rendered `${user_config.*}` is
+  injected at skill load and each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a
+  same-session `check` still reports the OLD value; report the observed effective value, never an
+  unobserved change.
 - **The statusline wiring**, which lives in the **user's own** `settings.json`, neither
   `userConfig` nor tracked project config, and a Claude Code settings surface setup must never
   mutate.
@@ -68,35 +64,12 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    transparent and shows a visible notice) and the standalone statusline degrades. Remediation:
    install jq (<https://jqlang.org/download/>).
 2. **Installed shim state.** The shim is the wiring target, so check it before the wiring. Compare
-   `~/.claude/rate-limit-guard/bin/statusline-shim.sh` against
-   `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the installed copy is byte-identical by
-   contract, so `cmp -s` is the test):
-   - **Absent.** FAIL when the statusline is wired to it (that wiring cannot run), INFO otherwise.
-     Remediation: `apply`.
-   - **Present and identical.** PASS. Nothing about it needs revisiting on a plugin update; that
-     is the whole point of the shim.
-   - **Present but differing.** Classify by what the installed revision can still do, not by the
-     fact that it differs. Report the shipped `# shim-revision:` marker against the installed one
-     either way, and offer `apply` as the refresh.
-     - Installed revision **>= 3.** INFO: an older-but-adequate or hand-edited copy that still
-       resolves the newest tee correctly. A refresh is housekeeping.
-     - Installed revision **< 3, or unmarked.** FAIL. Revision 3 is the first that skips a
-       candidate whose version directory carries the orphan marker; every earlier revision keeps
-       teeing from an UNINSTALLED plugin's directory for the ~14 days before Claude Code reaps it,
-       writing snapshots the operator has no reason to expect. That is a behavior defect in the
-       running statusline, not drift, and INFO would leave it sitting under a heading operators
-       are told they can defer.
-     - **The migration matters more than the classification.** The durable copy at
-       `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is what the statusline actually runs;
-       a plugin update never overwrites it. An operator who ran `apply` before 0.4.3 therefore
-       keeps running the old shim until they re-run `apply`, and if they uninstall the plugin
-       first, this skill is gone and the stale shim keeps teeing with no remaining way to reach
-       the remediation. Say that in the finding, so the reason to act now is on screen.
-   - **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`).
-     INFO, and skip the comparison entirely: this installed plugin version predates the shim
-     (< 0.2.0). Never report the operator's installed copy as drifted on this branch. Remediation:
-     `/plugin update rate-limit-guard`, then re-run `check`. Until then the legacy version-pinned
-     wiring in step 3 is the only wiring this version can offer.
+   `~/.claude/rate-limit-guard/bin/statusline-shim.sh` (the durable shim copy) against
+   `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and classify per
+   [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Installed shim
+   state", shared with the sibling guard plugin and synced byte-identical. This legacy detection
+   stays bespoke prose because it targets machine-scope surfaces under `~/.claude/`, outside the
+   repo-scope retirement-manifest schema (ADR 0018, decision 6).
 3. **Statusline wiring state.** Read (never write) every settings scope that can carry a
    `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
    `.claude/settings.local.json`) and determine which one owns the EFFECTIVE command (the most
@@ -111,12 +84,9 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      wrapper missing. Print the wrapped wiring below with the user's current command preserved as
      the wrapped command.
    - **`statusLine` references a `rate-limit-guard` `statusline-tee.sh` under the plugin cache.**
-     LEGACY VERSION-PINNED WIRING, regardless of whether that file currently exists. It is running
-     today only until the next version bump, and it breaks the whole statusline once the old
-     version directory is pruned (~14 days after an update). Report it as the failure mode the shim
-     exists to remove, and print the shim wiring as the fix (`apply` first if the shim is not
-     installed). An interim `[ -f … ]` existence guard around such a path is the same state: it
-     survives pruning but still stops teeing on a version bump.
+     LEGACY VERSION-PINNED WIRING: classify, report, and remediate per
+     [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Legacy
+     version-pinned wiring" (the fix's `apply` is step 2's).
    - **`statusLine` invokes `~/.claude/rate-limit-guard/bin/statusline-shim.sh`.** PASS. No path
      comparison against `${CLAUDE_PLUGIN_ROOT}` applies or is meaningful here; the shim resolves
      the tee at run time.
@@ -140,16 +110,11 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    marked clearly as the operator's to apply. The wiring target is the SHIM's fixed path, never
    `${CLAUDE_PLUGIN_ROOT}`, which is version-pinned and belongs in no operator file:
 
-   **Unwrap before you compose.** `<current statusline command>` below means the operator's OWN
-   renderer, never the raw effective `command` string. Before substituting, strip every leading
-   guard-shim invocation from that string: `bash <path>/rate-limit-guard/bin/statusline-shim.sh`
-   and `bash <path>/context-guard/bin/statusline-shim.sh`, in whatever order they appear, plus any
-   legacy `bash <plugin-cache>/…/statusline-tee.sh` prefix, and treat what remains as the renderer.
-   Substituting the raw string instead is what produces `context → rate → rate → renderer` when the
-   sibling plugin was configured first, or a doubled self-wrap on a re-run: each duplicated tee runs
-   and writes on EVERY refresh and costs another 0.6–0.9 s (below). Unwrapping also makes the
-   printed edit idempotent. Re-running `check` on already-correct wiring prints the wiring it
-   already has.
+   Read [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md) now, before
+   composing: it owns the peel rules and the shell-syntax guard, shared byte-identical with
+   context-guard. Bare quoting is never a wrap trigger; `type -P` / `type -t` is how a builtin
+   renderer is detected. Composing without it is what produced `context -> rate -> rate ->
+   renderer` and the compounding `sh -c` wrap.
 
    Wrapping an existing statusline command (preserve the user's unwrapped command verbatim as the
    trailing arguments):
@@ -174,10 +139,7 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    }
    ```
 
-   Shell-syntax guard: the wrapped form passes the user's command as ARGV. It only works for
-   plain `executable arg…` commands. If the current command contains shell syntax (an inline env
-   assignment like `THEME=dark my-statusline`, a pipe, `&&`, `;`, or quoting), print the
-   shell-wrapped variant instead:
+   When the shared guard selects the shell-wrapped form:
 
    ```json
    {
@@ -214,9 +176,10 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    }
    ```
 
-   The shell-syntax guard applies UNCHANGED to this form: `<current statusline command>` is the
-   innermost ARGV here too, so a command carrying shell syntax must be substituted as
-   `sh -c '<escaped original command>'`, never raw. Substituting `THEME=dark my-statusline` raw
+   The shell-syntax guard in [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md)
+   applies UNCHANGED to this form: `<current statusline command>` is the innermost ARGV here too,
+   so run that test on the same unwrapped renderer and substitute whichever of the two forms it
+   selects, never raw. Substituting `THEME=dark my-statusline` raw
    makes `THEME=dark` the executable, which fails `command not found` (127) instead of setting the
    variable. The shim paths are the only part that nests; the innermost substitution rule never
    changes:

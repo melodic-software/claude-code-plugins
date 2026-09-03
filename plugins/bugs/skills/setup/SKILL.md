@@ -1,6 +1,6 @@
 ---
 description: "Verify and configure the bugs plugin for this repository. check inspects both surfaces read-only, the rendered output_dir userConfig value, and the tracked .claude/bugs.md lane config across its cascade layers; apply writes or updates that tracked file and nothing else. Use when: 'set up bugs', 'configure bugs', 'bugs setup', 'where do bug reports land', you want --file reports committed alongside code, or '/bugs:scan' needs project lanes and a filing posture. Actions: check (read-only, default) | apply (creates or updates the tracked lane config; output_dir still routes through Claude Code's own configuration prompt)."
-argument-hint: "check|apply"
+argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -51,16 +51,16 @@ Modify nothing. Report both surfaces, then one remediation line per gap.
    repository option, inspect the consumer's `CLAUDE.md`, `AGENTS.md`, and existing report or
    artifact directories and recommend one portable location. Never recommend a machine-absolute
    team path.
-4. If the recommended value differs from the effective one, direct the user to Claude Code's
-   plugin configuration prompt for `bugs` (interactive `/plugin configure bugs@<marketplace>` any
-   time; headless, rerun `claude plugin install bugs@<marketplace> -s <scope> --config
-   output_dir=<path>`. Against an already-installed plugin it prints `already installed` and
-   still writes the value, verified on Claude Code 2.1.240 for a non-sensitive option at `user`
-   scope. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry and
-   resets every option to its manifest default). Claude Code owns persistence. Do not hand-edit
-   any `pluginConfigs` key.
-5. Tell the user to rerun `check` after reconfiguration, in a fresh session, since the rendered
-   value is injected at load, then verify and report the effective destination.
+4. If the recommended value differs, reconfigure through Claude Code's native flow per the marketplace's
+   plugin-reconfiguration convention, which owns the verified-version record: interactive
+   `/plugin configure bugs@<marketplace>` any time, or headless `claude plugin install bugs@<marketplace>
+   -s <scope> --config output_dir=<path>` — it prints `already installed` and still writes the value.
+   Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry, resetting every
+   option to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports,
+   from that project's directory for a `project`/`local` scope, or the write lands at a scope that does
+   not load. Rerun `check` in a **fresh session** (the rendered value is injected at skill load, so a
+   same-session `check` still reports the OLD value), then report the observed destination. Convention:
+   <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>.
 
 ### B. `.claude/bugs.md` (tracked lane config)
 

@@ -34,10 +34,36 @@ mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 
 FAILED=0
 CASE_NUM=0
+SKIPPED=0
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
+}
+# A case whose subject this host cannot build is neither a pass nor a failure.
+# It prints its own visible line and carries its own counter, and never routes
+# through pass(), so a proof this host could not run can never be read off the
+# summary as one that did.
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
+}
+
+# Under MSYS without winsymlinks, `ln -s` COPIES the target instead of linking
+# it. The git-absent case builds a minimal PATH out of links to the real
+# binaries; a copied bash.exe cannot find msys-2.0.dll beside it, so the shell
+# under test never starts and detect.sh emits nothing. Probe the round trip
+# rather than the OS name.
+host_makes_symlinks() {
+  local d rc=1
+  d="$(mktemp -d)"
+  printf 'x\n' >"$d/target"
+  if ln -s target "$d/link" 2>/dev/null &&
+    [[ -L "$d/link" ]] && [[ "$(readlink "$d/link" 2>/dev/null)" == "target" ]]; then
+    rc=0
+  fi
+  rm -rf "$d"
+  return "$rc"
 }
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -816,15 +842,103 @@ assert_contains "dir target, non-ASCII filename: the file is not dropped" "$out"
 
 # git absent: tracked-files-only is not achievable, so the walk still runs,
 # but the fallback must be reported rather than silent.
-NOGIT_BIN="$TEST_TMPDIR/bin-nogit"
-mkdir -p "$NOGIT_BIN"
-for name in bash find sort awk sed cat printf mkdir uname env dirname basename head tail wc tr; do
-  src="$(command -v "$name" 2>/dev/null)" || continue
-  ln -s "$src" "$NOGIT_BIN/$name"
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if host_makes_symlinks; then
+  NOGIT_BIN="$TEST_TMPDIR/bin-nogit"
+  mkdir -p "$NOGIT_BIN"
+  for name in bash find sort awk sed cat printf mkdir uname env dirname basename head tail wc tr; do
+    src="$(command -v "$name" 2>/dev/null)" || continue
+    ln -s "$src" "$NOGIT_BIN/$name"
+  done
+  out="$(PATH="$NOGIT_BIN" bash "$DETECT" "$GITDIR/docs" 2>&1)"
+  assert_contains "dir target, git absent: reports the walk" "$out" "git is not on PATH"
+  assert_contains "dir target, git absent: walk scans tracked and untracked markdown" "$out" "2 files scanned"
+else
+  skip "dir target, git absent: reports the walk" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+  skip "dir target, git absent: walk scans tracked and untracked markdown" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+fi
+
+# --- Bare invocation (no paths) ---------------------------------------------------
+
+# The no-paths path lists the whole repository, so it carries the same two
+# hazards the dir-target cases above pin, reached through a different listing.
+# git-config core.quotePath: commands that output paths quote bytes above 0x80
+# unless it is false, so a tracked file whose name holds a non-ASCII byte
+# arrives as a C-quoted escape, fails the scan loop's existence test, and shows
+# up as neither a finding nor a declined row. A bare invocation is the sweep the
+# audit skill runs over a repository, so that drop is silently partial coverage.
+BAREREPO="$TEST_TMPDIR/barerepo"
+mkdir -p "$BAREREPO/unicode"
+git -C "$BAREREPO" init -q
+printf 'A tracked em dash %s here.\n' "$EM" >"$BAREREPO/unicode/notes${EM}name.md"
+printf 'A tracked em dash %s here too.\n' "$EM" >"$BAREREPO/ascii.md"
+printf 'An untracked em dash %s here.\n' "$EM" >"$BAREREPO/loose.md"
+git -C "$BAREREPO" add "unicode/notes${EM}name.md" ascii.md
+
+out="$(cd "$BAREREPO" && CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+assert_contains "bare invocation: tracked non-ASCII filename is scanned" "$out" "file=unicode/notes${EM}name.md"
+assert_not_contains "bare invocation: no C-quoted escape reaches the report" "$out" 'notes\342'
+assert_contains "bare invocation: both tracked files count" "$out" "2 files scanned"
+assert_not_contains "bare invocation: untracked markdown is not scanned" "$out" "loose.md"
+
+# Findings report repo-relative paths, so the case above would also pass if the
+# listing's relative paths were used unprefixed and resolved against the CWD.
+# Running from outside the checkout is what pins the REPO_ROOT prefix they are
+# joined onto: a wrong prefix leaves nothing for the scan loop to open.
+out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+assert_contains "bare invocation from outside the repo: the non-ASCII path is scanned" "$out" "file=unicode/notes${EM}name.md"
+assert_contains "bare invocation from outside the repo: both tracked files count" "$out" "2 files scanned"
+
+# A listing that fails must say so. Swallowed under 2>/dev/null it produces an
+# empty target list, which is indistinguishable from a repository holding no
+# tracked markdown, and both render as a clean audit. The stub fails only
+# ls-files so the branch under test is the listing itself, not work-tree
+# detection.
+BADLS_BIN="$TEST_TMPDIR/bin-badls"
+mkdir -p "$BADLS_BIN"
+REAL_GIT="$(command -v git)"
+cat >"$BADLS_BIN/git" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  if [[ "\$a" == "ls-files" ]]; then
+    echo "fatal: stubbed ls-files failure" >&2
+    exit 128
+  fi
 done
-out="$(PATH="$NOGIT_BIN" bash "$DETECT" "$GITDIR/docs" 2>&1)"
-assert_contains "dir target, git absent: reports the walk" "$out" "git is not on PATH"
-assert_contains "dir target, git absent: walk scans tracked and untracked markdown" "$out" "2 files scanned"
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$BADLS_BIN/git"
+
+out="$(cd "$BAREREPO" && PATH="$BADLS_BIN:$PATH" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+assert_contains "bare invocation, listing fails: reports the failure" "$out" "git ls-files failed in $BAREREPO"
+assert_contains "bare invocation, listing fails: names the exit status" "$out" "(exit 128)"
+assert_contains "bare invocation, listing fails: git's own stderr is not swallowed" "$out" "fatal: stubbed ls-files failure"
+assert_contains "bare invocation, listing fails: scans nothing" "$out" "0 files scanned"
+
+# Outside a checkout there is nothing tracked to list, which is a reportable
+# state rather than a clean audit of an empty set.
+BARENOREPO="$TEST_TMPDIR/barenorepo"
+mkdir -p "$BARENOREPO"
+printf 'An em dash %s here.\n' "$EM" >"$BARENOREPO/loose.md"
+out="$(cd "$BARENOREPO" && CLAUDE_PROJECT_DIR="$BARENOREPO" bash "$DETECT" 2>&1)"
+assert_contains "bare invocation outside a checkout: says so" "$out" "could not confirm a work tree at $BARENOREPO"
+assert_contains "bare invocation outside a checkout: scans nothing" "$out" "0 files scanned"
+
+# Same git-less PATH, so the same host constraint: where `ln -s` copies, the
+# shell under test never starts and there is nothing to assert about.
+# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
+if [[ -n "${NOGIT_BIN:-}" ]]; then
+  out="$(cd "$BAREREPO" && PATH="$NOGIT_BIN" CLAUDE_PROJECT_DIR="$BAREREPO" bash "$DETECT" 2>&1)"
+  assert_contains "bare invocation, git absent: reports it" "$out" "git is not on PATH"
+  assert_contains "bare invocation, git absent: scans nothing" "$out" "0 files scanned"
+else
+  skip "bare invocation, git absent: reports it" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+  skip "bare invocation, git absent: scans nothing" \
+    'ln -s copies here, so a git-less PATH cannot be built out of the real binaries'
+fi
 
 # --- Excerpt truncation at the byte boundary --------------------------------------
 
@@ -1131,9 +1245,9 @@ assert_contains "action: stacked-hedging names the one-hedge repair" \
 
 echo
 if [[ "$FAILED" -eq 0 ]]; then
-  echo "All $CASE_NUM cases passed"
+  echo "All $CASE_NUM cases passed, $SKIPPED host skip(s)"
   exit 0
 else
-  echo "$FAILED of $CASE_NUM cases FAILED"
+  echo "$FAILED of $CASE_NUM cases FAILED, $SKIPPED host skip(s)"
   exit 1
 fi

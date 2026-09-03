@@ -70,12 +70,12 @@
       "id": 6,
       "name": "headless-toggle-off-reruns-install-never-uninstalls",
       "prompt": "/biome-format:setup apply\n\nI'm on a CI box with no interactive session — how do I turn the hook off?",
-      "expected_output": "Routes the headless change to a plain `claude plugin install biome-format@<marketplace> -s <scope> --config biome_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value (verified on Claude Code 2.1.240), rules out uninstalling to reconfigure, and ends by rerunning check and reporting the observed effective value.",
+      "expected_output": "Routes the headless change to a plain `claude plugin install biome-format@<marketplace> -s <scope> --config biome_format_enabled=false` rerun, states that against an already-installed plugin it prints `already installed` and still writes the value, cites the plugin-reconfiguration convention as the owner of the verified-version record, rules out uninstalling to reconfigure, and ends by rerunning check in a fresh session and reporting the observed effective value.",
       "files": [],
       "expectations": [
         "Prescribes a plain `claude plugin install … --config biome_format_enabled=false` rerun, naming this plugin's own key and the false value the request asked for",
         "Never tells the user to run `claude plugin uninstall` in order to reconfigure, and gives the reason: uninstalling drops this plugin's entire stored pluginConfigs entry, resetting every option to its manifest default",
-        "Carries the CLI version the --config-against-an-installed-plugin claim was verified on — the literal 2.1.240 — and scopes it to a non-sensitive option at user scope",
+        "Cites the marketplace's plugin-reconfiguration convention as the owner of the verified-version record for the --config-against-an-installed-plugin claim, rather than stamping a CLI version itself, and directs the rerun of check to a fresh session because the rendered value is injected at skill load, so a same-session check still reports the old value",
         "Notes that -s defaults to user, so the scope `claude plugin list` reports must be passed and a project/local scope needs the command run from that project's directory",
         "Ends by rerunning check and reporting the OBSERVED effective toggle value rather than asserting the change took effect"
       ]

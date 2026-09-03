@@ -18,14 +18,19 @@ their repo mid-session.
   Read/Grep/Glob/WebFetch plus Bash. Named honestly: Bash is there for `claude plugin validate`,
   config-resolution probes, and the fetch ladder's rung-1 `curl` of the raw-markdown docs channel,
   not mutation.
-- **Reference corpus** (`skills/audit/references/`), the recurring-concerns checklist plus five
+- **Reference corpus** (`skills/audit/reference/`), the recurring-concerns checklist plus five
   component-type lenses (hook, skill, agent, command, config). Extending coverage = one file +
   one index row; the hub never grows.
-- **Config surface** (`reference/config.md`). `.claude/plugin-quality.md` (sink, zone behavior,
-  repo-map overrides) layered per the config-cascade convention, with a documented sink ladder
-  and markdown item schema.
+- **Config surface** (`reference/config.md`). A convention doc at the consumer's convention home
+  (`<home>/plugin-quality/README.md`, bound by the config-cascade pointer line; sink, zone
+  behavior, repo-map overrides), with a documented sink ladder and markdown item schema. The
+  retired dedicated-file layers are declared in `retirements.yaml` and detected by the shared
+  `check-retirements.sh` helper, with a WARN-visible dual-read while the old tracked file
+  persists.
 - **Setup skill** (`skills/setup`). `check` (gh + ACTING account, context-guard seam → dispatch
-  mode, config layers with per-key provenance) / `apply` (writes only the tracked config).
+  mode, convention-home binding + effective config with provenance, retired-convention
+  leftovers) / `apply` (converges the pointer-line region and the topic doc, plus gated
+  retirement cleanup).
 
 ## Context-gate (context-guard integration)
 
@@ -53,8 +58,8 @@ install is required; it just makes long-session audits smarter about their own d
 ```
 
 Zero config works: conservative dispatch, sink resolved by inference or interview at emit time.
-Run `/plugin-quality:setup check` to see the seams; `setup apply` to pin a sink in the tracked
-config.
+Run `/plugin-quality:setup check` to see the seams; `setup apply` to bind the convention home
+and pin a sink in the topic doc there.
 
 ## Requirements
 

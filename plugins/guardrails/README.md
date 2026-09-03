@@ -22,6 +22,21 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 
 ## The guards
 
+Since **0.31.0** the always-on guards are registered through one dispatcher per event,
+`hooks/run-guards.sh`, which reads the payload once, extracts its fields with one `jq`
+process, and sources each guard in turn inside that one bash process. The table below
+still names every guard, and every guard still ships as its own script with its own
+contract test, kill switch, and telemetry envelope, deciding exactly as it did as a
+standalone hook. `hooks/hooks.json` lists each guard by file name as an argument of the
+dispatcher line for its event, so the registration stays readable per guard. What the
+dispatcher owns: the spawn shape (one hook process per Bash/PowerShell call where there
+were eight, one per Write/Edit PreToolUse where there were three, one per Write/Edit
+PostToolUse where there were three), the exit code (2 if any guard blocks, and every
+guard still runs so a command that trips two guards shows both reasons), and the merge
+of several guards' `additionalContext` into the one JSON document a hook process may
+emit. The [hook budget accounting](#hook-budget-accounting) carries the measurement.
+`workflow-resilience-check` is not always-on and is registered on its own.
+
 | Guard | Event / matcher | Behavior | What it catches |
 |-------|-----------------|----------|-----------------|
 | **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. |
@@ -290,6 +305,97 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.31.1, the guard hot path.** 2026-09-02, Windows 11 + Git Bash. The dispatcher
+in 0.31.0 cut the number of hook processes; this cut what each guard spends inside
+one. Four guards did expensive setup before checking whether the payload could ever
+produce a finding, and a fifth re-derived a constant on every command.
+
+*Method.* The two trees are measured PAIRED: the base tree and the changed tree
+alternate within each repetition, 3 repetitions of 4 timed trials, each trial
+preceded by its own `bash -c :`. The host is shared, and its spawn floor moved from
+42 ms to over 100 ms during the work, so measuring one tree fully and then the other
+would attribute that drift to the change. Each case gets one plugin-data directory
+for the whole case plus a discarded warm-up run, because Claude Code hands a hook the
+same plugin-data directory for a whole session. `HOOK_TELEMETRY_SINK` was set, as it
+is on this host. Figures are spawn-equivalents (hook wall divided by the same-run
+spawn floor); S was 85.5 ms on the base pass and 101 ms on the changed pass.
+
+*Sample.* The `Write` payloads name a file INSIDE the repository. Every Write and
+verifier guard early-exits on a path outside the consuming repo, so an out-of-tree
+scratch file measures a no-op rather than the guards.
+
+| Per tool call | before | after | delta |
+|---|---|---|---|
+| PostToolUse `Write` (whole dispatcher) | 368.4 | 79.3 | 289.1 |
+| ` ` `skill-reference-verify` | 287.2 | 26.0 | 261.2 |
+| ` ` `stale-path-verify` | 33.8 | 24.4 | 9.4 |
+| ` ` `cli-flag-verify` | 32.0 | 20.7 | 11.3 |
+| PreToolUse `Bash` (whole dispatcher) | 72.8 | 52.6 | 20.2 |
+| ` ` `block-convention-violation` | 12.8 | 3.0 | 9.8 |
+| PreToolUse `Write` (whole dispatcher) | 38.6 | 28.5 | 10.1 |
+| ` ` `secret-pattern-detection` | 15.8 | 10.0 | 5.8 |
+
+All figures are spawn-equivalents. `skill-reference-verify` carried the whole
+PostToolUse cost: it built a plugin name-to-directory index from every plugin
+manifest, two `jq` processes each and 74 manifests here, before looking at whether
+the written content cited a skill at all. Guards this phase did not touch move by up
+to 1 spawn-equivalent between the two passes, which is the resolution of every figure
+in the table.
+
+*The PreToolUse `Write` line is not a gain.* A second paired pass on a quieter host,
+12 trials per tree at a 42 to 47 ms spawn floor, put that delta at -0.9 with the sink
+unset, -3.2 with it set, and -1.9 with it set and `CLAUDE_PROJECT_DIR` unset: at or
+below zero every time. Two of the three guards on that path are untouched by this
+phase and moved by 1.1 and 0.9 in the pass above, which is the same drift. The one
+line this phase changed in `secret-pattern-detection` sits inside `emit_tel`, on the
+branch taken only when `CLAUDE_PROJECT_DIR` is empty, so a session that sets it never
+reaches the change. The other two rows do reproduce: the second pass put PostToolUse
+`Write` at 307.5 and 341.9 against the 289.1 above, and PreToolUse `Bash` at 10.1 and
+11.5 against 20.2, the pair in each case being the sink unset and the sink set.
+
+**What remains, and why it is not reachable inside this plugin.** PreToolUse `Bash`
+is still 52.6 spawn-equivalents against the fleet target of 8. Three things account
+for nearly all of it, and none is a guardrails guard:
+
+- **Telemetry, roughly 4 spawn-equivalents per guard.** `HOOK_TELEMETRY_SINK` is set
+  on this host, so every guard that reaches its `emit_tel` spends 2 `jq` plus a
+  `mktemp` plus an `rm`. The emitter, the temp file and its removal all live in
+  `hook-utils.sh`, a synced library. With the sink unset the same Bash path measured
+  45.7 spawn-equivalents against 79.5, so telemetry is about two fifths of the wall
+  and 4.2 spawn-equivalents per guard across the eight. This is the single largest
+  remaining item and it is an opt-in observability feature, not overhead a guard
+  chose.
+- **One subshell fork per guard.** Each guard runs in a `$(source ...)` subshell so
+  its `exit` and `trap` behave as they do standalone. A guard that does nothing at
+  all measures 0.6 to 0.9 spawn-equivalents, which is that fork. Eight guards on the
+  Bash path is an irreducible floor of roughly 7 while the dispatcher keeps that
+  isolation.
+- **Per-guard classification work.** `block-dangerous-git` and `block-hook-bypass`
+  parse the command text; that is the check itself, not overhead.
+
+Three further cuts were measured and deliberately not made, because each costs more
+in risk or churn than it returns: priming `hook::repo_root` in the dispatcher (worth
+about 1 spawn-equivalent per calling guard, against 4 for telemetry on the same
+path); replacing the `$(dirname ...)` in every guard's `source` line (the dispatcher
+already makes `dirname` a shell function, so what remains is a fork under the noise
+floor); and merging `hardcoded-path-check`'s two `git rev-parse` probes, which would
+rework a security guard's scope logic to save one process.
+
+**0.31.0, the dispatcher.** Measured with the fleet's hook fan-out harness
+(`dotfiles/common/measure-claude-hook-fanout.sh`, one hook process per line, median of
+3 runs, benign `git status --short` payload, Windows 11 + Git Bash, 2026-09-02, host
+under concurrent agent load). Before: the eight per-Bash-call guards were eight hook
+processes summing to **≈ 2,450 ms** (412 / 403 / 362 / 350 / 336 / 311 / 198 / 78 ms).
+After: one hook process; `RUN_GUARDS_PROFILE=1` reports the per-guard slices inside it
+as ≈ 167 / 163 / 197 / 18 / 233 / 253 / 156 / 37 ms, **≈ 1,220 ms** in total, the
+remainder being fork cost, since each guard still runs in its own subshell so that its
+`exit` and `trap` behave as they do standalone. That is a halving of the per-Bash-call
+CPU cost and a drop from eight process spawns to one; it is still above the
+convention's ≤ 1 s typical ceiling on a loaded host, and the remaining remediation is
+the guards' own per-call work (the subshell fork itself, and the external programs a
+guard spawns on its hot path), not the dispatcher. The per-Write sets fell the same way:
+three PreToolUse processes to one, three PostToolUse processes to one.
+
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md)
 rule 1, widening an always-on hook's matcher states its measured share of the
 fleet budget. `block-windows-drive-tmp` moved from `Bash|PowerShell` to that set
@@ -542,18 +648,16 @@ Three supported routes, in the order most people want them:
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value — verified on Claude Code 2.1.240,
-   for a non-sensitive option at `user` scope, by writing a non-default value to an
-   installed plugin and restoring it. The short-circuit message is about the install,
-   not the config write. That has not been verified for a `sensitive` option or for
-   `project`/`local` scope. Do **not** `claude plugin uninstall` to
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
    reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
    resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin.
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
    The value is stored immediately; the session you are in does not change. Hooks are
    handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior — a check run in the old session
+   Claude Code session before expecting new behavior. A check run in the old session
    still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings** — add the value under `pluginConfigs` in your **user**
