@@ -3,6 +3,35 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.14]
+
+### Changed
+
+- **`audit`:** the description's eight quoted trigger phrases became three intent clauses; the
+  scope note dropped "this cycle", the `recomputed-expectation` gotcha dropped "not yet", and the
+  platform-skip gotcha now states the detector boundary without the history of a rule that never
+  shipped.
+- **`diagnose`:** the fix step no longer invites Boy Scout cleanup inside a bug fix, the regression
+  step states the side-effect reason once instead of three times, and both context files dropped
+  their marketplace-skill sections naming plugins that exist in no installed marketplace.
+- **`plan`:** dropped the marketplace-skill section naming plugins that exist in no installed
+  marketplace.
+- **`run-e2e`:** the description's six quoted trigger phrases became three intent clauses; a missing
+  Playwright CLI now routes to the user instead of a global install; GIF recording follows the
+  resolved `recording` key rather than firing on every multi-step flow; the `/verify` handoff states
+  the current rule without the release-by-release history; caps emphasis on the e2e route, semantic
+  locators, and the prerequisite check became plain instructions; the duplicated after-testing
+  handoff moved into the SKILL.md handoff, which now carries the structured-log step; `headless` no
+  longer describes itself as preserving current behavior.
+- **`write`:** the description's five quoted trigger phrases became three intent clauses; the
+  vertical-slice rule leads with the positive form; the pre-coding interface check confirms with the
+  user only when the session is interactive and the change is material; the refactor step keeps
+  cleanup inside the slice and notes the rest as follow-ups; two config keys no schema defines became
+  plain references to the project's own conventions; a hollow "Current state" section and both
+  marketplace-skill sections are gone.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.7.13]
 
 ### Fixed

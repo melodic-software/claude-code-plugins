@@ -116,10 +116,3 @@ Present the test plan to the user. Then suggest:
 
 - **Does not write tests**. `/testing:write`
 - **Does not run tests**. `/toolchain:check` (SSOT for CLI invocation)
-
-## Marketplace plugin skills (invoke only when installed)
-
-These enrichment skills are ecosystem-specific, the `dotnet-test` skill applies when your stack is .NET; `document-skills:webapp-testing` is stack-agnostic:
-
-- **`dotnet-test:code-testing-agent`**. Multi-agent pipeline for comprehensive gap analysis and structured test generation. Use when the test plan reveals significant coverage gaps requiring many new tests
-- **`document-skills:webapp-testing`**. Playwright patterns for E2E test planning. Use when the test plan includes UI or API verification scenarios that need end-to-end coverage

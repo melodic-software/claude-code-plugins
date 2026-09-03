@@ -4,7 +4,7 @@ Autonomous application testing — start the app, navigate, interact, take scree
 
 ## Prerequisites check
 
-Before ANY live testing, verify tool availability. The e2e orchestrator and any prerequisite MCP come from the consuming project's conventions (Aspire, docker-compose, tilt, a dev-server script). Universal browser-automation tooling stays prose.
+Before live testing, verify tool availability. The e2e orchestrator and any prerequisite MCP come from the consuming project's conventions (Aspire, docker-compose, tilt, a dev-server script). Universal browser-automation tooling stays prose.
 
 | Requirement | How to check | Required? | Purpose |
 |------------|-------------|-----------|---------|
@@ -18,7 +18,7 @@ Before ANY live testing, verify tool availability. The e2e orchestrator and any 
 
 **If app not running:** suggest starting via the project's documented start command, then re-check via the orchestrator's health/resource-list call.
 
-**If Playwright CLI missing:** install globally via `npm install -g @playwright/cli@latest`; when the `playwright` plugin is installed, invoke `/playwright:playwright` via the Skill tool for usage — it owns defaults, sessions, and per-scenario references.
+**If Playwright CLI missing:** tell the user to install it (`npm install -g @playwright/cli`) rather than substituting another automation surface; when the `playwright` plugin is installed, invoke `/playwright:playwright` via the Skill tool for usage. It owns defaults, sessions, and per-scenario references.
 
 **If only orchestrator tooling available (no browser automation):** degrade to API + log verification and report that visual/UI testing is unavailable.
 
@@ -112,7 +112,7 @@ playwright-cli -s=uitest close                             # close session
 
 Artifacts land in `.playwright-cli/` **relative to CWD when each command runs** (gitignored). Read the YAML snapshot file directly to locate element refs — do not dump it into context blindly; keep the token savings.
 
-**Use semantic locators ONLY** (the snapshot's element refs `e2`, `e37` etc. are stable accessibility-based handles — NOT CSS selectors):
+**Use semantic locators** (the snapshot's element refs `e2`, `e37` etc. are stable accessibility-based handles; CSS selectors break on cosmetic changes):
 
 - `click e48` where the snapshot shows `- button "Submit" [ref=e48]` (good)
 - CSS selectors like `#submit-btn` (bad — breaks on cosmetic changes)
@@ -125,11 +125,7 @@ For each verified scenario:
 - Console log check (no errors)
 - Network request verification (correct API calls, status codes)
 
-For multi-step flows, use Claude in Chrome GIF recording:
-
-```
-mcp__claude-in-chrome__gif_creator → record the interaction sequence
-```
+When `recording` resolves to `gif`, record the sequence with Claude in Chrome's `gif_creator`; when it resolves to `video`, record via the playwright CLI. See the recording tier above. Under `off`, the screenshots are the evidence.
 
 ### 6. Check distributed traces (for multi-service flows)
 
@@ -143,17 +139,3 @@ When a test element can't be found:
 2. **Look for equivalent elements** — same text, same role, nearby position
 3. **If the element genuinely moved or was removed** — that's a real change, not a locator bug. Report it as a finding
 4. **Update locators to semantic ones** — if the test used a fragile selector, upgrade to accessibility-based
-
-## After E2E testing
-
-- If all scenarios pass: proceed by invoking `/verification:confirm outcome` via the Skill tool when the `verification` plugin is installed (composes /verification:confirm default + intent + evidence; chains back to /testing:run-e2e if needed); otherwise report the captured evidence for outcome sign-off directly
-- If visual bugs found: invoke `/testing:diagnose` via the Skill tool for diagnosis and the fix cycle
-- If API errors found: check the orchestrator's structured logs for root cause
-- Document findings — E2E results are ephemeral. Screenshot evidence persists
-
-## Marketplace plugin skills (invoke only when installed)
-
-These enrichment skills are tool-specific — invoke each only when it matches your stack and tooling:
-
-- **`cloudflare:web-perf`** — measure Core Web Vitals (FCP, LCP, TBT, CLS, Speed Index) via Chrome DevTools MCP. Use for performance verification baselines during E2E testing
-- **`document-skills:webapp-testing`** — Playwright-based test automation patterns including semantic locators, accessibility-first selectors, and multi-step workflow scripting

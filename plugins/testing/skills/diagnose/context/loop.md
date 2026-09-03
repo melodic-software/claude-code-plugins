@@ -43,7 +43,7 @@ Change the smallest amount of code that fixes the root cause. NOT a refactoring 
 
 - Fix the production code, not the test's assertion — a test edited to pass is not a fix. If the test itself is wrong, correct it deliberately and say so
 - Fix the bug, nothing more
-- Boy Scout Rule applies to files you touch, but keep behavioral changes focused
+- Leave unrelated cleanup in the files you touch for a separate commit
 - If the fix reveals a design problem, note it for a separate refactor commit
 
 ### Step 4: Retest
@@ -55,7 +55,7 @@ The failing test from step 1 must now pass. If it still fails:
 
 ### Step 5: Regression
 
-Run the full test suite for the affected project(s). Not just the test you wrote — ALL tests that could be impacted. `/toolchain:check` is SSOT for the exact per-ecosystem command (or the project's own test command when the `toolchain` plugin is absent); the block below is illustrative (.NET):
+Run the full test suite for the affected project(s), not only the test you wrote, because the fix can have side effects elsewhere. `/toolchain:check` is SSOT for the exact per-ecosystem command (or the project's own test command when the `toolchain` plugin is absent); the block below is illustrative (.NET):
 
 ```bash
 # Single project
@@ -64,8 +64,6 @@ dotnet test --project path/to/Project.Tests.csproj
 # All tests
 dotnet test
 ```
-
-**Why all tests?** Your fix may have side effects. A change that fixes one test but breaks three others is not a fix.
 
 ### Step 6: Evaluate
 
@@ -107,10 +105,3 @@ When the loop is invoked standalone (outside `/implementation:implement`):
 
 - The loop drives the full cycle including code edits
 - After exit, suggests `/verification:confirm` for comprehensive validation
-
-## Marketplace plugin skills (invoke only when installed)
-
-These are .NET-ecosystem plugin skills — applicable when your stack is .NET:
-
-- **`dotnet-test:mtp-hot-reload`** — enable MTP hot reload for rapid test iteration without rebuilding. Requires `Microsoft.Testing.Extensions.HotReload` package + `TESTINGPLATFORM_HOTRELOAD_ENABLED=1`. Use `dotnet run --project` (not `dotnet test`) for hot reload mode
-- **`dotnet-diag:analyzing-dotnet-performance`** — scan for async deadlocks, timing races, and GC pressure when intermittent failures suggest performance-related root causes
