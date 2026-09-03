@@ -3,6 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.0]
+
+### Changed
+
+- **`interview`: emoji anchors on by default.** `use_emoji_question_markers`
+  stays a userConfig boolean and now defaults to `true`, matching the upstream
+  mattpocock/skills `grilling` ❓/➡️ shape. Inline rounds lead with those
+  prefixes when the option is true; set it false for plain text. The option
+  stays presentational: `Q<N>` is still the answer handle, and the ledger,
+  register, and Brief stay undecorated. An existing install that already stored
+  `false` keeps plain text until reconfigured. The Stance-section digest in
+  `tests/interview-defenses.test.sh` is refreshed for the same wording change;
+  the in-round no-silent-resolve defense is unchanged.
+
 ## [0.35.4]
 
 ### Changed
