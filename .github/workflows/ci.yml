@@ -408,6 +408,25 @@ jobs:
           # the parser has to survive. The paths are invented (`alice`, `x`),
           # not any operator's. source-control's same-drive unit tests need
           # literal `C:/` / `D:/` drive fixtures to exercise the gate (#2764).
+          #
+          # The five below are NEW with the v0.19.0 repin, not new content: that
+          # action now detects a Windows user path written with forward slashes,
+          # a class the previously pinned SHA did not catch. Four are comments
+          # illustrating the very path form the surrounding code parses, and one
+          # is a Pester fixture asserting a JSONC reader preserves an escaped
+          # path. Excluding the file silences more than the phrase, so #3699
+          # tracks rewording them to the placeholder form the action documents
+          # as allowed and dropping these lines; it is deferred here only
+          # because changelog parity would charge four plugin version bumps to a
+          # CI performance change that touches nothing else in them.
+          #   ai-slop detect.sh: names git's own answer on Git Bash (#3699).
+          #   claude-ops fleet-state.sh: names the native form installLocation
+          #     is recorded in (#3699).
+          #   machine-health ConvertFrom-Jsonc.Tests.ps1: the escaped path IS
+          #     the assertion's subject (#3699).
+          #   source-control fetch-annotations.test.sh and
+          #     fetch-failed-logs.test.sh: each names the path form its
+          #     production script accepts through env vars (#3699).
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
@@ -417,6 +436,11 @@ jobs:
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
             :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
             :(exclude)plugins/source-control/scripts/worktree-create.test.sh
+            :(exclude)plugins/ai-slop/skills/audit/scripts/detect.sh
+            :(exclude)plugins/claude-ops/skills/plugins/scripts/fleet-state.sh
+            :(exclude)plugins/machine-health/skills/audit/tests/windows/lib/ConvertFrom-Jsonc.Tests.ps1
+            :(exclude)plugins/source-control/skills/pull-request/scripts/fetch-annotations.test.sh
+            :(exclude)plugins/source-control/skills/pull-request/scripts/fetch-failed-logs.test.sh
 
       - name: Check index-level EOL drift
         id: eol
@@ -695,12 +719,25 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no branch tip to compare with the base."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no branch tip to compare with the base."
             exit 0
           fi
           head_tree="$RUNNER_TEMP/stale-base-head"
-          rm -rf "$head_tree"
+          git worktree remove --force "$head_tree" 2>/dev/null || rm -rf "$head_tree"
           git worktree add --detach "$head_tree" "$HEAD_SHA"
+          # The worktree is removed whether the detector passes, fails or the
+          # shell dies: a registered worktree left behind would make every later
+          # git command in this job report a stale entry, and the trap is what
+          # keeps the failure path from doing that. Removal is best-effort and
+          # never changes the step's own verdict.
+          cleanup() {
+            status=$?
+            cd "$GITHUB_WORKSPACE" || true
+            git worktree remove --force "$head_tree" 2>/dev/null || rm -rf "$head_tree" || true
+            git worktree prune || true
+            exit "$status"
+          }
+          trap cleanup EXIT
           cd "$head_tree"
           "$GITHUB_WORKSPACE/scripts/check-stale-base-overlap.sh" --check "origin/$BASE_REF"
 
@@ -726,7 +763,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
@@ -742,7 +779,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no fork point to compare against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no fork point to compare against."
             exit 0
           fi
           scripts/check-changelog-parity.sh --check-preserved "origin/$BASE_REF"
@@ -771,7 +808,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
@@ -799,7 +836,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/check-contract-slice-prune.sh --check-diff "origin/$BASE_REF"
@@ -890,7 +927,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff changed skills against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff changed skills against."
             exit 0
           fi
           scripts/check-changed-skills.sh "origin/$BASE_REF"
@@ -946,7 +983,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff changed skill files against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff changed skill files against."
             exit 0
           fi
           scripts/check-skill-portability.sh "origin/$BASE_REF"
@@ -968,7 +1005,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff changed shell files against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff changed shell files against."
             exit 0
           fi
           scripts/check-shell-portability.sh "origin/$BASE_REF"
@@ -1283,7 +1320,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-rewrite-guard.sh --check-bump "origin/$BASE_REF"
@@ -1300,7 +1337,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-parse-concern-value.sh --check-bump "origin/$BASE_REF"
@@ -1317,7 +1354,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-managed-scope.sh --check-bump "origin/$BASE_REF"
@@ -1334,7 +1371,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-state-key.sh --check-bump "origin/$BASE_REF"
@@ -1351,7 +1388,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-spawn-noise.sh --check-bump "origin/$BASE_REF"
@@ -1368,7 +1405,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-check-retirements.sh --check-bump "origin/$BASE_REF"
@@ -1382,7 +1419,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-legacy-statusline-detect.sh --check-bump "origin/$BASE_REF"
@@ -1396,7 +1433,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-unwrap-before-compose.sh --check-bump "origin/$BASE_REF"
@@ -1416,7 +1453,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-resolve-convention-home.sh --check-bump "origin/$BASE_REF"
@@ -1433,7 +1470,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-resolve-convention-pattern.sh --check-bump "origin/$BASE_REF"
@@ -1450,7 +1487,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-index-regen.sh --check-bump "origin/$BASE_REF"
@@ -1467,7 +1504,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-standards-contract.sh --check-bump "origin/$BASE_REF"
@@ -1673,7 +1710,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "Not a pull request; there is no base ref to diff against."
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
           scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
