@@ -134,9 +134,7 @@ describe("reclaimStaleSlot", () => {
     const slot = path.join(baseDir, "slot-0");
     await makeStale(slot);
     const reclaim = `${slot}.reclaim`;
-    await fs.mkdir(reclaim);
-    const longAgo = new Date(Date.now() - 20 * 60 * 1000);
-    await fs.utimes(reclaim, longAgo, longAgo);
+    await makeStale(reclaim);
 
     expect(await reclaimStaleSlot(slot)).toBe(true);
     expect(fsSync.existsSync(slot)).toBe(false);
@@ -147,9 +145,7 @@ describe("reclaimStaleSlot", () => {
     const slot = path.join(baseDir, "slot-0");
     await makeStale(slot);
     const reclaim = `${slot}.reclaim`;
-    await fs.mkdir(reclaim);
-    const longAgo = new Date(Date.now() - 20 * 60 * 1000);
-    await fs.utimes(reclaim, longAgo, longAgo);
+    await makeStale(reclaim);
 
     /** @type {boolean[]} */
     const removed = [];
@@ -199,9 +195,7 @@ describe("reclaimStaleSlot", () => {
 describe("refreshSlot", () => {
   it("bumps a slot's mtime toward now", async () => {
     const slot = path.join(baseDir, "slot-0");
-    await fs.mkdir(slot);
-    const longAgo = new Date(Date.now() - 20 * 60 * 1000);
-    await fs.utimes(slot, longAgo, longAgo);
+    await makeStale(slot);
     const before = (await fs.stat(slot)).mtimeMs;
 
     const ok = await refreshSlot(slot);
