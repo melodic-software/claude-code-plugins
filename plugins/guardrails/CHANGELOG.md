@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.3]
+
+### Changed
+
+- setup: the per-guard toggle probe reads each guard's effective value from the configured
+  option and the manifest default, and no longer claims that an unset toggle means `true`
+- setup: dropped the hardcoded guard count and the install-commit-msg rationale sentence
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.30.4]
 
 ### Changed
