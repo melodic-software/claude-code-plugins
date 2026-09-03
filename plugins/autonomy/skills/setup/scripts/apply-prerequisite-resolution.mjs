@@ -225,7 +225,6 @@ function writeRatified(repo, proposal) {
     ],
     declarations: merged,
   };
-  // Refuse security keys.
   if (existing.admission || existing.isolation || existing.executor_class) {
     throw new Error("refusing to write security-binding axes into autonomy binding");
   }
