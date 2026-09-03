@@ -4,6 +4,27 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.40]
+
+### Changed
+
+- **Video-digest acquisition, adapter, transcript and watch tidyings from the
+  repo-wide sweep.** `acquisition/acquire.js` drops write-only `files` state (a
+  return field its only caller never read, and an outer `let` whose every write
+  was dead or read on the next line); its two suites collapse duplicated spawn
+  stubs into a `spawnOk` helper and reuse the existing `makeStale` helper.
+  `watch/run-watch.js` unwraps a try/finally that held only a comment, moving
+  the temp-dir retention note to the mkdtemp calls it describes, and drops a
+  redundant `harvestedLinks` field from an internal closure's return.
+  `transcript/write-transcript.js` names its duplicated paragraph-count
+  expression `countParagraphs()`; `transcript/run-transcript.test.js` renames a
+  `const URL` that shadowed the global constructor. Comment passes across the
+  adapter, liveness and transcript layers rewrite history narration as
+  present-tense rationale and remove design-plan tokens that no document in the
+  repository defines. Vitest 12/100 acquisition, 8/131 adapters and liveness,
+  6/54 transcript, 21/106 watch, and the full package 71/509 green before and
+  after; `tsc --noEmit` clean.
+
 ## [0.13.39]
 
 ### Changed
