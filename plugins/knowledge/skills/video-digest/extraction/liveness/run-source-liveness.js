@@ -239,16 +239,14 @@ export function compareObservation(observation, expect) {
 
   const meta = observation.metadata;
   const extractorKey = String(meta.extractor_key ?? meta.extractor ?? "");
-  if (expect.extractorKeys?.length) {
-    const hit = expect.extractorKeys.some(
-      (key) => key.toLowerCase() === extractorKey.toLowerCase(),
-    );
-    if (!hit) {
-      return {
-        ok: false,
-        detail: `extractor_key "${extractorKey}" not in [${expect.extractorKeys.join(", ")}]`,
-      };
-    }
+  if (
+    expect.extractorKeys?.length &&
+    !expect.extractorKeys.some((key) => key.toLowerCase() === extractorKey.toLowerCase())
+  ) {
+    return {
+      ok: false,
+      detail: `extractor_key "${extractorKey}" not in [${expect.extractorKeys.join(", ")}]`,
+    };
   }
 
   if (expect.id != null && String(meta.id ?? "") !== expect.id) {
@@ -305,17 +303,10 @@ export async function runProbe(probe, options) {
     };
   }
 
-  /** @type {ProbeObservation} */
-  let observation;
-  if (options.mode === "offline") {
-    observation = await loadOfflineFixture(probe.offlineFixture, options.baseDir ?? HERE);
-  } else {
-    observation = await probeLiveUrl(probe.url, {
-      spawn: options.spawn,
-      cookiesFile,
-      env,
-    });
-  }
+  const observation =
+    options.mode === "offline"
+      ? await loadOfflineFixture(probe.offlineFixture, options.baseDir ?? HERE)
+      : await probeLiveUrl(probe.url, { spawn: options.spawn, cookiesFile, env });
 
   // Live auth-required probe that hit login-required despite cookies: still skip.
   // Offline fixtures asserting login-required must compare, not skip.
