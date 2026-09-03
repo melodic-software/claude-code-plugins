@@ -213,17 +213,15 @@ scan_scope() {
 scan_scope "$PATTERN" >"$RAW_HITS"
 
 : >"$HITS_FILE"
-if [[ -s "$RAW_HITS" ]]; then
-  while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    text="${line#*:*:}"
-    # shellcheck disable=SC2310  # is_scripts_carveout is a pure predicate; both branches handled
-    if is_scripts_carveout "$text"; then
-      continue
-    fi
-    printf '%s\n' "$line" >>"$HITS_FILE"
-  done <"$RAW_HITS"
-fi
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  text="${line#*:*:}"
+  # shellcheck disable=SC2310  # is_scripts_carveout is a pure predicate; both branches handled
+  if is_scripts_carveout "$text"; then
+    continue
+  fi
+  printf '%s\n' "$line" >>"$HITS_FILE"
+done <"$RAW_HITS"
 
 # Second pass (#2716): `../`-prefixed cites whose lexical resolution lands on
 # a private skill surface. Covers sibling-skill links like
@@ -234,23 +232,20 @@ fi
 DOTDOT_PATTERN='(\.\./)+([A-Za-z0-9_.-]+/)+([A-Za-z0-9_.-]+/|SKILL\.md#|[A-Za-z0-9_.-]+\.schema\.json)'
 scan_scope "$DOTDOT_PATTERN" >"$DOTDOT_RAW"
 
-if [[ -s "$DOTDOT_RAW" ]]; then
-  while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    file="${line%%:*}"
-    rest="${line#*:}"
-    line_no="${rest%%:*}"
-    text="${rest#*:}"
-    # Already covered by the skills/-segment alternation.
-    [[ "$text" == *"/skills/"* || "$text" == skills/* ]] && continue
-    rel="$text"
-    # shellcheck disable=SC2310  # lex_resolve returns status; continue is the handled miss
-    resolved="$(lex_resolve "$(dirname "$file")/$rel")" || continue
-    # shellcheck disable=SC2310  # is_private_skill_path is a pure predicate; both branches handled
-    is_private_skill_path "$resolved" || continue
-    printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
-  done <"$DOTDOT_RAW"
-fi
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  file="${line%%:*}"
+  rest="${line#*:}"
+  line_no="${rest%%:*}"
+  text="${rest#*:}"
+  # Already covered by the skills/-segment alternation.
+  [[ "$text" == *"/skills/"* || "$text" == skills/* ]] && continue
+  # shellcheck disable=SC2310  # lex_resolve returns status; continue is the handled miss
+  resolved="$(lex_resolve "$(dirname "$file")/$text")" || continue
+  # shellcheck disable=SC2310  # is_private_skill_path is a pure predicate; both branches handled
+  is_private_skill_path "$resolved" || continue
+  printf '%s:%s:%s\n' "$file" "$line_no" "$text" >>"$HITS_FILE"
+done <"$DOTDOT_RAW"
 
 if [[ ! -s "$HITS_FILE" ]]; then
   if [[ "$APPLY_FILTERS" -eq 1 ]]; then
@@ -335,11 +330,9 @@ while IFS= read -r line; do
           mech_filtered=1
         fi
       fi
-    elif [[ "$file" == *".worktrees/"* || "$text" == *".worktrees/"* ]]; then
-      mech_filtered=1
-    elif [[ "$file" == *".claude/worktrees/"* || "$text" == *".claude/worktrees/"* ]]; then
-      mech_filtered=1
-    elif [[ "$file" == *".git/worktrees/"* || "$text" == *".git/worktrees/"* ]]; then
+    elif [[ "$file" == *".worktrees/"* || "$text" == *".worktrees/"* ||
+      "$file" == *".claude/worktrees/"* || "$text" == *".claude/worktrees/"* ||
+      "$file" == *".git/worktrees/"* || "$text" == *".git/worktrees/"* ]]; then
       mech_filtered=1
     fi
     if [[ "$mech_filtered" -eq 1 ]]; then

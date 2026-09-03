@@ -101,9 +101,7 @@ resolve_existing_path() {
     printf '%s' "$raw"
     return 0
   fi
-  local abs
-  abs="$(pwd)/$raw"
-  printf '%s' "$abs"
+  printf '%s' "$(pwd)/$raw"
 }
 
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
