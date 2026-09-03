@@ -196,9 +196,43 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 [`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md)
 — walk it while writing the file; never write the section list from memory.
 
-When the target file already exists on disk (extending an earlier turn's write), re-read it from
-disk immediately before writing and append to it — never rewrite the whole file from the
-in-context copy, which goes stale the moment disk moved on without this conversation seeing it.
+**The file is shape 2, and a script owns its deterministic tier.**
+`${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has three subcommands, run through the interpreter
+ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.10+, stdlib only):
+
+- `save_point.py new --topic <slug> --memory-dir <root> (--previous <file> | --no-previous)`
+  writes the skeleton with every deterministic field filled (filename and `date:`, `session_id`
+  from `CLAUDE_CODE_SESSION_ID`, the resolved `transcript:`, `previous_handoff` and `chain:`, the
+  17 headings in order, the goal and amendments and the five cumulative sections copied off the
+  predecessor with their `[hN]` tags, the `## Prior sessions` table, and the whole
+  `## Resume prompt` block except its `Next:` headlines) and prints the file's absolute
+  forward-slash path. Only the `<!-- FILL: <name> — <instruction> -->` slots are the model's;
+  every optional slot (`goal-rearm`, `below-rail`, `<section>-new`) is deleted when it does not
+  apply. It never overwrites an existing file.
+- `save_point.py validate <file>` prints PASS/WARN/FAIL lines and exits 0 on pass (shape 1: one
+  WARN, exit 0), 1 on a validation failure, 2 on usage, 3 on a `handoff_shape` newer than it
+  knows ("read it, do not rewrite it"). A leftover `FILL` slot, a prefixed `previous_handoff`, a
+  non-UUID `session_id`, a stated `transcript:` that does not exist, a heading out of order, a
+  non-U+2500 rail, more than five `Next:` lines, a `|` in the `did: … · left: …` line, and a
+  dropped predecessor entry are all failures. `--strict-transcript` turns the honest
+  `unresolved (…)` transcript from WARN into FAIL (the acceptance harness passes it). It also runs
+  a WARN-only secret-shape scan; the model rules on each hit under the redaction pass above.
+- `save_point.py emit <file>` prints the `## Resume prompt` section body verbatim (heading
+  excluded, leading and trailing blank lines trimmed) and exits 1 on a shape-1 file (no section,
+  says so) or a file that still carries a `FILL` slot (an unfinished skeleton is never emitted).
+  When the stored `Read @` path is not the file's own real path (a file preserved out of a removed
+  worktree) it warns on stderr and substitutes the current path on stdout only; the file is never
+  rewritten.
+
+The rails on screen are the `emit` output, so the file is validated BEFORE the prompt exists on
+screen and the two cannot disagree ("Emit the copy/paste resume prompt", full-path block).
+
+`new` never overwrites, so there is no "extend an earlier turn's write" path: a skeleton that an
+earlier turn left unfinished (compaction mid-fill) stays on disk carrying `FILL` slots, is never
+emitted, and a fresh `new` writes a new timestamped file beside it. Legacy shape-1 files are read
+and never rewritten. The script is read-only on the repository except the one handoff file it
+creates; the self-ignore guard is the skill's own bash step (structure doc), which `new` verifies
+and refuses without.
 
 ## Emit the position panel
 
@@ -413,18 +447,72 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   bullets: an active `/goal` keeps the first line, the quote never displaces it, and with no active
   `/goal` the quote itself opens the block.
 
-Full-path shape (minimum form — live: bare `─` rails, no fence; shown inside a fence here for
-display):
+Full-path shape (live: bare `─` rails, no fence; shown inside a fence here for display; the
+`Next:` headlines are illustrative):
 
 ```text
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
-Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them.
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
 Prior session: <UUID>.
-Handoff origin: <repo-identity>, relative path <memory_dir>/handoffs/<TS>-handoff-<topic>.md.
+Handoff origin: <remote URL, userinfo stripped> <repo-relative path>
+Next:
+Wire the retry policy into OrderReader
+Add the cancellation edge-case tests
+Then: /testing:write
 ──────────────────────────────────────────────────────────
+
+Or reopen the producing session in place: `claude --resume <UUID>`.
 ```
+
+### Full path only: the block is validated, stored, and printed, never regenerated
+
+Everything in this sub-section applies to the full path. The prompt-only rules above and below
+are untouched: prompt-only writes no file, so nothing here has a file to validate or emit from.
+
+- **`validate` exit 0 gates the rails.** Run `save_point.py validate <file>` before anything is
+  printed. On a non-zero exit, fix the slots the FAIL lines name and re-run, at most three
+  attempts; the file is not the resume prompt until it passes. Quote the outcome in the citing
+  skill's checklist (`validate: exit 0`, WARN lines listed).
+- **Three failed attempts do not withhold the rails.** The observed failure class is an operator
+  left with nothing to paste, and "A resume prompt is ALWAYS emitted" wins: print an
+  `UNVALIDATED: <validator output>` banner ABOVE the copy instruction (outside the copy region, so
+  the detection contract below holds), mark the checklist box `validate: FAILED`, and still emit
+  the rails from the file's `## Resume prompt` section. Never green-silent.
+- **The on-screen block is the `emit <file>` output pasted verbatim.** Copy instruction, top rail,
+  prompt, bottom rail, the below-rail `claude --resume` line, and any re-arm notes, exactly as
+  printed, never retyped, reflowed, or regenerated from the conversation. The file's
+  `## Resume prompt` section and the screen are byte-equal by construction, which is what lets
+  `find-handoff` rung 1 recover the prompt from the file alone and `continue-in-background` launch
+  from it. Python absent: emit the section by hand from the file, still verbatim.
+- **The directive is fixed text.** `Read @<absolute path>, confirm its Original goal still governs
+  the remaining next steps, then continue them. For the next save-point invoke
+  /session-flow:handoff via the Skill tool; never write a handoff file free-hand.` The second
+  sentence is the successor's licence to write handoffs: through the skill only. The
+  "then execute /<skill>" swap the prompt-only rule below allows is expressed on the full path by
+  the `Then:` line instead, so the directive never changes shape.
+- **`Handoff origin:` has ONE form:** `Handoff origin: <remote URL, userinfo stripped> <repo-relative path>`,
+  two whitespace-separated slots, a slot that contains whitespace double-quoted. The script
+  computes both at write time from the repository the file was actually written into: the
+  `origin` remote sanitized per `<repo-identity>` below, else the root directory name; and
+  `<repo-relative path>`, the file's path relative to that repository's root
+  (`<memory_dir>/handoffs/<TS>-handoff-<topic>.md` with the relative memory root, `.work` by
+  default; never the absolute `<handoffs-dir>` form line 1 uses), or the absolute path on the
+  no-project-root branch. The value is stored, inside the file's `## Resume prompt` section, and
+  nowhere else.
+- **`Next:` carries headlines, not detail.** The line `Next:` followed by 1 to 5 plain lines, one
+  headline per line, no bullets, no blank lines, each the first words of an item from
+  `Remaining actions, in order`. Headlines yes, detail no: the file `@`-referenced on line 1 holds
+  the sequence, and the between-rails text is what a resuming session or a background agent sees
+  first. The last headline may be `Then: /<one skill>` — the fully-qualified skill the next stage
+  starts with, at a stage boundary only, never mid-stage. A closing handoff writes
+  `Next: none (closed)` and no headlines. The validator refuses a sixth line, a bullet, and a
+  `Then:` that is not last.
+- **Below the bottom rail, first line:** the sentence `Or reopen the producing session in place:`
+  followed by `claude --resume <UUID>` in a code span and a period — the alternative to
+  `/clear`-and-paste when the producing session is still worth reopening. The `/goal` and `/loop` re-arm notes the rules above prescribe follow
+  it, unchanged in shape; it is outside the copy region and outside the detection contract.
 
 ### The directive path is ROOTED, and that is the whole point
 
@@ -462,11 +550,13 @@ form rather than a trade.
 and a save-point's own "When to invoke" includes sharing state with another machine — so the third
 line names what the path can be re-derived from: the repository's `origin` remote URL when it has one
 AND that URL can be sanitized with confidence (the test is below), else its root directory name, and
-the repo-relative path under it. It is computed at emit time
-from the repository actually written into — when cwd is NOT that repository, name the repository the
-file was actually written to, never the one cwd happens to sit in; it is NOT a stored field, and
-nothing in the handoff file's frontmatter carries it. A resume on a different machine or checkout
-ignores line 1's root and re-resolves from line 3.
+the repo-relative path under it. It is computed at write time by `save_point.py new`
+from the repository actually written into — when cwd is NOT that repository, it names the repository
+the file was actually written to, never the one cwd happens to sit in (`--repo-root` defaults to the
+git top level of the resolved memory dir, never cwd). It is stored exactly once, inside the file's
+`## Resume prompt` section, because that section stores the whole emitted block; nothing in the
+frontmatter carries it. A resume on a different machine or checkout ignores line 1's root and
+re-resolves from line 3.
 
 **Strip the remote URL's userinfo before embedding it.** A remote URL routinely carries a credential
 in its userinfo component — `https://<token>@github.com/<owner>/<repo>.git` for HTTPS-with-PAT,
@@ -492,8 +582,10 @@ stripping would begin; or the string is not a shape you recognize. Guessing the 
 leaving the token in or mangling the identity — the directory name loses neither, and it re-resolves
 nearly as well.
 
-When the next stage is a specific skill in the consuming repo, swap the directive to
-`Read @…, confirm its Original goal still governs the remaining next steps, then execute /<skill>.`
+When the next stage is a specific skill in the consuming repo, the full path names it on the
+`Then: /<skill>` line (full-path block above; the directive itself is fixed text), and a
+prompt-only block may swap its directive-style opening line to
+`…, confirm its Original goal still governs the remaining next steps, then execute /<skill>.`
 The `@`-reference is mandatory on the full path — the fresh session
 loads it; do NOT inline the file's detail in the prompt. Prompt-only carries its remaining-work
 bullets inline between the rails instead, and needs no origin line: it references no file.
@@ -509,7 +601,11 @@ detection-contract change: signal 1 below is matched on the `…handoffs/<TS>-ha
 directive names, which the added clause leaves untouched.
 
 `<UUID>` = this session's `$CLAUDE_CODE_SESSION_ID` (the frontmatter `session_id`) — it lets a
-fresh session or `/session-flow:retro` chain-walker locate the transcript later.
+fresh session or `/session-flow:retro` chain-walker locate the transcript later, and it is the id
+the below-rail `claude --resume <UUID>` line reopens. On the full path the script refuses a
+missing or non-UUID value (a bridge session's `cse_…` id, never read from
+`CLAUDE_CODE_BRIDGE_SESSION_ID`); the save-point then takes the prompt-only path with the reason
+stated ("no session UUID available; chain gap accepted"), never a hand-written shape-2 file.
 
 After the rails prompt is emitted, control returns to the citing skill's delivery step.
 
@@ -574,6 +670,28 @@ truncates a prompt whose continuation lines do not resemble a re-arm, and matchi
 a prompt that quotes the marker. A count cannot collide with what it delimits. `<n>` is the
 self-check that the whole set came back, not the scanner. The verbatim prompt also means the same
 redaction pass applies here as to everything else surfaced from a transcript.
+
+**Shape 2 changed the emitted block in these ways, and `find-handoff` moved with it** (the
+signals above are unchanged: signal 1 still matches the `…handoffs/<TS>-handoff-…` shape, signal 2
+the rails plus the copy line, signal 3 the `Prior session:` UUID):
+
+- The directive continues after `then continue them.` with the sentence `For the next save-point
+  invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.` A
+  consumer matches the path shape, never the sentence's presence or absence: every handoff
+  written before shape 2 lacks it.
+- `Handoff origin:` has the two-slot form `<remote URL> <repo-relative path>`; the legacy form
+  `<identity>, relative path <p>.` is on disk and in transcripts unchanged. A consumer reads
+  both, and still treats the line as a resolution input, never a key.
+- `Next:` and its headline lines, and an optional `Then: /<skill>` line, sit between the rails.
+  They are content in the copy region, not shape: a consumer that recovers the region recovers
+  them, and never keys on them.
+- The first line below the bottom rail reads `Or reopen the producing session in place:` followed
+  by `claude --resume <UUID>` in a code span. A consumer anchoring the `/loop` re-arm capture to
+  the bottom rail skips that line (and the blank line above it) before scanning for
+  `Re-arm <i> of <n>` headers.
+- The file stores the whole block as its final `## Resume prompt` section, so a shape-2 file is
+  recoverable from disk alone: `save_point.py emit <file>` prints it. A file still carrying a
+  `<!-- FILL` slot is an unfinished skeleton, never a candidate, and `emit` refuses it.
 
 Changing this prompt/marker format — the rails, the header, or the meaning of `<L>` — is a
 **knowing** break of that contract, not a cosmetic edit; update `find-handoff`'s detection in the

@@ -369,7 +369,7 @@ predecessor's sections are not aliased onto the 14-section names (absent → `No
 predecessor had no <section>)` exactly as specified). Phase 2 wires the skill to the CLI exactly
 as the contract table reads.
 
-### Phase 2: Shape-2 spec, skill wiring, consumers, evals [TODO]
+### Phase 2: Shape-2 spec, skill wiring, consumers, evals [DONE]
 
 Review: code-design
 
@@ -397,6 +397,47 @@ over the three `evals.json` exit 0; `grep -c "Resume prompt" plugins/session-flo
 ≤ 500; `grep -n '<handoffs-dir>' plugins/session-flow/reference/save-point.md` non-empty;
 `diff <(git show origin/main:plugins/session-flow/skills/handoff/SKILL.md | awk '/^\*\*Prompt-only path:\*\*/,/^## What this skill does NOT do/') <(awk '/^\*\*Prompt-only path:\*\*/,/^## What this skill does NOT do/' plugins/session-flow/skills/handoff/SKILL.md)`
 is empty; `bash scripts/check-purged-em-dashes.sh` exit 0 (`plugins/session-flow/README.md` is a purged surface).
+
+**Result (2026-09-03):** landed. Pre-flight re-grep matched the "Consumers" table; the extra hits
+(`orchestrate` rails for its own brief, `running-retro` / `retro` reading `previous_handoff` as a
+pointer, `keep-going` / `reanchor` reading `Original goal` by name) are unaffected by shape 2. One
+free-hand licence the table did not list, `skills/workflow/context/continuation.md` ("Absent that
+skill: write a resume file by hand"), was reworded because the Sanity Check's
+`grep -rl "write a resume file" plugins/session-flow` demands zero hits (the parenthetical was
+dead: `workflow` and `handoff` ship in the same plugin). `structure.md` documents the shape-2
+frontmatter, the `Opening ask:` line, the cumulative-section `[hN]` + `Superseded:` rule (with the
+`UNVERIFIED (<source>)` relation and re-tag-on-reverify), the three new sections, the scripted
+write procedure (`parse-concern-value.sh` → guards → interpreter ladder → `new` → fill →
+`validate` → `emit`), the Python-absent fallback, and the legacy / malformed-predecessor /
+unfinished-skeleton rules; `save-point.md` documents the three subcommands with the exit taxonomy
+and adds the full-path-only block (validate gates, three-attempt fix loop then the `UNVALIDATED`
+banner, rails = `emit` output verbatim, fixed directive text, one `Handoff origin:` form, `Next:`
+1 to 5 headlines with `Then:` only at a stage boundary, the below-rail `claude --resume` line),
+flips the "`<repo-identity>` is NOT a stored field" sentence, routes the no-UUID case to
+prompt-only, and lists the shape-2 changes under the detection contract; the handoff SKILL.md
+full-path checklist gained three boxes and a rewritten rails box (311 lines; the prompt-only
+checklist is byte-identical to `origin/main`); `gotchas.md` gained exactly the two evidenced
+entries; `continue-in-background` sources its payload from `emit`; `find-handoff` rung 1 prints
+`## Resume prompt` via `emit` (with the `sed -n` fallback) and skips `<!-- FILL` skeletons, rung
+3 accepts both origin forms, matches the directive on its path shape regardless of tail, and
+skips the `claude --resume` line before the re-arm header scan; the handoff evals carry the
+validator/emit expectation on all nine full-path rails cases plus five new cases (16 to 20), and
+the other two sets gained one shape-2 case each; the README describes shape 2 and the script.
+Sanity Check: `check-skill.sh --require-evals` PASS on all three skills (run with
+`CHECK_SKILL_SKILLS_ROOT=plugins/session-flow/skills`; soft-cap WARNs only),
+`check-evals-quality.sh` exit 0 (two pre-existing Q4 WARNs), the four grep counts and the line
+cap hold, the prompt-only diff is empty, the purged em-dash gate and the plugin-wide markdownlint
+are clean, typos / editorconfig-checker / gitleaks clean; `scripts/check-changed-skills.sh
+origin/main` 14 skills, 0 failed. The fresh-context verifier (criteria withheld rationale)
+reported 12 of 13 PASS with the docs-vs-engine probes all confirmed against the running script
+(directive text, origin slots, below-rail line, `emit` refusing an unfilled skeleton, `new`
+exit 2 without a predecessor flag, the optional slot names, `NEXT_MAX` / `NEXT_CLOSED` /
+`THIS_SESSION_RE`, the 52-case suite green) and three defects, all fixed before the commit: eval
+case 3 lacked the validator/emit expectation (added); the new free-hand gotcha asserted that the
+zone-gate and implement surfaces already carry the rule (Phase 4, not landed; reworded to the
+directive only); the full-path template's second `Handoff origin:` slot read
+`<memory_dir>/handoffs/…` while the rule called it `<repo-relative path>` (template now uses the
+rule's name and the rule defines it).
 
 ### Phase 3: retro chain-walker tolerates a directory-prefixed pointer [TODO]
 

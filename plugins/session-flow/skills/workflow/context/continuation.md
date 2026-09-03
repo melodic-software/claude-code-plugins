@@ -107,8 +107,8 @@ boundary.
 5. **Must state survive the boundary — or does the work pass to another agent, another checkout,
    or a colleague?** → `session-flow:handoff`, then the user `/clear`s. *The first mechanism
    that pays a write cost without a live continuation attached: a handoff carries forward exactly
-   the state that matters, chosen deliberately.* (Absent that skill: write a resume file by hand,
-   then `/clear`.)
+   the state that matters, chosen deliberately.* The skill ships in this plugin, so it is never
+   absent here; a handoff file is written through it, never free-hand.
 6. **Fallthrough** → `/compact`, at a phase boundary only, with a steering hint naming what the
    summary must keep. *Last deliberately: a compaction summary is a model-written lossy summary
    produced at the least-intelligent point of the session, and whatever degradation prompted
