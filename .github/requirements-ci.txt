@@ -61,3 +61,15 @@ ruff==0.16.5 \
     --hash=sha256:ef0f69e191a13a3c9816f63163c88790cb12cd157bbbb384e9c44745702ab105 \
     --hash=sha256:f0768e9df4300713fff30733c87575f68b6f1d8de41184e505b7fdd9c0c95eaf \
     --hash=sha256:fb8e3a3c4c6a784150a7ced53b015f4b253fc2bf97a610886419ead64b4756ef
+# zizmor is the Actions security lint, previously reached through the
+# ci-workflows zizmor reusable workflow. 1.27.0 is the version that reusable
+# takes by default at the SHA this repository pinned it to, so the lint step in
+# ci.yml is a like-for-like replacement and no security-lane behaviour changed
+# inside a performance change. The reusable downloaded a native release archive
+# and verified a SHA-256 input; this pin lands on the reviewed Dependabot pip
+# surface instead. Like pyyaml above this is a platform-specific wheel, so the
+# hash is the manylinux_2_28_x86_64 build the ubuntu-24.04 runner resolves
+# (that image ships glibc 2.39). A host outside that platform cannot install
+# from this file under --require-hashes.
+zizmor==1.27.0 \
+    --hash=sha256:afb28123882d2b8248f1e480bf6cc6d1af102e0d3fbe22a40f7f795b1aa9d435
