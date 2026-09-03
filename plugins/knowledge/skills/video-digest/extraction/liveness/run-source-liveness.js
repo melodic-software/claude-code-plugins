@@ -171,7 +171,7 @@ export async function probeLiveUrl(url, deps = {}) {
 }
 
 /**
- * Optional adapter-registry round-trip when Phase 1+ adapters are present.
+ * Optional adapter-registry round-trip; skips when the adapters registry is absent.
  *
  * @param {string} url
  * @param {string} expectedAdapterId
