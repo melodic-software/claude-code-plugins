@@ -52,7 +52,10 @@ stale() { echo "  [STALE]   $*"; }
 unreachable() { echo "  [UNREACH] $*"; }
 note() { echo "            $*"; }
 
-# HEAD probe: prints the HTTP status code, or "000" when curl cannot reach the host.
+# HEAD probe: prints the HTTP status code. An unreachable host prints "000000" (curl's
+# %{http_code} emits its own "000" and the fallback appends another); "000" alone means
+# curl is not installed. Both land in the callers' catch-all arm, which is why the
+# doubled form has never mattered.
 http_status() { curl -sI -o /dev/null -w "%{http_code}" "$1" 2>/dev/null || echo "000"; }
 
 echo "=== kindle-dedrm: drift report ==="
