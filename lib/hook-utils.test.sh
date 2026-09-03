@@ -807,8 +807,8 @@ compact_refuses "escaped slash" '{"a":"x\/y"}'
 compact_refuses "raw control byte in a string" "$(printf '{"a":"x\001y"}')"
 compact_refuses "array root" '[1,2]'
 compact_refuses "trailing comma" '{"a":1,}'
-compact_refuses "bad literal" '{"a":tru}'
-compact_refuses "split literal" '{"a":tr ue}'
+compact_refuses "bad literal" '{"a":tru}' # spellchecker:disable-line
+compact_refuses "split literal" '{"a":tr ue}' # spellchecker:disable-line
 compact_refuses "unterminated string" '{"a":"x}'
 compact_refuses "invalid escape" '{"a":"x\qy"}'
 compact_refuses "trailing backslash escape" '{"a":"x\\\"}'

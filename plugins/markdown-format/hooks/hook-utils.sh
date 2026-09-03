@@ -786,7 +786,7 @@ hook::_json_skeleton() {
   done
   # Tokenize the skeleton and run it through the JSON grammar. Each token is
   # consumed by one anchored regex on the (small) remainder; whitespace is
-  # allowed only between tokens, so `tr ue` is two bad tokens, not `true`.
+  # allowed only between tokens, so `tr ue` is two bad tokens, not `true`. # spellchecker:disable-line
   local __hu_re=$'^[ \t\n\r]*(\\{|\\}|\\[|\\]|,|:|"#[0-9]+"|-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][-+]?[0-9]+)?|true|false|null)'
   local __hu_ws=$'^[ \t\n\r]*$'
   __hu_rest=$__hu_sk
