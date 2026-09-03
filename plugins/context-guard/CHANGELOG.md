@@ -5,6 +5,15 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.36]
+
+### Changed
+
+- **README carries the hook budget accounting rows.** The 0.7.34 process counts for the
+  PostToolBatch, PreToolUse, PostCompact rows and the zone resolver, and the kept 60-second timeout
+  rationale, now sit under Requirements, per the hook-budget convention's rule 1. Documentation
+  only.
+
 ## [0.7.34]
 
 ### Changed

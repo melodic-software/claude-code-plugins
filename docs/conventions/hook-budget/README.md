@@ -36,6 +36,42 @@ three guardrails verifiers) ≈ 1.9 s. #1809's single-writer change removes per-
 repos without a markdownlint config; in an opted-in repo the per-Write set is unchanged (typos-format
 still scans in report-only mode), so these figures remain the binding accounting until re-measured.
 
+## Reference figures (2026-09-02, after the hook-performance program)
+
+The fleet's binding measurement is now the dotfiles fan-out harness
+(`common/measure-claude-hook-fanout.sh`, sha256
+`5a254b50a67a9e1b158ce9ff7bd3c7c53f7eade80e55a1b2f8c5075026067178`), which samples 22 events
+against the installed plugin cache, times each hook process in-process with `EPOCHREALTIME`, and
+interleaves a `bash -c :` spawn floor S with every sample. A run is valid at S at or below 160 ms;
+figures below are spawn-equivalents (hook wall divided by the same-run S), which is the number that
+survives a change of host, with the reference-host conversion at S = 80 ms beside it. Every hook
+stays `type: command` in its plugin's `hooks/hooks.json`; the program removed no check, added no
+`async` row, and narrowed no matcher. The eight guardrails per-Bash-call guards and the three
+per-Write verifier guards run through one dispatcher process per event; the six formatter plugins
+carry one `if: Edit(*.ext)` row per extension so a Write to any other file spawns nothing.
+
+| Surface (benign payload) | Before (`main` 2026-09-02 morning, S = 33 ms) | After (`main` at `9f07fb5fc`, S = 26 ms, phase 4b not yet installed) | Reference host at S = 80 ms |
+| --- | --- | --- | --- |
+| PreToolUse `Bash` (`git status --short`), slowest hook | 75.0 | 91.5 | about 7.3 s |
+| PreToolUse `Write` (in-repo `.md`), slowest hook | 23.4 | 78.0 | about 6.2 s |
+| PostToolUse `Write` (in-repo `.md`), slowest hook | 36.7 (out-of-repo sample; the in-repo pre-program figure is 13,225 ms, about 400 S) | 163.5 | about 13 s |
+| PostToolBatch (per turn) | 38.0 | 8.2 | about 0.65 s |
+| UserPromptSubmit (per turn) | 29.5 | 6.7 | about 0.54 s |
+| Stop, slowest of four (per turn) | 11.4 | 27.2 | about 2.2 s |
+| SessionStart `startup`, slowest | 2.7 | 2.9 | about 0.23 s |
+
+The per-turn rows meet the budget table above; the per-tool-call rows do not, and the "after"
+column is worse than "before" on those rows for two stated reasons: the before run's Write samples
+lived outside the repository, so every Write and verifier guard early-exited and measured a no-op
+(the harness now writes its samples under the measured cwd), and the after run shared its host with
+the phase 4b worker's suites (S rose from 18 ms to 26 ms during it). The remaining per-tool-call
+cost sits in the guardrails dispatcher, which pays the shared library's telemetry envelope (two
+`jq` per guard when `HOOK_TELEMETRY_SINK` is set) and payload reader on every fire; the builtin
+versions of both land with the 4b sync and the final run in the program's DEVIATIONS log is the
+figure of record for that column. Per-plugin READMEs carry the paired before-and-after figures
+for each change (guardrails, context-guard, rate-limit-guard, typos-format, eol-normalizer,
+markdown-format).
+
 ## Rules
 
 1. **A plugin adding or widening an always-on hook states its measured share** (method above) in

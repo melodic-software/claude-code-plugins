@@ -89,6 +89,21 @@ The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while typo
 fixing still runs.
 
+### Hook budget accounting
+
+Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+this hook is always-on for every `Write`, `Edit` and `NotebookEdit`, so its cost on the path
+where `typos` finds nothing is the figure that counts. Measured on Windows 11 under Git Bash,
+twelve interleaved trials against an interleaved `bash -c :` floor (2026-09-02):
+
+| Event | Fires | Spawn-equivalents | What changed |
+| --- | --- | --- | --- |
+| PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
+
+The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.36 by the
+vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope), and the `typos` binary
+itself.
+
 ## Install
 
 ```shell

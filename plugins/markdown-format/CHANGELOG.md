@@ -3,6 +3,14 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.40]
+
+### Changed
+
+- **README carries the hook budget accounting rows.** The measured 41.6 to 32.0 spawn-equivalents
+  of 0.11.38, the `if`-row skip for non-Markdown files and the residual now sit under Requirements,
+  per the hook-budget convention's rule 1. Documentation only.
+
 ## [0.11.38]
 
 ### Changed
