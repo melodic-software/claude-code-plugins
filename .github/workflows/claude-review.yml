@@ -9,15 +9,41 @@ name: claude-review
 # reviewed by design (no token-exfiltration surface). Requires `claude-code-plugins` to be
 # in the CLAUDE_CODE_OAUTH_TOKEN org secret's selected-repositories scope.
 # Public repo: runs on the reusable's hosted default runner.
+#
+# NO RE-REVIEW ON PUSH, AND DRAFTS ARE NOT REVIEWED. This lane reviews on
+# open, ready-for-review and reopen only; a push to an open pull request does
+# not re-trigger it, and neither does re-running the job (a re-run replays the
+# ORIGINAL event payload, and the reusable's freshness guard retires the run as
+# superseded once the head has moved). There are exactly three ways to get a
+# review of a newer head, all documented by the reusable: reopen the pull
+# request, flip it to draft and back to ready, or `workflow_dispatch` with the
+# pull request's number. `@claude` is not wired here and is not one of them.
+#
+# The evidence job below keeps its `pull_request` condition, so it does not run
+# for a dispatched review: the dispatch path has no event payload for it to
+# read a head SHA from, and its guard is about the posted review body rather
+# than about the trigger.
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
+    types: [opened, ready_for_review, reopened]
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: Pull request number to re-review
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   review:
+    # A draft is work in progress and does not spend a review; the
+    # ready_for_review trigger above is what delivers one when it is ready. The
+    # event_name clause is load-bearing: a dispatched run has no
+    # `github.event.pull_request` at all, so a bare draft comparison would
+    # never run the review the operator asked for.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
@@ -35,6 +61,16 @@ jobs:
     uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@62bef7bab01e8532fedfa739879034a210e9e67d # v0.14.0
     with:
       runner: ubuntu-24.04
+      # Empty on a pull_request event, where the payload supplies the number
+      # and head SHA; on a dispatch it is the number the operator typed, and
+      # the reusable resolves the live head from the API.
+      pr-number: ${{ inputs.pr-number }}
+      # Below the reusable's own 30-minute default, which is sized for two
+      # 11-minute attempts plus backoff. This lane is advisory and its runs are
+      # the largest single line in this repository's Actions bill, so it is
+      # capped: a review that has not landed in fifteen minutes is retired
+      # rather than paid for.
+      timeout-minutes: 15
     # Pass only the one named secret (least privilege) rather than `secrets:
     # inherit`, which would forward every parent secret to the called workflow.
     secrets:
@@ -48,9 +84,14 @@ jobs:
   # green through a broken skill chain.
   review-skill-evidence:
     needs: review
+    # The draft clause mirrors the review job's: with `review` skipped on a
+    # draft, this guard would otherwise run and look for a review body that was
+    # never posted. No workflow_dispatch alternative here, because this job is
+    # already pull_request-only.
     if: >-
       always() &&
       github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false &&
       needs.review.result != 'cancelled'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
