@@ -3,6 +3,26 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.13]
+
+### Changed
+
+- **check:** the description now names Go among the auto-detected ecosystems, matching the body
+  and the bundled defaults; the opaque multi-tool `check-cmd` rule and the opt-in skip cells state
+  the current rule without "as before" phrasing or a word-count ceiling; the gate reachability
+  bullet drops its design-decision preface; the atomicity gotcha drops the maintainer scope note;
+  the `nuget-lockfile-drift` example points at the contract's examples by URL instead of a
+  repository-relative path.
+- **check context files:** `dotnet.md` drops the forward references to an uninstalled
+  `dotnet-msbuild` skill family; `powershell.md` merges the two `-notlike` bullets into one;
+  `python.md` drops the `encoding='utf-8'` authoring rule; `typescript.md` drops the bare-`npx`
+  program-spawn note; `bash.md` drops the diagnosis coaching from the CI-environment caveat.
+- **lint:** the multi-tool `check-cmd` rule and the opt-in skip cell state the current rule
+  without "as before" phrasing or a word-count ceiling; the two-mutators paragraph drops the
+  sibling-plugin precedent sentence.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.13.12]
 
 ### Fixed
