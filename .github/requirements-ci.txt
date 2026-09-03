@@ -1,3 +1,4 @@
+# Probe: 2.7 filter fixture for melodic-software/github-iac#385. Closed unmerged.
 # Keep this exact Linux x64 wheel pin and hash on a reviewed Dependabot surface.
 # Hosted and local plugin-gate jobs both use Ubuntu 24.04 x64.
 # pytest (and its dependency closure — pure-Python wheels, one hash each) is
