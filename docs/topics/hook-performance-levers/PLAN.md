@@ -832,12 +832,15 @@ WorktreeCreate:-         fires= 1 skipped= 0 cpu_sum_ms=  595 max_ms=  595 async
 statusline:-             fires= 1 skipped= 0 cpu_sum_ms=  193 max_ms=  193 async= 0 cpu_x_s=  10.7 max_x_s=  10.7
 ```
 
-Goal (B) as restated, read line by line. Per turn (500 ms): PostToolBatch 282, UserPromptSubmit
-297, Stop slowest 410 (autonomy; claude-ops 327, disk-hygiene 280, codex 167), all met. Per tool
-call, typical 1,000 and worst 2,000: PreToolUse:Bash 1,599 (miss typical, inside worst),
-PreToolUse:Write 1,360 (same), PostToolUse:Write 1,949 (same), PreToolUse:Edit 2,062 and
-PostToolUse:Edit 3,048 (miss both; the Edit sample carries a real edit so the formatters do
-work), PreToolUse:Bash:subst 3,322 (miss both; four guards parse the substitution). Count caps:
+Goal (B) as restated, read line by line on the measuring host. Per turn (500 ms): PostToolBatch
+282, UserPromptSubmit 297, Stop slowest 410 (autonomy; claude-ops 327, disk-hygiene 280, codex
+167), all inside the ceiling here, though at the convention's binding 80 ms reference floor the
+same rows are 1.3 to 1.8 s and miss it. Per tool call, summed PreToolUse plus PostToolUse as the
+convention defines it, typical 1,000 and worst 2,000: Bash 1,599 (no PostToolUse hook fires; miss
+typical, inside worst), Write 1,360 plus 1,949 = 3,309 and Edit 2,062 plus 3,048 = 5,110 (miss
+both; the Edit sample carries a real edit so the formatters do work), Bash with a substitution
+3,322 (miss both; four guards parse the substitution). Read per hook, no single per-tool-call
+hook is inside the typical ceiling either. Count caps:
 Bash pre plus post plus PostToolBatch 1+0+1 = 2 of 3, Write pre plus post 3+4 = 7 of 8,
 UserPromptSubmit 1 of 1, Stop 4 of 4, all met. Against phase 0: PreToolUse:Bash 2,475 to 1,599 ms;
 PostToolBatch 1,254 to 282; UserPromptSubmit 975 to 297; in-repo PostToolUse:Write 13,225 to
