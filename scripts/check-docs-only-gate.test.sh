@@ -427,11 +427,13 @@ xform_delete "$base" "      - gamma" "$f"
 xform_insert_after "$f" "  gamma:" "    if: needs.changes.outputs.run_windows == 'true'" "$scratch/gamma-not-required-2.yml"
 expect "a job-level condition outside the closure is allowed" 0 "scope resolved once" --check "$scratch/gamma-not-required-2.yml"
 
-# A workflow with no aggregate at all must be inconclusive, not a pass: an
-# empty closure would make both rules above vacuous.
+# A workflow with no aggregate at all is INCONCLUSIVE, not one defect among
+# others: an empty closure makes both rules above pass every workflow, so
+# reporting a single line while two rules quietly stopped asking would be worse
+# than refusing. Exit 2, like a missing resolver.
 f="$scratch/no-aggregate.yml"
 xform_replace_line "$base" "  ci-status:" "  renamed-status:" "$f"
-expect "a missing aggregate is reported, never assumed empty" 1 "NO AGGREGATE" --check "$f"
+expect "a missing aggregate is inconclusive, never a pass" 2 "closure cannot be computed" --check "$f"
 
 # --- 5e. THE OUTPUT TABLE ---------------------------------------------------
 

@@ -147,6 +147,17 @@ LANE_OPT_OUT="lane-coverage-ok:"
 REFERENCE_PREFIX="needs.${RESOLVER_JOB}.outputs."
 REFERENCE="${REFERENCE_PREFIX}${OUTPUT_NAME}"
 
+# The table's row names, space-joined, for the parser. Defined here rather than
+# with the other table readers below because the parser runs before them.
+table_names_spaced() {
+  local tn out=""
+  while IFS="$TAB_LIT" read -r tn _; do
+    [[ -n "$tn" ]] || continue
+    out+="${out:+ }$tn"
+  done <<<"$OUTPUT_TABLE"
+  printf '%s' "$out"
+}
+
 errors=0
 report() {
   echo "$1" >&2
@@ -173,7 +184,7 @@ report() {
 #   STEPOUT  <job>                        reads a step-level docs_only output
 #   ERR      <message>
 parsed="$(
-  awk -v resolver="$RESOLVER_JOB" -v output_name="$OUTPUT_NAME" -v lane_opt_out="$LANE_OPT_OUT" '
+  awk -v resolver="$RESOLVER_JOB" -v output_names="$(table_names_spaced)" -v lane_opt_out="$LANE_OPT_OUT" '
     function trim(s) { sub(/^[[:blank:]]+/, "", s); sub(/[[:blank:]]+$/, "", s); return s }
     function indent_of(s,   t) { t = s; sub(/[^[:blank:]].*$/, "", t); return length(t) }
 
@@ -196,9 +207,11 @@ parsed="$(
     # spelling this file does not model must read as UNSANCTIONED, never as
     # absent — a whitelist that only fires on what it recognizes silently ignores
     # everything else, which is the opposite of rejecting it.
-    function mentions_output(line,   l) {
+    function mentions_output(line,   l, i) {
       l = tolower(line)
-      if (index(l, outname) > 0) { return 1 }
+      for (i = 1; i <= n_outnames; i++) {
+        if (index(l, outnames[i]) > 0) { return 1 }
+      }
       if (index(l, "needs") > 0 && index(l, resolver_lc) > 0 && index(l, "outputs") > 0) { return 1 }
       return 0
     }
@@ -225,9 +238,13 @@ parsed="$(
       # requires: a bare marker names no lane and excuses nothing.
       laneok_re = "#[[:blank:]]*" lane_opt_out "[[:blank:]]*[^[:blank:]]"
       resolver_lc = tolower(resolver)
-      outname = tolower(output_name)
-      if (resolver_lc == "" || outname == "") {
-        print "ERR\tinternal: resolver job or output name was not supplied to the parser"
+      # Every table name, so a BARE mention of any output — in an env value, an
+      # echo, a run script — reaches the exact-shape check rather than being
+      # invisible to it. Matching only the root output would have delivered the
+      # over-matching this header promises for one row out of seven.
+      n_outnames = split(tolower(output_names), outnames, " ")
+      if (resolver_lc == "" || n_outnames == 0) {
+        print "ERR\tinternal: resolver job or output names were not supplied to the parser"
         exit 1
       }
     }
@@ -510,6 +527,15 @@ if ! has_line "$jobs_all" "$RESOLVER_JOB"; then
   echo "check-docs-only-gate: resolving job '$RESOLVER_JOB' is not defined in $WORKFLOW" >&2
   exit 2
 fi
+# Inconclusive for the same reason, and refused here rather than reported as a
+# defect later: without the aggregate the required-lane closure is empty, and an
+# empty closure makes the job-level-condition rule and the lane opt-out rule
+# both pass every workflow. One defect line beside two rules that silently
+# stopped asking is the nominal closure this gate exists to deny.
+if ! has_line "$jobs_all" "$AGGREGATE_JOB"; then
+  echo "check-docs-only-gate: aggregate job '$AGGREGATE_JOB' is not defined in $WORKFLOW, so the required-lane closure cannot be computed" >&2
+  exit 2
+fi
 
 # --- 1. SINGLE RESOLUTION ---------------------------------------------------
 
@@ -776,12 +802,6 @@ while [[ -n "$frontier" ]]; do
 done
 
 is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
-
-# The aggregate has to exist, or the closure is empty and both checks below
-# would pass every workflow by saying nothing.
-if ! has_line "$REC_JOB" "$AGGREGATE_JOB"; then
-  report "NO AGGREGATE: this workflow defines no job named '$AGGREGATE_JOB', so the required-lane closure cannot be computed and neither the job-level-condition rule nor the lane opt-out rule can be judged. Rename the aggregate here if it moved."
-fi
 
 # --- 5c. NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER ----------------------
 #
