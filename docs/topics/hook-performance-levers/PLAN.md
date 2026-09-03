@@ -657,7 +657,7 @@ Repo: claude-code-plugins (rate-limit-guard, and context-guard only if wired). O
   both `captured_at` values match `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`.
 - `gh pr checks` 0 failing.
 
-### Phase 8: accounting, docs, final proof [TODO]
+### Phase 8: accounting, docs, final proof [DONE pending merge: docs on `perf/hook-budget-accounting`; final run recorded below]
 
 Repo: claude-code-plugins. One PR (docs only) plus the final transcript proof.
 
@@ -789,6 +789,61 @@ statusline:-             fires= 1 skipped= 0 cpu_sum_ms=  269 max_ms=  269 async
 ```
 
 Against phase 0 (S=33 ms): PreToolUse:Bash 2,475 to 1,977 ms; PostToolBatch 1,254 to 205 ms; UserPromptSubmit 975 to 385 ms; PostToolUse:Write in-repo 13,225 to 3,810 ms; PostToolUse:Edit in-repo 17,192 to 4,466 ms. Every PreToolUse and PostToolUse row is still above 8 S and the Bash and Write rows above 1,000 ms absolute; the remaining cost is the guardrails dispatcher (8 guard subshells plus `hook::emit_telemetry` at about 1.4 s when a sink is set) and the library path resolver, which phase 4b owns. At S=18 ms the ratio targets are 144 ms per tool call, below the cost of one bash plus one jq on this host.
+
+#### Final run (2026-09-03, every phase in `main` at `5e3d749cb`; harness `5a254b50...7178` at dotfiles `48e96fddb`, `--runs 3`, S=18 ms, valid, quiet host)
+
+STATED CHECK, read from the installed cache immediately before the run (`baselines/phase8-final-*`):
+`enabledPlugins` diff against `enabled-plugins-before.json` empty; `autoUpdate` `true` (restored by
+a session start at 22:11Z and left so, which is the end state); marketplace clone on `main` at
+`5e3d749cb`; every measured plugin's `installed_plugins.json` entry at `5e3d749cb` (actionlint
+0.8.30, bash-format 0.7.31, biome-format 0.6.30, claude-ops 0.41.9, context-guard 0.7.35,
+eol-normalizer 0.6.29, go-format 0.3.33, guardrails 0.31.2, instruction-placement 0.11.21,
+markdown-format 0.11.39, powershell-format 0.7.33, rate-limit-guard 0.7.28, ruff-format 0.6.31,
+source-control 0.55.42, typos-format 0.6.36) except context-budget 0.6.19 and disk-hygiene 0.21.4
+at `9f07fb5fc`, which #3678 did not touch; `cache-compare.sh` 0 stale files in all seventeen
+(byte compare of every hook, script and lib file against `origin/main`); 52 `hooks.json` entries
+listed with event, matcher, `if`, async and timeout (`phase8-final-stated-check.tsv`), every one
+`type: command`, no `async` row.
+
+```text
+baseline S=18 ms (median no-op bash spawn; a run is valid at S<=160)
+=== per event: hook processes that fire, CPU sum of medians, slowest hook ===
+ConfigChange:user_settings fires= 1 skipped= 0 cpu_sum_ms=  386 max_ms=  386 async= 0 cpu_x_s=  21.4 max_x_s=  21.4
+InstructionsLoaded:session_start fires= 1 skipped= 0 cpu_sum_ms=  366 max_ms=  366 async= 0 cpu_x_s=  20.3 max_x_s=  20.3
+Notification:permission_prompt fires= 1 skipped= 0 cpu_sum_ms= 1156 max_ms= 1156 async= 0 cpu_x_s=  64.2 max_x_s=  64.2
+PostCompact:-            fires= 1 skipped= 0 cpu_sum_ms=  363 max_ms=  363 async= 0 cpu_x_s=  20.2 max_x_s=  20.2
+PostToolBatch:Read       fires= 1 skipped= 0 cpu_sum_ms=  282 max_ms=  282 async= 0 cpu_x_s=  15.7 max_x_s=  15.7
+PostToolUse:Bash         fires= 0 skipped= 2 cpu_sum_ms=    0 max_ms=    0 async= 0 cpu_x_s=   0.0 max_x_s=   0.0
+PostToolUse:Edit         fires= 4 skipped=22 cpu_sum_ms= 6596 max_ms= 3048 async= 0 cpu_x_s= 366.4 max_x_s= 169.3
+PostToolUse:Write        fires= 4 skipped=22 cpu_sum_ms= 4988 max_ms= 1949 async= 0 cpu_x_s= 277.1 max_x_s= 108.3
+PostToolUseFailure:Bash  fires= 1 skipped= 1 cpu_sum_ms=  576 max_ms=  576 async= 0 cpu_x_s=  32.0 max_x_s=  32.0
+PreCompact:auto          fires= 1 skipped= 0 cpu_sum_ms=  401 max_ms=  401 async= 0 cpu_x_s=  22.3 max_x_s=  22.3
+PreToolUse:Bash          fires= 1 skipped= 3 cpu_sum_ms= 1599 max_ms= 1599 async= 0 cpu_x_s=  88.8 max_x_s=  88.8
+PreToolUse:Bash:subst    fires= 4 skipped= 0 cpu_sum_ms= 4248 max_ms= 3322 async= 0 cpu_x_s= 236.0 max_x_s= 184.6
+PreToolUse:Edit          fires= 3 skipped= 0 cpu_sum_ms= 2226 max_ms= 2062 async= 0 cpu_x_s= 123.7 max_x_s= 114.6
+PreToolUse:Write         fires= 3 skipped= 0 cpu_sum_ms= 1495 max_ms= 1360 async= 0 cpu_x_s=  83.1 max_x_s=  75.6
+SessionStart:compact     fires= 2 skipped= 0 cpu_sum_ms=  159 max_ms=  105 async= 0 cpu_x_s=   8.8 max_x_s=   5.8
+SessionStart:startup     fires= 2 skipped= 0 cpu_sum_ms=  174 max_ms=  114 async= 0 cpu_x_s=   9.7 max_x_s=   6.3
+Stop:-                   fires= 4 skipped= 0 cpu_sum_ms= 1184 max_ms=  410 async= 0 cpu_x_s=  65.8 max_x_s=  22.8
+StopFailure:rate_limit   fires= 2 skipped= 0 cpu_sum_ms= 1069 max_ms=  717 async= 0 cpu_x_s=  59.4 max_x_s=  39.8
+UserPromptExpansion:-    fires= 1 skipped= 0 cpu_sum_ms=  246 max_ms=  246 async= 0 cpu_x_s=  13.7 max_x_s=  13.7
+UserPromptSubmit:-       fires= 1 skipped= 0 cpu_sum_ms=  297 max_ms=  297 async= 0 cpu_x_s=  16.5 max_x_s=  16.5
+WorktreeCreate:-         fires= 1 skipped= 0 cpu_sum_ms=  595 max_ms=  595 async= 0 cpu_x_s=  33.1 max_x_s=  33.1
+statusline:-             fires= 1 skipped= 0 cpu_sum_ms=  193 max_ms=  193 async= 0 cpu_x_s=  10.7 max_x_s=  10.7
+```
+
+Goal (B) as restated, read line by line. Per turn (500 ms): PostToolBatch 282, UserPromptSubmit
+297, Stop slowest 410 (autonomy; claude-ops 327, disk-hygiene 280, codex 167), all met. Per tool
+call, typical 1,000 and worst 2,000: PreToolUse:Bash 1,599 (miss typical, inside worst),
+PreToolUse:Write 1,360 (same), PostToolUse:Write 1,949 (same), PreToolUse:Edit 2,062 and
+PostToolUse:Edit 3,048 (miss both; the Edit sample carries a real edit so the formatters do
+work), PreToolUse:Bash:subst 3,322 (miss both; four guards parse the substitution). Count caps:
+Bash pre plus post plus PostToolBatch 1+0+1 = 2 of 3, Write pre plus post 3+4 = 7 of 8,
+UserPromptSubmit 1 of 1, Stop 4 of 4, all met. Against phase 0: PreToolUse:Bash 2,475 to 1,599 ms;
+PostToolBatch 1,254 to 282; UserPromptSubmit 975 to 297; in-repo PostToolUse:Write 13,225 to
+1,949; in-repo PostToolUse:Edit 17,192 to 3,048. Every miss is the guardrails dispatcher, which is
+1,360 to 3,322 ms of each per-tool-call line on this host; its own README names the remaining
+levers.
 
 ## Alternatives considered
 
