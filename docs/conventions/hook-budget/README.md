@@ -50,27 +50,30 @@ stays `type: command` in its plugin's `hooks/hooks.json`; the program removed no
 per-Write verifier guards run through one dispatcher process per event; the six formatter plugins
 carry one `if: Edit(*.ext)` row per extension so a Write to any other file spawns nothing.
 
-| Surface (benign payload) | Before (`main` 2026-09-02 morning, S = 33 ms) | After (`main` at `9f07fb5fc`, S = 26 ms, phase 4b not yet installed) | Reference host at S = 80 ms |
+| Surface (benign payload) | Before (`main` 2026-09-02 morning, S = 33 ms) | After (`main` at `5e3d749cb`, 2026-09-03, S = 18 ms, quiet host) | After at S = 80 ms |
 | --- | --- | --- | --- |
-| PreToolUse `Bash` (`git status --short`), slowest hook | 75.0 | 91.5 | about 7.3 s |
-| PreToolUse `Write` (in-repo `.md`), slowest hook | 23.4 | 78.0 | about 6.2 s |
-| PostToolUse `Write` (in-repo `.md`), slowest hook | 36.7 (out-of-repo sample; the in-repo pre-program figure is 13,225 ms, about 400 S) | 163.5 | about 13 s |
-| PostToolBatch (per turn) | 38.0 | 8.2 | about 0.65 s |
-| UserPromptSubmit (per turn) | 29.5 | 6.7 | about 0.54 s |
-| Stop, slowest of four (per turn) | 11.4 | 27.2 | about 2.2 s |
-| SessionStart `startup`, slowest | 2.7 | 2.9 | about 0.23 s |
+| PreToolUse `Bash` (`git status --short`), slowest hook | 75.0 | 88.8 (1,599 ms) | about 7.1 s |
+| PreToolUse `Write` (in-repo `.md`), slowest hook | 23.4 | 75.6 (1,360 ms) | about 6.0 s |
+| PostToolUse `Write` (in-repo `.md`), slowest hook | 36.7 (out-of-repo sample; the in-repo pre-program figure is 13,225 ms, about 400 S) | 108.3 (1,949 ms) | about 8.7 s |
+| PostToolBatch (per turn) | 38.0 | 15.7 (282 ms) | about 1.3 s |
+| UserPromptSubmit (per turn) | 29.5 | 16.5 (297 ms) | about 1.3 s |
+| Stop, slowest of four (per turn) | 11.4 | 22.8 (410 ms) | about 1.8 s |
+| SessionStart `startup`, slowest | 2.7 | 3.3 (60 ms) | about 0.26 s |
 
-The per-turn rows meet the budget table above; the per-tool-call rows do not, and the "after"
-column is worse than "before" on those rows for two stated reasons: the before run's Write samples
-lived outside the repository, so every Write and verifier guard early-exited and measured a no-op
-(the harness now writes its samples under the measured cwd), and the after run shared its host with
-the phase 4b worker's suites (S rose from 18 ms to 26 ms during it). The remaining per-tool-call
-cost sits in the guardrails dispatcher, which pays the shared library's telemetry envelope (two
-`jq` per guard when `HOOK_TELEMETRY_SINK` is set) and payload reader on every fire; the builtin
-versions of both land with the 4b sync and the final run in the program's DEVIATIONS log is the
-figure of record for that column. Per-plugin READMEs carry the paired before-and-after figures
-for each change (guardrails, context-guard, rate-limit-guard, typos-format, eol-normalizer,
-markdown-format).
+Read against the budget table above in milliseconds on the measuring host: PostToolBatch,
+UserPromptSubmit and Stop meet the 500 ms per-turn ceiling; PreToolUse `Bash`, PreToolUse `Write`
+and PostToolUse `Write` sit at 1.4 to 1.9 s against the 1 s typical ceiling and inside the 2 s
+worst case, and in the pre-program shape PostToolUse `Write` in a repository was 13.2 s. The
+"after" spawn-equivalents read higher than "before" on the Write rows because the before run's
+Write samples lived outside the repository, so every Write and verifier guard early-exited and
+measured a no-op; the harness now writes its samples under the measured cwd. The remaining
+per-tool-call cost is the guardrails dispatcher (1.6 to 3.0 s per fire on this host, eight guards
+per Bash call and three per Write, each still sourcing the library and building its telemetry
+data), followed by markdown-format's `markdownlint-cli2` Node process. Per-plugin READMEs carry
+the paired before-and-after figures for each change (guardrails, context-guard,
+rate-limit-guard, typos-format, eol-normalizer, markdown-format). The run's transcript, the
+installed versions and shas, the per-file cache compare and every `hooks.json` entry measured are
+recorded in the hook-performance program's DEVIATIONS log.
 
 ## Rules
 
