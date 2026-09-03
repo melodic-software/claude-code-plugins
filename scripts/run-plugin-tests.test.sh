@@ -229,8 +229,8 @@ PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "colliding path shapes stay d
 assert_output_has "serial: the first colliding suite still reports" "FAIL: plugins/a__b/c.test.sh"
 assert_output_has "serial: the second colliding suite still reports" "FAIL: plugins/a/b__c.test.sh"
 
-# A path containing a colon must not be mis-split by the index-keyed argument
-# the worker receives.
+# A path containing a colon must survive the index-keyed argument the worker
+# receives, rather than being split at the wrong separator.
 r="$(make_root colon)"
 write_suite "$r" "plugins/od:d/name.test.sh" 'echo "marker from the colon path"'
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a path containing a colon runs" --root "$r"

@@ -1418,13 +1418,19 @@ jobs:
             --requirement .github/requirements-ci.txt
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      # Four suites at a time: the hosted runner has 4 vCPUs and the suites are
-      # spawn-bound. The default stays 1 for Windows dev boxes (see the runner's
-      # header); the suites that assert wall-clock ceilings run one at a time
-      # regardless, from scripts/run-plugin-tests-serial.txt.
+      # Three suites at a time, not four. The runner has 4 vCPUs and the suites
+      # are spawn-bound, so four looked like the shape that pays, but at four
+      # three separate suites failed across two runs by producing EMPTY output
+      # from an external command on a path with no clock in it: an awk read of
+      # an agent file, a jq read of a local-markdown fixture, and a conformance
+      # run. Serialising each one in turn only moves the symptom to the next
+      # suite, so the job count is the lever rather than the allowlist. The
+      # default stays 1 for Windows dev boxes (see the runner's header); the
+      # suites that assert wall-clock ceilings run one at a time regardless,
+      # from scripts/run-plugin-tests-serial.txt.
       - name: Run plugin contract tests
         if: needs.scope.outputs.run_full == 'true'
-        run: scripts/run-plugin-tests.sh --jobs 4
+        run: scripts/run-plugin-tests.sh --jobs 3
       # Explicit step: run-plugin-tests.sh discovers only plugins/**/*.test.sh,
       # so the cheat-sheet generator suite under scripts/ never runs without it.
       - name: Run cheat-sheet generator tests

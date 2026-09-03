@@ -76,7 +76,7 @@ usage() {
 # parallel batch would then overwrite each other's capture and exit status.
 # The index is unique by construction, so no path shape can collide. It is
 # fixed-width and colon-terminated, which also keeps a path containing a colon
-# from being mis-split.
+# from being split at the wrong separator.
 if [[ "${1:-}" == "--worker" ]]; then
   keyed="${2:?--worker needs an indexed suite path}"
   key="${keyed%%:*}"
@@ -170,9 +170,11 @@ parallel_suites=()
 suite_keys=()
 for i in "${!tests[@]}"; do
   t="${tests[$i]}"
-  # One key per suite, in discovery order, reused by the dispatch below and by
-  # the summary loop so both address the same capture.
-  suite_keys+=("$(printf '%06d' "$i")")
+  # One key per suite, reused by the dispatch below and by the summary loop so
+  # both address the same capture. Assigned BY INDEX rather than appended: the
+  # key has to follow the position in `tests`, and an append would only agree
+  # with that while the array stays dense.
+  suite_keys[i]="$(printf '%06d' "$i")"
   if [[ -n "${is_serial[$t]+x}" ]]; then
     serial_suites+=("${suite_keys[$i]}:$t")
   else
