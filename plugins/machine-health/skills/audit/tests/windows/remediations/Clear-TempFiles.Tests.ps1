@@ -97,9 +97,8 @@ Describe 'Clear-TempFiles -- reparse-point safety' -Tag 'remediation' {
         Mock Get-ChildItem { @($symlink, $normal) }.GetNewClosure()
 
         Invoke-ClearTempFilesAsObject | Out-Null
-        # Previous code would delete the symlinked file, and -Recurse would
-        # walk into any symlinked directories. Fix: any entry with the
-        # ReparsePoint attribute is skipped entirely.
+        # Any entry with the ReparsePoint attribute must be skipped entirely;
+        # deleting through one would reach files outside the temp tree.
         Should -Invoke Remove-Item -Times 0 -ParameterFilter {
             $LiteralPath -eq 'C:\temp\evil-symlink.txt'
         }
