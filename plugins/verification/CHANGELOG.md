@@ -3,6 +3,24 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4]
+
+### Changed
+
+- **`confirm`:** the `/verify` bullet states the current invocability rule (not Claude-invocable by
+  default, gated per client) without narrating earlier harness versions; the refactor context names
+  the diff base by rule (working tree against `HEAD`, or the branch against its merge-base) instead
+  of hardcoding `HEAD~1`; eval case 9 asserts the reworded rule.
+- **`measure`:** the plan-artifact sentence states the tiering as the only rule; the metrics
+  baseline step runs `git show` on its own and counts in a second call; every count must come from
+  a command or script whose output goes into the report; the "Marketplace plugin skills" sections
+  naming `dotnet-*` and `cloudflare:*` skills that exist in no installed marketplace are removed
+  from both context files.
+- **`setup`:** the deferred-backend step states that durable writes target `docs` without a promise
+  about a later decision; the maintainer HTML comment is removed from the body.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.6.3]
 
 ### Fixed
