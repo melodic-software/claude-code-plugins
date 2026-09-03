@@ -3,6 +3,26 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.9]
+
+### Changed
+
+- **`write`:** corrected the stale `/bugs` self-name to `/bugs:write`; dropped the body's
+  "Trigger conditions" section, which restated the description; consolidated the description's eight
+  trigger phrases into the two intents they cover; lowered the caps emphasis on six ordinary
+  instructions; removed a duplicate boundary bullet; deleted the worked example and the
+  "Negative-constraint reminders" list from `context/template.md`; and routed Step 5 and both
+  template footers through `/work-items:track add` when that plugin is installed, with the `gh`
+  path as the fallback.
+- **`scan`:** folded the git-hotspot lens into Step 1 as a hotspot reading order handed to every
+  hunter, leaving four lenses; pointed the findings-report severity-rubric reference at the section
+  that holds it; stated the verification gate's read-and-falsify requirement at normal volume; and
+  dropped the "V1" version markers from the cursor and budget rules.
+- **README:** filing a report now names the `/work-items:track add` hand-off alongside the `gh` path,
+  so the README and the skill agree.
+
+Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.9.7]
 
 ### Fixed

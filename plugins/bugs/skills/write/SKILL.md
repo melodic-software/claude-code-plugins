@@ -1,5 +1,5 @@
 ---
-description: "Produce a structured 5-field bug report (title, steps to reproduce, expected vs actual, severity with justification, suggested fix location) from an informal description. Read-only, never modifies code, never opens PRs, never files issues by default. Use when: 'there is a bug in <X>', 'report a bug', 'file a bug', 'bug-report this', '<symbol> gives wrong output when <condition>', 'I am seeing <error> in <file>', 'expected X got Y', 'write this up as a bug'. Skip when: deep investigation is needed, a fix is already in progress, or the request is a feature request (missing capability) rather than a defect. Emits Markdown to stdout by default; with --file, persists a report file and can hand off to a work-item tracker for filing."
+description: "Produce a structured 5-field bug report (title, steps to reproduce, expected vs actual, severity with justification, suggested fix location) from an informal description. Read-only, never modifies code, never opens PRs, never files issues by default. Use when the user names a defect they observed ('there is a bug in <X>', 'expected X got Y', 'I am seeing <error> in <file>') or asks for one written up ('report a bug', 'file a bug', 'write this up as a bug'). Skip when: deep investigation is needed, a fix is already in progress, or the request is a feature request (missing capability) rather than a defect. Emits Markdown to stdout by default; with --file, persists a report file and can hand off to a work-item tracker for filing."
 argument-hint: "[--file] [--quick|--full] [--no-survey] <bug description>"
 user-invocable: true
 disable-model-invocation: false
@@ -32,7 +32,7 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-`/bugs` produces a five-field structured report so the next session (or a human) can act without re-asking on vague repro, missing severity, no fix location, or hand-wavy expected/actual. **Read-only**. It captures, it does not fix, and it does not file (unless you explicitly ask).
+`/bugs:write` produces a five-field structured report so the next session (or a human) can act without re-asking on vague repro, missing severity, no fix location, or hand-wavy expected/actual. **Read-only**. It captures, it does not fix, and it does not file (unless you explicitly ask).
 
 This is the **bug-intake** stage. It sits upstream of filing the report into a work-item tracker, and it is independent of any downstream fix workflow, when the report itself is the deliverable (a Slack message, a PR comment, a verbal handoff), that is all this skill needs to do.
 
@@ -40,16 +40,7 @@ Five fields: title, steps to reproduce, expected vs actual, severity (with justi
 
 A sharp report captured up front saves the next session from re-asking. Unrepresented reproduction steps cost far more to recover later than to capture now.
 
-## Trigger conditions, when to invoke
-
-Invoke when ANY hold:
-
-- The user describes a defect ("there is a bug in `X`", "`X` is broken when `Y`")
-- The user asks for help filing/writing-up a bug ("how do I report this", "write this up")
-- The user states a behavioural mismatch ("expected `X`, got `Y`", "`X` returns wrong value when `Y`")
-- The user asks for a structured report from informal context
-
-## Skip conditions, when to NOT invoke
+## Skip conditions, when not to invoke
 
 - **Investigation needed**, the bug needs reproduce-first diagnosis, not just capture. If your project provides a debugging or investigation skill, hand off to it; otherwise scope the investigation separately from this read-only capture.
 - **Fix already in progress**. This skill only captures; it does not complete a fix.
@@ -60,9 +51,9 @@ If it is ambiguous, surface the question once and let the user pick.
 
 ## The bugs process
 
-### Step 1. Skip-condition check (MANDATORY)
+### Step 1. Skip-condition check
 
-If the request matches a skip condition, STOP and recommend the right path. Do not produce a bug report for a feature request, an investigation task, or a generic chore.
+If the request matches a skip condition, stop and recommend the right path instead of producing a report: a feature request, an investigation task, and a generic chore each have a better home (above).
 
 ### Step 2. Survey before you write
 
@@ -77,7 +68,7 @@ Skip the survey when `--no-survey` was passed (unconditionally, the flag means "
 
 ### Step 3. Targeted Q&A
 
-Ask ONE question at a time. Use `AskUserQuestion` when 2-4 named options exist (e.g. "which `flush()`? There are 3 in the repo: …"); use prose for open-ended questions.
+Ask one question at a time. Use `AskUserQuestion` when 2-4 named options exist (e.g. "which `flush()`? There are 3 in the repo: …"); use prose for open-ended questions.
 
 Question priority order. Only ask if the field cannot be backed from context:
 
@@ -101,7 +92,7 @@ Stop conditions: every required field has a backed answer OR an explicit `(unkno
 
 ### Step 4. Emit the report
 
-Default: emit Markdown to stdout (read-only). Follow the 5-field template. See [`context/template.md`](context/template.md) for the full structure with a worked example.
+Default: emit Markdown to stdout (read-only). Follow the 5-field template. See [`context/template.md`](context/template.md) for the full structure.
 
 `--file` mode: write the report to a file with frontmatter `type: bug-report`. Resolve the output directory in this precedence, and always tell the user the final path:
 
@@ -113,9 +104,9 @@ Filename: derive a slug from the title (kebab-case, ~40-char cap), prefix an ISO
 
 ### Step 5. Hand off
 
-After emitting the report, recommend the next step (do NOT auto-invoke):
+After emitting the report, recommend the next step; do not invoke it yourself:
 
-- **File it as a work item**, if you are in a GitHub repository and the `gh` CLI is available. `--body-file` needs a report file on disk: in `--file` mode use the emitted report path; in default stdout mode first save the report (offer to re-run the write step or Write it to a temp file). Then run `gh issue create --type Bug --body-file <report>` and let `gh` prompt for the title interactively. If filing non-interactively, never interpolate the reporter's title text into the command string. Write the title to a file first, then run `gh issue create --type Bug --title "$(cat <title-file>)" --body-file <report>`: the command-substitution RESULT is a quoted argument value and is not re-parsed, so backticks or `$( )` inside the reporter's text cannot execute. `--type Bug` sets the native GitHub Issue Type, an org-repo feature (the same one the work-items lanes set); on a personal / non-org repo without native Issue Types, drop the flag and add a `type: bug` label instead when the repo defines one. If a work-item tracker MCP tool is available, use it. Map the severity to your tracker's priority labels if it has them.
+- **File it as a work item.** When the `work-items` plugin is installed and a tracker binding resolves, hand the report to `/work-items:track add` (pass the report summary via `--context`); it owns dedupe, the body template, the issue type, and the argv-safe write, so do not call the tracker directly beside it. Map the severity onto the tracker's priority labels if it has them. Without `work-items`, in a GitHub repository with the `gh` CLI: `--body-file` needs a report file on disk (in `--file` mode use the emitted report path; in stdout mode save the report first, offering to re-run the write step or Write it to a temp file). Run `gh issue create --type Bug --body-file <report>` and let `gh` prompt for the title interactively. If filing non-interactively, never interpolate the reporter's title text into the command string: write the title to a file first, then run `gh issue create --type Bug --title "$(cat <title-file>)" --body-file <report>`, because the command-substitution result is a quoted argument value and is not re-parsed, so backticks or `$( )` inside the reporter's text cannot execute. `--type Bug` sets the native GitHub Issue Type (an org-repo feature, the same one the work-items lanes set); on a repo without native Issue Types, drop the flag and add a `type: bug` label instead when the repo defines one. If a work-item tracker MCP tool is available and neither path applies, use it.
 - **A fix is next.** If your project provides an investigation or implementation workflow, route there; otherwise scope the fix separately.
 - **The report is the deliverable** (Slack, PR comment, hand-off). Done; copy/paste the stdout.
 
@@ -130,7 +121,7 @@ Severity is `low / medium / high / critical` with a one-line justification. It i
 | `medium` | Feature broken for a narrow case, has a workaround, edge-case data issue |
 | `low` | Cosmetic, documentation, dev-experience, or tooling drift |
 
-If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`), map this rubric onto them when filing. If severity cannot be calibrated from context, ask ONE question. Do not invent it.
+If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`), map this rubric onto them when filing. If severity cannot be calibrated from context, ask one question rather than inventing it.
 
 ## What this skill does NOT do
 
@@ -139,7 +130,6 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 - **Does not file the report by default.** The user reads the report and decides. `--file` persists it; filing into a tracker is an explicit hand-off in Step 5.
 - **Does not investigate the bug.** Step 2's survey is a fast grounding pass, not deep work. A fix that needs real investigation should be scoped separately.
 - **Does not auto-fix typos in the user's description.** "There is a bug in `flusH()`" may be intentional in some languages. Ask one question.
-- **Does not run a broad exploration or research pass.** If a fix needs deep investigation, recommend scoping it separately rather than doing it here.
 
 ## Gotchas
 
@@ -151,5 +141,5 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 
 ## Cross-references
 
-- [`context/template.md`](context/template.md). Read it before emitting a report: the full Markdown template, one worked example, the `--file` frontmatter, and the "No bug confirmed" form
+- [`context/template.md`](context/template.md). Read it before emitting a report: the full Markdown template, the `--file` frontmatter, and the "No bug confirmed" form
 - Consumer conventions (naming, areas, priority labels, tracker choice) come from the consuming project's own `CLAUDE.md` / rules. This skill reads them rather than imposing its own

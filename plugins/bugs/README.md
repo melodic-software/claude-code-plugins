@@ -183,8 +183,10 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ## Filing a report
 
-`--file` persists the report; filing is an explicit, separate hand-off. In a GitHub
-repository with the `gh` CLI available:
+`--file` persists the report; filing is an explicit, separate hand-off. When the
+`work-items` plugin is installed and a tracker binding resolves, the report is handed
+to `/work-items:track add`, which owns dedupe, the body template, and the argv-safe
+write. Without it, in a GitHub repository with the `gh` CLI available:
 
 ```shell
 gh issue create --type Bug --body-file <report-path>
