@@ -583,9 +583,7 @@ leaving the token in or mangling the identity — the directory name loses neith
 nearly as well.
 
 When the next stage is a specific skill in the consuming repo, the full path names it on the
-`Then: /<skill>` line (full-path block above; the directive itself is fixed text), and a
-prompt-only block may swap its directive-style opening line to
-`…, confirm its Original goal still governs the remaining next steps, then execute /<skill>.`
+`Then: /<skill>` line (full-path block above; the directive itself is fixed text).
 The `@`-reference is mandatory on the full path — the fresh session
 loads it; do NOT inline the file's detail in the prompt. Prompt-only carries its remaining-work
 bullets inline between the rails instead, and needs no origin line: it references no file.

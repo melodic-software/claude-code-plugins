@@ -421,7 +421,7 @@ entries; `continue-in-background` sources its payload from `emit`; `find-handoff
 `## Resume prompt` via `emit` (with the `sed -n` fallback) and skips `<!-- FILL` skeletons, rung
 3 accepts both origin forms, matches the directive on its path shape regardless of tail, and
 skips the `claude --resume` line before the re-arm header scan; the handoff evals carry the
-validator/emit expectation on all nine full-path rails cases plus five new cases (16 to 20), and
+validator/emit expectation on all ten full-path rails cases plus five new cases (16 to 20), and
 the other two sets gained one shape-2 case each; the README describes shape 2 and the script.
 Sanity Check: `check-skill.sh --require-evals` PASS on all three skills (run with
 `CHECK_SKILL_SKILLS_ROOT=plugins/session-flow/skills`; soft-cap WARNs only),
@@ -439,7 +439,7 @@ directive only); the full-path template's second `Handoff origin:` slot read
 `<memory_dir>/handoffs/…` while the rule called it `<repo-relative path>` (template now uses the
 rule's name and the rule defines it).
 
-### Phase 3: retro chain-walker tolerates a directory-prefixed pointer [TODO]
+### Phase 3: retro chain-walker tolerates a directory-prefixed pointer [DONE]
 
 TDD: add `test_chain_from_resolves_prefixed_pointer_by_basename` to
 `plugins/session-flow/skills/retro/scripts/test_parse_transcript.py` (flat `handoffs/` dir, pointer
@@ -449,6 +449,21 @@ TDD: add `test_chain_from_resolves_prefixed_pointer_by_basename` to
 
 **Sanity Check:** `bash plugins/session-flow/skills/retro/scripts/parse-transcript.test.sh` exit 0
 with the new test collected; `bash scripts/run-ruff.sh check plugins/session-flow/skills/retro/scripts` exit 0.
+
+**Result (2026-09-03):** landed. `test_chain_from_resolves_prefixed_pointer_by_basename` was
+written first and failed against the unchanged walker (`AssertionError: assert 'sid-oldest' in
+['sid-middle']`: the chain truncated to one id); the third candidate
+`cursor.parent / Path(prev_handoff_rel).name`, guarded like the second, turned it green with the
+`journal/` and flat-layout chain tests unchanged. Sanity Check: `parse-transcript.test.sh` exit 0,
+`38 passed` (37 before) with the new test collected; `run-ruff.sh check` on the scripts dir exit 0.
+Two Phase 2 wording fixes ride this commit: the Phase 2 Result now counts ten full-path rails
+cases (case 3 gained the expectation after the count was written), and `save-point.md` drops the
+clause that let a prompt-only block swap its opening line (prompt-only has no directive and is
+Brief-locked untouched). The fresh-context verifier reported 9 of 9 PASS, including an empirical
+red proof: the working-tree test file run against the HEAD script in a scratch copy fails exactly
+as predicted while the two pre-existing chain tests pass there too, so the green run masks no
+regression. typos, editorconfig-checker, gitleaks, and markdownlint on the touched docs are clean;
+the diff carries no em dash and no machine path.
 
 ### Phase 4: Close the free-hand licences (context-guard, implementation) [TODO]
 
