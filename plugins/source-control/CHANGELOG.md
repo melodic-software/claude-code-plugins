@@ -7,6 +7,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
+- **The babysit-prs prune suite folds 42 temp-dir fixtures into one context
+  manager.** `test_prune_babysit_worktrees.py` opened
+  `tempfile.TemporaryDirectory(ignore_cleanup_errors=True)` and converted to a
+  `Path` at 42 sites; a `scratch_dir()` helper does it once. Test count is
+  unchanged at 650 for the suite and 45 for the module, and the fold was proven
+  to still catch its bugs by mutation rather than by passing: four mutations to
+  the module under test (a removal check forced true, the root-containment guard
+  disabled, an unrecognized-worktree append dropped, an orphan comparison forced
+  false) produce the SAME failing set at both revisions, 3 failures in the first
+  round and 8 in the second, spanning both branches of the rename.
+  The whole-file ruff-format reflow that the edit triggered was separated at the
+  AST level: baseline against formatted-baseline is AST-identical across 37
+  changed lines, and replaying the three mechanical edits onto that reproduces
+  the committed file exactly. All comments are byte-identical.
 - **`babysit_resolve_thread.py` emits its refusals through one helper.** Six
   refusal sites each built and printed their own envelope. A single `_refuse`
   now does it, matching the helper `babysit_merge.py` already defines. The

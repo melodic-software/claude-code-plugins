@@ -7,6 +7,23 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Changed
 
+- **`schema-check/fidelity.sh` merges its three-stage sed extraction into one
+  script.** The `WIT_LINEAR_ISSUE_FIELDS` block was extracted through a range
+  match piped into two more `sed` processes; one script now carries all three
+  commands, dropping two spawns. Exact for every input, not just the real one:
+  `sed` applies a script's commands in order per line and none of these adds or
+  removes a line, so the `1` and `$` addresses still select the same lines.
+  A tighter form that anchored the prefix strip to line 1 was written first and
+  then **withdrawn**, because it diverges from the original if a line inside the
+  block also begins with that prefix. Unreachable in the real file, but
+  refutable, and this file has no covering suite, so the stricter form won.
+- **The local-markdown adapter takes the house shfmt layout.** Layout only, in
+  two files: a trailing backslash continuation becomes a trailing `||`, and a
+  one-line `cleanup()` body becomes multi-line. Worth noting for a future reader
+  that `git diff -w` does NOT come back empty on this change, because the
+  formatter moves tokens across line boundaries and that reads as content;
+  the local-markdown conformance binding, which is the one binding that runs
+  without live credentials, passes 81 cases 0 failed.
 - **The gitea adapter's `create-item` suite folds a duplicated org-label
   fixture.** Two cases built the same fixture inline; it is declared once now.
   Test-side only: no adapter source changed, and all six gitea suites still pass.
