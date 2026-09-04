@@ -144,7 +144,12 @@ PROVIDER="$(sget '.provider')"
 # in shell identifiers or in the jq object-key shorthand, so the function/variable/key
 # spellings underscore them.
 PROVIDER_FUNC="${PROVIDER//-/_}"
-PROVIDER_UPPER="${PROVIDER_FUNC^^}"
+# `tr` rather than `${PROVIDER_FUNC^^}`: the case-folding expansions are bash 4.0+,
+# and this script carries no version gate to keep them behind — on a stock macOS,
+# where `/usr/bin/env bash` finds the system bash 3.2, `^^` is a fatal expansion
+# error, so every valid spec would abort here before an adapter was written. The
+# fork is the price of running where check-drive-root-litter.sh says we run.
+PROVIDER_UPPER="$(tr '[:lower:]' '[:upper:]' <<<"$PROVIDER_FUNC")"
 CONFIG_KEY="$PROVIDER_FUNC"
 
 DISPLAY_NAME="$(sget '.display_name')"

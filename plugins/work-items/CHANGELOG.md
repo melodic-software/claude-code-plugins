@@ -3,6 +3,31 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.61]
+
+### Fixed
+
+- **`onboard-adapter/generate-adapter.sh` was simplified onto a bash 4.0+ expansion.**
+  An earlier commit on this branch replaced `tr '[:lower:]' '[:upper:]'` with
+  `${PROVIDER_FUNC^^}`. The case-folding expansions are bash 4.0+, this script
+  carries no version gate to keep one behind, and its shebang is `/usr/bin/env bash`
+  — so on a stock macOS, where that resolves to the system bash 3.2, `^^` is a fatal
+  expansion error and every valid spec aborts before an adapter is written. Reverted
+  to the `tr` form, which is what shipped. The rule is not new:
+  `scripts/check-drive-root-litter.sh` states it and gates its own `${var,,}` folds
+  behind a Windows host check for exactly this reason. Reported by an automated
+  reviewer on #3710; the code is now byte-identical to what it replaced, with a
+  comment naming the constraint so a later tidy does not re-apply it.
+
+### Known issues
+
+- **`scripts/check-shell-portability.sh` does not flag the case-folding expansions.**
+  The gate's vocabulary is GNU-vs-BSD *userland* (grep/sed/date/stat/mktemp/sort),
+  not bash *version*, so `${var^^}` and `${var,,}` pass it. That is why the change
+  above went green through every lane. Widening the gate is a change to the gate's
+  contract rather than a fix to this plugin, so it is recorded here rather than made
+  here.
+
 ## [0.39.60]
 
 ### Fixed
