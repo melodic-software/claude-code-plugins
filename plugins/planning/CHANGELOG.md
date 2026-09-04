@@ -3,6 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.1]
+
+### Fixed
+
+- **`interview-defenses.test.sh`: one pin label overstated what it covers.** The
+  label read "unattended ladder rungs 4-5" above a pin that matches rung 4 only.
+  `pin_exact` takes a single whole-line argument, so it cannot cover two lines;
+  an instrumented run confirms one match. Rung 5 is pinned by the call directly
+  below, so coverage was never short, but the label is what a failing run prints
+  to name the lost defense, and an overstated one sends the reader to the wrong
+  line. Proven label-only by comparing the pinned line numbers on both sides:
+  identical, differing only in the label text.
+
 ## [0.36.0]
 
 ### Changed
