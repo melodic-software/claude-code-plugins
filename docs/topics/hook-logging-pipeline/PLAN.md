@@ -7,8 +7,8 @@
 Design the logging and telemetry pipeline for the marketplace's hooks, and settle the upstream
 decisions that determine what it instruments. Evidence base is [FINDINGS.md](FINDINGS.md), a
 measured read-only audit of the 26 wired `PostToolUse` rows plus a doc-alignment pass, reproducible
-via [harness/measure-posttooluse.sh](harness/measure-posttooluse.sh). Interview rounds 1 to 3
-resolved; round 4 (retention, rotation, file granularity, concurrent-append safety) open.
+via [harness/measure-posttooluse.sh](harness/measure-posttooluse.sh). Interview complete: five
+rounds, 21 questions, 19 answered and 2 deferred with named arbiters. Register gate clean.
 
 ### Goal
 
@@ -96,21 +96,63 @@ trigger that `docs/conventions/upstream-drift` requires.
   `lib/hook-utils.sh`.** Measured: the library costs 4 ms, more than the rest of the hook, and at
   full event coverage that is the difference between a 31 ms and a 62 ms worst case.
 
+**Round 4.**
+
+- **Q16. One file per session**, `.observability/claude/sessions/<session_id>.jsonl`. Removes the
+  concurrency question by construction rather than capping around it, makes the analysis unit match
+  the natural question, makes retention a directory listing, and lets `SessionEnd` finalize exactly
+  one file inside its 1.5 s budget. Subagent fires land in the parent session's file, distinguished
+  by `agent_id`.
+- **Q17. Concurrent-append safety, resolved as a measured fact.** With 33 parallel appenders, a
+  shared file under plain `>>` showed zero corruption at 64 B, 512 B and 4 KB lines, and 376 of 990
+  lines corrupt plus 10 duplicates at 16 KB. Host `PIPE_BUF` is 4096. Per-session files never
+  corrupt. Windows/Git Bash is unmeasured and is a recheck item, since it is the binding host.
+- **Q18. Retention: keep the newer of the last 30 sessions or the last 14 days**, enforced at
+  `SessionEnd`, both knobs configurable through the same option surface as every other toggle. The
+  cost is a directory listing plus a few unlinks, inside the 1.5 s budget. Volume at this shape is
+  roughly 200 B per spine line, so a busy 500-fire session is about 100 KB and 30 of them about 3 MB.
+
+**Round 5.**
+
+- **Q19. Prune means delete, with one extensibility point.** No built-in archive tier. The retention
+  step invokes an optional consumer-configured pre-prune command with the list of files about to go,
+  run detached so a slow consumer command cannot exhaust the `SessionEnd` budget. A consumer with a
+  longer-retention or compliance need points that at their own archiver.
+- **Q20. Extend `claude-ops:observability` rather than build a second reader.** Per-session files
+  become its primary source and it gains a per-session scope. It is also the surface that reports
+  what is toggled, what retention is in effect, and where the files are, which is how the operator's
+  "Claude configures it for them" requirement is met without a new component.
+- **Q21. Handoffs and observability stay separate.** No coupling in either direction. A handoff
+  already carries `session_id`; so does every log line; the join is free. Deeper integration, if ever
+  wanted, is a `session-flow` change and belongs to that lane.
+
 ### Acceptance criteria
 
-Not yet complete; round 4 supplies the retention and volume criteria. Established so far:
-
-- With the plugin disabled, per-event cost is at or below the bare spawn floor plus one stdin read.
+- With the plugin disabled, per-event cost is at or below the bare spawn floor plus one stdin read
+  (measured reference: 2.54 ms gate-first-disabled against a 1.71 ms floor).
 - No logging hook sources `lib/hook-utils.sh`.
 - Every event-registry entry carries a basis and a recheck trigger; no upstream fact is restated
-  without one.
+  without one; the registry is generated, never hand-maintained.
 - The ignore rule is present before the first write, verified rather than assumed.
+- Every log line carries the full spine; a line is never written without `session_id` and
+  `hook_event_name`.
+- One file per session; no two Claude Code processes ever append to the same file.
+- Retention runs at `SessionEnd` and completes inside the default 1.5 s budget with the default
+  30-session / 14-day policy on a directory of 100 session files.
+- The pre-prune command, when configured, is invoked detached and its failure or slowness never
+  delays or blocks the prune.
+- `claude-ops:observability` can answer, for a named session: which hooks fired, which blocked,
+  which rewrote, and how long each took.
+- Turning the plugin off and back on leaves no partial state and requires no cleanup.
 
 ### Captured assumptions
 
 - The consuming repo owns sink configuration and retention policy.
 - No consumer outside this machine has wired `HOOK_TELEMETRY_SINK`. If false, envelope changes
   become breaking and the additive-only rule binds harder.
+- The 4 KB atomic-append boundary measured on Linux holds or is irrelevant on the Windows reference
+  host. Irrelevant is the expected case, since per-session files remove the shared-write path
+  entirely; the recheck is owed regardless.
 
 ### Out of scope
 
@@ -118,17 +160,19 @@ Not yet complete; round 4 supplies the retention and volume criteria. Establishe
 - Any change to a PreToolUse hook; that lane belongs to `claude/pretool-validation-hooks-84d7ka`.
 - The cross-cutting registry for machine-read comment markers. A real gap with no owner, but above
   this lane.
+- A built-in archive tier (Q19). The extensibility point is shipped; the archiver is not.
+- Handoff integration beyond the shared `session_id` (Q21).
 
 ### Deferred questions
 
-- **Q16. File granularity**, one shared append-only log versus per-session files. Arbiter: round 4.
-- **Q17. Concurrent-append safety** under parallel hook dispatch. Arbiter: round 4.
-- **Q18. Retention and rotation.** Arbiter: round 4.
-- **Q6a. Ownership of the kill-switch hoist**, roughly 44 sites spanning two lanes. Split by plugin
-  directory is agreed by both lanes. Arbiter: USER-RESERVED, it allocates work across sessions.
-- **Q7b. Does `docs/conventions/hook-observability` name the `# silent-skip-ok:` marker
-  explicitly?** Raised because the operator reported not knowing what it meant, which is a defect in
-  the convention. Arbiter: this lane.
+- **Q8. Ownership of the kill-switch hoist**, roughly 44 sites spanning two lanes. Split by plugin
+  directory is agreed by both lanes and both are holding. Asked three times during the interview
+  without an answer. Arbiter: **USER-RESERVED**. It allocates work across sessions and could change
+  which lane's acceptance criteria this belongs in.
+- **Q9. Does `docs/conventions/hook-observability` name the `# silent-skip-ok:` marker
+  explicitly?** Raised because the operator reported not knowing what the marker meant, which is a
+  defect in the convention doc rather than in any consumer of it. Arbiter: `/planning:plan`, this
+  lane, as a small documentation task alongside the pipeline work.
 
 ## Plan
 
