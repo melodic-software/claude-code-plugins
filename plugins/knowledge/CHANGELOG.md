@@ -8,7 +8,7 @@ only after that version increases.
 
 ### Changed
 
-- **Thirteen commits across the course-digest and video-digest extraction trees**, from the
+- **Fifteen commits across the course-digest and video-digest extraction trees**, from the
   repo-wide simplification sweep: duplicated locals folded, dead stores removed, suites deduped,
   and the hotmart packaged-master URL capture, which the request and response interceptors spelled
   out identically, consolidated into `captureMasterUrl`. `resolveResourceSelectors` in
@@ -23,6 +23,17 @@ only after that version increases.
   exit 0. `course.json` is hand-editable, so a typo reaches that path. 416 of 3,000 adversarial
   cases diverged. The revert is now recorded as a comment at the site, so the next reader does not
   re-derive the same false saving.
+- **`generate-manifests.js` was left untouched after its edits proved unverifiable.** Three
+  cosmetic changes were made and then reverted: a `!!`-coerced local inlined into the truthiness
+  test that consumed it, a `nextFrame`/`isLastInRun` pair collapsed into one optional-chained
+  expression, and an intermediate `screenshotsDir` folded into a three-argument `join`. Net four
+  lines. The file is a standalone ESM script exposed only as the `manifests` npm script: it exports
+  nothing, no module imports it, and no suite names it, so `scripts/affected-tests.sh` reports it
+  UNMAPPED and AGENTS.md treats that as an error rather than "nothing to run". Recording it in
+  `scripts/affected-tests-no-suite.txt` was rejected because that file's header defines an entry as
+  a claim that a named non-shell lane covers the class, and no lane covers this one. Changing
+  frame-classification logic that nothing exercises, for four lines, is the wrong side of that
+  trade.
 - **A key-order coupling introduced by this sweep is documented where it is created.** Deriving
   `REQUIRED_METHODS` from `REQUIRED_METHOD_ARITY`'s keys closes the gap where a method could be
   declared in one table and unchecked in the other, but it makes the arity table's key order

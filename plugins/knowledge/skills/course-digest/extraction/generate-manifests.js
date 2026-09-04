@@ -103,6 +103,7 @@ function classifyLesson(dedupEntry, durationSec) {
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i];
     const isScene = !frame.isInterval;
+    const isDup = !!frame.likelyDuplicate;
 
     const position = i / Math.max(frames.length - 1, 1);
     const estimatedTimestamp = Math.round(position * durationSec);
@@ -117,11 +118,13 @@ function classifyLesson(dedupEntry, durationSec) {
     } else if (isTalkingHead) {
       type = "talking-head";
       keep = false;
-    } else if (frame.likelyDuplicate) {
+    } else if (isDup) {
       // For consecutive duplicate runs, keep only the LAST frame in each run
       // (progressive bullet build-up = later frames have more content)
+      const nextFrame = frames[i + 1];
+      const isLastInRun = !nextFrame?.likelyDuplicate;
       type = "slide";
-      keep = !frames[i + 1]?.likelyDuplicate;
+      keep = isLastInRun;
     } else {
       type = "slide";
       keep = true;
@@ -171,8 +174,9 @@ for (const module of course.modules) {
       module.slug,
       lessonDirName(lesson.position, lesson.title),
     );
+    const screenshotsDir = join(lessonDir, "screenshots");
     const transcriptPath = join(lessonDir, "transcript.md");
-    const manifestPath = join(lessonDir, "screenshots", "manifest.json");
+    const manifestPath = join(screenshotsDir, "manifest.json");
 
     const classified = classifyLesson(dedupEntry, durationSec);
 
