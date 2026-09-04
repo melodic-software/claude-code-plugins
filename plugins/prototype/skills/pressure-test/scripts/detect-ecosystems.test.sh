@@ -155,6 +155,7 @@ mkdir -p "$MULTI"
 : >"$MULTI/package.json"
 : >"$MULTI/go.mod"
 : >"$MULTI/App.sln"
+multi_expected="$(printf '%s\n' App.sln package.json go.mod)"
 
 EMPTY="$TEST_TMPDIR/empty"
 mkdir -p "$EMPTY"
@@ -172,26 +173,26 @@ for fixture in "$MULTI" "$EMPTY"; do
 done
 
 assert_equals "the multi fixture is a non-trivial comparison" \
-  "$(printf '%s\n' App.sln package.json go.mod)" \
+  "$multi_expected" \
   "$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" bash "$WRAPPER" 2>/dev/null)"
 
 # Self-locating means the cwd is irrelevant. `/` is the harshest cwd available
 # and is the one a preamble can genuinely land in.
 root_out="$(cd / && CLAUDE_PROJECT_DIR="$MULTI" bash "$WRAPPER" 2>/dev/null)"
 assert_equals "wrapper resolves its target from an unrelated cwd" \
-  "$(printf '%s\n' App.sln package.json go.mod)" "$root_out"
+  "$multi_expected" "$root_out"
 
 # Direct invocation, no `bash` interpreter prefix: this is the form the paired
 # grant permits, and the only one the skill body is allowed to use.
 direct_out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" "$WRAPPER" 2>/dev/null)"
 assert_equals "direct (non-interpreter-led) invocation works" \
-  "$(printf '%s\n' App.sln package.json go.mod)" "$direct_out"
+  "$multi_expected" "$direct_out"
 
 # Forwarded arguments reach a script that reads none. Inert, never fatal.
 args_exit=0
 args_out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" bash "$WRAPPER" --bogus extra 2>/dev/null)" || args_exit=$?
 assert_equals "forwarded arguments do not change the answer" \
-  "$(printf '%s\n' App.sln package.json go.mod)" "$args_out"
+  "$multi_expected" "$args_out"
 assert_exit "forwarded arguments do not fail the wrapper" 0 "$args_exit"
 
 # --- Report ---------------------------------------------------------------------
