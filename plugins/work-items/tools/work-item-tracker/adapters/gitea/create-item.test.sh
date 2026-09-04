@@ -193,12 +193,33 @@ rc="$(gitea_run "$S" --title "t" --labels "nonexistent")"
 assert_eq "a label in neither scope → exit 5" "5" "$rc"
 assert_contains "and it is named" "$(gitea_err)" "nonexistent"
 
+# --- the repo-label walk pages on until a SHORT page, when no count header arrives ---
+# Stock gitea sets X-Total-Count here, but an instance or proxy that strips it leaves the
+# short-page heuristic as the only end-of-list signal. With page_size 2 a full 2-row page
+# must be followed by another request, and the 1-row page must end the walk: a label that
+# exists only on page 2 has to resolve, and page 3 must never be asked for.
+gitea_write_binding '{"page_size":2}'
+gitea_reset_routes
+gitea_seed "/orgs/acme/labels" 404 '{"message":"user redirect does not exist"}'
+gitea_seed "/repos/acme/webapp/labels?page=2" 200 "$(jq -cn '[{id:9,name:"priority: high"}]')"
+gitea_seed "/repos/acme/webapp/labels?page=1" 200 "$(jq -cn '[{id:1,name:"type: fix"},{id:2,name:"area: api"}]')"
+gitea_seed "/dependencies" 200 '[]'
+gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'second-page label')"
+rc="$(gitea_run "$S" --title "second-page label" --labels "priority: high")"
+assert_eq "a label on repo-label page 2 resolves → exit 0" "0" "$rc"
+assert_contains "the second label page was requested" "$(gitea_requests)" \
+  "/repos/acme/webapp/labels?page=2"
+if [[ "$(gitea_requests)" == *"labels?page=3"* ]]; then
+  fail "the short second label page ends the walk" "no labels page=3" "page=3 requested"
+else
+  pass "the short second label page ends the walk"
+fi
+gitea_write_binding
+
 # A non-array 200 (proxy error page, auth redirect body) must fail closed with
 # an explicit adapter error, not be treated as an empty or garbage label set
 # (#3439). jq length of an object is its key count, which would otherwise look
-# like a one-item page. The same fixture used to hang into page 2 via an
-# arithmetic error on empty jq length (#3484); the type gate stops the walk
-# before that arm.
+# like a one-item page. The type gate stops the walk before that arm.
 gitea_reset_routes
 gitea_seed "/labels?page=1" 200 '{"message":"not a list"}'
 gitea_seed "/labels?page=2" 200 "$(jq -cn '[{id:3,name:"type: fix"}]')"

@@ -3,6 +3,56 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.55]
+
+### Changed
+
+- **`gitea/create-item.sh`: the repo-label pagination walk stops recomputing a
+  value it already holds.** The short-page arm re-ran `jq 'length'` over the
+  response body to obtain the row count the previous iteration had already
+  recorded; `LABEL_GOT` is now seeded from page 1 and read directly, which is one
+  fewer jq process per label page (measured over a three-page walk: 45 total jq
+  spawns and 8 `jq 'length'` before, 42 and 5 after) and collapses three
+  spellings of "page length" to one. Behaviour is unchanged, established two
+  ways: 23 end-to-end scenarios run against both versions on the same mock,
+  comparing exit code, stdout, stderr and the full recorded request log with zero
+  divergence; and an instrumented probe that recomputes the old value at the top
+  of every iteration and compares, 22 iterations across 12 scenarios with zero
+  divergence, including the first iteration in every one.
+- **Two `jq … <<<'null'` calls became `jq -n`.** Neither program reads `.`:
+  `as $n |` does not rebind it, `select(...)` passes it through unindexed, and
+  the trailing expressions discard it, with no `input`, `inputs`, `$__loc__`,
+  `env` or `$ENV` anywhere in them. Output is byte-identical across five argument
+  values crossed with six stdin values; the only divergence is on empty stdin,
+  which the here-string form can never produce.
+
+### Added
+
+- **A discriminating case for the multi-page repo-label walk**, which had
+  literally zero coverage: instrumenting the loop body shows it executed **0
+  times** across the suite's 49 cases before, and once after. Three mutations of
+  the changed line all survive the old suite and are killed only by this case.
+
+### Known issues
+
+- **Dropping `-n` from the label-id `jq` call is not caught by any test.** It
+  leaves `LABEL_IDS` empty, the payload build then dies on invalid JSON, and the
+  issue is POSTed with no body at all while the suite still reports success. The
+  `-n` change above is carried by static proof of byte-identical output, not by
+  the test net.
+- **`gitea/mock.sh` records only method and URL, never a request body**, so no
+  assertion in any gitea suite observes the POST payload. Label-name to label-id
+  resolution, which is the whole purpose of that block and the adapter's flagged
+  divergence from GitHub's API, is asserted only indirectly through the exit code.
+- **Three further mutations adjacent to the walk survive the suite**: relaxing
+  the total-count header comparison, removing the empty-page break, and stopping
+  the accumulator from accumulating. All pre-existing.
+- **`create-item.sh` selects 202 suites, of which exactly one exercises it.**
+  One more references it only as a file-exists check that would pass against an
+  empty file, three are same-named suites in sibling adapter directories that
+  each run their own copy, and roughly 197 are transitive fan-out on generic
+  basenames. Ten of the 202 mention gitea at all.
+
 ## [0.39.54]
 
 ### Changed
