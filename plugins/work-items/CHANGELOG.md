@@ -10,6 +10,22 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - **The gitea adapter's `create-item` suite folds a duplicated org-label
   fixture.** Two cases built the same fixture inline; it is declared once now.
   Test-side only: no adapter source changed, and all six gitea suites still pass.
+- **Three shell surfaces drop a duplicated branch or a redundant subshell.**
+  `evaluate-schedule-precondition.sh` reads its four fields with `jq <<<"$row"`
+  instead of `printf '%s' "$row" | jq`, one process each instead of two.
+  `generate-adapter.sh` hoists the sample-host default into one variable so the
+  two arms select the default rather than duplicating the whole `jq` call.
+  `preflight.sh` hoists a coverage-label default the same way.
+  The comment in `evaluate-schedule-precondition.sh` recording that emitting
+  jq's output directly would pass newlines through, measured over 7 prompt
+  shapes with 2 diverging, is kept: that `printf '%s\n' "$( ... )"` wrapper is
+  load-bearing and was not touched.
+  Nothing here uses a bash 4 construct. That is deliberate: an earlier sweep in
+  this repo replaced `tr '[:lower:]' '[:upper:]'` with `${VAR^^}` in
+  `generate-adapter.sh` and had to be reverted, because the case-folding
+  expansions are fatal on stock macOS bash 3.2 and `check-shell-portability.sh`
+  reasons about GNU-vs-BSD userland rather than bash version, so no gate here
+  catches it. None of the six `.tmpl` generator templates was touched either.
 
 - **`lib/binding.sh` resolves the container-label default the way its own sibling
   does.** `wit_read_binding` spelled the absent-or-empty fallback as
