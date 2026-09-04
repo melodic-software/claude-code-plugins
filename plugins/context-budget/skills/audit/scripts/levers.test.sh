@@ -25,6 +25,16 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
+# report_clean <checker-output> <ok-message>: each checker below prints either
+# CLEAN or one problem per line, so anything else becomes one failure per
+# problem rather than a single opaque one.
+report_clean() {
+  if [[ "$1" == "CLEAN" ]]; then
+    ok "$2"
+  else
+    while IFS= read -r line; do fail "$line"; done <<<"$1"
+  fi
+}
 
 if ! command -v node >/dev/null 2>&1; then
   echo "FAIL: node is required to validate the catalogue" >&2
@@ -70,11 +80,8 @@ if ((cat.levers ?? []).length < 10) problems.push("suspiciously few levers: " + 
 console.log(problems.length ? problems.join("\n") : "CLEAN");
 ' "$CATALOGUE")"
 
-if [[ "$out" == "CLEAN" ]]; then
-  ok "catalogue: every lever categorized, cited, postured, dated, with a recheck trigger; no shipped token figures"
-else
-  while IFS= read -r line; do fail "$line"; done <<<"$out"
-fi
+report_clean "$out" \
+  "catalogue: every lever categorized, cited, postured, dated, with a recheck trigger; no shipped token figures"
 
 # Keys that left the settings overview page for settings-reference (#3198).
 citeout="$(node -e '
@@ -114,11 +121,8 @@ if (cat.meta?.verifiedAgainst?.cliVersion !== "2.1.241") {
 console.log(problems.length ? problems.join("\n") : "CLEAN");
 ' "$CATALOGUE")"
 
-if [[ "$citeout" == "CLEAN" ]]; then
-  ok "moved settings keys cite settings-reference anchors; disableArtifact is user-scope"
-else
-  while IFS= read -r line; do fail "$line"; done <<<"$citeout"
-fi
+report_clean "$citeout" \
+  "moved settings keys cite settings-reference anchors; disableArtifact is user-scope"
 
 # #3200 — env measurement route + resolvable simple-system-prompt condition.
 routeout="$(node -e '
@@ -153,11 +157,8 @@ else {
 console.log(problems.length ? problems.join("\n") : "CLEAN");
 ' "$CATALOGUE")"
 
-if [[ "$routeout" == "CLEAN" ]]; then
-  ok "include-git-instructions names the env route; simple-system-prompt resolves opus-5 lean default"
-else
-  while IFS= read -r line; do fail "$line"; done <<<"$routeout"
-fi
+report_clean "$routeout" \
+  "include-git-instructions names the env route; simple-system-prompt resolves opus-5 lean default"
 
 echo
 echo "passed: $PASS, failed: $FAIL"
