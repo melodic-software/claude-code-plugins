@@ -83,7 +83,7 @@ export async function analyzeHarvestedRepos(
 
   /** @type {HarvestedRepoAnalysis[]} */
   const analyses = [];
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-repo-analysis-"));
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "video-repo-analysis-"));
 
   try {
     for (const url of githubUrls) {

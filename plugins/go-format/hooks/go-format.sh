@@ -265,7 +265,7 @@ if [[ $RC -eq 2 && -n "$STDERR" ]]; then
   fi
   emit_tel "ok" "$FINDINGS_JSON"
   # Findings AND a rewrite disclosure compose into one document (#3406 class);
-  # the take also releases the snapshot this arm previously leaked (#3405).
+  # the take also releases the snapshot this arm would otherwise leak (#3405).
   hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
   hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"
   exit 0
@@ -282,7 +282,7 @@ while IFS= read -r line; do
 done <<<"$STDERR"
 emit_tel "skipped" '[]'
 # goimports may have written the file before breaking; take the disclosure
-# (which also releases the snapshot this arm previously leaked, #3405) and
+# (which also releases the snapshot this arm would otherwise leak, #3405) and
 # compose it with the tool-break context as one document.
 hook::rewrite_take_disclosure "$FILE" "$GO_REWRITE_MESSAGE"
 hook::emit_channels PostToolUse "$GO_CTX" "$HOOK_REWRITE_MESSAGE"

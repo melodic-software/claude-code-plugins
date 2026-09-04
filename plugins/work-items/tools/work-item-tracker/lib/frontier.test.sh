@@ -69,7 +69,7 @@ IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
 assert_eq "autonomous frontier also excludes the container" "github:o/r#1" "$IDS"
 
 # A non-default container label passed explicitly is honored (parity with the
-# human-gated remap path); the stale default no longer excludes.
+# human-gated remap path); the shipped default must not exclude once remapped.
 REMAP_CONTAINER='{
   "schema_version": "1.0",
   "items": [

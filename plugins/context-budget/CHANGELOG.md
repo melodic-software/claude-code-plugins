@@ -9,8 +9,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Repeated helpers extracted in the audit suite.** Test-only tidy from the repo-wide
-  simplification sweep; assertion semantics unchanged.
+- **`measure.mjs` sheds a `return null` the code itself declared unreachable,**
+  and hoists a per-call `flagOnly` list to a module-level `FLAG_ONLY`. The
+  unreachability was proven by execution rather than by reading: a tripwire
+  placed immediately after the preceding `degrade()` call never fired, and the
+  counterfactual that neuters `process.exit` shows the deleted line's only
+  observable effect lives on a path `degrade()` never takes. The hoist was
+  checked for evaluation-timing equivalence across 13 argv shapes. A ReDoS
+  comment moves to present tense.
+- **`levers.test.sh` extracts a `report_clean` helper** for three inline
+  reporting blocks, with failure text byte-identical to what it replaced.
+  Mutation-tested: inverting its comparison and breaking three levers both turn
+  the suite red, one failure per problem. `measure.test.sh` gets one shfmt
+  conformance fix.
 
 ## [0.6.19]
 

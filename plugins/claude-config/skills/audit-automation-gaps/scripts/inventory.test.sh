@@ -22,8 +22,8 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 

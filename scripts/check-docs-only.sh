@@ -50,19 +50,23 @@ emit() {
   fi
 }
 
+# Every fail-closed path (and the normal has-code case) resolves the same way:
+# say why on stderr, emit docs_only=false, exit 0 — a code PR is not an error.
+run_full() {
+  echo "check-docs-only: $1 — running full suite" >&2
+  emit false
+  exit 0
+}
+
 BASE="${1:?usage: check-docs-only.sh <base-ref>}"
 ALLOWLIST="${DOCS_ONLY_ALLOWLIST:-scripts/docs-only-paths.txt}"
 
 if [[ ! -f "$ALLOWLIST" ]]; then
-  echo "check-docs-only: allowlist not found ($ALLOWLIST) — running full suite" >&2
-  emit false
-  exit 0
+  run_full "allowlist not found ($ALLOWLIST)"
 fi
 
 if ! changed_files::verify_base "$BASE"; then
-  echo "check-docs-only: base ref '$BASE' is not a resolvable commit — running full suite" >&2
-  emit false
-  exit 0
+  run_full "base ref '$BASE' is not a resolvable commit"
 fi
 
 # Active prefixes. `inline` is this file's family: a path prefix never contains a
@@ -70,15 +74,11 @@ fi
 # mode — see scripts/lib/read-list.sh for why the two must stay distinct.
 prefixes=()
 if ! read_list::into prefixes "$ALLOWLIST" --comments inline; then
-  echo "check-docs-only: could not read the allowlist ($ALLOWLIST) — running full suite" >&2
-  emit false
-  exit 0
+  run_full "could not read the allowlist ($ALLOWLIST)"
 fi
 
 if [[ ${#prefixes[@]} -eq 0 ]]; then
-  echo "check-docs-only: allowlist has no active entries — running full suite" >&2
-  emit false
-  exit 0
+  run_full "allowlist has no active entries"
 fi
 
 # --include-deleted is deliberate and is NOT the portability scanners' setting.
@@ -94,15 +94,11 @@ fi
 # loudly instead keeps a broken diff distinguishable from a genuinely empty one.
 changed=()
 if ! changed_files::into changed "$BASE" --include-deleted --; then
-  echo "check-docs-only: could not resolve paths changed vs '$BASE' — running full suite" >&2
-  emit false
-  exit 0
+  run_full "could not resolve paths changed vs '$BASE'"
 fi
 
 if [[ ${#changed[@]} -eq 0 ]]; then
-  echo "check-docs-only: no changed paths vs '$BASE' — running full suite" >&2
-  emit false
-  exit 0
+  run_full "no changed paths vs '$BASE'"
 fi
 
 for path in "${changed[@]}"; do
@@ -114,9 +110,7 @@ for path in "${changed[@]}"; do
     fi
   done
   if [[ $matched -eq 0 ]]; then
-    echo "check-docs-only: '$path' is outside the docs-only allowlist — running full suite" >&2
-    emit false
-    exit 0
+    run_full "'$path' is outside the docs-only allowlist"
   fi
 done
 

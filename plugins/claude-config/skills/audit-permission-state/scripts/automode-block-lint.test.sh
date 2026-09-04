@@ -200,8 +200,7 @@ assert_not_contains "critique is not surfaced without the flag" "$OUT" "end crit
 # its own header contract forbids.
 for shape in '[1, 2, 3]' '"hello"' '42' 'null'; do
   SHAPE_FILE="$TEST_TMPDIR/shape.json"
-  printf '%s
-' "$shape" >"$SHAPE_FILE"
+  printf '%s\n' "$shape" >"$SHAPE_FILE"
   rc=0
   OUT_SHAPE=$(env AUTOMODE_CONFIG_FIXTURE="$SHAPE_FILE" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS" bash "$SCRIPT" 2>&1) || rc=$?
   assert_exit "a $shape payload does not crash the lane" 0 "$rc"

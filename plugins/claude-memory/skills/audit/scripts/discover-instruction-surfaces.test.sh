@@ -61,8 +61,8 @@ printf '# user memory\n' >"$CONF/CLAUDE.md"
 printf '# a user rule\n' >"$CONF/rules/user-rule.md"
 
 # --- the regression this script exists for -----------------------------------
-# The old inline `find . -maxdepth 1` discovery could not see either user-scope
-# surface. These two assertions fail against that implementation and pass here.
+# A `find . -maxdepth 1` rooted at the cwd reaches neither user-scope surface.
+# These two assertions are what discriminate such an implementation.
 
 OUT="$(run_in "$PROJ" "$CONF")"
 RC=$?
@@ -177,7 +177,7 @@ printf '# the one CLAUDE.md\n' >"$CONFREPO/CLAUDE.md"
 printf '# the one rule\n' >"$CONFREPO/rules/only-rule.md"
 
 # cwd == config root: `.claude/rules` does not exist here, so only the CLAUDE.md
-# collision is in play — which is exactly the case the rules-only guard missed.
+# collision is in play — the case a rules-only overlap guard cannot catch.
 OUT_CONF="$(run_in "$CONFREPO" "$CONFREPO")"
 
 MD_ROWS="$(printf '%s\n' "$OUT_CONF" | grep -c 'claude-md' || true)"

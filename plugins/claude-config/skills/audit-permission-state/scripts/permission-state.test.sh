@@ -146,22 +146,30 @@ assert_eq "a malformed file contributes no rules" "0" "$(count_matching "$OUT_BA
 SHAPE="$TEST_TMPDIR/shape"
 mkdir -p "$SHAPE/proj/.claude" "$SHAPE/home/.claude" "$SHAPE/pol" "$SHAPE/sd/.claude"
 jq -n '{}' >"$SHAPE/pol/managed-settings.json"
-printf '["Bash(danger)"]
-' >"$SHAPE/proj/.claude/settings.json"
-printf '{"permissions":{"allow":"Bash(*)","deny":{"x":"y"}}}
-' >"$SHAPE/home/.claude/settings.json"
-OUT_SHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home" PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj" PERMISSION_STATE_STARTDIR="$SHAPE/sd" PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json" PERMISSION_STATE_REGISTRY_KEYS="" PERMISSION_STATE_PLIST_DOMAIN="" bash "$SCRIPT")
+printf '["Bash(danger)"]\n' >"$SHAPE/proj/.claude/settings.json"
+printf '{"permissions":{"allow":"Bash(*)","deny":{"x":"y"}}}\n' >"$SHAPE/home/.claude/settings.json"
+OUT_SHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home" \
+  PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj" \
+  PERMISSION_STATE_STARTDIR="$SHAPE/sd" \
+  PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json" \
+  PERMISSION_STATE_REGISTRY_KEYS="" \
+  PERMISSION_STATE_PLIST_DOMAIN="" \
+  bash "$SCRIPT")
 assert_contains "a top-level array is invalid-json, not present" "$OUT_SHAPE" "project settings invalid-json"
 assert_contains "a string-valued permissions key is invalid-json too" "$OUT_SHAPE" "user settings invalid-json"
 assert_eq "and neither contributes rules" 0 "$(count_matching "$OUT_SHAPE" '^rule (user|project) ')"
 
 # A legitimately empty settings file, and one with a null permissions key, are
 # both PRESENT -- the shape check must not reject the ordinary shapes.
-printf '{}
-' >"$SHAPE/proj/.claude/settings.json"
-printf '{"permissions":null}
-' >"$SHAPE/home/.claude/settings.json"
-OUT_OKSHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home" PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj" PERMISSION_STATE_STARTDIR="$SHAPE/sd" PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json" PERMISSION_STATE_REGISTRY_KEYS="" PERMISSION_STATE_PLIST_DOMAIN="" bash "$SCRIPT")
+printf '{}\n' >"$SHAPE/proj/.claude/settings.json"
+printf '{"permissions":null}\n' >"$SHAPE/home/.claude/settings.json"
+OUT_OKSHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home" \
+  PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj" \
+  PERMISSION_STATE_STARTDIR="$SHAPE/sd" \
+  PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json" \
+  PERMISSION_STATE_REGISTRY_KEYS="" \
+  PERMISSION_STATE_PLIST_DOMAIN="" \
+  bash "$SCRIPT")
 assert_contains "an empty object is present" "$OUT_OKSHAPE" "project settings present"
 assert_contains "a null permissions key is present" "$OUT_OKSHAPE" "user settings present"
 

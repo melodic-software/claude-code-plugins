@@ -7,8 +7,33 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ### Changed
 
-- **A captured parity array reused instead of recomputed, and a dead `SCOPE` array removed.**
-  Behavior-preserving tidy from the repo-wide simplification sweep.
+- **`dead-code-scan.sh` loses a write-only `SCOPE` array,** genuine dead code
+  inside the dead-code scanner: declared once, appended to once, read nowhere in
+  the repository. The claim needed care because this file drives five namerefs,
+  which is exactly what could falsify "write-only"; every `local -n` was
+  enumerated and every call site passes a string literal. The script is never
+  sourced and the array was never exported, so no child process could read it
+  either. Proven by re-introducing a read into a pre-edit mirror, which diverged
+  on 54 of 76 invocations.
+- **All four scanner lanes now declare their `read` loop variables `local`.**
+  Only `lane_grep` already did; `lane_vulture`, `lane_gopls` and `lane_knip`
+  were leaking twelve names into the global namespace. None is read outside its
+  own lane body, and no lane recurses or runs in a subshell that relied on the
+  leak.
+- **`open-pr-count.sh` drops a redundant empty-string guard.** An empty string
+  cannot match `^[0-9]+$`, so that case already routed to `emit_unknown`; the
+  only side effect the short-circuit suppressed was `BASH_REMATCH`, which
+  nothing reads before exit. Checked over 41 invocations covering empty output,
+  a lone newline, CRLF, a lone CR, whitespace, leading zeros, negatives, floats,
+  JSON, three nonzero exits and gh absent from PATH.
+
+### Fixed
+
+- **`changed-code-files.test.sh` stops reporting line counts as exit codes.**
+  Two assertions compared counts through `assert_exit`, so a real failure
+  printed "expected: exit 1 / actual: exit 3" for a number of lines. They move
+  to a new `assert_equal` with the same predicate; both were mutation-tested and
+  go red with the corrected message.
 
 ## [0.15.4]
 

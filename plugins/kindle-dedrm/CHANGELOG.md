@@ -7,10 +7,18 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
 
 ### Changed
 
-- **Three identical curl probes folded into one `http_status` helper in `check-drift.sh`.**
-  Behavior-preserving tidy from the repo-wide simplification sweep. A comment written in the same
-  pass was corrected: an unreachable host prints `000000`, not `000`, because curl's `%{http_code}`
-  emits its own `000` and the fallback appends another; a bare `000` means curl is absent.
+- **Comment-only tidyings from the repo-wide sweep.** `firewall.ps1` normalizes
+  the five em dashes in its comment-based help to the `--` form used elsewhere in
+  this repo's PowerShell, leaving the six inside `Write-Output`/`Write-Error`
+  strings untouched because those are emitted bytes; this was the last
+  `.ps1`/`.psm1` in the tree carrying a comment em dash. Its enable and disable
+  guard comments move to present tense, stating the defect as a property of the
+  guard shape so the correct comparison cannot be simplified back into the bug.
+  `firewall.Tests.ps1` replaces a branch back-reference with the artifact the
+  reader has in hand. `sync-prep.sh` drops a comment claiming the script disables
+  the firewall rule: it prints the elevated command for a human to run, which its
+  suite pins at nine call sites. Both `.ps1` files proven comment-only by
+  PowerShell token-stream identity; Pester 10 passed, `sync-prep.test.sh` 73 ok.
 
 ## [0.7.12]
 

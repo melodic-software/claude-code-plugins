@@ -187,6 +187,26 @@ recover_dotdot_prefix() {
   return 1
 }
 
+# True when a RELATIVE cite resolves back inside the citing file's own skill
+# root ($4, e.g. `.claude/skills/foo/` or `plugins/demo/skills/alpha/`). Both
+# relative shapes land here: a `../`-prefixed path resolves directly, while a
+# bare `skills/<self>/` short cite resolves through its recovered `../` prefix.
+# A bare short cite with no prefix to recover counts as self-citation outright,
+# because a plugin-relative cite names the citing file's own root.
+resolves_into_self() {
+  local file="$1" line_no="$2" text="$3" self_root="$4"
+  local full resolved
+  if [[ "$text" == ../* ]]; then
+    full="$text"
+  else
+    # shellcheck disable=SC2310  # recover miss → bare same-root short cite
+    full="$(recover_dotdot_prefix "$file" "$line_no" "$text")" || return 0
+  fi
+  # shellcheck disable=SC2310  # lex_resolve miss → leave as candidate
+  resolved="$(lex_resolve "$(dirname "$file")/$full")" || return 1
+  [[ -n "$resolved" && "$resolved" == "$self_root"* ]]
+}
+
 HITS_FILE="$(mktemp)"
 DOTDOT_RAW="$(mktemp)"
 RAW_HITS="$(mktemp)"
@@ -276,57 +296,29 @@ while IFS= read -r line; do
     mech_filtered=0
     if [[ "$file" =~ ^\.claude/skills/([^/]+)/ ]]; then
       self="${BASH_REMATCH[1]}"
-      if [[ "$text" == *".claude/skills/${self}/"* ]]; then
+      self_root=".claude/skills/${self}/"
+      if [[ "$text" == *"$self_root"* ]]; then
         mech_filtered=1
-      elif [[ "$text" == "skills/${self}/"* ]]; then
-        # Bare skills/<self>/ may be the suffix of a ../-prefixed cross-root
-        # cite; only treat as self-citation when there is no ../ prefix or
-        # resolution lands back in this skill.
-        full=""
-        # shellcheck disable=SC2310  # recover miss → bare plugin-relative cite
-        full="$(recover_dotdot_prefix "$file" "$line_no" "$text")" || full=""
-        if [[ -z "$full" ]]; then
-          mech_filtered=1
-        else
-          # shellcheck disable=SC2310  # lex_resolve miss → leave as candidate
-          resolved="$(lex_resolve "$(dirname "$file")/$full")" || resolved=""
-          if [[ -n "$resolved" && "$resolved" == ".claude/skills/${self}/"* ]]; then
-            mech_filtered=1
-          fi
-        fi
-      elif [[ "$text" == ../* ]]; then
-        # shellcheck disable=SC2310  # lex_resolve miss → empty; not a filter hit
-        resolved="$(lex_resolve "$(dirname "$file")/$text")" || resolved=""
-        if [[ -n "$resolved" && "$resolved" == ".claude/skills/${self}/"* ]]; then
+      # A bare skills/<self>/ may be the suffix of a ../-prefixed cross-root
+      # cite, so both relative shapes go through lexical resolution.
+      elif [[ "$text" == "skills/${self}/"* || "$text" == ../* ]]; then
+        # shellcheck disable=SC2310  # pure predicate; both branches handled
+        if resolves_into_self "$file" "$line_no" "$text" "$self_root"; then
           mech_filtered=1
         fi
       fi
     elif [[ "$file" =~ ^(plugins/[^/]+)/skills/([^/]+)/ ]]; then
       plugin="${BASH_REMATCH[1]}"
       self="${BASH_REMATCH[2]}"
+      self_root="${plugin}/skills/${self}/"
       # Require same plugin root for absolute self-cites so a cross-plugin
       # `.../other/skills/<same-name>/...` match cannot vacate as self-citation
       # merely by skill leaf name (#2716 review).
-      if [[ "$text" == "${plugin}/skills/${self}/"* ||
-        "$text" == *"/${plugin}/skills/${self}/"* ]]; then
+      if [[ "$text" == "$self_root"* || "$text" == *"/$self_root"* ]]; then
         mech_filtered=1
-      elif [[ "$text" == "skills/${self}/"* ]]; then
-        full=""
-        # shellcheck disable=SC2310  # recover miss → bare same-plugin short cite
-        full="$(recover_dotdot_prefix "$file" "$line_no" "$text")" || full=""
-        if [[ -z "$full" ]]; then
-          mech_filtered=1
-        else
-          # shellcheck disable=SC2310  # lex_resolve miss → leave as candidate
-          resolved="$(lex_resolve "$(dirname "$file")/$full")" || resolved=""
-          if [[ -n "$resolved" && "$resolved" == "${plugin}/skills/${self}/"* ]]; then
-            mech_filtered=1
-          fi
-        fi
-      elif [[ "$text" == ../* ]]; then
-        # shellcheck disable=SC2310  # lex_resolve miss → empty; not a filter hit
-        resolved="$(lex_resolve "$(dirname "$file")/$text")" || resolved=""
-        if [[ -n "$resolved" && "$resolved" == "${plugin}/skills/${self}/"* ]]; then
+      elif [[ "$text" == "skills/${self}/"* || "$text" == ../* ]]; then
+        # shellcheck disable=SC2310  # pure predicate; both branches handled
+        if resolves_into_self "$file" "$line_no" "$text" "$self_root"; then
           mech_filtered=1
         fi
       fi

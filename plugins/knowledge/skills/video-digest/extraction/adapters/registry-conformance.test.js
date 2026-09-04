@@ -30,7 +30,7 @@ describe("full-registry conformance", () => {
         `registered adapter "${adapter.id}" has no canonical example URL — add it to CANONICAL_EXAMPLE_URLS`,
       ).toBeTruthy();
     }
-    // …and no stale rows for adapters that no longer exist.
+    // …and the inverse: every example-URL row names a registered adapter.
     const registeredIds = adapters.map((adapter) => adapter.id);
     for (const id of Object.keys(CANONICAL_EXAMPLE_URLS)) {
       expect(registeredIds, `stale example URL row "${id}"`).toContain(id);

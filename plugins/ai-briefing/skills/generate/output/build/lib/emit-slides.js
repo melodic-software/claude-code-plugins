@@ -56,7 +56,6 @@ function bucketKey(heading) {
     if (re.test(h)) return key;
   }
   for (const b of BUCKET_ORDER) {
-    if (h === b.key) return b.key;
     if (h.startsWith(b.key)) return b.key;
     // alias matches
     if (b.key === "xai" && /grok/.test(h)) return b.key;
@@ -75,14 +74,13 @@ const TIER_TITLE_SUFFIX = {
   low: "color & notes",
 };
 
-/** Build news/condensed slides for a tier of items, splitting when >7. */
+/** Build news/condensed slides for a tier of items, splitting past the tier's cap. */
 function tierSlides({ items, tier, providerKey, label }) {
   if (!items || items.length === 0) return [];
   const slides = [];
   const slideType = tier === "high" ? "news" : "condensed";
   const baseTitle = `${label} — ${TIER_TITLE_SUFFIX[tier]}`;
 
-  // HIGH split into chunks of ≤5 with topical title; MED/LOW single slide w/ 2-col when >7
   const MAX_HIGH = 5;
   const MAX_MED = 14;
   if (tier === "high" && items.length > MAX_HIGH) {
@@ -98,7 +96,6 @@ function tierSlides({ items, tier, providerKey, label }) {
       });
     }
   } else if (tier !== "high" && items.length > MAX_MED) {
-    // MED/LOW too dense even in 2-col — split into multiple condensed slides
     for (let i = 0; i < items.length; i += MAX_MED) {
       const chunk = items.slice(i, i + MAX_MED);
       const part = Math.floor(i / MAX_MED) + 1;
@@ -253,8 +250,7 @@ function sortItemsByDate(items) {
 }
 
 function sortTiersByDate(normalized) {
-  for (const bucket of Object.keys(normalized)) {
-    const data = normalized[bucket];
+  for (const [bucket, data] of Object.entries(normalized)) {
     if (!data) continue;
     if (data.high) data.high = sortItemsByDate(data.high);
     if (data.med)  data.med  = sortItemsByDate(data.med);
@@ -274,8 +270,7 @@ function sortTiersByDate(normalized) {
  *   - HIGH > 7 → demote weakest (last) item to MED until HIGH ≤ 7
  *   - MED ≥ 5 AND HIGH < 3 → promote first MED item to HIGH until balance */
 function balanceTiers(normalized) {
-  for (const bucket of Object.keys(normalized)) {
-    const data = normalized[bucket];
+  for (const data of Object.values(normalized)) {
     if (!data) continue;
     const high = data.high || [];
     const med = data.med || [];

@@ -78,10 +78,10 @@ fi
 #   detection reports the move as a delete plus an add, one path per side, and
 #   both plugins get checked.
 #
-# The resolver also carries the fail-closed mechanics this gate used to get
-# only partly right: a failed git diff (or a failure staging/sorting its
-# output) is its own non-zero return rather than an empty list that reads as
-# "nothing changed", and paths arrive NUL-delimited so a name git would
+# The resolver also carries the fail-closed mechanics: a failed git diff (or
+# a failure staging/sorting its output) is its own non-zero return rather
+# than an empty list that reads as "nothing changed", and paths arrive
+# NUL-delimited so a name git would
 # C-quote under the default core.quotePath (non-ASCII bytes, a literal quote)
 # reaches the structural filter verbatim instead of wrapped in quotes that
 # match no pattern.

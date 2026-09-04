@@ -1,8 +1,6 @@
 /**
- * Shared browser infrastructure for course-extraction scripts.
- *
- * Consolidates duplicated browser launch, cookie injection, and auth age
- * checking from extract-course.js and discover-resources.js.
+ * Shared browser infrastructure for course-extraction scripts: browser
+ * launch, cookie injection, and auth age checking.
  */
 
 import { existsSync, mkdirSync, statSync } from "node:fs";

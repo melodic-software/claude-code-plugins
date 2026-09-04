@@ -320,8 +320,8 @@ export async function extractMetadata(page, courseUrl, platformCfg) {
 
 /**
  * Authenticate with Dometrain via Clerk login flow.
+ * @param {import('./auth-session.js').AuthSessionInput} input
  */
-/** @param {import('./auth-session.js').AuthSessionInput} input */
 export async function authenticate({ context, page, course, storageStatePath, platformCfg }) {
   const baseUrl = courseBaseUrl(course.url);
   const firstLesson = course.modules[0].lessons[0];

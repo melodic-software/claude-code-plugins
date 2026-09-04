@@ -7,10 +7,22 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
 ### Changed
 
-- **The statusline tee's five copies of the stamp-read idiom became one builtin helper, and the
-  Stop hook lost a fork.** Behavior-preserving tidy from the repo-wide simplification sweep.
-  Spawn counts were measured with `strace` on every path rather than assumed: the always-on hook
-  drops from 12 to 11 `execve` on its common path and no path increased.
+- **`_rlg_spool_dispatch` derives its spool path instead of repeating it.** The
+  two paths were declared in one `local` statement that spelled the parent
+  directory out twice; `dir` is now declared first and `spool` derived from it.
+  The single-statement form was safe only because it repeated the literal: bash
+  does not expand a same-statement `local` assignment, so deriving `spool` from
+  `$dir` in that same statement would have left it empty and, under this file's
+  `set -u`, killed the statusline with an unbound-variable error on every render.
+  Verified by building that failing variant and running it. Hot-path cost is
+  unchanged, measured with `strace`: identical execve, clone and openat counts
+  across three modes, cold and primed, with the full syscall multiset matching.
+  Emitted bytes byte-identical across 27 artifact comparisons.
+- **Test and comment tidyings.** `statusline-tee.test.sh` collapses four copies
+  of a find-and-count pipeline into one helper, mutation-tested at all four call
+  sites including a plausible off-by-one. Five comments in `statusline-tee.sh`
+  and `bench.test.sh` drop history narration for the present-tense mechanism,
+  each rewritten claim executed rather than assumed, with every measurement kept.
 
 ## [0.7.29]
 

@@ -211,9 +211,15 @@ DETAIL=$(jq -rn --argjson new "$NEW" --arg ph "$NO_STDERR_PLACEHOLDER" '
 # Computed from the per-record class counts, never from a collapsed single
 # value: a group whose only launch-failure record is not its last must still
 # raise the launch flag, and its own line above must still show the mix.
-HAS_LAUNCH=$(jq -rn --argjson new "$NEW" '[$new[] | .launchCount > 0] | any')
-HAS_AMBIGUOUS=$(jq -rn --argjson new "$NEW" '[$new[] | .ambiguousCount > 0] | any')
-HAS_COMPLETED=$(jq -rn --argjson new "$NEW" '[$new[] | .completedCount > 0] | any')
+#
+# All three flags come from ONE jq process over the same document rather than
+# three: a jq spawn is ~140 ms of fork() emulation on Windows Git Bash. `read`
+# assigns every name it is given even when the stream is short, so all three
+# stay defined under `set -u`.
+read -r HAS_LAUNCH HAS_AMBIGUOUS HAS_COMPLETED < <(jq -rn --argjson new "$NEW" '
+  [([$new[] | .launchCount > 0]    | any),
+   ([$new[] | .ambiguousCount > 0] | any),
+   ([$new[] | .completedCount > 0] | any)] | @tsv')
 
 # The diagnosis and the remedy are per-class, so several sentences can appear
 # when one warning batches records of different classes; the per-registration

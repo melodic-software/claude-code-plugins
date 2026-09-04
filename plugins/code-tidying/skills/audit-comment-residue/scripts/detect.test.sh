@@ -397,7 +397,7 @@ fi
 # The v1 record cannot be parsed back reliably: git wraps and C-style-escapes any path holding a
 # non-ASCII byte, a tab, or a backslash, and its "old -> new" rename rendering is byte-identical
 # to an ordinary file literally named "left -> right.py". Reading -z instead removes the encoding
-# entirely. Kept in its own repo so REPO13's parity fixture stays as 0.13.3 wrote it.
+# entirely. Kept in its own repo so REPO13's parity fixture stays untouched.
 REPO14="$TEST_TMPDIR/repo14"
 mkdir -p "$REPO14"
 git -C "$REPO14" init -q

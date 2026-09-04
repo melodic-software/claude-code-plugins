@@ -12,7 +12,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { validateTriageSheet } from "../lib/watch-vision-validation.js";
+import { CELL_IDS, validateTriageSheet } from "../lib/watch-vision-validation.js";
 
 /**
  * @param {string} sliceDir
@@ -51,7 +51,7 @@ export function mergeTriageJson(sliceDir, batchPaths) {
   const sheets = [];
   for (const batchPath of paths) {
     const sheet = JSON.parse(fs.readFileSync(batchPath, "utf8"));
-    const expected = expectedCounts.get(sheet.sheetId) ?? 16;
+    const expected = expectedCounts.get(sheet.sheetId) ?? CELL_IDS.length;
     const errors = validateTriageSheet(sheet, expected);
     if (errors.length > 0) {
       throw new Error(`${batchPath}: ${errors.join("; ")}`);
@@ -79,13 +79,13 @@ const batchPaths = process.argv.slice(3);
 
 if (isMainModule(import.meta.url)) {
   if (!sliceDir) {
-    writeStderr("Usage: node watch/merge-triage-json.js <slice-dir> [batch.json ...]\n");
+    writeStderr("Usage: node watch/merge-triage-json.js <slice-dir> [batch.json ...]");
     process.exit(2);
   }
   try {
-    writeStdout(`${mergeTriageJson(sliceDir, batchPaths)}\n`);
+    writeStdout(mergeTriageJson(sliceDir, batchPaths));
   } catch (error) {
-    writeStderr(`${error instanceof Error ? error.message : String(error)}\n`);
+    writeStderr(error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }

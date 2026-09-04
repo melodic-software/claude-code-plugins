@@ -241,7 +241,7 @@ LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC" \
 
   # Prefer the caller pwd spelling, then git toplevel, then cd-then-pwd.
   # Fail OPEN: a path matching no spelling is returned unchanged (absolute
-  # Location stays well-formed). That was this producer pre-fix mode.
+  # Location stays well-formed).
   function relativize(p) {
     if (repo_root_pwd != "" && index(p, repo_root_pwd "/") == 1)
       return substr(p, length(repo_root_pwd) + 2)

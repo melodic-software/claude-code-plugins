@@ -185,7 +185,7 @@ if [[ "${#EXPECTED_PARTS[@]}" -eq 0 ]]; then
 fi
 
 EXPECTED_JSON="$(printf '%s\n' "${EXPECTED_PARTS[@]}" | jq -s 'add // {}')"
-MALFORMED_JSON="$(printf '%s\n' ${MALFORMED[@]+"${MALFORMED[@]}"} | jq -R . | jq -s 'map(select(. != ""))')"
+MALFORMED_JSON="$(printf '%s\n' ${MALFORMED[@]+"${MALFORMED[@]}"} | jq -R -s 'split("\n") | map(select(. != ""))')"
 
 # --- Tally -----------------------------------------------------------------------
 
@@ -222,7 +222,7 @@ def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
     | ((($e.negatives) == true) or (($ef | length) == 0)) as $isneg
     | (if $isneg then "negative" else ((($ef[0]).class) // "unclassified") end) as $cls
     | (($byc[$id]) // []) as $aa
-    | (if $covdecl and (($run | map(select(. == $id)) | length) == 0)
+    | (if $covdecl and ((($run | any(. == $id))) | not)
        then "declined" else "scored" end) as $state
     | ([$aa[] | . as $a | select([$ef[] | select(matched(.; $a))] | length > 0)]) as $hit
     | ([$aa[] | . as $a | select([$ef[] | select(matched(.; $a))] | length == 0)]) as $miss
@@ -252,7 +252,7 @@ def ratio($n; $d): if $d == 0 then null else ($n / $d) end;
 
 | ([$cases[] | select(.state == "declined") | .case]) as $notrun
 | ([$af[] | .case // "(unnamed)"] | unique
-   | map(. as $c | select(($ids | map(select(. == $c)) | length) == 0))) as $stray
+   | map(. as $c | select(($ids | index($c)) == null))) as $stray
 
 | {
     golden: $golden,

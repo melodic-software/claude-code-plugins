@@ -241,8 +241,8 @@ printf 'current-worktree: %s\n' "$CURRENT_WT"
 printf 'worktree-count: %s\n' "${#WT_LINES[@]}"
 if ((${#WT_LINES[@]})); then
   printf 'worktrees:\n'
-  for local_line in "${WT_LINES[@]}"; do
-    printf '  %s  [%s]\n' "${local_line%%|*}" "${local_line#*|}"
+  for wt_line in "${WT_LINES[@]}"; do
+    printf '  %s  [%s]\n' "${wt_line%%|*}" "${wt_line#*|}"
   done
 fi
 printf 'plugin-versions:\n'

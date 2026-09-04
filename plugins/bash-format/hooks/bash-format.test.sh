@@ -395,23 +395,23 @@ f="${*: -1}"
 printf '#!/usr/bin/env bash\nif true; then\n\techo hi\nfi\n' >"$f"
 STUB2
 chmod +x "$STUBDIR2/shfmt"
-REPO_IGN="$WORK/apply-ignore-transient"
-new_repo "$REPO_IGN"
-printf 'root = true\n[*.sh]\nignore = true\n' >"$REPO_IGN/.editorconfig"
-printf '#!/usr/bin/env bash\nif true; then\n  echo hi\nfi\n' >"$REPO_IGN/x.sh"
+REPO_TRANSIENT="$WORK/apply-ignore-transient"
+new_repo "$REPO_TRANSIENT"
+printf 'root = true\n[*.sh]\nignore = true\n' >"$REPO_TRANSIENT/.editorconfig"
+printf '#!/usr/bin/env bash\nif true; then\n  echo hi\nfi\n' >"$REPO_TRANSIENT/x.sh"
 # Byte-for-byte reference: `$(cat)` strips trailing newlines, so a string
 # compare would report a difference the file does not have.
-cp "$REPO_IGN/x.sh" "$WORK/apply-ignore-transient.expected"
+cp "$REPO_TRANSIENT/x.sh" "$WORK/apply-ignore-transient.expected"
 (
   cd "$UNRELATED" || exit 1
-  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_IGN/x.sh" |
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_TRANSIENT/x.sh" |
     env -u CLAUDE_PROJECT_DIR PATH="$STUBDIR2:$PATH" \
       CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK" >/dev/null
 )
-if cmp -s "$REPO_IGN/x.sh" "$WORK/apply-ignore-transient.expected"; then
+if cmp -s "$REPO_TRANSIENT/x.sh" "$WORK/apply-ignore-transient.expected"; then
   ok "failed --apply-ignore run does not re-format without the flag"
 else
-  fail "opt-out discarded by fallback: $(cat "$REPO_IGN/x.sh")"
+  fail "opt-out discarded by fallback: $(cat "$REPO_TRANSIENT/x.sh")"
 fi
 
 # An UNCLASSIFIED probe failure must not take the plain-format path either. A

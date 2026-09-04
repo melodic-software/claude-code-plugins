@@ -103,8 +103,8 @@ await page.waitForSelector("main#deck");
 await page.evaluate(settleRender);
 
 // Section-based audit (sectioned-scroll deck). One screenshot per <section>.
-// Page-wide URL/headline coverage check (vs old per-slide approach).
-const total = slides.length; // legacy field name — used downstream for PDF page check
+// Page-wide URL/headline coverage check.
+const total = slides.length; // the audit.json `total` key; the PPTX gate compares against it
 const sectionInfo = await page.evaluate(() => {
   const sections = [...document.querySelectorAll("main#deck > section.section")];
   return sections.map((s) => ({ id: s.id, h1: s.querySelector("h1")?.innerText.trim() || "", h2: s.querySelector("h2")?.innerText.trim() || "" }));
@@ -122,12 +122,10 @@ for (let i = 0; i < sectionInfo.length; i++) {
 
 // Page-wide DOM extraction — section grouping concatenates bullets so
 // per-slide structure is gone. Verify URL + headline coverage at page level.
-const pageData = await page.evaluate(() => {
-  return {
-    urls: Array.from(document.querySelectorAll(".news-url")).map((a) => a.href),
-    headlines: Array.from(document.querySelectorAll(".news-headline, .flair-headline, .pattern-headline")).map((s) => s.innerText.trim()),
-  };
-});
+const pageData = await page.evaluate(() => ({
+  urls: Array.from(document.querySelectorAll(".news-url")).map((a) => a.href),
+  headlines: Array.from(document.querySelectorAll(".news-headline, .flair-headline, .pattern-headline")).map((s) => s.innerText.trim()),
+}));
 pageData.sectionOverflows = await page.evaluate(collectSectionOverflows);
 
 await browser.close();

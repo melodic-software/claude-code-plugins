@@ -163,5 +163,7 @@ if (existing === expected) {
   console.log(`Catalog already in sync; ${outputLabel} unchanged.`);
   process.exit(0);
 }
-writeFileSync(outputPath, content.replace(existing, expected));
+// Function replacer: a string replacement would reinterpret `$`-sequences
+// (`$&`, `$'`, ...) inside the generated block.
+writeFileSync(outputPath, content.replace(existing, () => expected));
 console.log(`Catalog regenerated in ${outputLabel}.`);

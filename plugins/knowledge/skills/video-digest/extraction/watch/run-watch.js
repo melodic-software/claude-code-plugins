@@ -116,203 +116,129 @@ export async function runWatchCli(argv) {
     return 1;
   }
 
+  // Temp dirs retained for vision reads in the same session; regen via run-watch when missing.
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-extraction-"));
   const framesDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-frames-"));
   const sheetsDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
 
+  /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
+  let acquisition;
   try {
-    /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
-    let acquisition;
-    try {
-      acquisition = await acquireMedia(url, { workDir, mode: "full" });
-    } catch (error) {
-      if (error instanceof UnsupportedSourceError) {
-        writeStderr(error.message);
-        return 1;
-      }
-      throw error;
-    }
-    if (!acquisition.success || !acquisition.data) {
-      writeStderr(acquisition.error ?? "Acquisition failed");
+    acquisition = await acquireMedia(url, { workDir, mode: "full" });
+  } catch (error) {
+    if (error instanceof UnsupportedSourceError) {
+      writeStderr(error.message);
       return 1;
     }
+    throw error;
+  }
+  if (!acquisition.success || !acquisition.data) {
+    writeStderr(acquisition.error ?? "Acquisition failed");
+    return 1;
+  }
 
-    const envelope = acquisition.data;
-    const { metadata, entries } = envelope;
-    const sliceKey = adapter.extractSliceKey(url, metadata) ?? metadata.id;
-    const videoSlug = deriveVideoSlug(metadata.title, sliceKey);
-    const sliceDir = resolveWorkSliceDir(resolveWorkRoot(), videoSlug);
-    const primary = primaryEntry(envelope);
+  const envelope = acquisition.data;
+  const { metadata, entries } = envelope;
+  const sliceKey = adapter.extractSliceKey(url, metadata) ?? metadata.id;
+  const videoSlug = deriveVideoSlug(metadata.title, sliceKey);
+  const sliceDir = resolveWorkSliceDir(resolveWorkRoot(), videoSlug);
+  const primary = primaryEntry(envelope);
 
-    const tempSession = {
-      workDir,
-      framesDir,
-      contactSheetsDir: sheetsDir,
-      acquiredAt: new Date().toISOString(),
-    };
+  const tempSession = {
+    workDir,
+    framesDir,
+    contactSheetsDir: sheetsDir,
+    acquiredAt: new Date().toISOString(),
+  };
 
-    let state = createWatchState({
-      videoId: metadata.id,
-      videoSlug,
-      sourceUrl: url,
-      title: metadata.title,
-      target,
-      sourceMetadata: sourceMetadataSubset(metadata),
-    });
-    state.tempSession = tempSession;
-    state.status = "acquiring";
-    state.skipResearch = skipResearch;
-    state = markPhaseComplete(state, "acquire", {
-      entryCount: entries.length,
-      videoDownloaded: Boolean(primary?.mediaPath),
-      captionRung: primary?.caption?.rung ?? null,
-      ...(envelope.acquireMetrics ?? {}),
-    });
+  let state = createWatchState({
+    videoId: metadata.id,
+    videoSlug,
+    sourceUrl: url,
+    title: metadata.title,
+    target,
+    sourceMetadata: sourceMetadataSubset(metadata),
+  });
+  state.tempSession = tempSession;
+  state.status = "acquiring";
+  state.skipResearch = skipResearch;
+  state = markPhaseComplete(state, "acquire", {
+    entryCount: entries.length,
+    videoDownloaded: Boolean(primary?.mediaPath),
+    captionRung: primary?.caption?.rung ?? null,
+    ...(envelope.acquireMetrics ?? {}),
+  });
 
-    const harvestedLinks = harvestMetadataLinks(metadata, adapter);
-    const written = await writeEnvelopeTranscriptArtifacts({
-      sliceDir,
-      envelope,
-      sourceUrl: url,
-      sliceKey,
-      transcriptStrategy: adapter.transcriptStrategy,
-      strategyOverride: strategyArg.override,
-      harvestedLinks,
-    });
-    const primaryTranscript =
-      written.transcripts.find((entry) => entry.entryIndex === written.primaryEntryIndex) ??
-      written.transcripts[0] ??
-      null;
-    const degradationMetric = written.transcriptDegradation
-      ? { transcriptDegradation: written.transcriptDegradation }
-      : {};
-    state = markPhaseComplete(
-      state,
-      "transcript",
-      primaryTranscript
-        ? {
-            paragraphCount: primaryTranscript.paragraphCount,
-            cueCount: primaryTranscript.cueCount,
-            transcriptCount: written.transcripts.length,
-            transcriptStrategy: primaryTranscript.strategy,
-            ...degradationMetric,
-          }
-        : {
-            skipped: true,
-            reason: "no transcript-bearing entries",
-            ...degradationMetric,
-          },
-    );
+  const harvestedLinks = harvestMetadataLinks(metadata, adapter);
+  const written = await writeEnvelopeTranscriptArtifacts({
+    sliceDir,
+    envelope,
+    sourceUrl: url,
+    sliceKey,
+    transcriptStrategy: adapter.transcriptStrategy,
+    strategyOverride: strategyArg.override,
+    harvestedLinks,
+  });
+  const primaryTranscript =
+    written.transcripts.find((entry) => entry.entryIndex === written.primaryEntryIndex) ??
+    written.transcripts[0] ??
+    null;
+  state = markPhaseComplete(
+    state,
+    "transcript",
+    primaryTranscript
+      ? {
+          paragraphCount: primaryTranscript.paragraphCount,
+          cueCount: primaryTranscript.cueCount,
+          transcriptCount: written.transcripts.length,
+          transcriptStrategy: primaryTranscript.strategy,
+          ...(written.transcriptDegradation
+            ? { transcriptDegradation: written.transcriptDegradation }
+            : {}),
+        }
+      : {
+          skipped: true,
+          reason: "no transcript-bearing entries",
+          ...(written.transcriptDegradation
+            ? { transcriptDegradation: written.transcriptDegradation }
+            : {}),
+        },
+  );
 
-    /** @param {import('./watch-state.js').WatchState} current */
-    const finishSlice = async (current) => {
-      await fs.mkdir(lanePath(sliceDir, LANES.source), { recursive: true });
-      const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
-      await fs.writeFile(harvestPath, `${JSON.stringify(harvestedLinks, null, 2)}\n`, "utf8");
-      let next = markPhaseComplete(current, "harvest", { linkCount: harvestedLinks.length });
+  /** @param {import('./watch-state.js').WatchState} current */
+  const finishSlice = async (current) => {
+    await fs.mkdir(lanePath(sliceDir, LANES.source), { recursive: true });
+    const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
+    await fs.writeFile(harvestPath, `${JSON.stringify(harvestedLinks, null, 2)}\n`, "utf8");
+    let next = markPhaseComplete(current, "harvest", { linkCount: harvestedLinks.length });
 
-      // Record the skip in the phase map so resume (which derives nextPhase from
-      // watch.json alone) advances past research instead of re-routing into it.
-      if (skipResearch) {
-        next = markPhaseComplete(next, "research", { skipped: true });
-      }
-
-      await writeWatchState(sliceDir, next);
-      const continuationPrompt = await writeContinuationPrompt(sliceDir, next);
-
-      let postBootstrap = null;
-      try {
-        postBootstrap = postBootstrapSlice(sliceDir);
-      } catch (postBootstrapError) {
-        writeStderr(
-          `WARN: post-bootstrap skipped: ${postBootstrapError instanceof Error ? postBootstrapError.message : String(postBootstrapError)}`,
-        );
-      }
-
-      return { state: next, harvestPath, continuationPrompt, postBootstrap };
-    };
-
-    if (!primary?.mediaPath) {
-      // 0-media envelope: well-formed text-only slice — watching/vision cannot
-      // run without media, recorded as skipped so resume advances past them.
-      state = markPhaseComplete(state, "watching", { skipped: true, reason: "no media entries" });
-      state = markPhaseComplete(state, "vision", { skipped: true, reason: "no media entries" });
-      state.status = "researching";
-      const finished = await finishSlice(state);
-      state = finished.state;
-
-      writeStdout(
-        JSON.stringify(
-          {
-            videoSlug,
-            sliceDir,
-            status: state.status,
-            entryCount: entries.length,
-            textOnly: true,
-            transcriptStrategy: primaryTranscript?.strategy ?? null,
-            transcriptDegradation: written.transcriptDegradation,
-            harvestedLinkCount: harvestedLinks.length,
-            skipResearch,
-            tempSession,
-            harvestPath: finished.harvestPath,
-            continuationPromptPath: continuationPromptPath(sliceDir),
-            nextStep: "Continue skill research/synthesis per SKILL.md watch protocol (no media)",
-            continuationPrompt: finished.continuationPrompt,
-            postBootstrap: finished.postBootstrap,
-          },
-          null,
-          2,
-        ),
-      );
-
-      return 0;
+    // Record the skip in the phase map so resume (which derives nextPhase from
+    // watch.json alone) advances past research instead of re-routing into it.
+    if (skipResearch) {
+      next = markPhaseComplete(next, "research", { skipped: true });
     }
 
-    const vttText = primary.caption ? await fs.readFile(primary.caption.path, "utf8") : "";
-    const cues = (vttText ? parseVttSegment(vttText) : []).map((cue) => ({
-      startSec: cue.startSec,
-      endSec: cue.endSec,
-      text: cue.text,
-    }));
+    await writeWatchState(sliceDir, next);
+    const continuationPrompt = await writeContinuationPrompt(sliceDir, next);
 
-    // Persist state + tempSession before the long extraction phase so an
-    // interrupt during ffmpeg/contact-sheet work leaves a watch.json that
-    // detectRecoverableBootstrap can discover (it requires the file to exist).
-    state.status = "watching";
-    await writeWatchState(sliceDir, state);
+    let postBootstrap = null;
+    try {
+      postBootstrap = postBootstrapSlice(sliceDir);
+    } catch (postBootstrapError) {
+      writeStderr(
+        `WARN: post-bootstrap skipped: ${postBootstrapError instanceof Error ? postBootstrapError.message : String(postBootstrapError)}`,
+      );
+    }
 
-    const watching = await orchestrateWatching({
-      videoPath: primary.mediaPath,
-      framesDir,
-      contactSheetsDir: sheetsDir,
-      cues,
-    });
+    return { state: next, harvestPath, continuationPrompt, postBootstrap };
+  };
 
-    state.status = "vision";
-    state.frameSelection = {
-      selectedCount: watching.selectedFrames.length,
-      targetMinFrames: watching.targetMinFrames ?? 0,
-      highVolume: watching.highVolume ?? false,
-      overCap: false,
-      candidateCount: watching.candidateCount,
-    };
-
-    const manifest = await writeWatchingManifest(sliceDir, watching, tempSession);
-    state.artifactPaths = {
-      selectionPath: manifest.selectionPath,
-      coveragePlanPath: manifest.coveragePlanPath,
-      frameCount: manifest.frameCount,
-      contactSheetCount: manifest.contactSheetCount,
-    };
-    state = markPhaseComplete(state, "watching", {
-      selectedCount: watching.selectedFrames.length,
-      highVolume: watching.highVolume ?? false,
-      densificationWindows: watching.densificationWindows.length,
-      frameCount: manifest.frameCount,
-      contactSheetCount: manifest.contactSheetCount,
-      targetMinFrames: watching.targetMinFrames ?? 0,
-    });
-
+  if (!primary?.mediaPath) {
+    // 0-media envelope: well-formed text-only slice — watching/vision cannot
+    // run without media, recorded as skipped so resume advances past them.
+    state = markPhaseComplete(state, "watching", { skipped: true, reason: "no media entries" });
+    state = markPhaseComplete(state, "vision", { skipped: true, reason: "no media entries" });
+    state.status = "researching";
     const finished = await finishSlice(state);
     state = finished.state;
 
@@ -323,20 +249,15 @@ export async function runWatchCli(argv) {
           sliceDir,
           status: state.status,
           entryCount: entries.length,
-          highVolume: watching.highVolume ?? false,
-          selectedCount: watching.selectedFrames.length,
-          targetMinFrames: watching.targetMinFrames ?? 0,
+          textOnly: true,
           transcriptStrategy: primaryTranscript?.strategy ?? null,
           transcriptDegradation: written.transcriptDegradation,
           harvestedLinkCount: harvestedLinks.length,
           skipResearch,
           tempSession,
-          framesDir,
-          contactSheetsDir: sheetsDir,
-          sliceArtifactPaths: manifest,
           harvestPath: finished.harvestPath,
           continuationPromptPath: continuationPromptPath(sliceDir),
-          nextStep: "Continue skill vision absorption per SKILL.md watch protocol",
+          nextStep: "Continue skill research/synthesis per SKILL.md watch protocol (no media)",
           continuationPrompt: finished.continuationPrompt,
           postBootstrap: finished.postBootstrap,
         },
@@ -346,9 +267,86 @@ export async function runWatchCli(argv) {
     );
 
     return 0;
-  } finally {
-    // Temp dirs retained for vision reads in the same session; regen via run-watch when missing.
   }
+
+  const vttText = primary.caption ? await fs.readFile(primary.caption.path, "utf8") : "";
+  const cues = (vttText ? parseVttSegment(vttText) : []).map((cue) => ({
+    startSec: cue.startSec,
+    endSec: cue.endSec,
+    text: cue.text,
+  }));
+
+  // Persist state + tempSession before the long extraction phase so an
+  // interrupt during ffmpeg/contact-sheet work leaves a watch.json that
+  // detectRecoverableBootstrap can discover (it requires the file to exist).
+  state.status = "watching";
+  await writeWatchState(sliceDir, state);
+
+  const watching = await orchestrateWatching({
+    videoPath: primary.mediaPath,
+    framesDir,
+    contactSheetsDir: sheetsDir,
+    cues,
+  });
+
+  state.status = "vision";
+  state.frameSelection = {
+    selectedCount: watching.selectedFrames.length,
+    targetMinFrames: watching.targetMinFrames ?? 0,
+    highVolume: watching.highVolume ?? false,
+    overCap: false,
+    candidateCount: watching.candidateCount,
+  };
+
+  const manifest = await writeWatchingManifest(sliceDir, watching, tempSession);
+  state.artifactPaths = {
+    selectionPath: manifest.selectionPath,
+    coveragePlanPath: manifest.coveragePlanPath,
+    frameCount: manifest.frameCount,
+    contactSheetCount: manifest.contactSheetCount,
+  };
+  state = markPhaseComplete(state, "watching", {
+    selectedCount: watching.selectedFrames.length,
+    highVolume: watching.highVolume ?? false,
+    densificationWindows: watching.densificationWindows.length,
+    frameCount: manifest.frameCount,
+    contactSheetCount: manifest.contactSheetCount,
+    targetMinFrames: watching.targetMinFrames ?? 0,
+  });
+
+  const finished = await finishSlice(state);
+  state = finished.state;
+
+  writeStdout(
+    JSON.stringify(
+      {
+        videoSlug,
+        sliceDir,
+        status: state.status,
+        entryCount: entries.length,
+        highVolume: watching.highVolume ?? false,
+        selectedCount: watching.selectedFrames.length,
+        targetMinFrames: watching.targetMinFrames ?? 0,
+        transcriptStrategy: primaryTranscript?.strategy ?? null,
+        transcriptDegradation: written.transcriptDegradation,
+        harvestedLinkCount: harvestedLinks.length,
+        skipResearch,
+        tempSession,
+        framesDir,
+        contactSheetsDir: sheetsDir,
+        sliceArtifactPaths: manifest,
+        harvestPath: finished.harvestPath,
+        continuationPromptPath: continuationPromptPath(sliceDir),
+        nextStep: "Continue skill vision absorption per SKILL.md watch protocol",
+        continuationPrompt: finished.continuationPrompt,
+        postBootstrap: finished.postBootstrap,
+      },
+      null,
+      2,
+    ),
+  );
+
+  return 0;
 }
 
 if (isMainModule(import.meta.url)) {

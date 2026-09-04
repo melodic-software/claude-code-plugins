@@ -327,12 +327,12 @@ assert_eq "a digitless May is treated exactly like a digitless June" \
 # may_form() reports TWO signals through one RSTART, and the caller reads that
 # RSTART to decide whether the match it accepted began inside the window. So the
 # function has to hand back the LEFTMOST of the two, or a signal the caller would
-# have rejected can hide one it would have taken: a digit-adjacent "may" out in
-# the 9 characters of slack used to be tested first and returned first, so the
-# capital "May" sitting inside the window was never consulted and the line
-# stopped being a candidate. A weaker second date signal REMOVED candidacy, which
+# have rejected can hide one it would have taken: test the digit branch first and
+# return on it, and a digit-adjacent "may" out in the 9 characters of slack keeps
+# the caller from ever consulting the capital "May" sitting inside the window, so
+# the line stops being a candidate. A weaker second date signal REMOVING candidacy
 # is the one direction this detector must not move in. Trying the capital first
-# only mirrors the bug; leftmost is what fixes it.
+# only mirrors that; leftmost is what avoids both.
 #
 # The offsets below are measured, not eyeballed. The keyword match ends at column
 # 9 of the line, so window offset = column - 8, wlen is 60 and the slice is

@@ -28,8 +28,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 SCRIPT="${FLEET_DOC_GRAMMAR_SCRIPT:-plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh}"
 SKILL="${FLEET_DOC_GRAMMAR_SKILL:-plugins/repo-fleet-hygiene/skills/audit/SKILL.md}"
 
-mode="${1:-}"
-case "$mode" in
+case "${1:-}" in
 --check) ;;
 *)
   echo "usage: $(basename "$0") --check" >&2

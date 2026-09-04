@@ -92,7 +92,7 @@ function Write-ElevationBanner {
     $invokeScript = Join-Path $SkillRoot 'scripts\windows\Invoke-MachineHealthCheck.ps1'
     $lines.Add(' To run elevated:')
     $lines.Add('   Open Windows Terminal as Administrator, then:')
-    $lines.Add("     pwsh -NoProfile -File '$invokeScript' \")
+    $lines.Add("     pwsh -NoProfile -File '$invokeScript' ``")
     if ($StateBase) {
         $lines.Add("          -OutputBase '$OutputBase' -StateBase '$StateBase'")
     } else {

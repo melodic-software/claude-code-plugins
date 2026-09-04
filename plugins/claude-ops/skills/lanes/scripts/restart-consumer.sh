@@ -358,12 +358,19 @@ require_jq() {
   }
 }
 
-# gh is needed whenever telemetry comes off the network — which a fixture-fed
-# check does not, and a fixture-fed `run` does only for its own status comment.
+# Does every telemetry read this run performs come from --telemetry-json? Then
+# nothing goes off the network: no gh binary is needed and no target repo has to
+# be resolved. A real `run` still upserts its OWN status comment over the
+# network, so the action and the two suppressors are part of the test. One
+# definition, because gh's prerequisite check and the target-repo resolution
+# must never disagree about whether this run touches the forge.
+telemetry_fully_fixtured() {
+  [[ -n "$TELEMETRY_JSON_FILE" ]] || return 1
+  [[ "$ACTION" != "run" ]] || ((NO_TELEMETRY)) || ((DRY_RUN))
+}
+
 require_gh() {
-  if [[ -n "$TELEMETRY_JSON_FILE" ]]; then
-    [[ "$ACTION" != "run" || $NO_TELEMETRY -eq 1 || $DRY_RUN -eq 1 ]] && return 0
-  fi
+  telemetry_fully_fixtured && return 0
   command -v gh >/dev/null 2>&1 || {
     err "gh not found (required unless --telemetry-json covers every read)"
     exit 4
@@ -434,7 +441,7 @@ valid_repo_slug() {
 
 resolve_target_repo() {
   if [[ -z "$TARGET_REPO" ]]; then
-    [[ -n "$TELEMETRY_JSON_FILE" && ($NO_TELEMETRY -eq 1 || $ACTION != "run" || $DRY_RUN -eq 1) ]] && return 0
+    telemetry_fully_fixtured && return 0
     # `gh repo view` takes an [<owner>/]<repo> argument, never a path: given a
     # directory it parses the leading path segment as a HOST and tries to reach
     # it. The repo is selected by the working directory instead, so run it there.
@@ -495,22 +502,33 @@ OWN_LOCK=0
 # and the age bound only gates when we bother to ask.
 LOCK_STALE_SECONDS=3600
 
-# shellcheck disable=SC2329  # invoked indirectly: acquire_lock installs it as the EXIT trap
-release_lock() {
-  ((OWN_LOCK)) || return 0
-  OWN_LOCK=0
+# Best-effort teardown: every file a lock holder may have written, then the
+# directory itself. One definition, so a lock file added to the writer can never
+# be forgotten in one of the two removers (the EXIT release and the reclaim).
+remove_lock_dir() {
   rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" "$LOCK_DIR/boot-id" 2>/dev/null || true
   rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 
-# Numeric lock-file field (the acquired-at stamp, the owner-pid); 0 when the
-# file is absent or its content is not a bare non-negative integer.
-lock_uint() { # <lock-file basename>
-  local v=""
-  v="$(tr -d '\r\n' <"$LOCK_DIR/$1" 2>/dev/null)" || v=""
-  [[ "$v" =~ ^[0-9]+$ ]] || v=0
-  printf '%s' "$v"
+# shellcheck disable=SC2329  # invoked indirectly: acquire_lock installs it as the EXIT trap
+release_lock() {
+  ((OWN_LOCK)) || return 0
+  OWN_LOCK=0
+  remove_lock_dir
 }
+
+# A lock file holding a single non-negative integer. Missing, unreadable, or
+# holding anything else all read as 0, which the callers treat as "not recorded"
+# rather than as a value.
+lock_uint_file() {
+  local value=""
+  value="$(tr -d '\r\n' <"$1" 2>/dev/null)" || value=""
+  [[ "$value" =~ ^[0-9]+$ ]] || value=0
+  printf '%s' "$value"
+}
+
+lock_stamp() { lock_uint_file "$LOCK_DIR/acquired-at"; }
+lock_owner_pid() { lock_uint_file "$LOCK_DIR/owner-pid"; }
 
 # An identity for THIS boot of the machine, recorded beside the owner PID.
 # `kill -0` proves only that SOME process currently holds that number: after the
@@ -589,8 +607,8 @@ acquire_lock() {
       err "cannot create the lock directory: $LOCK_DIR"
       return 2
     fi
-    stamp="$(lock_uint acquired-at)"
-    pid="$(lock_uint owner-pid)"
+    stamp="$(lock_stamp)"
+    pid="$(lock_owner_pid)"
     # A loser that finds NO stamp adopts one at `now` rather than reclaiming: the
     # holder may have won the mkdir microseconds ago and not written its stamp
     # yet, and stealing that lock is the very duplication this guards.
@@ -606,8 +624,7 @@ acquire_lock() {
       return 1
     fi
     warn "reclaiming a lock held since epoch $stamp with no live run to release it: $LOCK_DIR"
-    rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" "$LOCK_DIR/boot-id" 2>/dev/null || true
-    rmdir "$LOCK_DIR" 2>/dev/null || true
+    remove_lock_dir
     mkdir "$LOCK_DIR" 2>/dev/null || return 1
   fi
   OWN_LOCK=1
@@ -1165,6 +1182,15 @@ Run ledger: \`<data-dir>/$(ledger_relpath)\` on the machine running this consume
     warn "the consumer's telemetry upsert failed (the restarts themselves are unaffected)"
 }
 
+# The run line an operator (or a log scraper) greps for, then the decision
+# table's head. A lock-skipped tick prints the same shape as a full run, so both
+# report as the same document rather than two dialects of one.
+print_report_header() {
+  info "restart-consumer: $ACTION on ${TARGET_REPO:-<fixtures>} at $(iso_utc "$1")"
+  info "| lane | decision | detail |"
+  info "|---|---|---|"
+}
+
 # --- print-schedule -----------------------------------------------------------
 action_print_schedule() {
   local self claude_bin run_cmd win_repo win_claude data_dir opts opts_sq
@@ -1287,9 +1313,7 @@ main() {
     fi
     if ((lock_rc != 0)); then
       warn "another restart-consumer run holds the lock ($LOCK_DIR) — skipping this tick"
-      info "restart-consumer: $ACTION on ${TARGET_REPO:-<fixtures>} at $(iso_utc "$now")"
-      info "| lane | decision | detail |"
-      info "|---|---|---|"
+      print_report_header "$now"
       info "| (none) | lock-held | another run holds $LOCK_DIR; skipped |"
       exit 0
     fi
@@ -1298,9 +1322,7 @@ main() {
   n="$(jq -r '(.lanes // []) | length' "$CONFIG")"
   for ((i = 0; i < n; i++)); do process_lane "$i" "$now"; done
 
-  info "restart-consumer: $ACTION on ${TARGET_REPO:-<fixtures>} at $(iso_utc "$now")"
-  info "| lane | decision | detail |"
-  info "|---|---|---|"
+  print_report_header "$now"
   if ((${#REPORT_ROWS[@]})); then
     printf '%s\n' "${REPORT_ROWS[@]}"
   else

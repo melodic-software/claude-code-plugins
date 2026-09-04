@@ -19,6 +19,7 @@ const COLOR_KEYS = [
   "textMuted",
   "divider",
 ];
+const FONT_KEYS = ["pptFontHead", "pptFontBody", "htmlFontHead", "htmlFontBody"];
 
 const brandSchema = z
   .object({
@@ -35,13 +36,13 @@ const fontSchema = z
   .min(1)
   .max(200)
   .regex(/^[A-Za-z0-9 ',._-]+$/, "font stacks may contain only portable font-family characters");
-const themeShape = Object.fromEntries(
-  COLOR_KEYS.map((key) => [key, z.string().regex(/^[0-9A-Fa-f]{6}$/).optional()]),
-);
-for (const key of ["pptFontHead", "pptFontBody", "htmlFontHead", "htmlFontBody"]) {
-  themeShape[key] = fontSchema.optional();
-}
-const themeSchema = z.object(themeShape).strict();
+const hexColorSchema = z.string().regex(/^[0-9A-Fa-f]{6}$/);
+const themeSchema = z
+  .object({
+    ...Object.fromEntries(COLOR_KEYS.map((key) => [key, hexColorSchema.optional()])),
+    ...Object.fromEntries(FONT_KEYS.map((key) => [key, fontSchema.optional()])),
+  })
+  .strict();
 const overlaySchema = z
   .object({
     brand: brandSchema.optional(),

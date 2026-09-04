@@ -14,7 +14,7 @@ from typing import Iterator, List, NamedTuple, NoReturn, Optional, Tuple
 
 MIN_PYTHON = (3, 9)
 
-CLAIM_LABEL = re.compile(r"^\*\*C(\d+)\.\*\*(.*)$")
+CLAIM_LABEL = re.compile(r"^\*\*C(\d+)\.\*\*")
 ATX_H2 = re.compile(r"^##[ \t]+(.+?)\s*$")
 NONE_MARKERS = frozenset(
     {
@@ -49,7 +49,6 @@ class Fence(NamedTuple):
 class Claim(NamedTuple):
     number: int
     label_line: int
-    rest: str
     fence: Optional[Fence]
     unfenced_blockquote: bool
     unfenced_inline_code: bool
@@ -167,12 +166,14 @@ def extract_fences(text: str, *, start_line: int = 1) -> List[Fence]:
 def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
     """Parse ``**CN.**`` labels and the fence that must follow each one."""
     lines = split_lines(section_body)
-    label_idxs = [i for i, line in enumerate(lines) if CLAIM_LABEL.match(line)]
+    labels: List[Tuple[int, "re.Match[str]"]] = []
+    for i, line in enumerate(lines):
+        match = CLAIM_LABEL.match(line)
+        if match:
+            labels.append((i, match))
     claims: List[Claim] = []
-    for n, idx in enumerate(label_idxs):
-        match = CLAIM_LABEL.match(lines[idx])
-        assert match is not None
-        end = label_idxs[n + 1] if n + 1 < len(label_idxs) else len(lines)
+    for n, (idx, match) in enumerate(labels):
+        end = labels[n + 1][0] if n + 1 < len(labels) else len(lines)
         block = "\n".join(lines[idx + 1 : end])
         block_start = start_line + idx + 1
         try:
@@ -189,7 +190,6 @@ def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
             Claim(
                 number=int(match.group(1)),
                 label_line=start_line + idx,
-                rest=match.group(2),
                 fence=fence,
                 unfenced_blockquote=has_bq,
                 unfenced_inline_code=has_inline,

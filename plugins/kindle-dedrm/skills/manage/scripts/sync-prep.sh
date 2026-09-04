@@ -35,7 +35,8 @@ EOF
   exit 0
 fi
 
-# Disable firewall rule (requires admin)
+# Print the elevated disable command; this script never runs it. sync-prep.test.sh
+# pins that: it asserts no rm/pwsh/powershell/netsh/icacls call is made from here.
 echo "[sync-prep] disabling firewall rule (admin required)..."
 echo
 echo "  Open elevated PowerShell and run:"

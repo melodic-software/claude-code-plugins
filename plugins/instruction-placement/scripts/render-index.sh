@@ -113,12 +113,8 @@ rule_title() {
       exit
     }
   ' "$file" 2>/dev/null)"
-  if [[ -z "$title" ]]; then
-    title="$(grep -m1 '^# ' "$file" 2>/dev/null | sed 's/^#[[:space:]]*//')"
-  fi
-  if [[ -z "$title" ]]; then
-    title="$(basename "$file" .md)"
-  fi
+  [[ -n "$title" ]] || title="$(grep -m1 '^# ' "$file" 2>/dev/null | sed 's/^#[[:space:]]*//')"
+  [[ -n "$title" ]] || title="$(basename "$file" .md)"
   # Pipes would break the markdown table row.
   printf '%s' "${title//|/\\|}"
 }
@@ -222,8 +218,7 @@ PREAMBLE
     local sorted
     sorted="$(printf '%s\n' "${rows[@]}" | LC_ALL=C sort)"
     if ((${#rows[@]} <= MAX_ROWS)); then
-      printf '%s\n' "$sorted"
-      printf '\n'
+      printf '%s\n\n' "$sorted"
     else
       printf '%s\n' "$sorted" | head -n "$MAX_ROWS"
       printf '\n'
@@ -349,20 +344,21 @@ TARGET_NORM="$TARGET"
 if [[ -n "$TARGET" ]]; then
   target_dir="$(dirname -- "$TARGET")"
   target_base="$(basename -- "$TARGET")"
+  # `pwd` prints a trailing slash only for `/` itself, so stripping one keeps
+  # the root case from joining as `//base`.
   if target_dir_norm="$(cd "$target_dir" 2>/dev/null && pwd)"; then
-    if [[ "$target_dir_norm" == "/" ]]; then
-      TARGET_NORM="/$target_base"
-    else
-      TARGET_NORM="$target_dir_norm/$target_base"
-    fi
+    TARGET_NORM="${target_dir_norm%/}/$target_base"
   fi
 fi
+
+# `reachable` and `write` both name the target relative to --root, which the
+# `cd` above made the working directory.
+REL_TARGET="${TARGET_NORM#"$PWD"/}"
 
 # `reachable` answers a question about wiring, not about content, so it runs
 # before the (comparatively expensive) block render.
 if [[ "$SUBCOMMAND" == "reachable" ]]; then
-  rel_target="${TARGET_NORM#"$PWD"/}"
-  ip_index_target_loaded "." "$rel_target"
+  ip_index_target_loaded "." "$REL_TARGET"
   exit $?
 fi
 
@@ -412,7 +408,7 @@ write)
       "$TARGET" "$begin_count" >&2
     exit 1
   fi
-  if [[ "$begin_count" -gt 0 ]]; then
+  if [[ "$begin_count" -eq 1 ]]; then
     if ! grep -qF "$END_MARKER" "$TARGET"; then
       rm -f "$tmp"
       printf 'ERROR: %s has a begin marker with no end marker; refusing to guess its extent\n' \
@@ -442,8 +438,7 @@ write)
     printf 'WROTE\t%s\n' "$TARGET"
     # An index Claude Code never loads is the whole point silently not working,
     # so say so at the moment of writing rather than leaving it for a later gate.
-    rel_written="${TARGET_NORM#"$PWD"/}"
-    if ! reach="$(ip_index_target_loaded "." "$rel_written")"; then
+    if ! reach="$(ip_index_target_loaded "." "$REL_TARGET")"; then
       printf 'WARNING\t%s\n' "${reach#*$'\t'}" >&2
     fi
     exit 0

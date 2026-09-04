@@ -2,7 +2,7 @@
 # Read-only repo hygiene inventory for the clean scan tier.
 #
 # Output contract (stable labels):
-#   Category: <Caches|Build artifacts|Git>
+#   Category: <Caches|Build artifacts>
 #   Path: <relative-path>
 #   Size: <human size | ->
 #   Tier: <caches|build|git>

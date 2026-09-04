@@ -3,22 +3,32 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.5]
+## [0.36.1]
 
 ### Fixed
 
-- **`check-open-questions.sh` could report a deferred question as ABSENT when it was present.** The
-  lookup was `printf '%s' "$ids" | grep -qE …` under `set -uo pipefail`. `grep -q` exits as soon as
-  it matches, printf is killed by SIGPIPE, and pipefail promotes the pipeline to 141 — which the
-  enclosing `if !` reads as "not found", so the script dies ungradeable on a Brief that is actually
-  correct. Measured with the id on the section's first line: fine at 1 KB, wrong from ~100 KB, and
-  a hard pipeline 141 from ~250 KB. Small Briefs pass, so this only appeared as a plan grew, and no
-  test covered it. Now a builtin `[[ =~ ]]`, which reads the string directly and cannot SIGPIPE.
+- **`interview-defenses.test.sh`: one pin label overstated what it covers.** The
+  label read "unattended ladder rungs 4-5" above a pin that matches rung 4 only.
+  `pin_exact` takes a single whole-line argument, so it cannot cover two lines;
+  an instrumented run confirms one match. Rung 5 is pinned by the call directly
+  below, so coverage was never short, but the label is what a failing run prints
+  to name the lost defense, and an overstated one sends the reader to the wrong
+  line. Proven label-only by comparing the pinned line numbers on both sides:
+  identical, differing only in the label text.
+
+## [0.36.0]
 
 ### Changed
 
-- Per-row subprocesses dropped and fixture setup deduped across the scripts and suites, from the
-  repo-wide simplification sweep.
+- **`interview`: emoji anchors on by default.** `use_emoji_question_markers`
+  stays a userConfig boolean and now defaults to `true`, matching the upstream
+  mattpocock/skills `grilling` ❓/➡️ shape. Inline rounds lead with those
+  prefixes when the option is true; set it false for plain text. The option
+  stays presentational: `Q<N>` is still the answer handle, and the ledger,
+  register, and Brief stay undecorated. An existing install that already stored
+  `false` keeps plain text until reconfigured. The Stance-section digest in
+  `tests/interview-defenses.test.sh` is refreshed for the same wording change;
+  the in-round no-silent-resolve defense is unchanged.
 
 ## [0.35.4]
 

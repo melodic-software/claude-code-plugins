@@ -117,13 +117,46 @@ fi
 
 # The contract's literals, kept together so the whole of it reads as one block
 # rather than as constants scattered through the assertions.
-RESOLVER_JOB="scope"
-OUTPUT_NAME="run_full"
+TAB_LIT="$(printf '\t')"
+RESOLVER_JOB="changes"
 DETECT_STEP_ID="detect"
-OUTPUT_EXPR="\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' }}"
-REFERENCE="needs.${RESOLVER_JOB}.outputs.${OUTPUT_NAME}"
-WORK_FORM="${REFERENCE} == 'true'"
-SKIP_FORM="${REFERENCE} == 'false'"
+# The resolver publishes a TABLE of boolean-string outputs, not one. Every
+# polarity decision in the workflow lives in this table, and consumers only
+# ever compare a table entry against 'true' or 'false'. Each row is pinned by
+# its exact expression: an output the table does not name is a defect, because
+# it is a polarity decision made somewhere this gate cannot see.
+#
+# `run_full` is the root: it is the only row derived from the detector, and
+# every other row narrows it. The narrowing rows read `steps.match.outputs`
+# (the change-detection action) through fromJSON with a `|| '{}'` default and
+# compare `!= 'false'`, never `== 'true'`, so an unset group runs the lane.
+OUTPUT_NAME="run_full"
+OUTPUT_TABLE="\
+run_full${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' }}
+run_tests${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
+run_shell${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' }}
+run_node${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
+run_python${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
+run_windows${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false') }}
+run_workflows${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}"
+# The single required context. Everything reachable from its `needs` is a
+# REQUIRED lane, and that closure is what decides whether a job-level condition
+# is a defect (check 5c) and whether a lane may opt out of coverage (check 8).
+AGGREGATE_JOB="ci-status"
+LANE_OPT_OUT="lane-coverage-ok:"
+REFERENCE_PREFIX="needs.${RESOLVER_JOB}.outputs."
+REFERENCE="${REFERENCE_PREFIX}${OUTPUT_NAME}"
+
+# The table's row names, space-joined, for the parser. Defined here rather than
+# with the other table readers below because the parser runs before them.
+table_names_spaced() {
+  local tn out=""
+  while IFS="$TAB_LIT" read -r tn _; do
+    [[ -n "$tn" ]] || continue
+    out+="${out:+ }$tn"
+  done <<<"$OUTPUT_TABLE"
+  printf '%s' "$out"
+}
 
 errors=0
 report() {
@@ -151,7 +184,7 @@ report() {
 #   STEPOUT  <job>                        reads a step-level docs_only output
 #   ERR      <message>
 parsed="$(
-  awk -v resolver="$RESOLVER_JOB" -v output_name="$OUTPUT_NAME" '
+  awk -v resolver="$RESOLVER_JOB" -v output_names="$(table_names_spaced)" -v lane_opt_out="$LANE_OPT_OUT" '
     function trim(s) { sub(/^[[:blank:]]+/, "", s); sub(/[[:blank:]]+$/, "", s); return s }
     function indent_of(s,   t) { t = s; sub(/[^[:blank:]].*$/, "", t); return length(t) }
 
@@ -174,9 +207,11 @@ parsed="$(
     # spelling this file does not model must read as UNSANCTIONED, never as
     # absent — a whitelist that only fires on what it recognizes silently ignores
     # everything else, which is the opposite of rejecting it.
-    function mentions_output(line,   l) {
+    function mentions_output(line,   l, i) {
       l = tolower(line)
-      if (index(l, outname) > 0) { return 1 }
+      for (i = 1; i <= n_outnames; i++) {
+        if (index(l, outnames[i]) > 0) { return 1 }
+      }
       if (index(l, "needs") > 0 && index(l, resolver_lc) > 0 && index(l, "outputs") > 0) { return 1 }
       return 0
     }
@@ -198,10 +233,18 @@ parsed="$(
     BEGIN {
       injobs = 0; seen_jobs = 0; job = ""; step = 0
       needs_state = 0; outputs_state = 0; scalar = -1
+      pending_laneok = 0; carried_laneok = 0
+      # A reason after the colon is mandatory, exactly as check-lane-coverage.sh
+      # requires: a bare marker names no lane and excuses nothing.
+      laneok_re = "#[[:blank:]]*" lane_opt_out "[[:blank:]]*[^[:blank:]]"
       resolver_lc = tolower(resolver)
-      outname = tolower(output_name)
-      if (resolver_lc == "" || outname == "") {
-        print "ERR\tinternal: resolver job or output name was not supplied to the parser"
+      # Every table name, so a BARE mention of any output — in an env value, an
+      # echo, a run script — reaches the exact-shape check rather than being
+      # invisible to it. Matching only the root output would have delivered the
+      # over-matching this header promises for one row out of seven.
+      n_outnames = split(tolower(output_names), outnames, " ")
+      if (resolver_lc == "" || n_outnames == 0) {
+        print "ERR\tinternal: resolver job or output names were not supplied to the parser"
         exit 1
       }
     }
@@ -220,11 +263,27 @@ parsed="$(
     # A column-0 key closes the jobs: mapping.
     /^[^[:blank:]#]/ { injobs = 0; needs_state = 0; outputs_state = 0; next }
 
+    # A blank line breaks the contiguous comment block above a job key, which
+    # is what carries a lane-coverage opt-out. Matches how
+    # scripts/check-lane-coverage.sh reads the same marker, so the two gates
+    # cannot disagree about which job an opt-out belongs to.
+    /^[[:blank:]]*$/ { pending_laneok = 0 }
+
     # --- comments are prose about the contract, never part of it ------------
     # They are skipped for every purpose EXCEPT that they must not terminate a
-    # job body: a comment sits happily between two steps.
+    # job body (a comment sits happily between two steps) and that a
+    # lane-coverage opt-out in the block directly above a job key attaches to
+    # that job. The marker is READ here and judged in check 8; a comment still
+    # satisfies no part of the contract itself.
     { probe = trim($0) }
-    probe ~ /^#/ { next }
+    probe ~ /^#/ {
+      if (probe ~ laneok_re) { pending_laneok = 1 }
+      next
+    }
+
+    # Any non-comment line consumes whatever the comment block above it
+    # carried, so the marker reaches the job key it precedes and nothing else.
+    { carried_laneok = pending_laneok; pending_laneok = 0 }
 
     # --- block-sequence needs: ----------------------------------------------
     needs_state == 1 {
@@ -276,6 +335,10 @@ parsed="$(
         needs_state = 0
         outputs_state = 0
         print "JOB\t" job
+        # Both spellings check-lane-coverage.sh accepts: the marker in the
+        # contiguous comment block above the key, and a trailing comment on
+        # the key itself.
+        if (carried_laneok || $0 ~ laneok_re) { print "LANEOK\t" job }
         next
       }
       print "ERR\tunrecognized key under jobs: " $0
@@ -359,7 +422,7 @@ TAB="$(printf '\t')"
 # process per lookup, which is measurable on a large workflow.
 REC_ERR=""; REC_JOB=""; REC_USES=""; REC_NEEDSFLOW=""; REC_NEEDSITEM=""
 REC_OUTPUT=""; REC_INVOKE=""; REC_SELFTEST=""; REC_COE=""; REC_STEPID=""
-REC_REF=""; REC_STEPOUT=""; REC_JOBIF=""
+REC_REF=""; REC_STEPOUT=""; REC_JOBIF=""; REC_LANEOK=""
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   case "$line" in
@@ -376,6 +439,7 @@ while IFS= read -r line; do
   "REF$TAB"*) REC_REF+="${line#*"$TAB"}"$'\n' ;;
   "STEPOUT$TAB"*) REC_STEPOUT+="${line#*"$TAB"}"$'\n' ;;
   "JOBIF$TAB"*) REC_JOBIF+="${line#*"$TAB"}"$'\n' ;;
+  "LANEOK$TAB"*) REC_LANEOK+="${line#*"$TAB"}"$'\n' ;;
   # The awk pass emits no other record kind; a line that reaches here means the
   # two halves have drifted, which is not something to guess past.
   *)
@@ -387,6 +451,48 @@ done <<<"$parsed"
 
 # Newline-delimited membership test without forking.
 has_line() { case $'\n'"$1" in *$'\n'"$2"$'\n'*) return 0 ;; *) return 1 ;; esac; }
+
+# --- the output table, read three ways --------------------------------------
+
+# table_has <name>: is <name> a sanctioned output?
+table_has() {
+  local tn
+  while IFS="$TAB" read -r tn _; do
+    [[ "$tn" == "$1" ]] && return 0
+  done <<<"$OUTPUT_TABLE"
+  return 1
+}
+
+# table_names_list: the row names, for a message.
+table_names_list() {
+  local tn out=""
+  while IFS="$TAB" read -r tn _; do
+    [[ -n "$tn" ]] || continue
+    out+="${out:+, }$tn"
+  done <<<"$OUTPUT_TABLE"
+  printf '%s' "$out"
+}
+
+# parse_consumer_form <bare-expression>: recognises exactly
+# `needs.<resolver>.outputs.<name> == '<true|false>'`, setting CF_NAME and
+# CF_VALUE. Deliberately whole-string: a prefix match would accept a longer
+# expression whose extra clauses this gate never reads.
+CF_NAME=""; CF_VALUE=""
+parse_consumer_form() {
+  local t="$1" rest
+  CF_NAME=""; CF_VALUE=""
+  [[ "$t" == "${REFERENCE_PREFIX}"* ]] || return 1
+  rest="${t#"$REFERENCE_PREFIX"}"
+  CF_NAME="${rest%% *}"
+  [[ -n "$CF_NAME" && "$CF_NAME" != *[^A-Za-z0-9_-]* ]] || { CF_NAME=""; return 1; }
+  rest="${rest#"$CF_NAME"}"
+  case "$rest" in
+  " == 'true'") CF_VALUE="true" ;;
+  " == 'false'") CF_VALUE="false" ;;
+  *) CF_NAME=""; return 1 ;;
+  esac
+  return 0
+}
 
 # Unique, space-joined rendering of a newline-delimited list, for messages.
 uniq_list() {
@@ -419,6 +525,15 @@ if [[ -z "$jobs_all" ]]; then
 fi
 if ! has_line "$jobs_all" "$RESOLVER_JOB"; then
   echo "check-docs-only-gate: resolving job '$RESOLVER_JOB' is not defined in $WORKFLOW" >&2
+  exit 2
+fi
+# Inconclusive for the same reason, and refused here rather than reported as a
+# defect later: without the aggregate the required-lane closure is empty, and an
+# empty closure makes the job-level-condition rule and the lane opt-out rule
+# both pass every workflow. One defect line beside two rules that silently
+# stopped asking is the nominal closure this gate exists to deny.
+if ! has_line "$jobs_all" "$AGGREGATE_JOB"; then
+  echo "check-docs-only-gate: aggregate job '$AGGREGATE_JOB' is not defined in $WORKFLOW, so the required-lane closure cannot be computed" >&2
   exit 2
 fi
 
@@ -457,19 +572,34 @@ fi
 
 # --- 2. FAIL-CLOSED DEFAULT -------------------------------------------------
 
-published_expr=""
-published_found=0
-while IFS="$TAB" read -r ojob oname oexpr; do
-  [[ "$ojob" == "$RESOLVER_JOB" && "$oname" == "$OUTPUT_NAME" ]] || continue
-  published_found=1
-  published_expr="$oexpr"
-done <<<"$REC_OUTPUT"
+# Every table row must be published, by exactly its expression; and the
+# resolver must publish nothing the table does not name. The first half is what
+# makes an unset detector output resolve toward RUNNING; the second is what
+# keeps a new polarity decision from being introduced where nothing checks it.
 
-if [[ "$published_found" -eq 0 ]]; then
-  report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes no '$OUTPUT_NAME' output. Consumers would read an empty string, which skips both the work step and its not-applicable reporter."
-elif [[ "$published_expr" != "$OUTPUT_EXPR" ]]; then
-  report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$OUTPUT_NAME: $published_expr', expected exactly '$OUTPUT_NAME: $OUTPUT_EXPR'. That expression is the contract: an UNSET detector output (the detector never ran, or failed) renders as 'true', so the full suite runs. Any other derivation can resolve an unset detector toward skipping."
-fi
+while IFS="$TAB" read -r tname texpr; do
+  [[ -n "$tname" ]] || continue
+  published_expr=""
+  published_found=0
+  while IFS="$TAB" read -r ojob oname oexpr; do
+    [[ "$ojob" == "$RESOLVER_JOB" && "$oname" == "$tname" ]] || continue
+    published_found=1
+    published_expr="$oexpr"
+  done <<<"$REC_OUTPUT"
+
+  if [[ "$published_found" -eq 0 ]]; then
+    report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes no '$tname' output. Consumers would read an empty string, which skips both the work step and its not-applicable reporter."
+  elif [[ "$published_expr" != "$texpr" ]]; then
+    report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$tname: $published_expr', expected exactly '$tname: $texpr'. That expression is the contract: an UNSET detector output (the detector never ran, or failed) renders as 'true', so the full suite runs, and every narrowing clause compares != 'false' so an unset filter group runs its lane too. Any other derivation can resolve an unset input toward skipping."
+  fi
+done <<<"$OUTPUT_TABLE"
+
+while IFS="$TAB" read -r ojob oname oexpr; do
+  [[ "$ojob" == "$RESOLVER_JOB" ]] || continue
+  [[ -n "$oname" ]] || continue
+  table_has "$oname" && continue
+  report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$oname', which the output table does not name. Every polarity decision belongs in the table [$(table_names_list)]; an extra output is a decision this gate cannot check, and consumers reading it are invisible to the consumer-form rule."
+done <<<"$REC_OUTPUT"
 
 # --- 3. FAILURE IS ABSORBED -------------------------------------------------
 #
@@ -520,9 +650,11 @@ fi
 # of these is a defect — including spellings this gate does not model, which is
 # the point: an unrecognized consumer form must never read as a sanctioned one.
 
-# The aggregator feed maps an intentional docs-only step skip to `success`. The
-# pattern is assembled from the sanctioned form so the two cannot drift apart.
-feed_prefix="=\${{ ${SKIP_FORM} && 'success' || steps."
+# The aggregator feed maps an intentional step skip to `success`. Its pattern is
+# assembled from the sanctioned skip form of whichever table output gates the
+# step, so the feed and the gate cannot drift apart and cannot disagree about
+# WHICH output they are talking about.
+feed_infix=" && 'success' || steps."
 feed_suffix=".outcome }}"
 
 refjobs=""
@@ -548,32 +680,42 @@ while IFS="$TAB" read -r refjob reford kind text; do
 
   case "$kind" in
   stepif)
-    if [[ "$bare" != "$WORK_FORM" && "$bare" != "$SKIP_FORM" ]]; then
+    if ! parse_consumer_form "$bare"; then
       report "ONE CONSUMER FORM: job '$refjob' gates a step on an unsanctioned condition: if: $text"
-      report "  Use \"$WORK_FORM\" to do the work, or \"$SKIP_FORM\" to report it not applicable. Both are plain equality against the only two values the output can hold; a negation, a truthiness test, or an index-syntax spelling is the polarity decision this contract removes."
-    elif [[ "$bare" == "$WORK_FORM" ]]; then
-      gated_ordinals+="${refjob}${TAB}${reford}"$'\n'
+      report "  Use \"${REFERENCE_PREFIX}<output> == 'true'\" to do the work, or \"== 'false'\" to report it not applicable, naming one of the table's outputs [$(table_names_list)]. Both are plain equality against the only two values an output can hold; a negation, a truthiness test, or an index-syntax spelling is the polarity decision this contract removes."
+    elif ! table_has "$CF_NAME"; then
+      report "ONE CONSUMER FORM: job '$refjob' gates a step on '$CF_NAME', which the resolver's output table does not name: if: $text. Every polarity decision belongs in the table [$(table_names_list)]; an output outside it is a decision made where this gate cannot check it."
+    elif [[ "$CF_VALUE" == "true" ]]; then
+      gated_ordinals+="${refjob}${TAB}${reford}${TAB}${CF_NAME}"$'\n'
     fi
     ;;
   jobif)
-    report "ONE CONSUMER FORM: job '$refjob' reads $OUTPUT_NAME in a JOB-level condition: if: $text. That skips the whole job, and a skipped required lane leaves its check Pending rather than red. Gate the job's STEPS instead, so the lane always runs and reports."
+    # Judged in check 5c, which knows the required-lane closure. A job-level
+    # read is a defect on an aggregated lane and the intended shape on a lane
+    # outside it, and that distinction is not available here.
     ;;
   *)
-    # An aggregator feed entry: `<name>=${{ <skip form> && 'success' || steps.<id>.outcome }}`
+    # An aggregator feed entry, for some table output X:
+    #   <name>=${{ needs.<resolver>.outputs.X == 'false' && 'success' || steps.<id>.outcome }}
     ok_feed=0
-    if [[ "$text" == *"$feed_prefix"*"$feed_suffix" ]]; then
+    name=""; stepref=""; feed_output=""
+    if [[ "$text" == *"=\${{ "*"$feed_infix"*"$feed_suffix" ]]; then
       name="${text%%=*}"
-      tail_part="${text#*"$feed_prefix"}"
-      stepref="${tail_part%"$feed_suffix"}"
-      if [[ -n "$name" && "$text" == "${name}${feed_prefix}${stepref}${feed_suffix}" &&
+      rest="${text#"${name}=\${{ "}"
+      skip_part="${rest%%"$feed_infix"*}"
+      stepref="${rest#*"$feed_infix"}"
+      stepref="${stepref%"$feed_suffix"}"
+      if parse_consumer_form "$skip_part" && [[ "$CF_VALUE" == "false" ]] && table_has "$CF_NAME" &&
+        [[ -n "$name" && "$text" == "${name}=\${{ ${skip_part}${feed_infix}${stepref}${feed_suffix}" &&
         "$name" != *' '* && "$stepref" != *' '* && "$stepref" != *'{'* ]]; then
         ok_feed=1
+        feed_output="$CF_NAME"
       fi
     fi
     if [[ "$ok_feed" -eq 0 ]]; then
-      report "ONE CONSUMER FORM: job '$refjob' reads $OUTPUT_NAME outside a step condition and outside the aggregator feed template: $text"
+      report "ONE CONSUMER FORM: job '$refjob' reads the resolver outside a step condition and outside the aggregator feed template: $text"
     else
-      feed_targets+="${refjob}${TAB}${stepref}${TAB}${name}"$'\n'
+      feed_targets+="${refjob}${TAB}${stepref}${TAB}${name}${TAB}${feed_output}"$'\n'
     fi
     ;;
   esac
@@ -594,22 +736,74 @@ done <<<"$REC_REF"
 # aligned by eye.
 
 gated_ids=""
-while IFS="$TAB" read -r gjob gate_ord; do
+while IFS="$TAB" read -r gjob gate_ord gate_out; do
   [[ -n "$gjob" ]] || continue
   while IFS="$TAB" read -r sjob step_ord sid; do
     [[ "$sjob" == "$gjob" && "$step_ord" == "$gate_ord" ]] || continue
-    gated_ids+="${gjob}${TAB}${sid}"$'\n'
+    gated_ids+="${gjob}${TAB}${sid}${TAB}${gate_out}"$'\n'
   done <<<"$REC_STEPID"
 done <<<"$gated_ordinals"
 
-while IFS="$TAB" read -r fjob fstep fname; do
+while IFS="$TAB" read -r fjob fstep fname fout; do
   [[ -n "$fjob" ]] || continue
-  if ! has_line "$gated_ids" "${fjob}${TAB}${fstep}"; then
-    report "THE FEED MIRRORS A REAL GATE: job '$fjob' maps '$fname' to success on a docs-only diff by reading step '$fstep', but no step with that id is gated on \"$WORK_FORM\". Mapping an ungated step's outcome to success hides a real failure instead of reporting a step that provably did not run."
+  # Keyed on the OUTPUT as well as the step: an override that maps a skip of
+  # one output onto a step gated by another is not the honest mapping, because
+  # the two outputs can disagree and the step can have really run.
+  if ! has_line "$gated_ids" "${fjob}${TAB}${fstep}${TAB}${fout}"; then
+    report "THE FEED MIRRORS A REAL GATE: job '$fjob' maps '$fname' to success by reading step '$fstep' when '$fout' is false, but no step with that id is gated on \"${REFERENCE_PREFIX}${fout} == 'true'\". Mapping an ungated step's outcome to success hides a real failure instead of reporting a step that provably did not run, and pairing it with a DIFFERENT output would map a skip that never happened."
   fi
 done <<<"$feed_targets"
 
-# --- 5c. NO JOB-LEVEL CONDITION ON A CONSUMER -------------------------------
+# --- the required-lane closure ----------------------------------------------
+#
+# Everything reachable from the aggregate's `needs`, transitively, plus the
+# aggregate itself. That set is exactly the lanes whose result can turn the one
+# required context red, and it is what the next two checks are about: the
+# hazard a job-level condition creates is that a REQUIRED lane reports success
+# having run nothing, and the claim a lane-coverage opt-out makes is that the
+# lane is NOT required. Neither statement means anything for a job the
+# aggregate cannot see, and neither is safe for one it can.
+#
+# Derived from the file rather than configured, so it cannot drift from the
+# needs graph it describes.
+
+needs_of() {
+  local job="$1" njob ntext entry normalized
+  while IFS="$TAB" read -r njob ntext; do
+    [[ "$njob" == "$job" ]] || continue
+    normalized="${ntext%%#*}"
+    normalized="${normalized//[/ }"
+    normalized="${normalized//]/ }"
+    normalized="${normalized//\"/ }"
+    normalized="${normalized//\'/ }"
+    normalized="${normalized//,/ }"
+    for entry in $normalized; do printf '%s\n' "$entry"; done
+  done <<<"$REC_NEEDSFLOW"
+  while IFS="$TAB" read -r njob entry; do
+    [[ "$njob" == "$job" ]] || continue
+    [[ -n "$entry" ]] && printf '%s\n' "$entry"
+  done <<<"$REC_NEEDSITEM"
+}
+
+required_closure=$'\n'"$AGGREGATE_JOB"$'\n'
+frontier="$AGGREGATE_JOB"
+while [[ -n "$frontier" ]]; do
+  next_frontier=""
+  while IFS= read -r fjob; do
+    [[ -n "$fjob" ]] || continue
+    while IFS= read -r dep; do
+      [[ -n "$dep" ]] || continue
+      [[ "$required_closure" == *$'\n'"$dep"$'\n'* ]] && continue
+      required_closure+="$dep"$'\n'
+      next_frontier+="$dep"$'\n'
+    done < <(needs_of "$fjob")
+  done <<<"$frontier"
+  frontier="$next_frontier"
+done
+
+is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
+
+# --- 5c. NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER ----------------------
 #
 # A consumer reaches the published output through `needs`, so it runs only when
 # the resolver succeeded — which is what makes the output's domain exactly
@@ -620,14 +814,37 @@ done <<<"$feed_targets"
 # not-applicable reporter all skip, and the lane goes green having done nothing.
 # The condition need not mention the output to cause this, so this check does not
 # look at what it says.
+#
+# It applies to REQUIRED consumers. A lane outside the closure cannot report
+# success to branch protection at all, so a job-level condition there costs a
+# skipped informational lane rather than a false green, and skipping the whole
+# job is the cheaper shape: it is why a non-required Windows lane may gate at
+# job level while every aggregated lane gates its steps.
 
 while IFS= read -r refjob; do
   [[ -n "$refjob" ]] || continue
+  is_required "$refjob" || continue
   while IFS="$TAB" read -r cjob ctext; do
     [[ "$cjob" == "$refjob" ]] || continue
-    report "NO JOB-LEVEL CONDITION ON A CONSUMER: job '$refjob' reads $OUTPUT_NAME and carries a job-level condition: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all."
+    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all."
   done <<<"$REC_JOBIF"
 done <<<"$refjobs"
+
+# --- 8. NO LANE OPT-OUT INSIDE THE CLOSURE ----------------------------------
+#
+# `# lane-coverage-ok: <reason>` asserts that a lane is informational and does
+# not gate a merge. On a job the aggregate depends on, that assertion is simply
+# false, and the danger is not the comment: it is that check-lane-coverage.sh
+# stops asking whether the lane is in `needs` once it sees a marker, so a
+# genuinely required lane can be annotated out of the coverage question while
+# still deciding merges. Annotating a required job fails here rather than
+# exempting it.
+
+while IFS= read -r okjob; do
+  [[ -n "$okjob" ]] || continue
+  is_required "$okjob" || continue
+  report "LANE OPT-OUT ON A REQUIRED LANE: job '$okjob' carries a '# $LANE_OPT_OUT' marker but is reachable from ${AGGREGATE_JOB}.needs, so it does gate merges and the marker's claim is false. Remove the marker, or take the job out of the aggregate's needs closure if it really is informational."
+done <<<"$REC_LANEOK"
 
 # --- 6. EDGE DECLARED -------------------------------------------------------
 

@@ -187,7 +187,8 @@ chmod 644 "$UNREAD" 2>/dev/null || true
 # missing case on #3641 after `{fd}` failed under that ulimit.
 printf 'keep\n' >"$TEST_TMPDIR/lowfd.txt"
 if (ulimit -n 10) >/dev/null 2>&1; then
-  LINES=()
+  # The read runs in the subshell below (its own LINES); this case asserts on the
+  # subshell's stdout, so the outer LINES is deliberately not involved.
   rc=0
   out="$(
     bash -c '

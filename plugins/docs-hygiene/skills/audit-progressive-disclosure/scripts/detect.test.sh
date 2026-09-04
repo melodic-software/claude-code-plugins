@@ -40,20 +40,29 @@ assert_not_contains() {
   esac
 }
 
-FIXTURES=()
+# Fixture dirs are tracked in a FILE rather than a shell array. fixture_dir is
+# always called inside a command substitution to capture the path it echoes,
+# and an array append made in that subshell never reaches this shell, so an
+# array-based ledger silently cleans up nothing. A file append survives the
+# subshell, so the trap removes what the run actually created.
+FIXTURE_LIST="$(mktemp)"
 # shellcheck disable=SC2329  # invoked indirectly via the EXIT trap below
+# Records are NUL-delimited, not newline-delimited: a newline inside TMPDIR
+# would otherwise split one path across two records, and the trap would rm -rf
+# the truncated prefix, which is a directory outside the fixture set.
 cleanup_fixtures() {
   local d
-  for d in "${FIXTURES[@]:-}"; do
+  while IFS= read -r -d '' d; do
     [[ -n "$d" ]] && rm -rf "$d"
-  done
+  done <"$FIXTURE_LIST"
+  rm -f "$FIXTURE_LIST"
 }
 trap cleanup_fixtures EXIT
 
 fixture_dir() {
   local d
   d="$(mktemp -d)"
-  FIXTURES+=("$d")
+  printf '%s\0' "$d" >>"$FIXTURE_LIST"
   printf '%s' "$d"
 }
 

@@ -270,8 +270,8 @@ export async function preflight(page, _platformCfg) {
 /**
  * Authenticate with Teachable.
  * Navigation and auth detection stay here; login flow delegates to teachableSSO.
+ * @param {import('./auth-session.js').AuthSessionInput} input
  */
-/** @param {import('./auth-session.js').AuthSessionInput} input */
 export async function authenticate({ context, page, course, storageStatePath, platformCfg }) {
   const videoSelector = platformCfg.videoPlayerSelector ?? defaults.videoPlayerSelector;
   const envPrefix = platformCfg.authEnvPrefix ?? "TEACHABLE";

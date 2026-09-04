@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 // Unit tests for fingerprint.mjs, the one pure module in this plugin.
 //
-// Written before the implementation, per the plan's TDD requirement. The first
-// two cases are the binding S2 spike amendments: quotation stripping covers
-// INLINE quotes and not only blockquotes, and verdicts are matched SPANS rather
-// than whole-file containment, which dilutes a real match to noise on a
+// The first two cases are the binding S2 spike amendments: quotation stripping
+// covers INLINE quotes and not only blockquotes, and verdicts are matched SPANS
+// rather than whole-file containment, which dilutes a real match to noise on a
 // real-sized file.
 
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
@@ -221,12 +220,11 @@ const SOURCE_TEXT = [
     `spans=${rc.matched_spans.length} fired=${rc.separation.fired}`,
   );
 
-  const strippedLines = stripQuoted(localWrapped).split("\n").length;
-  const wrappedLines = localWrapped.split("\n").length;
+  const strippedWrapped = stripQuoted(localWrapped);
   check(
     "wrapped_quote_fixture: stripping preserves the line count exactly",
-    strippedLines === wrappedLines,
-    `${strippedLines} vs ${wrappedLines}`,
+    strippedWrapped.split("\n").length === localWrapped.split("\n").length,
+    `${strippedWrapped.split("\n").length} vs ${localWrapped.split("\n").length}`,
   );
 }
 
@@ -355,13 +353,13 @@ const SOURCE_TEXT = [
       stripped.includes("rota is unaffected"),
     JSON.stringify(stripped),
   );
-  const parenthesized = stripQuoted(
+  const parenPossessive = stripQuoted(
     "See (FILE.md)'s note; the rest of this line is original prose.",
   );
   check(
     "possessive_after_markup_is_not_an_opening_quote: a parenthesized possessive is not an opener",
-    parenthesized.includes("the rest of this line is original prose"),
-    JSON.stringify(parenthesized),
+    parenPossessive.includes("the rest of this line is original prose"),
+    JSON.stringify(parenPossessive),
   );
   const realOpener = stripQuoted("Cited as 'the runner retries twice' in the note.");
   check(
@@ -397,10 +395,11 @@ const SOURCE_TEXT = [
   const local = lines.join("\n");
   const plantedLine = 8;
 
+  const strippedLocal = stripQuoted(local);
   check(
     "wrapped_quote_line_numbering: stripQuoted returns the same number of lines",
-    stripQuoted(local).split("\n").length === lines.length,
-    `${stripQuoted(local).split("\n").length} vs ${lines.length}`,
+    strippedLocal.split("\n").length === lines.length,
+    `${strippedLocal.split("\n").length} vs ${lines.length}`,
   );
 
   const r = compare(local, SOURCE_TEXT);

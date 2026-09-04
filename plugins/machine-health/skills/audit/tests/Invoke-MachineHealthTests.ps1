@@ -90,14 +90,19 @@ function Add-FencedBlock {
     $Lines.Add('  ```')
 }
 
+# The suites and PesterConfiguration.psd1 target Pester v5, and ModuleVersion
+# constraints are minimums -- without a maximum, a side-by-side v6 install
+# would be imported instead of the pinned major.
 $minPester = [version]'5.7.0'
-$pester = Get-Module Pester -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1
-if (-not $pester -or $pester.Version -lt $minPester) {
-    $install = "Install-Module Pester -MinimumVersion $minPester -Scope CurrentUser -Force"
-    Write-Error "Pester $minPester+ required. $install"
+$maxPester = [version]'5.99.99'
+$pester = Get-Module Pester -ListAvailable |
+    Where-Object { $_.Version -ge $minPester -and $_.Version -le $maxPester }
+if (-not $pester) {
+    $install = "Install-Module Pester -MinimumVersion $minPester -MaximumVersion $maxPester -Scope CurrentUser -Force"
+    Write-Error "Pester v5 ($minPester+) required. $install"
     exit 1
 }
-Import-Module Pester -MinimumVersion $minPester -Force
+Import-Module Pester -MinimumVersion $minPester -MaximumVersion $maxPester -Force
 
 $os = if ($IsWindows -or $env:OS -eq 'Windows_NT') { 'windows' }
 elseif ($IsMacOS) { 'macos' }

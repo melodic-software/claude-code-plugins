@@ -145,26 +145,27 @@ done
 MAX_BODY_BYTES=65536 # 64 KiB — a telemetry body, not an essay
 MIN_BODY_BYTES=16    # sanity floor for the body — below this is not telemetry
 
+# Guard for a space-form option that consumes the next token. Called as
+# `require_value "$@"` from the parse loop, so $1 is the flag and $# counts the
+# tokens still to come: fewer than two means the flag arrived last, with nothing
+# to consume. Without it `shift 2` on a lone trailing flag consumes nothing and
+# the parse loop spins forever.
+require_value() {
+  (($# >= 2)) && return 0
+  err "$1 requires a value"
+  exit 3
+}
+
 ISSUE=""
 MARKER=""
 BODY_FILE=""
 BODY_DIR=""
 REPO=""
 DRY_RUN=0
-
-# Guard for a space-form option that consumes the next token: the flag must not
-# be the final argument. Deliberately an argc check, NOT a `-*` value rejection —
-# `-` is a real value here (`--body-file -` reads stdin).
-need_optarg() { # <argc> <flag>
-  (($1 >= 2)) && return 0
-  err "$2 requires a value"
-  exit 3
-}
-
 while (($#)); do
   case "$1" in
   --issue)
-    need_optarg $# "$1"
+    require_value "$@"
     ISSUE="$2"
     shift 2
     ;;
@@ -173,7 +174,7 @@ while (($#)); do
     shift
     ;;
   --marker)
-    need_optarg $# "$1"
+    require_value "$@"
     MARKER="$2"
     shift 2
     ;;
@@ -182,7 +183,7 @@ while (($#)); do
     shift
     ;;
   --body-file)
-    need_optarg $# "$1"
+    require_value "$@"
     BODY_FILE="$2"
     shift 2
     ;;
@@ -191,7 +192,7 @@ while (($#)); do
     shift
     ;;
   --body-dir)
-    need_optarg $# "$1"
+    require_value "$@"
     BODY_DIR="$2"
     shift 2
     ;;
@@ -200,7 +201,7 @@ while (($#)); do
     shift
     ;;
   --repo)
-    need_optarg $# "$1"
+    require_value "$@"
     REPO="$2"
     shift 2
     ;;

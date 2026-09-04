@@ -191,7 +191,7 @@ describe("x adapter declarations", () => {
   });
 });
 
-describe("x canonicalization (adapter-level, T10 (ii))", () => {
+describe("x canonicalization (adapter-level)", () => {
   it("re-derives the canonical status URL: pinned host, lowercased handle, no tracking params", () => {
     expect(adapter.matchUrl(`https://twitter.com/SomeUser/status/${TWID}?s=20&t=abc#m`)).toEqual({
       sliceKey: TWID,
@@ -609,7 +609,7 @@ describe("acquireXMedia (fixture-driven, offline)", () => {
     expect(result.data.metadata["source:snowflakeAliasing"]).toBeUndefined();
   });
 
-  it("both 0-cases produce a text-only digest with populated provenance (T6 D-A)", async () => {
+  it("both 0-cases produce a text-only digest with populated provenance", async () => {
     const cases = [
       {
         name: "blocked-delegation",
@@ -883,7 +883,7 @@ describe("canonicalization reaches every entry path by construction", () => {
     expect(args.at(-1)).toBe(STATUS_URL);
     expect(args[args.indexOf("--use-extractors") + 1]).toBe(X_ALLOWED_EXTRACTORS);
     // mediaOptional: a valid 0-video X post survives the queue probe as
-    // metadata-only and enqueues (T6 D-A text-only digest downstream).
+    // metadata-only and enqueues (text-only digest downstream).
     expect(args).toContain("--ignore-no-formats-error");
     expect(result.title).toBe("Fixture Post");
   });

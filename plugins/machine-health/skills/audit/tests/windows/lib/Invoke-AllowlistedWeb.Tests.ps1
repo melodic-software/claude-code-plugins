@@ -37,6 +37,9 @@ Describe 'Invoke-AllowlistedWeb -- allowlist' -Tag 'lib' {
         $a = Get-EgressAllowlist
         $a | Should -Not -BeNullOrEmpty
         $a.Count | Should -BeGreaterThan 0
+        $a[0] = 'tampered.example'
+        Test-EgressHostAllowed -HostName 'tampered.example' | Should -BeFalse
+        (Get-EgressAllowlist)[0] | Should -Not -Be 'tampered.example'
     }
 }
 

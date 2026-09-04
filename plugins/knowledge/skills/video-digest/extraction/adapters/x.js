@@ -235,7 +235,7 @@ export function parseXStatusUrl(url) {
 }
 
 /**
- * Re-derive the canonical status URL from parsed parts (T10 (ii)): scheme and
+ * Re-derive the canonical status URL from parsed parts: scheme and
  * host pinned, tracking query/fragment dropped, handle lowercased (or `i/web`
  * when the URL carries none), pinned media index preserved as `/video/<n>`.
  *
@@ -918,8 +918,8 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   capabilities: {
     comments: false,
     browserCookieFallback: false,
-    // A 0-media post is a well-formed metadata-only result (T6 D-A): every
-    // yt-dlp consumer — acquisition AND queue preflight — passes
+    // A 0-media post is a well-formed metadata-only result: every yt-dlp
+    // consumer — acquisition AND queue preflight — passes
     // --ignore-no-formats-error so such posts report metadata instead of erroring.
     mediaOptional: true,
   },

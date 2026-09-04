@@ -167,7 +167,7 @@ else
   fail "temp file stranded at blocked path: $(ls -A "$BLOCKED")"
 fi
 
-# 13. The Bash 3.2 clock fallback. printf's %()T conversion arrived in bash
+# 12. The Bash 3.2 clock fallback. printf's %()T conversion arrived in bash
 # 4.2; on stock macOS 3.2 the builtin fails and binds nothing, and the marker
 # would record an empty compacted_at. Same emulation as context-zone.test.sh:
 # an exported function shadows the builtin for a %()T format under -v and

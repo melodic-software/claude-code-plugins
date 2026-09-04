@@ -53,5 +53,5 @@ if (isMainModule(import.meta.url)) {
     writeStderr("Usage: node watch/render-triage-log.js <slice-dir>");
     process.exit(2);
   }
-  writeStdout(`${renderTriageLog(sliceDir)}\n`);
+  writeStdout(renderTriageLog(sliceDir));
 }

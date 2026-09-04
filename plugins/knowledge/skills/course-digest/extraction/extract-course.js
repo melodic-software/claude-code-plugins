@@ -18,6 +18,7 @@
  *   --metadata-only    Only extract course metadata from the landing page, then exit
  *   --skip-transcripts Skip transcript extraction (useful when re-running for frames only)
  *   --no-headless      Show the browser window (default: headless)
+ *   --show-browser     Force a visible browser window even when --headless is set
  */
 
 import { spawnSync } from "node:child_process";

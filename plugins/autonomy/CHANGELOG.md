@@ -7,8 +7,19 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- **A dead `reason` field dropped from `loadBinding`'s absent case.** Behavior-preserving tidy from
-  the repo-wide simplification sweep; no consumer read the field.
+- **Setup-script tidyings from the repo-wide sweep.**
+  `check-security-binding.mjs` names the repeated embedded-IPv4 extraction inside
+  `isNonExternalEgressHost` as `embeddedV4()`, routes two inline comma-splits
+  through the file's own `splitRecordedList`, and renames an inner `aiReview`
+  that shadowed a binding declared 55 lines above.
+  `resolve-prerequisites.mjs` drops a parameter `probeMergePath` never read.
+  `apply-prerequisite-resolution.mjs` loses a comment that said less than the
+  guard beneath it. Two test files were reindented by the repo's own `shfmt`
+  hook. The lane-stop-gate protocol was frozen for this sweep and is untouched.
+  Equivalence for the address predicate was checked over a 183-address corpus
+  spanning v4-mapped, NAT64, loopback, link-local, ULA, 6to4, Teredo and 40
+  malformed forms, with zero divergences; suites green at 90, 11, 6, 4, 544
+  and 22 checks.
 
 ## [0.22.22]
 

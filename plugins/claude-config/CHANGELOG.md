@@ -7,9 +7,22 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- **Redundant awk parens and a dead test guard removed, surface rule-ids composed once, a no-op awk
-  guard dropped, and the `fix-plugin-drift` action-plan jq frames deduped.** Behavior-preserving
-  tidy from the repo-wide simplification sweep.
+- **Permission-state suite fixture repair and cleanups (tidy sweep, second wave).**
+  `permission-plane-lint.test.sh`'s WINREAL fixture was built through a printf format
+  string that corrupted `\a` into a BEL byte and warned on `\U` every run; it is now a
+  quoted heredoc matching intent. printf newline formats normalized, long `env`
+  invocations rewrapped, and a redundant awk paren layer dropped in two lints.
+  `audit-pass/run-state.sh` reads the two heartbeat lease fields into locals like its
+  siblings, and `permission-rule-check.test.sh` renames case-12 fixtures that shadowed
+  case 8's. No behavior or contract changes.
+- **Audit script cleanups from the repo-wide tidy sweep.** `check-hook-coverage.sh`
+  replaces three manual counter loops with the `for i in "${!ARR[@]}"` idiom;
+  `check-plugin-drift.sh` collapses the two-stage pairs_obj jq build into the single
+  `jq -nR` form its sibling calls use, which also silences a spurious stderr
+  diagnostic when a marketplace declares no enabled plugins; `fix-plugin-drift.sh`
+  drops a GNU-only `sed \?` quantifier from `--help` rendering (BSD-sed
+  compatibility, output byte-identical); three test files pick up shfmt case-label
+  normalization. No behavior or contract changes.
 
 ## [0.40.32]
 

@@ -23,13 +23,12 @@ export function expandVisualGaps(sliceDir) {
   const visualFramesPath = lanePath(absSlice, LANES.keyFrames, "visual-frames.md");
   const promoted = parsePromotedTimestampsSec(fs.readFileSync(visualFramesPath, "utf8"));
 
-  const gapRows = [];
-  for (const window of sel.densificationWindows) {
-    if (promoted.some((ts) => ts >= window.startSec && ts <= window.endSec)) continue;
-    gapRows.push(
-      `| ~${Math.round(window.startSec / 60)}m | ${window.reason} | No synthesis frame in window; transcript-only |`,
+  const gapRows = sel.densificationWindows
+    .filter((window) => !promoted.some((ts) => ts >= window.startSec && ts <= window.endSec))
+    .map(
+      (window) =>
+        `| ~${Math.round(window.startSec / 60)}m | ${window.reason} | No synthesis frame in window; transcript-only |`,
     );
-  }
 
   const body = `# Visual gaps — densification alignment
 
@@ -53,5 +52,5 @@ if (isMainModule(import.meta.url)) {
     process.exit(2);
   }
   const result = expandVisualGaps(sliceDir);
-  writeStdout(`${JSON.stringify(result)}\n`);
+  writeStdout(JSON.stringify(result));
 }

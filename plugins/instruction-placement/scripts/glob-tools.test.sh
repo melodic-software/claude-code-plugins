@@ -33,6 +33,12 @@ assert_contains() {
   if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi
 }
 
+#   commit_all <dir> [<message>]
+commit_all() {
+  git -C "$1" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
+  git -C "$1" -c user.email=t@t -c user.name=t commit -qm "${2:-t}" >/dev/null 2>&1
+}
+
 # Build a fixture repo with a known tracked-file set.
 #   fixture_repo <relative-path> [<relative-path>...]
 fixture_repo() {
@@ -44,8 +50,7 @@ fixture_repo() {
     printf 'x\n' >"$dir/$rel"
   done
   git -C "$dir" init -q .
-  git -C "$dir" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-  git -C "$dir" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+  commit_all "$dir"
   printf '%s' "$dir"
 }
 
@@ -238,8 +243,7 @@ paths:
 Recursively discovered, and its glob matches nothing.
 EOF
 
-git -C "$rules_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$rules_repo" -c user.email=t@t -c user.name=t commit -qm rules >/dev/null 2>&1
+commit_all "$rules_repo" rules
 
 out="$(run rules --root "$rules_repo")"
 # `*.ts` must not match `b.tsx` — the extension boundary is anchored.
@@ -273,8 +277,7 @@ paths: ["src/*.{ts,tsx}"]
 
 # Inline flow with a brace group
 EOF
-git -C "$flow_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$flow_repo" -c user.email=t@t -c user.name=t commit -qm flow >/dev/null 2>&1
+commit_all "$flow_repo" flow
 
 out="$(run rules --root "$flow_repo")"
 assert_eq "the flow entry stays ONE pattern" "1" \
@@ -295,8 +298,7 @@ nine='{a,b}/{c,d}/{e,f}/{g,h}/{i,j}/{k,l}/{m,n}/{o,p}/{q,r}'
   printf -- '  - "%s/y.ts"\n' "$nine"
   printf -- '---\n\n# Two 512-expansion globs in one rule\n'
 } >"$budget_repo/.claude/rules/budget.md"
-git -C "$budget_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$budget_repo" -c user.email=t@t -c user.name=t commit -qm budget >/dev/null 2>&1
+commit_all "$budget_repo" budget
 
 out="$(run rules --root "$budget_repo")"
 over="$(over_budget_rows "$out")"
@@ -311,8 +313,7 @@ split_repo="$(fixture_repo "a.ts")"
 mkdir -p "$split_repo/.claude/rules"
 printf -- '---\npaths:\n  - "%s/x.ts"\n---\n\n# One\n' "$nine" >"$split_repo/.claude/rules/one.md"
 printf -- '---\npaths:\n  - "%s/y.ts"\n---\n\n# Two\n' "$nine" >"$split_repo/.claude/rules/two.md"
-git -C "$split_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$split_repo" -c user.email=t@t -c user.name=t commit -qm split >/dev/null 2>&1
+commit_all "$split_repo" split
 out="$(run rules --root "$split_repo")"
 over="$(over_budget_rows "$out")"
 assert_eq "the budget does not leak across separate rules" "0" "$over"
@@ -368,8 +369,7 @@ paths:
 Command substitution in a paths value must be inert.
 EOF
 rm -f /tmp/glob-tools-pwned
-git -C "$rules_repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$rules_repo" -c user.email=t@t -c user.name=t commit -qm evil >/dev/null 2>&1
+commit_all "$rules_repo" evil
 run rules --root "$rules_repo" >/dev/null 2>&1
 if [[ -e /tmp/glob-tools-pwned ]]; then
   fail "a crafted paths value does not execute" "no side effect" "command ran"

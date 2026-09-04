@@ -309,12 +309,11 @@ fi
 # The ceiling is an upper bound rather than an equality so a later cut does not
 # fail it; the allowlist is what catches a swap that keeps the count.
 #
-# The banned set stays because it names the cuts directly. Each was on the
-# benign path before the plan/apply split: dirname and basename became parameter
-# expansions; head and wc went with the subprocess NUL sniff; mktemp, cp and cmp
-# went with the disclosure snapshot, which is no longer armed for a file with
-# nothing to rewrite; and perl is the rewrite itself, which an already-LF file
-# under `eol=lf` does not need.
+# The banned set names each avoided process directly. dirname and basename are
+# parameter expansions; the NUL sniff is a builtin, so it spawns neither head
+# nor wc; mktemp, cp and cmp belong to the disclosure snapshot, which is armed
+# only for a file that has something to rewrite; and perl is the rewrite itself,
+# which an already-LF file under `eol=lf` does not need.
 trace_words() {
   awk -v scope="$2" '
     /^\++@/ {
@@ -430,7 +429,11 @@ else
     IN="${pair%%=*}"
     WANT="${pair#*=}"
     # shellcheck disable=SC2034,SC2154  # the eval'd hook lines read FILE and assign FILE_DIR
-    GOT="$(FILE="$IN"; eval "$FILE_DIR_LINES"; printf '%s' "$FILE_DIR")"
+    GOT="$(
+      FILE="$IN"
+      eval "$FILE_DIR_LINES"
+      printf '%s' "$FILE_DIR"
+    )"
     if [[ "$GOT" == "$WANT" ]]; then
       ok "root-level: FILE_DIR of $IN is $GOT"
     else

@@ -62,8 +62,8 @@ def _short_id(value: object) -> object:
     These ids are high-entropy random strings (e.g. `msg_014Jvov2xG...`,
     `toolu_01AbCdEf...`), not sequential or guessable, so an 8-char tail is
     still effectively collision-free within one session's observation stream
-    while cutting the per-id cost roughly 3-4x -- verified against real
-    transcripts (see PR #1497's measurement). `None` passes through unchanged
+    while cutting the per-id cost roughly 3-4x -- measured against real
+    transcripts (#1497). `None` passes through unchanged
     (nothing to shorten, and `mid`'s absence must stay distinguishable from a
     real id -- see summarize_record()'s docstring).
     """

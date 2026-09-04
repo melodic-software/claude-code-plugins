@@ -3,28 +3,56 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.10]
+## [0.12.11]
+
+### Fixed
+
+- **The test runner now pins Pester to v5 instead of taking the newest
+  installed.** `Invoke-MachineHealthTests.ps1` selected its module with
+  `Sort-Object Version -Descending | Select-Object -First 1` and imported it
+  with only a `-MinimumVersion`, so a machine carrying both 5.7.1 and 6.1.0
+  imported 6.1.0 for suites written against v5. Selection is now a version-range
+  filter with a matching `-MaximumVersion` on the import. Reproduced on a
+  two-version host before and after: the old runner imported 6.1.0, the new one
+  imports 5.7.1, and a v6-only host now fails loudly instead of running the
+  suites under the wrong major.
 
 ### Changed
 
-- **A write-only accumulator dropped from the environment check, two hashtable literals aligned, a
-  non-ASCII comment dash normalized.** Behavior-preserving tidy from the repo-wide simplification
-  sweep. Three agents read all 67 files across the audit skill and changed six lines between them:
-  almost everything here is load-bearing, including guards that only look redundant (`@($false)`
-  unrolls falsy, so a `-and $x.Count -gt 0` clause is not a duplicate test).
+- **Audit test-harness tidyings from the repo-wide sweep.**
+  `Clear-TempFiles.Tests.ps1` rewrites a history-narration comment as
+  present-tense rationale and states the reason the original omitted (deleting
+  through a reparse point would reach files outside the temp tree);
+  `Mock-Helpers.psm1` normalizes its one comment em dash to the `--` form used
+  elsewhere in this plugin. Both proven comment-only by AST token comparison.
+  Pester 5.7.1: 34 passed, 0 failed across the Linux-runnable suites.
 
-### Notes for maintainers
+## [0.12.10]
 
-- These Pester suites have **no CI lane**, and `Invoke-MachineHealthTests.ps1` exits 0 on Linux
-  having run nothing. Driven directly with Pester they are strong: 34 planted mutations, 29
-  detected.
-- **`Restart-StoppedService.ps1`'s `ShouldProcess` gate is untested.** Replacing it with `if
-  ($true)` breaks no test, and under `-WhatIf` the original skips `Start-Service` while the mutant
-  actually restarts the service. No test anywhere passes `-WhatIf` or `-Confirm`.
-- `Write-ElevationBanner.ps1` prints a re-run command using a literal backslash where its own doc
-  block shows a backtick, so the suggested command is not valid PowerShell.
-- `detail` is a plain hashtable, so its JSON key order varies per process; anything comparing that
-  order across runs is relying on nondeterminism.
+### Fixed
+
+- **The elevation banner's rerun command now uses a PowerShell backtick continuation.**
+  `Write-ElevationBanner.ps1` emitted a bash-only backslash line continuation in the
+  command it tells the user to paste into an elevated pwsh session; no environment
+  existed where that worked. Now matches the file's own docstring spec and
+  `references/windows/elevation-matrix.md`.
+
+### Changed
+
+- **`Invoke-AllowlistedWeb.ps1`** drops the no-op `UseBasicParsing` splat entry and a
+  dead `$parsed` initialization, and its copy-not-reference test gains
+  mutation-verified assertions (a reference-returning regression now fails the suite).
+
+- **Audit lib tidyings from the repo-wide sweep.** `Get-CisaKevCache.ps1` drops the
+  `UseBasicParsing` switch from its web-request splat (a documented no-op on the
+  PowerShell 7.4 floor the file requires); `Get-GpuDriverInfo.Tests.ps1` normalizes
+  two comment em dashes to the tree's double-hyphen form. Linux-runnable Pester
+  suites green before and after under the pinned Pester 5.
+- **Checks tidyings (third wave).** `Test-EnvironmentHealth.ps1` removes a dead
+  `$others` list (built, never read; suite 14/14); eight history-narration comment
+  blocks across four checks and four suites rewritten to present-tense rationale;
+  two detail-hashtable realignments; one stale It description corrected to match its
+  assertion. Before/after Pester result sets byte-identical on this host.
 
 ## [0.12.9]
 

@@ -13,26 +13,10 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveTempSession, serializeTempPath } from "../lib/temp-session-paths.js";
+import { CELL_IDS } from "../lib/watch-vision-validation.js";
 import { watchStatePath } from "./watch-state.js";
 
-const CELLS = [
-  "R1C1",
-  "R1C2",
-  "R1C3",
-  "R1C4",
-  "R2C1",
-  "R2C2",
-  "R2C3",
-  "R2C4",
-  "R3C1",
-  "R3C2",
-  "R3C3",
-  "R3C4",
-  "R4C1",
-  "R4C2",
-  "R4C3",
-  "R4C4",
-];
+const MID_CELL_INDEX = Math.floor(CELL_IDS.length / 2);
 
 /**
  * @param {string} sliceDir
@@ -56,9 +40,9 @@ export function exportSheetFrameIndex(sliceDir) {
     sheetId: `sheet_${String(index + 1).padStart(3, "0")}`,
     file: sheet.file,
     path: sheet.path ? serializeTempPath(sheet.path) : undefined,
-    midTimestampSec: byFile[sheet.inputFiles[8]]?.timestampSec ?? null,
+    midTimestampSec: byFile[sheet.inputFiles[MID_CELL_INDEX]]?.timestampSec ?? null,
     cells: sheet.inputFiles.map((file, cellIndex) => ({
-      cell: CELLS[cellIndex],
+      cell: CELL_IDS[cellIndex],
       frame: file,
       timestampSec: byFile[file]?.timestampSec ?? null,
       textDense: byFile[file]?.textDense ?? false,
@@ -85,5 +69,5 @@ if (isMainModule(import.meta.url)) {
     writeStderr("Usage: node watch/export-sheet-frame-index.js <slice-dir>");
     process.exit(2);
   }
-  writeStdout(`${exportSheetFrameIndex(sliceDir)}\n`);
+  writeStdout(exportSheetFrameIndex(sliceDir));
 }

@@ -25,9 +25,10 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-# assert_clean <validator-output> <ok-message> — CLEAN passes; anything else
-# is one problem per line, each reported as its own failure.
-assert_clean() {
+# report_clean <checker-output> <ok-message>: each checker below prints either
+# CLEAN or one problem per line, so anything else becomes one failure per
+# problem rather than a single opaque one.
+report_clean() {
   if [[ "$1" == "CLEAN" ]]; then
     ok "$2"
   else
@@ -79,7 +80,7 @@ if ((cat.levers ?? []).length < 10) problems.push("suspiciously few levers: " + 
 console.log(problems.length ? problems.join("\n") : "CLEAN");
 ' "$CATALOGUE")"
 
-assert_clean "$out" \
+report_clean "$out" \
   "catalogue: every lever categorized, cited, postured, dated, with a recheck trigger; no shipped token figures"
 
 # Keys that left the settings overview page for settings-reference (#3198).
@@ -120,7 +121,7 @@ if (cat.meta?.verifiedAgainst?.cliVersion !== "2.1.241") {
 console.log(problems.length ? problems.join("\n") : "CLEAN");
 ' "$CATALOGUE")"
 
-assert_clean "$citeout" \
+report_clean "$citeout" \
   "moved settings keys cite settings-reference anchors; disableArtifact is user-scope"
 
 # #3200 — env measurement route + resolvable simple-system-prompt condition.
@@ -156,7 +157,7 @@ else {
 console.log(problems.length ? problems.join("\n") : "CLEAN");
 ' "$CATALOGUE")"
 
-assert_clean "$routeout" \
+report_clean "$routeout" \
   "include-git-instructions names the env route; simple-system-prompt resolves opus-5 lean default"
 
 echo

@@ -169,7 +169,8 @@ describe("reclaimStaleSlot", () => {
   it("concurrent steal of a leftover reclaim lock does not evict a live holder", async () => {
     const slot = path.join(baseDir, "slot-0");
     await makeStale(slot);
-    await makeStale(`${slot}.reclaim`);
+    const reclaim = `${slot}.reclaim`;
+    await makeStale(reclaim);
 
     const removed = await raceReclaimers(slot);
 

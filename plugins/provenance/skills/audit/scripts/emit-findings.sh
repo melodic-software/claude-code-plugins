@@ -109,8 +109,8 @@ command -v jq >/dev/null 2>&1 || {
   exit 4
 }
 
-# Parse first, and say so. `has("findings")` fails on unparsable input too, so every
-# truncated or non-JSON sidecar used to be refused for having no findings key — a
+# Parse first, and say so. `has("findings")` fails on unparsable input too, so without
+# this gate a truncated or non-JSON sidecar is refused for having no findings key — a
 # cause the input does not have, and one that sends a reader looking for a key in a
 # file that has no keys at all.
 if ! jq -e 'type == "object"' "$REPORT" >/dev/null 2>&1; then
@@ -406,12 +406,13 @@ RECORDS="$(jq -r "$TIER_DEFS"'
 def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
 
 # WITHHOLDING IS DECIDED BY THE DECLARED TIER, AHEAD OF ANY RULE LOOKUP, through
-# the shared reader defined above the searched-surfaces gate. A judgment verdict
-# carrying no rule id used to match no branch below and fall through to "U", which
-# prints the record verbatim into `## Unparsed` — tier name and payload landing in
-# the one file the boundary keeps them out of. Deciding on the tier first closes
-# that route and every variant of it: a verdict paired with a valid rule id, and a
-# verdict declared inside a `verdict` object, are withheld too.
+# the shared reader defined above the searched-surfaces gate. Classify by rule
+# first and a judgment verdict carrying no rule id matches no branch below and
+# falls through to "U", which prints the record verbatim into `## Unparsed` — tier
+# name and payload landing in the one file the boundary keeps them out of.
+# Deciding on the tier first closes that route and every variant of it: a verdict
+# paired with a valid rule id, and a verdict declared inside a `verdict` object,
+# are withheld too.
 #
 # Four kinds, because `## Surfaces` states what each count IS and a count that
 # lumps them together says something false about the records in it:
@@ -425,8 +426,9 @@ def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
 # EVERY FIELD READ BELOW IS TYPE-GUARDED, and a record that is not an object at all
 # is routed to "U" before anything reads a key of it. jq aborts the whole program on
 # a type error, so one malformed record — an array where an object belongs, a `span`
-# that is a string, a `rule` that is a list — used to end the run at exit 3 and take
-# every well-formed finding in the sidecar with it, under a message blaming the JSON.
+# that is a string, a `rule` that is a list — would otherwise end the run at exit 3
+# and take every well-formed finding in the sidecar with it, under a message blaming
+# the JSON.
 # Refusing a sidecar is for what the input-refusal gates above examine deliberately;
 # a single bad record is what `## Unparsed` is for.
 def opt($k): if type == "object" then .[$k] else null end;

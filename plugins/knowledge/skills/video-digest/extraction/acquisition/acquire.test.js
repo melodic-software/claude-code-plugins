@@ -25,7 +25,6 @@ describe("resolveMediaArtifacts", () => {
 
 const NO_THROTTLE = { withThrottle: (/** @type {() => Promise<unknown>} */ fn) => fn() };
 
-/** yt-dlp stub that always succeeds with empty streams. */
 const spawnOk = async () => ({
   success: true,
   code: 0,

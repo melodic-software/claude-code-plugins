@@ -55,5 +55,5 @@ if (isMainModule(import.meta.url)) {
     writeStderr("Usage: node watch/render-quality-audit.js <slice-dir>");
     process.exit(2);
   }
-  writeStdout(`${renderQualityAudit(sliceDir)}\n`);
+  writeStdout(renderQualityAudit(sliceDir));
 }

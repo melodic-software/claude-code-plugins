@@ -42,9 +42,9 @@ git -C "$GATED" remote add origin https://github.com/acme-corp/widgets.git
 git -C "$NOGATE" init -q
 git -C "$NOORIGIN" init -q
 
-# run <expected-exit> <name> <cwd> <payload-json>
+# run <expected-exit> <name> <payload-json>; the payload carries its own cwd.
 run() {
-  local expected="$1" name="$2" dir="$3" payload="$4" rc=0
+  local expected="$1" name="$2" payload="$3" rc=0
   bash "$HOOK" <<<"$payload" >/dev/null 2>&1 || rc=$?
   if [[ "$rc" == "$expected" ]]; then
     PASS=$((PASS + 1))
@@ -86,32 +86,32 @@ CROSS_REPO=$'Resolves other/repo#9'"$SECTIONS"
 # #3205 reproduction: linkage + Summary + Verification + Related, no Fix.
 ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidence\n\n## Related\n\n- N/A'
 
-run 0 "valid body passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$GOOD")"
-run 2 "missing Related blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
-run 2 "empty Related blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$EMPTY_RELATED")"
-run 2 "missing keyword blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_KEYWORD")"
-run 2 "#3205 body (no ## Fix) is blocked" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$ISSUE_3205")"
+run 0 "valid body passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$GOOD")"
+run 2 "missing Related blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 2 "empty Related blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$EMPTY_RELATED")"
+run 2 "missing keyword blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_KEYWORD")"
+run 2 "#3205 body (no ## Fix) is blocked" "$(payload "$GATED" $CREATE $OWNER $REPO "$ISSUE_3205")"
 FENCED_FIX=$'Closes #12\n\n## Summary\n\nx\n\n```\n## Fix\ntemplate only\n```\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
 NESTED_TICKS=$'See the format: `` closes #5 `x` `` for reference.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
 ESCAPED_TICK=$'Use `` ` `` because `closes #5` is shown.\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- N/A'
-run 2 "a ## Fix that exists only inside a fenced sample is blocked" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$FENCED_FIX")"
-run 2 "a decoy closing keyword inside nested backticks is not linkage" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NESTED_TICKS")"
-run 2 "a decoy keyword after an escaped-backtick idiom is not linkage" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$ESCAPED_TICK")"
-run 0 "No linked issue opt-out passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT")"
-run 0 "No related issue alias passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT_ALIAS")"
-run 0 "past-tense keyword (Fixed #N) passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$PAST_TENSE")"
-run 2 "markers only inside HTML comments block" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$COMMENTED")"
-run 2 "bare 'Closes #' with no number blocks" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$BARE_HASH")"
-run 0 "deeper heading is section content" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$DEEP_HEADING")"
-run 0 "owner/repo#N keyword form passes" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$CROSS_REPO")"
-run 2 "create with no body field blocks (empty body)" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO)"
-run 0 "update with no body field passes" "$GATED" "$(payload "$GATED" $UPDATE $OWNER $REPO)"
-run 2 "update with bad body blocks" "$GATED" "$(payload "$GATED" $UPDATE $OWNER $REPO "$NO_RELATED")"
-run 0 "different target repo is out of scope" "$GATED" "$(payload "$GATED" $CREATE other-org other-repo "$NO_RELATED")"
-run 0 "gated repo with no origin remote allows (undeterminable target)" "$NOORIGIN" "$(payload "$NOORIGIN" $CREATE $OWNER $REPO "$NO_RELATED")"
-run 0 "repo without the gate file never blocks" "$NOGATE" "$(payload "$NOGATE" $CREATE $OWNER $REPO "$NO_RELATED")"
-run 0 "unrelated tool passes" "$GATED" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
-run 0 "empty stdin allows" "$GATED" ""
+run 2 "a ## Fix that exists only inside a fenced sample is blocked" "$(payload "$GATED" $CREATE $OWNER $REPO "$FENCED_FIX")"
+run 2 "a decoy closing keyword inside nested backticks is not linkage" "$(payload "$GATED" $CREATE $OWNER $REPO "$NESTED_TICKS")"
+run 2 "a decoy keyword after an escaped-backtick idiom is not linkage" "$(payload "$GATED" $CREATE $OWNER $REPO "$ESCAPED_TICK")"
+run 0 "No linked issue opt-out passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT")"
+run 0 "No related issue alias passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$OPTOUT_ALIAS")"
+run 0 "past-tense keyword (Fixed #N) passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$PAST_TENSE")"
+run 2 "markers only inside HTML comments block" "$(payload "$GATED" $CREATE $OWNER $REPO "$COMMENTED")"
+run 2 "bare 'Closes #' with no number blocks" "$(payload "$GATED" $CREATE $OWNER $REPO "$BARE_HASH")"
+run 0 "deeper heading is section content" "$(payload "$GATED" $CREATE $OWNER $REPO "$DEEP_HEADING")"
+run 0 "owner/repo#N keyword form passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$CROSS_REPO")"
+run 2 "create with no body field blocks (empty body)" "$(payload "$GATED" $CREATE $OWNER $REPO)"
+run 0 "update with no body field passes" "$(payload "$GATED" $UPDATE $OWNER $REPO)"
+run 2 "update with bad body blocks" "$(payload "$GATED" $UPDATE $OWNER $REPO "$NO_RELATED")"
+run 0 "different target repo is out of scope" "$(payload "$GATED" $CREATE other-org other-repo "$NO_RELATED")"
+run 0 "gated repo with no origin remote allows (undeterminable target)" "$(payload "$NOORIGIN" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 0 "repo without the gate file never blocks" "$(payload "$NOGATE" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 0 "unrelated tool passes" "$(payload "$GATED" mcp__github__get_me $OWNER $REPO "$NO_RELATED")"
+run 0 "empty stdin allows" ""
 
 # Defer-guard: a consumer repo tracking its OWN equivalent gate in
 # .claude/settings.json makes the plugin copy yield (deferred, exit 0) so the
@@ -120,15 +120,15 @@ mkdir -p "$GATED/.claude"
 cat >"$GATED/.claude/settings.json" <<'JSON'
 {"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pr-linkage-mcp-gate.sh"}]}]}}
 JSON
-run 0 "consumer's own tracked gate defers the plugin copy" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 0 "consumer's own tracked gate defers the plugin copy" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
 cat >"$GATED/.claude/settings.json" <<'JSON'
 {"hooks":{"PreToolUse":[{"matcher":"^mcp__github__(create|update)_pull_request$","hooks":[{"type":"command","command":"bash","args":[".claude/hooks/pr-linkage-mcp-gate.sh"]}]}]}}
 JSON
-run 0 "exec-form wiring (gate name only in args) also defers" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 0 "exec-form wiring (gate name only in args) also defers" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
 cat >"$GATED/.claude/settings.json" <<'JSON'
 {"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/other-gate.sh"}]}]}}
 JSON
-run 2 "unrelated settings hooks do not defer" "$GATED" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
+run 2 "unrelated settings hooks do not defer" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
 
 # Deferral telemetry envelope: status must be the documented "skipped" (an
 # unknown status maps to error in the reference sink); the domain detail rides
@@ -145,7 +145,10 @@ HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$GATED" \
 # The sink is fire-and-forget (backgrounded); poll in 20ms steps like the
 # established wait_for_sink helper (markdown-format.test.sh) — a coarse sleep
 # races variable process-spawn latency, notably on Windows Git Bash.
-for _ in $(seq 1 150); do [[ -s "$CAPTURE" ]] && break; sleep 0.02; done
+for _ in $(seq 1 150); do
+  [[ -s "$CAPTURE" ]] && break
+  sleep 0.02
+done
 if [[ -s "$CAPTURE" ]] &&
   jq -e '.status == "skipped" and .data.outcome == "deferred"' "$CAPTURE" >/dev/null 2>&1; then
   PASS=$((PASS + 1))

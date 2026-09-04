@@ -36,6 +36,12 @@ assert_not_contains() {
   esac
 }
 
+# Every case but Case 6 runs through this: the script honors CLAUDE_CONFIG_DIR over
+# $HOME, so an ambient value from the caller's environment would point the scan at the
+# host machine's real config root instead of the fixture, reporting and naming the real
+# project stores. Case 6 sets CLAUDE_CONFIG_DIR deliberately on the bash call itself.
+run_isolated() { env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT"; }
+
 # --- Case 1: --help exits 0 with usage ---
 
 rc=0
@@ -48,7 +54,7 @@ assert_contains "--help prints usage" "$OUT" "Usage:"
 H2="$TEST_TMPDIR/h2"
 mkdir -p "$H2"
 rc=0
-OUT=$(HOME="$H2" bash "$SCRIPT") || rc=$?
+OUT=$(run_isolated "$H2") || rc=$?
 assert_exit "missing projects root exits 0" 0 "$rc"
 assert_contains "missing projects root reported" "$OUT" "No projects directory"
 
@@ -62,7 +68,7 @@ printf '# Index\n- one\n- two\n' >"$M3A/MEMORY.md"
 printf 'topic\n' >"$M3A/debugging.md"
 printf '# Index\n- one\n' >"$M3B/MEMORY.md"
 rc=0
-OUT=$(HOME="$H3" bash "$SCRIPT") || rc=$?
+OUT=$(run_isolated "$H3") || rc=$?
 assert_exit "listing exits 0" 0 "$rc"
 assert_contains "alpha dir listed" "$OUT" "C--proj-alpha/memory"
 assert_contains "beta dir listed" "$OUT" "C--proj-beta/memory"
@@ -77,7 +83,7 @@ M4="$H4/.claude/projects/C--proj-gamma/memory"
 mkdir -p "$M4"
 printf 'loose\n' >"$M4/loose.md"
 rc=0
-OUT=$(HOME="$H4" bash "$SCRIPT" 2>&1) || rc=$?
+OUT=$(run_isolated "$H4" 2>&1) || rc=$?
 assert_exit "no-MEMORY.md store exits 0" 0 "$rc"
 assert_not_contains "no shell error leaks for a missing MEMORY.md" "$OUT" "No such file"
 assert_contains "gamma dir listed" "$OUT" "C--proj-gamma/memory"
@@ -89,7 +95,7 @@ assert_contains "gamma topic count" "$OUT" "topics:1"
 H5="$TEST_TMPDIR/h5"
 mkdir -p "$H5/.claude/projects/C--proj-empty"
 rc=0
-OUT=$(HOME="$H5" bash "$SCRIPT") || rc=$?
+OUT=$(run_isolated "$H5") || rc=$?
 assert_exit "no memory dirs exits 0" 0 "$rc"
 assert_contains "no memory dirs reported" "$OUT" "No per-project memory directories"
 
