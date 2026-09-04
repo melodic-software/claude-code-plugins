@@ -7,6 +7,17 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Changed
 
+- **`build_data_json` states why its fallback exists, matching its three sibling
+  formatter hooks.** The sentence is taken from `bash-format.sh`, where it is
+  byte-identical to the `actionlint-check.sh` and `biome-format.sh` copies, with
+  one deliberate word changed: the siblings say the fallback fires only if
+  `jq -n` fails, while this hook's `build_data_json` uses `printf | jq -c`, so
+  the sentence names `jq -c`. Copying it verbatim would have stated something
+  false about this file.
+  No gate was added here. Unlike its siblings, this hook's `FINDINGS_JSON` comes
+  from `hook::jq_fields` over classifier output it produces regardless of
+  telemetry, so nothing is spent on the unwired path and there is nothing to
+  guard.
 - **The `RUN_DIR` fallback reuses the precomputed `FILE_DIR`.** It read
   `${root:-$(dirname "$FILE")}`, forking `dirname` on the branch where no repo
   root was resolved, to recompute a directory the hook had already derived

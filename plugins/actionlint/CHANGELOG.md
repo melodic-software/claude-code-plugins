@@ -7,6 +7,23 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 
 ### Changed
 
+- **The findings array is encoded only when the telemetry sink is wired.**
+  `FINDINGS_JSON` was built with `printf | jq -R . | jq -s .` on every
+  findings-bearing run, but its one consumer is `emit_tel`, which returns
+  immediately when `HOOK_TELEMETRY_SINK` is unset. Guarding the encode with
+  `hook::telemetry_enabled` applies the rule this file already states for `TOOL`
+  and `FILE_REL`. Measured with
+  `strace -f -e trace=clone,clone3,fork,vfork,execve` on a findings-bearing
+  payload over three repetitions: with the sink unset, 139/144/141 traced lines
+  become 130/124/127 and jq executions drop from 5 to 3. With the sink wired, jq
+  executions are unchanged at 7.
+- **The two-process `jq -R . | jq -s .` shape is kept deliberately, and the
+  reason is now recorded at the site.** Folding it into a single
+  `jq -R -s 'split("\n")…'` is not equivalent. Slurp mode decodes the whole
+  stream as one string, so a truncated UTF-8 lead byte immediately before a
+  newline absorbs that newline into a single U+FFFD and merges two findings into
+  one array element; line mode splits on the raw byte first. `printf 'a\xe2\nb\n'`
+  yields `["a�","b"]` through the pipeline and `["a�b"]` through the fold.
 - **`actionlint-check.sh` reaches its telemetry emission from one place.** The
   findings-present and findings-absent paths each ended in their own
   `emit_tel "ok" ...` plus `exit 0`; hoisting `FINDINGS_JSON='[]'` above the
