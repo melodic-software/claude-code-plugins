@@ -244,10 +244,15 @@ if [[ "$brief_named" -eq 1 ]]; then
   # script's `set -uo pipefail`, grep -q exits 0 the moment it matches, printf is
   # then killed by SIGPIPE, and pipefail promotes the whole pipeline to 141 —
   # which `if !` reads as "id absent" and turns a PRESENT id into a spurious
-  # ungradeable error. Measured on this container: a Brief whose deferred section
-  # carries the id on its first line reports absent from ~100 KB and the pipeline
-  # is a hard 141 from ~250 KB; small Briefs pass, so the failure only appears
-  # once a plan grows. The builtin reads the string directly and cannot SIGPIPE.
+  # ungradeable error. It is a RACE against the 64 KB pipe buffer, not a size
+  # threshold: printf only takes SIGPIPE if it still has data to write when grep
+  # exits. Measured on this container, id on the section's first line, 15 runs
+  # per size, counting runs where the pipeline returned nonzero: 2/15 at 64 KB,
+  # 7/15 at 100 KB, then 15/15 at 128 KB and above. So it is intermittent from
+  # roughly the buffer size and deterministic from ~128 KB. The intermittent band
+  # is the dangerous one: a registered question reported missing only sometimes
+  # reads as a transient and invites a re-run instead of an investigation.
+  # The builtin reads the string directly and cannot SIGPIPE.
   for id in $deferred_ids; do
     if ! [[ "$deferred_section" =~ (^|[^A-Za-z0-9])$id([^0-9]|$) ]]; then
       missing="$missing$id "
