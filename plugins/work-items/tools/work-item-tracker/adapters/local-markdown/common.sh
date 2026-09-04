@@ -119,27 +119,24 @@ wit_item_numbers() {
 # --state filter. One spelling of the filter for every verb that enumerates the
 # store (list-items, list-sub-items) so the two cannot drift. `all` — and any
 # other value, unreachable because --state is validated to open|closed|all at
-# parse time — matches everything, mirroring the fall-through the call sites had.
+# parse time — matches everything.
 wit_state_matches() {
   case "$1" in
-    open) [[ "$2" == '"open"' ]] ;;
-    closed) [[ "$2" == '"closed"' ]] ;;
-    *) return 0 ;;
+  open) [[ "$2" == '"open"' ]] ;;
+  closed) [[ "$2" == '"closed"' ]] ;;
+  *) return 0 ;;
   esac
 }
 
-# wit_next_number — max existing item file number + 1 (single-writer store).
+# wit_next_number — max existing item file number + 1 (single-writer store). Reuses
+# wit_item_numbers so the file-name filter cannot drift from the enumerating verbs;
+# that walk is ascending, so its last line is the max and an empty store yields 1.
+# Base 10 is forced: the filter admits leading zeros and bash reads a bare `08` as
+# a bad octal literal.
 wit_next_number() {
-  local max=0 f base n
-  shopt -s nullglob
-  for f in "$WIT_STORAGE_DIR"/*.md; do
-    base="${f##*/}"
-    base="${base%.md}"
-    [[ "$base" =~ ^[0-9]+$ ]] || continue
-    n="$base"
-    ((n > max)) && max="$n"
-  done
-  printf '%s\n' "$((max + 1))"
+  local max
+  max="$(wit_item_numbers | tail -n 1)"
+  printf '%s\n' "$((10#${max:-0} + 1))"
 }
 
 # wit_fm_field <file> <key> — echo the raw one-line JSON value of a frontmatter

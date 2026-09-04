@@ -3,6 +3,75 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.60]
+
+### Fixed
+
+- **`local-markdown/renew-lease.sh` reported a renewal it had not persisted.**
+  When the store rewrite could not run, `mktemp` failure left the temp path empty,
+  the redirect failed, `&&` short-circuited past the move, and the script's status
+  came from the trailing `jq`. Reproduced with a failing `mktemp`: **exit 0**, a
+  `renewed_at` on stdout, and a store still holding the older timestamp. It now
+  exits 1, which `CONTRACT.md` defines as internal/unexpected and which `claim.sh`
+  already used for this same class. The conformance suite is byte-identical at 81
+  cases, so this is a move toward the contract, not away from it.
+- **`local-markdown/renew-lease.test.sh` had an assertion comparing two empty
+  greps.** It derived the item path from the outer store variable; when that path
+  is wrong both greps return empty and "marker unchanged" compares `""` to `""`.
+  Pointing it at a nonexistent file leaves the pre-change suite green at exit 0
+  with 8 passing lines. Paths now come from each item's own reported url, and a
+  sentinel assertion fails first on that breakage. Stated precisely: the class can
+  no longer pass silently, but the trailing comparison is still empty-versus-empty
+  under a forced bad path, so this guards the suite rather than making that one
+  assertion self-sufficient.
+- **`local-markdown/common.sh`: a leading-zero item name broke allocation.** A
+  name like `08.md` passes the item filter, and bash read the bare `08` as an
+  invalid octal literal. This was **noisy, not silent**: the store walk emitted
+  `value too great for base` on stderr and allocation skipped the file, so a store
+  holding `08.md` and `7.md` allocated **8** and wrote `8.md` beside it, two files
+  with the same numeric identity and one of them unreachable. Base 10 is now
+  forced, and the maximum derives from the walk's numeric tail, which cannot
+  collide by construction.
+
+### Added
+
+- **Twenty-two assertions across five suites**, each closing a mutant verified to
+  survive the pre-change tree: `session_id` and `ttl_minutes` detached from the
+  store, `--type` discarded, a missing `--parent`/`--blocked-by` persisted as a
+  dead edge, a renewal never reaching the store, and a `--repo` arm consuming one
+  token.
+- **The store-walk fixture now straddles a digit-count boundary.** Allocation
+  derives its maximum from the tail of the walk, so the walk's numeric ordering is
+  load-bearing; a `{2,10}` fixture is required to pin it, because under a lexical
+  sort those return `1,10,2` and the next number is 3, an existing item. A
+  `{1,10}` fixture cannot tell the two apart, since its lexical and numeric orders
+  agree.
+
+### Changed
+
+- `claim.sh` derives its reported record from the lease just stored rather than
+  rebuilding it from the same inputs. Stdout is byte-identical, key order
+  included, across 28 flag and value shapes including a session id containing the
+  marker terminator, a ttl above 2^53, newlines, tabs and unicode.
+- `wit_next_number` walks the store through the shared enumerator instead of
+  carrying a second copy of the filter. Two copies of that filter remain, not one.
+- `list-items.sh` loses a write-only variable and the no-op that made it look read.
+
+### Known issues
+
+- **`renew-lease` reports a record that computes as expired while its own store
+  computes live.** Its projection hand-lists fields and drops `ttl_minutes`, which
+  `claim` reports and the store keeps. Pre-existing and identical before this
+  change, but `CONTRACT.md` says renew-lease emits the same shape as claim, and
+  this falsifies that.
+- **The same unchecked-write shape survives in two sibling verbs**:
+  `add-sub-item.sh` reports `"linked": true` after an unchecked field write, and
+  `link-blocks.sh` appends without checking. Both are outside this group's ten
+  changed files.
+- One suite came back red once in a 202-suite baseline and green in an identical
+  re-run, and could not be reproduced in 440 targeted runs under contention. It is
+  recorded rather than attributed.
+
 ## [0.39.59]
 
 ### Fixed
