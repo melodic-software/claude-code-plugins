@@ -3,6 +3,14 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.15]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#3659): `@biomejs/biome` 2.5.9→2.5.10, `@types/node` 26.2.0→26.3.0. Development dependencies only; the tracked bundle is unaffected.
+- **Bump `qs` from 6.15.3 to 6.16.0** (#3692): a transitive dependency reached only through `express`, which the stdio entry point never imports, so this is a lockfile-only change and the tracked bundle is unaffected.
+- **Bump `fast-uri` from 3.1.5 to 3.1.7** (#3687): a transitive dependency of `ajv` by way of `@modelcontextprotocol/sdk`. `fast-uri` is bundled, so `dist/index.min.js` is regenerated from source with `npm run bundle`.
+
 ## [0.3.14]
 
 ### Changed
