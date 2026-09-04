@@ -231,7 +231,7 @@ async function main() {
   const withRead = report.filter((r) => r.hasReadThisLesson).length;
   const withVideo = report.filter((r) => r.hasVideo).length;
 
-  log.info(`\n  ----------------------------------------`);
+  log.info("\n  ----------------------------------------");
   log.info(`  Checked: ${checked} lessons`);
   log.info(
     `  Video: ${withVideo} | Download: ${withDownload} | Notes: ${withNotes} | Read: ${withRead}`,

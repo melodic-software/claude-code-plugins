@@ -151,17 +151,19 @@ async function processLesson(module, lesson, ctx) {
     tracker,
   } = ctx;
 
-  const lessonDir = join(modulesDir, module.slug, lessonDirName(lesson.position, lesson.title));
-  const transcriptPath = join(lessonDir, "transcript.md");
-
   if (skipTitles.has(lesson.title)) {
     stats.skipped++;
     return;
   }
 
-  const skipTranscript =
-    args.skipTranscripts || lesson.status === "extracted" || existsSync(transcriptPath);
-  const needsTranscript = !skipTranscript;
+  const lessonDir = join(modulesDir, module.slug, lessonDirName(lesson.position, lesson.title));
+  const transcriptPath = join(lessonDir, "transcript.md");
+
+  const needsTranscript = !(
+    args.skipTranscripts ||
+    lesson.status === "extracted" ||
+    existsSync(transcriptPath)
+  );
   const durationSec = parseDuration(lesson.duration);
   const shouldExtractFrames = args.extractFrames && durationSec > 0 && !lesson.hasScreenshots;
   const isNonVideoLesson = !lesson.duration;
