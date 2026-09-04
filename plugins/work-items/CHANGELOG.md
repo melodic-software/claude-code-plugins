@@ -7,6 +7,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Changed
 
+- **The gitea adapter's `create-item` suite folds a duplicated org-label
+  fixture.** Two cases built the same fixture inline; it is declared once now.
+  Test-side only: no adapter source changed, and all six gitea suites still pass.
+
 - **`lib/binding.sh` resolves the container-label default the way its own sibling
   does.** `wit_read_binding` spelled the absent-or-empty fallback as
   `[[ -n "$container" ]] || container="$WIT_DEFAULT_CONTAINER_LABEL"`, two lines
