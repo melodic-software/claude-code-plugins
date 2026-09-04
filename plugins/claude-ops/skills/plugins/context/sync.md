@@ -289,9 +289,10 @@ no network call and no `claude plugin` invocation, and `update-candidates-user` 
 ids it positively proved already sit at the catalog version. On an already-current fleet that turns
 the whole sweep into zero `claude plugin update` calls instead of one per user-scope install.
 
-It is not free, just far cheaper than what it replaces: the read costs one local file parse per
-catalog entry (plus one path resolution per entry that actually resolves), against `claude plugin
-update` process launches it removes. Local file reads, no network, no CLI.
+It is not free, just far cheaper than what it replaces: the read costs one `jq` over every manifest
+the shell located plus one batched `realpath` over every manifest that exists, per marketplace,
+against `claude plugin update` process launches it removes. Local file reads, no network, no CLI,
+and a process count that does not grow with the catalog.
 
 **Correctness dominates the saving, so the selector fails open by construction.** An id whose
 catalog version cannot be read — the entry's `source` is a remote spec rather than a repo-relative

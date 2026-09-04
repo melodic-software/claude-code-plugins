@@ -3,6 +3,44 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.14]
+
+### Changed
+
+- **`audit/scripts/cant-fail-scan.sh`: one write-only tally removed.** `x_cf2`
+  counted `cant-fail-ok:` exemptions of the `recomputed-expectation` rule and
+  nothing ever read it. Its two siblings do have readers: `x_cf1` and `x_cf3` feed
+  `fired_blocks` and the two `declined_*` figures the coverage line prints, and
+  the line itself says in words that `recomputed-expectation` is not tallied,
+  being line-scoped. The aggregate `exempted` counter had already counted the
+  record. The `recomputed-expectation)` case arm stays, now empty with a comment
+  giving that reason, so an exemption for the rule is still recognized rather than
+  falling through to the "unknown exempt rule" drift report.
+- **The same file is now shfmt canonical.** Its `case` blocks indented their
+  labels one level in, which shfmt's default form does not. Measured rather than
+  eyeballed: `shfmt -d` (v3.12.0, taking `indent_size = 2` from `.editorconfig`)
+  reports no change against the new file and 630 diff lines against the old one,
+  and `git diff -w` between the two revisions shows only the `x_cf2` removal and
+  its replacement comment. No output string, exit code or public surface moved.
+
+## [0.7.13]
+
+### Changed
+
+- **`audit/scripts/cant-fail-scan.awk`: one comment corrected.** It described a
+  detector as covering a variant the rule set does not carry. Comment only: the
+  non-comment lines are identical, the program parses under both `awk` and
+  `mawk`, no GNU extension was introduced, and its own suite passes 92 checks.
+
+### Known issues
+
+- **`cant-fail-scan.awk` selects 5 suites and 1 exercises it.** The other four are
+  a basename collision: another plugin's script names this file, and three
+  unrelated plugins own a file sharing its basename. The selector's own header
+  states that a basename match counts even when it lands in a comment, so this
+  shape is by design rather than a defect, but a selection count is not a coverage
+  count.
+
 ## [0.7.12]
 
 ### Changed

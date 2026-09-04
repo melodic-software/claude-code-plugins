@@ -42,6 +42,15 @@ mk_feat_repo() {
   git -C "$dir" branch -u main >/dev/null 2>&1
 }
 
+# mk_git_shim <dir> — install an executable PATH shim at <dir>/git from the
+# script body supplied on stdin (a heredoc at the call site). Each shim below
+# intercepts one git subcommand and delegates every other one to the real git.
+mk_git_shim() {
+  mkdir -p "$1"
+  cat >"$1/git"
+  chmod +x "$1/git"
+}
+
 # Create a reparse point at $1 pointing to dir $2 (junction on Windows, symlink
 # on Unix). Echoes kind, or nothing when no primitive is available.
 make_reparse() {
@@ -139,8 +148,7 @@ mk_feat_repo "$R2" feat/reset-fail
 echo untracked >"$R2/scratch.txt"
 
 SHIM="$TEST_TMPDIR/git-shim"
-mkdir -p "$SHIM"
-cat >"$SHIM/git" <<SHIMEOF
+mk_git_shim "$SHIM" <<SHIMEOF
 #!/usr/bin/env bash
 if [[ "\$1" == "reset" ]]; then
   echo "fatal: simulated reset --hard failure" >&2
@@ -148,7 +156,6 @@ if [[ "\$1" == "reset" ]]; then
 fi
 exec "$REAL_GIT" "\$@"
 SHIMEOF
-chmod +x "$SHIM/git"
 
 rc=0
 out="$(PATH="$SHIM:$PATH" bash -c "cd '$R2' && bash '$RESET' --apply" 2>&1)" || rc=$?
@@ -215,8 +222,7 @@ mk_feat_repo "$R4" feat/clean-fail
 echo untracked >"$R4/scratch.txt"
 
 CLEAN_SHIM="$TEST_TMPDIR/git-clean-shim"
-mkdir -p "$CLEAN_SHIM"
-cat >"$CLEAN_SHIM/git" <<SHIMEOF
+mk_git_shim "$CLEAN_SHIM" <<SHIMEOF
 #!/usr/bin/env bash
 if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
   echo "fatal: simulated git clean failure" >&2
@@ -224,7 +230,6 @@ if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
 fi
 exec "$REAL_GIT" "\$@"
 SHIMEOF
-chmod +x "$CLEAN_SHIM/git"
 
 rc=0
 out="$(PATH="$CLEAN_SHIM:$PATH" bash -c "cd '$R4' && bash '$RESET' --apply" 2>&1)" || rc=$?
@@ -249,8 +254,7 @@ R5="$TEST_TMPDIR/repo-clean-fail-restore"
 mk_feat_repo "$R5" feat/clean-fail-restore
 
 RESTORE_SHIM="$TEST_TMPDIR/git-clean-restore-shim"
-mkdir -p "$RESTORE_SHIM"
-cat >"$RESTORE_SHIM/git" <<SHIMEOF
+mk_git_shim "$RESTORE_SHIM" <<SHIMEOF
 #!/usr/bin/env bash
 if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
   # Simulate a clean that deleted a tracked file (reparse traversal) before failing.
@@ -260,7 +264,6 @@ if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
 fi
 exec "$REAL_GIT" "\$@"
 SHIMEOF
-chmod +x "$RESTORE_SHIM/git"
 
 rc=0
 out="$(PATH="$RESTORE_SHIM:$PATH" bash -c "cd '$R5' && bash '$RESET' --apply" 2>&1)" || rc=$?
@@ -276,8 +279,7 @@ mk_feat_repo "$R6" feat/mixed-clean-fail
 echo untracked >"$R6/scratch.txt"
 
 MIXED_SHIM="$TEST_TMPDIR/git-mixed-clean-shim"
-mkdir -p "$MIXED_SHIM"
-cat >"$MIXED_SHIM/git" <<SHIMEOF
+mk_git_shim "$MIXED_SHIM" <<SHIMEOF
 #!/usr/bin/env bash
 if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
   echo "warning: failed to remove obj/locked.bin: Device or resource busy" >&2
@@ -286,7 +288,6 @@ if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
 fi
 exec "$REAL_GIT" "\$@"
 SHIMEOF
-chmod +x "$MIXED_SHIM/git"
 
 rc=0
 out="$(PATH="$MIXED_SHIM:$PATH" bash -c "cd '$R6' && bash '$RESET' --apply" 2>&1)" || rc=$?
@@ -303,15 +304,13 @@ mk_feat_repo "$R7" feat/silent-clean-fail
 echo untracked >"$R7/scratch.txt"
 
 SILENT_SHIM="$TEST_TMPDIR/git-silent-clean-shim"
-mkdir -p "$SILENT_SHIM"
-cat >"$SILENT_SHIM/git" <<SHIMEOF
+mk_git_shim "$SILENT_SHIM" <<SHIMEOF
 #!/usr/bin/env bash
 if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
   exit 1
 fi
 exec "$REAL_GIT" "\$@"
 SHIMEOF
-chmod +x "$SILENT_SHIM/git"
 
 rc=0
 out="$(PATH="$SILENT_SHIM:$PATH" bash -c "cd '$R7' && bash '$RESET' --apply" 2>&1)" || rc=$?

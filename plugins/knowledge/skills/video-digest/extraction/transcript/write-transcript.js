@@ -20,6 +20,10 @@ import { resolveTranscriptStrategy } from "./transcript-strategy.js";
 /** @import { HarvestedLink } from '../harvesting/models.js' */
 
 /**
+ * Paragraph count of a formatted transcript: {@link formatTranscript} joins
+ * timestamped paragraphs with a blank line, and empty text has none. Shared by
+ * the caption and ASR routes so the two cannot drift.
+ *
  * @param {string} transcript
  * @returns {number}
  */
@@ -60,12 +64,11 @@ export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = nu
   }
 
   const transcript = formatTranscript(cues);
-  const paragraphCount = countParagraphs(transcript);
 
   return {
     transcript,
     cueCount: cues.length,
-    paragraphCount,
+    paragraphCount: countParagraphs(transcript),
     cleanedAutoCaptions,
     cleanedManualCaptions,
     repairedTermCount,

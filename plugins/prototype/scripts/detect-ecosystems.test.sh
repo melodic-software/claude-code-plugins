@@ -87,9 +87,8 @@ run_in() {
 # --- 1. The empty answer ------------------------------------------------------
 
 EMPTY="$(mkfixture empty)"
-empty_out="$(run_in "$EMPTY")"
 empty_exit=0
-run_in "$EMPTY" >/dev/null || empty_exit=$?
+empty_out="$(run_in "$EMPTY")" || empty_exit=$?
 assert_equals "empty project prints the empty answer" "none detected" "$empty_out"
 assert_exit "empty project still exits 0" 0 "$empty_exit"
 

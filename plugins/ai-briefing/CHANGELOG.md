@@ -3,6 +3,20 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.25]
+
+### Changed
+
+- **`validate.js` computes the deck's `file://` URL once.**
+  `pathToFileURL(HTML).href` was evaluated at the main render `goto` and again
+  inside the gate-7 responsive loop, once per measured viewport; it is now an
+  `HTML_URL` const beside the other path constants. The build suite ran 41 of
+  41 before and after.
+- **`lib/parse-briefing.js`'s header doc names the meta shape the parser
+  actually returns.** It advertised `items_count` and `sources_line`; the
+  parser returns `{ meetingNumber, window, sourcesLine }`, which is the shape
+  the frozen tests assert against. Comment-only.
+
 ## [0.7.24]
 
 ### Fixed

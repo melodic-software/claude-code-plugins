@@ -444,7 +444,6 @@ moved_hint() {
 declare -A CHECKED=()
 MISSING=()
 ABSENT=0
-ls_tag=""
 
 RAW_TOKENS=()
 mapfile -t RAW_TOKENS < <(emit_tokens)

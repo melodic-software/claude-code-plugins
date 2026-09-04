@@ -200,10 +200,16 @@ export function tokenize(text) {
   return tokens;
 }
 
-/** The k-word shingle starting at `start` in a token list. */
-function shingleAt(tokens, start, k) {
+/**
+ * The k-word shingle starting at token `i`.
+ *
+ * One spelling for both readers below: the set `shingles()` builds is what
+ * `matchedSpans()` looks a local shingle up in, so any divergence between the
+ * two constructions would silently move both containment and the spans.
+ */
+function shingleAt(tokens, i, k) {
   return tokens
-    .slice(start, start + k)
+    .slice(i, i + k)
     .map((t) => t.word)
     .join(" ");
 }

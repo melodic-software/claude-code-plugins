@@ -20,10 +20,6 @@ _HOOK_TELEMETRY_SINK_ENV = "HOOK_TELEMETRY_SINK"
 _PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 
 
-def telemetry_enabled() -> bool:
-    return bool(os.environ.get(_HOOK_TELEMETRY_SINK_ENV))
-
-
 def _is_absolute_sink_path(sink: str) -> bool:
     if sink.startswith("/"):
         return True

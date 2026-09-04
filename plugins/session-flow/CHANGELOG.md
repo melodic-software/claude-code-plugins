@@ -73,6 +73,21 @@
   the chain to a single id when the pointer carried its directory prefix; it now
   falls back to the pointer's basename beside the current file.
 
+## [0.34.24]
+
+### Changed
+
+- **`running-retro/scripts/observer.py` drops a dead binding and two redundant
+  guards.** The watch loop bound `last_record` to every summarized record and
+  never read it back, so the summary is now written straight to the observation
+  file. `summarize_record` stripped the same assistant text twice: the strip
+  moves onto the join, and the emptiness test reads the stripped value. The
+  human-narration guard was `if humans and any(h.strip() for h in humans)`,
+  where `any()` over an empty list is already false, so the leading conjunct is
+  dropped. Verified over 902 differential cases comparing summarized output,
+  with four positive controls confirming the comparison discriminates. Observer
+  defaults, state machine and emitted record shape are unchanged.
+
 ## [0.34.23]
 
 ### Fixed

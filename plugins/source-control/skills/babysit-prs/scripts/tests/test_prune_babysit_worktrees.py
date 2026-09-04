@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
@@ -55,6 +56,13 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_lease as leases  # noqa: E402
 import prune_babysit_worktrees as prune  # noqa: E402
+
+
+@contextlib.contextmanager
+def scratch_dir() -> Iterator[pathlib.Path]:
+    """A throwaway directory as a `Path`; teardown never fails the test."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+        yield pathlib.Path(td)
 
 
 def git(*args: str) -> str:
@@ -97,7 +105,9 @@ def add_worktree(main: pathlib.Path, root: pathlib.Path, name: str) -> pathlib.P
     return wt
 
 
-def run_main(root: pathlib.Path, state_dir: pathlib.Path, *extra: str) -> tuple[int, dict]:
+def run_main(
+    root: pathlib.Path, state_dir: pathlib.Path, *extra: str
+) -> tuple[int, dict]:
     argv = [
         "prune_babysit_worktrees.py",
         "--root",
@@ -114,8 +124,7 @@ def run_main(root: pathlib.Path, state_dir: pathlib.Path, *extra: str) -> tuple[
 
 class RepoPathResolvesFromGitMetadata(unittest.TestCase):
     def test_linked_worktree_resolves_its_main_checkout(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             wt = add_worktree(main, tmp / "root", "owner__repo__pr-1")
 
@@ -127,8 +136,7 @@ class RepoPathResolvesFromGitMetadata(unittest.TestCase):
         # A bare-clone hub has no working tree, so `--git-common-dir` is the bare
         # repo directory (name != ".git"); the else-branch must return it as-is,
         # not its parent, or `git -C <parent> worktree remove` would fail.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             bare = make_bare_hub(tmp)
             wt = add_worktree(bare, tmp / "root", "owner__repo__pr-1")
 
@@ -139,8 +147,7 @@ class RepoPathResolvesFromGitMetadata(unittest.TestCase):
 
 class RemoveWorktreeIsHermetic(unittest.TestCase):
     def test_removes_a_clean_worktree_under_root_without_ghq(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
             wt = add_worktree(main, root, "owner__repo__pr-1")
@@ -156,8 +163,7 @@ class RemoveWorktreeIsHermetic(unittest.TestCase):
         # The path-containment guard must fire for a real worktree that lives
         # outside the caller's declared root -- resolution succeeding never
         # licenses removal beyond the sandbox.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             actual_root = tmp / "root"
             wt = add_worktree(main, actual_root, "owner__repo__pr-2")
@@ -172,8 +178,7 @@ class RemoveWorktreeIsHermetic(unittest.TestCase):
             self.assertTrue(wt.exists())
 
     def test_reports_no_residual_directory_for_a_clean_removal(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
             wt = add_worktree(main, root, "owner__repo__pr-3")
@@ -192,8 +197,7 @@ class RemoveWorktreeIsHermetic(unittest.TestCase):
         # `attempt_directory_removal` retry/report contract is exercised on
         # its own in `AttemptDirectoryRemovalTests` against a real lock
         # simulation (a patched `shutil.rmtree` failure).
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
             wt = add_worktree(main, root, "owner__repo__pr-4")
@@ -209,8 +213,8 @@ class RemoveWorktreeIsHermetic(unittest.TestCase):
 
 class MissingRepoErrorDetectionTests(unittest.TestCase):
     def test_detects_gits_not_a_git_repository_failure(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            not_a_repo = pathlib.Path(td) / "not-a-repo"
+        with scratch_dir() as tmp:
+            not_a_repo = tmp / "not-a-repo"
             not_a_repo.mkdir()
 
             with self.assertRaises(RuntimeError) as ctx:
@@ -226,8 +230,7 @@ class MissingRepoErrorDetectionTests(unittest.TestCase):
 
 class OrphanedEntryDetectionTests(unittest.TestCase):
     def test_a_live_linked_worktree_is_not_an_orphan(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             wt = add_worktree(main, tmp / "root", "owner__repo__pr-1")
 
@@ -236,8 +239,8 @@ class OrphanedEntryDetectionTests(unittest.TestCase):
     def test_a_directory_with_no_repository_anywhere_above_it_is_an_orphan(
         self,
     ) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            orphan = pathlib.Path(td) / "owner__repo__pr-2"
+        with scratch_dir() as tmp:
+            orphan = tmp / "owner__repo__pr-2"
             orphan.mkdir()
 
             self.assertTrue(prune.is_orphaned_entry(orphan))
@@ -251,8 +254,7 @@ class OrphanedEntryDetectionTests(unittest.TestCase):
         # nothing about this directory. Detecting only `fatal: not a git
         # repository` would skip the orphan: an open PR would be retained as
         # keep_open and a closed one would error in `git worktree remove`.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             orphan = main / "root" / "owner__repo__pr-3"
             orphan.mkdir(parents=True)
@@ -263,14 +265,14 @@ class OrphanedEntryDetectionTests(unittest.TestCase):
 
 class AttemptDirectoryRemovalTests(unittest.TestCase):
     def test_reports_true_when_the_path_is_already_gone(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            missing = pathlib.Path(td) / "already-gone"
+        with scratch_dir() as tmp:
+            missing = tmp / "already-gone"
 
             self.assertTrue(prune.attempt_directory_removal(missing))
 
     def test_removes_a_surviving_directory(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            target = pathlib.Path(td) / "leftover"
+        with scratch_dir() as tmp:
+            target = tmp / "leftover"
             target.mkdir()
             (target / "stray.txt").write_text("x", encoding="utf-8")
 
@@ -278,8 +280,8 @@ class AttemptDirectoryRemovalTests(unittest.TestCase):
             self.assertFalse(target.exists())
 
     def test_reports_false_without_raising_when_removal_stays_blocked(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            target = pathlib.Path(td) / "locked"
+        with scratch_dir() as tmp:
+            target = tmp / "locked"
             target.mkdir()
 
             with mock.patch.object(
@@ -291,16 +293,14 @@ class AttemptDirectoryRemovalTests(unittest.TestCase):
 
 class RemoveEmptyOrphanDirectoryTests(unittest.TestCase):
     def test_reports_true_when_the_path_is_already_gone(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()
 
             self.assertTrue(prune.remove_empty_orphan_directory(root / "gone", root))
 
     def test_removes_an_empty_directory_under_root(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             target = root / "owner__repo__pr-1"
             target.mkdir(parents=True)
@@ -309,8 +309,7 @@ class RemoveEmptyOrphanDirectoryTests(unittest.TestCase):
             self.assertFalse(target.exists())
 
     def test_leaves_a_non_empty_directory_untouched(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             target = root / "owner__repo__pr-1"
             target.mkdir(parents=True)
@@ -320,8 +319,7 @@ class RemoveEmptyOrphanDirectoryTests(unittest.TestCase):
             self.assertTrue((target / "stray.txt").exists())
 
     def test_refuses_a_directory_outside_root(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()
             outside = tmp / "elsewhere" / "owner__repo__pr-1"
@@ -342,8 +340,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         """The whole recoverable path: an entry whose contents are gone but
         whose `.git` pointer survives must lose its directory AND its record,
         so the deterministic path is genuinely reusable afterwards."""
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
             wt = add_worktree(main, root, "owner__repo__pr-7")
@@ -382,8 +379,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # A bare hub's record sits at `<hub>.git/worktrees/<name>`, which has no
         # `.git`-named ancestor -- the repository has to come from the
         # `worktrees/` segment or a bare-hub orphan is never prunable.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             bare = make_bare_hub(tmp)
             wt = add_worktree(bare, tmp / "root", "owner__repo__pr-6")
 
@@ -395,8 +391,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # Losing the gitfile to a failed rmdir would strand the registration
         # permanently: the next run finds an empty directory and no way back to
         # the owning repository.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
 
             with mock.patch.object(
@@ -406,9 +401,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
 
             self.assertFalse(removed)
             self.assertTrue(pointer.is_file())
-            self.assertEqual(
-                prune.registered_repo_from_gitdir_pointer(wt), owner_repo
-            )
+            self.assertEqual(prune.registered_repo_from_gitdir_pointer(wt), owner_repo)
 
     def _orphan_with_pointer(
         self, tmp: pathlib.Path
@@ -427,8 +420,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # access failure on the directory -- leaves the directory standing with
         # its only ownership record already gone. Restoration cannot be keyed on
         # the rmdir failing.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
 
             real_iterdir = pathlib.Path.iterdir
@@ -453,8 +445,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # the removal without raising at all, so this path never reaches an
         # exception handler -- and the directory survives holding someone's
         # file plus no way back to the owning repository.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
             stray = wt / "appeared.txt"
 
@@ -480,8 +471,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # family, so a permission denial on the very directory the restoration
         # exists to rescue must not escape the `finally` -- an exception thrown
         # there replaces the original one AND leaves the pointer deleted.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
 
             real_iterdir = pathlib.Path.iterdir
@@ -514,8 +504,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # while exiting 0, and `git worktree remove` refuses it with a nonzero
         # exit. Neither exit status is the answer -- the verdict must come from
         # re-reading `worktree list`.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
             wt = add_worktree(main, root, "owner__repo__pr-4")
@@ -533,8 +522,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # would also discard the registration of an unrelated worktree whose
         # directory is only temporarily unavailable. Removal must name its one
         # target; this fails against a repo-wide prune.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
             target = add_worktree(main, root, "owner__repo__pr-11")
@@ -555,8 +543,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # bare hub, whose common directory is `hub.git` rather than a `.git`.
         # The removal has to behave identically there or every bare-hub
         # self-heal would silently report `failed`.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             bare = make_bare_hub(tmp)
             root = tmp / "root"
             target = add_worktree(bare, root, "owner__repo__pr-13")
@@ -576,8 +563,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # `git worktree remove` exits nonzero for a path it does not know, but
         # "no record survives" is the desired end state -- the verdict comes
         # from re-reading `worktree list`, never from that exit status.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             never_registered = tmp / "root" / "owner__repo__pr-15"
 
@@ -590,8 +576,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # Unlike `prune`, `remove` deletes a worktree's contents. The caller
         # only reaches here once the directory is gone; enforcing that here
         # keeps a future caller from turning this into a content-deleting path.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
             wt = add_worktree(main, root, "owner__repo__pr-16")
@@ -610,8 +595,8 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
         # `fatal: invalid gitfile format` is a different message from the
         # missing-repository one, and a malformed pointer is one of the states
         # this self-heal exists to clear -- so it must not re-raise.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            wt = pathlib.Path(td) / "owner__repo__pr-8"
+        with scratch_dir() as tmp:
+            wt = tmp / "owner__repo__pr-8"
             wt.mkdir()
             wt.joinpath(".git").write_text("garbage not a pointer\n", encoding="utf-8")
 
@@ -640,8 +625,7 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
 
 class DropOrphanedWorktreeTests(unittest.TestCase):
     def test_drops_the_lease_record_and_removes_the_empty_directory(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()
             orphan_dir = root / "owner__repo__pr-9"
@@ -670,8 +654,7 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
         self.assertFalse(orphan_dir.exists())
 
     def test_is_a_no_op_when_no_lease_record_exists(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()
             orphan_dir = root / "owner__repo__pr-10"
@@ -701,8 +684,7 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
         # held and releases it afterwards
         # (`reference/orchestration.md` "Cleanup"), so unlinking the record
         # here would make that release fail and drop ownership early.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()
             orphan_dir = root / "owner__repo__pr-13"
@@ -734,8 +716,7 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
         # uncommitted work still sits in the directory -- unlike
         # `remove_worktree`'s post-removal cleanup, this path was never
         # confirmed safe to discard by git, so it must never force-delete.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()
             orphan_dir = root / "owner__repo__pr-11"
@@ -753,17 +734,14 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
 
             self.assertFalse(info["directory_removed"])
             self.assertTrue(orphan_dir.exists())
-            self.assertEqual(
-                stray_file.read_text(encoding="utf-8"), "do not delete me"
-            )
+            self.assertEqual(stray_file.read_text(encoding="utf-8"), "do not delete me")
 
     def test_refuses_to_remove_an_orphan_directory_outside_root(self) -> None:
         # Defense in depth, matching `remove_worktree`'s own containment
         # guard -- structurally unreachable through `main` (iter_worktrees
         # only ever yields direct children of root) but a direct caller must
         # not be able to walk this off-root regardless.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()
             outside_dir = tmp / "elsewhere" / "owner__repo__pr-12"
@@ -802,9 +780,9 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
         return exit_code, report, orphan_dir, lease_path
 
     def test_orphan_dropped_action_with_exit_code_zero(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+        with scratch_dir() as tmp:
             exit_code, report, orphan_dir, lease_path = self.run_orphan_prune(
-                pathlib.Path(td), "--apply"
+                tmp, "--apply"
             )
             self.assertFalse(orphan_dir.exists())
             self.assertFalse(lease_path.exists())
@@ -823,8 +801,7 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
         while the caller still holds the lease and releases it in the next
         step (`reference/orchestration.md` "Cleanup"). Dropping the record
         here would make that release fail on a lease that no longer exists."""
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()
             orphan_dir = root / "owner__repo__pr-9"
@@ -845,9 +822,12 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
             )
 
             exit_code, report = run_main(
-                root, state_dir,
-                "--pr", "owner/repo#9",
-                "--lease-token", "caller-token",
+                root,
+                state_dir,
+                "--pr",
+                "owner/repo#9",
+                "--lease-token",
+                "caller-token",
                 "--apply",
             )
 
@@ -867,8 +847,7 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
         one-per-PR path and a replacement worktree cannot be created there.
         Reporting `dropped: true` there would claim a cleanup that did not
         happen."""
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             root = tmp / "root"
             root.mkdir()
             orphan_dir = root / "owner__repo__pr-9"
@@ -894,10 +873,8 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
         """Without --apply the run is a report: the documented dry-run contract
         promises it never mutates, so the orphan directory and its stale lease
         record must both survive."""
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            exit_code, report, orphan_dir, lease_path = self.run_orphan_prune(
-                pathlib.Path(td)
-            )
+        with scratch_dir() as tmp:
+            exit_code, report, orphan_dir, lease_path = self.run_orphan_prune(tmp)
             self.assertTrue(orphan_dir.exists())
             self.assertTrue(lease_path.exists())
 
@@ -917,8 +894,8 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
     """
 
     def test_iter_worktrees_pairs_recognized_and_unrecognized_directories(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            root = pathlib.Path(td) / "root"
+        with scratch_dir() as tmp:
+            root = tmp / "root"
             root.mkdir()
             (root / "medley-1567").mkdir()
             (root / "owner__repo__pr-1").mkdir()
@@ -933,8 +910,7 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
         self.assertEqual(entries[1].key, "owner/repo#1")
 
     def test_main_reports_a_non_conforming_worktree_instead_of_nothing(self) -> None:
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
             wt = add_worktree(main, root, "medley-1567")
@@ -955,11 +931,12 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
             ],
         )
 
-    def test_apply_mode_reports_but_never_removes_an_unrecognized_worktree(self) -> None:
+    def test_apply_mode_reports_but_never_removes_an_unrecognized_worktree(
+        self,
+    ) -> None:
         # The report-don't-remove invariant is what makes an unrecognized row safe
         # to emit at all, and --apply is the only mode that can delete anything.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
+        with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
             wt = add_worktree(main, root, "medley-1567")
@@ -968,21 +945,25 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
 
             self.assertTrue(wt.exists())
         self.assertEqual(code, 0)
-        self.assertEqual([row["action"] for row in report["worktrees"]], ["unrecognized"])
+        self.assertEqual(
+            [row["action"] for row in report["worktrees"]], ["unrecognized"]
+        )
         self.assertFalse(report["worktrees"][0]["removed"])
 
     def test_scoped_pr_mode_still_reports_unrecognized_directories(self) -> None:
         # Scoping to one PR narrows which PRs are acted on, never which
         # directories are accounted for.
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            root = pathlib.Path(td) / "root"
+        with scratch_dir() as tmp:
+            root = tmp / "root"
             root.mkdir()
             (root / "medley-1567").mkdir()
 
-            code, report = run_main(root, pathlib.Path(td) / "state", "--pr", "owner/repo#1")
+            code, report = run_main(root, tmp / "state", "--pr", "owner/repo#1")
 
         self.assertEqual(code, 0)
-        self.assertEqual([row["action"] for row in report["worktrees"]], ["unrecognized"])
+        self.assertEqual(
+            [row["action"] for row in report["worktrees"]], ["unrecognized"]
+        )
 
 
 if __name__ == "__main__":

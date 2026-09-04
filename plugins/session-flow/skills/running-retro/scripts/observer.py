@@ -232,7 +232,7 @@ def summarize_record(rec: dict) -> dict:
             c.get("text", "")
             for c in content
             if isinstance(c, dict) and c.get("type") == "text"
-        )
+        ).strip()
         if tool_uses:
             out["tools"] = [c.get("name") for c in tool_uses]
             out["calls"] = [
@@ -242,8 +242,8 @@ def summarize_record(rec: dict) -> dict:
             mid = _short_id(msg.get("id"))
             if mid is not None:
                 out["mid"] = mid
-        if text.strip():
-            _set_narration(out, "say", text.strip())
+        if text:
+            _set_narration(out, "say", text)
         if msg.get("stop_reason"):
             out["stop_reason"] = msg["stop_reason"]
     elif t == "user":
@@ -269,7 +269,7 @@ def summarize_record(rec: dict) -> dict:
             ]
             if tool_results:
                 out["results"] = [_result_entry(c) for c in tool_results]
-            if humans and any(h.strip() for h in humans):
+            if any(h.strip() for h in humans):
                 _set_narration(out, "human", " ".join(humans).strip())
             # Anything in a user record that is not a tool_result is the human
             # speaking: text, a bare string, an image, a document, or a block
@@ -455,7 +455,6 @@ class Observer:
         cycles = total_lines = sharing_violations = read_errors = parse_errors = 0
         max_mtime = 0.0
         last_growth_iso = now_iso()
-        last_record: dict = {}
         started_iso = now_iso()
         state = "watching"
         pending_idle = False
@@ -520,8 +519,7 @@ class Observer:
                         if not isinstance(rec, dict):
                             continue
                         total_lines += 1
-                        last_record = summarize_record(rec)
-                        obs_f.write(json.dumps(last_record) + "\n")
+                        obs_f.write(json.dumps(summarize_record(rec)) + "\n")
                     obs_f.flush()
 
                 if mtime > max_mtime:

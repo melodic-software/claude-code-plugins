@@ -3,6 +3,77 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.14]
+
+### Changed
+
+- **`install_state.py`'s `scan()` aggregates counts with a dict comprehension.**
+  The `setdefault` loop it replaces could never reach its already-present
+  branch: `counts` starts empty and `count_by_entry` returns unique keys, so
+  every iteration took the insert path.
+- **`overlap.py`'s quoted-scalar frontmatter branch strips once and drops a
+  dead conjunct.** `body.rstrip()` was computed three times, and the `!= ""`
+  test guarding it can never matter, since `"".endswith(quote)` is already
+  false. The join and split normalization at the return makes the value
+  byte-identical in every case.
+- **Three suites lose assertion helpers that had no callers.**
+  `claude-observability.test.sh` drops `skip_case`, `assert_exit` and
+  `assert_file_exists`; `prune-otel-store.test.sh` drops `assert_exit` and
+  `assert_file_exists` but keeps `skip_case`, which has eight duckdb-gated
+  callers; `check-all.test.sh` drops `skip_case` and `assert_eq`. The formatter
+  hook also reflowed two one-line `pass()` definitions and one `case` block's
+  labels.
+
+  The Python suites ran 50 and 77 tests and the shell suites 33 and 112 cases,
+  with the duckdb cases skipping locally and covered in CI; the pinned ruff
+  wrapper is clean.
+
+- **One candidate was reverted rather than shipped:** routing
+  `skill-usage-expansion-audit.sh`'s expansion-type extraction through
+  `hook::jq_field`. The verifier proved behavior equivalence across every input
+  class, and then `strace` measured one added fork per execution, because the
+  helper's nested command substitution costs a fork the inline form did not
+  pay. This is an always-on PostToolUse hook, and spawn count is the cost
+  driver the marketplace hook budget is written against, so the dedup's value
+  sits below its price. The reverted commit's own claim of an unchanged spawn
+  count was false. The candidate is recorded as a human decision, dedup against
+  fork cost, rather than quietly retried.
+
+## [0.41.13]
+
+### Changed
+
+- **`plugins` skill: `fleet-state.sh` computes the whole report in three `jq`
+  passes and two batched `realpath` calls instead of one process per catalog
+  entry.** The report used to cost 108 `jq`, 78 `realpath`, 23 `mktemp` and
+  about 460 subshells for a 74-plugin catalog: one `jq` per manifest to read
+  its version, one `realpath` per manifest for the containment check, one
+  `mktemp` per `--slurpfile` payload, and a `| tr -d '\r'` pipeline behind
+  every `jq`. Measured with `bash -x` and a `$BASHPID`-stamped `PS4` on the
+  authoring Windows host: 736 process creations and 17.0 minutes wall for one
+  default run, and `sync` calls the script six to eight times. The rewrite
+  reads every top-level input in one `jq` (validation, the merged
+  `enabledPlugins` context, every marketplace's fields, every recorded
+  `projectPath`, and the default marketplace this plugin was installed from,
+  matched inside that same `jq` because MSYS rewrites a mount-alias root such
+  as `/tmp/...` into the drive-letter spelling the install records carry only
+  when it crosses into a native binary's argv), lists a marketplace's entries
+  with a second, resolves
+  the checkout root and every manifest that exists with one
+  `hook::_physical_prime` call, reads each contained manifest with
+  `read -d ''`, and composes the block, or the `--ids` projection, with a
+  third `jq` whose shell-assembled payload (context, `projectPath` presence,
+  manifest text) travels on stdin, never on argv, so the #1336 ceiling stays
+  out of reach without a temp file. Carriage returns are stripped by
+  parameter expansion in the capture helper, so no `tr` runs. Same output
+  bytes for the default run, `--all`, `--marketplaces` and every `--ids`
+  selector against the same snapshot of the machine's state; the fail-open
+  contract, the containment gate and every error path are unchanged. Three
+  new test cases pin the budget: a `--marketplace` report and an `--ids`
+  projection each cost at most 12 process creations, and a 2-entry and a
+  12-entry catalog cost the same. The static `--argjson` guard now asserts
+  zero call sites.
+
 ## [0.41.12]
 
 ### Changed

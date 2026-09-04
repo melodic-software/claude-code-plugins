@@ -444,7 +444,6 @@ else
   fail "stub/write-ext-deny: emitted a systemMessage without mutating anything"
 fi
 
-
 # --- Write opt-in + lockfile basename: report-only even for *.json (#2650 P2) -
 printf 'this has teh typo\n' >"$STUB_REPO/package-lock.json" # spellchecker:disable-line
 BEFORE_LOCK="$(cat "$STUB_REPO/package-lock.json")"
@@ -1715,10 +1714,11 @@ fi
 
 # --- Benign path spawns no process it does not need (traced) -----------------
 # This hook fires on every Write, Edit and NotebookEdit, so the process count on
-# the path where the file is clean IS the cost. Four assertions guard it: a set
-# of commands that must not appear anywhere in the run, an exact jq count, a
-# CEILING on how many external processes the hook's OWN code spawns, and an
-# allowlist naming which ones they may be.
+# the path where the file is clean IS the cost. Five assertions guard it: that
+# the tracer marked any line at all, a set of commands that must not appear
+# anywhere in the run, an exact jq count, a CEILING on how many external
+# processes the hook's OWN code spawns, and an allowlist naming which ones they
+# may be.
 #
 # A total over the whole run would not be portable, because the shared path
 # resolver makes a different number of realpath and cygpath calls on Windows
@@ -1734,10 +1734,19 @@ fi
 # The ceiling is an upper bound rather than an equality so a later cut does not
 # fail it; the allowlist is what catches a swap that keeps the count.
 #
-# dirname and basename became parameter expansions. The jq count is 2 and not 3
-# because the notebook-normalizing filter now runs only for a payload that
-# actually carries a notebook_path; the two that remain are the shared payload
-# validation and the shared file_path read, both in hook-utils.sh.
+# dirname and basename are parameter expansions. The jq count is 1: the shared
+# payload validation in hook::buffer_stdin. The notebook-normalizing filter runs
+# only for a payload carrying a notebook_path, and hook::read_file_path proves
+# the path with its builtin fast reader on a single-chunk payload, so neither
+# spends a process here.
+#
+# PS4 cannot reach the traced shell through the environment: bash rebinds PS4 to
+# its default "+ " at startup and ignores an inherited value, so an exported one
+# leaves every trace line unmarked and every assertion below matches an empty
+# word list: four of them then pass on no evidence and the fifth reports zero.
+# A BASH_ENV preload is read BY that shell before the hook, so the assignment
+# happens inside it. The instrument-live assertion is what keeps that arrangement
+# honest: a tracer marking no line fails loudly instead of vacuously passing.
 #
 # CLAUDE_PROJECT_DIR is SET here, unlike the cases above, because Claude Code
 # always sets it and with it unset the shared path resolver takes a git-
@@ -1786,17 +1795,29 @@ REPO_TRACE="$WORK/trace-consumer"
 new_typos_repo "$REPO_TRACE"
 printf '# sample\n\nthis is a clean document\n' >"$REPO_TRACE/clean.md"
 TRACE="$WORK/benign-trace.txt"
+PS4_PRELOAD="$WORK/ps4-preload.sh"
+# The quoted heredoc keeps ${FUNCNAME[0]} literal: it is the traced shell that
+# expands it, once per trace line.
+cat >"$PS4_PRELOAD" <<'PS4EOF'
+PS4='+@${FUNCNAME[0]:-MAIN}@ '
+PS4EOF
 (
   cd "$UNRELATED" || exit 1
-  # shellcheck disable=SC2016  # PS4 must reach the traced shell UNEXPANDED: it
-  # is that shell which expands ${FUNCNAME[0]}, once per trace line.
   printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_TRACE/clean.md" |
     env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$REPO_TRACE" \
       CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true \
       PATH="$(dirname "$REAL_TYPOS"):$PATH" \
-      PS4='+@${FUNCNAME[0]:-MAIN}@ ' \
+      BASH_ENV="$PS4_PRELOAD" \
       bash -x "$HOOK" >/dev/null 2>"$TRACE"
 )
+# Same anchor trace_words consumes, so this counts exactly the lines the four
+# assertions below can see.
+MARKED="$(grep -cE '^\++@' "$TRACE")"
+if [[ "$MARKED" -gt 0 ]]; then
+  ok "traced benign: PS4 instrument live ($MARKED marked trace line(s))"
+else
+  fail "traced benign: PS4 instrument marked 0 trace lines; the spawn assertions below would pass on no evidence"
+fi
 for banned in dirname basename; do
   N="$(trace_execs "$banned" "$TRACE")"
   if [[ "$N" == "0" ]]; then
@@ -1806,10 +1827,10 @@ for banned in dirname basename; do
   fi
 done
 N_JQ="$(trace_execs jq "$TRACE")"
-if [[ "$N_JQ" == "2" ]]; then
-  ok "traced benign: exactly 2 jq (payload validation and file_path read)"
+if [[ "$N_JQ" == "1" ]]; then
+  ok "traced benign: exactly 1 jq (the shared payload validation)"
 else
-  fail "traced benign: jq spawned $N_JQ time(s), expected 2"
+  fail "traced benign: jq spawned $N_JQ time(s), expected 1"
 fi
 
 # One external, the typos binary, which is the point of the hook. The two
@@ -1853,7 +1874,11 @@ else
     IN="${pair%%=*}"
     WANT="${pair#*=}"
     # shellcheck disable=SC2034,SC2154  # the eval'd hook lines read FILE and assign FILE_DIR
-    GOT="$(FILE="$IN"; eval "$FILE_DIR_LINES"; printf '%s' "$FILE_DIR")"
+    GOT="$(
+      FILE="$IN"
+      eval "$FILE_DIR_LINES"
+      printf '%s' "$FILE_DIR"
+    )"
     if [[ "$GOT" == "$WANT" ]]; then
       ok "root-level: FILE_DIR of $IN is $GOT"
     else

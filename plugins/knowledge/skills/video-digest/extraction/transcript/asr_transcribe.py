@@ -33,9 +33,14 @@ def main() -> int:
         return 3
 
     try:
-        model = WhisperModel(args.model, device=args.device, compute_type=args.compute_type)
+        model = WhisperModel(
+            args.model, device=args.device, compute_type=args.compute_type
+        )
     except Exception as exc:  # noqa: BLE001 - CUDA/toolkit init failures fall back to CPU
-        print(f"device '{args.device}' unavailable ({exc}); falling back to CPU int8", file=sys.stderr)
+        print(
+            f"device '{args.device}' unavailable ({exc}); falling back to CPU int8",
+            file=sys.stderr,
+        )
         model = WhisperModel(args.model, device="cpu", compute_type="int8")
 
     pipeline = BatchedInferencePipeline(model=model)
@@ -46,9 +51,10 @@ def main() -> int:
         initial_prompt=args.initial_prompt or None,
     )
 
-    out = {"model": args.model, "language": info.language, "segments": []}
-    for segment in segments:
-        out["segments"].append(
+    out = {
+        "model": args.model,
+        "language": info.language,
+        "segments": [
             {
                 "start": segment.start,
                 "end": segment.end,
@@ -58,7 +64,9 @@ def main() -> int:
                     for word in (segment.words or [])
                 ],
             }
-        )
+            for segment in segments
+        ],
+    }
     json.dump(out, sys.stdout)
     return 0
 

@@ -297,7 +297,7 @@ export async function acquireYouTubeMedia(
     fail(message, "acquire-youtube-media", { label: videoId }, Date.now() - started);
 
   /** @type {MediaArtifacts} */
-  let artifacts = { videoPath: "", captionPaths: [], metadataPath: "" };
+  let artifacts;
   /** @type {object | undefined} */
   let acquireMetrics;
 

@@ -111,19 +111,21 @@ if [[ -n "$LABELS" ]]; then
   LABELS_TRUNCATED=0
   # This handler calls ctx.SetTotalCountHeader (routers/api/v1/repo/label.go), so when the
   # header is present it decides when the list is exhausted. That matters more here than in
-  # list-items: gitea clamps `limit` to `[api] MAX_RESPONSE_ITEMS` (stock 50), and under the
-  # old page-length test an instance whose cap is below config.gitea.page_size stopped after
-  # page 1 — making a label past that point indistinguishable from a nonexistent one, so the
-  # operator was told to create a label that already exists. SEEN/-n mirror list-items: an
-  # empty header means "no count sent", never zero.
+  # list-items: gitea clamps `limit` to `[api] MAX_RESPONSE_ITEMS` (stock 50), so on an
+  # instance whose cap is below config.gitea.page_size the page-length heuristic alone stops
+  # after page 1. A label past that point is then indistinguishable from a nonexistent one,
+  # and the operator is told to create a label that already exists. SEEN/-n mirror
+  # list-items: an empty header means "no count sent", never zero. LABEL_GOT carries the row
+  # count of the page just fetched, seeded from page 1, and is what the short-page fallback
+  # tests.
   LABEL_SEEN="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || LABEL_SEEN=0
+  LABEL_GOT="$LABEL_SEEN"
   LABEL_TOTAL="$WIT_GITEA_TOTAL_COUNT"
   while :; do
     if [[ -n "$LABEL_TOTAL" ]]; then
       ((LABEL_SEEN >= LABEL_TOTAL)) && break
     else
-      PAGE_LEN="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || PAGE_LEN=0
-      ((PAGE_LEN < WIT_GITEA_PAGE_SIZE)) && break
+      ((LABEL_GOT < WIT_GITEA_PAGE_SIZE)) && break
     fi
     # Bounded like every other paginated loop in this adapter: a server that keeps answering
     # a full page would otherwise spin forever with ALL_LABELS growing without limit. Measured
@@ -199,8 +201,8 @@ if [[ -n "$LABELS" ]]; then
       ORG_PAGE_NUM=$((ORG_PAGE_NUM + 1))
     done
   fi
-  MISSING="$(jq -rc --arg names "$LABELS" --argjson all "$ALL_LABELS" \
-    '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]' <<<'null')"
+  MISSING="$(jq -rcn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
+    '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]')"
   if [[ "$MISSING" != "[]" ]]; then
     # The ceiling changes what "not found" is allowed to mean. Unlike list-items, where
     # truncation just returns fewer items, stopping early here makes an unseen label
@@ -215,8 +217,8 @@ if [[ -n "$LABELS" ]]; then
     fi
     exit "$EX_NOT_FOUND"
   fi
-  LABEL_IDS="$(jq -c --arg names "$LABELS" --argjson all "$ALL_LABELS" \
-    '[($names | split(",") | .[] | select(length > 0)) as $n | ($all[] | select(.name == $n) | .id)]' <<<'null')"
+  LABEL_IDS="$(jq -cn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
+    '[($names | split(",") | .[] | select(length > 0)) as $n | ($all[] | select(.name == $n) | .id)]')"
 fi
 
 # --type is accepted and cannot be honored: Gitea has no issue-type registry, so the

@@ -169,9 +169,7 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   harvestLinks: (metadata) => {
     const videoMetadata = /** @type {VideoMetadata} */ (metadata);
     /** @type {HarvestedLink[]} */
-    const links = [];
-
-    links.push(...linksFromText(videoMetadata.description, "description"));
+    const links = linksFromText(videoMetadata.description, "description");
 
     for (const chapter of videoMetadata.chapters) {
       links.push(

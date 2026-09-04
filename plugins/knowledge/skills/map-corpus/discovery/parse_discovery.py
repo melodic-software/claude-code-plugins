@@ -74,13 +74,14 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
         netloc = userinfo + "@" + host.lower()
     else:
         netloc = netloc.lower()
-    path = parts.path
-    if path == "/":
-        path = ""  # bare root: one spelling, so root-with-slash dedupes
-    elif path.endswith("/"):
-        path = path.rstrip("/")
-    kept = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
-            if not TRACKING_PARAMS_RE.match(k)]
+    # trailing slashes dropped, bare root included: one spelling per
+    # resource, so root-with-slash dedupes against the bare origin
+    path = parts.path.rstrip("/")
+    kept = [
+        (k, v)
+        for k, v in parse_qsl(parts.query, keep_blank_values=True)
+        if not TRACKING_PARAMS_RE.match(k)
+    ]
     query = urlencode(kept)
     return urlunsplit((scheme, netloc, path, query, ""))  # fragment dropped
 
@@ -119,14 +120,20 @@ def extract_sitemap_xml_urls(data: bytes) -> list:
     # XML parse that reads every byte anyway
     for marker in (b"<!DOCTYPE", b"<!ENTITY"):
         if marker in data:
-            fail(2, f"sitemap XML contains {marker.decode()} -- DTDs are not "
-                    f"valid in sitemaps and are refused (XXE/entity-expansion "
-                    f"hardening).")
+            fail(
+                2,
+                f"sitemap XML contains {marker.decode()} -- DTDs are not "
+                f"valid in sitemaps and are refused (XXE/entity-expansion "
+                f"hardening).",
+            )
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:
-        fail(2, f"sitemap XML does not parse: {exc}. An unparsable sitemap "
-                f"is a failed discovery, not an empty one.")
+        fail(
+            2,
+            f"sitemap XML does not parse: {exc}. An unparsable sitemap "
+            f"is a failed discovery, not an empty one.",
+        )
     urls = []
     for element in root.iter():
         tag = element.tag.rsplit("}", 1)[-1]  # strip namespace
@@ -135,25 +142,30 @@ def extract_sitemap_xml_urls(data: bytes) -> list:
             if normalized:
                 urls.append(normalized)
     if not urls:
-        fail(2, "sitemap XML parsed but yielded no usable http(s) <loc> URLs; "
-                "wrong file, wrong rung, or non-http locs only.")
+        fail(
+            2,
+            "sitemap XML parsed but yielded no usable http(s) <loc> URLs; "
+            "wrong file, wrong rung, or non-http locs only.",
+        )
     return urls
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="parse_discovery.py",
-        description="Extract the URL set from a discovery snapshot.")
-    parser.add_argument("snapshot", nargs="?",
-                        help="path to the discovery snapshot")
+        description="Extract the URL set from a discovery snapshot.",
+    )
+    parser.add_argument("snapshot", nargs="?", help="path to the discovery snapshot")
     parser.add_argument("--rung", choices=RUNGS)
-    parser.add_argument("--base-url",
-                        help="URL the snapshot was fetched from")
+    parser.add_argument("--base-url", help="URL the snapshot was fetched from")
     parser.add_argument("--out", default="-")
-    parser.add_argument("--normalize-url", metavar="URL",
-                        help="print the normalized form of one URL and exit; "
-                             "seeds and hand-added rows must pass through "
-                             "this so URL identity has one owner")
+    parser.add_argument(
+        "--normalize-url",
+        metavar="URL",
+        help="print the normalized form of one URL and exit; "
+        "seeds and hand-added rows must pass through "
+        "this so URL identity has one owner",
+    )
     args = parser.parse_args(argv)
 
     if args.normalize_url is not None:
@@ -164,8 +176,11 @@ def main(argv=None) -> int:
         return 0
 
     if not args.snapshot or not args.rung or not args.base_url:
-        fail(2, "snapshot, --rung, and --base-url are required "
-                "(unless using --normalize-url).")
+        fail(
+            2,
+            "snapshot, --rung, and --base-url are required "
+            "(unless using --normalize-url).",
+        )
 
     base = normalize_url(args.base_url)
     if base is None:
@@ -177,8 +192,11 @@ def main(argv=None) -> int:
     except OSError as exc:
         fail(2, f"cannot read snapshot {args.snapshot!r}: {exc}")
     if not data.strip():
-        fail(2, f"snapshot {args.snapshot!r} is empty; an empty discovery "
-                f"artifact is a failed fetch, not an empty site.")
+        fail(
+            2,
+            f"snapshot {args.snapshot!r} is empty; an empty discovery "
+            f"artifact is a failed fetch, not an empty site.",
+        )
 
     if args.rung == "sitemap-xml":
         urls = extract_sitemap_xml_urls(data)
@@ -190,9 +208,12 @@ def main(argv=None) -> int:
             fail(2, f"snapshot {args.snapshot!r} is not UTF-8 text: {exc}.")
         urls = extract_markdown_urls(text, args.base_url)
         if not urls:
-            fail(2, f"no http(s) URLs found in {args.snapshot!r}; an empty "
-                    f"rung result must be visible, not silently classified "
-                    f"as nothing-to-do.")
+            fail(
+                2,
+                f"no http(s) URLs found in {args.snapshot!r}; an empty "
+                f"rung result must be visible, not silently classified "
+                f"as nothing-to-do.",
+            )
 
     unique = sorted(set(urls))
     output = {

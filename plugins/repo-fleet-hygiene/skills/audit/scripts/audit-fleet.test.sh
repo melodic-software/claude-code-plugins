@@ -685,9 +685,12 @@ PLAN_FILE="$TMP/action-plan.json"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" --detail --plan-file "$PLAN_FILE" >"$output"
 
 failures=0
-assert_contains() {
-  local label="$1" pattern="$2"
-  if ! grep -Fq -- "$pattern" "$output"; then
+
+# The file-taking forms are the general ones. The two-argument forms are the
+# common case, asserting against the main report captured in $output.
+assert_contains_file() {
+  local label="$1" pattern="$2" file="$3"
+  if ! grep -Fq -- "$pattern" "$file"; then
     printf 'FAIL: %s (missing %s)\n' "$label" "$pattern" >&2
     failures=$((failures + 1))
   else
@@ -695,15 +698,18 @@ assert_contains() {
   fi
 }
 
-assert_not_contains() {
-  local label="$1" pattern="$2"
-  if grep -Fq -- "$pattern" "$output"; then
+assert_not_contains_file() {
+  local label="$1" pattern="$2" file="$3"
+  if grep -Fq -- "$pattern" "$file"; then
     printf 'FAIL: %s (unexpected %s)\n' "$label" "$pattern" >&2
     failures=$((failures + 1))
   else
     printf 'PASS: %s\n' "$label"
   fi
 }
+
+assert_contains() { assert_contains_file "$1" "$2" "$output"; }
+assert_not_contains() { assert_not_contains_file "$1" "$2" "$output"; }
 
 assert_contains "canonical override used" "Canonical: $TMP/canonical-a"
 assert_contains "mixed-case canonical config section honored" "Canonical: $TMP/canonical-c"
@@ -716,6 +722,19 @@ assert_contains "linked worktrees hand off to source-control status" "Finding: w
 assert_not_contains "retired porcelain reclaimable-worktree" "Finding: reclaimable-worktree"
 assert_not_contains "retired disposability-unverifiable" "Finding: worktree-disposability-unverifiable"
 assert_contains "worktree nested in its own repository is reported" "Finding: worktree-nested-in-repository"
+# The `--porcelain -z` stream separates registrations with an empty field AND ends on one, and the
+# collector appends its own status sentinel behind a further separator, so the parse loop reaches
+# its flush point with no `worktree ` line pending more than once per repository. A flush that does
+# not require a path turns each of those into a registration whose path is the empty string, which
+# the classifier then reports as a missing-worktree finding against an empty target and promotes
+# into the action plan. Nothing else in this suite observes that: every other worktree assertion
+# names a path, so a phantom with no path satisfies all of them.
+if grep -q '^Target: *$' "$output"; then
+  printf 'FAIL: a porcelain record separator became a worktree registration with an empty target\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: porcelain record separators produce no empty-target worktree registration\n'
+fi
 assert_contains "nested finding names the containing checkout" \
   "registered worktree root is inside the canonical checkout's own working tree ($TMP/canonical-a)"
 assert_contains "unset worktree root reports placement without asserting a convention" \
@@ -1290,15 +1309,6 @@ else
   printf 'FAIL: header lists --repo and --root counts distinctly when both are supplied\n' >&2
   failures=$((failures + 1))
 fi
-assert_not_contains_file() {
-  local label="$1" pattern="$2" file="$3"
-  if grep -Fq -- "$pattern" "$file"; then
-    printf 'FAIL: %s (unexpected %s)\n' "$label" "$pattern" >&2
-    failures=$((failures + 1))
-  else
-    printf 'PASS: %s\n' "$label"
-  fi
-}
 assert_not_contains_file "no false current-project scope claim" "current-project scope" "$ladder_out"
 # Retargeting a supplied/discovered path to the repository of record is a substitution the operator
 # did not ask for, so it must be stated rather than silently applied. wt-root holds TWO linked
@@ -1436,16 +1446,6 @@ MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
   REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
   bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$conform_out" 2>&1 || true
 
-assert_contains_file() {
-  local label="$1" pattern="$2" file="$3"
-  if ! grep -Fq -- "$pattern" "$file"; then
-    printf 'FAIL: %s (missing %s)\n' "$label" "$pattern" >&2
-    failures=$((failures + 1))
-  else
-    printf 'PASS: %s\n' "$label"
-  fi
-}
-
 assert_contains_file "header names configured melodic worktree root" \
   "Worktree root: $TMP/conform-root (source: melodic.worktreeroot" "$conform_out"
 assert_contains_file "origin attribution uses --show-origin file: form" \
@@ -1506,6 +1506,21 @@ assert_not_contains_file "no-origin layout does not expect upstream owner/repo p
   "other-upstream-repo" "$no_origin_out"
 assert_contains_file "no-origin path counted conforming" \
   "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked" "$no_origin_out"
+
+# This fixture is the only one that puts TWO findings on a single target, so it
+# is the only place the detail and JSON emitters' dedupe is exercised at all. A
+# dedupe that stops suppressing duplicates emits the target's whole block twice;
+# nothing else in this suite notices, because every other count still matches.
+# The match must be whole-line: the roll-up prints the same path with a
+# " (N linked)" suffix, which a substring match would count as a second block.
+no_origin_target_blocks=$(grep -cxF "Target: $TMP/no-origin-canon" "$no_origin_out" || true)
+if [[ "$no_origin_target_blocks" == "1" ]]; then
+  printf 'PASS: a target carrying two findings is emitted once, not once per finding\n'
+else
+  printf 'FAIL: a target carrying two findings is emitted once, not once per finding -- expected 1 got %s\n' \
+    "$no_origin_target_blocks" >&2
+  failures=$((failures + 1))
+fi
 
 # Fallback to source-control pluginConfigs when melodic key is absent.
 mkdir -p "$TMP/settings-home/.claude"

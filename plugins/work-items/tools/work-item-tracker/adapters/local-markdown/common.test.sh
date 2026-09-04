@@ -58,6 +58,20 @@ assert_eq "fm_field null parent" "null" "$(wit_fm_field "$WIT_STORAGE_DIR/1.md" 
 assert_eq "blocked-by parsed" "local-markdown:local/markdown#2" "$(wit_blocked_by_ids "$WIT_STORAGE_DIR/1.md")"
 assert_eq "next number after one item" "2" "$(wit_next_number)"
 
+# The store walk and the next-number allocation share one file-name filter, so
+# pin both against a gap and a non-item file: numbers are max+1 rather than
+# count+1, and a markdown file that is not an item never enters either answer.
+#
+# The fixture is 2 and 10 on purpose. Allocation now derives the maximum from the
+# tail of this walk, so the walk's NUMERIC ordering is load-bearing: under a
+# lexical sort these come back "1,10,2," and the next number is 3, which is an
+# existing item. The pair must straddle a digit-count boundary to discriminate,
+# and it must not be {1,10}, whose lexical and numeric orders agree.
+touch "$WIT_STORAGE_DIR/2.md" "$WIT_STORAGE_DIR/10.md" "$WIT_STORAGE_DIR/notes.md"
+assert_eq "item numbers ascend and skip non-numeric names" "1,2,10," "$(wit_item_numbers | tr '\n' ',')"
+assert_eq "next number is max+1 across a gap" "11" "$(wit_next_number)"
+rm -f "$WIT_STORAGE_DIR/7.md" "$WIT_STORAGE_DIR/notes.md"
+
 wit_fm_set "$WIT_STORAGE_DIR/1.md" assignees '["me"]'
 assert_eq "fm_set replaces in place" '["me"]' "$(wit_fm_field "$WIT_STORAGE_DIR/1.md" assignees)"
 assert_eq "fm_set left title untouched" '"hello, world: edge"' "$(wit_fm_field "$WIT_STORAGE_DIR/1.md" title)"

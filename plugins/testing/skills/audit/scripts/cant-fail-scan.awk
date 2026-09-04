@@ -34,7 +34,7 @@ BEGIN {
   # Two-argument equality helpers for the recomputed-expectation rule; one
   # combined case-sensitive list, matched by substring lookup, so a language
   # gains nothing from a private copy. Inequality asserts are deliberately
-  # absent: Assert.NotEqual(f(2), f(2)) is a always-fail defect, not this rule.
+  # absent: Assert.NotEqual(f(2), f(2)) is an always-fail defect, not this rule.
   TAUT_FUNCS = "assert.equal|assert.strictEqual|assert.deepEqual|assert.deepStrictEqual|assertEqual|assertEquals|assertAlmostEqual|Assert.Equal|Assert.StrictEqual|Assert.Same|Assert.AreEqual|Assert.AreSame"
 
   if (LANG_ID == "js") {

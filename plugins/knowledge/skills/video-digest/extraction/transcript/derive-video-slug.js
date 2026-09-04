@@ -53,9 +53,7 @@ export function deriveVideoSlug(title, videoId) {
       `Unsafe slice key ${JSON.stringify(videoId)}: must match [A-Za-z0-9_-]+ (it becomes a directory segment under .work/)`,
     );
   }
-  const base = capSlug(title, MAX_TITLE_CHARS);
-  const prefix = base || "video";
-  return `${prefix}-${videoId}`;
+  return `${capSlug(title, MAX_TITLE_CHARS) || "video"}-${videoId}`;
 }
 
 /**

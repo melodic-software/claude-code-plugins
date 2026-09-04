@@ -48,11 +48,7 @@ describe("shallowCloneGitHubRepo", () => {
     };
 
     await expect(
-      shallowCloneGitHubRepo(
-        "https://github.com/owner/repo",
-        "-destination",
-        spawnFn,
-      ),
+      shallowCloneGitHubRepo("https://github.com/owner/repo", "-destination", spawnFn),
     ).resolves.toBe(true);
     expect(capturedArgs).toEqual([
       "clone",
@@ -104,10 +100,7 @@ describe("analyzeHarvestedRepos clone target", () => {
 
 describe("CLI exit handling", () => {
   it("sets process.exitCode instead of calling process.exit after the stdout write", () => {
-    const src = fs.readFileSync(
-      new URL("./analyze-harvested-repos.js", import.meta.url),
-      "utf8",
-    );
+    const src = fs.readFileSync(new URL("./analyze-harvested-repos.js", import.meta.url), "utf8");
     expect(src).not.toMatch(/process\.exit\(/);
     expect(src).toMatch(/process\.exitCode = code/);
   });
