@@ -25,13 +25,10 @@ export function expandVisualGaps(sliceDir) {
 
   const gapRows = [];
   for (const window of sel.densificationWindows) {
-    const inWindow = promoted.some((ts) => ts >= window.startSec && ts <= window.endSec);
-    if (!inWindow) {
-      const regionMin = Math.round(window.startSec / 60);
-      gapRows.push(
-        `| ~${regionMin}m | ${window.reason} | No synthesis frame in window; transcript-only |`,
-      );
-    }
+    if (promoted.some((ts) => ts >= window.startSec && ts <= window.endSec)) continue;
+    gapRows.push(
+      `| ~${Math.round(window.startSec / 60)}m | ${window.reason} | No synthesis frame in window; transcript-only |`,
+    );
   }
 
   const body = `# Visual gaps — densification alignment
