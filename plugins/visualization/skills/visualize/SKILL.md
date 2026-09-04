@@ -212,9 +212,11 @@ ranked menu on any bare code paste; `never` renders the recommended form without
 asking. Any other value is reported and treated as `auto`.
 
 When neither is ambiguous, meaning a dominant target and a clear best form, proceed with
-the matrix's pick: good defaults, no nagging. A specified form or medium is always
-honored and simply removes that axis from any question. Never interrogate form by
-form; one question, then render.
+the matrix's pick: good defaults, no nagging. A specified form or medium is honored
+and simply removes that axis from any question, with one carve-out: Step 3's
+terminal-only exception for a pull-request diff, fetched content, or another
+repository's files overrides a requested `file` or `artifact` medium. Never
+interrogate form by form; one question, then render.
 
 ## Step 5: Render
 
