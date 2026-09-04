@@ -3,6 +3,15 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.13]
+
+### Changed
+
+- **Three identical curl probes folded into one `http_status` helper in `check-drift.sh`.**
+  Behavior-preserving tidy from the repo-wide simplification sweep. A comment written in the same
+  pass was corrected: an unreachable host prints `000000`, not `000`, because curl's `%{http_code}`
+  emits its own `000` and the fallback appends another; a bare `000` means curl is absent.
+
 ## [0.7.12]
 
 ### Changed

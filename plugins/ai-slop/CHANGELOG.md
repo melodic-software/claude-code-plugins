@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.9]
+
+### Changed
+
+- **Dead tallies and a redundant array copy removed from the audit scripts.** Behavior-preserving
+  tidy from the repo-wide simplification sweep; no output or exit code changed.
+
 ## [0.5.8]
 
 ### Changed

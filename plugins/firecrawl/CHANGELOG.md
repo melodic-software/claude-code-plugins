@@ -3,6 +3,14 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.8]
+
+### Changed
+
+- **`update.sh`: help ordering aligned with the vendor-update family, and a dead local dropped.**
+  Behavior-preserving tidy from the repo-wide simplification sweep; no flag, message or exit code
+  changed.
+
 ## [0.5.7]
 
 ### Fixed

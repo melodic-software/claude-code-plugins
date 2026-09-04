@@ -3,6 +3,14 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.23]
+
+### Changed
+
+- **Dead decorate options removed, a repeated HTML file-URL hoisted into one const in
+  `validate.js`, and a stale `parse-briefing` doc comment corrected.** Behavior-preserving tidy
+  from the repo-wide simplification sweep.
+
 ## [0.7.22]
 
 ### Changed

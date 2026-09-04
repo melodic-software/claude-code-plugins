@@ -4,6 +4,32 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.39]
+
+### Changed
+
+- **Thirteen behavior-preserving commits across the course-digest and video-digest extraction
+  trees**, from the repo-wide simplification sweep: duplicated locals folded, dead stores removed,
+  suites deduped, and the hotmart master-URL capture consolidated. Float-sensitive frame and
+  timestamp math was compared with `Object.is` semantics so `-0` and `NaN` divergences could not
+  hide; on-disk manifests were byte-compared rather than reasoned about.
+- **`processLesson`'s fail-loud ordering was restored** after a hoist proved not behavior-preserving
+  on malformed `course.json`: it converted a crash on corrupt input into a silently skipped lesson
+  and an exit 0. `course.json` is hand-editable, so that path is reachable by a typo.
+- **A key-order coupling introduced by this sweep is now documented** where it is created: deriving
+  `REQUIRED_METHODS` from the arity table's keys makes reordering that table silently reorder
+  `validateAdapter`'s output.
+
+### Notes for maintainers
+
+- Coverage here is thinner than the test counts suggest. `hotmart.test.js`'s mock never invokes the
+  `page.on` handler it registers; `acquire-staged.test.js` returns a constant listing so it cannot
+  see a changed relist; two `transcript/` branches survive constant changes; and mutations planted
+  in every region one course-digest commit touched left all 91 tests green.
+- **`acquisition/acquire.test.js` recursively walks the machine's shared `/tmp`** while asserting
+  only that the result is an array. It is boundary-flaky by construction and gets slower the longer
+  a machine lives; pointing it at a `mkdtemp` directory it owns would fix it.
+
 ## [0.13.38]
 
 ### Changed

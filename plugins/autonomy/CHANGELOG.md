@@ -3,6 +3,13 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.23]
+
+### Changed
+
+- **A dead `reason` field dropped from `loadBinding`'s absent case.** Behavior-preserving tidy from
+  the repo-wide simplification sweep; no consumer read the field.
+
 ## [0.22.22]
 
 ### Changed

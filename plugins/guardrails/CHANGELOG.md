@@ -3,6 +3,17 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.3]
+
+### Changed
+
+- **Three block-guard test runners deduped, plus dead stores and a duplicated assert helper
+  removed.** Behavior-preserving tidy from the repo-wide simplification sweep. **No hook file
+  changed**: every matcher, allowlist, exit code, block/allow decision, message string and spawn
+  count is byte-identical, verified per file rather than asserted. The change is confined to test
+  scaffolding, and the suites' full ordered assertion streams are byte-identical across the
+  revision (481 and 216 lines), so no assertion was added, dropped, reordered or relabeled.
+
 ## [0.31.2]
 
 ### Changed

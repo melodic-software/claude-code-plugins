@@ -3,6 +3,29 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.10]
+
+### Changed
+
+- **A write-only accumulator dropped from the environment check, two hashtable literals aligned, a
+  non-ASCII comment dash normalized.** Behavior-preserving tidy from the repo-wide simplification
+  sweep. Three agents read all 67 files across the audit skill and changed six lines between them:
+  almost everything here is load-bearing, including guards that only look redundant (`@($false)`
+  unrolls falsy, so a `-and $x.Count -gt 0` clause is not a duplicate test).
+
+### Notes for maintainers
+
+- These Pester suites have **no CI lane**, and `Invoke-MachineHealthTests.ps1` exits 0 on Linux
+  having run nothing. Driven directly with Pester they are strong: 34 planted mutations, 29
+  detected.
+- **`Restart-StoppedService.ps1`'s `ShouldProcess` gate is untested.** Replacing it with `if
+  ($true)` breaks no test, and under `-WhatIf` the original skips `Start-Service` while the mutant
+  actually restarts the service. No test anywhere passes `-WhatIf` or `-Confirm`.
+- `Write-ElevationBanner.ps1` prints a re-run command using a literal backslash where its own doc
+  block shows a backtick, so the suggested command is not valid PowerShell.
+- `detail` is a plain hashtable, so its JSON key order varies per process; anything comparing that
+  order across runs is relying on nondeterminism.
+
 ## [0.12.9]
 
 ### Changed

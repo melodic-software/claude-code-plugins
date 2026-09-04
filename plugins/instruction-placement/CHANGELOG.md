@@ -3,6 +3,20 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.22]
+
+### Changed
+
+- **Repeated derivations hoisted and dead stores removed across the hook and scripts.**
+  Behavior-preserving tidy from the repo-wide simplification sweep. Output bytes were compared
+  across 139 paired cases including the generated index file, and the always-on hook's spawn count
+  was measured with `strace` rather than assumed: unchanged on the early-exit path and cheaper on
+  the fire path.
+- A spawn claim written in the same pass was corrected in place, because measurement contradicted
+  it: sharing one sort removes a `sort` from the grouped-tail path only and costs a subshell on the
+  common path; the two-spawn saving the hook sees comes from the marker-count change in `check`
+  and `write`.
+
 ## [0.11.21]
 
 ### Changed

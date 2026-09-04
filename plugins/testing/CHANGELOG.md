@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.13]
+
+### Changed
+
+- **Dead tallies and a redundant array copy removed from the audit scripts.** Behavior-preserving
+  tidy from the repo-wide simplification sweep; no output, exit code or public surface changed.
+
 ## [0.7.12]
 
 ### Changed

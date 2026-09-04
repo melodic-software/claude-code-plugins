@@ -3,6 +3,21 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.38]
+
+### Changed
+
+- **A precomputed `FILE_DIR` reused instead of recomputed, and a dead RC capture removed.**
+  Behavior-preserving tidy from the repo-wide simplification sweep.
+
+### Notes for maintainers
+
+- **`typos-format.test.sh` fails 142/1 on any bash that does not import `PS4` from the
+  environment**, including bash 5.2.21. The suite's spawn counters are trace-instrumented via
+  `PS4`, so they read 0 and the assertion reports `jq spawned 0 time(s), expected 2`. The failure
+  is hook-independent and reproduces on a pristine checkout; three separate agents confirmed it,
+  one on a worktree at the branch's merge-base. It is not caused by this change.
+
 ## [0.6.37]
 
 ### Changed

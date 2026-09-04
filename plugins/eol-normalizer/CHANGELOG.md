@@ -3,6 +3,13 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.31]
+
+### Changed
+
+- **A redundant guard collapsed, dead stores dropped, rationale comments aligned with the sibling
+  formatter hooks.** Behavior-preserving tidy from the repo-wide simplification sweep.
+
 ## [0.6.30]
 
 ### Changed

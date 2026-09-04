@@ -3,6 +3,20 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.34]
+
+### Changed
+
+- **A redundant guard collapsed, dead stores dropped, rationale comments aligned with the sibling
+  formatter hooks.** Behavior-preserving tidy from the repo-wide simplification sweep.
+
+### Notes for maintainers
+
+- `go-format.test.sh` SKIPS ENTIRELY when no `goimports` binary is on PATH, so a default local run
+  gives this always-on hook zero coverage while still reporting success. Installing `goimports` and
+  running it for real gives 54 passing assertions. This is the vacuous-skip shape the repo's own
+  `check-discriminating-test-skips` gate exists to catch.
+
 ## [0.3.33]
 
 ### Changed

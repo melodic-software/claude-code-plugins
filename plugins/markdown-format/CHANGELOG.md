@@ -3,6 +3,16 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.41]
+
+### Changed
+
+- **A redundant guard collapsed and rationale comments aligned with the sibling formatter hooks.**
+  Behavior-preserving tidy from the repo-wide simplification sweep. A `DIGEST_FILE=""` default
+  removed in the same pass was restored: with the write forced to fail, the status leaving the
+  block goes 0 to 1 and the variable is left unset rather than empty, and the same file already
+  treats a structurally identical defensive default as load-bearing.
+
 ## [0.11.40]
 
 ### Changed

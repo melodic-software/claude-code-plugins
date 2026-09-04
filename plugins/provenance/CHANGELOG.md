@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.3]
+
+### Changed
+
+- **The shingle expression duplicated between `shingles()` and `matchedSpans()` is now one
+  `shingleAt()` helper, and two single-use bindings were dropped.** Behavior-preserving tidy from
+  the repo-wide simplification sweep. Fingerprint output is unchanged: verified byte-identical
+  across both call sites and over a 400-file corpus at eight window sizes.
+- Note for maintainers: the suite does not pin the shingle spelling. Changing the join separator or
+  the window bound leaves it fully green, so a frozen input-to-fingerprint assertion would be worth
+  adding.
+
 ## [0.5.2]
 
 ### Changed

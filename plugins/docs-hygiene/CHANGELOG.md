@@ -1,5 +1,15 @@
 # Changelog — docs-hygiene plugin
 
+## [0.21.34]
+
+### Changed
+
+- **Identical filter branches merged and no-op wrappers dropped in `detect-caveman.sh`.**
+  Behavior-preserving tidy from the repo-wide simplification sweep. A `head -1` truncation guard
+  removed in the same pass was restored after verification: the justification for dropping it was
+  false, because `jq -r` prints a newline-bearing string across several lines and would have added
+  a third line to output the compress skill parses as exactly two.
+
 ## [0.21.33]
 
 ### Fixed

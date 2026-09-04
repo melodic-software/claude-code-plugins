@@ -3,6 +3,15 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.30]
+
+### Changed
+
+- **The statusline tee's five copies of the stamp-read idiom became one builtin helper, and the
+  Stop hook lost a fork.** Behavior-preserving tidy from the repo-wide simplification sweep.
+  Spawn counts were measured with `strace` on every path rather than assumed: the always-on hook
+  drops from 12 to 11 `execve` on its common path and no path increased.
+
 ## [0.7.29]
 
 ### Changed

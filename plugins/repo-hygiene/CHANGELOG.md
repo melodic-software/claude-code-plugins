@@ -3,6 +3,16 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.28]
+
+### Changed
+
+- **The clean skill's token and tier loops are now named helpers.** Behavior-preserving tidy from
+  the repo-wide simplification sweep. Nothing that decides which paths are selected, what is
+  deleted, or when a removal becomes real was altered. The tier enumeration deliberately keeps its
+  input as a redirection rather than a pipe, so byte accumulation still happens in the calling
+  shell; a comment records why, because a pipe there would silently zero the reported total.
+
 ## [0.10.27]
 
 ### Changed

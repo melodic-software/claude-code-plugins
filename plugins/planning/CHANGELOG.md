@@ -3,6 +3,23 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.5]
+
+### Fixed
+
+- **`check-open-questions.sh` could report a deferred question as ABSENT when it was present.** The
+  lookup was `printf '%s' "$ids" | grep -qE …` under `set -uo pipefail`. `grep -q` exits as soon as
+  it matches, printf is killed by SIGPIPE, and pipefail promotes the pipeline to 141 — which the
+  enclosing `if !` reads as "not found", so the script dies ungradeable on a Brief that is actually
+  correct. Measured with the id on the section's first line: fine at 1 KB, wrong from ~100 KB, and
+  a hard pipeline 141 from ~250 KB. Small Briefs pass, so this only appeared as a plan grew, and no
+  test covered it. Now a builtin `[[ =~ ]]`, which reads the string directly and cannot SIGPIPE.
+
+### Changed
+
+- Per-row subprocesses dropped and fixture setup deduped across the scripts and suites, from the
+  repo-wide simplification sweep.
+
 ## [0.35.4]
 
 ### Changed

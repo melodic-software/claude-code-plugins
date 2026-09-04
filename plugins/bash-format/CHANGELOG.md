@@ -3,6 +3,13 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.32]
+
+### Changed
+
+- **Duplicate emission arms in the hook collapsed into one.** Behavior-preserving tidy from the
+  repo-wide simplification sweep; message text, exit codes and spawn count unchanged.
+
 ## [0.7.31]
 
 ### Changed

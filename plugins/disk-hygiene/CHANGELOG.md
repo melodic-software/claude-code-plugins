@@ -3,6 +3,13 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.5]
+
+### Changed
+
+- **Dead `telemetry_enabled()` removed from `hook_telemetry`.** Behavior-preserving tidy from the
+  repo-wide simplification sweep; the function had no caller.
+
 ## [0.21.4]
 
 ### Changed

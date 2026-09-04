@@ -3,6 +3,16 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.16]
+
+### Changed
+
+- **Suite assert helpers deduped and per-call subshells dropped in the audit and apply scripts.**
+  Behavior-preserving tidy from the repo-wide simplification sweep. `apply-plan.sh`'s guards,
+  ordering, confirmation gate and mutation invocations were deliberately left alone, including a
+  duplicated canonical-missing check, because extracting either would restructure the code that
+  decides which repositories get written to.
+
 ## [0.23.15]
 
 ### Changed

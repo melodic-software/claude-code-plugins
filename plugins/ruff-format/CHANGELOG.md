@@ -3,6 +3,13 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.32]
+
+### Changed
+
+- **A precomputed `FILE_DIR` reused instead of recomputed, and a dead RC capture removed.**
+  Behavior-preserving tidy from the repo-wide simplification sweep.
+
 ## [0.6.31]
 
 ### Changed

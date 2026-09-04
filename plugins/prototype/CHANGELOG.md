@@ -3,6 +3,15 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2]
+
+### Changed
+
+- **`detect-ecosystems` suites: fixture expectations deduped and a doubled detector run collapsed.**
+  Test-only tidy from the repo-wide simplification sweep. The detector itself and both skill
+  wrappers are byte-unchanged; the wrappers exist because an `allowed-tools` grant must name a path
+  under its own skill directory, and that arrangement was deliberately left intact.
+
 ## [0.10.1]
 
 ### Changed

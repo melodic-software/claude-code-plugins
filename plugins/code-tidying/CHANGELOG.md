@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.5]
+
+### Changed
+
+- **A captured parity array reused instead of recomputed, and a dead `SCOPE` array removed.**
+  Behavior-preserving tidy from the repo-wide simplification sweep.
+
 ## [0.15.4]
 
 ### Changed

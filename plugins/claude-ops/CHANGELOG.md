@@ -3,6 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.10]
+
+### Changed
+
+- **Lock accessors merged, option-value guards hoisted, `scan()` aggregation and frontmatter
+  rstrip handling simplified, and dead assertion helpers removed from the observability suites.**
+  Behavior-preserving tidy from the repo-wide simplification sweep.
+- One hook change from this sweep was **reverted rather than kept**: routing expansion-type
+  extraction through `hook::jq_field` was behavior-identical in every input class, but `strace`
+  measured one extra fork per fire on an always-on hook, and the commit's own claim of an unchanged
+  spawn count was false. Cost contracts are enforced here, not just behavior.
+
 ## [0.41.9]
 
 ### Changed

@@ -3,6 +3,14 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.33]
+
+### Changed
+
+- **Redundant awk parens and a dead test guard removed, surface rule-ids composed once, a no-op awk
+  guard dropped, and the `fix-plugin-drift` action-plan jq frames deduped.** Behavior-preserving
+  tidy from the repo-wide simplification sweep.
+
 ## [0.40.32]
 
 ### Changed
