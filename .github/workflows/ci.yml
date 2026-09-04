@@ -1183,10 +1183,12 @@ jobs:
       #
       #   0  selected and green, or nothing to do.
       #   3  every shell suite it selected ran, but it also selected suites in
-      #      other ecosystems whose runner it will not guess. Those are the
-      #      Node and Python steps further down this same job, so this is a
-      #      notice, not a failure. (The Python suites with no shell wrapper
-      #      never ran in CI at all before this file.)
+      #      other ecosystems whose runner it will not guess. Those suites are
+      #      RUN HERE rather than waved through: the steps further down this
+      #      job cover four Node sub-projects and one Python module, which is
+      #      2 of this tree's 40 Python suites, so treating exit 3 as success
+      #      would report a pass over suites that never executed. That is the
+      #      precise thing the selector's own header refuses to do.
       #   1  an unmapped changed file OR a failing suite. Only the first is
       #      recoverable, and it announces itself with UNMAPPED: on stderr:
       #      nothing here knows what covers that file, so fall back to the full
@@ -1221,7 +1223,24 @@ jobs:
             0)
               ;;
             3)
-              echo "::notice::The affected-suite selector also chose suites outside the shell ecosystem; the Node and Python steps in this job cover them."
+              # The selector prints the suites it declined to run under a
+              # "NOT RUN:" heading, one indented path each. Run the Python ones
+              # with the pinned pytest: it collects unittest.TestCase suites as
+              # well as pytest-style ones, and each of these files puts its own
+              # module directory on sys.path, so no per-suite runner has to be
+              # guessed. Anything left is named in a warning and counted in the
+              # run summary rather than reported as executed.
+              notrun=$(awk '/^NOT RUN:/{f=1} f && /^  - /{sub(/^  - /,""); print}' "$err")
+              echo "::warning::The affected-suite selector declined to run: $(printf '%s' "$notrun" | tr '\n' ' ')"
+              py=$(printf '%s\n' "$notrun" | grep -E '\.py$' || true)
+              rest=$(printf '%s\n' "$notrun" | grep -Ev '(^$|\.py$)' || true)
+              if [ -n "$py" ]; then
+                printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q --
+              fi
+              if [ -n "$rest" ]; then
+                echo "::warning::No step in this workflow executes these selected suites: $(printf '%s' "$rest" | tr '\n' ' ')"
+                printf 'affected-tests: %s selected suite(s) had no runner in this workflow\n' "$(printf '%s\n' "$rest" | grep -c . || true)" >> "$GITHUB_STEP_SUMMARY"
+              fi
               ;;
             1)
               if grep -q '^UNMAPPED:' "$err"; then
