@@ -222,11 +222,8 @@ commit_all "$excl"
 out_x="$(run --root "$excl")"
 assert_has "a rule inside an excluded tree is skipped" "$out_x" \
   "$(printf 'SKIP\tvendor/pkg/.claude/rules/v.md\texcluded by corpus rules')"
-if [[ "$out_x" == *"$(printf 'FILE\tvendor/pkg/.claude/rules/v.md')"* ]]; then
-  fail "and the backfill does not re-admit it" "no FILE row for the excluded rule" "$out_x"
-else
-  pass "and the backfill does not re-admit it"
-fi
+assert_lacks_sub "and the backfill does not re-admit it" "$out_x" \
+  "$(printf 'FILE\tvendor/pkg/.claude/rules/v.md')"
 rm -rf "$excl"
 
 out_core="$(run --root "$corp" --tier core)"

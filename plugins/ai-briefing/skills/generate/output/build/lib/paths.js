@@ -16,8 +16,8 @@ const SKILL_ROOT = path.resolve(__dirname, "..", "..", "..");
 const DEFAULT_CONFIG_DIR = path.join(SKILL_ROOT, "profile-defaults");
 
 function envDir(name) {
-  const v = process.env[name];
-  return v && v.trim() ? v.trim() : null;
+  const value = process.env[name]?.trim();
+  return value || null;
 }
 
 export function validateProfileName(value) {

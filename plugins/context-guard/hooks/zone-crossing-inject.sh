@@ -103,10 +103,11 @@ set -uo pipefail
 
 # SPAWN DISCIPLINE (PostToolBatch fires on every tool batch, so every process
 # here is paid on the critical path of every batch). The hook directory comes
-# from parameter expansion rather than `dirname`, which this file used three
-# times (two sources plus the resolver path) for three processes before a
-# single line of work. The `.` fallback reproduces dirname's own answer for a
-# bare, slash-free invocation; hooks.json always passes an absolute path.
+# from parameter expansion rather than `dirname`, which this file needs three
+# times (two sources plus the resolver path) and would therefore cost three
+# processes before a single line of work. The `.` fallback reproduces dirname's
+# own answer for a bare, slash-free invocation; hooks.json always passes an
+# absolute path.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
 # shellcheck source=hook-utils.sh
@@ -129,10 +130,10 @@ RESOLVER="$CG_DIR/../scripts/context-zone.sh"
 INPUT=$(cg::read_payload) || exit 0
 
 # ONE jq for the whole payload rather than one per field. hook::jq_field spawns
-# a jq per call, and this hook needed two; the payload is read once and both
-# fields come back as two lines in a FIXED ORDER (event, then session). An
-# absent field yields an empty line, which is what the per-field `// empty`
-# plus non-empty test produced before. `gsub("\r";"")` is carried over from
+# a jq per call and this hook needs two fields; the payload is read once and
+# both fields come back as two lines in a FIXED ORDER (event, then session). An
+# absent field yields an empty line, which is what a per-field `// empty` plus
+# non-empty test yields too. `gsub("\r";"")` is carried over from
 # hook::jq_field for the Windows carriage-return case.
 #
 # Not regex-extracted: a PostToolBatch payload carries every serialized tool
@@ -226,22 +227,27 @@ fi
 # and no state-format version are needed for that.
 [[ -n "$armed" ]] || armed="$last"
 
+# Both set REPLY rather than printing their answer: a command substitution
+# forks a subshell, and the ladder is walked on every fire of a hook that runs
+# once per tool batch.
 rank() {
   case "$1" in
-  acceptable) printf '1' ;;
-  dumb) printf '2' ;;
-  *) printf '0' ;; # smart, or no prior observation (baseline)
+  acceptable) REPLY=1 ;;
+  dumb) REPLY=2 ;;
+  *) REPLY=0 ;; # smart, or no prior observation (baseline)
   esac
 }
 unrank() {
   case "$1" in
-  2) printf 'dumb' ;;
-  1) printf 'acceptable' ;;
-  *) printf 'smart' ;;
+  2) REPLY=dumb ;;
+  1) REPLY=acceptable ;;
+  *) REPLY=smart ;;
   esac
 }
-new_rank=$(rank "$zone")
-armed_rank=$(rank "$armed")
+rank "$zone"
+new_rank=$REPLY
+rank "$armed"
+armed_rank=$REPLY
 
 # See the header. The armed rank rises to whatever this observation reports, and
 # decays only on a return to the BEST band — a target on the ladder, not a
@@ -251,6 +257,8 @@ next_armed_rank=$armed_rank
 if ((new_rank > armed_rank || new_rank == BEST_RANK)); then
   next_armed_rank=$new_rank
 fi
+unrank "$next_armed_rank"
+next_armed=$REPLY
 
 # Persist both markers regardless of direction — owner-only, atomic enough for
 # a single-writer-per-session file. A write failure (full or newly read-only
@@ -273,12 +281,12 @@ fi
 umask 077
 # The state directory exists on every fire after the session's first, so the
 # guard pays the process once per session instead of once per tool batch.
-# `mkdir -p` on an existing directory already exited 0, so no outcome changes.
+# `mkdir -p` on an existing directory exits 0 anyway, so no outcome changes.
 [[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
 persist_failed=""
 if ! printf '%s\n' "$zone" >"$STATE_FILE" 2>/dev/null; then
   persist_failed="zone"
-elif ! printf '%s\n' "$(unrank "$next_armed_rank")" >"$ARMED_FILE" 2>/dev/null; then
+elif ! printf '%s\n' "$next_armed" >"$ARMED_FILE" 2>/dev/null; then
   persist_failed="armed"
   # Roll the label back to what it said before, so the message the next
   # successful call emits names the zone the session was really in rather than

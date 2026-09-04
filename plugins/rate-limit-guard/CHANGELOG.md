@@ -3,6 +3,27 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.30]
+
+### Changed
+
+- **`_rlg_spool_dispatch` derives its spool path instead of repeating it.** The
+  two paths were declared in one `local` statement that spelled the parent
+  directory out twice; `dir` is now declared first and `spool` derived from it.
+  The single-statement form was safe only because it repeated the literal: bash
+  does not expand a same-statement `local` assignment, so deriving `spool` from
+  `$dir` in that same statement would have left it empty and, under this file's
+  `set -u`, killed the statusline with an unbound-variable error on every render.
+  Verified by building that failing variant and running it. Hot-path cost is
+  unchanged, measured with `strace`: identical execve, clone and openat counts
+  across three modes, cold and primed, with the full syscall multiset matching.
+  Emitted bytes byte-identical across 27 artifact comparisons.
+- **Test and comment tidyings.** `statusline-tee.test.sh` collapses four copies
+  of a find-and-count pipeline into one helper, mutation-tested at all four call
+  sites including a plausible off-by-one. Five comments in `statusline-tee.sh`
+  and `bench.test.sh` drop history narration for the present-tense mechanism,
+  each rewritten claim executed rather than assumed, with every measurement kept.
+
 ## [0.7.29]
 
 ### Changed

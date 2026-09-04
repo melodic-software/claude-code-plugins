@@ -69,7 +69,7 @@ repo="$(build_drifted)"
 out="$(run_hook "$(payload_for "$repo/src/a.cs")")"
 expect_eq "a write outside a rules tree produces no output" "" "$out"
 
-printf '%s' "$(payload_for "$repo/src/a.cs")" | bash "$HOOK" >/dev/null 2>&1
+run_hook "$(payload_for "$repo/src/a.cs")" >/dev/null
 expect_eq "a write outside a rules tree exits 0" "0" "$?"
 
 # Cost: the always-on path must be dominated by process startup, not by work.
@@ -101,7 +101,7 @@ expect_has "a rules-tree write on a drifted index reports drift" "$out" "stale"
 expect_has "the notice names the rule that changed" "$out" "csharp.md"
 expect_has "the notice says why it matters" "$out" "subagents"
 
-printf '%s' "$(payload_for "$repo/.claude/rules/csharp.md")" | bash "$HOOK" >/dev/null 2>&1
+run_hook "$(payload_for "$repo/.claude/rules/csharp.md")" >/dev/null
 expect_eq "the hook is advisory — it exits 0 even on drift" "0" "$?"
 
 # --------------------------------------------------------------------------
@@ -124,13 +124,13 @@ expect_eq "a repo that never adopted an index is not nagged" "" "$out"
 # --------------------------------------------------------------------------
 # Robustness — a hook must never break the tool call that triggered it
 # --------------------------------------------------------------------------
-printf '' | bash "$HOOK" >/dev/null 2>&1
+run_hook '' >/dev/null
 expect_eq "empty stdin exits 0" "0" "$?"
 
-printf 'not json at all' | bash "$HOOK" >/dev/null 2>&1
+run_hook 'not json at all' >/dev/null
 expect_eq "malformed stdin exits 0" "0" "$?"
 
-printf '{"tool_name":"Write","tool_input":{}}' | bash "$HOOK" >/dev/null 2>&1
+run_hook '{"tool_name":"Write","tool_input":{}}' >/dev/null
 expect_eq "a payload with no file_path exits 0" "0" "$?"
 
 out="$(run_hook "$(payload_for "/nonexistent/.claude/rules/x.md")")"

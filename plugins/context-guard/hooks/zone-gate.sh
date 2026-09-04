@@ -35,9 +35,9 @@ set -uo pipefail
 
 # Hook directory by parameter expansion, never `dirname`. This hook matches
 # Write, Edit, NotebookEdit, Agent and Workflow, so in the default advisory
-# posture it starts, sources, and exits. The two source lines were its entire
-# cost, and both were processes. The `.` fallback reproduces dirname's own
-# answer for a bare, slash-free invocation.
+# posture it starts, sources, and exits: the two source lines are its entire
+# cost, and a `dirname` on each would make both of them processes. The `.`
+# fallback reproduces dirname's own answer for a bare, slash-free invocation.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
 # shellcheck source=hook-utils.sh
@@ -111,7 +111,6 @@ fi
 target=$(hook::jq_field "$INPUT" '.tool_input.file_path // .tool_input.notebook_path') || target=""
 shopt -s nocasematch
 if [[ -n "$target" && "$target" == *handoff* ]]; then
-  shopt -u nocasematch
   exit 0
 fi
 shopt -u nocasematch
