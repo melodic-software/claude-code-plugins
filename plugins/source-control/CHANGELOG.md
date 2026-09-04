@@ -3,6 +3,39 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.44]
+
+### Changed
+
+- **`fetch-annotations.sh` projects and filters in one jq pass.** The records
+  were projected in one pass and `--failed` applied in a second, with a separate
+  "no records" exit on each side. One pass now does both and the empty check
+  lives once, on the filtered result, dropping a variable, a branch and a spawn.
+  Both `--help` banners in this group were diffed base against head and are
+  byte-identical.
+- **`fetch-failed-logs.sh` parses `--max-bytes` straight into `MAX_BYTES`.** The
+  default now sits at the declaration instead of being relayed through a
+  `MAX_BYTES_ARG` string.
+  Worth recording because it nearly went the other way: `MAX_BYTES_ARG=""` looks
+  like a dead store, and a positive control disproved that. Replacing it with a
+  sentinel in the parent revision produced 18 mismatches across a 722-case
+  differential, so it was a live default carrier. The change re-plumbs the
+  default rather than deleting it, and a negative control confirms a wrong
+  default would be caught.
+- **`nesting-invariant-ssot.test.sh` folds two expiry arms.** The two patterns
+  had identical capture bodies and are now two alternatives of one condition. No
+  assertion was touched, and the suite still passes 18 of 18.
+
+### Known issues
+
+- **`fetch-annotations.sh`'s `--help` truncates its own exit-code list.**
+  `usage()` slices `sed -n '2,20p'` while the header block runs to line 23, so
+  the banner prints `Exit codes:` followed by `0` alone and swallows `1`, `2` and
+  `5`. Reproduced live. Left unfixed here deliberately: any correct slice changes
+  user-visible output, which is a behavior change rather than a simplification.
+  The sibling `fetch-failed-logs.sh` slices `2,41p` and covers its whole header,
+  so this is the surviving instance of a defect this repo has fixed elsewhere.
+
 ## [0.55.43]
 
 ### Changed
