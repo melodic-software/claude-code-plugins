@@ -110,6 +110,12 @@ deterministic default is to proceed, but to take any widened scope (rungs 2–3)
    tally of every drop. Check the survivors' headers for SSOT / materialized-copy / do-not-edit
    declarations, a repo can ship materialized copies of one source file (sync scripts, CI drift
    gates): triage the source, run its declared sync after editing, and never touch a copy.
+1a. **Discover repo-local machine-read markers** before any comment is classified. A marker the
+   target repo's own gates read is compiler input that looks like prose, and deleting one breaks
+   a gate silently. The universal pragma list is a floor, not an inventory: these markers are
+   invented per repository, so they must be found per run. Procedure, whole-repo scan and the
+   test-fixture rule included: [reference/safety.md](reference/safety.md). Report what was found,
+   and report finding nothing, so a reader can tell discovery ran.
 2. **Triage**. Classify every remaining comment A/B/C per [reference/triage.md](reference/triage.md).
 3. **Apply**. Class A deletions; class B per mode and gate ([reference/safety.md](reference/safety.md)):
    pick the named move, apply it, run the discovered tests, then delete the now-superfluous
@@ -157,4 +163,17 @@ deterministic default is to proceed, but to take any widened scope (rungs 2–3)
 - [Fowler, refactoring catalog](https://refactoring.com/catalog/), the named dissolving moves
 - [Ousterhout ⇄ Martin debate](https://github.com/johnousterhout/aposd-vs-clean-code), the jointly-signed floor and the class-C boundary
 - [Google eng-practices. Comments explain *why*, not *what*](https://google.github.io/eng-practices/review/reviewer/looking-for.html)
-- [Anthropic prompting best practices, Overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices), "Only add comments where the logic isn't self-evident"
+- [Anthropic prompting best practices, Overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices), "Only add comments where the logic isn't self-evident". **Read the whole block before citing it.** That
+  sentence sits inside anti-overengineering guidance whose sibling bullets say "Don't add features,
+  refactor code, or make 'improvements' beyond what was asked" and "Don't create helpers,
+  utilities, or abstractions for one-time operations". It authorizes the *removal* half of this
+  skill and constrains the *refactoring* half. It is not blanket authority for either
+- [Ousterhout, A Philosophy of Software Design §12.6](https://web.stanford.edu/~ouster/cgi-bin/aposd2ndEdExtract.pdf), the author-published rebuttal to "comments are always failures", and the
+  10-100x missing-vs-incorrect cost asymmetry behind this skill's conservative tie-break
+- [Kernighan & Pike, The Practice of Programming §1.6](https://archive.org/details/practiceofprogra0000kern), "Don't comment bad code, rewrite it", and the counterweight that comments legitimately
+  "collect into one place information that is spread through the source"
+- [Henney, Comment Only What The Code Cannot Say, ACCU Overload 28(157)](https://accu.org/journals/overload/28/157/henney_2796/), the stricter test (what the code *cannot* say, not merely
+  what it does not say) and the second verb: a failing comment is "removed **or rewritten**"
+- [Wayne, The Myth of Self-Documenting Code](https://buttondown.com/hillelwayne/archive/the-myth-of-self-documenting-code/), the negative-information and operational-information
+  categories that no encapsulated unit's code can carry
+- [Google Testing on the Toilet, To Comment or Not to Comment?](https://testing.googleblog.com/2017/07/code-health-to-comment-or-not-to-comment.html), the four-move dissolve ladder and the four keep-cases, stated as an operational checklist

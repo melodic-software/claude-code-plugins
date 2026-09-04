@@ -35,8 +35,44 @@ open the apply path, because they cannot attest behavior preservation.
 - Legal and license headers
 - Machine-read directives: shebangs, lint pragmas (`# noqa`, `// eslint-disable`,
   `#pragma warning`), region markers, editor folds, encoding cookies
+- **Repo-local machine-read markers**, discovered per run. See the section below. The universal
+  pragmas above are the floor, not the list
+- Units, ranges, boundary semantics, sentinel values, ownership and lifetime, thread-safety, and
+  ordering guarantees. A comment naming what `-1` or `nullptr` means is a contract, not narration
+- Suppression justifications: the reason attached to a lint waiver, a cast-safety claim, or a
+  narrowing assertion (`@SuppressWarnings("unchecked") // safe because …`). The waiver is a
+  directive and the reason is what makes it reviewable. Removing either breaks the pair
+- **Negative information**: what the code deliberately does NOT do, and why an alternative was
+  rejected. This class has no referent in the adjacent code, which gives it the same surface
+  signature as a stale comment. It is the tool's most likely false positive. See the gotcha below
+- **Operational information**: how this component fits the wider system. By construction it cannot
+  live in the code of an encapsulated unit without breaking that encapsulation
 - `TODO(#issue)` / `FIXME(#issue)` markers tracking real work
 - Lines carrying `dissolve-comments-ignore` (on the line or the line immediately before)
+
+### Repo-local machine-read markers: discover, never assume
+
+A marker that a repo's own gates read is compiler input wearing the costume of prose.
+`# silent-skip-ok: output discarded by design` reads exactly like a comment a triage pass would
+delete, and deleting it turns a sanctioned quiet skip into a gate failure. A fixed list of
+universal pragmas does not catch this class, because these markers are invented per repository.
+
+Discover them at scope time, before triage:
+
+1. Grep the target repo for comment-borne markers its own tooling consumes. Look in CI workflows,
+   `scripts/`, git hooks, and lint/gate configuration for string literals matched against comment
+   text. Marker names usually end in one of `-ok`, `-ignore`, `-allow`, `-skip`, `-disable`, and
+   appear in `#`- or `//`-prefixed context. Search for those suffixes as literal text; keep the
+   pattern POSIX-portable, since a GNU-only word boundary fails on BSD userland.
+2. **Search the whole repository, not only the gate directory.** A marker is frequently read by
+   more than the script that defines it.
+3. **Treat a marker inside a plugin's or package's own test fixtures as live, not as an example.**
+   Fixtures are how gates prove they still work; stripping them breaks the gate's own tests.
+4. Add every marker family found to the exempt set for that run, and name them in the report so
+   the reader can see what was protected and why.
+
+Absence of a finding is a result: report "no repo-local markers discovered" rather than staying
+silent, so a reader can tell discovery ran from discovery finding nothing.
 
 ## Path exclusions
 
@@ -66,3 +102,38 @@ PR description or an ADR when the repo keeps them. For explicit-target runs on a
 code, note in the report that the narrative belongs with the *next* commit touching that code —
 or keep the comment if no vehicle exists (staging with no landing place is not a deletion
 licence).
+
+## Gotcha: rejected-alternative rationale reads exactly like residue
+
+The highest-cost misclassification this skill can make is deleting a comment that records why an
+approach was **not** taken. Two live examples from this marketplace's own hook tree:
+
+- A guard's header explaining that `git branch -D` is deliberately left unblocked because the
+  branch is reflog-recoverable.
+- A dispatcher's header explaining why a helper is deliberately not named `dirname`, because a
+  function of that name would shadow the real command for every sourced guard.
+
+Neither has a referent in the adjacent code, because the whole content of the claim is an absence.
+A classifier keyed on "does this restate the code?" sees the same surface as a stale comment and
+scores both as class A. It is wrong in one of those two cases, and the failure is silent: the next
+author reintroduces the bug the comment existed to prevent.
+
+Where a repo pairs such a comment with a regression test (this marketplace's `hook-precision`
+convention does exactly that), the comment is one half of a two-part artifact. Deleting half of a
+paired record is a correctness bug, not a style change.
+
+Test to apply: if a comment asserts something about code that is **not present**, it is class C by
+default. Class-A deletion requires the comment to be redundant with code that IS present.
+
+## Gotcha: the earn-its-keep bar is not a licence for a sweep
+
+The empirical record does not support a blanket policy in either direction. An eye-tracking study
+of comment effects on program comprehension (Abdelsalam et al., *Empirical Software Engineering*)
+measured outcomes ranging from a 30% decrease to a 34% increase in performance depending on the
+snippet, with no population-level effect. Comments help and hurt per-comment, not per-corpus.
+
+Ousterhout's asymmetry is the operating reason for the conservative tie-break: *"For me the cost
+of missing comments is easily 10-100x the cost of incorrect comments."* Martin does not concede
+the ratio, but he does not rebut it either; he reports different experience. Under that asymmetry
+a removal tool optimizes the cheap failure mode and worsens the expensive one, so **when uncertain,
+keep or propose** is a doctrine requirement rather than timidity.
