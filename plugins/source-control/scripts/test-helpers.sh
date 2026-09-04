@@ -76,11 +76,11 @@ assert_eq() {
 
 # assert_contains <label> <haystack> <needle>
 assert_contains() {
-  CASE_NUM=$((CASE_NUM + 1))
   local label="$1" haystack="$2" needle="$3"
   if [[ "$haystack" == *"$needle"* ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — expected %q in: %s\n' \
       "$CASE_NUM" "$label" "$needle" "$haystack" >&2
     FAILED=$((FAILED + 1))
@@ -89,11 +89,11 @@ assert_contains() {
 
 # assert_not_contains <label> <haystack> <needle>
 assert_not_contains() {
-  CASE_NUM=$((CASE_NUM + 1))
   local label="$1" haystack="$2" needle="$3"
   if [[ "$haystack" != *"$needle"* ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — forbidden %q present in: %s\n' \
       "$CASE_NUM" "$label" "$needle" "$haystack" >&2
     FAILED=$((FAILED + 1))
@@ -102,13 +102,13 @@ assert_not_contains() {
 
 # assert_silent <label> <output> — output is empty / whitespace-only.
 assert_silent() {
-  CASE_NUM=$((CASE_NUM + 1))
   local label="$1" output="$2"
   local trimmed="${output#"${output%%[![:space:]]*}"}"
   trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
   if [[ -z "$trimmed" ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — expected empty/whitespace, got: %s\n' \
       "$CASE_NUM" "$label" "$output" >&2
     FAILED=$((FAILED + 1))
@@ -118,10 +118,10 @@ assert_silent() {
 # assert_exit <label> <expected_code> <actual_code>
 assert_exit() {
   local label="$1" expected="$2" actual="$3"
-  CASE_NUM=$((CASE_NUM + 1))
   if [[ "$actual" == "$expected" ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — exit expected %s got %s\n' \
       "$CASE_NUM" "$label" "$expected" "$actual" >&2
     FAILED=$((FAILED + 1))
@@ -135,11 +135,11 @@ assert_stdout_contains() {
 
 # assert_file_exists <label> <path>
 assert_file_exists() {
-  CASE_NUM=$((CASE_NUM + 1))
   local label="$1" path="$2"
   if [[ -f "$path" ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — expected file %s\n' \
       "$CASE_NUM" "$label" "$path" >&2
     FAILED=$((FAILED + 1))
@@ -148,11 +148,11 @@ assert_file_exists() {
 
 # assert_file_absent <label> <path>
 assert_file_absent() {
-  CASE_NUM=$((CASE_NUM + 1))
   local label="$1" path="$2"
   if [[ ! -f "$path" ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — expected absent, found %s\n' \
       "$CASE_NUM" "$label" "$path" >&2
     FAILED=$((FAILED + 1))

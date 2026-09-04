@@ -346,22 +346,16 @@ resolve_base() {
 # equals the squash commit's, and still matches after the base advances. Both
 # verified in a fixture rather than assumed.
 patch_ids() {
-  local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$"
+  local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$" rc=0
   : >"$out"
-  git -C "$p" log -p --no-merges --no-color "$range" >"$patches" 2>/dev/null || {
-    rm -f "$patches"
-    return 1
-  }
-  if [[ ! -s "$patches" ]]; then
-    rm -f "$patches"
-    return 0
+  git -C "$p" log -p --no-merges --no-color "$range" >"$patches" 2>/dev/null || rc=1
+  # An empty stream is a legitimate empty range, so only a non-empty one is fed
+  # to patch-id; $out stays truncated either way.
+  if ((rc == 0)) && [[ -s "$patches" ]]; then
+    git patch-id --verbatim <"$patches" | cut -d' ' -f1 | sort >"$out" || rc=1
   fi
-  git patch-id --verbatim <"$patches" | cut -d' ' -f1 | sort >"$out" || {
-    rm -f "$patches"
-    return 1
-  }
   rm -f "$patches"
-  return 0
+  return "$rc"
 }
 
 L_STATE="?"
