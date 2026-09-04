@@ -7,6 +7,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
+- **`babysit_resolve_thread.py` emits its refusals through one helper.** Six
+  refusal sites each built and printed their own envelope. A single `_refuse`
+  now does it, matching the helper `babysit_merge.py` already defines. The
+  delicate part is that this module resolves review threads, so every refusal
+  is an authority boundary: each message text is unchanged, the missing
+  allowlist still exits 3 rather than the usage-error 2, and the emitted key
+  order stays `pr`, `inScope`, `error` because the extra fields expand ahead of
+  the error text, which is what consumers branch on. The engine suite still
+  passes, including the case asserting the resolve wrapper reaches a
+  fail-closed CLI with no allowlist.
 - **`fetch-annotations.sh` projects and filters in one jq pass.** The records were
   projected in one pass and `--failed` applied in a second, with a separate "no
   records" exit on each side. One pass now does both, driven by an `--argjson
