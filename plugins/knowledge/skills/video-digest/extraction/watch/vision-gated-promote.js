@@ -99,15 +99,15 @@ export async function visionGatedPromote(sliceDir, { dryRun = false } = {}) {
 if (isMainModule(import.meta.url)) {
   const sliceDir = process.argv[2];
   if (!sliceDir) {
-    writeStderr("Usage: node watch/vision-gated-promote.js <slice-dir> [--dry-run]\n");
+    writeStderr("Usage: node watch/vision-gated-promote.js <slice-dir> [--dry-run]");
     process.exit(2);
   }
   visionGatedPromote(sliceDir, { dryRun: process.argv.includes("--dry-run") })
     .then((result) => {
-      writeStdout(`${JSON.stringify(result, null, 2)}\n`);
+      writeStdout(JSON.stringify(result, null, 2));
     })
     .catch((error) => {
-      writeStderr(`${error instanceof Error ? error.message : String(error)}\n`);
+      writeStderr(error instanceof Error ? error.message : String(error));
       process.exit(1);
     });
 }

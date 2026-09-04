@@ -14,6 +14,8 @@ import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
 
+const MIN_CANDIDATES_PER_SESSION = 3;
+
 /**
  * @typedef {object} PromotionCandidate
  * @property {string} sourceFile
@@ -73,7 +75,7 @@ export function listPromotionCandidates(sliceDir) {
   }
 
   // Snapshot BEFORE the backfill loop: top-ups added for one session must not
-  // count toward the ≥3 floor of a later session.
+  // count toward the per-session floor of a later session.
   const triaged = [...candidates.values()];
 
   for (const session of sessions) {
@@ -81,14 +83,14 @@ export function listPromotionCandidates(sliceDir) {
     const inSession = triaged.filter(
       (c) => c.timestampSec != null && c.timestampSec >= session.startSec && c.timestampSec <= end,
     );
-    if (inSession.length < 3) {
+    if (inSession.length < MIN_CANDIDATES_PER_SESSION) {
       const extras = selection.selectedFrames
         .filter(
           (f) =>
             f.timestampSec >= session.startSec && f.timestampSec <= end && !candidates.has(f.file),
         )
         .sort((a, b) => b.priorityScore - a.priorityScore)
-        .slice(0, 3 - inSession.length);
+        .slice(0, MIN_CANDIDATES_PER_SESSION - inSession.length);
       for (const frame of extras) {
         candidates.set(frame.file, {
           sourceFile: frame.file,
@@ -111,5 +113,5 @@ if (isMainModule(import.meta.url)) {
     writeStderr("Usage: node watch/list-promotion-candidates.js <slice-dir>");
     process.exit(2);
   }
-  writeStdout(`${JSON.stringify(listPromotionCandidates(sliceDir), null, 2)}\n`);
+  writeStdout(JSON.stringify(listPromotionCandidates(sliceDir), null, 2));
 }

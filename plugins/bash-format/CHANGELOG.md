@@ -3,6 +3,16 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.32]
+
+### Fixed
+
+- **`bash-format.test.sh` stops reusing one fixture name for two repositories.**
+  `REPO_IGN` named both the ignore-config repo and an unrelated transient one;
+  the second is now `REPO_TRANSIENT`. Pointing the renamed site back at the
+  original turns the suite red, which is what proves the two were distinct
+  rather than deliberately shared.
+
 ## [0.7.31]
 
 ### Changed

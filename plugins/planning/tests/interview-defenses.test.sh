@@ -760,7 +760,7 @@ pin_exact "loop.md's auto-guard line is byte-identical to the pinned defense" "$
   '**Auto-guard:** synthesize-directly applies ONLY to codebase-resolvable answers or unambiguous conventional defaults. A decision genuinely the user'"'"'s (real tradeoffs, no codebase answer) is never synthesized silently — ask it inline or offer `me` mode. See SKILL.md Step 1.5 "Auto-guard".'
 pin_exact "loop.md's unattended ladder rung 3 is byte-identical to the pinned defense" "$LOOP" \
   '3. **A decision that is genuinely the user'"'"'s** — real tradeoffs, no codebase answer — is NEVER assumed. Record the row `blocked`, write the question into the Brief'"'"'s `### Deferred questions` led by its `Q<N>` id and tagged **arbiter: USER-RESERVED**, and name it as a blocker in the run'"'"'s output.'
-pin_exact "loop.md's unattended ladder rungs 4-5 are byte-identical to the pinned defense" "$LOOP" \
+pin_exact "loop.md's unattended ladder rung 4 is byte-identical to the pinned defense" "$LOOP" \
   '4. **Never idle-wait.** A run with nobody to answer stops on its blockers rather than holding the lane.'
 pin_exact "loop.md's unattended confirmation rung is byte-identical to the pinned defense" "$LOOP" \
   '5. **The confirmation gate cannot be satisfied unattended.** Report the contract as unconfirmed with its blocker list; absence of objection is not confirmation.'

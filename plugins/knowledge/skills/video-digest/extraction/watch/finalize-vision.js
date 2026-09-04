@@ -60,9 +60,9 @@ export function finalizeVision(
   { dryRun = false, steps = finalizeVisionSteps(sliceDir) } = {},
 ) {
   if (dryRun) {
-    writeStdout(`finalize-vision sub-chains (dry-run, no writes) for ${sliceDir}:\n`);
+    writeStdout(`finalize-vision sub-chains (dry-run, no writes) for ${sliceDir}:`);
     for (const step of steps) {
-      writeStdout(`- ${step.name}\n`);
+      writeStdout(`- ${step.name}`);
     }
     return 0;
   }
@@ -70,10 +70,10 @@ export function finalizeVision(
   for (const step of steps) {
     try {
       step.run();
-      writeStdout(`finalize-vision: ${step.name} ok\n`);
+      writeStdout(`finalize-vision: ${step.name} ok`);
     } catch (error) {
       writeStderr(
-        `finalize-vision: ${step.name} failed: ${error instanceof Error ? error.message : String(error)}\n`,
+        `finalize-vision: ${step.name} failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       return 1;
     }
@@ -86,7 +86,7 @@ if (isMainModule(import.meta.url)) {
   const dryRun = args.includes("--dry-run");
   const sliceDir = args.find((a) => !a.startsWith("--"));
   if (!sliceDir) {
-    writeStderr("Usage: node watch/finalize-vision.js [--dry-run] <slice-dir>\n");
+    writeStderr("Usage: node watch/finalize-vision.js [--dry-run] <slice-dir>");
     process.exitCode = 2;
   } else {
     process.exitCode = finalizeVision(sliceDir, { dryRun });

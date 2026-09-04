@@ -3,6 +3,57 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.12]
+
+### Changed
+
+- **`restart-consumer.sh` gains four within-file helpers.** One predicate was
+  spelled two different ways in `require_gh` and `resolve_target_repo`, which
+  must never disagree about whether a run touches the forge; the two spellings
+  were checked against each other over a 47-row truth table and agree on every
+  row, and across the whole reachable domain all three forms agree. A
+  lock-directory removal duplicated in two places becomes one helper, verified
+  over 14 filesystem states plus four unprivileged permission cases. Two readers
+  that differed only in filename become one, compared against both originals
+  over 50 inputs including missing, empty, CRLF, leading-zero, huge, directory
+  and unreadable cases. A three-line report header duplicated between the
+  lock-skipped tick and a full run becomes one call.
+- **`telemetry-upsert.sh` replaces five copy-pasted argument guards** with one
+  helper. It is deliberately argc-based rather than emptiness-based, so an empty
+  marker still fails on the marker regex rather than reporting a missing value;
+  a mutant that switches to an emptiness check diverges exactly there.
+- **`machine-behavior.sh` renames a top-level loop variable** whose old name
+  implied a `local` it could not have, and `lane-launcher.sh` rewrites one
+  comment into the present tense, which is the accurate tense: the pre-move lane
+  layout is not history but a live path the config resolver still reads under a
+  deprecation warning.
+
+  A 73-case differential over both revisions, comparing stdout, stderr, exit
+  code, the lock file tree, the ledger and the launcher argv log, found zero
+  divergences; seven mutants confirm it discriminates. Suites are unchanged at
+  213, 26, 24, 153 and 91.
+
+## [0.41.11]
+
+### Changed
+
+- **`overlap.py` uses `Path.cwd()` and drops the import it needed only for
+  that.** These are the same expression rather than merely equivalent ones:
+  CPython 3.11's pathlib defines `cwd` as `cls(os.getcwd())`, and the file pins
+  a 3.11 minimum. An AST scan covering every import form, aliases, `del`,
+  `Global`/`Nonlocal` and every string constant found exactly two references to
+  the dropped name, and the file contains no dynamic-import or reflection
+  surface that could reach it. A 496-pair differential across four repository
+  shapes, seven working directories including two symlinked ones, and every
+  subcommand and flag, comparing exit code, both streams and a hash of the
+  resulting file tree, found zero divergences; eleven mutants confirm the corpus
+  discriminates, with the control that re-injects the original expression
+  correctly surviving.
+- **`test_install_state.py` uses one import form for one module.** The
+  module-level import was already present ten lines above the call site, and the
+  same-plugin sibling suite already spells it this way. The changed line was
+  shown to execute by a line-level trace naming the three tests that reach it.
+
 ## [0.41.10]
 
 ### Changed

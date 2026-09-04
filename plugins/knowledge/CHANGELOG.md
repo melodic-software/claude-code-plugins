@@ -4,6 +4,122 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.43]
+
+### Changed
+
+- **`digest_fences.py`: a captured group and a field nothing read are gone, and
+  two tick counters use one string operation.** `CLAIM_LABEL` no longer captures
+  the trailing `(.*)`, and `Claim.rest`, which only ever carried it, is dropped;
+  no caller read either. `parse_claims` now keeps each label's match object from
+  the first scan instead of re-matching every label line and asserting the result
+  is not `None`. The two hand-rolled leading-backtick loops become
+  `len(s) - len(s.lstrip("`"))`. An 18,142-probe differential against the prior
+  implementation found one input where the regexes differ, and it is unreachable
+  by construction: the pattern is only ever fed newline-free lines, and the
+  divergence needs an embedded newline.
+- **`check_linkmap.py`: `ground` is now `rungs_by_url`.** The old name needed a
+  comment to say what it held; the new one says it. Mechanical rename, five call
+  sites, no behaviour change.
+- **`check_inventory.py`: `rows_clean` was write-only.** It was incremented and
+  never read, so it is removed. The rest of the file's diff is `ruff format`
+  output, not hand edits: the pinned formatter reflowed 147 of 148 lines when the
+  hook ran on the edit. Reproduced byte-for-byte by running the pinned formatter
+  over the unmodified copy from `HEAD`, which differs from the committed result
+  by exactly the two `rows_clean` lines. Roughly 45 further repository `.py` files
+  are formatter-dirty at `HEAD` with no CI gate enforcing the formatter, so this
+  reflow will recur on the next file a hook touches.
+
+  Recorded, not fixed: `verification/lib/gate_common.py` reports zero coverage
+  from the suite selector, but tracing execution shows 190 of its 392 entries run
+  across two suites. That is a mapping gap in the selector, not a coverage gap in
+  the code.
+
+## [0.13.42]
+
+### Changed
+
+- **`dedupe-synthesis-dir.js` stops exporting an internal-only hash helper.** Two
+  references exist repo-wide, both inside the file; the module has no barrel, no
+  namespace importer, no dynamic import and no string-key access, and its package
+  is private with neither a `main` nor an `exports` field. Confirmed by loading
+  the module both ways, and by a 17-scenario differential over the deletion path
+  that carries near-miss keeps as well as removals: zero divergences, with four
+  seeded defects caught and two equivalence controls correctly spared.
+- **`merge-triage-json.js` binds its cell-count fallback to the registry** rather
+  than to a literal. This is tighter than the number it replaces, because the
+  validator it feeds slices that registry by the value, so the fallback now means
+  "the whole registry". No existing test reaches that path, so it was driven
+  deliberately with a purpose-built probe: ten cases, five of them on the
+  fallback, identical output and identical thrown messages on both sides.
+
+### Fixed
+
+- **Eight doubled newlines across four watch scripts.** The shared emit helpers
+  append a newline unconditionally, so each explicit one produced a blank line;
+  two files were internally inconsistent, with the sibling call in the same block
+  already omitting it. Measured per command: exactly one byte less per emission,
+  exit codes unchanged, artifacts byte-identical through the production
+  orchestrator, and no consumer parses these streams.
+
+  Removing them left four calls wrapping a single expression in a template that
+  no longer did anything, so those were reduced to a bare argument. That is not
+  cosmetic: the emit helper formats an `Error` as its stack and an object as
+  JSON, so bare and wrapped differ for anything but a string. All four
+  expressions are strings, proven by execution with every throw source
+  enumerated.
+
+### Known issues
+
+- **Which duplicate frame gets deleted can depend on directory iteration order.**
+  `synthesisNameQualityScore` is not a total order, so names that tie are
+  resolved by the order `readdirSync` returns them; forcing both orders deletes
+  opposite files. Left unfixed because choosing a tiebreak changes which file
+  survives, which is a product decision rather than a tidy.
+- **Two files disagree by one cell on a sheet's midpoint.**
+  `render-triage-log.js` hardcodes it while `export-sheet-frame-index.js`
+  computes it from the registry length, so they label the same sheet with
+  different timestamps.
+
+## [0.13.41]
+
+### Added
+
+- **`expand-visual-gaps.js` now has a test suite.** The script mapped to zero
+  suites, which `scripts/affected-tests.sh` reports as an error rather than an
+  empty selection, and the no-suite allowlist is for prose and manifests
+  explicitly not for code. The suite covers gap detection, both window
+  boundaries, window order, the minute-rounded region label and the
+  empty-window case. Mutation-tested against four seeded defects: inverting the
+  gap filter kills four of the five cases, rounding to a floor kills one, and
+  making either boundary exclusive kills three and one respectively.
+
+### Changed
+
+- **Video-digest watch frames and vision tidyings from the repo-wide sweep.**
+  `export-sheet-frame-index.js` drops its local 16-element cell array for the
+  `CELL_IDS` registry already imported elsewhere in the tree and names the bare
+  `inputFiles[8]` literal; the two lists were compared index by index and the
+  produced `sheet-frame-index.json` is byte-identical across cell counts of 2,
+  9, 16 and 20. `expand-visual-gaps.js` rewrites an accumulate-into-array loop
+  as `filter`/`map`, verified over 38 curated cases and 20,000 fuzz iterations
+  with zero mismatches. `repair-synthesis-promotions.js` extracts a
+  `promotedDecisions` helper, sheds two unused parameters from
+  `applyFileRenames` and hoists the decisions write to the caller, where it
+  remains the first statement of the `!dryRun` branch and so still precedes
+  every rename; an instrumented op-trace over six `sliceDir` spellings and
+  crash injection at eight boundaries leave the resulting trees identical.
+  `rebuild-visual-frames.js` drops a row field nothing reads and
+  `list-promotion-candidates.js` names the per-session candidate floor.
+
+### Fixed
+
+- **Eighteen doubled newlines across nine watch scripts.** `writeStdout` and
+  `writeStderr` append a newline unconditionally, so every explicit `\n` passed
+  to them emitted a stray blank line. Measured per CLI, each delta is exactly
+  one byte per emission executed; exit codes are unchanged and the text is
+  identical once blank lines collapse. No consumer parses these streams.
+
 ## [0.13.40]
 
 ### Fixed

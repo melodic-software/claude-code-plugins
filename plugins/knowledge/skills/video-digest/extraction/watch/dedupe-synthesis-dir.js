@@ -12,7 +12,7 @@ import { synthesisNameQualityScore } from "./synthesis-naming.js";
  * @param {string} filePath
  * @returns {string}
  */
-export function hashFile(filePath) {
+function hashFile(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 

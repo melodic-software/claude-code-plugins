@@ -97,7 +97,6 @@ classify_file() {
   # Longer @-prefixed alternative first so `@docs/a.md` is one hit, not `@`
   # plus `docs/a.md`.
   path_hits=$(grep -Eo '(@[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml)|@[A-Za-z0-9._/-]+|[a-z][a-z0-9._/-]+\.(md|cs|sh|json|yaml))' "$file" 2>/dev/null | wc -l | tr -d ' ')
-  path_hits=${path_hits:-0}
   flavor_hits=$(grep -oiwE "$FLAVOR_RE" "$file" 2>/dev/null | wc -l | tr -d ' ')
 
   local tick_dens path_dens flavor_dens

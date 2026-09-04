@@ -27,6 +27,9 @@ fail() {
 assert_exit() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $2" "exit $3"; fi
 }
+assert_equal() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
+}
 assert_contains() {
   case "$2" in
   *"$3"*) pass "$1" ;;
@@ -77,7 +80,7 @@ out=$(cd "$REPO" && bash "$SCRIPT" 1 2>&1)
 rc=$?
 line_count=$(printf '%s\n' "$out" | grep -c .)
 assert_exit "capped run exits 0" 0 "$rc"
-assert_exit "cap of 1 emits 1 line" 1 "$line_count"
+assert_equal "cap of 1 emits 1 line" 1 "$line_count"
 
 # --- 3. Clean tree emits nothing ------------------------------------------------
 
@@ -89,7 +92,7 @@ git -C "$CLEAN" commit -qm base >/dev/null 2>&1
 out=$(cd "$CLEAN" && bash "$SCRIPT" 2>&1)
 rc=$?
 assert_exit "clean tree exits 0" 0 "$rc"
-assert_exit "clean tree emits nothing" 0 "${#out}"
+assert_equal "clean tree emits nothing" 0 "${#out}"
 
 # --- 4. Outside a repo exits 1 (caller supplies fallback text) -------------------
 

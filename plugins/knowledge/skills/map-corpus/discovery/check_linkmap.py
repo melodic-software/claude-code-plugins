@@ -185,16 +185,15 @@ def main(argv=None) -> int:
     if not isinstance(rows, list) or not rows:
         fail(2, "link map 'rows' is not a non-empty list.")
 
-    # provenance ground truth: url -> set of rungs it actually appeared under
-    ground = {}
+    rungs_by_url = {}
     for seed in seeds:
-        ground.setdefault(seed, set()).add("seed")
+        rungs_by_url.setdefault(seed, set()).add("seed")
     discovery_counts = {}
     for path in args.discovery:
         rung, urls = check_discovery_output(path, load_json(path, "discovery output"))
         discovery_counts[path] = (rung, len(urls))
         for url in urls:
-            ground.setdefault(url, set()).add(rung)
+            rungs_by_url.setdefault(url, set()).add(rung)
 
     failures = Failures("check_linkmap")
     seen = {}
@@ -255,21 +254,21 @@ def main(argv=None) -> int:
                 f"duplicate-free subset of {list(ROW_RUNGS)}."
             )
             continue
-        if url not in ground:
+        if url not in rungs_by_url:
             failures.add(
                 f"{label}: url appears in no discovery output and is "
                 f"not a seed -- a phantom row."
             )
             continue
-        if set(rungs) != ground[url]:
+        if set(rungs) != rungs_by_url[url]:
             failures.add(
                 f"{label}: rungs {sorted(rungs)} != actual provenance "
-                f"{sorted(ground[url])}."
+                f"{sorted(rungs_by_url[url])}."
             )
             continue
         tally[row["classification"]] += 1
 
-    unclassified = [u for u in ground if u not in seen]
+    unclassified = [u for u in rungs_by_url if u not in seen]
     if unclassified:
         failures.add(
             f"{len(unclassified)} discovered/seed URL(s) have no "
@@ -287,7 +286,7 @@ def main(argv=None) -> int:
     if failures.items:
         print(
             f"check_linkmap: FAILED -- {len(failures.items)} failure(s) "
-            f"across {len(rows)} row(s) / {len(ground)} discovered URL(s)."
+            f"across {len(rows)} row(s) / {len(rungs_by_url)} discovered URL(s)."
         )
         return 1
 

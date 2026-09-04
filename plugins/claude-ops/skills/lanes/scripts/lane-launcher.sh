@@ -317,9 +317,9 @@ resolve_repo() {
 }
 
 # The lanes concern home under the memory root, and the pre-move path it
-# superseded. Lanes state used to sit as bare files AT the memory root, outside
-# any reserved name; `lanes/` is now a reserved first-level concern name, so the
-# config and the lane prompts live inside it.
+# superseded. `lanes/` is a reserved first-level concern name, so the config and
+# the lane prompts live inside it; the pre-move layout leaves them as bare files
+# AT the memory root, outside any reserved name.
 LANES_CONFIG_REL=".work/lanes/lanes.json"
 LEGACY_LANES_CONFIG_REL=".work/lanes.json"
 
