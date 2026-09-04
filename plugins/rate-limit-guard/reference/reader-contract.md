@@ -199,10 +199,10 @@ sweeping the directory expects them:
   id: a mid-drain login to a second account feeds that account's healthy windows to lanes exhausted
   on the first, and the guard cannot detect it. The loop-lane convention §6 owns the framing and
   records it as a gap rather than as a safe assumption; the account-identity design that resolves
-  it — writer-side field, reader-side invalidation of latched state, lane-floor re-audit — is
-  `TODO(#1218)`. Locally relevant today, and only this far: the writer already forward-passes an
-  account-matching key under the exact rule "Tee file shape" states, so an identity field of that
-  shape costs no writer change the release one appears — and every other shape costs one.
+  it (a writer-side field, reader-side invalidation of latched state, a lane-floor re-audit) is not
+  built. What holds now, and only this far: the writer already forward-passes an account-matching
+  key under the exact rule "Tee file shape" states, so an identity field of that shape costs no
+  writer change in the release one appears, and every other shape costs one.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry — Monitors is an experimental Claude Code component, and this plugin takes no dependency on
@@ -213,15 +213,16 @@ sweeping the directory expects them:
 
 ## Consumers
 
-The loop-lane convention's three lanes: `work-items` `work-loop`, `work-items` `attend-queue`, and
-`source-control` `babysit-loop`. Each records its guard mode (proactive / reactive / unknown) in its
-lane telemetry every cycle, per the convention. Three more surfaces inline the same floor: the
-`docs-hygiene` `extract-ssot` orchestrated mode, and the two loop-lane launch-prompt templates under
-`prompts/loops/` in the marketplace repository.
+The loop-lane convention's lanes (`work-items` `work-loop`, `work-items` `attend-queue`, and
+`source-control` `babysit-loop`) inline the floor. Each records its guard mode (proactive /
+reactive / unknown) in its lane telemetry every cycle, per the convention. Further surfaces inline
+the same floor: the `docs-hygiene` `extract-ssot` orchestrated mode, and the loop-lane
+launch-prompt templates under `prompts/loops/` in the marketplace repository.
 
-Every one of those six copies is drift-checked against the "Operable floor" block above by
+Every copy is drift-checked against the "Operable floor" block above by
 `scripts/check-loop-lane-floor-drift.sh`, which runs in the marketplace repo's
-`loop-lane-floor-drift-gate` CI lane and holds the registry of who inlines the floor. A change to
-the floor block here fails that lane until every copy moves with it. The same check scans every
-tracked file for the floor's opening bullet and fails on a carrier its registry does not name, so a
-seventh consumer cannot inline this block and go unwatched.
+`loop-lane-floor-drift-gate` CI lane and holds the registry of who inlines the floor; that
+registry, not this list, is the authoritative roster. A change to the floor block here fails that
+lane until every copy moves with it. The same check scans every tracked file for the floor's
+opening bullet and fails on a carrier its registry does not name, so a new consumer cannot inline
+this block and go unwatched.
