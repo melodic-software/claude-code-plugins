@@ -330,6 +330,70 @@ def test_validate_secret_shape_is_warn_only(tmp_path):
     assert "WARN" in out(result) and "secret-shaped" in out(result) and "GitHub token" in out(result)
 
 
+@pytest.mark.parametrize("marker", ["- ", "* ", "+ ", "1. ", "2) "])
+def test_validate_refuses_a_bulleted_next_headline(tmp_path, marker):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    text = target.read_text(encoding="utf-8")
+    headline = "Add the re-run test to tests/test_importer.py"
+    assert f"\n{headline}\n" in text
+    target.write_text(text.replace(f"\n{headline}\n", f"\n{marker}{headline}\n"), encoding="utf-8", newline="\n")
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert "headline must not be a bullet" in out(result), out(result)
+    assert headline in out(result), out(result)
+
+
+def _blank_section(path: Path, title: str) -> None:
+    """Leave the heading in place with a body of blank lines only."""
+    lines = path.read_text(encoding="utf-8").split("\n")
+    start = lines.index(f"## {title}")
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    path.write_text("\n".join(lines[: start + 1] + ["", ""] + lines[end:]), encoding="utf-8", newline="\n")
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Completion criteria",
+        "Environment to re-establish",
+        "Remaining actions, in order",
+        "Findings that cost effort to discover",
+    ],
+)
+def test_validate_refuses_an_empty_required_section(tmp_path, title):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    _blank_section(target, title)
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert f"{title}: empty; write 'None.' plus a reason" in out(result), out(result)
+
+
+@pytest.mark.parametrize("value", ["0", "-3", "-1"])
+def test_validate_refuses_a_shape_below_one(tmp_path, value):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    text = target.read_text(encoding="utf-8")
+    assert "handoff_shape: 2\n" in text
+    target.write_text(text.replace("handoff_shape: 2\n", f"handoff_shape: {value}\n", 1), encoding="utf-8", newline="\n")
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert f"handoff_shape {value} is not a shape" in out(result), out(result)
+    # -1 was the old unparsable sentinel, so it used to be mislabelled.
+    assert "not an integer" not in out(result), out(result)
+
+
+def test_validate_reports_a_non_integer_shape_as_not_an_integer(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    text = target.read_text(encoding="utf-8")
+    target.write_text(text.replace("handoff_shape: 2\n", "handoff_shape: two\n", 1), encoding="utf-8", newline="\n")
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert "handoff_shape 'two' is not an integer" in out(result), out(result)
+
+
 # --- emit ---------------------------------------------------------------------------
 
 

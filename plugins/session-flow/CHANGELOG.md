@@ -72,6 +72,39 @@
   pointer by basename.** `skills/retro/scripts/parse_transcript.py` truncated
   the chain to a single id when the pointer carried its directory prefix; it now
   falls back to the pointer's basename beside the current file.
+- **`validate` refuses a bulleted `Next:` headline.** `_check_rails_block`
+  counted the headlines, held `Then:` last and capped them at five, but never
+  applied `BULLET_RE`, so a headline written as `- do the thing` validated
+  clean and `emit` published it. The contract has always refused a bullet
+  there; the check now names the offending line.
+- **`validate` refuses a required section whose body is empty.** The heading
+  walk checked the 17 section names and their order only, so `## Completion
+  criteria`, `## Environment to re-establish` or `## Remaining actions, in
+  order` could carry nothing at all and the file still exited 0. Every section
+  is always present and says something: a section with nothing to report reads
+  `None.` plus a reason, which is what tells a cold reader "nothing to report"
+  apart from "the author forgot".
+- **`validate` refuses a `handoff_shape` below 1, and stops mislabelling a
+  literal `-1`.** `Doc.shape` returned `-1` as its unparsable marker, so
+  `handoff_shape: -1` was reported as "not an integer", while `0` and `-3` fell
+  through every branch and validated as shape 2 with `validate: PASS`. The
+  marker is now a distinct sentinel object, a genuinely unparsable value keeps
+  the "not an integer" FAIL, and any integer shape below 1 fails with its own
+  message. A shape above the known one still exits 3.
+- **`hop_chain.py`'s `skill_order` check orders two tool calls made in the same
+  assistant message.** `_tool_uses` keyed every block by its record index, so a
+  `[Write(handoffs/x.md), Skill(session-flow:handoff)]` pair in one message
+  compared equal and passed, and the disk fallback could not catch it either
+  because the file is created after the record is logged. The key is now
+  `(record index, block ordinal)` and the comparison is on the tuple.
+- **`hop_chain.py` no longer scores a pre-skill `save_point.py validate` as a
+  free-hand write.** `is_write_indicator` fired on any `python …` command, so
+  the predecessor check a resuming hop legitimately runs (which also names
+  `handoffs/`) failed `skill_order`, against what the comments beside both
+  regexes claimed. The read-only `validate` and `emit` forms are now exempted
+  before the interpreter rule when the command carries no redirect or write
+  verb, and the two comments say what the code does. The dry-run suite gains
+  the three cases these two defects need, going from 19 to 22.
 
 ## [0.34.24]
 

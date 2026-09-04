@@ -53,8 +53,9 @@ FILL_RE = re.compile(r"<!-- FILL: ([a-z0-9-]+) .*?-->")
 HANDOFF_GLOB = "*-handoff-*.md"
 # What counts as touching the save-point surface before the skill was invoked.
 # `save_point.py new` is in scope because the skill's own file-creating call
-# carries no literal `handoffs/`; `save_point.py validate` on a predecessor is
-# legitimate and stays out of it.
+# carries no literal `handoffs/`. `save_point.py validate` on a predecessor
+# names the predecessor's path, so it matches here too; it is a legitimate
+# read, and `is_write_indicator` is what keeps it out of the touch branch.
 HANDOFF_TOUCH_RE = re.compile(r"handoffs[/\\]|save_point\.py\S*\s+new\b")
 # Reading the predecessor is what a resume hop does FIRST: the rails text opens
 # `Read @<...>/handoffs/<file>.md`. Only a tool that could CREATE the file is
@@ -76,16 +77,21 @@ WRITE_INDICATOR_RE = re.compile(
     r"|\b(?:cp|mv|rm|touch|mkdir|tee|dd|rsync|install|ln)\b"
     # In-place stream editors, with any flags before the -i.
     r"|\b(?:sed|perl)\s+(?:-\S+\s+)*-i"
-    # An interpreter actually invoked, which can write anything. Anchored at a
-    # command position so `save_point.py validate` (a legitimate read) does not
-    # match on its `.py` suffix.
-    r"|(?:^|[\s;|&(])(?:python3?|py|node|pwsh|powershell)(?:\.exe)?\s"
 )
 WRITE_CMDLET_RE = re.compile(
     r"\b(?:Set-Content|Out-File|Add-Content|New-Item"
     r"|Copy-Item|Move-Item|Remove-Item|Rename-Item)\b",
     re.IGNORECASE,
 )
+# An interpreter actually invoked, which can write anything. Anchored at a
+# command position so a bare `save_point.py ...` does not match on its `.py`
+# suffix. `python3 .../save_point.py validate` DOES match the leading
+# interpreter, though, which is why the read-only forms are exempted below.
+INTERPRETER_RE = re.compile(r"(?:^|[\s;|&(])(?:python3?|py|node|pwsh|powershell)(?:\.exe)?\s")
+# The two read-only save_point.py subcommands. A resuming hop legitimately runs
+# `validate` over its predecessor before invoking the skill; scoring that as a
+# pre-skill write failed the hop.
+READ_ONLY_SAVE_POINT_RE = re.compile(r"save_point\.py\S*\s+(?:validate|emit)\b")
 
 
 def shell_command_text(tool_input: dict, serialized: str) -> str:
@@ -101,7 +107,13 @@ def shell_command_text(tool_input: dict, serialized: str) -> str:
 
 
 def is_write_indicator(command: str) -> bool:
-    return bool(WRITE_INDICATOR_RE.search(command) or WRITE_CMDLET_RE.search(command))
+    if WRITE_INDICATOR_RE.search(command) or WRITE_CMDLET_RE.search(command):
+        return True
+    # A read-only save_point.py call with no redirect and no write verb writes
+    # nothing, whatever interpreter launched it, so it falls to the note branch.
+    if READ_ONLY_SAVE_POINT_RE.search(command):
+        return False
+    return bool(INTERPRETER_RE.search(command))
 SKILL_NAME = "session-flow:handoff"
 MIDDOT = "·"
 
@@ -493,6 +505,13 @@ def load_transcript(session_id: str, projects_root: Path) -> Transcript:
 
 
 def _tool_uses(records: list[dict]):
+    """Yield ((record index, block ordinal), record, block) per tool_use.
+
+    The key is a tuple, not the record index alone: one assistant record can
+    carry several tool_use blocks, and a Write earlier in the SAME message than
+    the Skill call is still a write before the skill. On a bare record index
+    the two compared equal and the ordering check passed.
+    """
     for index, record in enumerate(records):
         if record.get("type") != "assistant":
             continue
@@ -500,9 +519,11 @@ def _tool_uses(records: list[dict]):
         content = message.get("content")
         if not isinstance(content, list):
             continue
+        ordinal = 0
         for block in content:
             if isinstance(block, dict) and block.get("type") == "tool_use":
-                yield index, record, block
+                yield (index, ordinal), record, block
+                ordinal += 1
 
 
 def final_assistant_text(records: list[dict]) -> str:
@@ -522,15 +543,23 @@ def final_assistant_text(records: list[dict]) -> str:
 
 @dataclass
 class SkillEvidence:
-    skill_index: int | None = None
+    # Every *_index is the (record index, block ordinal) key `_tool_uses`
+    # yields, so two blocks in one assistant message still order against each
+    # other. `_record_of` renders one for a report line.
+    skill_index: tuple[int, int] | None = None
     skill_timestamp: float | None = None
-    touch_index: int | None = None
+    touch_index: tuple[int, int] | None = None
     touch_name: str = ""
     touch_command: str = ""
     # A shell command that named handoffs/ but could not write: evidence worth
     # keeping in the report, not a failure.
-    note_index: int | None = None
+    note_index: tuple[int, int] | None = None
     usage: dict = field(default_factory=dict)
+
+
+def _record_of(key: tuple[int, int] | None) -> int | None:
+    """The record index of an ordering key, for report lines."""
+    return None if key is None else key[0]
 
 
 def skill_evidence(records: list[dict]) -> SkillEvidence:
@@ -619,13 +648,15 @@ def assess_hop(
         )
 
     # Skill ordering, on EVERY hop. A handoff file with no preceding Skill call
-    # is a FAIL row, never a vacuous pass.
+    # is a FAIL row, never a vacuous pass. The comparison is on the
+    # (record, block ordinal) key, so a same-message Write-then-Skill pair is
+    # ordered rather than treated as simultaneous.
     if evidence.skill_index is None:
         row.reasons.append("no Skill tool_use naming " + SKILL_NAME)
     elif evidence.touch_index is not None and evidence.touch_index < evidence.skill_index:
         row.reasons.append(
-            f"{evidence.touch_name} touched handoffs/ at record {evidence.touch_index}"
-            f" before the Skill call at {evidence.skill_index}: {evidence.touch_command}"
+            f"{evidence.touch_name} touched handoffs/ at record {_record_of(evidence.touch_index)}"
+            f" before the Skill call at {_record_of(evidence.skill_index)}: {evidence.touch_command}"
         )
     elif (
         new_file is not None
@@ -643,8 +674,8 @@ def assess_hop(
         evidence.skill_index is None or evidence.note_index < evidence.skill_index
     ):
         row.reasons.append(
-            f"note: shell read of handoffs/ at record {evidence.note_index}"
-            f" before Skill at {evidence.skill_index}"
+            f"note: shell read of handoffs/ at record {_record_of(evidence.note_index)}"
+            f" before Skill at {_record_of(evidence.skill_index)}"
         )
 
     if new_file is None:
@@ -1165,12 +1196,32 @@ SHELL_PROBES = {
         "PowerShell",
         {"command": 'Set-Content -Path "{handoffs}/free-hand.md" -Value "written by hand"'},
     ),
+    # A resuming hop validating its predecessor before invoking the skill. It
+    # names handoffs/ AND runs an interpreter, and used to be scored a
+    # pre-skill write; it writes nothing, so the hop must still pass.
+    "save_point_validate_before_skill": (
+        "Bash",
+        {
+            "command": 'python3 scripts/save_point.py validate "{handoffs}/predecessor.md"',
+            "description": "validate the predecessor",
+        },
+    ),
+    # The negative control for the exemption above: `new` creates a file, so it
+    # stays a touch.
+    "save_point_new_before_skill": (
+        "Bash",
+        {
+            "command": 'python3 scripts/save_point.py new --topic free-hand --memory-dir "{handoffs}"',
+            "description": "write a save-point by hand",
+        },
+    ),
 }
 
 DEFECTS = (
     "no_skill",
     "foreign_skill_naming_ours_in_args",
     "write_before_skill",
+    "write_and_skill_in_one_record",
     *SHELL_PROBES,
     "sid_mismatch",
     "budget_exhausted",
@@ -1288,6 +1339,34 @@ def make_fake_runner(defects: dict[int, set[str]]):
                                 "content": "free-hand",
                             },
                         }
+                    ],
+                )
+            )
+        if "write_and_skill_in_one_record" in flags:
+            # Both blocks in ONE assistant message, the Write first. On a bare
+            # record index the two compared equal and the ordering check
+            # passed; the disk fallback cannot catch it either, because the
+            # file is created after this record is logged.
+            prelude.append(
+                _record(
+                    call.session_id,
+                    now,
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_same_record_write",
+                            "name": "Write",
+                            "input": {
+                                "file_path": (call.fixture / ".work" / "handoffs" / "same-record.md").as_posix(),
+                                "content": "free-hand",
+                            },
+                        },
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_same_record_skill",
+                            "name": "Skill",
+                            "input": {"skill": SKILL_NAME, "args": f"file hop{call.hop}"},
+                        },
                     ],
                 )
             )
@@ -1435,6 +1514,29 @@ DRY_RUN_CASES = (
         hops=0,
         expect_pass=False,
         expect_reason="before the Skill call",
+        expect_check="skill_order",
+    ),
+    Case(
+        "write_and_skill_in_the_same_record_fails",
+        {1: {"write_and_skill_in_one_record"}},
+        hops=0,
+        expect_pass=False,
+        expect_reason="before the Skill call",
+        expect_check="skill_order",
+    ),
+    Case(
+        "save_point_validate_before_skill_passes_with_a_note",
+        {1: {"save_point_validate_before_skill"}},
+        hops=0,
+        expect_pass=True,
+        expect_reason="shell read of handoffs/",
+    ),
+    Case(
+        "save_point_new_before_skill_still_fails",
+        {1: {"save_point_new_before_skill"}},
+        hops=0,
+        expect_pass=False,
+        expect_reason="save_point.py new",
         expect_check="skill_order",
     ),
     Case(

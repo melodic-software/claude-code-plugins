@@ -226,6 +226,19 @@ def _same_file(a: str, b: Path) -> bool:
 # --- Document model -------------------------------------------------------------
 
 
+class _UnparsableShape:
+    """The value of `handoff_shape` was not an integer. A class rather than a
+    number so no literal shape value can be mistaken for it."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "UNPARSABLE_SHAPE"
+
+
+UNPARSABLE_SHAPE = _UnparsableShape()
+
+
 @dataclass
 class Doc:
     path: Path
@@ -241,15 +254,20 @@ class Doc:
         return self.path.name
 
     @property
-    def shape(self) -> int | None:
-        """None when the key is absent (shape 1); the int otherwise; -1 when unparsable."""
+    def shape(self) -> int | None | _UnparsableShape:
+        """None when the key is absent (shape 1); the int otherwise;
+        UNPARSABLE_SHAPE when the value is not an integer at all.
+
+        The marker is an object, not a number: a sentinel of -1 collided with a
+        literal `handoff_shape: -1`, which was then reported as 'not an integer'.
+        """
         raw = self.frontmatter.get("handoff_shape")
         if raw is None:
             return None
         try:
             return int(raw)
         except ValueError:
-            return -1
+            return UNPARSABLE_SHAPE
 
     @property
     def titles(self) -> list[str]:
@@ -522,6 +540,12 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
             f.fail("Resume prompt: 'Next:' needs 1 to 5 headline lines")
         if len(headlines) > NEXT_MAX:
             f.fail(f"Resume prompt: 'Next:' has {len(headlines)} headline lines (max {NEXT_MAX})")
+        for line in headlines:
+            # Headlines are bare lines. A bullet reads as a list in the pasted
+            # prompt and the contract refuses it, but nothing applied
+            # BULLET_RE here, so a bulleted headline validated and was emitted.
+            if BULLET_RE.match(line):
+                f.fail(f"Resume prompt: 'Next:' headline must not be a bullet (got {line!r})")
         thens = [i for i, line in enumerate(headlines) if line.startswith("Then:")]
         if len(thens) > 1:
             f.fail("Resume prompt: at most one 'Then: /<skill>' line")
@@ -635,11 +659,14 @@ def validate_doc(
     f = Findings()
     fm = doc.frontmatter
     shape = doc.shape
+    if isinstance(shape, _UnparsableShape):
+        f.fail(f"handoff_shape {fm.get('handoff_shape')!r} is not an integer")
+        return f, 1
     if shape is None or shape == 1:
         f.warn("shape 1 file (no handoff_shape key): shape checks skipped, rails still emitted by the caller, file never rewritten")
         return f, 0
-    if shape == -1:
-        f.fail(f"handoff_shape {fm.get('handoff_shape')!r} is not an integer")
+    if shape < 1:
+        f.fail(f"handoff_shape {shape} is not a shape: shapes are integers from 1 up")
         return f, 1
     if shape > HANDOFF_SHAPE:
         f.fail(f"handoff_shape {shape} is newer than this validator knows ({HANDOFF_SHAPE}): read it, do not rewrite it")
@@ -715,6 +742,15 @@ def validate_doc(
                 break
         else:
             f.fail(f"headings: extra section(s) after '## Resume prompt': {titles[len(SECTIONS_17):]}")
+
+    # Every section is always present AND says something: a section with
+    # nothing to report reads 'None.' plus a half-line of reason, so a cold
+    # reader can tell "nothing to report" from "the author forgot"
+    # (reference/structure.md). The heading walk above only checks names and
+    # order, so an empty body used to validate clean.
+    for title, start, end in doc.sections:
+        if title in SECTIONS_17 and not any(line.strip() for line in doc.lines[start + 1 : end]):
+            f.fail(f"{title}: empty; write 'None.' plus a reason")
 
     for i, line in enumerate(doc.lines, 1):
         if FILL_MARK in line:
@@ -1188,7 +1224,7 @@ def cmd_new(args: argparse.Namespace) -> int:
             return _die(1, f"predecessor is not a handoff file (no 'type: handoff' frontmatter): {pred_path}")
         if os.path.normcase(os.path.realpath(pred_path.parent)) != os.path.normcase(os.path.realpath(handoffs)):
             return _die(1, f"predecessor must live in the handoffs dir the new file is written to ({handoffs.as_posix()}); got {_posix(pred_path)}")
-        if pred.shape is not None and pred.shape > HANDOFF_SHAPE:
+        if isinstance(pred.shape, int) and pred.shape > HANDOFF_SHAPE:
             return _die(1, f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({HANDOFF_SHAPE}): read it, do not build on it")
         if pred.shape not in (None, 1):
             _, code = validate_doc(pred, projects_root, False, shallow=True)
