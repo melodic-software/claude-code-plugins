@@ -251,7 +251,7 @@ UNITS=()
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -n "$line" ]] || continue
   UNITS+=("$line")
-done < <(printf '%s\n' "$PLAN_TSV")
+done <<<"$PLAN_TSV"
 
 is_tty_stdin() {
   [[ -t 0 ]]
@@ -523,7 +523,7 @@ refresh_worktree_cleanup() {
       append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
         delete-branch "worktree already gone; branch tip still matches plan OID" ""
     else
-      append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "${tip}" \
+      append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "$tip" \
         skip "worktree already absent; branch tip missing or drifted" ""
     fi
     return 0
@@ -565,7 +565,7 @@ refresh_worktree_cleanup() {
 for line in "${UNITS[@]:-}"; do
   [[ -n "${line:-}" ]] || continue
   phase="" op="" canonical="" ref="" expected="" kind="" target=""
-  IFS=$'\037' read -r phase op canonical ref expected kind target _ < <(printf '%s\n' "$line")
+  IFS=$'\037' read -r phase op canonical ref expected kind target _ <<<"$line"
   case "$op" in
   delete-merged-local-branches)
     refresh_branch_delete "$phase" "$op" "$canonical" "$ref" "$expected" "$kind" "$target"

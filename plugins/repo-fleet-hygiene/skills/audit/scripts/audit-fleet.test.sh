@@ -685,9 +685,9 @@ PLAN_FILE="$TMP/action-plan.json"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/repo-fleet-hygiene.conf" --detail --plan-file "$PLAN_FILE" >"$output"
 
 failures=0
-assert_contains() {
-  local label="$1" pattern="$2"
-  if ! grep -Fq -- "$pattern" "$output"; then
+assert_contains_file() {
+  local label="$1" pattern="$2" file="$3"
+  if ! grep -Fq -- "$pattern" "$file"; then
     printf 'FAIL: %s (missing %s)\n' "$label" "$pattern" >&2
     failures=$((failures + 1))
   else
@@ -695,15 +695,20 @@ assert_contains() {
   fi
 }
 
-assert_not_contains() {
-  local label="$1" pattern="$2"
-  if grep -Fq -- "$pattern" "$output"; then
+assert_not_contains_file() {
+  local label="$1" pattern="$2" file="$3"
+  if grep -Fq -- "$pattern" "$file"; then
     printf 'FAIL: %s (unexpected %s)\n' "$label" "$pattern" >&2
     failures=$((failures + 1))
   else
     printf 'PASS: %s\n' "$label"
   fi
 }
+
+# The main fleet run's report is the default subject; cases with their own capture file
+# call the _file forms directly.
+assert_contains() { assert_contains_file "$1" "$2" "$output"; }
+assert_not_contains() { assert_not_contains_file "$1" "$2" "$output"; }
 
 assert_contains "canonical override used" "Canonical: $TMP/canonical-a"
 assert_contains "mixed-case canonical config section honored" "Canonical: $TMP/canonical-c"
@@ -1290,15 +1295,6 @@ else
   printf 'FAIL: header lists --repo and --root counts distinctly when both are supplied\n' >&2
   failures=$((failures + 1))
 fi
-assert_not_contains_file() {
-  local label="$1" pattern="$2" file="$3"
-  if grep -Fq -- "$pattern" "$file"; then
-    printf 'FAIL: %s (unexpected %s)\n' "$label" "$pattern" >&2
-    failures=$((failures + 1))
-  else
-    printf 'PASS: %s\n' "$label"
-  fi
-}
 assert_not_contains_file "no false current-project scope claim" "current-project scope" "$ladder_out"
 # Retargeting a supplied/discovered path to the repository of record is a substitution the operator
 # did not ask for, so it must be stated rather than silently applied. wt-root holds TWO linked
@@ -1435,16 +1431,6 @@ conform_out="$TMP/conform-output.txt"
 MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
   REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
   bash "$SCRIPT" --repo "$TMP/conform-canon" --detail >"$conform_out" 2>&1 || true
-
-assert_contains_file() {
-  local label="$1" pattern="$2" file="$3"
-  if ! grep -Fq -- "$pattern" "$file"; then
-    printf 'FAIL: %s (missing %s)\n' "$label" "$pattern" >&2
-    failures=$((failures + 1))
-  else
-    printf 'PASS: %s\n' "$label"
-  fi
-}
 
 assert_contains_file "header names configured melodic worktree root" \
   "Worktree root: $TMP/conform-root (source: melodic.worktreeroot" "$conform_out"

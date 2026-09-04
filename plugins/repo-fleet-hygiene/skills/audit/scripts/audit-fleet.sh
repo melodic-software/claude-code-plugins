@@ -1375,14 +1375,21 @@ if [[ "$GH_READY" == "true" ]]; then
 fi
 
 select_remote() {
-  local repo="$1" remotes count
+  local repo="$1" remotes name
+  local -a remote_names=()
   if run_git_probe -C "$repo" remote get-url origin >/dev/null 2>&1; then
     SELECTED_REMOTE="origin"
   else
     remotes="$(run_git_probe -C "$repo" remote 2>/dev/null | tr -d '\r')"
-    count="$(printf '%s\n' "$remotes" | sed '/^$/d' | wc -l | tr -d ' ')"
-    if [[ "$count" == "1" ]]; then
-      SELECTED_REMOTE="$(printf '%s\n' "$remotes" | sed '/^$/d')"
+    # Sole-remote fallback. Collecting the non-empty lines answers both "how many" and
+    # "which one" from one pass, in place of two sed/wc/tr pipelines over the same text.
+    while IFS= read -r name; do
+      if [[ -n "$name" ]]; then
+        remote_names+=("$name")
+      fi
+    done <<<"$remotes"
+    if [[ ${#remote_names[@]} -eq 1 ]]; then
+      SELECTED_REMOTE="${remote_names[0]}"
     else
       SELECTED_REMOTE=""
       return 1
@@ -2453,8 +2460,10 @@ if [[ "$GH_READY" == "true" && -n "$GH_ACCOUNT" ]]; then
   printf 'GitHub evidence: available (account: '
   display_value "$GH_ACCOUNT"
   printf ')\n'
+elif [[ "$GH_READY" == "true" ]]; then
+  printf 'GitHub evidence: available\n'
 else
-  printf 'GitHub evidence: %s\n' "$([[ "$GH_READY" == "true" ]] && echo available || echo unavailable)"
+  printf 'GitHub evidence: unavailable\n'
 fi
 # Two different quantities: this one counts discovery targets, the Summary line counts
 # repositories that completed a local audit. Both are qualified so a reader cannot read a
@@ -2809,7 +2818,9 @@ fi
     printf '      "remote": "%s",\n' "$(json_escape "${R_REMOTE[$ri]}")"
     printf '      "verdict": "%s",\n' "$(json_escape "$verdict")"
     printf '      "kind_counts_text": "%s",\n' "$(json_escape "$kinds")"
-    printf '      "audited": %s,\n' "$([[ "${R_COUNTED[$ri]}" == "true" ]] && echo true || echo false)"
+    # R_COUNTED holds the JSON literal already: "false" at begin_repo_record, "true" at
+    # mark_repo_counted. Re-deriving it through a subshell test emitted the same two strings.
+    printf '      "audited": %s,\n' "${R_COUNTED[$ri]}"
     printf '      "targets": [\n'
     # Collapse findings by target for this repository.
     target_list=()
