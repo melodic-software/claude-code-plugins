@@ -607,9 +607,11 @@ changes, and the detection-contract changes; full gates; then the follow-up fili
 - [x] **Sanity Check:** the item number (created OR pivoted-to) is recorded in the PLAN notes and URL captured.
   Search returned empty (2026-09-04); created melodic-software/claude-code-plugins#3711,
   <https://github.com/melodic-software/claude-code-plugins/issues/3711>
-- [ ] PR body (via `/source-control:pull-request create`): ends with a "Follow-up" line naming that
+- [x] PR body (via `/source-control:pull-request create`): ends with a "Follow-up" line naming that
   item: "File the implement ritual reorder as a follow-up, not in this PR" (the user's wording), so
-  the reviewer sees the deliberately unchanged ordering.
+  the reviewer sees the deliberately unchanged ordering. Done: PR #3718,
+  <https://github.com/melodic-software/claude-code-plugins/pull/3718>, body verified to end with
+  that exact line.
 
 **Sanity Check:** `scripts/affected-tests.sh --run` exits 0 or 3, and when 3, every suite it lists
 under `NOT RUN` is a `test_*.py` whose co-located `*.test.sh` wrapper ran in the same invocation
