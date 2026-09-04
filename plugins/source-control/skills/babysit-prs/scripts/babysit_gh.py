@@ -105,12 +105,10 @@ def gh_json(args: list[str]) -> Any:
 def is_owner_repo_pair(owner: str, repo: str) -> bool:
     """Whether `owner`/`repo` are both well-formed GitHub path segments.
 
-    Holds the segment rules for the two parsers below, the PR-reference one and
-    the scope-key one, so those cannot drift apart on what they accept.
-    `babysit_resolve_thread.py` spells the same rule out twice more against the
-    same two regexes; those two sites are each covered by their own test and are
-    not routed through here. `.` and `..` match `GITHUB_REPOSITORY_RE` but are
-    path traversal, never a repository.
+    The one place the segment rules live. The PR-reference and scope-key parsers
+    below, and both call sites in `babysit_resolve_thread.py`, all route through
+    here, so none of the four can drift apart on what it accepts. `.` and `..`
+    match `GITHUB_REPOSITORY_RE` but are path traversal, never a repository.
     """
     return bool(
         GITHUB_OWNER_RE.fullmatch(owner)

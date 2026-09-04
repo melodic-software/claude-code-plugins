@@ -3,6 +3,62 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.46]
+
+### Added
+
+- **A test that pins the argument ORDER of the owner/repo validation.** Routing
+  `verify_fix_commit` through the shared `is_owner_repo_pair` helper created a
+  failure mode the previous spelling could not express: transposing the two
+  arguments. Every existing head-repo fixture uses a name and an owner that both
+  regexes accept or both reject, so the transposition was killed by **zero** of
+  the 649 tests, on a path-traversal guard whose result is interpolated into a
+  `gh api` URL. A dot is legal in a repository name and illegal in an owner, so a
+  `my.repo` fixture clears validation only when the pair is passed the right way
+  round. Verified by mutation: against a scratch baseline, the transposed build
+  differs from the control by exactly this one test and nothing else.
+
+### Changed
+
+- **`babysit_resolve_thread.py`: both hand-spelled owner/repo segment rules now
+  call `is_owner_repo_pair`.** Both pre-images were character-for-character the
+  helper's predicate, and the file's own comment at the second site ("keeps one
+  rule instead of two") is now literally true. The two regex imports it no longer
+  needs are dropped; repo-wide they appear only in `babysit_gh.py`, and the
+  package has no star imports.
+- **`babysit_merge.py`: seven refusal sites share one `_refuse` closure**,
+  matching the `_usage_error` idiom the sibling guarded CLI already uses at 13
+  sites. The refusal contract is unchanged, established over a 77-shape corpus
+  comparing exit code and stdout and stderr bytes: zero divergence, covering all
+  seven sites, empty envelopes, JSON-escaping payloads, and nine shapes that trip
+  two sites at once. Exactly three stdout key orders exist and both versions
+  produce the same one per shape. Each site's exit code was additionally flipped
+  individually; all seven are guarded.
+- The parse-failure refusal deliberately keeps its inline form and now says why:
+  routing it through `_refuse` would add a `pr` field naming a PR nobody can
+  resolve, demonstrated by the differing output.
+
+### Known issues
+
+- **The reverse-lookup gap in `scripts/affected-tests.sh` is worse than first
+  reported, and it hits this package hardest.** The selector seeds patterns with
+  the basename *including* `.py`, so a suite that says `import foo` rather than
+  naming `foo.py` is invisible. Consequences measured here: `babysit_review_trigger.py`
+  maps to **zero** suites while two suites genuinely exercise it, one of them
+  calling ten distinct symbols on it; `request_review.py` and `refresh_pr_branch.py`
+  select only two transitive suites each, and no test imports `refresh_pr_branch.py`
+  at all, its sole "coverage" being a guard-contract row enforced by `read_text()`
+  plus `assertIn`, which is a source-text grep and never an execution;
+  `test_babysit_merge_branch_rules.py` is not selected for `babysit_merge.py`
+  while its sibling is, purely because the sibling spells the literal filename in
+  a subprocess argv. **`babysit_gh.py` selects one suite** despite being imported
+  by twelve modules and three suites, because the only file in the repository
+  containing the string `babysit_gh.py` is a changelog.
+- **Three envelope shapes are unprotected by any test**: reordering the keys,
+  dropping the `pr` key, and routing the parse failure through the helper all
+  survive the full suite. All were equally unprotected before, but the refactor
+  concentrates the risk from seven edit sites to one.
+
 ## [0.55.45]
 
 ### Fixed
