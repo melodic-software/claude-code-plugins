@@ -100,7 +100,7 @@ if [[ -n "$blocked_by" ]]; then
 fi
 
 wit_run_gh write "${args[@]}"
-created_url="$(printf '%s\n' "$WIT_GH_OUT" | tail -n1)"
+created_url="${WIT_GH_OUT##*$'\n'}" # last line — gh prints the created URL last
 number="${created_url##*/}"
 [[ "$number" =~ ^[0-9]+$ ]] || {
   printf 'create-item: could not parse created issue URL: %s\n' "$created_url" >&2
