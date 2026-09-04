@@ -1,4 +1,5 @@
 {
+  "description": "Lints a GitHub Actions workflow with actionlint after Claude writes or edits one.",
   "hooks": {
     "PostToolUse": [
       {

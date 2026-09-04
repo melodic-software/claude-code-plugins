@@ -1,4 +1,5 @@
 {
+  "description": "Gates pull-request and worktree operations: a PR body against the repo's pr-issue-linkage contract on both the CLI and the GitHub MCP path, and a `git worktree add` target against the nesting invariant.",
   "hooks": {
     "PreToolUse": [
       {
