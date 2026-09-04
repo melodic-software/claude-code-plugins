@@ -99,11 +99,9 @@ resolve_existing_path() {
   local raw="$1"
   if [[ "$raw" == /* ]]; then
     printf '%s' "$raw"
-    return 0
+  else
+    printf '%s' "$(pwd)/$raw"
   fi
-  local abs
-  abs="$(pwd)/$raw"
-  printf '%s' "$abs"
 }
 
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
@@ -163,11 +161,17 @@ for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
 done
 TARGETS=(${EXPANDED[@]+"${EXPANDED[@]}"})
 
-if [[ ${#TARGETS[@]} -eq 0 ]]; then
+# The empty-run contract: three lines, in the order consumers parse them, with
+# only the Note varying. Kept in one place so the two exits cannot drift apart.
+no_targets() {
   echo "status: no-targets"
   echo "Summary total: files=0 T1=0 T2=0 T3=0"
-  echo "Note: no markdown targets — pass file paths or edit some .md files"
+  echo "Note: $1"
   exit 0
+}
+
+if [[ ${#TARGETS[@]} -eq 0 ]]; then
+  no_targets "no markdown targets — pass file paths or edit some .md files"
 fi
 
 # Keep NUL delimiters through sort/dedup so a path that itself contains a
@@ -184,10 +188,7 @@ elif [[ "$OFFSET" -gt 0 ]]; then
 fi
 
 if [[ ${#SORTED[@]} -eq 0 ]]; then
-  echo "status: no-targets"
-  echo "Summary total: files=0 T1=0 T2=0 T3=0"
-  echo "Note: chunk offset/limit selected no targets"
-  exit 0
+  no_targets "chunk offset/limit selected no targets"
 fi
 
 # Hoist convention-root resolution once per run: the contract root must
