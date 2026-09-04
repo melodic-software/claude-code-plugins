@@ -27,8 +27,9 @@ import os
 import sys
 from typing import NoReturn
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                os.pardir, "lib"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "lib")
+)
 from gate_common import Failures, reject_duplicate_keys  # noqa: E402  (shared gate primitives)
 
 MANIFEST_SCHEMA = "node-manifest/v1"
@@ -58,25 +59,37 @@ def load_json(path: str, what: str):
     try:
         return json.loads(raw, object_pairs_hook=reject_duplicate_keys)
     except ValueError as exc:
-        fail(2, f"{what} {path!r} is not parseable JSON: {exc}. "
-                f"An unparsable {what} is a failed run, not a clean one.")
+        fail(
+            2,
+            f"{what} {path!r} is not parseable JSON: {exc}. "
+            f"An unparsable {what} is a failed run, not a clean one.",
+        )
 
 
 def check_manifest(manifest, data: bytes, failures: Failures):
     """Re-verify the manifest against the snapshot; trust nothing on disk."""
     if not isinstance(manifest, dict):
-        fail(2, f"manifest root is a {type(manifest).__name__}, not a JSON "
-                f"object; this gate checks {MANIFEST_SCHEMA!r} only.")
+        fail(
+            2,
+            f"manifest root is a {type(manifest).__name__}, not a JSON "
+            f"object; this gate checks {MANIFEST_SCHEMA!r} only.",
+        )
     if manifest.get("schema") != MANIFEST_SCHEMA:
-        fail(2, f"manifest schema is {manifest.get('schema')!r}; "
-                f"this gate checks {MANIFEST_SCHEMA!r} only.")
+        fail(
+            2,
+            f"manifest schema is {manifest.get('schema')!r}; "
+            f"this gate checks {MANIFEST_SCHEMA!r} only.",
+        )
     nodes = manifest.get("nodes")
     if not isinstance(nodes, list) or not nodes:
         fail(2, "manifest has no 'nodes' list; nothing to gate against.")
     node_count = manifest.get("node_count")
     if node_count != len(nodes):
-        fail(2, f"manifest node_count {node_count!r} != len(nodes) "
-                f"{len(nodes)}; the manifest is internally inconsistent.")
+        fail(
+            2,
+            f"manifest node_count {node_count!r} != len(nodes) "
+            f"{len(nodes)}; the manifest is internally inconsistent.",
+        )
 
     snap = manifest.get("snapshot", {})
     if not isinstance(snap, dict):
@@ -85,12 +98,14 @@ def check_manifest(manifest, data: bytes, failures: Failures):
         failures.add(
             f"manifest snapshot.sha256 {snap.get('sha256')!r} does not match "
             f"the snapshot file ({sha256_hex(data)}); the manifest describes "
-            f"different bytes.")
+            f"different bytes."
+        )
         return None
     if snap.get("byte_length") != len(data):
         failures.add(
             f"manifest snapshot.byte_length {snap.get('byte_length')!r} != "
-            f"actual {len(data)}.")
+            f"actual {len(data)}."
+        )
         return None
 
     cursor = 0
@@ -107,27 +122,35 @@ def check_manifest(manifest, data: bytes, failures: Failures):
             fail(2, f"manifest node missing key {exc}; regenerate the manifest.")
         if not isinstance(nid, str) or not nid:
             fail(2, f"manifest node id {nid!r} is not a non-empty string.")
-        if not (isinstance(start, int) and isinstance(end, int)) \
-                or isinstance(start, bool) or isinstance(end, bool):
+        if (
+            not (isinstance(start, int) and isinstance(end, int))
+            or isinstance(start, bool)
+            or isinstance(end, bool)
+        ):
             fail(2, f"manifest node {nid!r} has non-integer byte range.")
         if start != cursor:
-            failures.add(f"manifest partition gap/overlap at node {nid}: "
-                         f"expected start {cursor}, got {start}.")
+            failures.add(
+                f"manifest partition gap/overlap at node {nid}: "
+                f"expected start {cursor}, got {start}."
+            )
             return None
         if end <= start or end > len(data):
             failures.add(f"manifest node {nid} has invalid span [{start}:{end}].")
             return None
         if sha256_hex(data[start:end]) != digest:
-            failures.add(f"manifest node {nid} content_sha256 does not match "
-                         f"snapshot bytes [{start}:{end}]; stale manifest.")
+            failures.add(
+                f"manifest node {nid} content_sha256 does not match "
+                f"snapshot bytes [{start}:{end}]; stale manifest."
+            )
             return None
         if nid in by_id:
             fail(2, f"manifest contains duplicate node id {nid!r}.")
         by_id[nid] = node
         cursor = end
     if cursor != len(data):
-        failures.add(f"manifest partition ends at {cursor}, snapshot is "
-                     f"{len(data)} bytes.")
+        failures.add(
+            f"manifest partition ends at {cursor}, snapshot is {len(data)} bytes."
+        )
         return None
     return by_id
 
@@ -138,14 +161,20 @@ def check_inventory_shape(inventory) -> list:
         fail(2, "inventory root is not a JSON object.")
     unknown = set(inventory) - INVENTORY_KEYS
     if unknown:
-        fail(2, f"inventory has unknown top-level keys {sorted(unknown)}; "
-                f"unknown keys fail loudly so a misspelling cannot be ignored.")
+        fail(
+            2,
+            f"inventory has unknown top-level keys {sorted(unknown)}; "
+            f"unknown keys fail loudly so a misspelling cannot be ignored.",
+        )
     missing = INVENTORY_KEYS - set(inventory)
     if missing:
         fail(2, f"inventory missing required keys {sorted(missing)}.")
     if inventory["schema"] != INVENTORY_SCHEMA:
-        fail(2, f"inventory schema is {inventory['schema']!r}; this gate "
-                f"checks {INVENTORY_SCHEMA!r} only.")
+        fail(
+            2,
+            f"inventory schema is {inventory['schema']!r}; this gate "
+            f"checks {INVENTORY_SCHEMA!r} only.",
+        )
     rows = inventory["rows"]
     if not isinstance(rows, list) or not rows:
         fail(2, "inventory 'rows' is not a non-empty list.")
@@ -154,8 +183,11 @@ def check_inventory_shape(inventory) -> list:
 
 def check_row(index: int, row, node, data: bytes, failures: Failures) -> bool:
     """Field and evidence checks for one row; returns True when fully clean."""
-    label = f"row[{index}]" + (f" (node_id {row.get('node_id')!r})"
-                              if isinstance(row, dict) and "node_id" in row else "")
+    label = f"row[{index}]" + (
+        f" (node_id {row.get('node_id')!r})"
+        if isinstance(row, dict) and "node_id" in row
+        else ""
+    )
     if not isinstance(row, dict):
         failures.add(f"{label}: not a JSON object.")
         return False
@@ -169,8 +201,9 @@ def check_row(index: int, row, node, data: bytes, failures: Failures) -> bool:
         return False
     ok = True
     if row["verdict"] not in VERDICTS:
-        failures.add(f"{label}: verdict {row['verdict']!r} is not one of "
-                     f"{list(VERDICTS)}.")
+        failures.add(
+            f"{label}: verdict {row['verdict']!r} is not one of {list(VERDICTS)}."
+        )
         ok = False
     if not (isinstance(row["rationale"], str) and row["rationale"].strip()):
         failures.add(f"{label}: rationale is empty or not a string.")
@@ -192,28 +225,34 @@ def check_row(index: int, row, node, data: bytes, failures: Failures) -> bool:
     if not (isinstance(quote, str) and quote):
         failures.add(f"{label}: evidence quote is empty or not a string.")
         return False
-    if not (isinstance(start, int) and isinstance(end, int)) \
-            or isinstance(start, bool) or isinstance(end, bool):
+    if (
+        not (isinstance(start, int) and isinstance(end, int))
+        or isinstance(start, bool)
+        or isinstance(end, bool)
+    ):
         failures.add(f"{label}: evidence byte offsets are not integers.")
         return False
     if not (node["start_byte"] <= start < end <= node["end_byte"]):
         failures.add(
             f"{label}: evidence span [{start}:{end}] is not inside node span "
             f"[{node['start_byte']}:{node['end_byte']}] -- quote must lie "
-            f"within the node it vouches for (straddling is forbidden).")
+            f"within the node it vouches for (straddling is forbidden)."
+        )
         return False
     try:
         expected = quote.encode("utf-8")
     except UnicodeEncodeError as exc:
-        failures.add(f"{label}: evidence quote is not encodable UTF-8 "
-                     f"(lone surrogate?): {exc}.")
+        failures.add(
+            f"{label}: evidence quote is not encodable UTF-8 (lone surrogate?): {exc}."
+        )
         return False
     actual = data[start:end]
     if expected != actual:
         shown = actual.decode("utf-8", errors="replace")
         failures.add(
             f"{label}: evidence quote does not byte-match snapshot "
-            f"[{start}:{end}]; quoted {quote!r}, snapshot has {shown!r}.")
+            f"[{start}:{end}]; quoted {quote!r}, snapshot has {shown!r}."
+        )
         return False
     return ok
 
@@ -221,7 +260,8 @@ def check_row(index: int, row, node, data: bytes, failures: Failures) -> bool:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="check_inventory.py",
-        description="Gate a node inventory against its manifest and snapshot.")
+        description="Gate a node inventory against its manifest and snapshot.",
+    )
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--inventory", required=True)
     parser.add_argument("--snapshot", required=True)
@@ -243,47 +283,55 @@ def main(argv=None) -> int:
     rows = check_inventory_shape(inventory)
 
     if nodes_by_id is None:
-        print(f"check_inventory: FAILED -- {len(failures.items)} failure(s); "
-              f"manifest did not verify, rows not checked.")
+        print(
+            f"check_inventory: FAILED -- {len(failures.items)} failure(s); "
+            f"manifest did not verify, rows not checked."
+        )
         return 1
 
     if inventory["snapshot_sha256"] != sha256_hex(data):
         failures.add(
             f"inventory snapshot_sha256 {inventory['snapshot_sha256']!r} does "
             f"not match the snapshot file; these verdicts were formed against "
-            f"different bytes.")
+            f"different bytes."
+        )
 
     seen = {}
     verdict_counts = {v: 0 for v in VERDICTS}
-    rows_clean = 0
     for index, row in enumerate(rows):
         nid = row.get("node_id") if isinstance(row, dict) else None
         if nid is not None and not isinstance(nid, str):
             failures.add(f"row[{index}]: node_id {nid!r} is not a string.")
             continue
         if nid is not None and nid in seen:
-            failures.add(f"row[{index}]: duplicate node_id {nid!r} "
-                         f"(first at row[{seen[nid]}]); verdict is ambiguous.")
+            failures.add(
+                f"row[{index}]: duplicate node_id {nid!r} "
+                f"(first at row[{seen[nid]}]); verdict is ambiguous."
+            )
             continue
         if nid is not None:
             seen[nid] = index
         if nid is None or nid not in nodes_by_id:
-            failures.add(f"row[{index}]: node_id {nid!r} is not in the "
-                         f"manifest; a verdict about nothing.")
+            failures.add(
+                f"row[{index}]: node_id {nid!r} is not in the "
+                f"manifest; a verdict about nothing."
+            )
             continue
         if check_row(index, row, nodes_by_id[nid], data, failures):
-            rows_clean += 1
             verdict_counts[row["verdict"]] += 1
 
     unrepresented = [nid for nid in nodes_by_id if nid not in seen]
     if unrepresented:
         failures.add(
             f"{len(unrepresented)} manifest node(s) have no inventory row "
-            f"(unrepresented content): {', '.join(sorted(unrepresented))}.")
+            f"(unrepresented content): {', '.join(sorted(unrepresented))}."
+        )
 
     if failures.items:
-        print(f"check_inventory: FAILED -- {len(failures.items)} failure(s) "
-              f"across {len(rows)} row(s) / {len(nodes_by_id)} node(s).")
+        print(
+            f"check_inventory: FAILED -- {len(failures.items)} failure(s) "
+            f"across {len(rows)} row(s) / {len(nodes_by_id)} node(s)."
+        )
         return 1
 
     print(
@@ -297,7 +345,8 @@ def main(argv=None) -> int:
         f"Verdicts: {verdict_counts['relevant']} relevant, "
         f"{verdict_counts['not-relevant']} not-relevant, "
         f"{verdict_counts['uncertain']} uncertain. "
-        f"Nothing outside the listed files and fields was checked.")
+        f"Nothing outside the listed files and fields was checked."
+    )
     return 0
 
 
@@ -310,5 +359,6 @@ if __name__ == "__main__":
         sys.stderr.write(
             f"check_inventory: ERROR: internal failure "
             f"{type(exc).__name__}: {exc}. This is a gate bug; the run is "
-            f"NOT clean.\n")
+            f"NOT clean.\n"
+        )
         sys.exit(3)

@@ -4,6 +4,37 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.43]
+
+### Changed
+
+- **`digest_fences.py`: a captured group and a field nothing read are gone, and
+  two tick counters use one string operation.** `CLAIM_LABEL` no longer captures
+  the trailing `(.*)`, and `Claim.rest`, which only ever carried it, is dropped;
+  no caller read either. `parse_claims` now keeps each label's match object from
+  the first scan instead of re-matching every label line and asserting the result
+  is not `None`. The two hand-rolled leading-backtick loops become
+  `len(s) - len(s.lstrip("`"))`. An 18,142-probe differential against the prior
+  implementation found one input where the regexes differ, and it is unreachable
+  by construction: the pattern is only ever fed newline-free lines, and the
+  divergence needs an embedded newline.
+- **`check_linkmap.py`: `ground` is now `rungs_by_url`.** The old name needed a
+  comment to say what it held; the new one says it. Mechanical rename, five call
+  sites, no behaviour change.
+- **`check_inventory.py`: `rows_clean` was write-only.** It was incremented and
+  never read, so it is removed. The rest of the file's diff is `ruff format`
+  output, not hand edits: the pinned formatter reflowed 147 of 148 lines when the
+  hook ran on the edit. Reproduced byte-for-byte by running the pinned formatter
+  over the unmodified copy from `HEAD`, which differs from the committed result
+  by exactly the two `rows_clean` lines. Roughly 45 further repository `.py` files
+  are formatter-dirty at `HEAD` with no CI gate enforcing the formatter, so this
+  reflow will recur on the next file a hook touches.
+
+  Recorded, not fixed: `verification/lib/gate_common.py` reports zero coverage
+  from the suite selector, but tracing execution shows 190 of its 392 entries run
+  across two suites. That is a mapping gap in the selector, not a coverage gap in
+  the code.
+
 ## [0.13.42]
 
 ### Changed
