@@ -23,14 +23,15 @@ const CANONICAL_EXAMPLE_URLS = {
 
 describe("full-registry conformance", () => {
   it("every registered adapter has a canonical example URL on file", () => {
-    for (const adapter of sourceAdapters()) {
+    const adapters = sourceAdapters();
+    for (const adapter of adapters) {
       expect(
         CANONICAL_EXAMPLE_URLS[adapter.id],
         `registered adapter "${adapter.id}" has no canonical example URL — add it to CANONICAL_EXAMPLE_URLS`,
       ).toBeTruthy();
     }
     // …and no stale rows for adapters that no longer exist.
-    const registeredIds = sourceAdapters().map((adapter) => adapter.id);
+    const registeredIds = adapters.map((adapter) => adapter.id);
     for (const id of Object.keys(CANONICAL_EXAMPLE_URLS)) {
       expect(registeredIds, `stale example URL row "${id}"`).toContain(id);
     }

@@ -7,11 +7,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import {
-  detectFrameworks,
-  detectRepoStructure,
-  parseGitHubUrl,
-} from "@melodic/repo-analysis";
+import { detectFrameworks, detectRepoStructure, parseGitHubUrl } from "@melodic/repo-analysis";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
@@ -34,11 +30,9 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
  */
 export async function shallowCloneGitHubRepo(url, destDir, spawnFn = spawn) {
   return new Promise((resolve) => {
-    const child = spawnFn(
-      "git",
-      ["clone", "--depth", "1", "--single-branch", "--", url, destDir],
-      { stdio: "ignore" },
-    );
+    const child = spawnFn("git", ["clone", "--depth", "1", "--single-branch", "--", url, destDir], {
+      stdio: "ignore",
+    });
     child.on("close", (code) => resolve(code === 0));
     child.on("error", () => resolve(false));
   });
@@ -89,9 +83,7 @@ export async function analyzeHarvestedRepos(
 
   /** @type {HarvestedRepoAnalysis[]} */
   const analyses = [];
-  const tempRoot = await fs.mkdtemp(
-    path.join(os.tmpdir(), "youtube-repo-analysis-"),
-  );
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "youtube-repo-analysis-"));
 
   try {
     for (const url of githubUrls) {
@@ -120,17 +112,9 @@ export async function analyzeHarvestedRepos(
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 
-  const outputPath = lanePath(
-    sliceDir,
-    LANES.source,
-    "harvested-repo-analysis.json",
-  );
+  const outputPath = lanePath(sliceDir, LANES.source, "harvested-repo-analysis.json");
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(
-    outputPath,
-    `${JSON.stringify(analyses, null, 2)}\n`,
-    "utf8",
-  );
+  await fs.writeFile(outputPath, `${JSON.stringify(analyses, null, 2)}\n`, "utf8");
 
   return analyses;
 }
