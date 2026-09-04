@@ -39,7 +39,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -1132,7 +1131,7 @@ def main(argv: list[str] | None = None) -> int:
 
     here = Path(__file__).resolve().parent
     default_pairs = here.parent / "reference" / "canonical-pairs.json"
-    parser = build_parser(Path(os.getcwd()), default_pairs)
+    parser = build_parser(Path.cwd(), default_pairs)
     args = parser.parse_args(argv)
 
     repo = Path(args.repo)
