@@ -3,12 +3,28 @@ name: dependabot-miro-bundle
 # Dependabot bumps plugins/miro/package*.json but cannot regenerate the committed
 # dist/index.min.js artifact. This workflow runs on Dependabot PRs, rebuilds when
 # the miro manifest changed, and pushes the bundle back to the PR branch (#2083).
+#
+# The path filter is safe here where it would not be on a required lane: this
+# workflow gates no merge, so a pull request it never starts leaves no check
+# Pending. Without it the workflow started a runner on every pull request in
+# the repository only to have its own actor check skip the one job. The actor
+# check stays: the path filter narrows what starts a run, and the actor check
+# is what decides whether the job does anything.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - plugins/miro/package.json
+      - plugins/miro/package-lock.json
 
 permissions:
   contents: read
+
+# Per pull request, so a Dependabot branch that force-pushes twice in a row
+# rebuilds the bundle once rather than racing two pushes onto the same branch.
+concurrency:
+  group: dependabot-miro-bundle-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   regenerate-miro-bundle:

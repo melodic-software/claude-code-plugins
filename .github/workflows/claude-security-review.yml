@@ -14,9 +14,20 @@ name: claude-security-review
 # and a read-only token, so they are simply not reviewed by design. Requires
 # `claude-code-plugins` in the CLAUDE_CODE_OAUTH_TOKEN org secret's
 # selected-repositories scope. Public repo: hosted default runner.
+#
+# NO RE-REVIEW ON PUSH, AND DRAFTS ARE NOT REVIEWED. This lane now matches
+# claude-review.yml's trigger set: it runs on open, ready-for-review and
+# reopen, and a push to an open pull request does not re-trigger it. Two
+# consequences to hold in view. The reusable's own canonical caller keeps the
+# push trigger for this lane specifically, because its check certifies
+# execution, so without it the required check can certify a head the branch
+# has since moved past; flip a pull request to draft and back to ready to get
+# a verdict on the newer head. And this caller carries no `workflow_dispatch`
+# re-entry, because the skip-actors job below reads the ratified list from the
+# pull request's BASE branch and a dispatch has no base ref to read it from.
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
+    types: [opened, ready_for_review, reopened]
 
 permissions:
   contents: read
@@ -45,6 +56,11 @@ jobs:
   # failed read here skips the lane, which a ruleset would read as success —
   # the evidence job below fails closed on that shape.
   skip-actors:
+    # A draft does not spend a security review, and the two jobs below it in
+    # this graph follow: `security-review` needs this job, and the evidence
+    # guard carries the same clause. No workflow_dispatch alternative, because
+    # this caller declares no dispatch trigger.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -84,6 +100,7 @@ jobs:
 
   security-review:
     needs: skip-actors
+    if: github.event.pull_request.draft == false
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post the security review
@@ -149,6 +166,7 @@ jobs:
     if: >-
       always() &&
       github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false &&
       needs.security-review.result != 'cancelled'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
