@@ -221,10 +221,12 @@ const SOURCE_TEXT = [
     `spans=${rc.matched_spans.length} fired=${rc.separation.fired}`,
   );
 
+  const strippedLines = stripQuoted(localWrapped).split("\n").length;
+  const wrappedLines = localWrapped.split("\n").length;
   check(
     "wrapped_quote_fixture: stripping preserves the line count exactly",
-    stripQuoted(localWrapped).split("\n").length === localWrapped.split("\n").length,
-    `${stripQuoted(localWrapped).split("\n").length} vs ${localWrapped.split("\n").length}`,
+    strippedLines === wrappedLines,
+    `${strippedLines} vs ${wrappedLines}`,
   );
 }
 
@@ -251,10 +253,11 @@ const SOURCE_TEXT = [
     "> a blockquote line sits between the two marks",
     `${UPSTREAM_SENTENCE} And then a stray " mark much later on.`,
   ].join("\n");
+  const rq = compare(localQuote, SOURCE_TEXT);
   check(
     "quote_cannot_escape_paragraph: a blockquote line resets the open-quote state",
-    compare(localQuote, SOURCE_TEXT).longest_span_words >= DEFAULTS.min_span_words,
-    `longest=${compare(localQuote, SOURCE_TEXT).longest_span_words}`,
+    rq.longest_span_words >= DEFAULTS.min_span_words,
+    `longest=${rq.longest_span_words}`,
   );
 
   const localFence = [
@@ -264,10 +267,11 @@ const SOURCE_TEXT = [
     "```",
     `${UPSTREAM_SENTENCE} And then a stray " mark much later on.`,
   ].join("\n");
+  const rf = compare(localFence, SOURCE_TEXT);
   check(
     "quote_cannot_escape_paragraph: a fence delimiter resets the open-quote state",
-    compare(localFence, SOURCE_TEXT).longest_span_words >= DEFAULTS.min_span_words,
-    `longest=${compare(localFence, SOURCE_TEXT).longest_span_words}`,
+    rf.longest_span_words >= DEFAULTS.min_span_words,
+    `longest=${rf.longest_span_words}`,
   );
 
   const stripped = stripQuoted(localBlank);
@@ -311,18 +315,19 @@ const SOURCE_TEXT = [
   );
   check(
     "contraction_does_not_close_a_quote: line count is preserved",
-    stripQuoted(withContraction).split("\n").length === withContraction.split("\n").length,
-    `${stripQuoted(withContraction).split("\n").length} vs ${withContraction.split("\n").length}`,
+    stripped.split("\n").length === withContraction.split("\n").length,
+    `${stripped.split("\n").length} vs ${withContraction.split("\n").length}`,
   );
 
   // The guard must not stop a genuine closer that merely follows a word, or an
   // excerpt containing a possessive would never close and would leak instead.
-  const possessive = "A cited span 'covering the runner and the teams' rota' ends here.";
+  const possessive = stripQuoted(
+    "A cited span 'covering the runner and the teams' rota' ends here.",
+  );
   check(
     "contraction_does_not_close_a_quote: a quote containing a possessive still closes",
-    stripQuoted(possessive).includes("ends here") &&
-      !stripQuoted(possessive).includes("covering the runner"),
-    JSON.stringify(stripQuoted(possessive)),
+    possessive.includes("ends here") && !possessive.includes("covering the runner"),
+    JSON.stringify(possessive),
   );
 }
 
@@ -350,19 +355,19 @@ const SOURCE_TEXT = [
       stripped.includes("rota is unaffected"),
     JSON.stringify(stripped),
   );
-  check(
-    "possessive_after_markup_is_not_an_opening_quote: a parenthesized possessive is not an opener",
-    stripQuoted("See (FILE.md)'s note; the rest of this line is original prose.").includes(
-      "the rest of this line is original prose",
-    ),
-    JSON.stringify(stripQuoted("See (FILE.md)'s note; the rest of this line is original prose.")),
+  const parenthesized = stripQuoted(
+    "See (FILE.md)'s note; the rest of this line is original prose.",
   );
   check(
+    "possessive_after_markup_is_not_an_opening_quote: a parenthesized possessive is not an opener",
+    parenthesized.includes("the rest of this line is original prose"),
+    JSON.stringify(parenthesized),
+  );
+  const realOpener = stripQuoted("Cited as 'the runner retries twice' in the note.");
+  check(
     "possessive_after_markup_is_not_an_opening_quote: a real opening quote still opens",
-    !stripQuoted("Cited as 'the runner retries twice' in the note.").includes(
-      "the runner retries twice",
-    ),
-    JSON.stringify(stripQuoted("Cited as 'the runner retries twice' in the note.")),
+    !realOpener.includes("the runner retries twice"),
+    JSON.stringify(realOpener),
   );
   check(
     "possessive_after_markup_is_not_an_opening_quote: line count is preserved",

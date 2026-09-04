@@ -382,14 +382,15 @@ FNR == 1 { emit_file(); reset_file(FILENAME) }
   }
 
   rest = line
-  offset = 0
   while (match(rest, /https?:\/\/[^][ \t()<>"`{}]+/)) {
     url = substr(rest, RSTART, RLENGTH)
+    # The trailing-punctuation trim leaves RSTART and RLENGTH alone (only match()
+    # sets them), so the scan still resumes past the WHOLE match, punctuation
+    # included, rather than re-reading the character it just dropped.
     sub(/[.,;:!?]+$/, "", url)
     nu++
     u_val[nu] = url; u_line[nu] = FNR; u_fenced[nu] = in_code
-    offset = RSTART + RLENGTH
-    rest = substr(rest, offset)
+    rest = substr(rest, RSTART + RLENGTH)
   }
 
   if (!in_code && is_stamp(line)) {

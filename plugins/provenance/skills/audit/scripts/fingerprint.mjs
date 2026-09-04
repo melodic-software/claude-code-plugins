@@ -200,16 +200,25 @@ export function tokenize(text) {
   return tokens;
 }
 
+/**
+ * The k-word shingle starting at token `i`.
+ *
+ * One spelling for both readers below: the set `shingles()` builds is what
+ * `matchedSpans()` looks a local shingle up in, so any divergence between the
+ * two constructions would silently move both containment and the spans.
+ */
+function shingleAt(tokens, i, k) {
+  return tokens
+    .slice(i, i + k)
+    .map((t) => t.word)
+    .join(" ");
+}
+
 /** Build the set of k-word shingles over a token list. */
 export function shingles(tokens, k = DEFAULTS.k) {
   const set = new Set();
   for (let i = 0; i + k <= tokens.length; i += 1) {
-    set.add(
-      tokens
-        .slice(i, i + k)
-        .map((t) => t.word)
-        .join(" "),
-    );
+    set.add(shingleAt(tokens, i, k));
   }
   return set;
 }
@@ -257,11 +266,7 @@ export function matchedSpans(localTokens, sourceSet, k = DEFAULTS.k) {
   };
 
   for (let i = 0; i + k <= localTokens.length; i += 1) {
-    const shingle = localTokens
-      .slice(i, i + k)
-      .map((t) => t.word)
-      .join(" ");
-    if (sourceSet.has(shingle)) {
+    if (sourceSet.has(shingleAt(localTokens, i, k))) {
       if (runStart === -1) runStart = i;
       runEnd = i;
     } else {
