@@ -1583,6 +1583,48 @@ run_cwd "default: memory tier blocks with no project root" \
 run "default: relative memory-tier write blocks with no payload cwd" \
   "echo hello > .work/f" 2 "$PROJ_ENV=$PROJ"
 
+# --- symlink escape out of a SHIPPED default (P1 on #3727) -------------------
+# The lexical compare alone exempted a redirect on its spelling, so a symlink
+# under a temp root pointing INTO a repository made
+# `echo <secret> > /tmp/<link>/tracked.py` return 0 while the identical direct
+# path blocked. That residual was documented for the CONFIGURED roots on the
+# ground that "an operator naming a root is accepting that root's contents" — a
+# ground a shipped default does not have, which is why the defaults now confirm
+# through symlink resolution before granting.
+#
+# Exercised on the MEMORY-TIER default, which is gated only on a known project
+# root — the temp default additionally needs a project OUTSIDE the temp tree,
+# which a fixture built under one cannot provide. The confirmation step is shared
+# by both defaults, so proving it here proves it for both.
+#
+# Real directories, because this is the one case in the file that depends on the
+# filesystem rather than on the spelling. The path is spelled ALL LOWERCASE by
+# hand rather than taken from `mktemp`, whose names are mixed-case: the segment
+# scan folds case, so a fixture carrying capitals would never resolve and would
+# silently exercise the documented case-folding residual instead of the symlink
+# one this asserts.
+SYMLINK_ROOT="/tmp/bhb-3719-symlink-$$"
+rm -rf "$SYMLINK_ROOT"
+mkdir -p "$SYMLINK_ROOT/proj/.work" "$SYMLINK_ROOT/proj/src"
+ln -s "$SYMLINK_ROOT/proj/src" "$SYMLINK_ROOT/proj/.work/escape"
+
+run_cwd "symlink: escape out of the memory tier still blocks" \
+  "echo secret > $SYMLINK_ROOT/proj/.work/escape/tracked.py" "$SYMLINK_ROOT/proj" 2 \
+  "$PROJ_ENV=$SYMLINK_ROOT/proj"
+# The same root, not traversing the symlink, stays exempt: the fix must not turn
+# the exemption off wholesale.
+run_cwd "symlink: a genuine memory-tier write stays allowed" \
+  "echo probe > $SYMLINK_ROOT/proj/.work/notes.md" "$SYMLINK_ROOT/proj" 0 \
+  "$PROJ_ENV=$SYMLINK_ROOT/proj"
+rm -rf "$SYMLINK_ROOT"
+
+# A path with NO existing component holds no symlink, so the lexical answer is
+# already the physical one and the exemption stands. Pinned because the
+# alternative — failing closed on an unresolvable path — would make the verdict
+# depend on whether a directory happens to exist on the host.
+run_cwd "symlink: a wholly nonexistent memory-tier path still exempt" \
+  "echo hello > .work/nonexistent/deeper/notes.md" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+
 # --- the defaults compose with the option, they do not replace it ------------
 run_cwd "default: configured root still exempts alongside the defaults" \
   "echo hello > /var/jobtmp/f" "$PROJ" 0 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"

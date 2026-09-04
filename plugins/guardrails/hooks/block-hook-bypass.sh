@@ -896,11 +896,17 @@ _norm_path() {
 # temp directories, whose own case it preserves, so the temp gate is handed the
 # root in its ORIGINAL case — lowercasing it would miss a temp root spelled with
 # capitals and wrongly conclude a temp-rooted project was not one.
+#
+# _BBH_MEMORY_ROOT_RAW is the same root in the project's ORIGINAL case, kept for
+# the symlink resolution in _bbh_default_confirmed: resolving a lowercased path
+# would fail on a case-sensitive filesystem.
 _BBH_PROJECT_NORM=""
 _BBH_MEMORY_ROOT=""
+_BBH_MEMORY_ROOT_RAW=""
 if [[ -n "$_BBH_PROJECT_DIR" ]] && _norm_path "$_BBH_PROJECT_DIR" && [[ -n "$_NORM_PATH" ]]; then
   _BBH_PROJECT_NORM="$_NORM_PATH"
   _BBH_MEMORY_ROOT="${_NORM_PATH,,}/.work"
+  _BBH_MEMORY_ROOT_RAW="$_NORM_PATH/.work"
 fi
 
 # 0 when the temp-tree default applies to this session: a project root that is
@@ -931,6 +937,87 @@ _bbh_temp_default_applies() {
 # see, and an exemption granted from the wrong origin is a bypass. That refusal
 # is why every existing relative-target assertion still blocks — the payloads
 # they are built from carry no `.cwd` at all.
+# Physically resolve <absolute path> in _BBH_PHYS, following symlinks. The target
+# of a redirect usually does not exist yet, so this walks up to the NEAREST
+# EXISTING ancestor, resolves that, and re-appends the components below it —
+# those cannot be symlinks, because they do not exist.
+#
+# A path with NO existing component resolves to itself, and that is sound rather
+# than a shortcut: a symlink is a filesystem object, so a path where nothing
+# exists holds none, and the lexical answer is already the physical one. Failing
+# closed there would refuse on ambient facts about the host (whether `/srv`
+# happens to exist) rather than on the command, which is not a property a guard's
+# verdict should have.
+#
+# Returns 1 only when a component exists but the resolver could not read it.
+_BBH_PHYS=""
+_bbh_physical_path() {
+  local p="$1" suffix="" phys
+  _BBH_PHYS=""
+  while [[ -n "$p" && "$p" != "/" ]]; do
+    if [[ -e "$p" || -L "$p" ]]; then
+      hook::physical_path_to phys "$p" || return 1
+      _BBH_PHYS="${phys%/}$suffix"
+      return 0
+    fi
+    suffix="/${p##*/}$suffix"
+    p="${p%/*}"
+  done
+  _BBH_PHYS="$1"
+  return 0
+}
+
+# 0 when <lexically-matched target> really lands under the shipped default named
+# by $2 ("memory" or "temp"), resolved through symlinks.
+#
+# WHY THIS EXISTS, and why only the SHIPPED defaults pay for it. The compare
+# above is lexical, which the configured-root axis documents as a residual on an
+# explicit ground: "an operator naming a root is accepting that root's contents".
+# A shipped default has no operator to accept anything, so that ground does not
+# carry it — and without this, a symlink under a temp root pointing INTO the
+# repository (`/tmp/to-repo -> /home/<user>/repo`) exempts
+# `echo <secret> > /tmp/to-repo/tracked.py` while the identical direct path
+# blocks. Reported as a P1 on #3727 and reproduced before this was written.
+#
+# The configured-root axis keeps its documented lexical residual: an operator who
+# names a root still accepts that root's contents, which is the ground this
+# function exists because the defaults lack.
+#
+# Cost is confined to the GRANT path. Callers run the lexical test first and only
+# reach here when they are about to exempt, so a command that was going to block
+# spends no resolver process — and a hook that resolved every target would pay a
+# subprocess on the hottest guard in the fleet for nothing.
+#
+# SCOPE (documented residual): this inherits the axis's case-folding. The target
+# arrives from the LOWERCASED segment scan, so on a case-sensitive filesystem a
+# path whose real spelling carries capitals does not exist under the folded name,
+# the walk stops at the deepest ancestor that does, and a symlink below that
+# point is never examined. `/tmp/ToRepo -> <repo>` is therefore still exempt
+# where `/tmp/torepo -> <repo>` is not. Closing it needs the target in its
+# original case, which this guard does not carry — the whole producer/redirect
+# scan runs on the folded stream — so it is recorded here rather than papered
+# over. The residual predates this function and is the same one the configured
+# roots document; what this function removes is the far commoner all-lowercase
+# case, which was live by default.
+_bbh_default_confirmed() {
+  local target="$1" which="$2" phys root_phys
+  _bbh_physical_path "$target" || return 1
+  phys="${_BBH_PHYS,,}"
+  case "$which" in
+  temp)
+    # hook::under_temp_root resolves its own candidates, so both sides are
+    # physical here and a symlinked temp root (macOS /tmp) still matches.
+    hook::under_temp_root "$phys"
+    ;;
+  memory)
+    _bbh_physical_path "$_BBH_MEMORY_ROOT_RAW" || return 1
+    root_phys="${_BBH_PHYS,,}"
+    [[ "$phys" == "${root_phys%/}"/* ]]
+    ;;
+  *) return 1 ;;
+  esac
+}
+
 _scratch_abs_target() {
   local t="$1"
   case "$t" in
@@ -1008,13 +1095,21 @@ scratch_target_exempt() {
   # SHIPPED DEFAULT 1 — the memory tier. Same component-boundary containment as a
   # configured root, so `.workspace` beside `.work` is not it and a `..` escape
   # out of it has already normalized away.
-  [[ -n "$_BBH_MEMORY_ROOT" && "$norm_target" == "$_BBH_MEMORY_ROOT"/* ]] && return 0
+  #
+  # Both defaults are LEXICALLY matched first and then CONFIRMED through symlink
+  # resolution, so a lexical near-miss costs no resolver process and a lexical
+  # match cannot exempt a path that really lands elsewhere. See
+  # _bbh_default_confirmed for why the shipped defaults carry this and the
+  # configured roots keep their documented lexical residual.
+  if [[ -n "$_BBH_MEMORY_ROOT" && "$norm_target" == "$_BBH_MEMORY_ROOT"/* ]]; then
+    _bbh_default_confirmed "$norm_target" memory && return 0
+  fi
   # SHIPPED DEFAULT 2 — the host temp trees, including the harness scratchpad,
   # once this session is one the default applies to. Consulted after the memory
   # tier because it is the branch that can spend a resolver process.
   if [[ -n "$_BBH_PROJECT_NORM" ]] && _bbh_temp_default_applies &&
     hook::under_temp_root "$norm_target"; then
-    return 0
+    _bbh_default_confirmed "$norm_target" temp && return 0
   fi
   roots="$_SCRATCH_ROOTS"
   while [[ -n "$roots" ]]; do

@@ -221,7 +221,22 @@ out of scope until such a signal exists.
   temp-rooted a temp file is project content, so the temp default stands down.
   Neither is spelled as a static default, because neither has a fixed spelling —
   the scratchpad path carries a session id and the memory tier hangs off the
-  consuming project — so both resolve at run time. Exempting them gives up no
+  consuming project — so both resolve at run time.
+
+  **A shipped default is confirmed through symlink resolution before it grants.**
+  The lexical compare alone would exempt a redirect on its spelling, so a symlink
+  under an exempt root pointing into the repository (`/tmp/to-repo -> <repo>`)
+  would let `echo <secret> > /tmp/to-repo/tracked.py` through while the identical
+  direct path blocked. The configured roots document that as a residual on the
+  ground that an operator naming a root accepts that root's contents; a shipped
+  default has no operator to accept anything, so the defaults resolve the target
+  (or its nearest existing ancestor) and re-check containment before exempting.
+  Cost stays on the grant path only: the lexical test runs first, so a command
+  that was going to block spends no resolver process. A path with no existing
+  component holds no symlink and is exempted on its spelling, which is the same
+  answer resolution would give. Residual: the check inherits the axis's
+  case-folding, so on a case-sensitive filesystem a symlink whose real spelling
+  carries capitals is not resolved and stays exempt. Exempting them gives up no
   protection: `hook::read_file_path`, the entry every `Write|Edit` content guard
   reads its file through, already declines a temp-tree file from a non-temp
   project, so those targets were never reachable by the gates this guard exists

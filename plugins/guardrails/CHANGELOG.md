@@ -74,6 +74,26 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   whole-guard lever; the shipped roots are not removable through the option. A consumer
   who has moved `memory_dir` off `.work/` names the new location there.
 
+  **A shipped default confirms through symlink resolution before it grants.** The
+  lexical compare alone exempts a redirect on its spelling, so a symlink under an
+  exempt root pointing into the repository (`/tmp/to-repo -> <repo>`) let
+  `echo <secret> > /tmp/to-repo/tracked.py` through while the identical direct path
+  blocked. The configured roots document that as a residual on the ground that "an
+  operator naming a root is accepting that root's contents" — a ground a shipped
+  default does not have. The defaults now resolve the target, or its nearest existing
+  ancestor, and re-check containment before exempting. Reported as a P1 by an automated
+  reviewer on the pull request and reproduced before the fix was written.
+
+  Cost stays on the grant path: the lexical test runs first, so a command that was
+  going to block spends no resolver process. A path with no existing component holds
+  no symlink, so it is exempted on its spelling — the same answer resolution would
+  give, and failing closed there would make the verdict depend on whether a directory
+  happens to exist on the host rather than on the command. Residual, recorded rather
+  than papered over: the check inherits the axis's case-folding, so on a case-sensitive
+  filesystem a symlink whose real spelling carries capitals is not resolved and stays
+  exempt; closing it needs the target in its original case, which the folded segment
+  scan does not carry.
+
 - **`block-hook-bypass` resolves a relative redirect target against the tool call's own
   `cwd`.** The axis previously refused every relative target outright, on the grounds
   that the directory a redirect resolves against is not knowable from the payload. It is
