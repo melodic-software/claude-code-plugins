@@ -51,8 +51,20 @@ Alternatives weighed:
 ## Consequences
 
 The classification is a gate on the PROPOSAL, not a mandate to execute. No split is executed by the
-change that records this ADR; the five Class C candidates are filed as separate agent-ready issues,
-each of which must make its own case.
+change that records this ADR; the five Class C candidates are filed as separate issues, each of
+which must make its own case, and a decline with recorded reasoning closes any of them:
+
+| Candidate | Issue | The question that likely decides it |
+|---|---|---|
+| `claude-ops` | #3723 | Do the audit skills READ the telemetry the nine hooks WRITE? |
+| `session-flow` | #3722 | Do several skills read the observer the one hook arms? |
+| `source-control` | #3724 | Is it already two plugins (PR gates, worktree gates)? |
+| `instruction-placement` | #3725 | Would the split manufacture a Class A plugin? |
+| `context-budget` | #3726 | Does the hook belong in `guardrails` rather than in a plugin of its own? |
+
+Three of the five turn on the same test, and it is the test this taxonomy exists to make explicit: a
+hook that WRITES what a sibling skill READS is one feature with two surfaces, which is Class B
+reasoning arriving by a different route.
 
 The counts above are a snapshot of 2026-09-04 and are load-bearing only as evidence for the shape
 of the classes. A new hook-carrying plugin is classified when it lands, by the same question in
