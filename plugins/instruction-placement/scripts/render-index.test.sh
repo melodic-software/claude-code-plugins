@@ -46,6 +46,12 @@ assert_not_contains() {
 
 run() { bash "$SCRIPT" "$@" 2>&1; }
 
+#   commit_all <dir> [<message>]
+commit_all() {
+  git -C "$1" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
+  git -C "$1" -c user.email=t@t -c user.name=t commit -qm "${2:-t}" >/dev/null 2>&1
+}
+
 # A fixture repository carrying a representative mix of instruction surfaces.
 build_fixture() {
   local dir
@@ -108,8 +114,7 @@ EOF
   printf '# Root shared instructions\n' >"$dir/AGENTS.md"
 
   git -C "$dir" init -q .
-  git -C "$dir" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-  git -C "$dir" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+  commit_all "$dir"
   printf '%s' "$dir"
 }
 
@@ -170,8 +175,7 @@ mkdir -p "$repo/svc"
   printf 'Claude-only guidance below the import.\n'
 } >"$repo/svc/CLAUDE.md"
 printf '# Shared service conventions\n' >"$repo/svc/AGENTS.md"
-git -C "$repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$repo" -c user.email=t@t -c user.name=t commit -qm svc >/dev/null 2>&1
+commit_all "$repo" svc
 out="$(run render --root "$repo")"
 assert_contains "a nested CLAUDE.md with its own content IS indexed" "$out" '`svc/CLAUDE.md`'
 assert_contains "its own H1 supplies the label" "$out" "Service specifics"
@@ -227,8 +231,7 @@ paths:
 # Documentation rules
 EOF
 mkdir -p "$repo/docs" && printf 'x\n' >"$repo/docs/x.md"
-git -C "$repo" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$repo" -c user.email=t@t -c user.name=t commit -qm new >/dev/null 2>&1
+commit_all "$repo" new
 
 out="$(run check --file "$target" --root "$repo")"
 assert_contains "check detects drift after a rule is added" "$out" "DRIFTED"
@@ -310,8 +313,7 @@ unwired="$(mktemp -d)"
 git -C "$unwired" init -q .
 printf '# Claude instructions\n\nNo import here.\n' >"$unwired/CLAUDE.md"
 printf '# Shared\n' >"$unwired/AGENTS.md"
-git -C "$unwired" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$unwired" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+commit_all "$unwired"
 
 out="$(run reachable --file "$unwired/AGENTS.md" --root "$unwired")"
 assert_contains "reachable reports an unimported AGENTS.md as UNREACHABLE" "$out" "UNREACHABLE"
@@ -347,12 +349,10 @@ mkdir -p "$many/.claude/rules" "$many/src"
 printf 'x\n' >"$many/src/a.cs"
 for i in $(seq 1 12); do
   mkdir -p "$many/.claude/rules/group$((i % 3))"
-  {
-    printf -- '---\npaths:\n  - "**/*.cs"\n---\n\n# Rule %s\n' "$i"
-  } >"$many/.claude/rules/group$((i % 3))/rule$i.md"
+  printf -- '---\npaths:\n  - "**/*.cs"\n---\n\n# Rule %s\n' "$i" \
+    >"$many/.claude/rules/group$((i % 3))/rule$i.md"
 done
-git -C "$many" -c user.email=t@t -c user.name=t add -A >/dev/null 2>&1
-git -C "$many" -c user.email=t@t -c user.name=t commit -qm many >/dev/null 2>&1
+commit_all "$many" many
 
 out="$(run render --root "$many")"
 rowcount="$(printf '%s\n' "$out" | grep -c '^| `' || true)"

@@ -92,10 +92,11 @@ ip_parse_paths() {
         v = substr(v, 2, length(v) - 2)
       if (v != "") print v
     }
+    # A file whose first line is not `---` has no frontmatter, and the closing
+    # `---` ends the parse, so every rule below runs inside the frontmatter.
     NR == 1 && $0 != "---" { exit }
-    NR == 1 { infm = 1; next }
-    infm && $0 == "---" { exit }
-    !infm { exit }
+    NR == 1 { next }
+    $0 == "---" { exit }
 
     /^paths:[[:space:]]*\[/ {
       line = $0
