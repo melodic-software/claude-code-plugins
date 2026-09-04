@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.5.3]
+
+### Fixed
+
+- **`emit-findings.test.sh` counted a host skip as a pass.** One case routed a
+  skip through `pass()`, contradicting the rule stated thirty lines above it in
+  the same file: a skip never routes through `pass()`, so a proof the host could
+  not run can never be read off the summary as one that did. The suite's honest
+  count on a host where `chmod a-w` does not bite is 384 passes and 1 skip, not
+  385 passes. The real assertion still runs wherever the subject can be built.
+- **`score-golden.sh` no longer scores an uncovered case as covered.** A
+  simplification during this sweep replaced an iterating membership test with
+  jq's `index`, which does SUBSTRING search when handed a string. Since
+  `cases_run` comes from a model-authored sidecar validated only as parseable
+  JSON, a string there is reachable: with `"cases_run": "c1-long"`, the script
+  scored case `c1` as covered and exited 0, where it had previously aborted with
+  a type error. Now uses `any(. == $id)`, which reads as well and still refuses
+  to guess. Caught by the group's refutation verifier before landing.
+
+### Changed
+
+- **Audit-script tidyings.** `fingerprint.mjs` extracts two expressions each
+  duplicated across two functions and drops a guard the surviving union check
+  already covers, returning literal 0 for two empty sets rather than NaN;
+  `extract-breadcrumbs.sh` drops a write-only awk global, safe because both forms
+  read the match position at the identical program point; a helper defined but
+  never called is removed; and sixteen history-narration comments become
+  present-tense hazard statements, keeping every measurement and the point that
+  agreement between two copies of one rule is blind to a defect they share.
+
 ## [0.5.2]
 
 ### Changed

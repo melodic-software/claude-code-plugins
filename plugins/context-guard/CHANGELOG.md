@@ -5,6 +5,26 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.38]
+
+### Changed
+
+- **`zone-crossing-inject.sh` spends three fewer subshells per fire.** `rank` and
+  `unrank` printed their result, so each of the three call sites paid a
+  command-substitution subshell; they now set `REPLY` and the callers read it,
+  with `unrank` hoisted out of an `elif` condition. Measured with `strace`, not
+  asserted: forks drop from 11 to 8 on the steady path and 24 to 21 on a
+  crossing, with an identical exec census. Behavior proven byte-identical over
+  1,152 payload cases, 576 failure-path cases and 144 telemetry cases, repeated
+  under bash 4.3 and 5.2. The hazards the conversion introduces, a clobber
+  between call and use and an accidental `local`, are both caught by the suite.
+- **Smaller tidyings.** `zone-gate.sh` drops a `shopt -u nocasematch` that sat
+  immediately before an unconditional exit; `zone-gate.test.sh` reshapes an array
+  so its expansion is never empty, which errors under `set -u` on bash below 4.4;
+  `statusline-tee.sh` renames an unused loop variable and drops the pragma that
+  had suppressed a finding for it. Comment passes across five files trade history
+  narration for the present-tense mechanism, keeping every measured budget.
+
 ## [0.7.37]
 
 ### Changed
