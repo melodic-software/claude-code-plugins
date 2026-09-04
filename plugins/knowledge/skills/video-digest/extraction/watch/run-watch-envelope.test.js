@@ -111,14 +111,9 @@ describe("runWatchCli envelope consumption", () => {
     captured.stderr.length = 0;
     captured.stdout.length = 0;
     vi.mocked(acquireMedia).mockReset();
+    // Call history only — the vi.mock factory above owns the resolved value,
+    // and no test overrides it.
     vi.mocked(orchestrateWatching).mockClear();
-    vi.mocked(orchestrateWatching).mockResolvedValue({
-      selectedFrames: [],
-      targetMinFrames: 0,
-      highVolume: false,
-      densificationWindows: [],
-      candidateCount: 0,
-    });
   });
 
   afterEach(async () => {

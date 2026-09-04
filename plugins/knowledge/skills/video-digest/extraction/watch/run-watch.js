@@ -183,6 +183,9 @@ export async function runWatchCli(argv) {
       written.transcripts.find((entry) => entry.entryIndex === written.primaryEntryIndex) ??
       written.transcripts[0] ??
       null;
+    const degradationMetric = written.transcriptDegradation
+      ? { transcriptDegradation: written.transcriptDegradation }
+      : {};
     state = markPhaseComplete(
       state,
       "transcript",
@@ -192,16 +195,12 @@ export async function runWatchCli(argv) {
             cueCount: primaryTranscript.cueCount,
             transcriptCount: written.transcripts.length,
             transcriptStrategy: primaryTranscript.strategy,
-            ...(written.transcriptDegradation
-              ? { transcriptDegradation: written.transcriptDegradation }
-              : {}),
+            ...degradationMetric,
           }
         : {
             skipped: true,
             reason: "no transcript-bearing entries",
-            ...(written.transcriptDegradation
-              ? { transcriptDegradation: written.transcriptDegradation }
-              : {}),
+            ...degradationMetric,
           },
     );
 
@@ -230,7 +229,7 @@ export async function runWatchCli(argv) {
         );
       }
 
-      return { state: next, harvestedLinks, harvestPath, continuationPrompt, postBootstrap };
+      return { state: next, harvestPath, continuationPrompt, postBootstrap };
     };
 
     if (!primary?.mediaPath) {
@@ -252,7 +251,7 @@ export async function runWatchCli(argv) {
             textOnly: true,
             transcriptStrategy: primaryTranscript?.strategy ?? null,
             transcriptDegradation: written.transcriptDegradation,
-            harvestedLinkCount: finished.harvestedLinks.length,
+            harvestedLinkCount: harvestedLinks.length,
             skipResearch,
             tempSession,
             harvestPath: finished.harvestPath,
@@ -329,7 +328,7 @@ export async function runWatchCli(argv) {
           targetMinFrames: watching.targetMinFrames ?? 0,
           transcriptStrategy: primaryTranscript?.strategy ?? null,
           transcriptDegradation: written.transcriptDegradation,
-          harvestedLinkCount: finished.harvestedLinks.length,
+          harvestedLinkCount: harvestedLinks.length,
           skipResearch,
           tempSession,
           framesDir,
