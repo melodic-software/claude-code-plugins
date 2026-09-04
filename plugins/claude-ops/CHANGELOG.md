@@ -3,6 +3,27 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.11]
+
+### Changed
+
+- **`overlap.py` uses `Path.cwd()` and drops the import it needed only for
+  that.** These are the same expression rather than merely equivalent ones:
+  CPython 3.11's pathlib defines `cwd` as `cls(os.getcwd())`, and the file pins
+  a 3.11 minimum. An AST scan covering every import form, aliases, `del`,
+  `Global`/`Nonlocal` and every string constant found exactly two references to
+  the dropped name, and the file contains no dynamic-import or reflection
+  surface that could reach it. A 496-pair differential across four repository
+  shapes, seven working directories including two symlinked ones, and every
+  subcommand and flag, comparing exit code, both streams and a hash of the
+  resulting file tree, found zero divergences; eleven mutants confirm the corpus
+  discriminates, with the control that re-injects the original expression
+  correctly surviving.
+- **`test_install_state.py` uses one import form for one module.** The
+  module-level import was already present ten lines above the call site, and the
+  same-plugin sibling suite already spells it this way. The changed line was
+  shown to execute by a line-level trace naming the three tests that reach it.
+
 ## [0.41.10]
 
 ### Changed
