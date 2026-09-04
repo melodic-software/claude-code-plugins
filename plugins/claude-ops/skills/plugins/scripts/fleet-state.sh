@@ -248,7 +248,7 @@ json_string_to() {
   __js_s="${__js_s//$'\n'/\\n}"
   __js_s="${__js_s//$'\r'/\\r}"
   __js_s="${__js_s//$'\t'/\\t}"
-  __js_s="${__js_s//$'\b'/\\b}"
+  __js_s="${__js_s//$'\b'/\\b}" # portability-ok: JSON short escape for U+0008 in a parameter expansion, not a regex word boundary
   __js_s="${__js_s//$'\f'/\\f}"
   if [[ "$__js_s" == *[$'\x01'-$'\x1f']* ]]; then
     for ((__js_i = 0; __js_i < ${#__js_s}; __js_i++)); do
