@@ -536,11 +536,15 @@ class SkillEvidence:
 def skill_evidence(records: list[dict]) -> SkillEvidence:
     evidence = SkillEvidence()
     for index, record, block in _tool_uses(records):
-        serialized = json.dumps(block.get("input") or {}, ensure_ascii=False)
+        block_input = block.get("input") or {}
+        serialized = json.dumps(block_input, ensure_ascii=False)
+        # The Skill tool's structured input names the skill in its own `skill`
+        # key. Matching the serialized input instead would let a call to any
+        # other skill pass by merely mentioning this one in its `args`.
         if (
             evidence.skill_index is None
             and block.get("name") == "Skill"
-            and SKILL_NAME in serialized
+            and block_input.get("skill") == SKILL_NAME
         ):
             evidence.skill_index = index
             evidence.skill_timestamp = parse_iso(record.get("timestamp", ""))
@@ -1165,6 +1169,7 @@ SHELL_PROBES = {
 
 DEFECTS = (
     "no_skill",
+    "foreign_skill_naming_ours_in_args",
     "write_before_skill",
     *SHELL_PROBES,
     "sid_mismatch",
@@ -1286,7 +1291,25 @@ def make_fake_runner(defects: dict[int, set[str]]):
                     ],
                 )
             )
-        if "no_skill" not in flags:
+        if "foreign_skill_naming_ours_in_args" in flags:
+            # A Skill call to some OTHER skill whose args merely mention this
+            # one. Structurally it is not our skill, so it must not satisfy
+            # skill_order; only the `skill` key decides.
+            prelude.append(
+                _record(
+                    call.session_id,
+                    now,
+                    [
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_foreign_skill",
+                            "name": "Skill",
+                            "input": {"skill": "other:skill", "args": SKILL_NAME},
+                        }
+                    ],
+                )
+            )
+        elif "no_skill" not in flags:
             prelude.append(
                 _record(
                     call.session_id,
@@ -1393,6 +1416,14 @@ DRY_RUN_CASES = (
     Case(
         "file_without_a_preceding_skill_call_fails",
         {1: {"no_skill"}},
+        hops=0,
+        expect_pass=False,
+        expect_reason="no Skill tool_use",
+        expect_check="skill_order",
+    ),
+    Case(
+        "another_skill_naming_ours_in_its_args_fails",
+        {1: {"foreign_skill_naming_ours_in_args"}},
         hops=0,
         expect_pass=False,
         expect_reason="no Skill tool_use",

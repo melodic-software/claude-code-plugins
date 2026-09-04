@@ -38,6 +38,36 @@
 
 ### Fixed
 
+- **`save_point.py new` places the cumulative `-new` FILL slot above a carried
+  `Superseded:` marker.** The slot was appended to the end of the section, so
+  when the predecessor's section ended with a `Superseded:` block the hop's new
+  entries landed below the marker and `parse_entries` read them as superseded.
+  The slot now splices in immediately above a top-level marker line (it still
+  appends when there is none), and its instruction says "above any
+  `Superseded:` marker" instead of "below the carried ones".
+- **A multi-paragraph verbatim `Opening ask:` no longer leaks into the
+  successor's goal block.** Both the `new` carry-forward and the `validate`
+  goal check ended the ask's skip at the first blank line, so paragraph 2 and
+  beyond was copied into the successor's immutable goal quote instead of being
+  replaced by the `Opening ask: see <root> § Original goal` pointer. The skip
+  now ends at the next structural marker (a line starting with `**`, or the
+  section end), and the `OPENING_ASK_CAP` counter counts the whole ask block to
+  that same marker rather than stopping at the first blank line.
+- **`validate` refuses a `previous_handoff` pointer that reaches outside the
+  handoffs directory.** `HANDOFF_NAME_RE` used `.+`, which matches `/` and
+  `\`, so a pointer such as `<TS>-handoff-x/../../../outside.md` passed the
+  bare-filename check and the named file was joined, opened and parsed, with
+  its entries echoed back in cumulative findings. The pattern tightens to
+  `[^/\\]+`, and `validate_doc` now applies the realpath containment check
+  `cmd_new` already makes for `--previous`, before `is_file()`, so a symlinked
+  predecessor is rejected too. The `handoffs/`-prefixed pointer keeps failing
+  with the same bare-filename message it always did.
+- **`hop_chain.py`'s `skill_order` check matches the Skill tool's `skill`
+  key.** `skill_evidence` tested `SKILL_NAME in json.dumps(input)`, a substring
+  match over the whole serialized input, so a `Skill` call to some other skill
+  whose `args` merely mentioned `session-flow:handoff` satisfied the check. It
+  now tests `input["skill"] == SKILL_NAME`. The dry-run suite gains a case
+  covering exactly that transcript, going from 18 to 19 cases.
 - **The retro chain walker resolves a `handoffs/`-prefixed `previous_handoff`
   pointer by basename.** `skills/retro/scripts/parse_transcript.py` truncated
   the chain to a single id when the pointer carried its directory prefix; it now

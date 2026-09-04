@@ -13,6 +13,8 @@ validated in place.
 
 from __future__ import annotations
 
+import functools
+import importlib.util
 import os
 import re
 import shutil
@@ -21,6 +23,15 @@ import sys
 from pathlib import Path
 
 import pytest
+
+# The origin-identity tests build a throwaway git repository. Under an inherited
+# absolute GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) `git init` and `git config`
+# would write into the caller's repository instead of the fixture, so clear the
+# ambient git environment once, before any fixture is built
+# (scripts/check-fixture-git-isolation.sh).
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
 
 SCRIPT = Path(__file__).resolve().parents[1] / "save_point.py"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -90,6 +101,21 @@ def _base_env() -> dict[str, str]:
     """The launching session's env minus every CLAUDE_* variable, so a test
     never inherits this session's id, effort, or plugin-data dir."""
     return {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE_")}
+
+
+@functools.lru_cache(maxsize=1)
+def _save_point_module():
+    """Import the script as a module. The suite tests the CLI; this is for the
+    one assertion the CLI cannot express, since whether the parser reads an
+    entry as superseded is internal state rather than output."""
+    spec = importlib.util.spec_from_file_location("save_point_under_test", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    # Registered before execution: `dataclasses` resolves a field annotation
+    # through `sys.modules[cls.__module__]`, which is absent otherwise.
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def run(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[bytes]:
@@ -670,6 +696,104 @@ def test_new_refuses_predecessor_outside_handoffs_dir(tmp_path):
     assert "must live in the handoffs dir" in err(result)
     missing = run(*new_args(repo, tmp_path, "--previous", str(repo / ".work" / "handoffs" / "nope.md")))
     assert missing.returncode == 1
+
+
+def test_new_hop2_places_the_new_slot_above_a_carried_superseded_marker(tmp_path):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
+    hop1 = handoffs / HOP1
+    filled = fill(hop1.read_text(encoding="utf-8"))
+    live = "- [h1] The thing must stay green."
+    assert live in filled
+    hop1.write_text(
+        filled.replace(live, live + "\n\nSuperseded:\n- [h1] The old thing, since disproved."),
+        encoding="utf-8",
+        newline="\n",
+    )
+    run("validate", str(hop1), "--strict-transcript").check_returncode()
+
+    run(*new_args(repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z")).check_returncode()
+    hop2 = handoffs / HOP2
+    section = _section_body(hop2, "Constraints that must hold").split("\n")
+    slot_index = next(i for i, line in enumerate(section) if line.startswith("<!-- FILL: constraints-new"))
+    marker_index = next(i for i, line in enumerate(section) if line.startswith("Superseded:"))
+    assert slot_index < marker_index, section
+
+    entry = "- [h2] A constraint this hop discovered."
+    text = hop2.read_text(encoding="utf-8")
+    assert section[slot_index] in text
+    hop2.write_text(fill(text.replace(section[slot_index], entry)), encoding="utf-8", newline="\n")
+    validated = run("validate", str(hop2), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
+
+    # The placement is only worth anything if the parser agrees: an entry
+    # filled into the slot is live, not superseded.
+    body = _section_body(hop2, "Constraints that must hold").split("\n")
+    parsed = [e for e in _save_point_module().parse_entries(body) if e.normalized.endswith("A constraint this hop discovered.")]
+    assert len(parsed) == 1, body
+    assert not parsed[0].superseded, body
+
+
+def test_new_hop2_leaves_a_multi_paragraph_opening_ask_behind_the_pointer(tmp_path):
+    repo = make_repo(tmp_path)
+    handoffs = repo / ".work" / "handoffs"
+    run(*new_args(repo, tmp_path, "--no-previous")).check_returncode()
+    hop1 = handoffs / HOP1
+    filled = fill(hop1.read_text(encoding="utf-8"))
+    ask = "Opening ask:\nDo the thing please."
+    assert ask in filled
+    hop1.write_text(
+        filled.replace(ask, ask + "\n\nSecond paragraph of the very same opening ask."),
+        encoding="utf-8",
+        newline="\n",
+    )
+    first = run("validate", str(hop1), "--strict-transcript")
+    assert first.returncode == 0, out(first) + err(first)
+
+    run(*new_args(repo, tmp_path, "--previous", str(hop1), sid=SID_B, now="2026-09-02T10:00:00Z")).check_returncode()
+    hop2 = handoffs / HOP2
+    goal = _section_body(hop2, "Original goal")
+    assert "Second paragraph of the very same opening ask." not in goal, goal
+    assert f"Opening ask: see {HOP1} § Original goal" in goal, goal
+    hop2.write_text(fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
+    validated = run("validate", str(hop2), "--strict-transcript")
+    assert validated.returncode == 0, out(validated) + err(validated)
+    assert "WARN" not in out(validated)
+
+
+def test_validate_refuses_a_traversing_previous_handoff_and_never_echoes_it(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    outside = tmp_path / "outside.md"
+    outside.write_text("SENTINEL-CONTENT-OUTSIDE-THE-HANDOFFS-DIR\n", encoding="utf-8")
+    target = handoffs / HOP2
+    text = target.read_text(encoding="utf-8")
+    assert f"previous_handoff: {HOP1}\n" in text
+    traversal = f"{HOP1[:-3]}/../../../outside.md"
+    target.write_text(
+        text.replace(f"previous_handoff: {HOP1}\n", f"previous_handoff: {traversal}\n"),
+        encoding="utf-8",
+        newline="\n",
+    )
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert "bare filename" in out(result), out(result)
+    assert "SENTINEL" not in out(result) + err(result)
+
+
+def test_validate_refuses_a_predecessor_symlinked_out_of_the_handoffs_dir(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    outside = tmp_path / "outside-handoffs"
+    outside.mkdir()
+    real = outside / HOP1
+    shutil.move(str(handoffs / HOP1), str(real))
+    try:
+        (handoffs / HOP1).symlink_to(real)
+    except (OSError, NotImplementedError) as exc:  # unprivileged Windows, or a filesystem without symlinks
+        pytest.skip(f"symlink creation unavailable: {exc}")
+    result = run("validate", str(handoffs / HOP2), "--strict-transcript")
+    assert result.returncode == 1, out(result) + err(result)
+    assert "resolves outside this file's directory" in out(result), out(result)
 
 
 def test_help_exits_zero():

@@ -11,8 +11,11 @@ All notable changes to the `implementation` plugin are documented here. Format f
   rails prompt.** The fallback described the note's sections and stopped, so it wrote a file and
   printed nothing a fresh session could paste. It now ends with the copy region in exactly the
   engine's shape: the copy-instruction line, the U+2500 rails, the `Read @` directive,
-  `Prior session:`, and `Handoff origin:`. The present-plugin sentence gains that the note is
-  never written free-hand. Ritual item order (1 to 5) is unchanged.
+  `Prior session:`, `Handoff origin:`, and `Next:` with its one to five headline lines (or
+  `Next: none (closed)` alone, for a closing handoff). The `Next:` block is not optional: the
+  engine's rails check requires it, so a fallback prompt without it fails validation. The
+  present-plugin sentence gains that the note is never written free-hand. Ritual item order
+  (1 to 5) is unchanged.
 
 ## [0.16.0]
 

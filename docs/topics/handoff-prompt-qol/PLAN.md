@@ -105,7 +105,7 @@ gate; nothing is written unprompted.
 | shell tests | `docs/conventions/shell-test-helpers/README.md` (per-plugin helpers, per-script exit taxonomies are deliberate) | team |
 | windows paths | `docs/conventions/windows-path-emit/README.md` (native side computes its own paths; platform temp, never drive-root `/tmp`) | team |
 | plugin contract | `docs/PLUGIN-PHILOSOPHY.md` "Cross-platform contract", "Evidence and validation" (`--plugin-dir` smoke tests, fail-fast boundaries); `docs/conventions/liveness-assertion/README.md` (never green-silent) | team |
-| release gates | `scripts/check-changelog-parity.sh --check-bump` (bump ⇒ new `## [v]` entry), `scripts/check-changed-skills.sh` (skill-quality check on touched skills, evals required), `scripts/check-skill-portability.sh`, CI "Check for machine-specific paths" (no `C:/Users/…`, `D:/…` in tracked fixtures) | team |
+| release gates | `scripts/check-changelog-parity.sh --check-bump` (bump ⇒ new `## [v]` entry), `scripts/check-changed-skills.sh` (skill-quality check on touched skills, evals required), `scripts/check-skill-portability.sh`, CI "Check for machine-specific paths" (no user-home or checkout-root absolute paths in tracked fixtures) | team |
 | skill QA | `plugins/skill-quality/scripts/check-skill.sh` caps (`LINE_SOFT_CAP=200`, `LINE_HARD_CAP=500`, `DESC_FIELD_CAP=1024`), `reference/evals.schema.json`, `check-evals-quality.sh` Q1–Q9 | team |
 | hooks | `docs/conventions/hook-*` NOT engaged (no hook added or widened; `zone-gate.sh` change is reason text only) | team |
 

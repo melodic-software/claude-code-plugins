@@ -139,7 +139,9 @@ ASCII_RAIL_RE = re.compile(r"^[-=_]{10,}$")
 UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
 )
-HANDOFF_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-handoff-.+\.md$")
+# A bare filename: `.+` would match a path separator, so a pointer carrying a
+# `../` traversal suffix would pass and be joined and parsed.
+HANDOFF_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-handoff-[^/\\]+\.md$")
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
@@ -543,12 +545,16 @@ def _check_original_goal(doc: Doc, f: Findings, hop: int) -> None:
     goal_lines: list[str] = []
     skip = False
     for line in body:
+        # The skip ends at the next structural marker, not at the first blank
+        # line: a verbatim opening ask may run several paragraphs, and every
+        # one of them belongs to the ask rather than to the goal quote.
+        if skip:
+            if line.startswith("**"):
+                skip = False
+            else:
+                continue
         if line.startswith("Opening ask:") or line.startswith("**Next action serves it by:**"):
             skip = True
-            continue
-        if skip:
-            if not line.strip():
-                skip = False
             continue
         if line.startswith("**Amended:**") or line.startswith("**Goal"):
             continue
@@ -558,11 +564,14 @@ def _check_original_goal(doc: Doc, f: Findings, hop: int) -> None:
     if not first or first.startswith("None.") or first.lower() in {"tbd", "todo", "n/a"}:
         f.fail("Original goal: the goal quote is empty or 'None.'; work with no statable goal is a defect to raise with the user, not a box to tick")
     if ask_idx is not None and hop == 1:
+        # Count to the next structural marker, matching the skip above: a
+        # blank-line stop undercounts a multi-paragraph ask against the cap.
         block = 0
         for line in body[ask_idx + 1 :]:
-            if not line.strip():
+            if line.startswith("**"):
                 break
-            block += 1
+            if line.strip():
+                block += 1
         inline = body[ask_idx][len("Opening ask:") :].strip()
         if inline and not inline.startswith("see "):
             block += 1
@@ -655,7 +664,15 @@ def validate_doc(
             f.fail(f"frontmatter: previous_handoff must be a bare filename matching <TS>-handoff-<topic>.md (got {previous!r})")
         else:
             pred_path = doc.path.parent / previous
-            if not pred_path.is_file():
+            # Belt to the regex's braces, and the check `cmd_new` already makes
+            # for `--previous`: resolve the real path and hold it to the
+            # directory this file lives in, so no pointer (nor a symlink
+            # standing in for one) reaches a file outside it to be parsed.
+            here = os.path.normcase(os.path.realpath(doc.path.parent))
+            there = os.path.normcase(os.path.dirname(os.path.realpath(pred_path)))
+            if there != here:
+                f.fail(f"frontmatter: previous_handoff {previous!r} resolves outside this file's directory ({here}); a predecessor lives beside its successor")
+            elif not pred_path.is_file():
                 f.fail(f"frontmatter: previous_handoff {previous!r} not found beside this file")
             elif not shallow:
                 try:
@@ -920,6 +937,25 @@ def _tag_carried(body: list[str], default_hop: int, unverified: bool) -> list[st
     return lines
 
 
+def _splice_new_slot(carried: list[str], slot: str) -> list[str]:
+    """Place the `-new` FILL slot where a filled entry belongs: above a
+    top-level `Superseded:` marker when the carried body ends with one, since
+    `parse_entries` reads everything below that marker as superseded. With no
+    marker the slot appends, which is the same position."""
+    marker = next(
+        (
+            i
+            for i, line in enumerate(carried)
+            if line.strip().startswith("Superseded:") and not line.startswith((" ", "\t"))
+        ),
+        None,
+    )
+    if marker is None:
+        return [*carried, "", slot]
+    above = _trim_blank(carried[:marker])
+    return [*above, "", slot, "", *carried[marker:]]
+
+
 def _shift_index(body: list[str], index: int) -> int:
     leading = 0
     while leading < len(body) and not body[leading].strip():
@@ -1006,12 +1042,17 @@ def build_skeleton(
         kept: list[str] = []
         skip = False
         for line in pred_goal:
+            # Ends at the next structural marker, not at the first blank line;
+            # paragraph 2 of a multi-paragraph verbatim ask is still the ask,
+            # and copying it here would smuggle it into the successor's
+            # immutable goal block instead of leaving the pointer to stand.
+            if skip:
+                if line.startswith("**"):
+                    skip = False
+                else:
+                    continue
             if line.startswith("Opening ask:") or line.startswith("**Next action serves it by:**"):
                 skip = True
-                continue
-            if skip:
-                if not line.strip():
-                    skip = False
                 continue
             kept.append(line.rstrip())
         goal += _trim_blank(kept)
@@ -1037,8 +1078,8 @@ def build_skeleton(
                     lines.append(f"None. (shape-1 predecessor had no {title})")
                 else:
                     lines.extend(_tag_carried(pred_body, pred_hop, pred_failed))
-                lines.append("")
-                lines.append(_fill(f"{name}-new", f"optional: append new [h{hop}] entries below the carried ones, move disproved ones under a 'Superseded:' line (never delete), re-tag re-verified ones [h{hop}]; delete this line when nothing changes"))
+                slot = _fill(f"{name}-new", f"optional: write new [h{hop}] entries on this line, above any 'Superseded:' marker (entries below one are read as superseded); move disproved ones under a 'Superseded:' line (never delete), re-tag re-verified ones [h{hop}]; delete this line when nothing changes")
+                lines = _splice_new_slot(lines, slot)
             section(title, lines)
         else:
             name, instruction = REWRITTEN[title]
