@@ -29,9 +29,9 @@
 
 set -uo pipefail
 
-# Hook directory by parameter expansion, never `dirname`: two sources meant two
-# processes before any work. The `.` fallback reproduces dirname's own answer
-# for a bare, slash-free invocation.
+# Hook directory by parameter expansion, never `dirname`: two sources would
+# mean two processes before any work. The `.` fallback reproduces dirname's own
+# answer for a bare, slash-free invocation.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
 # shellcheck source=hook-utils.sh
@@ -69,7 +69,7 @@ fi
 # path.
 [[ -n "${HOME:-}" ]] || exit 0
 CTX_DIR="$HOME/.claude/context-guard/context"
-# `mkdir -p` on an existing directory already exited 0, so the guard changes no
+# `mkdir -p` on an existing directory exits 0 anyway, so the guard changes no
 # outcome and skips the process on every compaction after the first. The chmod
 # is NOT guarded: it repairs permissions on a shared contract directory this
 # hook does not own, and skipping it would make that repair depend on which
@@ -123,8 +123,8 @@ find "$CTX_DIR" -maxdepth 1 -name '*.compacted' -mmin +20160 -exec rm -f {} + 2>
 # Compaction opens a fresh window: re-arm the blocking gate's grace budget.
 STATE_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/context-guard}/state"
 # The counter only exists in blocking mode, so on the default advisory posture
-# this `rm` was a process spawned to delete nothing. `rm -f` on an absent path
-# already succeeded, so the guard changes no outcome.
+# an unguarded `rm` would be a process spawned to delete nothing. `rm -f` on an
+# absent path succeeds anyway, so the guard changes no outcome.
 if [[ -e "$STATE_DIR/$SESSION.gate-count" ]]; then
   rm -f "$STATE_DIR/$SESSION.gate-count" 2>/dev/null || true
 fi

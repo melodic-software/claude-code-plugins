@@ -107,16 +107,14 @@ snap="$HOME/.claude/context-guard/context/$sid.json"
 [[ -r "$snap" ]] || unknown
 
 # SPAWN DISCIPLINE. This resolver sits on the PostToolBatch path, so it runs
-# once per tool batch and every process it starts is paid there. It used to
-# spend six: one jq for the snapshot, two `date` for the staleness arithmetic,
-# and three `awk` for the band comparisons and the version gate. It now spends
+# once per tool batch and every process it starts is paid there. The budget is
 # one jq on the common path, and a second only when a zones.json override is
-# present. The gates above this line stay in bash and still cost nothing, so
-# the no-snapshot and hostile-id cases exit without starting anything at all.
+# present. The gates above this line stay in bash and cost nothing, so the
+# no-snapshot and hostile-id cases exit without starting anything at all.
 #
-# The band resolution therefore moves AHEAD of the snapshot pass: the resolved
+# The band resolution therefore sits AHEAD of the snapshot pass: the resolved
 # bands are handed to that one jq as data, so the comparisons happen where the
-# snapshot is already parsed instead of in three separate awk processes.
+# snapshot is already parsed rather than in separate awk processes.
 
 # Band resolution: zones.json override when present and valid, shipped
 # defaults otherwise (with a visible notice when a present shape is bad). The
