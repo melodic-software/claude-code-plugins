@@ -144,7 +144,7 @@ PROVIDER="$(sget '.provider')"
 # in shell identifiers or in the jq object-key shorthand, so the function/variable/key
 # spellings underscore them.
 PROVIDER_FUNC="${PROVIDER//-/_}"
-PROVIDER_UPPER="$(tr '[:lower:]' '[:upper:]' <<<"$PROVIDER_FUNC")"
+PROVIDER_UPPER="${PROVIDER_FUNC^^}"
 CONFIG_KEY="$PROVIDER_FUNC"
 
 DISPLAY_NAME="$(sget '.display_name')"
@@ -815,6 +815,11 @@ render() {
   local file="$1"
   shift
   local text
+  # `cat` rather than `$(<"$file")`: the redirection form reports a missing
+  # template as a bash error carrying THIS script's line number, where `cat`
+  # names only the template path. A prior tidy of this file family was refuted
+  # and reverted for shifting a line number into a diagnostic on a reachable
+  # error path (0.39.24); the saved fork is not worth re-opening that.
   text="$(cat "$file")"
   local k v
   # Caller-supplied pairs first: they are per-file (verb name, tables) and never

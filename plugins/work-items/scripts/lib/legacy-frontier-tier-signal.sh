@@ -20,12 +20,9 @@ wit_body_has_legacy_frontier_tier_signal() {
   )
 
   # One grep over the catalogue joined as an ERE alternation (`|` binds loosest,
-  # so each entry stays intact) — a per-pattern loop forked grep once per entry.
+  # so each entry stays intact); a per-pattern loop would fork grep per entry.
   local pattern
   pattern="$(printf '%s|' "${patterns[@]}")"
   pattern="${pattern%|}"
-  if printf '%s' "$body" | grep -Eq "$pattern"; then
-    return 0
-  fi
-  return 1
+  printf '%s' "$body" | grep -Eq "$pattern"
 }

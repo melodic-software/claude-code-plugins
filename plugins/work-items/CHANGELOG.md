@@ -3,6 +3,62 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.58]
+
+### Changed
+
+- **`skills/work/scripts/preflight.sh`: a two-call-site `normalize_path` wrapper
+  is gone**, replaced by the fork-free `norm_path`/`$NORM_OUT` protocol that ten
+  other call sites already use. The loop it sat in was paying exactly the fork the
+  function's own header says it exists to avoid. Checked over 30 hostile inputs:
+  27 identical, and the 3 that differ are all trailing-newline shapes that the
+  loop cannot produce, since `read -r` strips them. Across 24 newline shapes there
+  is **no fail-open case** in either direction: the new code only ever reports
+  more gaps, never fewer.
+- `lib/legacy-frontier-tier-signal.sh`: an `if grep …; then return 0; fi;
+  return 1` collapsed to the bare pipeline. Truthiness is identical everywhere and
+  all three callers use `if`; raw status differs only on an invalid-regex exit,
+  unreachable because the pattern is a hardcoded array.
+- `generate-adapter.sh`: `tr '[:lower:]' '[:upper:]'` became `${VAR^^}`. Locale
+  dependence is moot here: a `^[a-z][a-z0-9-]{0,31}$` gate upstream means the
+  input is already ASCII, and the only divergence constructible is rejected by
+  that regex.
+- `list-items.sh`: a write-only variable, and the no-op line that existed only to
+  make it look read, are deleted.
+
+### Added
+
+- **Three assertions that close mutants proven live.** Verified against isolated
+  pre-change trees: the needs-confirmation path's stdout was unasserted, the
+  generated upper-cased provider spelling was unpinned, and a `want`-from-`NORM_OUT`
+  detachment was invisible. All three mutants exit 0 before and 1 after.
+
+### Fixed
+
+- **Two tidies reverted before shipping, on a precedent this plugin already set.**
+  Version 0.39.24 records a `printf`-pipe conversion in
+  `evaluate-schedule-precondition.sh` being refuted and reverted for shifting a
+  line number into a stderr diagnostic on a reachable error path. Both of these
+  were the same class:
+  - Dropping the `printf '%s\n' "$( … )"` wrapper in that same file is **not**
+    newline-neutral. Command substitution collapses trailing newlines to one; the
+    direct pipeline passes them through, putting a blank line before the
+    `needs-confirmation` marker. Measured over 7 prompt shapes, 2 diverge. The
+    wrapper is restored with a comment saying why it is load-bearing.
+  - `$(cat "$file")` to `$(<"$file")` in `generate-adapter.sh` changes the
+    missing-template diagnostic from `cat: <path>: No such file or directory` to a
+    bash error carrying **this script's line number**, which is precisely what
+    0.39.24 rejected. Restored, with the precedent named in the comment.
+
+### Known issues
+
+- **`preflight.test.sh` and `generate-adapter.test.sh` degrade silently without
+  `jq`**, hand-rolling `echo "SKIP: …" >&2; exit 0`. `check-silent-skips.sh`
+  cannot see them: it scans hooks and top-level scripts, not plugin suites. CI
+  installs no jq explicitly, so their coverage rests on the runner image alone.
+- **`preflight.sh` selects 3 suites and 1 exercises it.** The other two are
+  basename collisions with `repo-hygiene`'s own `preflight.sh`.
+
 ## [0.39.57]
 
 ### Changed
