@@ -9,42 +9,42 @@ wit_help_if_requested "usage: create-item --title <t> [--body <b>] [--labels a,b
 title="" body="" labels="" type="" parent="" blocked_by="" repo_override=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --title)
-      [[ $# -ge 2 ]] || wit_usage_error "--title needs a value"
-      title="$2"
-      shift 2
-      ;;
-    --type)
-      [[ $# -ge 2 ]] || wit_usage_error "--type needs a value"
-      type="$2"
-      shift 2
-      ;;
-    --body)
-      [[ $# -ge 2 ]] || wit_usage_error "--body needs a value"
-      body="$2"
-      shift 2
-      ;;
-    --labels)
-      [[ $# -ge 2 ]] || wit_usage_error "--labels needs a value"
-      labels="$2"
-      shift 2
-      ;;
-    --parent)
-      [[ $# -ge 2 ]] || wit_usage_error "--parent needs a value"
-      parent="$2"
-      shift 2
-      ;;
-    --blocked-by)
-      [[ $# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
-      blocked_by="$2"
-      shift 2
-      ;;
-    --repo)
-      [[ $# -ge 2 ]] || wit_usage_error "--repo needs a value"
-      repo_override="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --title)
+    [[ $# -ge 2 ]] || wit_usage_error "--title needs a value"
+    title="$2"
+    shift 2
+    ;;
+  --type)
+    [[ $# -ge 2 ]] || wit_usage_error "--type needs a value"
+    type="$2"
+    shift 2
+    ;;
+  --body)
+    [[ $# -ge 2 ]] || wit_usage_error "--body needs a value"
+    body="$2"
+    shift 2
+    ;;
+  --labels)
+    [[ $# -ge 2 ]] || wit_usage_error "--labels needs a value"
+    labels="$2"
+    shift 2
+    ;;
+  --parent)
+    [[ $# -ge 2 ]] || wit_usage_error "--parent needs a value"
+    parent="$2"
+    shift 2
+    ;;
+  --blocked-by)
+    [[ $# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
+    blocked_by="$2"
+    shift 2
+    ;;
+  --repo)
+    [[ $# -ge 2 ]] || wit_usage_error "--repo needs a value"
+    repo_override="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 [[ -n "$title" ]] || wit_usage_error "--title is required"

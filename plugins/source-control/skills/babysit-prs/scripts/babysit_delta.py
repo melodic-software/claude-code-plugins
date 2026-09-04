@@ -76,6 +76,17 @@ ADVISORY_FIX_ROUND_CAP = 100
 ADVISORY_ROUND_CLASSES = ("a", "b", "c")
 
 
+def legacy_check_identity_keys(names: Any) -> set[tuple[str, str, str]]:
+    """Key a pre-identity snapshot's display names into the identity tuple shape.
+
+    `LegacyDisplayName` is a type no live rollup entry carries, so a migrated
+    name can only ever compare equal to another migrated name: a one-cycle
+    display-name comparison, never a false match against a real
+    StatusContext/CheckRun identity.
+    """
+    return {("LegacyDisplayName", str(name), "") for name in json_array(names)}
+
+
 def advisory_round_composition(record: Any) -> str:
     """Classify one recorded advisory round as `all-c`, `mixed`, or `unknown`.
 
@@ -862,20 +873,10 @@ def classify_pr(
         # One-cycle migration for snapshots written before stable identities
         # were persisted. Display names remain available for compatibility,
         # then the next saved snapshot carries the unambiguous identity arrays.
-        prev_checks_failing = {
-            ("LegacyDisplayName", str(name), "")
-            for name in json_array(prev.get("checks_failing"))
-        }
-        prev_checks_pending = {
-            ("LegacyDisplayName", str(name), "")
-            for name in json_array(prev.get("checks_pending"))
-        }
-        current_checks_failing = {
-            ("LegacyDisplayName", str(name), "") for name in checks["failing"]
-        }
-        current_checks_pending = {
-            ("LegacyDisplayName", str(name), "") for name in checks["pending"]
-        }
+        prev_checks_failing = legacy_check_identity_keys(prev.get("checks_failing"))
+        prev_checks_pending = legacy_check_identity_keys(prev.get("checks_pending"))
+        current_checks_failing = legacy_check_identity_keys(checks["failing"])
+        current_checks_pending = legacy_check_identity_keys(checks["pending"])
     new_failing_checks = bool(current_checks_failing - prev_checks_failing)
     resolved_failing_checks = (
         bool(prev_checks_failing - (current_checks_failing | current_checks_pending))

@@ -222,9 +222,9 @@ def main() -> int:
         override = f"  OVERRIDE: min_pairs={minimum} (default {DEFAULT_MIN_PAIRS})"
 
     p50_cell, p50_value = ratio_of_percentile(old, new, 50.0, len(pairs), minimum)
-    # Capture the p95 VALUE too, not just its rendered cell. Discarding it left
-    # the disagreement check blind to the one statistic it never inspected, so a
-    # quotable ratio_of_p95=5.95x could sit beside median_paired_ratio=1.00x and
+    # Capture the p95 VALUE too, not just its rendered cell. Discarding it would
+    # leave the disagreement check blind to that statistic, so a quotable
+    # ratio_of_p95=5.95x could sit beside median_paired_ratio=1.00x and
     # ratio_of_p50=1.00x with nothing on the line saying they disagree.
     p95_cell, p95_value = ratio_of_percentile(old, new, 95.0, len(pairs), minimum)
 

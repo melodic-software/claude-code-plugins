@@ -5,23 +5,22 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ## [0.31.6]
 
-### Changed
+### Fixed
 
-- **Three block-guard test runners deduped, and three dead stores dropped.** `run_in` in
-  `block-dangerous-git.test.sh` now delegates to the existing `run_split` with the payload and
-  process cwd set to the same directory; `run_win` and `run_posix_host` in
-  `block-windows-drive-tmp.test.sh` delegate to the `_payload` variants that already existed
-  beside them. The suites' full ordered assertion streams are byte-identical across the revision,
-  481 and 216 lines, so no assertion was added, dropped, reordered or relabeled.
-- **What was deliberately NOT touched: the ten always-on BLOCK hooks' decision logic.** Every
-  matcher, allowlist, exit code, block/allow decision and message string is byte-identical,
-  verified per file rather than asserted. The only edits inside hook files are three unread
-  assignments: `VIOLATIONS=""` in `secret-pattern-detection.sh` and `ls_tag=""` in
-  `stale-path-verify.sh`, each overwritten before any read, and `SECRETS_LABELS` in
-  `lib/secret-detection/secret-patterns.sh`, which both callers invoke through a command
-  substitution, so the array was populated in a subshell and discarded on exit. The doc block
-  above `secrets::scan_text` said callers could read that array; it now states that stdout is the
-  only channel, which is what the callers already relied on.
+- **`resolve-convention-pattern.sh --help` dropped its entire exit-status list.**
+  `usage()` sliced the header with a hardcoded `sed -n '2,40p'` while the header
+  runs to line 43, so the banner ended on the words "Exit status:" and never
+  showed `0`, `1` or `2`. The slice now stops at the first non-comment line, so it
+  cannot drift as the header grows. A blank-line terminator would not work here,
+  which is why this needed a different fix from the sibling scripts corrected
+  earlier in the same sweep: this header runs straight into `set -uo pipefail`
+  with no blank line between, so terminating on a blank line would leak
+  executable lines into the banner.
+
+  Found by a verifier while checking an unrelated group, and fixed on the
+  canonical with `scripts/sync-resolve-convention-pattern.sh` propagating it to
+  this plugin's copy; the two remain byte-identical. All four covering suites
+  pass.
 
 ## [0.31.5]
 

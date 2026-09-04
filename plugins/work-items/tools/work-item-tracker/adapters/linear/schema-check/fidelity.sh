@@ -53,12 +53,8 @@ for e in "${LITERALS[@]}"; do
     echo "VERBATIM  $(basename "$f"): ${lit:0:64}..."
   else
     bad=$((bad + 1))
-    if ((!in_src)); then
-      echo "MISMATCH  not in adapter source $(basename "$f"): $lit"
-    fi
-    if ((!in_val)); then
-      echo "MISMATCH  not in validate.mjs (so it was never the operation validated): $lit"
-    fi
+    ((in_src)) || echo "MISMATCH  not in adapter source $(basename "$f"): $lit"
+    ((in_val)) || echo "MISMATCH  not in validate.mjs (so it was never the operation validated): $lit"
   fi
 done
 
@@ -70,16 +66,15 @@ done
 unesc() { sed 's/\\\$/$/g'; }
 
 declare -a MULTILINE=(
-  "$A/common.sh|validate.mjs|issues(filter: { team: { key: { eq: \$team } }, number: { eq: \$num } }, first: 1)"
-  "$A/list-items.sh|validate.mjs|issues(filter: { team: { key: { in: \$teams } } }, first: \$first, after: \$after)"
-  "$A/list-sub-items.sh|validate.mjs|children(first: \$first, after: \$after)"
-  "$A/create-item.sh|validate.mjs|issueLabels("
-  "$A/create-item.sh|validate.mjs|filter: { or: [{ team: { id: { eq: \$team } } }, { team: { null: true } }] }"
+  "$A/common.sh|issues(filter: { team: { key: { eq: \$team } }, number: { eq: \$num } }, first: 1)"
+  "$A/list-items.sh|issues(filter: { team: { key: { in: \$teams } } }, first: \$first, after: \$after)"
+  "$A/list-sub-items.sh|children(first: \$first, after: \$after)"
+  "$A/create-item.sh|issueLabels("
+  "$A/create-item.sh|filter: { or: [{ team: { id: { eq: \$team } } }, { team: { null: true } }] }"
 )
 for e in "${MULTILINE[@]}"; do
   f="${e%%|*}"
-  rest="${e#*|}"
-  lit="${rest#*|}"
+  lit="${e#*|}"
   in_src=0
   in_val=0
   needle="$(printf '%s' "$lit" | unesc | norm)"
@@ -98,9 +93,7 @@ done
 # The SHARED field-selection block. Three of the read operations — fetch_issue,
 # list-items' issues walk and list-sub-items' children walk — interpolate this one template
 # rather than spelling their selections out, so an unchecked `F` leaves the highest-traffic
-# reads resting on nothing. It was previously extracted, printed, and compared to nothing at
-# all, which made the README's "every operation matches" claim an overstatement for exactly
-# those three. Now asserted, and it contributes to ok/bad like everything else.
+# reads resting on nothing.
 fields_needle="$(printf '%s' "$FIELDS" | unesc | norm)"
 if [[ -z "$fields_needle" ]]; then
   bad=$((bad + 1))

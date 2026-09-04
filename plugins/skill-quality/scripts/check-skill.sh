@@ -114,8 +114,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # The header range is derived from the comment block itself (same idiom as the
-# sibling checkers), so adding header lines can never desync the help output —
-# the previous hardcoded line range had already drifted to clip mid-paragraph.
+# sibling checkers), so adding header lines can never desync the help output.
+# A hardcoded line range drifts silently and clips mid-paragraph.
 usage() {
   awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 }
@@ -1100,7 +1100,6 @@ done
 
 for fe_file in "${FRESH_EYES_FILES[@]}"; do
   fe_rel="${fe_file#"$SKILL_DIR"/}"
-  [[ "$fe_file" == "$SKILL_MD" ]] && fe_rel="SKILL.md"
   while IFS= read -r fe_line; do
     fe_kind="${fe_line%% *}"
     fe_ln="${fe_line#* }"

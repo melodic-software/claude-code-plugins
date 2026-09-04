@@ -5,21 +5,43 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ## [0.6.38]
 
-### Changed
+### Fixed
 
-- **The hook reuses the precomputed `FILE_DIR` instead of recomputing it.** `RUN_DIR`'s fallback
-  spawned `dirname "$FILE"` on every fire where the repo root was unresolved, which is the same
-  value the hook had already derived. Behavior-preserving tidy from the repo-wide simplification
-  sweep; the `TYPOS_ARG` selection, the relative-path degradation guard and every emitted message
-  are unchanged.
+- **The suite's spawn tracer had never worked, and four assertions were passing
+  on an empty measurement.** It delivered `PS4` as an exported environment
+  variable, but bash overwrites and re-exports `PS4` at startup: `env
+  PS4='SENTINEL ' bash -c 'declare -p PS4'` reports `declare -x PS4="+ "`.
+  Prefix assignment, `env(1)` and `export` are all discarded alike (`dash` honours
+  it; bash does not). So the tracer's pattern matched **0 of 802** trace lines,
+  `dirname`, `basename`, the own-frame ceiling and the allowlist assertions were
+  all measuring an empty word list, and the fifth assertion failed. `PS4` now
+  arrives through a `BASH_ENV` preload, which the traced shell performs itself and
+  which preserves the `${FUNCNAME[0]}` attribution the tracer depends on;
+  `source` would not, since it pushes a frame. **765 of 803** lines are now
+  marked, and a new assertion fails loudly if that count is ever zero again.
+- **The jq expectation was stale.** It asserted 2 and the true count is **1**,
+  established with a counting `jq` shim on PATH rather than with the repaired
+  tracer, so a tracer bug could not substitute one wrong number for another. Only
+  `hook::buffer_stdin`'s `jq -e .` runs: `hook::read_file_path` takes the builtin
+  fast path on a single-chunk payload and never reaches its jq fallback, and the
+  notebook filter is gated on a payload that carries a notebook path. The comment
+  documenting the old count went with it.
 
-### Notes for maintainers
+### Known issues
 
-- **`typos-format.test.sh` fails 142/1 on any bash that does not import `PS4` from the
-  environment**, including bash 5.2.21. The suite's spawn counters are trace-instrumented via
-  `PS4`, so they read 0 and the assertion reports `jq spawned 0 time(s), expected 2`. The failure
-  is hook-independent and reproduces on a pristine checkout; three separate agents confirmed it,
-  one on a worktree at the branch's merge-base. It is not caused by this change.
+- **Roughly 40% of this suite has never run in CI.** It gates on a real `typos`
+  binary, and the `typos` action lives in the `lint` job while the plugin
+  contract tests run in `test-linux`: separate jobs, separate runners, no shared
+  PATH, and `typos` appears in neither the CI Python requirements nor the npm
+  devDependencies. The suite prints `SKIP: no typos binary` and exits 0. Measured
+  by stripping `typos` from PATH: **87 of 144 assertions run**, so 57 never
+  execute in CI, including telemetry, config precedence, symlinked roots and the
+  write-mode allowlist, not only the trace block.
+- **The repaired tracer is blind to a `command`-prefixed external.** `command
+  dirname` scores zero on all six spawn assertions, because the traced word is
+  `command`, whose type is `builtin`, so the ceiling misses it too. `env dirname`
+  is half-caught and an absolute path is caught. Latent rather than live: the
+  hook's only use of `command` is `command -v`.
 
 ## [0.6.37]
 

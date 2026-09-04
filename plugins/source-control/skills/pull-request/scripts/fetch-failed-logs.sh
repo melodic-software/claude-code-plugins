@@ -55,7 +55,7 @@ TIMING=0
 SUSPICIOUS=0
 
 usage() {
-  sed -n '2,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -336,7 +336,7 @@ fi
 # rather than per-job dirs.
 
 # Enumerated ONCE and reused by every walk below (markers, --raw, the three
-# audit sections, the no-marker fallback), so the five consumers do not each
+# audit sections, the no-marker fallback), so those consumers do not each
 # re-walk the extracted tree. NUL-delimited to survive filenames with spaces
 # (real ZIPs have them — e.g. "shell _ Bash").
 TXT_FILES=()

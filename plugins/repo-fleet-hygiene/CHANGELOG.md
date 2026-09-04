@@ -5,13 +5,57 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ## [0.23.16]
 
+### Added
+
+- **The target dedupe now has a test that can fail.** `audit-fleet.sh` collapses
+  a target carrying more than one finding into a single block, at three sites.
+  Instrumenting every call shows 152 calls across the suite with exactly **2
+  hits**, both from the one fixture that puts two findings on a single target, so
+  a dedupe that stops suppressing duplicates emits that target's whole 13-line
+  block twice and every count the suite checks still matches. The new assertion
+  pins the block to exactly one occurrence: it passes on the real code and fails
+  on the over-firing mutant. The match is whole-line, because the roll-up prints
+  the same path with a `(N linked)` suffix that a substring match counts as a
+  second block.
+
 ### Changed
 
-- **Suite assert helpers deduped and per-call subshells dropped in the audit and apply scripts.**
-  Behavior-preserving tidy from the repo-wide simplification sweep. `apply-plan.sh`'s guards,
-  ordering, confirmation gate and mutation invocations were deliberately left alone, including a
-  duplicated canonical-missing check, because extracting either would restructure the code that
-  decides which repositories get written to.
+- **`audit-fleet.sh`: three copies of an order-preserving linear scan became
+  `array_contains`, and the porcelain record flush became
+  `push_worktree_record`.** Checked against the pre-image over 15 adversarial
+  inputs, including glob metacharacters, empty strings in every position,
+  embedded newlines, a leading `-n` and interleaved duplicates: identical results
+  with order preserved. Two variables that had been implicit globals are gone
+  entirely.
+- **`apply/scripts/apply-plan.sh`: the five mutation sites share `git_mutate`.**
+  All five carried one spelling of the `GIT_TERMINAL_PROMPT=0
+  GIT_OPTIONAL_LOCKS=0 git -C` prefix, confirmed by extraction; `git_probe`'s
+  distinct prefix is untouched. The file-wide `SC2310` disable now names
+  `git_mutate` alongside `git_probe`, since the helper adds six sites the old
+  justification did not cover.
+- **Both `allowed-tools-pairing.test.sh` copies in this plugin's family were
+  shfmt-formatted in step.** Formatting only, established with two independent
+  shell parsers whose sensitivity was proven by nine seeded semantic mutations,
+  every one caught, against two controls that correctly did not fire.
+
+### Known issues
+
+- **The worktree-lane OID-drift gates have no coverage at either end.** Disabling
+  the plan-time gate and the execution-time gate *together* leaves the suite at 23
+  passing, 0 failing. The branch lane is covered by that pairing (2 failures), but
+  the worktree lane is not covered at all. Pre-existing; this is the first time it
+  was measured.
+- **Two `array_contains` over-fire mutants survive the suite**: a never-matching
+  scan at the `repo_verdict` site alone is genuinely equivalent (zero difference
+  in any artefact the suite writes), but a prefix-glob comparison escapes
+  undetected.
+- **Drift across the five-copy `allowed-tools-pairing.test.sh` family fell in
+  net** (252 differing lines to 228, with four copies now differing pairwise by
+  exactly their `SKILLS=` line) **but grew by 12 lines against the `repo-hygiene`
+  copy**, which is a genuine superset and now the family's only unformatted
+  member. No cross-plugin consolidation was made, and the drift gate still
+  reports the family as differing rather than identical, which is what keeps it
+  green.
 
 ## [0.23.15]
 

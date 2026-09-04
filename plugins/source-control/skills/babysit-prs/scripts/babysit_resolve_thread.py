@@ -192,11 +192,10 @@ from babysit_classify import (
     strip_classification_rows,
 )
 from babysit_gh import (
-    GITHUB_OWNER_RE,
-    GITHUB_REPOSITORY_RE,
     fetch_pull_request_author,
     fetch_review_threads,
     gh_capture,
+    is_owner_repo_pair,
     parse_repo_number,
     resolve_authors,
 )
@@ -703,9 +702,7 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
     # `main`'s argument check, so the function's own contract holds for every
     # caller.
     if not (
-        GITHUB_OWNER_RE.fullmatch(head_owner)
-        and GITHUB_REPOSITORY_RE.fullmatch(head_name)
-        and head_name not in {".", ".."}
+        is_owner_repo_pair(head_owner, head_name)
         and FIX_COMMIT_RE.match(head_oid)
         and FIX_COMMIT_RE.match(sha)
     ):
@@ -762,11 +759,7 @@ def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
     # which costs nothing on the `default_repo` path (already validated by
     # `parse_repo_number`) and keeps one rule instead of two.
     owner, _, name = repo.partition("/")
-    if not (
-        GITHUB_OWNER_RE.fullmatch(owner)
-        and GITHUB_REPOSITORY_RE.fullmatch(name)
-        and name not in {".", ".."}
-    ):
+    if not is_owner_repo_pair(owner, name):
         return False, "refused-evidence-unverifiable"
     proc = gh_capture(["api", f"repos/{repo}/issues/{match.group('number')}"])
     if proc.returncode != 0:

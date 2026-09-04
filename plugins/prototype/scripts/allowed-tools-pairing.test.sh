@@ -34,13 +34,16 @@ SKILLS=(explore-directions pressure-test)
 # other assertion here would still pass green.
 expected_granted() {
   case "$1" in
-    *) echo "" ;;
+  *) echo "" ;;
   esac
 }
 
 fails=0
 pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1" >&2; fails=1; }
+fail() {
+  echo "FAIL: $1" >&2
+  fails=1
+}
 
 # Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
 # to the next top-level key so a YAML list is captured whole.
@@ -51,7 +54,10 @@ allowed_tools() {
 
 for skill in "${SKILLS[@]}"; do
   md="skills/$skill/SKILL.md"
-  [[ -f "$md" ]] || { fail "$skill: SKILL.md missing"; continue; }
+  [[ -f "$md" ]] || {
+    fail "$skill: SKILL.md missing"
+    continue
+  }
   at="$(allowed_tools "$md")"
 
   if grep -qF 'Bash(bash ' <<<"$at"; then

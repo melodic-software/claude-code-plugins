@@ -30,7 +30,7 @@ PR_NUMBER=""
 FAILED_ONLY=0
 
 usage() {
-  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -117,11 +117,12 @@ fi
 
 # One jq pass both projects the records and applies --failed; a second pipe
 # would only buy another spawn. jq -c keeps each record on one line, the form
-# the walk below reads.
+# the walk below reads. The object uses the `{id, name, ...}` shorthand, which
+# jq expands to the same `{id: .id, ...}` construction.
 FILTERED=$(printf '%s' "$CHECK_RUNS_RAW" |
   jq -c --argjson failed_only "$FAILED_ONLY" '
       .check_runs[]
-      | {id: .id, name: .name, conclusion: .conclusion, status: .status}
+      | {id, name, conclusion, status}
       | select($failed_only == 0
                or .conclusion == "failure"
                or .conclusion == "timed_out"

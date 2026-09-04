@@ -71,8 +71,18 @@ now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 renewed="$(jq -c --arg ts "$now" '. + {renewed_at: $ts}' <<<"$lease_json")"
 new_line="${WIT_LEASE_MARKER}${renewed} -->"
 
-tmp="$(mktemp)"
-awk -v old="$old_line" -v new="$new_line" '$0 == old { print new; next } { print }' "$file" >"$tmp" && mv "$tmp" "$file"
+# The renewal is only real once it lands in the store. A rewrite that cannot run
+# (no temp file, a full or unwritable store) must fail the verb: reporting a
+# renewed_at no reader will ever see hands the holder a lease the next reader
+# still expires on the old timestamp. Exit 1 is internal/unexpected store I/O
+# failure (CONTRACT.md "Exit codes"), distinct from the exit-7 conflicts above.
+if ! { tmp="$(mktemp)" &&
+  awk -v old="$old_line" -v new="$new_line" '$0 == old { print new; next } { print }' "$file" >"$tmp" &&
+  mv "$tmp" "$file"; }; then
+  rm -f "${tmp:-}"
+  printf 'renew-lease: writing the renewed lease for %s failed\n' "$id" >&2
+  exit 1
+fi
 
 jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg cid "$lease_comment_id" \
   '{schema_version: $sv, id: $id, holder: .holder, acquired_at: .acquired_at,
