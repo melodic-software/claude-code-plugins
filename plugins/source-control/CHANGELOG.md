@@ -3,6 +3,71 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.44]
+
+### Changed
+
+- **`babysit-prs`: four dedups behind comments, and six tests that make them
+  falsifiable.** `is_owner_repo_pair` in `babysit_gh.py` holds the owner/repo
+  segment rules for the PR-reference and scope-key parsers, which kept two
+  hand-maintained copies. `record_mutation_ledger_entry` in `babysit_state.py`
+  merges the two ledger folds in `save_state`. `legacy_check_identity_keys` in
+  `babysit_delta.py` replaces a tuple literal written out four times.
+  `unscoped_queue_run` names a predicate spelled at five sites. Two GraphQL
+  walks in `babysit_gh.py` now use the package's own `dig` instead of
+  hand-rolled nested narrowing.
+- **`find_open_prs_for_head_ref` is only ever mocked by the suite**, so its
+  rewrite was carried by an exhaustive differential rather than by tests: 844
+  row shapes, zero divergence, including every raise path, with a wrong-key
+  control discriminating on 84. The parser extraction got the same treatment at
+  13,475 invocations, with a traversal-permissive control discriminating on 18
+  pairs and 72 triples.
+
+### Added
+
+- **Six tests, each closing a gap that was silently open.** `.`/`..` refused by
+  both parsers; a dotted repository name still accepted; a legacy
+  check-identity migration covering the display-name-only, empty, and
+  half-migrated cases; and a two-cycle integration round trip proving the
+  mutation ledger merges rather than overwrites. Six of the mutations these
+  kill were SURVIVORS before they existed, established by applying the same
+  mutations to the pre-change tree. One of them,
+  `test_one_identity_array_without_its_partner_is_refused`, is now the only
+  test anywhere that kills deletion of the `any(...) and not all(...)` guard.
+
+### Fixed
+
+- **`babysit_delta.py`: two of the four deduplicated comprehensions were not
+  interchangeable.** The two reading `prev` wrapped their iterable in
+  `json_array()`; the two reading `checks` did not. Over 17 inputs the
+  current-form diverges from the helper on five (`None` and `5` raise
+  `TypeError` rather than yielding an empty set; a string yields per-character
+  keys). Unreachable in practice, because `classify_checks` builds those lists
+  with comprehensions and `checks` is local to `classify_pr`, but the helper is
+  the stricter of the two and the divergence is recorded rather than assumed
+  away.
+
+### Known issues
+
+- **A routing gap defeats the integration test written to protect the ledger.**
+  `affected-tests.sh --explain babysit_state.py` selects only
+  `tests/test_babysit_state.py`. Under a ledger-overwrite mutation that suite
+  stays green and `tests/test_integration.py`, the only suite that
+  discriminates, is never selected. The gate reports success over zero real
+  coverage of that invariant.
+- **Two mutations survive all 649 tests, both pre-existing.** Reducing
+  `unscoped_queue_run` to `scope is None` makes `in_scope_keys` the whole file
+  in non-queue mode; dropping the `if merged:` guard in
+  `record_mutation_ledger_entry` writes an empty entry into the ledger. Naming
+  the first is the natural place to test it.
+- **`save_state`'s first ledger fold is undiscriminated but not dead.**
+  Deleting it leaves all 649 tests green; instrumentation shows seven tests
+  reach it across thirteen invocations and none of the thirteen changes the
+  ledger, because `persisted_pr_state` retains all three fields it reads. It is
+  not migration-era code: `load_state` raises on any `schema_version != 1`. It
+  is a live self-heal for a schema-1 file with a missing `mutation_ledger` key,
+  demonstrated by rebuilding an entry from an on-disk record.
+
 ## [0.55.43]
 
 ### Changed

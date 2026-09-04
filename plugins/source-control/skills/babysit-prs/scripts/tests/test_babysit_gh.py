@@ -37,6 +37,25 @@ class ParseRepoTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             gh.parse_repo("owner/repo#1")
 
+    def test_a_traversal_segment_is_never_a_repository(self) -> None:
+        # `.` and `..` satisfy the repository charset but address a directory,
+        # and both parsers feed path construction (lease files, worktree dirs).
+        # Both entry points must refuse them, not just the one a caller happens
+        # to reach.
+        for value in (".", ".."):
+            with self.subTest(repo=value):
+                with self.assertRaises(ValueError):
+                    gh.parse_repo(f"owner/{value}")
+                with self.assertRaises(ValueError):
+                    gh.parse_repo_number(f"owner/{value}#1")
+
+    def test_a_dotted_repository_name_is_still_accepted(self) -> None:
+        # The other side of the traversal rule: `.` is legal *within* a
+        # repository name, so refusing the character outright would reject real
+        # repositories.
+        self.assertEqual(gh.parse_repo("Owner/repo.js"), "owner/repo.js")
+        self.assertEqual(gh.parse_repo_number("owner/repo.js#4"), ("owner/repo.js", 4))
+
 
 class ResolveAuthorTests(unittest.TestCase):
     def test_none_passes_through_without_gh(self) -> None:
@@ -54,8 +73,10 @@ class ResolveAuthorTests(unittest.TestCase):
             self.assertEqual(gh.resolve_author("@me"), "octocat")
 
     def test_me_with_empty_login_fails_closed(self) -> None:
-        with mock.patch.object(gh, "run_gh", return_value="\n"), \
-                self.assertRaises(RuntimeError):
+        with (
+            mock.patch.object(gh, "run_gh", return_value="\n"),
+            self.assertRaises(RuntimeError),
+        ):
             gh.resolve_author("@me")
 
 
@@ -91,16 +112,18 @@ class DiscoverPrsTests(unittest.TestCase):
             ]
 
         with mock.patch.object(gh, "gh_json", side_effect=fake_gh_json):
-            found, errors = gh.discover_prs(repos=["owner/beta", "owner/alpha"],
-                                            limit=100)
+            found, errors = gh.discover_prs(
+                repos=["owner/beta", "owner/alpha"], limit=100
+            )
         self.assertEqual(errors, [])
         self.assertEqual(
             found, [("owner/alpha", 1), ("owner/alpha", 5), ("owner/beta", 2)]
         )
 
     def test_repo_limit_reached_flags_possible_truncation(self) -> None:
-        rows = [{"number": n, "repository": {"nameWithOwner": "owner/r"}}
-                for n in range(2)]
+        rows = [
+            {"number": n, "repository": {"nameWithOwner": "owner/r"}} for n in range(2)
+        ]
         with mock.patch.object(gh, "gh_json", return_value=rows):
             _, errors = gh.discover_prs(repos=["owner/r"], limit=2)
         self.assertTrue(any("result limit" in error for error in errors))
@@ -111,8 +134,10 @@ class DiscoverPrsTests(unittest.TestCase):
                 raise RuntimeError("owner qualifier rejected: no repositories")
             return []
 
-        with mock.patch.object(gh, "gh_json", side_effect=fake_gh_json), \
-                mock.patch.object(gh, "list_repos_for_owner", return_value=[]):
+        with (
+            mock.patch.object(gh, "gh_json", side_effect=fake_gh_json),
+            mock.patch.object(gh, "list_repos_for_owner", return_value=[]),
+        ):
             found, errors = gh.discover_prs(owners=["empty-owner"], limit=100)
         self.assertEqual(found, [])
         self.assertEqual(errors, [])
@@ -123,9 +148,10 @@ class DiscoverPrsTests(unittest.TestCase):
                 raise RuntimeError("transient search failure")
             return []
 
-        with mock.patch.object(gh, "gh_json", side_effect=fake_gh_json), \
-                mock.patch.object(gh, "list_repos_for_owner",
-                                  return_value=["owner/r"]):
+        with (
+            mock.patch.object(gh, "gh_json", side_effect=fake_gh_json),
+            mock.patch.object(gh, "list_repos_for_owner", return_value=["owner/r"]),
+        ):
             _, errors = gh.discover_prs(owners=["owner"], limit=100)
         self.assertTrue(any("owner search" in error for error in errors))
 
@@ -137,16 +163,18 @@ class DiscoverPrsTests(unittest.TestCase):
             if args and args[0] == "search":
                 searched_authors.append(author)
                 by_author = {
-                    "alice": [{"number": 1,
-                               "repository": {"nameWithOwner": "owner/r"}}],
-                    "bob": [{"number": 2,
-                             "repository": {"nameWithOwner": "owner/r"}}],
+                    "alice": [
+                        {"number": 1, "repository": {"nameWithOwner": "owner/r"}}
+                    ],
+                    "bob": [{"number": 2, "repository": {"nameWithOwner": "owner/r"}}],
                 }
                 return by_author.get(author, [])
             return []
 
-        with mock.patch.object(gh, "gh_json", side_effect=fake_gh_json), \
-                mock.patch.object(gh, "list_repos_for_owner", return_value=[]):
+        with (
+            mock.patch.object(gh, "gh_json", side_effect=fake_gh_json),
+            mock.patch.object(gh, "list_repos_for_owner", return_value=[]),
+        ):
             found, errors = gh.discover_prs(
                 owners=["owner"], authors=["alice", "bob"], limit=100
             )
@@ -160,42 +188,63 @@ class DiscoverPrsTests(unittest.TestCase):
                 raise RuntimeError("transient search failure")
             return []
 
-        with mock.patch.object(gh, "gh_json", side_effect=fake_gh_json), \
-                mock.patch.object(gh, "list_repos_for_owner",
-                                  return_value=["owner/r"]):
+        with (
+            mock.patch.object(gh, "gh_json", side_effect=fake_gh_json),
+            mock.patch.object(gh, "list_repos_for_owner", return_value=["owner/r"]),
+        ):
             _, errors = gh.discover_prs(
                 owners=["owner"], authors=["alice", "bob"], limit=100
             )
-        self.assertEqual(
-            len([error for error in errors if "owner search" in error]), 1
-        )
+        self.assertEqual(len([error for error in errors if "owner search" in error]), 1)
 
 
-def _graphql(nodes: list[dict[str, Any]], *, has_next: bool = False,
-             cursor: str | None = None) -> dict[str, Any]:
+def _graphql(
+    nodes: list[dict[str, Any]], *, has_next: bool = False, cursor: str | None = None
+) -> dict[str, Any]:
     return {
-        "data": {"repository": {"pullRequest": {"reviewThreads": {
-            "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
-            "nodes": nodes,
-        }}}}
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
+                        "nodes": nodes,
+                    }
+                }
+            }
+        }
     }
 
 
 def _comment(**over: Any) -> dict[str, Any]:
-    base = {"author": {"__typename": "User", "login": "x"}, "body": "b",
-            "path": "p", "url": "u", "createdAt": "", "updatedAt": "",
-            "databaseId": 1}
+    base = {
+        "author": {"__typename": "User", "login": "x"},
+        "body": "b",
+        "path": "p",
+        "url": "u",
+        "createdAt": "",
+        "updatedAt": "",
+        "databaseId": 1,
+    }
     base.update(over)
     return base
 
 
-def _thread(comments: list[dict[str, Any]], total: int, *,
-            comments_has_next: bool = False, **over: Any) -> dict[str, Any]:
+def _thread(
+    comments: list[dict[str, Any]],
+    total: int,
+    *,
+    comments_has_next: bool = False,
+    **over: Any,
+) -> dict[str, Any]:
     base = {
-        "id": "t1", "isResolved": False, "isOutdated": False,
-        "comments": {"totalCount": total,
-                     "pageInfo": {"hasNextPage": comments_has_next},
-                     "nodes": comments},
+        "id": "t1",
+        "isResolved": False,
+        "isOutdated": False,
+        "comments": {
+            "totalCount": total,
+            "pageInfo": {"hasNextPage": comments_has_next},
+            "nodes": comments,
+        },
     }
     base.update(over)
     return base
@@ -203,8 +252,7 @@ def _thread(comments: list[dict[str, Any]], total: int, *,
 
 class FetchReviewThreadsTests(unittest.TestCase):
     def test_oversized_thread_is_returned_truncated_without_raising(self) -> None:
-        response = _graphql([_thread([_comment()], total=150,
-                                     comments_has_next=True)])
+        response = _graphql([_thread([_comment()], total=150, comments_has_next=True)])
         with mock.patch.object(gh, "gh_json", return_value=response):
             threads = gh.fetch_review_threads("owner/repo", 1)
         self.assertEqual(len(threads), 1)
@@ -229,27 +277,44 @@ class FetchReviewThreadsTests(unittest.TestCase):
     def test_projection_maps_each_record(self) -> None:
         response = _graphql([_thread([_comment()], total=1)])
         with mock.patch.object(gh, "gh_json", return_value=response):
-            ids = gh.fetch_review_threads("owner/repo", 1,
-                                          projection=lambda record: record["id"])
+            ids = gh.fetch_review_threads(
+                "owner/repo", 1, projection=lambda record: record["id"]
+            )
         self.assertEqual(ids, ["t1"])
 
     def test_malformed_page_info_fails_closed(self) -> None:
-        response = {"data": {"repository": {"pullRequest": {"reviewThreads": {
-            "pageInfo": {"hasNextPage": "yes"}, "nodes": []}}}}}
-        with mock.patch.object(gh, "gh_json", return_value=response), \
-                self.assertRaises(RuntimeError):
+        response = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {"hasNextPage": "yes"},
+                            "nodes": [],
+                        }
+                    }
+                }
+            }
+        }
+        with (
+            mock.patch.object(gh, "gh_json", return_value=response),
+            self.assertRaises(RuntimeError),
+        ):
             gh.fetch_review_threads("owner/repo", 1)
 
     def test_graphql_errors_field_fails_closed(self) -> None:
-        with mock.patch.object(gh, "gh_json",
-                               return_value={"errors": [{"message": "boom"}]}), \
-                self.assertRaises(RuntimeError):
+        with (
+            mock.patch.object(
+                gh, "gh_json", return_value={"errors": [{"message": "boom"}]}
+            ),
+            self.assertRaises(RuntimeError),
+        ):
             gh.fetch_review_threads("owner/repo", 1)
 
     def test_paginates_across_thread_pages(self) -> None:
         pages = [
-            _graphql([_thread([_comment()], total=1, id="a")],
-                     has_next=True, cursor="c1"),
+            _graphql(
+                [_thread([_comment()], total=1, id="a")], has_next=True, cursor="c1"
+            ),
             _graphql([_thread([_comment()], total=1, id="b")]),
         ]
         with mock.patch.object(gh, "gh_json", side_effect=pages):
@@ -257,10 +322,11 @@ class FetchReviewThreadsTests(unittest.TestCase):
         self.assertEqual([thread["id"] for thread in threads], ["a", "b"])
 
     def test_missing_cursor_on_next_page_fails_closed(self) -> None:
-        response = _graphql([_thread([_comment()], total=1)], has_next=True,
-                            cursor="")
-        with mock.patch.object(gh, "gh_json", return_value=response), \
-                self.assertRaises(RuntimeError):
+        response = _graphql([_thread([_comment()], total=1)], has_next=True, cursor="")
+        with (
+            mock.patch.object(gh, "gh_json", return_value=response),
+            self.assertRaises(RuntimeError),
+        ):
             gh.fetch_review_threads("owner/repo", 1)
 
     def test_invalid_comments_first_is_rejected(self) -> None:
@@ -361,9 +427,14 @@ class RestHydrateReviewsTests(unittest.TestCase):
         pr = {
             "reviews": [],
             "latestReviews": [
-                {"author": {"login": "chatgpt-codex-connector"}, "id": "",
-                 "state": "COMMENTED", "submittedAt": "2026-07-20T15:57:46Z",
-                 "body": "Codex review", "commit": {"oid": ""}}
+                {
+                    "author": {"login": "chatgpt-codex-connector"},
+                    "id": "",
+                    "state": "COMMENTED",
+                    "submittedAt": "2026-07-20T15:57:46Z",
+                    "body": "Codex review",
+                    "commit": {"oid": ""},
+                }
             ],
         }
         with mock.patch.object(gh, "gh_json", return_value=rest_rows):

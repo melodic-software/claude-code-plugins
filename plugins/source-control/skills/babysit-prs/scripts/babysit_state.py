@@ -271,6 +271,21 @@ def merge_mutation_ledger_entry(
     return merged
 
 
+def record_mutation_ledger_entry(
+    ledger: dict[str, Any], key: str, pr: dict[str, Any]
+) -> None:
+    """Fold one PR's observed mutation history into `ledger` under `key`.
+
+    Both save paths -- the records already on disk and the ones this snapshot
+    brings -- merge through here, so neither can grow a rule the other lacks.
+    """
+    merged = merge_mutation_ledger_entry(
+        json_object(ledger.get(key)), mutation_ledger_entry(pr)
+    )
+    if merged:
+        ledger[key] = merged
+
+
 def previous_with_ledger(
     previous: dict[str, Any] | None, ledger: dict[str, Any] | None
 ) -> dict[str, Any]:
@@ -331,7 +346,11 @@ def update_error_quarantine(
     for key in error_keys:
         entry = json_object(previous.get(key))
         quarantined_until = parse_timestamp(entry.get("quarantined_until"))
-        if quarantined_until is not None and now is not None and quarantined_until <= now:
+        if (
+            quarantined_until is not None
+            and now is not None
+            and quarantined_until <= now
+        ):
             # Quarantine lapsed: restart the streak rather than resuming it, so
             # re-entry requires the same sustained evidence as first entry.
             entry = {}
@@ -382,19 +401,19 @@ def save_state(
         current = load_state(path)
         generated = parse_timestamp(snapshot.get("generated_at"))
         current_prs = json_object(current.get("prs"))
-        scope = (
-            {repo.casefold() for repo in scope_repos} if scope_repos else None
-        )
+        scope = {repo.casefold() for repo in scope_repos} if scope_repos else None
         mode = snapshot["mode"]
         snapshot_prs = [
             pr for pr in json_array(snapshot.get("prs")) if is_json_object(pr)
         ]
-        if mode == "queue" and scope is None:
+        # An unscoped queue run is the only one that owns every record in the
+        # file: it discovered against the whole watched surface, so what it did
+        # not observe is genuinely gone.
+        unscoped_queue_run = mode == "queue" and scope is None
+        if unscoped_queue_run:
             in_scope_keys = set(current_prs)
         elif mode == "queue":
-            in_scope_keys = {
-                key for key in current_prs if _repo_of_key(key) in scope
-            }
+            in_scope_keys = {key for key in current_prs if _repo_of_key(key) in scope}
         else:
             in_scope_keys = {str(pr["key"]) for pr in snapshot_prs} & set(current_prs)
 
@@ -402,7 +421,7 @@ def save_state(
             json_object(current_prs.get(key)).get("recorded_at")
             for key in in_scope_keys
         ]
-        if mode == "queue" and scope is None:
+        if unscoped_queue_run:
             stale_markers.append(current.get("updated_at"))
         latest_in_scope = max(
             (
@@ -423,14 +442,8 @@ def save_state(
 
         ledger = json_object(current.get("mutation_ledger"))
         for key, current_pr in current_prs.items():
-            if not is_json_object(current_pr):
-                continue
-            existing = json_object(ledger.get(key))
-            merged_entry = merge_mutation_ledger_entry(
-                existing, mutation_ledger_entry(current_pr)
-            )
-            if merged_entry:
-                ledger[key] = merged_entry
+            if is_json_object(current_pr):
+                record_mutation_ledger_entry(ledger, key, current_pr)
 
         # A complete sweep visited and classified every PR. The snapshot's own
         # `complete` flag already excludes advisory-only errors (a degraded
@@ -441,7 +454,7 @@ def save_state(
         complete_queue = mode == "queue" and snapshot.get(
             "complete", not snapshot["errors"]
         )
-        if complete_queue and scope is None:
+        if complete_queue and unscoped_queue_run:
             prs: dict[str, Any] = {}
         elif complete_queue:
             prs = {
@@ -456,11 +469,7 @@ def save_state(
             record["recorded_at"] = snapshot["generated_at"]
             prs[pr["key"]] = record
         for pr in snapshot_prs:
-            existing = json_object(ledger.get(pr["key"]))
-            observed = mutation_ledger_entry(pr)
-            merged_entry = merge_mutation_ledger_entry(existing, observed)
-            if merged_entry:
-                ledger[pr["key"]] = merged_entry
+            record_mutation_ledger_entry(ledger, pr["key"], pr)
         cadence_blocking_errors = snapshot.get(
             "cadence_blocking_errors", snapshot["errors"]
         )
@@ -475,7 +484,7 @@ def save_state(
                 ]
             )
         )
-        if complete_queue and scope is None:
+        if complete_queue and unscoped_queue_run:
             last_full_sweep_generated_at = str(snapshot["generated_at"])
             cycles_since_full_sweep = 0
         else:
@@ -487,7 +496,7 @@ def save_state(
             )
         # An unscoped queue run owns the whole error map; scoped and single
         # runs replace only the keys they observed and preserve the rest.
-        if mode == "queue" and scope is None:
+        if unscoped_queue_run:
             merged_errors: dict[str, Any] = {}
         elif mode == "queue":
             merged_errors = {

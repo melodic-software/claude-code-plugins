@@ -17,7 +17,15 @@ import babysit_delta as delta
 import babysit_state as state_store
 
 
-def pr_view(repo, number, merge_state="CLEAN"):
+def human_comment(comment_id):
+    return {
+        "id": comment_id,
+        "author": {"login": "person", "__typename": "User"},
+        "body": "a passing note",
+    }
+
+
+def pr_view(repo, number, merge_state="CLEAN", comments=()):
     return {
         "repo": repo,
         "number": number,
@@ -36,13 +44,21 @@ def pr_view(repo, number, merge_state="CLEAN"):
         "baseRepositoryArchived": False,
         "statusCheckRollup": [],
         "reviews": [],
-        "comments": [],
+        "comments": list(comments),
         "labels": [],
     }
 
 
-def classify(repo, number, merge_state="CLEAN", observed="2026-07-17T10:00:00+00:00"):
-    return delta.classify_pr(pr_view(repo, number, merge_state), None, [], observed)
+def classify(
+    repo,
+    number,
+    merge_state="CLEAN",
+    observed="2026-07-17T10:00:00+00:00",
+    comments=(),
+):
+    return delta.classify_pr(
+        pr_view(repo, number, merge_state, comments), None, [], observed
+    )
 
 
 def snapshot(mode, prs, generated_at):
@@ -108,6 +124,52 @@ class ScopedRunPreservesOutOfScope(unittest.TestCase):
         self.assertIn("owner/repob#9", keys, "out-of-scope repo was clobbered")
         self.assertNotIn("owner/repoa#2", keys, "stale in-scope record survived")
         self.assertIn("owner/repoa#1", keys)
+
+
+class MutationLedgerAccumulatesAcrossCycles(unittest.TestCase):
+    """The ledger is the engine's memory of what it has already seen.
+
+    `save_state` folds both the records already on disk and this cycle's
+    snapshot into it, and both folds must MERGE. An overwrite at either fold
+    forgets the earlier cycle's ids while every other assertion still passes,
+    which is what makes a cross-cycle round trip the only place it shows.
+    """
+
+    def test_a_second_cycle_keeps_the_first_cycles_seen_ids(self):
+        with tempfile.TemporaryDirectory() as td:
+            state_dir = state_store.resolve_state_dir(td)
+            path = state_store.state_path_for(state_dir)
+            state_store.save_state(
+                path,
+                snapshot(
+                    "queue",
+                    [classify("owner/repo", 1, comments=[human_comment(11)])],
+                    "2026-07-17T10:00:00+00:00",
+                ),
+                recommend_cadence=delta.recommend_cadence,
+            )
+            state_store.save_state(
+                path,
+                snapshot(
+                    "queue",
+                    [
+                        classify(
+                            "owner/repo",
+                            1,
+                            observed="2026-07-17T10:05:00+00:00",
+                            comments=[human_comment(22)],
+                        )
+                    ],
+                    "2026-07-17T10:05:00+00:00",
+                ),
+                recommend_cadence=delta.recommend_cadence,
+            )
+            entry = state_store.load_state(path)["mutation_ledger"]["owner/repo#1"]
+        self.assertEqual(
+            entry["seen_human_feedback_ids"],
+            ["comment:11", "comment:22"],
+            "the first cycle's human feedback id was dropped rather than merged",
+        )
 
 
 class CorruptStateRecovery(unittest.TestCase):
