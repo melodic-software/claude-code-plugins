@@ -170,8 +170,10 @@ while IFS= read -r line; do
   status_field="${status_field%"${status_field##*[![:space:]]}"}"
   status_field="$(printf '%s' "$status_field" | tr '[:upper:]' '[:lower:]')"
 
-  field_count="$(printf '%s' "$row" | awk -F'|' '{print NF}')"
-  if [[ "$field_count" -lt 4 ]]; then
+  # Field count without a subprocess per row: on a single record `awk -F'|'`
+  # reports NF as the number of `|` separators plus one.
+  separators="${row//[!|]/}"
+  if [[ "${#separators}" -lt 3 ]]; then
     die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line"
   fi
 
@@ -239,7 +241,7 @@ if [[ "$brief_named" -eq 1 ]]; then
 
   missing=""
   for id in $deferred_ids; do
-    if ! printf '%s' "$deferred_section" | grep -qE "(^|[^A-Za-z0-9])$id([^0-9]|$)"; then
+    if ! [[ "$deferred_section" =~ (^|[^A-Za-z0-9])$id([^0-9]|$) ]]; then
       missing="$missing$id "
     fi
   done

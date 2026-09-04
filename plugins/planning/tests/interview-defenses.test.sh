@@ -371,6 +371,32 @@ case_json() {
   jq -c --arg n "$1" '.evals[] | select(.name == $n)' "$EVALS"
 }
 
+# case_present <arm> <case name> <case json>
+# The case must still be addressable by the name this suite grades it under: a rename
+# resolves the lookup to nothing, and every assertion guarded on it goes vacuously quiet.
+case_present() {
+  local arm="$1" name="$2" json="$3"
+  if [[ -n "$json" ]]; then
+    ok "case $arm present in evals.json: $name"
+  else
+    fail "case $arm missing from evals.json: expected an eval case named $name"
+  fi
+}
+
+# declares_both_fixtures <arm> <case json>
+# The case must DECLARE its fixtures, not merely name them in prose — a `files: []` case
+# with prose paths is the dodge the eval-quality lint's Q4 check exists to surface.
+declares_both_fixtures() {
+  local arm="$1" json="$2" declared
+  [[ -n "$json" ]] || return 0
+  declared="$(printf '%s' "$json" | jq -r '(.files // []) | length')"
+  if [[ "$declared" -eq 2 ]]; then
+    ok "case $arm declares both fixtures in files[]"
+  else
+    fail "case $arm declares $declared fixture(s) in files[]; expected 2"
+  fi
+}
+
 # graded_mention <label> <case json> <literal substring>
 # The case must still GRADE the thing it was written to grade, and grade it as a CHECKABLE
 # item: the phrase must appear in the `expectations` ARRAY, not merely in the
@@ -395,17 +421,8 @@ CASE_B_NAME="auto-residue-asked-or-user-reserved-never-assumed"
 CASE_A="$(case_json "$CASE_A_NAME")"
 CASE_B="$(case_json "$CASE_B_NAME")"
 
-for pair in "A:$CASE_A_NAME:$CASE_A" "B:$CASE_B_NAME:$CASE_B"; do
-  arm="${pair%%:*}"
-  rest="${pair#*:}"
-  name="${rest%%:*}"
-  json="${rest#*:}"
-  if [[ -n "$json" ]]; then
-    ok "case $arm present in evals.json: $name"
-  else
-    fail "case $arm missing from evals.json: expected an eval case named $name"
-  fi
-done
+case_present A "$CASE_A_NAME" "$CASE_A"
+case_present B "$CASE_B_NAME" "$CASE_B"
 
 # Fixture reachability: a planted-decision case whose plant is gone grades nothing.
 for fx in \
@@ -420,24 +437,8 @@ for fx in \
   fi
 done
 
-# Each case must DECLARE its fixtures, not merely name them in prose — a `files: []` case
-# with prose paths is the dodge the eval-quality lint's Q4 check exists to surface.
-if [[ -n "$CASE_A" ]]; then
-  declared="$(printf '%s' "$CASE_A" | jq -r '(.files // []) | length')"
-  if [[ "$declared" -eq 2 ]]; then
-    ok "case A declares both fixtures in files[]"
-  else
-    fail "case A declares $declared fixture(s) in files[]; expected 2"
-  fi
-fi
-if [[ -n "$CASE_B" ]]; then
-  declared="$(printf '%s' "$CASE_B" | jq -r '(.files // []) | length')"
-  if [[ "$declared" -eq 2 ]]; then
-    ok "case B declares both fixtures in files[]"
-  else
-    fail "case B declares $declared fixture(s) in files[]; expected 2"
-  fi
-fi
+declares_both_fixtures A "$CASE_A"
+declares_both_fixtures B "$CASE_B"
 
 # --- whole-section and whole-case digests (the outermost layer) ------------
 #
