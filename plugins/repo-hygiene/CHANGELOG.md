@@ -3,6 +3,36 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.29]
+
+### Fixed
+
+- **`clean/scripts/scan.sh`: the documented output contract listed a category the
+  script cannot emit.** The header advertised
+  `Category: <Caches|Build artifacts|Git>`, but `emit_path_line` has exactly two
+  call sites, both passing string literals, and no variable, format string or
+  heredoc anywhere in the repository produces a third value. Walking every commit
+  that has ever touched the file shows `Category: Git` was never emittable in any
+  version. The git tier emits `Git worktrees:`, `Git stale refs dry-run:` and a
+  bare `Tier: git`, none of them preceded by a `Category:` line. The only consumer
+  asserts on the substring `Category:` and never on a value, so removing `|Git`
+  corrects the documented contract rather than narrowing it.
+
+### Changed
+
+- **`clean/scripts/lib/clean-common.sh`: a doc block sat above the wrong
+  function.** The comment describing `clean_manifest_target_valid` had drifted to
+  sit above the two one-line predicates that precede it; it now runs contiguously
+  into the signature it describes. Proven a pure move: identical byte size and
+  identical sorted-line checksum before and after, so no line was added, removed
+  or rewritten.
+
+  Both changes are comment-only in effect, established mechanically rather than by
+  reading: two independent quote- and heredoc-aware shell parsers (`shfmt -mn` and
+  `bash --pretty-print`) produce byte-identical output for both files before and
+  after, and the comparison was shown to be sensitive by 16 seeded mutations, 12
+  of which it detects and 4 of which it correctly reports as equivalent.
+
 ## [0.10.28]
 
 ### Changed

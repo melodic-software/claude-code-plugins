@@ -519,6 +519,15 @@ clean_path_has_pruned_segment() {
   return 1
 }
 
+# A plain directory / regular file that is NOT a symlink or reparse point. The
+# enumerator matches targets with `find -type d`/`-type f`, which never follow a
+# symlink or Windows junction; Bash `[[ -d ]]`/`[[ -f ]]` DO follow them, so a
+# manifest entry naming a link (or a path swapped for one after the dry-run)
+# would otherwise be accepted and its link removed — never a path the dry-run
+# could have emitted.
+clean_is_plain_dir() { [[ -d "$1" ]] && ! clean_path_is_reparse_point "$1"; }
+clean_is_plain_file() { [[ -f "$1" ]] && ! clean_path_is_reparse_point "$1"; }
+
 # Return 0 when the existing path ABS is a legitimate removal target for CLASS —
 # matching the SAME candidate rules enumeration uses to FIND targets, INCLUDING
 # the filesystem type it emits each under (dir names / explicit dirs are found
@@ -529,15 +538,6 @@ clean_path_has_pruned_segment() {
 # is one the dry-run could never have planned and must never be removed. Assumes
 # ABS exists (callers `-e`-check first so a resumed, already-gone entry stays an
 # idempotent no-op rather than a rejection).
-# A plain directory / regular file that is NOT a symlink or reparse point. The
-# enumerator matches targets with `find -type d`/`-type f`, which never follow a
-# symlink or Windows junction; Bash `[[ -d ]]`/`[[ -f ]]` DO follow them, so a
-# manifest entry naming a link (or a path swapped for one after the dry-run)
-# would otherwise be accepted and its link removed — never a path the dry-run
-# could have emitted.
-clean_is_plain_dir() { [[ -d "$1" ]] && ! clean_path_is_reparse_point "$1"; }
-clean_is_plain_file() { [[ -f "$1" ]] && ! clean_path_is_reparse_point "$1"; }
-
 #   clean_manifest_target_valid CLASS REL ABS
 clean_manifest_target_valid() {
   local class="$1" rel="${2//\\//}" abs="$3" base="${2##*/}" e pat
