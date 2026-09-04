@@ -173,7 +173,7 @@ fi
 # Same resolution as resolve-memory-dir.sh: CLAUDE_CONFIG_DIR relocates the whole
 # `~/.claude` tree when set, so the instruction surfaces move with it.
 
-if [[ -n "$config_root" && -d "$config_root" ]]; then
+if [[ -d "$config_root" ]]; then
   # Suppressed when it is the same physical file as the project one, already emitted
   # above as `both`.
   if [[ -f "$config_root/CLAUDE.md" && "$md_overlap" -eq 0 ]]; then

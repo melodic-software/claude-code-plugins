@@ -3,6 +3,24 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.23]
+
+### Changed
+
+- **generate:** deck-emitter tidyings from the repo-wide sweep. `build-pptx.js`
+  drops two `decorate()` options no call site ever set (both defaulted to true,
+  so the footer is now unconditional and the logo test reduces to the data check
+  it already depended on), corrects a header that named a fixed output file where
+  the emitter writes `ai-meeting-{N}.pptx`, and unwraps a template literal around
+  an already-string expression. `build-sections.js` drops an unreachable
+  disjunct from a tier guard, leaving the empty-tier early return intact.
+  `emit-slides-data.js` names its inline seen-items map build
+  `firstSeenDatesByUrl()`. `validate.js` takes a concise arrow body and corrects
+  a comment that misnamed the consumer of its `total` field. Emitted output is
+  byte-identical: HTML, `slides-data.js`, all 257 PPTX zip entries across both
+  logo variants, the PDF text layer and `audit.json` all match before and after,
+  with the node:test suite at 41 passed.
+
 ## [0.7.22]
 
 ### Changed

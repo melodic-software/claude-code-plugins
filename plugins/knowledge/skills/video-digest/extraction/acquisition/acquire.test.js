@@ -25,6 +25,15 @@ describe("resolveMediaArtifacts", () => {
 
 const NO_THROTTLE = { withThrottle: (/** @type {() => Promise<unknown>} */ fn) => fn() };
 
+const spawnOk = async () => ({
+  success: true,
+  code: 0,
+  signal: null,
+  stdout: "",
+  stderr: "",
+  timedOut: false,
+});
+
 describe("acquireYouTubeMedia", () => {
   it("uses injected spawn and file readers without real yt-dlp", async () => {
     const workDir = "/tmp/fake-work";
@@ -41,14 +50,7 @@ describe("acquireYouTubeMedia", () => {
       { workDir, mode: "transcript", videoId: DRIVER_VIDEO_ID },
       {
         ...NO_THROTTLE,
-        spawn: async () => ({
-          success: true,
-          code: 0,
-          signal: null,
-          stdout: "",
-          stderr: "",
-          timedOut: false,
-        }),
+        spawn: spawnOk,
         listFiles: async () => [
           `${workDir}/7zZy1QTvokM.en.en-orig.vtt`,
           `${workDir}/7zZy1QTvokM.info.json`,
@@ -74,14 +76,7 @@ describe("acquireYouTubeMedia", () => {
       { workDir: "/tmp/fake-work", mode: "transcript", videoId: DRIVER_VIDEO_ID },
       {
         ...NO_THROTTLE,
-        spawn: async () => ({
-          success: true,
-          code: 0,
-          signal: null,
-          stdout: "",
-          stderr: "",
-          timedOut: false,
-        }),
+        spawn: spawnOk,
         listFiles: async () => ["/tmp/fake-work/7zZy1QTvokM.info.json"],
         readFile: async () => JSON.stringify({ id: "7zZy1QTvokM", title: "Driver Video" }),
       },
@@ -112,14 +107,7 @@ describe("acquireYouTubeMedia", () => {
       },
       {
         ...NO_THROTTLE,
-        spawn: async () => ({
-          success: true,
-          code: 0,
-          signal: null,
-          stdout: "",
-          stderr: "",
-          timedOut: false,
-        }),
+        spawn: spawnOk,
         listFiles: async () => [
           `${workDir}/${videoId}.en.vtt`,
           `${workDir}/${videoId}.info.json`,

@@ -54,6 +54,24 @@ async function readState() {
   }
 }
 
+/** URL → first-seen UTC timestamp, read from an already-loaded seen-items state.
+ *  This is the final fallback the briefing parser reaches for when an item
+ *  carries no date of its own. */
+function firstSeenDatesByUrl(state) {
+  const dates = new Map();
+  for (const it of state?.items || []) {
+    if (!it.url || !it.first_seen) continue;
+    const m = it.first_seen.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      dates.set(
+        it.url,
+        Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10)),
+      );
+    }
+  }
+  return dates;
+}
+
 function asJsLiteral(v) {
   return JSON.stringify(v, null, 2);
 }
@@ -101,22 +119,7 @@ async function main() {
   // exist yet on a fresh install.
   await fs.mkdir(buildOutDir(), { recursive: true });
 
-  // Build seen-items.json URL → first_seen map (final date-inference fallback).
-  // Reuse the `state` read above — seen-items.json is unchanged between reads.
-  const seenUrlDateMap = new Map();
-  if (state?.items) {
-    for (const it of state.items) {
-      if (it.url && it.first_seen) {
-        const m = it.first_seen.match(/^(\d{4})-(\d{2})-(\d{2})/);
-        if (m) {
-          seenUrlDateMap.set(
-            it.url,
-            Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10)),
-          );
-        }
-      }
-    }
-  }
+  const seenUrlDateMap = firstSeenDatesByUrl(state);
   const briefing = await parseBriefing(briefingPath, { seenUrlDateMap });
   console.log(`Seen-items dates:  ${seenUrlDateMap.size} URL→date entries (final fallback)`);
 

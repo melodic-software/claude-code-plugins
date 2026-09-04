@@ -27,7 +27,7 @@ vi.mock("../adapters/registry.js", async (importOriginal) => {
   return { ...actual, acquireMedia: vi.fn() };
 });
 
-const URL = "https://www.youtube.com/watch?v=7zZy1QTvokM";
+const VIDEO_URL = "https://www.youtube.com/watch?v=7zZy1QTvokM";
 const METADATA = {
   id: "7zZy1QTvokM",
   title: "Fixture Video",
@@ -98,7 +98,7 @@ describe("runTranscriptCli envelope consumption", () => {
       }),
     });
 
-    const code = await runTranscriptCli(["node", "run-transcript.js", URL]);
+    const code = await runTranscriptCli(["node", "run-transcript.js", VIDEO_URL]);
     expect(code).toBe(0);
 
     const output = JSON.parse(captured.stdout.join(""));
@@ -146,7 +146,7 @@ describe("runTranscriptCli envelope consumption", () => {
     const code = await runTranscriptCli([
       "node",
       "run-transcript.js",
-      URL,
+      VIDEO_URL,
       "--transcript-strategy",
       "telepathy",
     ]);
@@ -160,7 +160,7 @@ describe("runTranscriptCli envelope consumption", () => {
       data: createAcquisitionEnvelope({ entries: [], metadata: METADATA, workDir: fixtureDir }),
     });
 
-    const code = await runTranscriptCli(["node", "run-transcript.js", URL]);
+    const code = await runTranscriptCli(["node", "run-transcript.js", VIDEO_URL]);
     expect(code).toBe(0);
 
     const output = JSON.parse(captured.stdout.join(""));
@@ -194,7 +194,7 @@ describe("runTranscriptCli envelope consumption", () => {
       }),
     });
 
-    const code = await runTranscriptCli(["node", "run-transcript.js", URL]);
+    const code = await runTranscriptCli(["node", "run-transcript.js", VIDEO_URL]);
     expect(code).toBe(0);
 
     const output = JSON.parse(captured.stdout.join(""));

@@ -263,8 +263,6 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
                                     )
                             case "text":
                                 metrics["human_messages"] += 1
-                            case _:
-                                continue
 
                 case "system":
                     match event.get("subtype", ""):
@@ -289,8 +287,6 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
                                     "hook_errors": event.get("hookErrors", []),
                                 }
                             )
-                        case _:
-                            pass
 
                 case "queue-operation":
                     if event.get("operation") == "enqueue":
@@ -302,9 +298,6 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
                     )
                     for fpath_key in backups:
                         metrics["files_modified"].add(str(fpath_key))
-
-                case _:
-                    pass
 
     metrics["files_modified"] = {
         _normalize_path(p, metrics["cwd"]) for p in metrics["files_modified"]
@@ -845,7 +838,7 @@ def main() -> None:
     result = parse_one_session(session_id, ns.base)
 
     if not result.get("transcript_present"):
-        # Existing single-session warning vs error semantics preserved.
+        # Warning vs error here is contract: see the module docstring's exit codes.
         if result.get("subagents"):
             _emit_and_exit(
                 "warning",

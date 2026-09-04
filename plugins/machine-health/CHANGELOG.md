@@ -3,6 +3,30 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.11]
+
+### Fixed
+
+- **The test runner now pins Pester to v5 instead of taking the newest
+  installed.** `Invoke-MachineHealthTests.ps1` selected its module with
+  `Sort-Object Version -Descending | Select-Object -First 1` and imported it
+  with only a `-MinimumVersion`, so a machine carrying both 5.7.1 and 6.1.0
+  imported 6.1.0 for suites written against v5. Selection is now a version-range
+  filter with a matching `-MaximumVersion` on the import. Reproduced on a
+  two-version host before and after: the old runner imported 6.1.0, the new one
+  imports 5.7.1, and a v6-only host now fails loudly instead of running the
+  suites under the wrong major.
+
+### Changed
+
+- **Audit test-harness tidyings from the repo-wide sweep.**
+  `Clear-TempFiles.Tests.ps1` rewrites a history-narration comment as
+  present-tense rationale and states the reason the original omitted (deleting
+  through a reparse point would reach files outside the temp tree);
+  `Mock-Helpers.psm1` normalizes its one comment em dash to the `--` form used
+  elsewhere in this plugin. Both proven comment-only by AST token comparison.
+  Pester 5.7.1: 34 passed, 0 failed across the Linux-runnable suites.
+
 ## [0.12.10]
 
 ### Fixed

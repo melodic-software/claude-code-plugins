@@ -3,6 +3,27 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.14]
+
+### Changed
+
+- **Board payloads are now typed at the API boundary.** `createBoard` and
+  `updateBoard` built their request bodies in mutable `Record<string, unknown>`
+  bags, which disabled type checking exactly where the SDK contract matters. Both
+  are now conditional-spread literals passed straight to the client, so `tsc`
+  validates them against `BoardChanges`; a wrong policy field that previously
+  compiled clean is now a compile error. Every predicate is preserved verbatim,
+  including the `!== undefined` tests that let an explicit empty string clear a
+  field. Verified byte-identical over 980 input combinations comparing emitted
+  payload, key order and response shape.
+- **`detectOverlaps` hoists a loop invariant.** The `items[i]` read and its guard
+  ran on every inner iteration for a value that changes only once per outer pass.
+  Checked against sparse arrays and explicit `undefined` elements over 20 named
+  cases plus a 20,000-array sweep, comparing ordered pair lists.
+- `soleElement` delegates to `elementAt`, keeping its length assertion and its
+  failure message unchanged; one single-use test variable inlined. The committed
+  bundle is regenerated from source with `npm run bundle`.
+
 ## [0.3.13]
 
 ### Changed

@@ -65,7 +65,10 @@ mem_dir_for() {
   mkdir -p "$dir"
   printf '%s' "$dir"
 }
-run() { (cd "$REPO" && HOME="$1" bash "$SCRIPT" "${2:-}"); }
+# CLAUDE_CONFIG_DIR is dropped per run: the resolver honors it over $HOME, so an ambient
+# value from the caller's environment would let the host machine's real memory store
+# answer for the fixture. Case 7 drops GIT_DIR as well and calls `env` directly.
+run() { (cd "$REPO" && env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT" "${2:-}"); }
 
 # --- Case 1: --help ---
 rc=0
@@ -131,7 +134,7 @@ M7="$H7/.claude/projects/$NSLUG/memory"
 mkdir -p "$M7"
 printf '# Index\n- [gone.md](gone.md)\n' >"$M7/MEMORY.md"
 rc=0
-OUT=$(cd "$NONREPO" && env -u GIT_DIR HOME="$H7" bash "$SCRIPT") || rc=$?
+OUT=$(cd "$NONREPO" && env -u GIT_DIR -u CLAUDE_CONFIG_DIR HOME="$H7" bash "$SCRIPT") || rc=$?
 assert_exit "non-repo exits 0" 0 "$rc"
 assert_contains "non-repo cwd store is checked" "$OUT" "M2-missing"
 
