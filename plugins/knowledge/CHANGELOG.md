@@ -4,6 +4,45 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.13.41]
+
+### Added
+
+- **`expand-visual-gaps.js` now has a test suite.** The script mapped to zero
+  suites, which `scripts/affected-tests.sh` reports as an error rather than an
+  empty selection, and the no-suite allowlist is for prose and manifests
+  explicitly not for code. The suite covers gap detection, both window
+  boundaries, window order, the minute-rounded region label and the
+  empty-window case. Mutation-tested against four seeded defects: inverting the
+  gap filter kills four of the five cases, rounding to a floor kills one, and
+  making either boundary exclusive kills three and one respectively.
+
+### Changed
+
+- **Video-digest watch frames and vision tidyings from the repo-wide sweep.**
+  `export-sheet-frame-index.js` drops its local 16-element cell array for the
+  `CELL_IDS` registry already imported elsewhere in the tree and names the bare
+  `inputFiles[8]` literal; the two lists were compared index by index and the
+  produced `sheet-frame-index.json` is byte-identical across cell counts of 2,
+  9, 16 and 20. `expand-visual-gaps.js` rewrites an accumulate-into-array loop
+  as `filter`/`map`, verified over 38 curated cases and 20,000 fuzz iterations
+  with zero mismatches. `repair-synthesis-promotions.js` extracts a
+  `promotedDecisions` helper, sheds two unused parameters from
+  `applyFileRenames` and hoists the decisions write to the caller, where it
+  remains the first statement of the `!dryRun` branch and so still precedes
+  every rename; an instrumented op-trace over six `sliceDir` spellings and
+  crash injection at eight boundaries leave the resulting trees identical.
+  `rebuild-visual-frames.js` drops a row field nothing reads and
+  `list-promotion-candidates.js` names the per-session candidate floor.
+
+### Fixed
+
+- **Eighteen doubled newlines across nine watch scripts.** `writeStdout` and
+  `writeStderr` append a newline unconditionally, so every explicit `\n` passed
+  to them emitted a stray blank line. Measured per CLI, each delta is exactly
+  one byte per emission executed; exit codes are unchanged and the text is
+  identical once blank lines collapse. No consumer parses these streams.
+
 ## [0.13.40]
 
 ### Fixed
