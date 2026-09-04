@@ -3,6 +3,41 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.31]
+
+### Changed
+
+- **audit:** removed the Phase 1.0 before-and-after narration, the observed-false-negative anecdote,
+  and the stale listing-budget measurement; the routing to `skill-quality:check` and the
+  scope-the-run rule now stand on their own.
+- **audit-automation-gaps:** the research step no longer tells the model both to fan out and to
+  prefer the main context; it delegates the fetches and keeps the gate verdicts. The quality
+  principles are stated as principles rather than as lessons from past sessions.
+- **audit-instructions:** the Authority axis is a closed four-value set that admits `HOUSE`;
+  `Model scope` takes a list, and the four `fable-5` rows widen to `fable-5, fable-5-1` with a dated
+  basis and a recheck trigger; issue numbers, ADR pointers, and scope-change narration are gone; the
+  caps-emphasis blocks read at normal volume; the description's trigger list becomes intent
+  categories.
+- **audit-pass:** removed the prior-version defect narration across the skill body and eight
+  reference files; the lease contract drops the retired five-minute window and refresh-interval
+  figures in favor of `stale_after_s` and `skew_grace_s`; the `/doctor` handoff states
+  `skillOverrides` as documented for project and user skills and unverified for bundled ones.
+- **audit-permission-grants:** the scope-filter rationale, the `//` absolute-anchor rule, and the
+  scan-root alias state their current reason without the issue numbers, machine timings, and errata.
+- **audit-permission-state:** the gotchas read as failure modes rather than as a log of earlier
+  revisions; the description's near-synonym triggers become intent categories and route the
+  ignored-allow-rule case to `audit-permission-grants`.
+- **audit-prompting-postures:** dropped the inventory-defect anecdote and the restatement of what the
+  state-key test suite asserts.
+- **draft-auto-mode-rules:** the classifier critique is quoted without the block it was run against,
+  and the absent history input is stated as a fact rather than as a design-decision record.
+- **setup:** the prerequisite list names every script that calls jq, awk, and sort, so a missing tool
+  reports what it actually blocks; the skill roster is complete.
+- **unhobble:** the PLUGIN-PHILOSOPHY hook-classification rubric is cited by URL, so an installed
+  copy can reach it.
+- Applied from the 2026-09 prompt-audit against Claude Fable 5.1
+  (docs/specs/prompt-audit-skills-2026-09.md).
+
 ## [0.40.30]
 
 ### Changed
