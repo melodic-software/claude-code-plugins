@@ -25,6 +25,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`nesting-invariant-ssot.test.sh` folds two expiry arms.** The two patterns
   had identical capture bodies and are now two alternatives of one condition. No
   assertion was touched, and the suite still passes 18 of 18.
+- **`test-helpers.sh` routes six `assert_*` helpers through `pass()`.** The PASS
+  line was spelled out in seven places and now lives in one. The subtle part is
+  the case counter: the increment moves out of each helper's top and into
+  `pass()`, with the failure branches incrementing explicitly, so the numbering
+  in `PASS: [N]` and `FAIL: [N]` had to come out identical. Confirmed by running
+  a consuming suite at both revisions and byte-comparing: stdout and stderr both
+  identical, rc 0 each.
+- **`landed-work.sh`'s `patch_ids()` cleans its temp file once.** Three exit
+  paths each removed it; a single `rm` before one return now covers every path,
+  with the status carried in `rc`. The empty-stream case stays a legitimate empty
+  range rather than an error.
+- **`worktree-claim.test.sh` folds five copies of the porcelain-stanza awk
+  lookup** into one `stanza_for()` helper.
 
 ### Known issues
 
