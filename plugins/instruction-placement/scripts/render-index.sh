@@ -216,8 +216,9 @@ PREAMBLE
     # complete is the failure mode here.
     # One ordering, reused by all three uses below. The listed head and the
     # grouped tail are two halves of the SAME sort, so they read it from one
-    # place; sorting once also drops two spawns from a path the index-drift
-    # hook reaches on every rules-file write.
+    # place. Spawn effect, measured rather than assumed: this removes one `sort`
+    # from the grouped-tail path (which sorted the same rows twice) and costs a
+    # subshell on the <=MAX_ROWS path, where one sort already sufficed.
     local sorted
     sorted="$(printf '%s\n' "${rows[@]}" | LC_ALL=C sort)"
     if ((${#rows[@]} <= MAX_ROWS)); then
