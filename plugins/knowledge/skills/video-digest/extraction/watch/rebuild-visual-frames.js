@@ -67,7 +67,7 @@ export function rebuildVisualFrames(sliceDir) {
     const ts = source && byFile[source] ? byFile[source].timestampSec : 0;
     const min = Math.floor(ts / 60);
     const label = source ?? file.replace(/\.png$/, "");
-    return { min, file, label, source };
+    return { min, file, label };
   });
   rows.sort((a, b) => a.min - b.min);
 
@@ -100,5 +100,5 @@ if (isMainModule(import.meta.url)) {
     writeStderr("Usage: node watch/rebuild-visual-frames.js <slice-dir>");
     process.exit(2);
   }
-  writeStdout(`${rebuildVisualFrames(sliceDir)}\n`);
+  writeStdout(rebuildVisualFrames(sliceDir));
 }
