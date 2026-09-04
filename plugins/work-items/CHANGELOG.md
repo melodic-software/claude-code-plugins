@@ -3,6 +3,60 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.57]
+
+### Changed
+
+- **`github` adapter: seven `printf '%s\n' "$X" | jq …` pipelines became
+  `jq … <<<"$X"`**, the idiom the file and every seam lib already use, plus one
+  merged `local` declaration and one dropped stub variable that was unreachable
+  on the path it sat on. Byte-safety was established at the level of the bytes
+  reaching jq's stdin, across 17 payload shapes: a herestring appends exactly one
+  newline unconditionally, so it matches `printf '%s\n'` even for a value that
+  already ends in a newline, is empty, or is a lone newline. NUL is unreachable
+  because all seven sites take a value from a command substitution, which strips
+  it. No site reads `PIPESTATUS` or depends on an assignment surviving the
+  pipeline; the pipeline form in fact carried a latent `pipefail`-plus-SIGPIPE
+  hazard the herestring removes. Driving the real verbs against a stub over 8
+  payload shapes gives byte-identical stdout and identical exit codes in 32 of 32
+  cases, with 11 distinct output checksums proving the matrix discriminates.
+- **The `case`-body re-indentation is the repo's own formatter output**, not a
+  style choice: `bash-format.sh` runs `shfmt` with no layout flags, driven by
+  `.editorconfig`. Running that formatter over the pre-change files and diffing
+  against the result isolates the manual delta to 22 insertions and 18 deletions
+  across six files, out of a headline 95 and 91; four of the ten files are
+  whitespace-only.
+- `lease-coordination.test.sh`'s header claimed to cover two findings and listed
+  two, while a third has been in the file all along. The header now names it. No
+  assertion changed.
+
+### Known issues
+
+- **The lease protocol's three writing verbs have no assertion on what they
+  write.** The gh stub logs `PATCH <comment-id>` and a bare `POST_COMMENT` token
+  and never records the request body, so `renew-lease` can PATCH back a body whose
+  `renewed_at` was never bumped, which is the verb's entire purpose, and `reclaim`
+  can leave a reclaimed lease without `superseded_at`, active forever. Both
+  mutations pass every suite, at this change and equally before it.
+- **Two suites lose assertions silently when `jq` is absent.** `common.test.sh`
+  drops from 28 to 16 and `create-item.test.sh` from 10 to 4, both still exiting
+  0. A sibling suite in the same directory fails loudly under the same condition,
+  so the shape is not universal. Neither emits the repo's `SKIP:` convention, so
+  `--strict-skips` cannot see them, and `check-silent-skips.sh` cannot either: it
+  scans hooks rather than suites, and only the negated `if ! command -v` form.
+- **A redundancy in `wit_map_gh_error` is symmetric.** Deleting the `HTTP 404`
+  arm is uncaught, and so is deleting the `Not Found` arm, because the single
+  fixture string contains both. Killing the whole arm *is* caught, so the
+  assertion is live and the cause is neighbouring-arm masking rather than absent
+  coverage.
+- **`conformance/bindings/github.test.sh` is selected by none of these files.** A
+  change to a sibling adapter's `common.sh` pulls in four conformance bindings;
+  a github adapter edit pulls in none, and that suite's own header records that it
+  deliberately does not run the abstract suite. The github adapter has no
+  conformance lane reachable from a github adapter edit.
+- `--state` over-rejection is uncaught in two verbs, and a reclaim revalidation
+  check is redundantly covered. Both scored identically before this change.
+
 ## [0.39.56]
 
 ### Fixed

@@ -26,17 +26,17 @@ shift
 state="all"
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --state)
-      [[ $# -ge 2 ]] || wit_usage_error "--state needs a value"
-      state="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --state)
+    [[ $# -ge 2 ]] || wit_usage_error "--state needs a value"
+    state="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 case "$state" in
-  open | closed | all) ;;
-  *) wit_usage_error "--state must be open|closed|all (got: $state)" ;;
+open | closed | all) ;;
+*) wit_usage_error "--state must be open|closed|all (got: $state)" ;;
 esac
 wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id (expected github:<owner>/<repo>#<number>)"
 target_repo="$WIT_ID_OWNER/$WIT_ID_REPO"
@@ -44,9 +44,9 @@ target_repo="$WIT_ID_OWNER/$WIT_ID_REPO"
 # Native child numbers, scoped to the parent's own repo (a cross-repo sub-issue's
 # number would collide with an unrelated same-numbered issue in this repo).
 wit_run_gh read issue view "$WIT_ID_NUMBER" -R "$target_repo" --json subIssues
-child_nums="$(printf '%s\n' "$WIT_GH_OUT" |
-  jq -c --arg repo "$target_repo" \
-    '[(.subIssues.nodes // [])[] | select(.repository.nameWithOwner == $repo) | .number]')"
+child_nums="$(jq -c --arg repo "$target_repo" \
+  '[(.subIssues.nodes // [])[] | select(.repository.nameWithOwner == $repo) | .number]' \
+  <<<"$WIT_GH_OUT")"
 
 if [[ "$child_nums" == "[]" ]]; then
   jq -cn --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: []}'
@@ -57,11 +57,11 @@ fi
 # the known parent (list rows carry parent_id: null — GitHub omits it in bulk).
 # $() swallows the sibling's exit-on-error; propagate its code.
 items_env="$(bash "$WIT_GH_ADAPTER_DIR/list-items.sh" --state "$state" --repo "$target_repo")" || exit "$?"
-printf '%s\n' "$items_env" | jq -c --argjson nums "$child_nums" --arg pid "$id" '{
+jq -c --argjson nums "$child_nums" --arg pid "$id" '{
   schema_version: .schema_version,
   items: [
     .items[]
     | select((.id | split("#")[-1] | tonumber) as $n | $nums | index($n))
     | .parent_id = $pid
   ]
-}'
+}' <<<"$items_env"

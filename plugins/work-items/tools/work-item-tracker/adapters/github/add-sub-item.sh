@@ -13,12 +13,12 @@ shift
 parent=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --parent)
-      [[ $# -ge 2 ]] || wit_usage_error "--parent needs a value"
-      parent="$2"
-      shift 2
-      ;;
-    *) wit_usage_error "unknown argument: $1" ;;
+  --parent)
+    [[ $# -ge 2 ]] || wit_usage_error "--parent needs a value"
+    parent="$2"
+    shift 2
+    ;;
+  *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 [[ -n "$parent" ]] || wit_usage_error "--parent is required"

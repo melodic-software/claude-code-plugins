@@ -47,7 +47,10 @@ fi
 RESOLVED_EMPTY_PROJECT="$(CLAUDE_PROJECT_DIR="$EMPTY_ROOT" wit_gh_resolve_bot_wrapper)"
 assert_eq "falls back to bundled path when consumer has none" "$BUNDLED" "$RESOLVED_EMPTY_PROJECT"
 
-RESOLVED_UNSET="$(unset CLAUDE_PROJECT_DIR; wit_gh_resolve_bot_wrapper)"
+RESOLVED_UNSET="$(
+  unset CLAUDE_PROJECT_DIR
+  wit_gh_resolve_bot_wrapper
+)"
 assert_eq "falls back to bundled path when CLAUDE_PROJECT_DIR unset" "$BUNDLED" "$RESOLVED_UNSET"
 
 rm -rf "$CONSUMER_ROOT" "$EMPTY_ROOT"
@@ -94,7 +97,7 @@ EOF
   assert_not_contains "gh 2.45 view fields omit parent" "$FIELDS_OLD" "parent"
   assert_not_contains "gh 2.45 view fields omit issueType" "$FIELDS_OLD" "issueType"
 
-  FIELDS_NEW="$(GH_STUB_DIR="$EMIT_STUB" GH_STUB_VERSION=2.94.0 PATH="$EMIT_STUB:$PATH" wit_gh_issue_view_json_fields)"
+  FIELDS_NEW="$(GH_STUB_VERSION=2.94.0 PATH="$EMIT_STUB:$PATH" wit_gh_issue_view_json_fields)"
   assert_contains "gh 2.94 view fields include blockedBy" "$FIELDS_NEW" "blockedBy"
   assert_contains "gh 2.94 view fields include parent" "$FIELDS_NEW" "parent"
   assert_contains "gh 2.94 view fields include issueType" "$FIELDS_NEW" "issueType"
