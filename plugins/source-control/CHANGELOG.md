@@ -3,6 +3,63 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.47]
+
+### Fixed
+
+- **`pull-request/scripts/fetch-annotations.sh --help` silently dropped three of
+  its four exit codes.** `usage()` sliced the header with a hardcoded
+  `sed -n '2,20p'`, and the header block runs to line 23, so the banner stopped
+  three lines short: it printed `Exit codes:` and `0 success` and then ended,
+  never showing `1 invalid argument`, `2 gh api call failed` or `5 prerequisite
+  missing`. Measured, not inferred: the old form printed 19 lines and exactly one
+  exit code, the new `sed -n '2,/^$/p'` prints 23 and all four. That
+  blank-line-terminated form is already used by three other scripts in this
+  repository and removes the line-number coupling that caused the drift.
+- **A comment said "the five consumers" above a list of six.** The numeral is
+  dropped rather than corrected, since the list enumerates them.
+
+### Added
+
+- **A `--help` guard for both scripts, in both directions.** `fetch-annotations`
+  gains one, and `fetch-failed-logs` gains one it never had: three mutations of
+  its `usage()` (an under-slice dropping exit codes, an over-slice leaking
+  `set -uo pipefail` and the variable block, and a `usage()` emitting zero bytes)
+  all previously left that suite green at 14 of 14. Each guard pins the last
+  documented exit code and asserts the banner stops before the first executable
+  line, so a short slice and a long one both fail.
+- **A value assertion for `check_run_name`.** The schema check used `has()`,
+  which is presence-only, so dropping `.name` from the jq projection scored zero
+  across all ten assertions while every emitted record silently carried the
+  string `"null"`. The field is emitted and read by nothing else, so this is the
+  only place its value can be pinned.
+
+### Changed
+
+- The jq projection uses the `{id, name, conclusion, status}` shorthand, verified
+  byte-identical including key order over ten object shapes (absent keys, nulls,
+  nested objects, duplicate keys, bignums, escapes) and four non-objects.
+- Two stale stub dispatch tables in the suites are completed. Each claimed to be
+  the dispatch table while omitting routes its own cases depend on.
+- History narration and three plan/audit-artifact labels removed from the suites.
+
+### Known issues
+
+- **The same `--help` truncation bug survives in two more scripts**, the
+  byte-identical `lib/resolve-convention-pattern.sh` and
+  `guardrails/hooks/resolve-convention-pattern.sh`, whose `sed -n '2,40p'` cuts a
+  43-line header and drops all three of their exit codes. **The fix here is not
+  transplantable**: those headers have no blank line before the code, so
+  `2,/^$/p` would leak executable lines into the banner. They need a different
+  terminator, and they are a registered sync-cluster pair.
+- **`fetch-failed-logs.sh`'s help output was byte-identical before and after**
+  only because the hardcoded `41` happened to land exactly on the blank line.
+  That was luck the header could have broken at any edit; it is now pinned.
+- **The completed `fetch-failed-logs` dispatch table still lists generic routes
+  before specific ones** while the code matches specific-first, so read top-down
+  as a dispatch order it gives the wrong answer for two fixtures. Pre-existing
+  inversion the completion preserved.
+
 ## [0.55.46]
 
 ### Added

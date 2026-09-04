@@ -38,7 +38,7 @@ run_test "feat/just-a-feature no number" "feat/just-a-feature" "" 1
 run_test "worktree-foo-bar wrong prefix" "worktree-foo-bar" "" 1
 run_test "cursor/abc-xyz cloud-agent no number" "cursor/abc-xyz" "" 1
 
-# Configurable grammar (W2): a consumer whose branches place the (numeric
+# Configurable grammar: a consumer whose branches place the (numeric
 # GitHub) issue number differently passes an ERE whose LAST capture group is
 # that number. The downstream `Closes #N` needs a numeric GitHub issue id, so
 # the capture must resolve to digits.
