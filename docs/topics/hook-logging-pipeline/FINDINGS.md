@@ -57,10 +57,16 @@ About **542 ms of the hook's 622 ms is recoverable**, which is 87 percent of its
 batched `jq` in place of the loop. This is the largest concrete performance win identified in the
 audit and it revises the assumption that `markdown-format` is the dominant per-Write cost.
 
-**Measurement trap worth recording.** A first pass measured this hook at 33.9 ms because the
-synthetic payload carried `tool_input.content` of `"x"`. The hook scans the payload content, not the
-file on disk, so the index never built. Any harness measuring this hook must put the real file text
-in the payload or it will measure a no-op and report it as the hook's cost.
+**Measurement rule, not a war story.** A first pass measured this hook at 33.9 ms because the
+synthetic payload carried `tool_input.content` of `"x"`. A `PostToolUse` hook reads the payload
+content, not the file on disk, so the index never built and the harness measured a no-op and would
+have reported it as the hook's cost, an 18x error. This is a general harness-design defect rather
+than a fact about this hook: **any measurement of a content-scanning hook must put the real file
+text in the payload.** Paired with the spawn-equivalents caveat above, it is one of two method
+defects this audit found by measuring rather than reading, and both belong in the method section of
+any successor harness. Both are encoded as rules at the top of
+[`harness/measure-posttooluse.sh`](harness/measure-posttooluse.sh), which reproduces every figure in
+this document.
 
 ## Finding 2: a disabled hook is not free
 
@@ -171,11 +177,21 @@ there are `permissionDecision: "ask"` and `"defer"`.
 
 ## Guard evidence relevant to ADR-0003
 
-`plugins/guardrails/hooks/block-hook-bypass.sh` (1,339 lines) produced two independent false
-positives in one afternoon, in two separate sessions, with zero true positives: one blocking a write
-to the harness-designated scratchpad directory, one blocking a write to an untracked `.work/` ledger
-path. `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` defaults to empty, so neither path is
+`plugins/guardrails/hooks/block-hook-bypass.sh` (1,339 lines) fired four times across three
+independent sessions in one afternoon with zero true positives, none of which were hunting for it.
+Directly observed here: one block on a write to the harness-designated scratchpad directory.
+Reported by the sessions that experienced them, and recorded with that attribution rather than as
+first-hand: one block on an untracked `.work/` interview-ledger write, and two benign scratch writes,
+one of which was triggered by text that merely **quoted the guard's own scope note**.
+`CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` defaults to empty, so none of those paths is
 exempt by default.
+
+ADR-0003 clause 3 names this pattern as disqualifying: precision is 0% whether the firing count is
+389 or 1. Clause 4 is the operative one, though, and it re-files rather than deletes: the oracle here
+is sound and only the scope is wrong, which is the same disposition the withdrawn path guard received
+in #1314. The verdict the PreToolUse lane settled on is **withdraw from the current default-on scope
+and re-file for rescoping**, with the immediately shippable piece being a non-empty scratch-roots
+default plus a repro-first stay-quiet test per `docs/conventions/hook-precision`.
 
 The guard's own header disclaims its adversarial value ("An LLM never emits this form; the deny-list
 plus human oversight are the adversarial layers") and documents a detection hole. Every PostToolUse
