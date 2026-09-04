@@ -5,6 +5,20 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.39]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only.
+  `hook::repo_root` strips CR with parameter expansion, the same substitution
+  `buffer_stdin` already uses for the payload. New `hook::json_str_object_to`
+  builds compact string-field objects without jq, for telemetry data builders
+  that only carry strings. Same verdicts; the copy is bumped because
+  `scripts/sync-hook-utils.sh` keeps every carrying plugin byte-identical.
+
 ## [0.7.38]
 
 ### Changed

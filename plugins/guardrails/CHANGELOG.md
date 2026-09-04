@@ -3,6 +3,29 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.7]
+
+### Changed
+
+- **Vendored `hook-utils.sh` drops two `buffer_stdin` startup subshells and a
+  `tr` exec on every `repo_root`.** Timeout and slice resolution write into
+  caller variables (`printf -v`) instead of `$( )` / process substitution —
+  GNU Bash forks a subshell for both even when the body is builtins only
+  (GNU Bash manual, Command Execution Environment). Measured on this host:
+  those two wrappers ran in pids distinct from the hook process; after the
+  change they share it. `hook::repo_root` spawned `git` + `tr` (2); it now
+  spawns only `git` (1), stripping CR in-shell like `buffer_stdin`.
+- **Always-on Bash-guard `emit_tel` no longer runs `jq -n` for
+  `{tool,subject,form}`.** `hook::json_str_object_to` builds the same compact
+  object `jq -nc --arg …` produced (byte-identical on the suite's escape
+  cases). The seven always-on PreToolUse Bash guards
+  (`block-no-verify`, `block-dangerous-git`, `block-hook-bypass`,
+  `block-noncanonical-commit`, `block-convention-violation`,
+  `block-windows-drive-tmp`, `block-exported-msys-pathconv`) take that path.
+  When `HOOK_TELEMETRY_SINK` is set this was the largest remaining named
+  item in this plugin's hook-budget accounting (~1 jq per guard). The
+  unwired default path is unchanged (still zero telemetry spawns).
+
 ## [0.31.6]
 
 ### Fixed
