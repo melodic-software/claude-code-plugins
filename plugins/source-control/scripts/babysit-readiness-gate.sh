@@ -132,7 +132,8 @@ REPO_SLUG=""
 
 # Print the header block (everything after the shebang up to the first
 # non-comment line) with its comment markers stripped. Derived rather than a
-# hardcoded line range, which silently truncated or over-ran as the header grew.
+# hardcoded line range: such a range silently truncates or over-runs as the
+# header grows.
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}"

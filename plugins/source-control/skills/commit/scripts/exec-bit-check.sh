@@ -50,7 +50,7 @@
 # filemode=true repos, the update-index for what actually gets committed.
 #
 # Usage:
-#   exec-bit-check.sh [--list | --list0 | --probe | --fix] [--repo-dir <dir>] [-- <path>...]
+#   exec-bit-check.sh [--list | --list0 | --probe | --fix] [--repo-dir <dir>] [--all] [-- <path>...]
 #
 # Modes (default --list):
 #   --list    machine-readable: one offending path per line; empty = nothing to do
@@ -78,7 +78,7 @@ usage() {
 $PROG — deterministic exec-bit backstop for /source-control:commit.
 
 Usage:
-  $PROG [--list | --probe | --fix] [--repo-dir <dir>] [-- <path>...]
+  $PROG [--list | --list0 | --probe | --fix] [--repo-dir <dir>] [--all] [-- <path>...]
 
 Modes (default --list):
   --list             One offending path per line. Empty output = nothing to do.

@@ -3,6 +3,59 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.45]
+
+### Fixed
+
+- **`worktree-create.sh`: two exit codes were documented wrongly, and one of them
+  tells a caller the opposite of the truth.** Exit 5 (the tree was created but
+  `git worktree lock` failed, so the path is still the sole stdout line and the
+  tree exists, yet carries no claim) has shipped since #2389 and appeared in
+  neither the header table nor `usage()`. Verified against an unmodified copy
+  with a `git` shim that fails `worktree lock`: rc=5, exactly one stdout line, the
+  tree present, and no `locked` line in `git worktree list --porcelain` where the
+  control has one. Exit 4 was described as "not a git repo, or `git worktree add`
+  failed", but it also fires when the tree was created and a `.worktreeinclude`
+  file then failed to copy. That case has exit 5's shape, a tree on disk that is
+  not what the caller asked for, so a caller reading 4 as "nothing was created" is
+  wrong for it. Both rows now say so.
+- **`skills/commit/scripts/exec-bit-check.sh`: the two synopses disagreed.**
+  `usage()` was missing both `--list0` and `--all`; the header line was missing
+  `--all`. Both now list all four modes plus `--all`, matching the Modes and
+  Options blocks below them.
+
+### Changed
+
+- **Six files: past-tense narration rewritten as the rule it encodes.** Comments
+  that explained a fix by describing the bug ("which silently truncated or
+  over-ran as the header grew") now state the constraint in the present. Proven
+  comment-only mechanically rather than by reading: two quote- and heredoc-aware
+  shell parsers agree across all ten changed files, and the comparison was shown
+  to discriminate heredoc body text, numeric literals, single-quoted string
+  bodies, and statement reordering while returning unchanged for three
+  comment-reword controls.
+- **`landed-work.sh`: the record flush in `collect_targets` is one nested
+  `flush_record`.** The two call sites carried byte-identical five-line bodies
+  (verified by md5 on the dedented pre-images), and the same idiom already exists
+  in `worktree-claim.sh`. Differential over nine porcelain fixtures, including an
+  empty input, a missing trailing separator, a detached-first ordering, a
+  newline-in-path, and a bare repository: identical rows in every case. Seven
+  mutations caught, including four over-refusals, and three equivalence controls
+  scoring zero, each scoring identically before and after the change.
+
+### Known issues
+
+- **Neither the exit 5 contract nor the new help line is test-covered.**
+  `worktree-create.test.sh` asserts nothing about exit 5, the lock failure, or
+  the "created but not locked" wording. The contract is now documented but
+  unpinned.
+- **`landed-work.sh` carries a redundant `(detached)` assignment inside
+  `flush_record`.** The label is re-derived at every read, so dropping the
+  assignment leaves stdout and stderr byte-identical on a real detached-HEAD
+  worktree; dropping both sites is caught. Whether a bare or non-git row, which
+  returns early before the re-derivation, can observe it is unresolved, so it is
+  left in place rather than deleted on an unverified reading.
+
 ## [0.55.44]
 
 ### Changed
