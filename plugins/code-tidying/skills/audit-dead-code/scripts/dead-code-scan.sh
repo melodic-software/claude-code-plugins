@@ -217,7 +217,6 @@ list_scope_files() {
   done
 }
 
-SCOPE=()
 TS_FILES=()
 PY_FILES=()
 GO_FILES=()
@@ -228,7 +227,6 @@ while IFS= read -r scope_line; do
   [[ -n "$scope_line" ]] || continue
   dc_is_excluded_path "$scope_line" && continue
   [[ -f "$scope_line" ]] || continue
-  SCOPE+=("$scope_line")
   case "$(dc_lang_of_path "$scope_line")" in
   ts) TS_FILES+=("$scope_line") ;;
   py) PY_FILES+=("$scope_line") ;;
@@ -363,7 +361,7 @@ project_roots() {
 # ---------------------------------------------------------------------------
 
 lane_knip() {
-  local root_rel root_abs bin cfg nfiles rows foreign k_path
+  local root_rel root_abs bin cfg nfiles rows foreign k_path k_file k_line k_shape k_name
   # root_nested is read through a nameref by nested_roots/owns_path/count_owned,
   # which shellcheck cannot see (SC2034).
   # shellcheck disable=SC2034
@@ -458,6 +456,7 @@ lane_knip() {
 
 lane_vulture() {
   local bin rc=0 v_line row parsed=0 drift=0 unparsed=0
+  local p_file p_line p_shape p_excerpt
   # FP classes measured to matter, pre-applied. A consumer extends these through
   # the native whitelist, not by editing this script.
   local ignore_decorators='@app.route,@*.route,@pytest.fixture,@property,@*.setter,@*.command,@*.task'
@@ -524,6 +523,7 @@ lane_vulture() {
 lane_gopls() {
   local root_rel root_abs bin nfiles g_line row parsed=0 drift=0 degraded=0
   local foreign=0 g_path
+  local p_file p_line p_shape p_excerpt
   # root_nested is read through a nameref (SC2034); mod_files is expanded below.
   # shellcheck disable=SC2034
   local -a roots=() mod_files=() root_nested=()
