@@ -3,6 +3,28 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.34]
+
+### Changed
+
+- **Two disclosure-take comments move to present tense,** at the syntax-error
+  and tool-break arms. Comment-only, proven mechanically rather than asserted:
+  two independent comment strippers, one built on shfmt's own bash parser and
+  one quote- and heredoc-aware, both yield byte-identical code from either
+  revision, and each stripper was shown sensitive by seeded code mutations.
+  A 23-case differential comparing both streams, exit code, fixture hashes, the
+  tool's argv and working directory, temporary-directory residue and the
+  telemetry envelope found zero divergences across 161 artifacts, and all ten
+  seeded mutants were caught.
+
+### Known issues
+
+- **The hook suite silently no-ops when `goimports` is absent from PATH,** and
+  `affected-tests.sh --run` reports a suite that printed only a skip line as
+  passing. The gate therefore cannot distinguish 54 assertions passing from none
+  running, so a green selector result is not evidence that this hook was
+  exercised. Naming the binary explicitly runs the full 54.
+
 ## [0.3.33]
 
 ### Changed

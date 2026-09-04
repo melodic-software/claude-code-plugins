@@ -3,6 +3,25 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.31]
+
+### Changed
+
+- **The banned-process paragraph in the hook suite becomes present tense,**
+  stating why each named process must not appear rather than narrating the
+  refactor that removed it.
+- **One command substitution is reformatted to the repo formatter's canonical
+  multi-line form.** This was not intended: editing the file fired this repo's
+  own PostToolUse formatter, which reformatted it, and it cannot be reverted
+  without a git restore that would also discard the comment fix. It is inert,
+  which matters because the substitution wraps an `eval`: the whole file
+  minifies to byte-identical output, and a 25-probe differential over empty,
+  comment-only, blank-line and line-continuation bodies, a body writing to
+  stdout, one returning non-zero, one calling exit, and one unsetting a variable
+  under `set -u` found zero divergences in captured value, exit status, or the
+  outer variables afterwards. The file moves from shfmt-non-conforming to
+  conforming; the suite passes 51 assertions identically either way.
+
 ## [0.6.30]
 
 ### Changed
