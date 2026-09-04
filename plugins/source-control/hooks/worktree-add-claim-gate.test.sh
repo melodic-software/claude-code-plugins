@@ -33,6 +33,12 @@ mkrepo() {
   printf '%s' "$repo"
 }
 
+# wt_stanza <repo> <path-fragment> -> the `worktree list --porcelain` record of
+# the linked tree whose path carries <path-fragment>, on stdout.
+wt_stanza() {
+  git -C "$1" worktree list --porcelain | awk -v RS= -v p="$2" 'index($0, p)'
+}
+
 REPO="$(mkrepo)"
 EXT="$TEST_TMPDIR/external"
 mkdir -p "$EXT"
@@ -63,7 +69,7 @@ assert_silent "non-add produces no additionalContext" "$OUT"
 git -C "$REPO" worktree add -q "$EXT/wt-decoy" -b feat/decoy
 run "$REPO" "echo git worktree add $EXT/wt-decoy" "s-echo"
 assert_exit "echo naming git worktree add is not a git call" 0 "$RC"
-decoy=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-decoy" 'index($0, p)')
+decoy=$(wt_stanza "$REPO" wt-decoy)
 assert_not_contains "echo does not lock an existing unclaimed tree" "$decoy" "locked"
 assert_silent "echo produces no additionalContext" "$OUT"
 
@@ -72,7 +78,7 @@ assert_silent "echo produces no additionalContext" "$OUT"
 git -C "$REPO" worktree add -q "$EXT/wt-hook" -b feat/hook
 run "$REPO" "git worktree add $EXT/wt-hook -b feat/hook" "sess-hook-one"
 assert_exit "claim hook exits 0 after a real add" 0 "$RC"
-stanza=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-hook" 'index($0, p)')
+stanza=$(wt_stanza "$REPO" wt-hook)
 assert_contains "the hook-locked tree is locked" "$stanza" "locked"
 assert_contains "the hook reason names the session" "$stanza" "sess-hook-one"
 assert_contains "the hook reason uses the claim prefix" "$stanza" "worktree-claim.sh"
@@ -81,7 +87,7 @@ assert_contains "the hook tells the agent it claimed" "$OUT" "claimed unlocked w
 # Re-running does not rewrite.
 run "$REPO" "git worktree add $EXT/wt-hook -b feat/hook" "sess-hook-two"
 assert_exit "second hook pass is still exit 0" 0 "$RC"
-stanza2=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-hook" 'index($0, p)')
+stanza2=$(wt_stanza "$REPO" wt-hook)
 assert_contains "original session reason survived the second pass" "$stanza2" "sess-hook-one"
 assert_not_contains "a later session did not overwrite the reason" "$stanza2" "sess-hook-two"
 
@@ -91,7 +97,7 @@ git -C "$REPO" worktree add -q "$EXT/wt-helped" -b feat/helped
 git -C "$REPO" worktree lock --reason "$HELPER_REASON" "$EXT/wt-helped"
 run "$REPO" "git worktree add $EXT/wt-helped -b feat/helped" "sess-other"
 assert_exit "hook does not fail on an already-claimed helper tree" 0 "$RC"
-helped=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-helped" 'index($0, p)')
+helped=$(wt_stanza "$REPO" wt-helped)
 assert_contains "helper reason is still the helper string" "$helped" "$HELPER_REASON"
 assert_not_contains "helper reason was not rewritten by the hook" "$helped" "worktree-claim.sh"
 
@@ -101,7 +107,7 @@ git -C "$REPO" worktree add -q "$EXT/wt-off" -b feat/off
 run "$REPO" "git worktree add $EXT/wt-off -b feat/off" "sess-off" \
   CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED=false
 assert_exit "disabled hook exits 0" 0 "$RC"
-off=$(git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="wt-off" 'index($0, p)')
+off=$(wt_stanza "$REPO" wt-off)
 assert_not_contains "disabled hook does not lock" "$off" "locked"
 
 # --- Two hook sessions produce different reasons ------------------------------
@@ -111,8 +117,8 @@ git -C "$REPO2" worktree add -q "$EXT/wt-a" -b feat/a
 run "$REPO2" "git worktree add $EXT/wt-a -b feat/a" "alpha"
 git -C "$REPO2" worktree add -q "$EXT/wt-b" -b feat/b
 run "$REPO2" "git worktree add $EXT/wt-b -b feat/b" "beta"
-sa=$(git -C "$REPO2" worktree list --porcelain | awk -v RS= -v p="wt-a" 'index($0, p)')
-sb=$(git -C "$REPO2" worktree list --porcelain | awk -v RS= -v p="wt-b" 'index($0, p)')
+sa=$(wt_stanza "$REPO2" wt-a)
+sb=$(wt_stanza "$REPO2" wt-b)
 assert_contains "first hook session is alpha" "$sa" "session alpha since"
 assert_contains "second hook session is beta" "$sb" "session beta since"
 
@@ -121,8 +127,8 @@ assert_contains "second hook session is beta" "$sb" "session beta since"
 git -C "$REPO2" worktree add -q "$EXT/wt-keep" -b feat/keep
 git -C "$REPO2" worktree add -q "$EXT/wt-take" -b feat/take
 run "$REPO2" "git worktree add $EXT/wt-take -b feat/take" "taker"
-keep=$(git -C "$REPO2" worktree list --porcelain | awk -v RS= -v p="wt-keep" 'index($0, p)')
-take=$(git -C "$REPO2" worktree list --porcelain | awk -v RS= -v p="wt-take" 'index($0, p)')
+keep=$(wt_stanza "$REPO2" wt-keep)
+take=$(wt_stanza "$REPO2" wt-take)
 assert_not_contains "sibling unclaimed tree is not stolen" "$keep" "locked"
 assert_contains "parsed add target is claimed" "$take" "taker"
 
@@ -132,8 +138,8 @@ REPO_B="$(mkrepo)"
 git -C "$REPO_A" worktree add -q "$EXT/wt-cwd-unclaimed" -b feat/cwd-u
 git -C "$REPO_B" worktree add -q "$EXT/wt-dashc" -b feat/dashc
 run "$REPO_A" "git -C $REPO_B worktree add $EXT/wt-dashc -b feat/dashc" "dashc-sess"
-cwd_u=$(git -C "$REPO_A" worktree list --porcelain | awk -v RS= -v p="wt-cwd-unclaimed" 'index($0, p)')
-dashc=$(git -C "$REPO_B" worktree list --porcelain | awk -v RS= -v p="wt-dashc" 'index($0, p)')
+cwd_u=$(wt_stanza "$REPO_A" wt-cwd-unclaimed)
+dashc=$(wt_stanza "$REPO_B" wt-dashc)
 assert_not_contains "payload-cwd unclaimed tree is not claimed by git -C" "$cwd_u" "locked"
 assert_contains "git -C add target is claimed in the other repo" "$dashc" "dashc-sess"
 

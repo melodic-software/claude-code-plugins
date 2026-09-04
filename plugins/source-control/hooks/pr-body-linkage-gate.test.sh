@@ -72,13 +72,18 @@ new_repo "$UNGATED" plain
 new_repo "$GATED_YAML" yaml
 new_repo "$OTHER" yml
 
+# mk_payload <repo> <command> -> the PreToolUse payload this hook reads, on stdout.
+mk_payload() {
+  jq -n --arg cwd "$1" --arg cmd "$2" \
+    '{session_id:"test",cwd:$cwd,tool_name:"Bash",tool_input:{command:$cmd}}'
+}
+
 # run <repo> <command> -> sets RC and ERR from one hook invocation.
 RC=0
 ERR=""
 run() {
   local repo="$1" cmd="$2" payload
-  payload=$(jq -n --arg cwd "$repo" --arg cmd "$cmd" \
-    '{session_id:"test",cwd:$cwd,tool_name:"Bash",tool_input:{command:$cmd}}')
+  payload=$(mk_payload "$repo" "$cmd")
   ERR=$(cd "$UNRELATED" && printf '%s' "$payload" | bash "$HOOK" 2>&1 >/dev/null)
   RC=$?
 }
@@ -471,8 +476,7 @@ assert_block "a .yaml gate workflow enforces too" "$GATED_YAML" "gh pr create -t
 locale_case() {
   local label="$1" body="$2" payload utf c
   printf '%s' "$body" >"$GATED/u.md"
-  payload=$(jq -n --arg cwd "$GATED" --arg cmd "gh pr create -t T --body-file u.md" \
-    '{session_id:"test",cwd:$cwd,tool_name:"Bash",tool_input:{command:$cmd}}')
+  payload=$(mk_payload "$GATED" "gh pr create -t T --body-file u.md")
   printf '%s' "$payload" | LC_ALL=en_US.UTF-8 bash "$HOOK" >/dev/null 2>&1
   utf=$?
   printf '%s' "$payload" | LC_ALL=C bash "$HOOK" >/dev/null 2>&1
@@ -544,8 +548,7 @@ for tool in dirname tr; do
   fi
 done
 if ((jq_stub_ok)) && [[ -x "$BASH_ABS" ]] && ! PATH="$STUB" command -v jq >/dev/null 2>&1; then
-  payload=$(jq -n --arg cwd "$GATED" --arg cmd "$(gh_body "$NO_RELATED")" \
-    '{session_id:"test",cwd:$cwd,tool_name:"Bash",tool_input:{command:$cmd}}')
+  payload=$(mk_payload "$GATED" "$(gh_body "$NO_RELATED")")
   if (printf '%s' "$payload" | PATH="$STUB" "$BASH_ABS" "$HOOK" >/dev/null 2>&1); then
     ok "a missing jq fails open"
   else
@@ -557,8 +560,7 @@ fi
 
 # --- Kill switch -------------------------------------------------------------
 
-payload=$(jq -n --arg cwd "$GATED" --arg cmd "$(gh_body "$NO_RELATED")" \
-  '{session_id:"test",cwd:$cwd,tool_name:"Bash",tool_input:{command:$cmd}}')
+payload=$(mk_payload "$GATED" "$(gh_body "$NO_RELATED")")
 if (cd "$UNRELATED" && printf '%s' "$payload" |
   CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED=false bash "$HOOK" >/dev/null 2>&1); then
   ok "kill switch disables the gate"
