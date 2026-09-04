@@ -3,6 +3,18 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.39]
+
+### Changed
+
+- **The `RUN_DIR` fallback reuses the precomputed `FILE_DIR`.** It read
+  `${root:-$(dirname "$FILE")}`, forking `dirname` on the branch where no repo
+  root was resolved, to recompute a directory the hook had already derived
+  seventy-odd lines earlier with `${FILE%/*}` and its two special cases. That
+  earlier value is what the hook passes to `hook::repo_root`, so the two answers
+  were already required to name the same directory; they are now one expression
+  instead of two. Single line, one fewer process on the no-repo-root path.
+
 ## [0.6.38]
 
 ### Fixed

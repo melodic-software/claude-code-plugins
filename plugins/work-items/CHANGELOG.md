@@ -3,6 +3,28 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.62]
+
+### Changed
+
+- **`lib/binding.sh` resolves the container-label default the way its own sibling
+  does.** `wit_read_binding` spelled the absent-or-empty fallback as
+  `[[ -n "$container" ]] || container="$WIT_DEFAULT_CONTAINER_LABEL"`, two lines
+  below the comment that says the resolution is the same one `wit_role_label`
+  performs. `wit_role_label` writes it as `${configured:-$3}`, and this site now
+  writes `${container:-$WIT_DEFAULT_CONTAINER_LABEL}`. Both forms fall back on
+  absent and on configured-empty alike, which is the distinction the comment
+  exists to protect, since jq's `//` would not.
+
+  Checked, not assumed: 918 differential cases over the pre-edit and post-edit
+  bindings, 0 mismatches, and two negative controls that mismatched 45 and 861
+  cases, which is what establishes that both branches of the changed line are
+  actually driven by the corpus rather than one of them being dead.
+- **`lib/verb-test-helpers.sh`: `assert_usage_error` declares its locals once.**
+  It opened `local script="$1"`, then `shift`, then `local name rc`; the three now
+  share one prologue in the shape `assert_help` uses directly above it, with the
+  `shift` after it. 260 differential cases, 0 mismatches, two negative controls.
+
 ## [0.39.61]
 
 ### Fixed
