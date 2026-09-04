@@ -16,6 +16,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   exit code, the new `sed -n '2,/^$/p'` prints 23 and all four. That
   blank-line-terminated form is already used by three other scripts in this
   repository and removes the line-number coupling that caused the drift.
+
+  Looking for the same bug elsewhere found it surviving in one more place, the
+  byte-identical sync-cluster pair `lib/resolve-convention-pattern.sh` and
+  `guardrails/hooks/resolve-convention-pattern.sh`, whose `sed -n '2,40p'` cut a
+  43-line header and dropped all three of their exit codes. The fix here was not
+  transplantable, because those headers run straight into the code with no blank
+  line for `2,/^$/p` to stop at. They were fixed with a first-non-comment-line
+  terminator instead, on the canonical, under `guardrails` 0.31.6.
 - **A comment said "the five consumers" above a list of six.** The numeral is
   dropped rather than corrected, since the list enumerates them.
 
@@ -45,13 +53,6 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Known issues
 
-- **The same `--help` truncation bug survives in two more scripts**, the
-  byte-identical `lib/resolve-convention-pattern.sh` and
-  `guardrails/hooks/resolve-convention-pattern.sh`, whose `sed -n '2,40p'` cuts a
-  43-line header and drops all three of their exit codes. **The fix here is not
-  transplantable**: those headers have no blank line before the code, so
-  `2,/^$/p` would leak executable lines into the banner. They need a different
-  terminator, and they are a registered sync-cluster pair.
 - **`fetch-failed-logs.sh`'s help output was byte-identical before and after**
   only because the hardcoded `41` happened to land exactly on the blank line.
   That was luck the header could have broken at any edit; it is now pinned.
