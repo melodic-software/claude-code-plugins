@@ -28,11 +28,11 @@
 # The supported deliberate bypasses are the kill switch
 # (block_hook_bypass_enabled set to false) and the scratch-root exemption
 # (block_hook_bypass_scratch_roots). The option's own list is still empty by
-# default; since #3719 it composes with two roots the guard ships exempt — the
-# host temp trees, which the harness scratchpad sits under, and the memory tier
-# `<memory_dir>/` (default `.work/`) — both gated on a project root outside the
-# temp tree. See the block above scratch_target_exempt for why exempting them
-# gives up no protection.
+# default; since #3719 it composes with ONE root the guard ships exempt — the
+# host temp trees, which the harness scratchpad sits under — gated on a project
+# root outside the temp tree and confirmed through symlink resolution. See the
+# block above scratch_target_exempt for why exempting that gives up no
+# protection, and why the memory tier is deliberately not a second one.
 #
 # BLOCKING: exits 2 on any detected bypass form.
 
@@ -802,21 +802,20 @@ devnull_target_exempt() {
 # well-defined target to exempt there; its `$null` discard is unchanged.
 _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 
-# --- Shipped defaults, in ADDITION to the configured list (#3719) ------------
+# --- Shipped default, in ADDITION to the configured list (#3719) -------------
 #
 # The paragraph above shipped this axis empty, and the emptiness is what the
 # ablation measured: five blocks in one day across four sessions, zero true
-# positives. The fifth refused `printf '*' >> .work/.gitignore` — the exact
-# command this marketplace's own session-flow save-point procedure prescribes.
-# ADR 0003 clause 4 calls that a WRONG SCOPE, remedied by rescoping rather than
-# by deleting a sound oracle, so the oracle is untouched and two default roots
-# are added under it.
+# positives. ADR 0003 clause 4 calls that a WRONG SCOPE, remedied by rescoping
+# rather than by deleting a sound oracle, so the oracle is untouched and one
+# default root is added under it.
 #
-# Both defaults name a target that NO Write|Edit gate would have processed, so
-# exempting them removes no protection — which is the only reason a default is
+# The default names a target that NO Write|Edit gate would have processed, so
+# exempting it removes no protection — which is the only reason a default is
 # defensible here at all. The guard exists to stop a Bash write from reaching a
 # file that Write|Edit would have run a content gate over; a target those gates
-# decline is not a bypass of anything.
+# decline is not a bypass of anything. That argument is load-bearing, and it is
+# what disqualified the second default this block originally carried.
 #
 #   TEMP TREE — hook::read_file_path, the library entry every Write|Edit content
 #   guard reads its file through, DECLINES a file under a host temp root when the
@@ -826,24 +825,40 @@ _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 #   candidate set (TMPDIR/TMP/TEMP plus the POSIX defaults, never a hardcoded
 #   platform assumption) that the decline is decided on.
 #
-#   MEMORY TIER — `<memory_dir>/` (default `.work/`), the never-committed topic
-#   memory tier defined by docs/conventions/topic-docs/. A consumer who moves
-#   memory_dir off the default names the new location in the option above; the
-#   default covers the default.
+# THE MEMORY TIER IS DELIBERATELY NOT A DEFAULT, and the reason is worth keeping
+# because it is the obvious second entry. `<memory_dir>/` (default `.work/`) was
+# exempted here in review and removed again: the "gives up no protection"
+# argument above does NOT carry to it. hook::read_file_path has no `.work/`
+# decline, so `secret-pattern-detection` scans a Write to `.work/notes.md` today
+# (verified — the tier is not in its allowlist). Exempting Bash redirects there
+# would have let `printf '<secret>' >> .work/notes.md` reach disk unscanned while
+# the identical Write stayed blocked, which is the same content-guard bypass this
+# plugin's MCP lane exists to close.
 #
-# NEITHER is spelled as a static plugin.json default, because neither HAS a fixed
-# spelling: the scratchpad path carries a session id, and the memory tier hangs
-# off whichever project is being consumed. Both resolve at run time instead, and
-# the option's own default stays empty — it configures ADDITIONAL roots, and the
-# two below are not removable through it (the kill switch is the whole-guard
-# lever, as it was).
+# The tension is real and is NOT resolved here: docs/conventions/topic-docs/
+# states as normative that raw output — explicitly including credentials — stays
+# in the memory tier, which reads as an argument for exempting it from secret
+# scanning too. Making the two guards symmetric that way is a widening of a
+# default-on security guard, and ADR 0003 wants firing evidence before one of
+# those moves. Filed rather than decided.
 #
-# GATED ON A KNOWN PROJECT ROOT. With CLAUDE_PROJECT_DIR unset neither default
-# fires: without it hook::read_file_path falls back to git-working-tree
-# membership, under which a temp file inside a fixture checkout IS processed, and
-# the memory tier has nothing to hang off. Unknown project, no exemption.
-# The three pieces that implement this sit below _norm_path, which they resolve
-# through: _BBH_MEMORY_ROOT, _bbh_temp_default_applies and _scratch_abs_target.
+# The consequence is that `printf '*' >> .work/.gitignore` still blocks. That
+# command is session-flow's own documented procedure, so the conflict routes back
+# to the skill (fix the procedure to use Write, which is scanned) rather than to
+# the guard, which is where the filed issue puts it.
+#
+# THE TEMP DEFAULT is not spelled as a static plugin.json default, because it has
+# no fixed spelling: the scratchpad path carries a session id. It resolves at run
+# time instead, and the option's own default stays empty — it configures
+# ADDITIONAL roots, and the temp default is not removable through it (the kill
+# switch is the whole-guard lever, as it was).
+#
+# GATED ON A KNOWN PROJECT ROOT. With CLAUDE_PROJECT_DIR unset the default does
+# not fire: without it hook::read_file_path falls back to git-working-tree
+# membership, under which a temp file inside a fixture checkout IS processed.
+# Unknown project, no exemption.
+# The pieces that implement this sit below _norm_path, which they resolve
+# through: _bbh_temp_default_applies and _scratch_abs_target.
 _BBH_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
 
 # Lexically normalize an absolute path into `/`-joined canonical form in
@@ -884,29 +899,15 @@ _norm_path() {
   return 0
 }
 
-# --- the three pieces of the shipped defaults (see the block above) ----------
+# --- the pieces of the shipped default (see the block above) -----------------
 
-# The memory tier's absolute root, or empty when there is no usable project root.
-# Resolved once rather than per matched target.
-#
-# Two spellings of the same root, because their consumers disagree on case. The
-# containment compare runs against targets taken from the LOWERCASED command
-# stream (the case-insensitivity residual documented above), so the memory root
-# is lowercased to match. hook::under_temp_root compares against this host's real
-# temp directories, whose own case it preserves, so the temp gate is handed the
-# root in its ORIGINAL case — lowercasing it would miss a temp root spelled with
-# capitals and wrongly conclude a temp-rooted project was not one.
-#
-# _BBH_MEMORY_ROOT_RAW is the same root in the project's ORIGINAL case, kept for
-# the symlink resolution in _bbh_default_confirmed: resolving a lowercased path
-# would fail on a case-sensitive filesystem.
+# The project root, normalized, or empty when there is no usable one. Kept in its
+# ORIGINAL case: hook::under_temp_root compares against this host's real temp
+# directories, whose own case it preserves, so lowercasing would miss a temp root
+# spelled with capitals and wrongly conclude a temp-rooted project was not one.
 _BBH_PROJECT_NORM=""
-_BBH_MEMORY_ROOT=""
-_BBH_MEMORY_ROOT_RAW=""
 if [[ -n "$_BBH_PROJECT_DIR" ]] && _norm_path "$_BBH_PROJECT_DIR" && [[ -n "$_NORM_PATH" ]]; then
   _BBH_PROJECT_NORM="$_NORM_PATH"
-  _BBH_MEMORY_ROOT="${_NORM_PATH,,}/.work"
-  _BBH_MEMORY_ROOT_RAW="$_NORM_PATH/.work"
 fi
 
 # 0 when the temp-tree default applies to this session: a project root that is
@@ -1000,22 +1001,12 @@ _bbh_physical_path() {
 # roots document; what this function removes is the far commoner all-lowercase
 # case, which was live by default.
 _bbh_default_confirmed() {
-  local target="$1" which="$2" phys root_phys
+  local target="$1" phys
   _bbh_physical_path "$target" || return 1
   phys="${_BBH_PHYS,,}"
-  case "$which" in
-  temp)
-    # hook::under_temp_root resolves its own candidates, so both sides are
-    # physical here and a symlinked temp root (macOS /tmp) still matches.
-    hook::under_temp_root "$phys"
-    ;;
-  memory)
-    _bbh_physical_path "$_BBH_MEMORY_ROOT_RAW" || return 1
-    root_phys="${_BBH_PHYS,,}"
-    [[ "$phys" == "${root_phys%/}"/* ]]
-    ;;
-  *) return 1 ;;
-  esac
+  # hook::under_temp_root resolves its own candidates, so both sides are physical
+  # here and a symlinked temp root (macOS /tmp) still matches.
+  hook::under_temp_root "$phys"
 }
 
 _scratch_abs_target() {
@@ -1043,9 +1034,10 @@ _scratch_abs_target() {
 scratch_target_exempt() {
   local target="$1" norm_target root roots abs
   # Nothing to compare against: no configured root AND no usable project root,
-  # which is the only state in which neither shipped default can fire. Keeps the
-  # unconfigured, project-less path returning on the first line as it always did.
-  [[ -n "$_SCRATCH_ROOTS" || -n "$_BBH_MEMORY_ROOT" ]] || return 1
+  # which is the only state in which the shipped default cannot fire either.
+  # Keeps the unconfigured, project-less path returning on the first line as it
+  # always did.
+  [[ -n "$_SCRATCH_ROOTS" || -n "$_BBH_PROJECT_NORM" ]] || return 1
   # FAIL CLOSED on an operand whose pathname is not dependably what reaches the
   # compare, before anything else. All three tests are keyed on the OPERAND, via
   # the marks strip_literals attached to it (see the marking block above
@@ -1092,24 +1084,17 @@ scratch_target_exempt() {
   # lowercased below, the memory-tier default is lowercased at its assignment, and
   # a target that arrived absolute came off the lowercased command stream already.
   norm_target="${_NORM_PATH,,}"
-  # SHIPPED DEFAULT 1 — the memory tier. Same component-boundary containment as a
-  # configured root, so `.workspace` beside `.work` is not it and a `..` escape
-  # out of it has already normalized away.
+  # THE SHIPPED DEFAULT — the host temp trees, including the harness scratchpad,
+  # once this session is one the default applies to.
   #
-  # Both defaults are LEXICALLY matched first and then CONFIRMED through symlink
-  # resolution, so a lexical near-miss costs no resolver process and a lexical
-  # match cannot exempt a path that really lands elsewhere. See
-  # _bbh_default_confirmed for why the shipped defaults carry this and the
-  # configured roots keep their documented lexical residual.
-  if [[ -n "$_BBH_MEMORY_ROOT" && "$norm_target" == "$_BBH_MEMORY_ROOT"/* ]]; then
-    _bbh_default_confirmed "$norm_target" memory && return 0
-  fi
-  # SHIPPED DEFAULT 2 — the host temp trees, including the harness scratchpad,
-  # once this session is one the default applies to. Consulted after the memory
-  # tier because it is the branch that can spend a resolver process.
+  # LEXICALLY matched first and then CONFIRMED through symlink resolution, so a
+  # lexical near-miss costs no resolver process and a lexical match cannot exempt
+  # a path that really lands elsewhere. See _bbh_default_confirmed for why the
+  # shipped default carries this and the configured roots keep their documented
+  # lexical residual.
   if [[ -n "$_BBH_PROJECT_NORM" ]] && _bbh_temp_default_applies &&
     hook::under_temp_root "$norm_target"; then
-    _bbh_default_confirmed "$norm_target" temp && return 0
+    _bbh_default_confirmed "$norm_target" && return 0
   fi
   roots="$_SCRATCH_ROOTS"
   while [[ -n "$roots" ]]; do

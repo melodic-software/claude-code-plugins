@@ -18,11 +18,11 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 #
 # CLAUDE_PROJECT_DIR is cleared ahead of the caller's own env words, which is a
-# PIN and not a preference: since #3719 the guard carries two shipped scratch-root
-# defaults, both gated on a known project root, so a project dir merely inherited
-# from the surrounding shell would decide assertions written years before those
-# defaults existed. Clearing it puts every case below in the no-project state it
-# was authored against. A caller that means to exercise the defaults passes its
+# PIN and not a preference: since #3719 the guard carries a shipped scratch-root
+# default gated on a known project root, so a project dir merely inherited from
+# the surrounding shell would decide assertions written years before that
+# default existed. Clearing it puts every case below in the no-project state it
+# was authored against. A caller that means to exercise the default passes its
 # own CLAUDE_PROJECT_DIR after this one, which wins — env applies assignments in
 # order.
 run() {
@@ -1476,17 +1476,18 @@ run "scratch: > inside double-quoted content keeps it (allowed)" \
 run "scratch: > inside single-quoted content keeps it (allowed)" \
   "echo 'x > y' > /tmp/scratch/f" 0 "$SCRATCH_ENV=/tmp/scratch"
 
-# --- Shipped scratch-root defaults (#3719) -----------------------------------
-# The option above is opt-in and shipped empty, which left two write targets
-# blocked that no Write|Edit gate would ever have processed: the harness's own
-# per-session scratchpad under the host temp tree, and the memory tier
-# `<memory_dir>/` (default `.work/`) that session-flow's documented save-point
-# procedure writes to. Five blocks in one day, zero true positives, and the
-# fifth refused the exact command this marketplace's own skill prescribes.
+# --- The shipped scratch-root default (#3719) --------------------------------
+# The option above is opt-in and shipped empty, which left a write target blocked
+# that no Write|Edit gate would ever have processed: the harness's own
+# per-session scratchpad, under the host temp tree. Five blocks in one day, zero
+# true positives.
 #
-# The two defaults are resolved at RUN TIME, not spelled as a static string:
-# the scratchpad path carries a session id and the memory tier hangs off the
-# consuming project, so neither has a fixed spelling to configure.
+# The default is resolved at RUN TIME, not spelled as a static string: the
+# scratchpad path carries a session id, so it has no fixed spelling to configure.
+#
+# The memory tier (`<memory_dir>/`, default `.work/`) was a second default here
+# and was removed in review; the cases below pin that it still blocks, and say
+# why.
 #
 # `cwd_command_json` is local to this suite on purpose. Every payload built by
 # the shared `command_json` omits `.cwd`, which is what keeps the relative-target
@@ -1516,16 +1517,33 @@ run_cwd() {
 PROJ=/srv/repo
 PROJ_ENV=CLAUDE_PROJECT_DIR
 
-# THE REPRODUCED FALSE POSITIVE. `printf '*' >> .work/.gitignore` from the
-# project root is the command session-flow's save-point procedure prescribes.
-run_cwd "default: memory tier relative append (allowed)" \
-  "printf '*' >> .work/.gitignore" "$PROJ" 0 "$PROJ_ENV=$PROJ"
-run_cwd "default: memory tier relative write (allowed)" \
-  "echo hello > .work/handoffs/notes.md" "$PROJ" 0 "$PROJ_ENV=$PROJ"
-run_cwd "default: memory tier absolute write (allowed)" \
-  "echo hello > $PROJ/.work/handoffs/notes.md" "$PROJ" 0 "$PROJ_ENV=$PROJ"
-run_cwd "default: memory tier from a subdirectory (allowed)" \
-  "echo hello > ../.work/notes.md" "$PROJ/plugins" 0 "$PROJ_ENV=$PROJ"
+# THE MEMORY TIER IS NOT EXEMPT, and these pin that rather than merely omitting
+# it. `<memory_dir>/` (default `.work/`) was exempted here in review and removed
+# again: `secret-pattern-detection` scans a Write to `.work/notes.md` today (the
+# tier is not in its allowlist), so exempting Bash redirects there would let
+# `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical
+# Write stayed blocked — the content-guard bypass this plugin's MCP lane exists
+# to close. The tension with docs/conventions/topic-docs/, which states raw
+# output including credentials belongs in the tier, is filed, not decided here.
+#
+# The first case is the reproduced false positive: `printf '*' >> .work/.gitignore`
+# is the command session-flow's save-point procedure prescribes. It still blocks,
+# and the conflict routes to the skill (use Write, which is scanned) rather than
+# to this guard.
+run_cwd "memory tier: relative append still blocks" \
+  "printf '*' >> .work/.gitignore" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+run_cwd "memory tier: relative write still blocks" \
+  "echo hello > .work/handoffs/notes.md" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+run_cwd "memory tier: absolute write still blocks" \
+  "echo hello > $PROJ/.work/handoffs/notes.md" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+
+# The relative-target resolution introduced alongside the default is still
+# load-bearing, now for a CONFIGURED root: a relative redirect resolves against
+# the payload cwd, and a cd ahead of it still fails closed.
+run_cwd "relative: resolves against the payload cwd into a configured root (allowed)" \
+  "echo hello > sub/f" /var/jobtmp 0 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"
+run_cwd "relative: a cd ahead of it still fails closed" \
+  "cd /etc && echo hello > sub/f" /var/jobtmp 2 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"
 # The harness scratchpad and every other temp target, with the project outside
 # the temp tree: no Write|Edit gate processes a temp file from such a project
 # (hook::read_file_path declines it), so nothing here is a bypass.
@@ -1556,10 +1574,11 @@ run_cwd "default: cd ahead of a relative memory-tier write blocks" \
   "cd /etc && echo hello > .work/f" "$PROJ" 2 "$PROJ_ENV=$PROJ"
 run_cwd "default: pushd ahead of a relative memory-tier write blocks" \
   "pushd /etc && echo hello > .work/f" "$PROJ" 2 "$PROJ_ENV=$PROJ"
-# An ABSOLUTE memory-tier target is unaffected by a cd — it names the same file
-# from any directory — so the cd fail-close is scoped to relative targets only.
-run_cwd "default: cd ahead of an ABSOLUTE memory-tier write (allowed)" \
-  "cd /etc && echo hello > $PROJ/.work/f" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+# An ABSOLUTE target is unaffected by a cd — it names the same file from any
+# directory — so the cd fail-close is scoped to relative targets only. Shown on a
+# CONFIGURED root, since the memory tier is no longer exempt.
+run_cwd "default: cd ahead of an ABSOLUTE configured-root write (allowed)" \
+  "cd /etc && echo hello > /var/jobtmp/f" "$PROJ" 0 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"
 # The memory tier of a DIFFERENT project is not this project's memory tier.
 run_cwd "default: .work under another project blocks" \
   "echo hello > /srv/other/.work/f" "$PROJ" 2 "$PROJ_ENV=$PROJ"
@@ -1592,38 +1611,44 @@ run "default: relative memory-tier write blocks with no payload cwd" \
 # ground a shipped default does not have, which is why the defaults now confirm
 # through symlink resolution before granting.
 #
-# Exercised on the MEMORY-TIER default, which is gated only on a known project
-# root — the temp default additionally needs a project OUTSIDE the temp tree,
-# which a fixture built under one cannot provide. The confirmation step is shared
-# by both defaults, so proving it here proves it for both.
-#
 # Real directories, because this is the one case in the file that depends on the
-# filesystem rather than on the spelling. The path is spelled ALL LOWERCASE by
-# hand rather than taken from `mktemp`, whose names are mixed-case: the segment
-# scan folds case, so a fixture carrying capitals would never resolve and would
-# silently exercise the documented case-folding residual instead of the symlink
-# one this asserts.
-SYMLINK_ROOT="/tmp/bhb-3719-symlink-$$"
-rm -rf "$SYMLINK_ROOT"
-mkdir -p "$SYMLINK_ROOT/proj/.work" "$SYMLINK_ROOT/proj/src"
-ln -s "$SYMLINK_ROOT/proj/src" "$SYMLINK_ROOT/proj/.work/escape"
+# filesystem rather than on the spelling. The temp-side path is spelled ALL
+# LOWERCASE by hand rather than taken from `mktemp`, whose names are mixed-case:
+# the segment scan folds case, so a fixture carrying capitals would never resolve
+# and would silently exercise the documented case-folding residual instead of the
+# symlink one this asserts.
+#
+# The victim project must sit OUTSIDE the temp tree, or the temp default stands
+# down and there is no exemption to escape from. The repo's own gitignored
+# memory tier is the one writable non-temp location this suite can rely on.
+SYMLINK_TEMP="/tmp/bhb-3719-symlink-$$"
+SYMLINK_PROJ="$(cd "$HOOK_DIR/../../.." && pwd)/.work/bhb-3719-proj-$$"
+if [[ "$SYMLINK_PROJ" != "${SYMLINK_PROJ,,}" ]]; then
+  # Not a silent skip: the case-folding residual is documented in the hook, and a
+  # mixed-case checkout path cannot exercise this assertion at all.
+  printf 'SKIP: symlink confirmation not asserted — checkout path carries capitals (%s), which the folded segment scan cannot resolve\n' "$SYMLINK_PROJ"
+else
+  rm -rf "$SYMLINK_TEMP" "$SYMLINK_PROJ"
+  mkdir -p "$SYMLINK_TEMP" "$SYMLINK_PROJ/src"
+  ln -s "$SYMLINK_PROJ" "$SYMLINK_TEMP/to-proj"
 
-run_cwd "symlink: escape out of the memory tier still blocks" \
-  "echo secret > $SYMLINK_ROOT/proj/.work/escape/tracked.py" "$SYMLINK_ROOT/proj" 2 \
-  "$PROJ_ENV=$SYMLINK_ROOT/proj"
-# The same root, not traversing the symlink, stays exempt: the fix must not turn
-# the exemption off wholesale.
-run_cwd "symlink: a genuine memory-tier write stays allowed" \
-  "echo probe > $SYMLINK_ROOT/proj/.work/notes.md" "$SYMLINK_ROOT/proj" 0 \
-  "$PROJ_ENV=$SYMLINK_ROOT/proj"
-rm -rf "$SYMLINK_ROOT"
+  run_cwd "symlink: escape out of the temp default still blocks" \
+    "echo secret > $SYMLINK_TEMP/to-proj/src/tracked.py" "$SYMLINK_PROJ" 2 \
+    "$PROJ_ENV=$SYMLINK_PROJ"
+  # The same root, not traversing the symlink, stays exempt: the fix must not
+  # turn the exemption off wholesale.
+  run_cwd "symlink: a genuine temp write in the same root stays allowed" \
+    "echo probe > $SYMLINK_TEMP/scratch.txt" "$SYMLINK_PROJ" 0 \
+    "$PROJ_ENV=$SYMLINK_PROJ"
+  rm -rf "$SYMLINK_TEMP" "$SYMLINK_PROJ"
+fi
 
 # A path with NO existing component holds no symlink, so the lexical answer is
 # already the physical one and the exemption stands. Pinned because the
 # alternative — failing closed on an unresolvable path — would make the verdict
 # depend on whether a directory happens to exist on the host.
-run_cwd "symlink: a wholly nonexistent memory-tier path still exempt" \
-  "echo hello > .work/nonexistent/deeper/notes.md" "$PROJ" 0 "$PROJ_ENV=$PROJ"
+run_cwd "symlink: a wholly nonexistent temp path is still exempt" \
+  "echo hello > /tmp/bhb-nonexistent/deeper/probe.txt" "$PROJ" 0 "$PROJ_ENV=$PROJ"
 
 # --- the defaults compose with the option, they do not replace it ------------
 run_cwd "default: configured root still exempts alongside the defaults" \

@@ -42,16 +42,29 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
-- **`block-hook-bypass` now ships two scratch roots exempt instead of none.** The
-  `block_hook_bypass_scratch_roots` option was opt-in and shipped empty, which left two
-  write targets blocked that no `Write|Edit` gate would ever have processed: the host
-  temp trees, which the harness's own per-session scratchpad sits under, and the memory
-  tier `<memory_dir>/` (default `.work/`, the never-committed topic memory tier). The
-  measured cost of that emptiness was five blocks in one day across four sessions with
-  zero true positives; the fifth refused `printf '*' >> .work/.gitignore`, the exact
-  command this marketplace's own `session-flow` save-point procedure prescribes. Per
-  ADR 0003 clause 4 that is a wrong SCOPE rather than a wrong oracle, so the oracle is
-  untouched and the scope is narrowed.
+- **`block-hook-bypass` now ships one scratch root exempt instead of none.** The
+  `block_hook_bypass_scratch_roots` option was opt-in and shipped empty, which left a
+  write target blocked that no `Write|Edit` gate would ever have processed: the host
+  temp trees, which the harness's own per-session scratchpad sits under. The measured
+  cost of that emptiness was five blocks in one day across four sessions with zero true
+  positives. Per ADR 0003 clause 4 that is a wrong SCOPE rather than a wrong oracle, so
+  the oracle is untouched and the scope is narrowed.
+
+  **The memory tier is deliberately not a second default.** `<memory_dir>/` (default
+  `.work/`) was exempted here and removed again during review, because the
+  "gives up no protection" argument does not carry to it: `hook::read_file_path` has no
+  `.work/` decline, so `secret-pattern-detection` scans a `Write` to `.work/notes.md`
+  today. Exempting Bash redirects there would have let
+  `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical `Write`
+  stayed blocked — the same content-guard bypass this release closes for the GitHub MCP
+  write tools. `docs/conventions/topic-docs/` states as normative that raw output
+  including credentials belongs in the memory tier, which reads as an argument for
+  exempting it from secret scanning too; making the two guards symmetric that way is a
+  widening of a default-on security guard, and ADR 0003 wants firing evidence before one
+  of those moves, so it is filed rather than decided. The consequence is that
+  `printf '*' >> .work/.gitignore` still blocks: that is `session-flow`'s own documented
+  procedure, so the conflict routes to the skill (use `Write`, which is scanned) rather
+  than to this guard.
 
   Exempting these gives up no protection, which is the only reason a default is
   defensible here. `hook::read_file_path`, the library entry every `Write|Edit` content
@@ -60,19 +73,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   exists to protect. The exemption's width is exactly the width of the protection it is
   scoped out of.
 
-  Both defaults are gated on `CLAUDE_PROJECT_DIR` naming a project root **outside** the
-  temp tree. With no project root neither fires (without it `hook::read_file_path` falls
-  back to git-working-tree membership, under which a temp file inside a fixture checkout
-  IS processed). When the project root is itself temp-rooted — the shape this repo's own
-  hook fixtures take, via `mktemp -d` — a temp file is project content and the temp
-  default stands down. Neither root is spelled as a static `plugin.json` default, because
-  neither has a fixed spelling: the scratchpad path carries a session id and the memory
-  tier hangs off the consuming project. Both resolve at run time.
+  The default is gated on `CLAUDE_PROJECT_DIR` naming a project root **outside** the
+  temp tree. With no project root it does not fire (without it `hook::read_file_path`
+  falls back to git-working-tree membership, under which a temp file inside a fixture
+  checkout IS processed). When the project root is itself temp-rooted — the shape this
+  repo's own hook fixtures take, via `mktemp -d` — a temp file is project content and the
+  default stands down. It is not spelled as a static `plugin.json` default, because it
+  has no fixed spelling: the scratchpad path carries a session id. It resolves at run
+  time.
 
-  The option's own list is still empty by default and now **adds to** the two shipped
-  roots rather than being the only source of them. The kill switch remains the
-  whole-guard lever; the shipped roots are not removable through the option. A consumer
-  who has moved `memory_dir` off `.work/` names the new location there.
+  The option's own list is still empty by default and now **adds to** the shipped root
+  rather than being the only source of one. The kill switch remains the whole-guard
+  lever; the shipped root is not removable through the option.
 
   **A shipped default confirms through symlink resolution before it grants.** The
   lexical compare alone exempts a redirect on its spelling, so a symlink under an
