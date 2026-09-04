@@ -40,12 +40,17 @@ set -uo pipefail
 # fallback reproduces dirname's own answer for a bare, slash-free invocation.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
+# and fails a guard that sources anything ahead of it.
+[[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$CG_DIR/hook-utils.sh"
 # shellcheck source=payload.sh
 source "$CG_DIR/payload.sh"
-
-hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
 MODE="${CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE:-advisory}"
 # Pure inapplicability: the gate exists only in blocking mode; the advisory

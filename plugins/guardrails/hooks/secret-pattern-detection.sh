@@ -20,6 +20,13 @@
 
 set -uo pipefail
 
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
+# and fails a guard that sources anything ahead of it.
+[[ "${CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
@@ -30,8 +37,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # shellcheck source=../lib/secret-detection/secret-patterns.sh
 source "$PLUGIN_ROOT/lib/secret-detection/secret-patterns.sh"
-
-hook::check_enabled "SECRET_PATTERN_DETECTION"
 
 # High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}

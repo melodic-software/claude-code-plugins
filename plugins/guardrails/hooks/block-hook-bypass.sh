@@ -38,6 +38,18 @@
 
 set -uo pipefail
 
+# Kill switch FIRST, above every source: a disabled guard must not pay to parse
+# hook-utils.sh before finding out it is off.
+#
+# Only the DISABLED arm is hoisted, and that split is the whole point. This
+# guard's switch is strict-and-loud (#3130 F7): a value that is neither `true`
+# nor `false` keeps the guard on and SAYS so, through hook::emit_channels — a
+# library function, so that arm cannot run before the library exists. An exact
+# `false` needs nothing from the library, so it exits here; every other value
+# falls through to the unchanged strict-and-loud block below, which the library
+# is loaded in time for. scripts/check-killswitch-hoist.sh knows this shape.
+[[ "${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED:-true}" == "false" ]] && exit 0
+
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
