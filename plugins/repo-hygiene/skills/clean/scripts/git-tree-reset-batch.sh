@@ -221,6 +221,16 @@ repo_dirty_reason() {
   printf ''
 }
 
+# child_label <child-output> <label> — the first `<label>: <value>` value in the
+# single-repo child's output, or nothing when the label is absent (callers default
+# to 0). One spelling for every documented child label the batch reads back.
+child_label() { sed -n "s/^$2: //p" <<<"$1" | head -1; }
+
+# The child's mode is fixed for the whole batch, so resolve it once here rather
+# than re-deriving it per repo inside the loop.
+CHILD_MODE=--dry-run
+[[ "$DRY_RUN" -eq 1 ]] || CHILD_MODE=--apply
+
 # Flags passed through to the single-repo child for every repo that runs.
 CHILD_PASS=()
 [[ "$FORCE_DEFAULT" -eq 1 ]] && CHILD_PASS+=(--force-default-branch)
@@ -271,7 +281,7 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
 
   # 3. Delegate to the unchanged single-repo tree reset.
   rc=0
-  out="$(cd "$top" && bash "$TREE_RESET" "$([[ "$DRY_RUN" -eq 1 ]] && echo --dry-run || echo --apply)" ${CHILD_PASS[@]+"${CHILD_PASS[@]}"} 2>&1)" || rc=$?
+  out="$(cd "$top" && bash "$TREE_RESET" "$CHILD_MODE" ${CHILD_PASS[@]+"${CHILD_PASS[@]}"} 2>&1)" || rc=$?
   case "$rc" in
   0)
     # The child exits 0 for a clean success AND for success-with-signal cases the
@@ -284,8 +294,8 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     # whose edits or commits it discards, and an operator never reads an incomplete
     # clean as a completed reset. Counts are read from child output (not recomputed)
     # because on apply the repo is already reset by this point.
-    tracked_dirty="$(printf '%s\n' "$out" | sed -n 's/^TrackedDirty: //p' | head -1)"
-    ahead="$(printf '%s\n' "$out" | sed -n 's/^AheadCount: //p' | head -1)"
+    tracked_dirty="$(child_label "$out" TrackedDirty)"
+    ahead="$(child_label "$out" AheadCount)"
     reason=none
     if [[ "$INCLUDE_DIRTY" -eq 1 ]]; then
       verb="$([[ "$DRY_RUN" -eq 1 ]] && echo 'would be discarded' || echo 'discarded')"
@@ -300,7 +310,7 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     if [[ "$DRY_RUN" -eq 1 ]]; then
       batch_emit "$top" would-reset "$reason"
     else
-      unremovable="$(printf '%s\n' "$out" | sed -n 's/^Unremovable: //p' | head -1)"
+      unremovable="$(child_label "$out" Unremovable)"
       if [[ "${unremovable:-0}" -gt 0 ]]; then
         note="incomplete clean: $unremovable path(s) unremovable (locked / in use)"
         if [[ "$reason" == none ]]; then reason="$note"; else reason="$reason; $note"; fi

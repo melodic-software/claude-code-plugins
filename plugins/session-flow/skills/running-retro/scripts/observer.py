@@ -26,6 +26,7 @@ Redaction boundary: the distilled observations are transient and machine-local
 and are deleted after the analysis run consumes them; only the -p run's
 already-redacted findings block is written to the durable, portable ledger.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -117,12 +118,16 @@ def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> tuple[str, bool]:
     if isinstance(value, str):
         s = value
     elif isinstance(value, list):
-        texts = [b.get("text", "") for b in value
-                if isinstance(b, dict) and b.get("type") == "text"]
+        texts = [
+            b.get("text", "")
+            for b in value
+            if isinstance(b, dict) and b.get("type") == "text"
+        ]
         s = " ".join(t for t in texts if t)
         if s.strip():
-            dropped_blocks = any(not (isinstance(b, dict) and b.get("type") == "text")
-                                 for b in value)
+            dropped_blocks = any(
+                not (isinstance(b, dict) and b.get("type") == "text") for b in value
+            )
         else:
             s = _compact_json(value)
     elif isinstance(value, dict):
@@ -156,7 +161,9 @@ def _result_entry(block: dict) -> dict:
     invisible in the preview alone -- and a later call that retries it is
     control-dependent on having seen the error, not an unbatched sibling.
     """
-    entry = _call_entry(_short_id(block.get("tool_use_id")), "out", block.get("content"))
+    entry = _call_entry(
+        _short_id(block.get("tool_use_id")), "out", block.get("content")
+    )
     if block.get("is_error"):
         entry["err"] = True
     return entry
@@ -218,19 +225,25 @@ def summarize_record(rec: dict) -> dict:
     if t == "assistant":
         msg = rec.get("message") or {}
         content = msg.get("content") or []
-        tool_uses = [c for c in content
-                     if isinstance(c, dict) and c.get("type") == "tool_use"]
-        text = " ".join(c.get("text", "") for c in content
-                        if isinstance(c, dict) and c.get("type") == "text")
+        tool_uses = [
+            c for c in content if isinstance(c, dict) and c.get("type") == "tool_use"
+        ]
+        text = " ".join(
+            c.get("text", "")
+            for c in content
+            if isinstance(c, dict) and c.get("type") == "text"
+        ).strip()
         if tool_uses:
             out["tools"] = [c.get("name") for c in tool_uses]
-            out["calls"] = [_call_entry(_short_id(c.get("id")), "in", c.get("input"))
-                            for c in tool_uses]
+            out["calls"] = [
+                _call_entry(_short_id(c.get("id")), "in", c.get("input"))
+                for c in tool_uses
+            ]
             mid = _short_id(msg.get("id"))
             if mid is not None:
                 out["mid"] = mid
-        if text.strip():
-            _set_narration(out, "say", text.strip())
+        if text:
+            _set_narration(out, "say", text)
         if msg.get("stop_reason"):
             out["stop_reason"] = msg["stop_reason"]
     elif t == "user":
@@ -240,18 +253,23 @@ def summarize_record(rec: dict) -> dict:
             _set_narration(out, "human", content)
             out["turn_boundary"] = True
         elif isinstance(content, list):
-            tool_results = [c for c in content
-                            if isinstance(c, dict) and c.get("type") == "tool_result"]
+            tool_results = [
+                c
+                for c in content
+                if isinstance(c, dict) and c.get("type") == "tool_result"
+            ]
             # A bare string inside the content list is a human message, the same
             # as a `text` block -- retro's canonical `parse_transcript.py` counts
             # it as one.
-            humans = [c if isinstance(c, str) else c.get("text", "")
-                      for c in content
-                      if isinstance(c, str)
-                      or (isinstance(c, dict) and c.get("type") == "text")]
+            humans = [
+                c if isinstance(c, str) else c.get("text", "")
+                for c in content
+                if isinstance(c, str)
+                or (isinstance(c, dict) and c.get("type") == "text")
+            ]
             if tool_results:
                 out["results"] = [_result_entry(c) for c in tool_results]
-            if humans and any(h.strip() for h in humans):
+            if any(h.strip() for h in humans):
                 _set_narration(out, "human", " ".join(humans).strip())
             # Anything in a user record that is not a tool_result is the human
             # speaking: text, a bare string, an image, a document, or a block
@@ -320,8 +338,9 @@ class Observer:
         """
         for _ in range(2):
             try:
-                fd = os.open(str(self.lock_path),
-                             os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                fd = os.open(
+                    str(self.lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+                )
             except FileExistsError:
                 if not self._lock_is_stale():
                     return False
@@ -333,8 +352,14 @@ class Observer:
             except OSError:
                 return False
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump({"pid": os.getpid(), "started": now_iso(),
-                           "session_id": self.session_id}, f)
+                json.dump(
+                    {
+                        "pid": os.getpid(),
+                        "started": now_iso(),
+                        "session_id": self.session_id,
+                    },
+                    f,
+                )
             return True
         return False
 
@@ -358,7 +383,9 @@ class Observer:
             other_pid = int(data.get("pid", -1))
         except (OSError, ValueError, json.JSONDecodeError):
             if mtime_age >= cap:
-                self.log(f"reclaiming unreadable/abandoned lock (mtime age {mtime_age:.0f}s)")
+                self.log(
+                    f"reclaiming unreadable/abandoned lock (mtime age {mtime_age:.0f}s)"
+                )
                 return True
             return False  # partial/mid-write lock -> treat as LIVE
         # A LIVE pid is never reclaimed, regardless of age: an idle-ended observer
@@ -372,7 +399,9 @@ class Observer:
         else:
             stale = mtime_age >= cap
         if stale:
-            self.log(f"reclaiming stale lock (pid={other_pid}, mtime age {mtime_age:.0f}s)")
+            self.log(
+                f"reclaiming stale lock (pid={other_pid}, mtime age {mtime_age:.0f}s)"
+            )
         return stale
 
     def release_lock(self) -> None:
@@ -411,7 +440,9 @@ class Observer:
         except OSError:
             return 0
 
-    def _tail_until_idle(self, lifetime_deadline: float | None = None) -> tuple[str, int]:
+    def _tail_until_idle(
+        self, lifetime_deadline: float | None = None
+    ) -> tuple[str, int]:
         if lifetime_deadline is None:
             lifetime_deadline = time.time() + self.max_secs
         # Resume from where a prior observer for THIS session left off (e.g. a
@@ -424,7 +455,6 @@ class Observer:
         cycles = total_lines = sharing_violations = read_errors = parse_errors = 0
         max_mtime = 0.0
         last_growth_iso = now_iso()
-        last_record: dict = {}
         started_iso = now_iso()
         state = "watching"
         pending_idle = False
@@ -489,8 +519,7 @@ class Observer:
                         if not isinstance(rec, dict):
                             continue
                         total_lines += 1
-                        last_record = summarize_record(rec)
-                        obs_f.write(json.dumps(last_record) + "\n")
+                        obs_f.write(json.dumps(summarize_record(rec)) + "\n")
                     obs_f.flush()
 
                 if mtime > max_mtime:
@@ -498,22 +527,24 @@ class Observer:
                     last_growth_iso = now_iso()
 
                 idle_for = time.time() - _to_epoch(last_growth_iso)
-                self._write_status({
-                    "target_session": self.session_id,
-                    "target_path": str(self.transcript),
-                    "observer_pid": os.getpid(),
-                    "started": started_iso,
-                    "updated": now_iso(),
-                    "cycles": cycles,
-                    "byte_offset": offset,
-                    "lines_observed": total_lines,
-                    "sharing_violations": sharing_violations,
-                    "read_errors": read_errors,
-                    "parse_errors": parse_errors,
-                    "idle_seconds": round(idle_for, 1),
-                    "last_growth": last_growth_iso,
-                    "state": state,
-                })
+                self._write_status(
+                    {
+                        "target_session": self.session_id,
+                        "target_path": str(self.transcript),
+                        "observer_pid": os.getpid(),
+                        "started": started_iso,
+                        "updated": now_iso(),
+                        "cycles": cycles,
+                        "byte_offset": offset,
+                        "lines_observed": total_lines,
+                        "sharing_violations": sharing_violations,
+                        "read_errors": read_errors,
+                        "parse_errors": parse_errors,
+                        "idle_seconds": round(idle_for, 1),
+                        "last_growth": last_growth_iso,
+                        "state": state,
+                    }
+                )
 
                 if idle_for >= self.idle_secs:
                     if not pending_idle:
@@ -543,19 +574,21 @@ class Observer:
                 elif pending_idle:
                     pending_idle = False
                     state = "watching"
-                    self.log(
-                        "transcript grew during idle confirmation; resuming watch"
-                    )
+                    self.log("transcript grew during idle confirmation; resuming watch")
                 if time.time() > lifetime_deadline:
                     state = "stopped-maxtime"
-                    self.log(f"max lifetime {self.max_secs}s reached; exiting without "
-                             "analysis (safety valve, not an end signal)")
+                    self.log(
+                        f"max lifetime {self.max_secs}s reached; exiting without "
+                        "analysis (safety valve, not an end signal)"
+                    )
                     break
                 time.sleep(self.poll_secs)
         finally:
             obs_f.close()
-        self._write_status({"target_session": self.session_id, "state": state,
-                            "updated": now_iso()}, merge=True)
+        self._write_status(
+            {"target_session": self.session_id, "state": state, "updated": now_iso()},
+            merge=True,
+        )
         return state, offset
 
     def _resume_offset(self) -> int:
@@ -587,8 +620,10 @@ class Observer:
         """
         memory_root = self.ledger_dir.parent
         if (memory_root / ".git").exists():
-            self.log("memory root is a repo root; refusing the memory-tier write "
-                     "(would leave an untracked committable ledger under the repo)")
+            self.log(
+                "memory root is a repo root; refusing the memory-tier write "
+                "(would leave an untracked committable ledger under the repo)"
+            )
             return False
         gi = memory_root / ".gitignore"
         try:
@@ -597,11 +632,15 @@ class Observer:
             # Verify a bare `*`/`**` line is present -- not merely that the file
             # exists (a repo-created .gitignore may hold only comments/exceptions).
             if not any(ln.strip() in ("*", "**") for ln in content.splitlines()):
-                prefix = content if content.endswith("\n") or not content else content + "\n"
+                prefix = (
+                    content if content.endswith("\n") or not content else content + "\n"
+                )
                 gi.write_text(prefix + "*\n", encoding="utf-8")
                 self.log(f"ensured memory-root self-ignore '*' in {gi}")
         except OSError as e:
-            self.log(f"self-ignore guard could not be established ({e}); refusing write")
+            self.log(
+                f"self-ignore guard could not be established ({e}); refusing write"
+            )
             return False
         return True
 
@@ -633,7 +672,9 @@ class Observer:
             # Analysis could not run -> RETAIN the observations as the collect-only
             # fallback (return "not consumed"), so the user is left with the
             # machine-local artifact rather than nothing.
-            self.log("claude CLI not found on PATH; retaining observations, no analysis")
+            self.log(
+                "claude CLI not found on PATH; retaining observations, no analysis"
+            )
             return False
 
         checkpoint_dir = f"{self.plugin_root}/skills/running-retro/context"
@@ -657,17 +698,22 @@ class Observer:
         if self.bare:
             cmd.append("--bare")
         cmd += [
-            "--model", self.model,
-            "--permission-mode", "dontAsk",
-            "--output-format", "json",
+            "--model",
+            self.model,
+            "--permission-mode",
+            "dontAsk",
+            "--output-format",
+            "json",
             # Genuinely Read-only over UNTRUSTED observations. --tools RESTRICTS the
             # available tool set to Read; --allowedTools only auto-APPROVES and does
             # not restrict, so on its own a Bash/WebFetch/MCP tool already allowed in
             # the user's settings could be driven by a prompt-injection record in the
             # transcript. --strict-mcp-config loads no MCP servers. --allowedTools +
             # dontAsk keep the single Read from prompting or being denied.
-            "--tools", "Read",
-            "--allowedTools", "Read",
+            "--tools",
+            "Read",
+            "--allowedTools",
+            "Read",
             "--strict-mcp-config",
             *add_dirs,
         ]
@@ -702,9 +748,17 @@ class Observer:
             # out of this try block, which is caught only for
             # TimeoutExpired/OSError; an uncaught decode error would skip the
             # designed "return False -> retain observations" fallback entirely.
-            proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace", env=env,
-                                  timeout=self.analysis_timeout_secs, **run_kwargs)
+            proc = subprocess.run(
+                cmd,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                timeout=self.analysis_timeout_secs,
+                **run_kwargs,
+            )
         except (subprocess.TimeoutExpired, OSError) as e:
             self.log(f"analysis run failed: {e}")
             return False
@@ -712,8 +766,10 @@ class Observer:
         # exit 0 sometimes and exit 1 others; inspect both.
         err = _result_error(proc.stdout)
         if proc.returncode != 0 or err:
-            self.log(f"analysis exit {proc.returncode}: "
-                     f"{err or proc.stderr[:400] or '(no detail)'}")
+            self.log(
+                f"analysis exit {proc.returncode}: "
+                f"{err or proc.stderr[:400] or '(no detail)'}"
+            )
             return False
         findings = _extract_result(proc.stdout)
         if not findings:
@@ -738,8 +794,10 @@ class Observer:
             return False
         self.ledger_dir.mkdir(parents=True, exist_ok=True)
         ledger = self._find_session_ledger()
-        section = (f"\n## Checkpoint {now_ts()} (autonomous post-end)\n\n"
-                   f"{_redact(findings).strip()}\n")
+        section = (
+            f"\n## Checkpoint {now_ts()} (autonomous post-end)\n\n"
+            f"{_redact(findings).strip()}\n"
+        )
         if ledger is None:
             ledger = self.ledger_dir / f"{now_ts()}-running-retro-{self.topic}.md"
             # Carry the cross-session continuity pointers when the arming context
@@ -753,8 +811,10 @@ class Observer:
                 fm.append(f"previous_running_retro: {self.prev_running_retro}")
             if self.prev_session_id:
                 fm.append(f"previous_session_id: {self.prev_session_id}")
-            header = ("---\n" + "\n".join(fm) + "\n---\n\n"
-                      f"# Running retro ledger — {self.topic}\n")
+            header = (
+                "---\n" + "\n".join(fm) + "\n---\n\n"
+                f"# Running retro ledger — {self.topic}\n"
+            )
             ledger.write_text(header + section, encoding="utf-8")
             self.log(f"created ledger {ledger.name}")
         else:
@@ -769,8 +829,9 @@ class Observer:
                 head = path.read_text(encoding="utf-8")[:400]
             except OSError:
                 continue
-            if re.search(rf"^session_id:\s*{re.escape(self.session_id)}\s*$",
-                         head, re.MULTILINE):
+            if re.search(
+                rf"^session_id:\s*{re.escape(self.session_id)}\s*$", head, re.MULTILINE
+            ):
                 return path
         return None
 
@@ -793,8 +854,9 @@ def _pid_alive(pid: int) -> bool:
         # at all. A process *name* containing non-ASCII/mojibake text can
         # never affect this match either way, since the predicate only looks
         # for ASCII digits.
-        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                            capture_output=True)
+        out = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True
+        )
         return str(pid).encode("ascii") in out.stdout
     try:
         os.kill(pid, 0)
@@ -810,6 +872,7 @@ def _pid_alive(pid: int) -> bool:
 
 def _find_claude() -> str | None:
     from shutil import which
+
     for name in ("claude", "claude.cmd", "claude.exe"):
         found = which(name)
         if found:
@@ -833,20 +896,36 @@ def _extract_result(stdout: str) -> str:
 # and shape-based (never the value) -- defense in depth over the -p run's semantic
 # pass, matching running-retro's "redact on the ledger write too" mandate.
 _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
-    (re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----.*?-----END[^-]+PRIVATE KEY-----",
-                re.DOTALL), "<REDACTED: private key>"),
+    (
+        re.compile(
+            r"-----BEGIN[^-]+PRIVATE KEY-----.*?-----END[^-]+PRIVATE KEY-----",
+            re.DOTALL,
+        ),
+        "<REDACTED: private key>",
+    ),
     (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "<REDACTED: API key>"),
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"), "<REDACTED: GitHub token>"),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "<REDACTED: Slack token>"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "<REDACTED: AWS key id>"),
-    (re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
-     "<REDACTED: JWT>"),
-    (re.compile(r"(?i)\b(?:bearer|token|api[_-]?key|secret|password|passwd|pwd)"
-                r"['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9._+/=-]{8,}"), "<REDACTED: secret>"),
-    (re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
-     "<REDACTED: connection string>"),
-    (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
-     "<REDACTED: email>"),
+    (
+        re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+        "<REDACTED: JWT>",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(?:bearer|token|api[_-]?key|secret|password|passwd|pwd)"
+            r"['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9._+/=-]{8,}"
+        ),
+        "<REDACTED: secret>",
+    ),
+    (
+        re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
+        "<REDACTED: connection string>",
+    ),
+    (
+        re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+        "<REDACTED: email>",
+    ),
 )
 
 
@@ -980,36 +1059,72 @@ of the observations.
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="running-retro detached observer")
-    p.add_argument("--transcript", required=True, help="absolute path to <session>.jsonl")
-    p.add_argument("--work-dir", required=True,
-                   help="machine-local dir for transient observations (NOT the ledger dir)")
-    p.add_argument("--ledger-dir", required=True,
-                   help="running-retros ledger dir (durable, redacted findings only)")
+    p.add_argument(
+        "--transcript", required=True, help="absolute path to <session>.jsonl"
+    )
+    p.add_argument(
+        "--work-dir",
+        required=True,
+        help="machine-local dir for transient observations (NOT the ledger dir)",
+    )
+    p.add_argument(
+        "--ledger-dir",
+        required=True,
+        help="running-retros ledger dir (durable, redacted findings only)",
+    )
     p.add_argument("--session-id", default="", help="defaults to transcript stem")
     p.add_argument("--plugin-root", default="", help="${CLAUDE_PLUGIN_ROOT}")
     p.add_argument("--topic", default="", help="ledger topic slug")
-    p.add_argument("--previous-running-retro", default="",
-                   help="prior ledger path for cross-session continuity (resolved by "
-                        "the in-session arm entry under retro's continuity gate)")
-    p.add_argument("--previous-session-id", default="",
-                   help="prior session id paired with --previous-running-retro")
+    p.add_argument(
+        "--previous-running-retro",
+        default="",
+        help="prior ledger path for cross-session continuity (resolved by "
+        "the in-session arm entry under retro's continuity gate)",
+    )
+    p.add_argument(
+        "--previous-session-id",
+        default="",
+        help="prior session id paired with --previous-running-retro",
+    )
     p.add_argument("--model", default="claude-haiku-4-5")
-    p.add_argument("--analysis", action="store_true",
-                   help="fire the headless post-end analysis on idle-detect")
-    p.add_argument("--bare", action="store_true",
-                   help="pass --bare to the analysis run (cost lever; only where "
-                        "auth survives it -- breaks OAuth-login installs)")
+    p.add_argument(
+        "--analysis",
+        action="store_true",
+        help="fire the headless post-end analysis on idle-detect",
+    )
+    p.add_argument(
+        "--bare",
+        action="store_true",
+        help="pass --bare to the analysis run (cost lever; only where "
+        "auth survives it -- breaks OAuth-login installs)",
+    )
     p.add_argument("--poll-seconds", type=float, default=5.0)
-    p.add_argument("--idle-seconds", type=float, default=900.0,
-                   help="mtime-idle end threshold; keep above the longest single turn")
-    p.add_argument("--idle-confirm-seconds", type=float, default=30.0,
-                   help="after the idle threshold trips, wait this long for renewed "
-                        "transcript growth before treating the session as ended")
-    p.add_argument("--max-seconds", type=float, default=86400.0,
-                   help="hard lifetime safety valve; exits WITHOUT analysis")
-    p.add_argument("--analysis-timeout-seconds", type=float, default=600.0,
-                   help="subprocess timeout for the headless analysis run (its own "
-                        "bound, independent of --max-seconds)")
+    p.add_argument(
+        "--idle-seconds",
+        type=float,
+        default=900.0,
+        help="mtime-idle end threshold; keep above the longest single turn",
+    )
+    p.add_argument(
+        "--idle-confirm-seconds",
+        type=float,
+        default=30.0,
+        help="after the idle threshold trips, wait this long for renewed "
+        "transcript growth before treating the session as ended",
+    )
+    p.add_argument(
+        "--max-seconds",
+        type=float,
+        default=86400.0,
+        help="hard lifetime safety valve; exits WITHOUT analysis",
+    )
+    p.add_argument(
+        "--analysis-timeout-seconds",
+        type=float,
+        default=600.0,
+        help="subprocess timeout for the headless analysis run (its own "
+        "bound, independent of --max-seconds)",
+    )
     return p
 
 

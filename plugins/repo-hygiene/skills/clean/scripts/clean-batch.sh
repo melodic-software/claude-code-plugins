@@ -202,7 +202,7 @@ plan_gitdir_record_wellformed() { [[ -n "$1" ]]; }
 # child's tallies the same way. summary_line <child-output> extracts the first
 # Summary line; summary_field <name> <summary-line> pulls one numeric `<name>=<n>`
 # field out of it, or nothing when the field is absent (callers default to 0).
-summary_line() { printf '%s\n' "$1" | sed -n 's/^Summary: //p' | head -1; }
+summary_line() { sed -n 's/^Summary: //p' <<<"$1" | head -1; }
 summary_field() { sed -n "s/.*$1=\([0-9]*\).*/\1/p" <<<"$2"; }
 
 # ---------------------------------------------------------------------------
