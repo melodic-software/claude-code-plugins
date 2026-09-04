@@ -3,6 +3,31 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.28]
+
+### Changed
+
+- **The batch-common suite drops a dead array reset.** Its low-fd case runs the
+  read inside a subshell that declares its own array and asserts on that
+  subshell's stdout, so the outer reset was never read; it mimicked the sibling
+  cases that do assert on the outer array, which made it look load-bearing. A
+  comment now records why this case is the exception. Every other caller keeps
+  its reset, which is required because the read function appends rather than
+  assigns. Tested adversarially: with a stale array injected so the edited file
+  reaches the case populated, output is identical either way, and five mutants
+  of the library under test, including a restoration of the file-descriptor
+  defect this case guards, fail identically before and after.
+
+### Known issues
+
+- **No test covers the tier-token distinction in `clean-batch.sh`.**
+  `manifest_child_token` and `tier_repo_token` look like an obvious two-function
+  dedup, and merging them lets a plan built for the build tier be authorized
+  under `--tier git`, applying and removing build output that tier never gated.
+  The in-file comment saying they must stay distinct is correct, but the suite
+  has no case feeding a build record to `--tier git`, which is the only input
+  where the two functions differ.
+
 ## [0.10.27]
 
 ### Changed
