@@ -160,7 +160,7 @@ if ((count <= GRACE)); then
 fi
 
 TOOL=$(hook::jq_field "$INPUT" '.tool_name') || TOOL="tool"
-reason="context-guard blocking mode: this session is in the dumb context zone (fresh snapshot) and the grace budget ($GRACE matched calls) is exhausted, so new $TOOL work is denied. Write a durable handoff now and resume in a fresh session: handoff-path writes, read-only tools, Bash, and Skill invocations all remain allowed — run /session-flow:handoff (if installed), or write a resume file whose path contains 'handoff'. Operators can soften this via the zone_hook_mode userConfig option (advisory)."
+reason="context-guard blocking mode: this session is in the dumb context zone (fresh snapshot) and the grace budget ($GRACE matched calls) is exhausted, so new $TOOL work is denied. Write a durable handoff now and resume in a fresh session: handoff-path writes, read-only tools, Bash, and Skill invocations all remain allowed — run /session-flow:handoff (if installed) via the Skill tool; the save-point it writes is exempt from this gate. Operators can soften this via the zone_hook_mode userConfig option (advisory)."
 jq -n --arg reason "$reason" \
   '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$reason}}'
 hook::emit_telemetry "zone-gate" "PreToolUse" "blocked" "$START_EPOCH" \

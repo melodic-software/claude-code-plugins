@@ -81,6 +81,7 @@ else
   fail "grace exhausted: rc=$RC out=$OUT"
 fi
 if [[ "$OUT" == *handoff* ]]; then ok "deny reason routes to a handoff"; else fail "deny reason lacks handoff routing: $OUT"; fi
+if [[ "$OUT" != *"write a resume file"* ]]; then ok "deny reason names only the skill"; else fail "deny reason still licenses a free-hand resume file: $OUT"; fi
 
 # 4. Handoff-path write exempt even past grace.
 run "$H" "$D" s1 ',"tool_input":{"file_path":"/work/.work/handoffs/20260726-handoff-x.md"}' blocking 2

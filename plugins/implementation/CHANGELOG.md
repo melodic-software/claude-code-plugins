@@ -3,6 +3,17 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1]
+
+### Changed
+
+- **`implement` Step 4 item 2's absent-`session-flow` fallback now carries the engine-shaped
+  rails prompt.** The fallback described the note's sections and stopped, so it wrote a file and
+  printed nothing a fresh session could paste. It now ends with the copy region in exactly the
+  engine's shape: the copy-instruction line, the U+2500 rails, the `Read @` directive,
+  `Prior session:`, and `Handoff origin:`. The present-plugin sentence gains that the note is
+  never written free-hand. Ritual item order (1 to 5) is unchanged.
+
 ## [0.16.0]
 
 ### Added

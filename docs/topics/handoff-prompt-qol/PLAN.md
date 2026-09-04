@@ -465,7 +465,7 @@ as predicted while the two pre-existing chain tests pass there too, so the green
 regression. typos, editorconfig-checker, gitleaks, and markdownlint on the touched docs are clean;
 the diff carries no em dash and no machine path.
 
-### Phase 4: Close the free-hand licences (context-guard, implementation) [TODO]
+### Phase 4: Close the free-hand licences (context-guard, implementation) [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -479,6 +479,24 @@ the diff carries no em dash and no machine path.
 `grep -c "─" plugins/implementation/skills/implement/SKILL.md` ≥ 2; `bash plugins/skill-quality/scripts/check-skill.sh implement` PASS;
 `scripts/check-changelog-parity.sh --check-bump origin/main` exit 0; `bash scripts/check-purged-em-dashes.sh` exit 0
 (`plugins/implementation/skills/*/SKILL.md` is a purged surface).
+
+**Result (2026-09-03):** landed as an Opus sub-agent worker under the A2 fence; the fresh-context
+verifier reported 10 of 10 PASS. `zone-gate.test.sh` gained the "does NOT contain
+`write a resume file`" assertion first and failed against the unchanged hook (`PASS=24 FAIL=1`, the
+deny reason still carried the free-hand clause); the one-line `reason=` rewrite in `zone-gate.sh`
+turned it green (`PASS=25 FAIL=0`) with the `*handoff*` path exemption byte-identical (test 4,
+`handoff-path write exempt`, still passes). The verifier reproduced the red empirically: HEAD's
+`plugins/context-guard` via `git archive` into a scratch dir plus the working-tree test file. In
+`implement/SKILL.md`, item 2 (+11 lines, one hunk) gained the engine-shaped copy region as a fenced
+block with the placeholder tokens, `Prior session: <UUID>.` and the two-slot `Handoff origin:`; the
+fallback directive deliberately omits the engine's second sentence (it names a skill the
+absent-session-flow consumer does not have) and the illustrative `Next:` lines; items 1 to 5 keep
+their order; the file has zero em dashes. Bumps 0.7.35 and 0.16.1 with entries; the context-guard
+entry records the unchanged path exemption as the gap. Sanity Check all green: the hook suite, both
+greps (the only remaining `write a resume file` under `plugins/` is the new assertion itself),
+`check-skill.sh implement` PASS with the pre-existing soft-cap WARN (226 lines, was 215), changelog
+parity, the purged em-dash gate, shellcheck, markdownlint, typos, editorconfig-checker; the diff
+carries no machine path. Delta: 7 files, +42/-4.
 
 ### Phase 5: Headless harness and the measured budget [TODO]
 
