@@ -1229,7 +1229,12 @@ jobs:
               # well as pytest-style ones, and each of these files puts its own
               # module directory on sys.path, so no per-suite runner has to be
               # guessed. Anything left is named in a warning and counted in the
-              # run summary rather than reported as executed.
+              # run summary rather than reported as executed: the Node suites
+              # outside the four sub-projects and the Pester suites have no
+              # runner on EITHER path (run-plugin-tests.sh is shell-only too),
+              # so failing here would red pull requests for a gap push shares.
+              # #3703 closes it; the gate ledger's coverage-not-carried row
+              # records it.
               notrun=$(awk '/^NOT RUN:/{f=1} f && /^  - /{sub(/^  - /,""); print}' "$err")
               echo "::warning::The affected-suite selector declined to run: $(printf '%s' "$notrun" | tr '\n' ' ')"
               py=$(printf '%s\n' "$notrun" | grep -E '\.py$' || true)
@@ -1238,7 +1243,7 @@ jobs:
                 printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q --
               fi
               if [ -n "$rest" ]; then
-                echo "::warning::No step in this workflow executes these selected suites: $(printf '%s' "$rest" | tr '\n' ' ')"
+                echo "::warning::No step in this workflow executes these selected suites (#3703): $(printf '%s' "$rest" | tr '\n' ' ')"
                 printf 'affected-tests: %s selected suite(s) had no runner in this workflow\n' "$(printf '%s\n' "$rest" | grep -c . || true)" >> "$GITHUB_STEP_SUMMARY"
               fi
               ;;
