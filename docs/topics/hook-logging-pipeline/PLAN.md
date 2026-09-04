@@ -153,6 +153,9 @@ trigger that `docs/conventions/upstream-drift` requires.
 - The 4 KB atomic-append boundary measured on Linux holds or is irrelevant on the Windows reference
   host. Irrelevant is the expected case, since per-session files remove the shared-write path
   entirely; the recheck is owed regardless.
+- Version coordination on `plugins/claude-ops`: a sibling lane (`claude/code-quality-metrics-plugins-p99tkz`,
+  commit `b92f6ead`) holds 0.41.13 with a CHANGELOG entry at the head. Any bump from this lane takes
+  0.41.14 and places its entry above theirs, so whichever merges first the other rebases cleanly.
 
 ### Out of scope
 
