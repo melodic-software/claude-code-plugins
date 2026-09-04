@@ -1,11 +1,10 @@
 # Legacy statusline detection — shared classification
 
-The shared, plugin-name-free half of the two statusline guard plugins' legacy detection, synced
-byte-identical between them by `scripts/sync-legacy-statusline-detect.sh` and registered in
-`scripts/cross-plugin-source-registry.txt`. The hub SKILL.md supplies every concrete path: the
-DURABLE SHIM COPY (the `bin/statusline-shim.sh` under this plugin's own operator-home directory)
-and the SHIPPED SOURCE (`${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`). These surfaces live
-under `~/.claude/`, machine scope; the shared classification below is deduplicated here.
+The shared, plugin-name-free half of the two statusline guard plugins' legacy detection. The hub
+SKILL.md supplies every concrete path: the DURABLE SHIM COPY (the `bin/statusline-shim.sh` under
+this plugin's own operator-home directory) and the SHIPPED SOURCE
+(`${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`). These surfaces live under `~/.claude/`,
+machine scope; the shared classification below is deduplicated here.
 
 ## Installed shim state
 

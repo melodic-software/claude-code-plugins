@@ -1,10 +1,9 @@
 # Unwrap before you compose — shared peel and wrap rules
 
 The shared, plugin-name-free half of the two statusline guard plugins' compose
-rules, synced byte-identical between them by `scripts/sync-unwrap-before-compose.sh`
-and registered in `scripts/cross-plugin-source-registry.txt`. The hub setup skill
-supplies every concrete shim path for the printed edit. These rules target
-machine-scope surfaces under `~/.claude/` and are deduplicated here.
+rules. The hub setup skill supplies every concrete shim path for the printed
+edit. These rules target machine-scope surfaces under `~/.claude/` and are
+deduplicated here.
 
 ## Unwrap before you compose
 
