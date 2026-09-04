@@ -3,6 +3,37 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.3]
+
+### Changed
+
+- **`block-noncanonical-commit.test.sh` calls the shared `report` helper** in
+  place of a three-line inline copy. It was the only one of the plugin's 17 hook
+  suites not using the helper it already sources. The terminal check changes
+  form, so the two spellings were compared by execution across 14 inputs
+  including unset, empty, non-numeric, leading-zero and both integer extremes:
+  identical exit codes in every case. The suite's ability to fail was proven
+  under two mutation classes, one injecting a failing assertion and one
+  weakening the gate itself; both turn it red.
+- **`require-jq-notice-isolation.test.sh` drops a dead pre-initialisation** that
+  a `grep -c` capture unconditionally overwrites eleven lines later, with no
+  read in between and no path on which the capture is skipped.
+
+  No gate script was modified. All 52 tracked files in the plugin were hashed
+  against the previous release: exactly the two suites above differ. A 48-case
+  accept-and-refuse corpus across three hook lanes diffs to zero between the two
+  revisions, and two deliberate gate weakenings confirm that corpus
+  discriminates rather than passing vacuously.
+
+### Known issues
+
+- **Nothing self-tests the shared `report` helper.** With the inline copy gone,
+  a broken helper combined with a weakened gate would leave none of the 17
+  suites red, where one previously stayed red on its own terminal check. That
+  protection was incidental rather than designed and was already absent for the
+  other 16 suites; single-fault regressions are still caught. A self-test of the
+  helper is the mitigation, mirroring the one the repo-wide harness already has.
+
 ## [0.31.2]
 
 ### Changed
