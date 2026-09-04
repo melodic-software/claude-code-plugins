@@ -264,7 +264,20 @@ if command -v shellcheck >/dev/null 2>&1; then
         CTX+="  $line"$'\n'
         findings_raw+="$line"$'\n'
       done <<<"$SC_OUTPUT"
-      if [[ -n "$findings_raw" ]]; then
+      # FINDINGS_JSON feeds the telemetry envelope and nothing else, so the
+      # encode sits behind the sink opt-in, the same rule TOOL/FILE_REL above
+      # already follow. Without the guard a findings-bearing edit paid two jq
+      # spawns on the unwired default path for a value emit_tel then discards
+      # (measured with strace -f -e trace=execve: 3 jq execs per run, 1 with
+      # the guard).
+      #
+      # The two-process `jq -R . | jq -s .` shape stays. Folding it into one
+      # `jq -R -s 'split("\n")...'` was tried and is wrong: slurp mode decodes
+      # the whole stream as a single string, so a truncated UTF-8 lead byte
+      # sitting immediately before a newline absorbs that newline into one
+      # U+FFFD and merges two ShellCheck findings into one array element. Line
+      # mode splits on the raw byte first and keeps them apart.
+      if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
         FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
       fi
     fi

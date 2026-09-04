@@ -153,7 +153,21 @@ AL_STATUS=$?
 # as an error (output captured as findings for the sink), never as clean.
 if [[ "$AL_STATUS" -ge 2 ]]; then
   FINDINGS_JSON='[]'
-  if [[ -n "$AL_OUTPUT" ]]; then
+  # FINDINGS_JSON feeds the telemetry envelope and nothing else, so the encode
+  # sits behind the sink opt-in, the same rule TOOL above already follows.
+  # Without the guard a run reaching this branch paid two jq spawns on the
+  # unwired default path for a value emit_tel then discards (measured with
+  # strace -f -e trace=execve: 5 jq execs per run, 3 with the guard).
+  #
+  # The two-process `jq -R . | jq -s .` shape stays. Folding it into one
+  # `jq -R -s 'split("\n")...'` was tried and is wrong: slurp mode decodes the
+  # whole stream as a single string, so a truncated UTF-8 lead byte sitting
+  # immediately before a newline absorbs that newline into one U+FFFD and
+  # merges two output lines into one array element. Line mode splits on the raw
+  # byte first and keeps them apart. That matters most here: this branch
+  # encodes actionlint's raw stdout+stderr, blank lines and all, with none of
+  # the per-line filtering the findings branch below applies.
+  if [[ -n "$AL_OUTPUT" ]] && hook::telemetry_enabled; then
     FINDINGS_JSON=$(printf '%s' "$AL_OUTPUT" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
   emit_tel "error" "$FINDINGS_JSON"
@@ -172,7 +186,9 @@ if [[ -n "$AL_OUTPUT" ]]; then
   done <<<"$AL_OUTPUT"
   hook::ctx_flush PostToolUse
 
-  if [[ -n "$findings_raw" ]]; then
+  # Behind the sink opt-in, and the two-process jq shape kept, for the reasons
+  # recorded at the AL_STATUS >= 2 branch above.
+  if [[ -n "$findings_raw" ]] && hook::telemetry_enabled; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
 fi
